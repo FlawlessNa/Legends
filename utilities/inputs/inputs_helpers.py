@@ -10,22 +10,22 @@ from functools import lru_cache
 
 
 KEYBOARD_MAPPING = {
-    'alt': win32con.VK_MENU,
-    'alt_right': win32con.VK_MENU,  # Could've used the win32con.VK_RMENU, but Spy++ shows that the game uses the VK_MENU instead. Reproduced here to copy human-like behavior.
-    'ctrl': win32con.VK_CONTROL,  # Could've used the win32con.VK_LCONTROL, but Spy++ shows that the game uses the VK_CONTROL instead. Reproduced here to copy human-like behavior.
-    'ctrl_right': win32con.VK_CONTROL,  # Could've used the win32con.VK_RCONTROL, but Spy++ shows that the game uses the VK_CONTROL instead. Reproduced here to copy human-like behavior.
-    'left': win32con.VK_LEFT,
-    'right': win32con.VK_RIGHT,
-    'up': win32con.VK_UP,
-    'down': win32con.VK_DOWN,
-    'shift': win32con.VK_SHIFT,
-    'home': win32con.VK_HOME,
-    'end': win32con.VK_END,
-    'insert': win32con.VK_INSERT,
-    'delete': win32con.VK_DELETE,
-    'pageup': win32con.VK_PRIOR,
-    'pagedown': win32con.VK_NEXT,
-    'num_lock': win32con.VK_NUMLOCK,
+    "alt": win32con.VK_MENU,
+    "alt_right": win32con.VK_MENU,  # Could've used the win32con.VK_RMENU, but Spy++ shows that the game uses the VK_MENU instead. Reproduced here to copy human-like behavior.
+    "ctrl": win32con.VK_CONTROL,  # Could've used the win32con.VK_LCONTROL, but Spy++ shows that the game uses the VK_CONTROL instead. Reproduced here to copy human-like behavior.
+    "ctrl_right": win32con.VK_CONTROL,  # Could've used the win32con.VK_RCONTROL, but Spy++ shows that the game uses the VK_CONTROL instead. Reproduced here to copy human-like behavior.
+    "left": win32con.VK_LEFT,
+    "right": win32con.VK_RIGHT,
+    "up": win32con.VK_UP,
+    "down": win32con.VK_DOWN,
+    "shift": win32con.VK_SHIFT,
+    "home": win32con.VK_HOME,
+    "end": win32con.VK_END,
+    "insert": win32con.VK_INSERT,
+    "delete": win32con.VK_DELETE,
+    "pageup": win32con.VK_PRIOR,
+    "pagedown": win32con.VK_NEXT,
+    "num_lock": win32con.VK_NUMLOCK,
 }
 
 
@@ -48,7 +48,7 @@ class _InputsHelpers:
         "print_screen",
         "divide",
         "enter",
-        'num_lock'
+        "num_lock",
     )
 
     MAPVK_VK_TO_VSC = 0
@@ -83,8 +83,10 @@ class _InputsHelpers:
         """
         if hwnd is None:
             hwnd = self.handle
-        thread_id = self._exported_functions['GetWindowThreadProcessId'](wintypes.HWND(hwnd), None)
-        return self._exported_functions['GetKeyboardLayout'](thread_id)
+        thread_id = self._exported_functions["GetWindowThreadProcessId"](
+            wintypes.HWND(hwnd), None
+        )
+        return self._exported_functions["GetKeyboardLayout"](thread_id)
 
     @staticmethod
     def _setup_exported_functions() -> dict[str, callable]:
@@ -104,7 +106,7 @@ class _InputsHelpers:
         get_keyboard_layout.argtypes = [wintypes.DWORD]
 
         return {
-            'MapVirtualKeyExW': map_virtual_key,
-            'GetWindowThreadProcessId': get_window_thread_process_id,
-            'GetKeyboardLayout': get_keyboard_layout,
+            "MapVirtualKeyExW": map_virtual_key,
+            "GetWindowThreadProcessId": get_window_thread_process_id,
+            "GetKeyboardLayout": get_keyboard_layout,
         }

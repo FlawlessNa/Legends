@@ -13,24 +13,30 @@ from utilities.inputs import _FocusedInputs, _NonFocusedInputs
 
 class InputHandler(_FocusedInputs, _NonFocusedInputs):
     """Low-level input handler that sends input to a window. Combines SendInput(...) and PostMessage(...) functionalities."""
+
     def __init__(self, handle: int) -> None:
         """
         :param handle: Handle to the window that will be controlled
         """
         super().__init__(handle)
         if GetKeyState(win32con.VK_NUMLOCK) != 0:
-            inpt = self._input_array_constructor(keys=['num_lock', 'num_lock'], events=['keydown', 'keyup'], enforce_delay=False)[0][0]
-            self._exported_functions['SendInput'](*inpt)
+            inpt = self._input_array_constructor(
+                keys=["num_lock", "num_lock"],
+                events=["keydown", "keyup"],
+                enforce_delay=False,
+            )[0][0]
+            self._exported_functions["SendInput"](*inpt)
 
-    @randomize_params('cooldown')
-    async def _non_focused_input(self,
-                                 keys: str | list[str],
-                                 messages: wintypes.UINT | list[wintypes.UINT],
-                                 delay: float = 0.033,
-                                 cooldown: float = 0.1,
-                                 hwnd: int | None = None,
-                                 **kwargs
-                                 ) -> None:
+    @randomize_params("cooldown")
+    async def _non_focused_input(
+        self,
+        keys: str | list[str],
+        messages: wintypes.UINT | list[wintypes.UINT],
+        delay: float = 0.033,
+        cooldown: float = 0.1,
+        hwnd: int | None = None,
+        **kwargs
+    ) -> None:
         """
         Constructs the input array of structures to be sent to the window associated the provided handle. Send that input through PostMessage.
         Note: While this function is broken down in two components, there's no real gain in doing so. It is merely for consistency with the _focused_input() version.
@@ -41,24 +47,29 @@ class InputHandler(_FocusedInputs, _NonFocusedInputs):
         :param hwnd: Handle to the window to send the message to. If None, the handle associated with this instance will be used.
         :return: None
         """
-        if isinstance(keys, str):  # If only one key is provided, we convert it to a list to simplify the rest of the code. In such a case, we also set delay to 0.
+        if isinstance(
+            keys, str
+        ):  # If only one key is provided, we convert it to a list to simplify the rest of the code. In such a case, we also set delay to 0.
             keys = [keys] * len(messages) if isinstance(messages, list) else [keys]
             delay = 0 if len(keys) == 1 else delay
         if not isinstance(messages, list):
             messages = [messages]
 
-        items = self._message_constructor(keys=keys, messages=messages, delay=delay, hwnd=hwnd, **kwargs)
+        items = self._message_constructor(
+            keys=keys, messages=messages, delay=delay, hwnd=hwnd, **kwargs
+        )
         await self._post_messages(items, cooldown=cooldown)
 
-    @randomize_params('cooldown')
-    async def _focused_input(self,
-                             keys: str | list[str],
-                             event_type: Literal['keyup', 'keydown'] | list[Literal['keyup', 'keydown']],
-                             enforce_delay: bool,
-                             as_unicode: bool = False,
-                             delay: float = 0.033,
-                             cooldown: float = 0.1,
-                             ) -> None:
+    @randomize_params("cooldown")
+    async def _focused_input(
+        self,
+        keys: str | list[str],
+        event_type: Literal["keyup", "keydown"] | list[Literal["keyup", "keydown"]],
+        enforce_delay: bool,
+        as_unicode: bool = False,
+        delay: float = 0.033,
+        cooldown: float = 0.1,
+    ) -> None:
         """
         Constructs the input array of structures to be sent to the window associated with this InputHandler instance. It then activates and sends the input to the window through SendInput.
         Note: This function is broken down to allow only the input construction to be made without using the Focus Lock. The Lock is therefore only used once everything is ready to be sent.
@@ -75,7 +86,13 @@ class InputHandler(_FocusedInputs, _NonFocusedInputs):
         if not isinstance(event_type, list):
             event_type = [event_type]
 
-        inputs = self._input_array_constructor(keys=keys, events=event_type, enforce_delay=enforce_delay, as_unicode=as_unicode, delay=delay)
+        inputs = self._input_array_constructor(
+            keys=keys,
+            events=event_type,
+            enforce_delay=enforce_delay,
+            as_unicode=as_unicode,
+            delay=delay,
+        )
         await self._send_inputs(inputs, cooldown=cooldown)
 
     def _setup_exported_functions(self) -> dict[str, callable]:

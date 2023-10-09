@@ -9,14 +9,16 @@ from utilities.inputs import _InputsHelpers
 from utilities.randomize_params import randomize_params
 
 from functools import lru_cache
-SYS_KEYS = ['alt', 'alt_right', 'F10']
+
+SYS_KEYS = ["alt", "alt_right", "F10"]
 
 
 class _NonFocusedInputs(_InputsHelpers):
     """Low-level class that handles the sending of inputs to any window through PostMessage(...). Consecutive messages may be sent with a delay between each call."""
-    async def _post_messages(self,
-                             items: list[list[tuple, float]],
-                             cooldown: float = 0.1) -> None:
+
+    async def _post_messages(
+        self, items: list[list[tuple, float]], cooldown: float = 0.1
+    ) -> None:
         """
         Sends the provided items through PostMessage(...) and waits the required delay between each call.
         Note: Delays are the waiting time between each call of PostMessage(...). These are usually very short, especially between and KEYDOWN and KEYUP messages.
@@ -29,19 +31,28 @@ class _NonFocusedInputs(_InputsHelpers):
             msg, delay = item
 
             # PostMessageW will return 0 only if the message queue is full. In that case, we wait until it's not full anymore. This shouldn't really ever happen but still a precaution.
-            while not self._exported_functions['PostMessageW'](*msg):
+            while not self._exported_functions["PostMessageW"](*msg):
                 print("PostMessage has failed")
-                await asyncio.sleep(0.01)  # This will only be called if the message is not posted successfully.
-            await asyncio.sleep(delay)  # Allows for smaller delays between consecutive keys, such as when writing a message in-game, or between KEYUP/KEYDOWN commands.
+                await asyncio.sleep(
+                    0.01
+                )  # This will only be called if the message is not posted successfully.
+            await asyncio.sleep(
+                delay
+            )  # Allows for smaller delays between consecutive keys, such as when writing a message in-game, or between KEYUP/KEYDOWN commands.
         await asyncio.sleep(cooldown)
 
-    def _message_constructor(self,
-                             keys: list[str],
-                             messages: list[wintypes.UINT],
-                             delay: float = 0.033,  # This is somewhat similar to the automatic repeat feature for my keyboard. It's not perfect, but it's close enough.
-                             hwnd: int | None = None,
-                             **kwargs
-                             ) -> list[list[tuple[wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM], float]]:
+    def _message_constructor(
+        self,
+        keys: list[str],
+        messages: list[wintypes.UINT],
+        delay: float = 0.033,  # This is somewhat similar to the automatic repeat feature for my keyboard. It's not perfect, but it's close enough.
+        hwnd: int | None = None,
+        **kwargs,
+    ) -> list[
+        list[
+            tuple[wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM], float
+        ]
+    ]:
         """
         Constructs the appropriate array of input that will be sent to the window associated with the provided handle through PostMessage(...).
         :param keys: List of string representation of the key(s) to be pressed.
@@ -52,19 +63,31 @@ class _NonFocusedInputs(_InputsHelpers):
         :return: list of list[tuples, float]. Each tuple contains all necessary argument to be passed to PostMessage through simple unpacking. Each float is the delay between each call of PostMessage.
         """
         return_val = list()
-        assert isinstance(keys, list) and isinstance(messages, list), f"Keys and messages must be lists."
-        assert len(keys) == len(messages), f"Msg and keys must have the same length when they are provided as lists."
+        assert isinstance(keys, list) and isinstance(
+            messages, list
+        ), f"Keys and messages must be lists."
+        assert len(keys) == len(
+            messages
+        ), f"Msg and keys must have the same length when they are provided as lists."
         for key, msg in zip(keys, messages):
-            return_val.append(self._single_message_constructor(key, msg, delay=delay, hwnd=hwnd, **kwargs))
+            return_val.append(
+                self._single_message_constructor(
+                    key, msg, delay=delay, hwnd=hwnd, **kwargs
+                )
+            )
         return return_val
 
-    @randomize_params('delay')
-    def _single_message_constructor(self,
-                                    key: str,
-                                    message: wintypes.UINT,
-                                    delay: float,
-                                    hwnd: int | None = None,
-                                    **kwargs) -> list[tuple[wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM], float]:
+    @randomize_params("delay")
+    def _single_message_constructor(
+        self,
+        key: str,
+        message: wintypes.UINT,
+        delay: float,
+        hwnd: int | None = None,
+        **kwargs,
+    ) -> list[
+        tuple[wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM], float
+    ]:
         """
         Constructs the appropriate inputs that will be sent to the window associated with the provided handle through PostMessage(...). Additionally, delay is passed to this method to allow for
         a different randomized value between each message.
@@ -79,28 +102,41 @@ class _NonFocusedInputs(_InputsHelpers):
             hwnd = self.handle
 
         if key in SYS_KEYS:
-            message = win32con.WM_SYSKEYDOWN if message == win32con.WM_KEYDOWN else message
+            message = (
+                win32con.WM_SYSKEYDOWN if message == win32con.WM_KEYDOWN else message
+            )
             message = win32con.WM_SYSKEYUP if message == win32con.WM_KEYUP else message
 
         extended_key = int(key in self.EXTENDED_KEYS)
-        vk_key = self._get_virtual_key(key, True if message == win32con.WM_CHAR else False, self._keyboard_layout_handle(hwnd))
-        l_params = self._low_param_constructor(key=vk_key,
-                                               command=message,
-                                               extended_key=extended_key,
-                                               hwnd=hwnd,
-                                               **kwargs)
-        return [(wintypes.HWND(hwnd), wintypes.UINT(message), wintypes.WPARAM(vk_key), l_params), delay]
+        vk_key = self._get_virtual_key(
+            key,
+            True if message == win32con.WM_CHAR else False,
+            self._keyboard_layout_handle(hwnd),
+        )
+        l_params = self._low_param_constructor(
+            key=vk_key, command=message, extended_key=extended_key, hwnd=hwnd, **kwargs
+        )
+        return [
+            (
+                wintypes.HWND(hwnd),
+                wintypes.UINT(message),
+                wintypes.WPARAM(vk_key),
+                l_params,
+            ),
+            delay,
+        ]
 
-    def _low_param_constructor(self,
-                               key: int,
-                               command: int,
-                               extended_key: int,
-                               scan_code: int | None = None,
-                               repeat_count: int = 1,
-                               previous_key_state: int | None = None,
-                               context_code: int | None = None,
-                               hwnd: int | None = None
-                               ) -> wintypes.LPARAM:
+    def _low_param_constructor(
+        self,
+        key: int,
+        command: int,
+        extended_key: int,
+        scan_code: int | None = None,
+        repeat_count: int = 1,
+        previous_key_state: int | None = None,
+        context_code: int | None = None,
+        hwnd: int | None = None,
+    ) -> wintypes.LPARAM:
         """
         Creates the LPARAM argument for the PostMessage function.
         :param key: Key that will be sent through PostMessage
@@ -113,16 +149,28 @@ class _NonFocusedInputs(_InputsHelpers):
         :param hwnd: Handle to the window to send the message to. If None, the handle associated with this InputHandler instance will be used. Used here to determine keyboard layout.
         :return: LPARAM argument for the PostMessage function.
         """
-        assert command in [win32con.WM_KEYDOWN, win32con.WM_KEYUP, win32con.WM_SYSKEYDOWN, win32con.WM_SYSKEYUP, win32con.WM_CHAR], f"Command {command} is not supported"
-        assert repeat_count < 2 ** 16
+        assert command in [
+            win32con.WM_KEYDOWN,
+            win32con.WM_KEYUP,
+            win32con.WM_SYSKEYDOWN,
+            win32con.WM_SYSKEYUP,
+            win32con.WM_CHAR,
+        ], f"Command {command} is not supported"
+        assert repeat_count < 2**16
 
         if scan_code is None:
-            scan_code = self._exported_functions['MapVirtualKeyExW'](key, self.MAPVK_VK_TO_VSC_EX, self._keyboard_layout_handle(hwnd))
+            scan_code = self._exported_functions["MapVirtualKeyExW"](
+                key, self.MAPVK_VK_TO_VSC_EX, self._keyboard_layout_handle(hwnd)
+            )
 
         # Handle the context code and correct command code if necessary
         if context_code is None:
             # Note: Per online documentation, it should be if command in [win32con.WM_SYSKEYDOWN, win32con.WM_SYSKEYUP], but this is inconsistent with what Spy++ observes.
-            context_code = 1 if command == win32con.WM_SYSKEYDOWN and key == win32con.VK_MENU else 0
+            context_code = (
+                1
+                if command == win32con.WM_SYSKEYDOWN and key == win32con.VK_MENU
+                else 0
+            )
 
         # Use SYS KEYDOWN/SYS KEYUP if the key is the ALT key or if a different key is being pressed while the ALT key is simulated to be down.
         if context_code == 1 or key == win32con.VK_MENU or key == win32con.VK_F10:
@@ -133,18 +181,23 @@ class _NonFocusedInputs(_InputsHelpers):
 
         # Handle the previous key state flag
         if previous_key_state is None:
-            previous_key_state = 1 if command in [win32con.WM_KEYUP, win32con.WM_SYSKEYUP] else 0
+            previous_key_state = (
+                1 if command in [win32con.WM_KEYUP, win32con.WM_SYSKEYUP] else 0
+            )
 
         # Handle the transition flag. Always 0 for key down, 1 for key up.
-        transition_state = 0 if command in [win32con.WM_KEYDOWN, win32con.WM_SYSKEYDOWN] else 1
+        transition_state = (
+            0 if command in [win32con.WM_KEYDOWN, win32con.WM_SYSKEYDOWN] else 1
+        )
 
-        return wintypes.LPARAM(repeat_count
-                               | (scan_code << 16)
-                               | (extended_key << 24)
-                               | (context_code << 29)
-                               | (previous_key_state << 30)
-                               | (transition_state << 31)
-                               )
+        return wintypes.LPARAM(
+            repeat_count
+            | (scan_code << 16)
+            | (extended_key << 24)
+            | (context_code << 29)
+            | (previous_key_state << 30)
+            | (transition_state << 31)
+        )
 
     def _setup_exported_functions(self) -> dict[str, callable]:
         """
@@ -152,8 +205,13 @@ class _NonFocusedInputs(_InputsHelpers):
         """
         post_message = ctypes.windll.user32.PostMessageW
         post_message.restype = wintypes.BOOL
-        post_message.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+        post_message.argtypes = [
+            wintypes.HWND,
+            wintypes.UINT,
+            wintypes.WPARAM,
+            wintypes.LPARAM,
+        ]
         return {
             **super()._setup_exported_functions(),
-            'PostMessageW': post_message,
+            "PostMessageW": post_message,
         }

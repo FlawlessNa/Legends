@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import win32con
 from typing import Literal
 
 from core import SharedResources
@@ -12,6 +13,7 @@ class Controller(InputHandler):
     Must be initialized with a handle to the game client, along with the IGN of the associated character. The IGN is used to retrieve key bindings from the config file.
     Each process should have its own controller instance, as each process will have its own game client.
     """
+
     def __init__(self, handle: int, ign: str) -> None:
         """
         :param handle: Handle to the window that will be controlled
@@ -27,14 +29,24 @@ class Controller(InputHandler):
         The configs cannot be changed while the bot is running. In-game key binds should therefore not be changed either.
         """
         temp = {
-            k: eval(v) for k, v in dict(config_reader('keybindings', f'{self.ign}', verbose=True)).items()
+            k: eval(v)
+            for k, v in dict(
+                config_reader("keybindings", f"{self.ign}", verbose=True)
+            ).items()
         }
         final = {}
         for val in temp.values():
             final.update(val)
         return final
 
-    async def press(self, key: str, silenced: bool = False, cooldown: float = 0.1, enforce_delay: bool = False, **kwargs) -> None:
+    async def press(
+        self,
+        key: str,
+        silenced: bool = False,
+        cooldown: float = 0.1,
+        enforce_delay: bool = False,
+        **kwargs,
+    ) -> None:
         """
         # TODO - deal with keys/skills/macros variants
         :param key: String representation of the key to be pressed.
@@ -45,11 +57,29 @@ class Controller(InputHandler):
         :return: None
         """
         if silenced:
-            await self._non_focused_input(key, [win32con.WM_KEYDOWN, win32con.WM_KEYUP], cooldown=cooldown, **kwargs)
+            await self._non_focused_input(
+                key,
+                [win32con.WM_KEYDOWN, win32con.WM_KEYUP],
+                cooldown=cooldown,
+                **kwargs,
+            )
         else:
-            await self._focused_input(key, ['keydown', 'keyup'], cooldown=cooldown, enforce_delay=enforce_delay, **kwargs)
+            await self._focused_input(
+                key,
+                ["keydown", "keyup"],
+                cooldown=cooldown,
+                enforce_delay=enforce_delay,
+                **kwargs,
+            )
 
-    async def write(self, message: str, silenced: bool = True, cooldown: float = 0.1, enforce_delay: bool = True, **kwargs) -> None:
+    async def write(
+        self,
+        message: str,
+        silenced: bool = True,
+        cooldown: float = 0.1,
+        enforce_delay: bool = True,
+        **kwargs,
+    ) -> None:
         """
         Write a message in the specified window. When silenced=True, We use the WM_CHAR command to allow for differentiation of lower and upper case letters. This by-passes the KEYDOWN/KEYUP commands.
         Therefore, this creates "non-human" inputs sent to the window and as such, should only be used to actually write stuff in the chat and nothing else (anti-detection prevention).
@@ -61,21 +91,35 @@ class Controller(InputHandler):
         :return: None
         """
         if silenced:
-            await self._non_focused_input(list(message), [win32con.WM_CHAR] * len(message), cooldown=cooldown, **kwargs)
+            await self._non_focused_input(
+                list(message),
+                [win32con.WM_CHAR] * len(message),
+                cooldown=cooldown,
+                **kwargs,
+            )
 
         else:
             message = [char for char in list(message) for _ in range(2)]
-            events: list[Literal] = ['keydown', 'keyup'] * (len(message) // 2)
-            await self._focused_input(list(message), events, cooldown=cooldown, as_unicode=True, enforce_delay=enforce_delay, **kwargs)
+            events: list[Literal] = ["keydown", "keyup"] * (len(message) // 2)
+            await self._focused_input(
+                list(message),
+                events,
+                cooldown=cooldown,
+                as_unicode=True,
+                enforce_delay=enforce_delay,
+                **kwargs,
+            )
 
-    @randomize_params('jump_interval')
-    async def move(self,
-                   direction: Literal['left', 'right', 'up', 'down'],
-                   duration: float,
-                   jump: bool = False,
-                   jump_interval: float = 0.5,
-                   secondary_direction: Literal['up', 'down'] | None = None,
-                   delay: float = 0.033) -> None:
+    @randomize_params("jump_interval")
+    async def move(
+        self,
+        direction: Literal["left", "right", "up", "down"],
+        duration: float,
+        jump: bool = False,
+        jump_interval: float = 0.5,
+        secondary_direction: Literal["up", "down"] | None = None,
+        delay: float = 0.033,
+    ) -> None:
         """
         Requires focus (Note: the lock is only used once all the inputs have been constructed, so it is not necessary to keep the lock for the entire duration of the function).
         Moves the player in a given direction, for a given duration. If jump=True, the player will also jump periodically.
@@ -89,9 +133,9 @@ class Controller(InputHandler):
         :param delay: Default 0.033, which is somewhat equal to the keyboard automatic repeat feature as observed in Spy++ (on my PC setup).
         :return: None
         """
-        assert direction in ('left', 'right', 'up', 'down')
-        assert secondary_direction in ('up', 'down', None)
-        if direction in ('up', 'down'):
+        assert direction in ("left", "right", "up", "down")
+        assert secondary_direction in ("up", "down", None)
+        if direction in ("up", "down"):
             assert secondary_direction is None
 
         # Max. number of events to send into input message stream. The real events sent will be less, because the "real-time" delays are usually longer than the specified delay.
@@ -104,19 +148,31 @@ class Controller(InputHandler):
         async def _jump_n_times(n: int) -> None:
             """Call the function multiple down, such that delay between keydown/keyup is small, but the cooldown between each jump is larger"""
             for _ in range(n):
-                await self._non_focused_input(self.key_binds["jump"], jump_events, cooldown=jump_interval)
+                await self._non_focused_input(
+                    self.key_binds["jump"], jump_events, cooldown=jump_interval
+                )
 
         async def _combined_tasks() -> None:
             """The repeated keydown for direction/secondary direction is considered one task, the periodical jump is considered another. Wrap in a function to wait_for the entire task group."""
             async with asyncio.TaskGroup() as tg:
-                tg.create_task(self._focused_input(repeated_direction, events, cooldown=0, enforce_delay=True, delay=delay))
+                tg.create_task(
+                    self._focused_input(
+                        repeated_direction,
+                        events,
+                        cooldown=0,
+                        enforce_delay=True,
+                        delay=delay,
+                    )
+                )
                 if jump:
                     tg.create_task(_jump_n_times(nbr_jumps))
 
         # Press direction and secondary direction
-        await self._focused_input(direction, ['keydown'], enforce_delay=False)
+        await self._focused_input(direction, ["keydown"], enforce_delay=False)
         if secondary_direction:
-            await self._focused_input(secondary_direction, ['keydown'], enforce_delay=False)
+            await self._focused_input(
+                secondary_direction, ["keydown"], enforce_delay=False
+            )
 
         # wait_for at most "duration" on the automatic repeat feature simulation + periodical jump (if applicable)
         try:
@@ -125,11 +181,17 @@ class Controller(InputHandler):
             pass  # Simply stop the movement. This code is nearly always reached because the "real" delays are usually longer than the specified delays. This is because other tasks may be running.
         finally:
             # Release all keys
-            await self._focused_input(direction, ['keyup'], enforce_delay=False, cooldown=0)
+            await self._focused_input(
+                direction, ["keyup"], enforce_delay=False, cooldown=0
+            )
             if secondary_direction:
-                await self._focused_input(secondary_direction, ['keyup'], enforce_delay=False, cooldown=0)
+                await self._focused_input(
+                    secondary_direction, ["keyup"], enforce_delay=False, cooldown=0
+                )
             if jump:
-                await self._non_focused_input(self.key_binds['jump'], [win32con.WM_KEYUP], cooldown=0)
+                await self._non_focused_input(
+                    self.key_binds["jump"], [win32con.WM_KEYUP], cooldown=0
+                )
 
     @SharedResources.requires_focus
     async def move_mouse(self) -> None:
