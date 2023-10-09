@@ -9,7 +9,7 @@ class SharedResources:
     focus_lock = asyncio.Lock()  # All instances of this class will share the same lock. This is used to prevent multiple processes from trying to use PC Focus simultaneously.
 
     @classmethod
-    def lock_focus(cls, func: callable) -> callable:
+    def requires_focus(cls, func: callable) -> callable:
         """
         Use this decorator to ensure a lock is acquired for any coroutine that require the PC focus (foreground window).
         In that sense, the lock is not required, but the decorator is still useful to ensure that the focus is returned to the original window after the function is executed.

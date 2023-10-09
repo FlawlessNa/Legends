@@ -75,6 +75,10 @@ def randomize_params(*args,
             arguments_mapper.update(randomized_params)
             new_args = tuple(arguments_mapper[arg] for arg in arguments_mapper if func_params[arg].kind == inspect.Parameter.POSITIONAL_ONLY)
             new_kwargs = {k: v for k, v in arguments_mapper.items() if not func_params[k].kind == inspect.Parameter.POSITIONAL_ONLY}
+
+            # If kwargs is specified in the underlying function, it is not unpacked as part of the signature. We need to manually unpack.
+            orig_kwargs = new_kwargs.pop('kwargs', {})
+            new_kwargs.update(**orig_kwargs)
             return func(*new_args, **new_kwargs)
         return inner
     return outer

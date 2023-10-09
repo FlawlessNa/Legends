@@ -1,10 +1,9 @@
 import asyncio
 import functools
+from typing import Literal
+
 import pydirectinput
 import time
-
-from win32com.client import Dispatch
-from win32gui import SetForegroundWindow
 
 from core import SharedResources
 from utilities import config_reader, InputHandler, randomize_params
@@ -18,20 +17,11 @@ class Controller(InputHandler):
     """
     def __init__(self, handle: int, ign: str) -> None:
         """
-        The focus lock is used to prevent multiple processes from trying to use PC Focus simultaneously. This parameter is set manually by any process that needs it. Otherwise, it remains None.
         :param handle: Handle to the window that will be controlled
         :param ign: Associated IGN of the character from that window
         """
-        super().__init__(handle, ign)
-
-    def activate(self) -> None:
-        """
-        Activates the window associated with this controller. Any key press or mouse click will be sent to the active window.
-        :return: None
-        """
-        shell = Dispatch("WScript.Shell")
-        shell.SendKeys('%')
-        SetForegroundWindow(self.handle)
+        super().__init__(handle)
+        self.ign = ign
 
     @functools.cached_property
     def key_binds(self) -> dict[str, str]:
@@ -42,7 +32,7 @@ class Controller(InputHandler):
         return dict(config_reader('keybindings', f'{self.ign} - Keys', verbose=True))
 
     @SharedResources.return_focus_to_owner
-    @SharedResources.lock_focus
+    @SharedResources.requires_focus
     @randomize_params('duration', 'delay', perc_threshold=0.1)
     async def hold_key(self, key: str, duration: float, spam_secondary_key: str | None = None, delay: float | None = None) -> None:
         """
@@ -62,46 +52,57 @@ class Controller(InputHandler):
             if spam_secondary_key is not None:
                 now = time.time()
                 while time.time() - now < duration:
-                    await self.press(spam_secondary_key, silenced=True, delay=delay)
+                    await self.press(spam_secondary_key, silenced=True, cooldowm=delay)
             else:
                 await asyncio.sleep(duration)
         finally:
             pydirectinput.keyUp(key)
 
-    async def press(self, key: str, silenced: bool = False, delay: float | None = None) -> None:
+    async def press(self, key: str, silenced: bool = False, cooldown: float = 0.1, enforce_delay: bool = False, **kwargs) -> None:
         """
         # TODO - deal with keys/skills/macros variants
         :param key: String representation of the key to be pressed.
-        :param silenced: Whether to activate the window before pressing the key. If False, the key is sent through PostMessage(...) instead of pydirectinput.press(...).
-        :param delay: # TODO - handle this properly
-        :return:
+        :param silenced: Whether to activate the window before pressing the key. If True, the key is sent through PostMessage(...) instead of SendInput(...).
+        :param cooldown: Delay between each call to this function. However, several keys/inputs may be sent at once, and cooldown is only applied at the very end.
+            Note: To control delay between each keys/inputs on a single call, pass in 'delay' as a keyword argument. Each delay will be slightly randomized.
+        :param enforce_delay: Only applicable when silenced = False. If several inputs are sent at once, this will enforce a delay between each input. Otherwise, they are all simultaneous.
+        :return: None
         """
         if silenced:
-            await self.post_message(key, self.handle, delay=delay)
+            await self._non_focused_input(key, [win32con.WM_KEYDOWN, win32con.WM_KEYUP], cooldown=cooldown, **kwargs)
         else:
-            await self._non_silent_press(key, delay=delay)
+            await self._focused_input(key, ['keydown', 'keyup'], cooldown=cooldown, enforce_delay=enforce_delay, **kwargs)
 
-    @SharedResources.lock_focus
-    async def _non_silent_press(self, key: str, delay: float | None = None, **kwargs) -> None:
+    async def write(self, message: str, silenced: bool = True, cooldown: float = 0.1, enforce_delay: bool = True, **kwargs) -> None:
         """
-        Requires focus. Presses the key.
-        Called internally by controller.press() whenever silenced=False.
-        :param key: String representation of the key to be pressed.
-        :return:
-        # TODO - deal with delays
+        Write a message in the specified window. When silenced=True, We use the WM_CHAR command to allow for differentiation of lower and upper case letters. This by-passes the KEYDOWN/KEYUP commands.
+        Therefore, this creates "non-human" inputs sent to the window and as such, should only be used to actually write stuff in the chat and nothing else (anti-detection prevention).
+        Additionally, when silenced=False, the SendInput function creates VK_PACKETS with are sent to the window to replicate any custom chars. This also creates "non-human" behavior.
+        :param message: Actual message to be typed.
+        :param silenced: Whether to write input to the active window or not. If True, the key is sent through PostMessage(...) instead of SendInput(...).
+        :param cooldown: Delay between each call to this function.
+        :param enforce_delay: Only used when silenced=False. If false, the entire message is written instantly (looks like a copy/paste). If True, a delay is enforced between each char.
+        :return: None
         """
-        self.activate()
-        pydirectinput.press(key, **kwargs)
+        if silenced:
+            await self._non_focused_input(list(message), [win32con.WM_CHAR] * len(message), cooldown=cooldown, **kwargs)
+
+        else:
+            message = [char for char in list(message) for _ in range(2)]
+            events: list[Literal] = ['keydown', 'keyup'] * (len(message) // 2)
+            await self._focused_input(list(message), events, cooldown=cooldown, as_unicode=True, enforce_delay=enforce_delay, **kwargs)
+
+    @SharedResources.requires_focus
+    async def move_mouse(self) -> None:
+        """Requires focus because otherwise the window may not properly register mouse movements. In such a case, if mouse blocks visuals, it will keep blocking them."""
+        pass
 
 
 if __name__ == '__main__':
     from asyncio import run
-    handle = 0x000206B0
+    import win32con
+    handle = 0x001A05F2
     test = Controller(handle, 'FarmFest1')
-    test.activate()
-    pydirectinput.PAUSE = 1
-    for _ in range(10):
-        pydirectinput.press('right')
-
-    # run(test._non_silent_press('up'))
-
+    run(test.press('a', silenced=False, enforce_delay=False))
+    run(test.press("a", silenced=False, enforce_delay=True))
+    # run(test.press("pageup", silenced=True))

@@ -28,10 +28,10 @@ class Test(TestCase):
                    randomize_params("c", "kw_c")(self._test_function2)('5', 10, kw_b=10, kw_c=15.0),
                    randomize_params('kw_c')(self._test_function3)(kw_c=15.0),
                    randomize_params('kw_a')(self._test_function4)(c=15.0)]
-            keys =[('c', 'kw_c'),
-                   ('c', 'kw_c'),
-                   ('kw_c',),
-                   ('kw_a',)]
+            keys = [('c', 'kw_c'),
+                    ('c', 'kw_c'),
+                    ('kw_c',),
+                    ('kw_a',)]
             self._standard_comparison(res, defaults, randomized_keys=keys)
 
             # Testing that ignore_args works properly
@@ -99,3 +99,8 @@ class Test(TestCase):
                     self.assertTrue(rand[key] in act[key])
                 else:
                     self.assertEqual(act[key], rand[key])
+
+
+if __name__ == '__main__':
+    import unittest
+    unittest.main()
