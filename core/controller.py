@@ -2,9 +2,6 @@ import asyncio
 import functools
 from typing import Literal
 
-import pydirectinput
-import time
-
 from core import SharedResources
 from utilities import config_reader, InputHandler, randomize_params
 
@@ -29,34 +26,13 @@ class Controller(InputHandler):
         Retrieves the key bindings for the associated character from the keybind config file.
         The configs cannot be changed while the bot is running. In-game key binds should therefore not be changed either.
         """
-        return dict(config_reader('keybindings', f'{self.ign} - Keys', verbose=True))
-
-    @SharedResources.return_focus_to_owner
-    @SharedResources.requires_focus
-    @randomize_params('duration', 'delay', perc_threshold=0.1)
-    async def hold_key(self, key: str, duration: float, spam_secondary_key: str | None = None, delay: float | None = None) -> None:
-        """
-        Requires focus. Holds down the key for the specified duration. If a secondary key is provided, it will be spammed while the key is held down. Can be used to enter portals while moving.
-        :param key: String representation of the key to be held down.
-        :param duration: Duration in seconds to hold down the key. This is randomized slightly to prevent detection.
-        :param spam_secondary_key: String representation of the key to be spammed while the primary key is held down.
-        :param delay: Passed on to controller.press() method. Only used when secondary key is specified.
-        :return: None
-        """
-        if delay is not None:
-            assert delay >= 0, f"Delay ({delay}) must be a positive number"
-
-        self.activate()
-        try:
-            pydirectinput.keyDown(key)
-            if spam_secondary_key is not None:
-                now = time.time()
-                while time.time() - now < duration:
-                    await self.press(spam_secondary_key, silenced=True, cooldowm=delay)
-            else:
-                await asyncio.sleep(duration)
-        finally:
-            pydirectinput.keyUp(key)
+        temp = {
+            k: eval(v) for k, v in dict(config_reader('keybindings', f'{self.ign}', verbose=True)).items()
+        }
+        final = {}
+        for val in temp.values():
+            final.update(val)
+        return final
 
     async def press(self, key: str, silenced: bool = False, cooldown: float = 0.1, enforce_delay: bool = False, **kwargs) -> None:
         """
@@ -92,17 +68,75 @@ class Controller(InputHandler):
             events: list[Literal] = ['keydown', 'keyup'] * (len(message) // 2)
             await self._focused_input(list(message), events, cooldown=cooldown, as_unicode=True, enforce_delay=enforce_delay, **kwargs)
 
+    @randomize_params('jump_interval')
+    async def move(self,
+                   direction: Literal['left', 'right', 'up', 'down'],
+                   duration: float,
+                   jump: bool = False,
+                   jump_interval: float = 0.5,
+                   secondary_direction: Literal['up', 'down'] | None = None,
+                   delay: float = 0.033) -> None:
+        """
+        Requires focus (Note: the lock is only used once all the inputs have been constructed, so it is not necessary to keep the lock for the entire duration of the function).
+        Moves the player in a given direction, for a given duration. If jump=True, the player will also jump periodically.
+        Specifying a secondary direction can be used to enter portals, move up ladders, or jump down platforms.
+        This function attempts to replicate human-like input as accurately as possible. It triggers the keyboard automatic repeat feature, which repeats the keydown event until the key is released.
+        :param direction: Direction in which to move.
+        :param duration: Duration of the movement.
+        :param jump: bool. Whether to jump periodically or not.
+        :param jump_interval: Interval between each jump. Only used if jump=True.
+        :param secondary_direction: Secondary direction to press. Only used if direction is 'left' or 'right'. May be used to jump up ladders, jump down platforms, or enter portals.
+        :param delay: Default 0.033, which is somewhat equal to the keyboard automatic repeat feature as observed in Spy++ (on my PC setup).
+        :return: None
+        """
+        assert direction in ('left', 'right', 'up', 'down')
+        assert secondary_direction in ('up', 'down', None)
+        if direction in ('up', 'down'):
+            assert secondary_direction is None
+
+        # Max. number of events to send into input message stream. The real events sent will be less, because the "real-time" delays are usually longer than the specified delay.
+        upper_bound = int(duration // delay)
+        events: list[Literal] = ["keydown"] * upper_bound
+        nbr_jumps = int(duration // jump_interval)
+        jump_events = [win32con.WM_KEYDOWN, win32con.WM_KEYUP]
+        repeated_direction = secondary_direction if secondary_direction else direction
+
+        async def _jump_n_times(n: int) -> None:
+            """Call the function multiple down, such that delay between keydown/keyup is small, but the cooldown between each jump is larger"""
+            for _ in range(n):
+                await self._non_focused_input(self.key_binds["jump"], jump_events, cooldown=jump_interval)
+
+        async def _combined_tasks() -> None:
+            """The repeated keydown for direction/secondary direction is considered one task, the periodical jump is considered another. Wrap in a function to wait_for the entire task group."""
+            async with asyncio.TaskGroup() as tg:
+                tg.create_task(self._focused_input(repeated_direction, events, cooldown=0, enforce_delay=True, delay=delay))
+                if jump:
+                    tg.create_task(_jump_n_times(nbr_jumps))
+
+        # Press direction and secondary direction
+        await self._focused_input(direction, ['keydown'], enforce_delay=False)
+        if secondary_direction:
+            await self._focused_input(secondary_direction, ['keydown'], enforce_delay=False)
+
+        # wait_for at most "duration" on the automatic repeat feature simulation + periodical jump (if applicable)
+        try:
+            await asyncio.wait_for(_combined_tasks(), duration)
+        except asyncio.TimeoutError:
+            pass  # Simply stop the movement. This code is nearly always reached because the "real" delays are usually longer than the specified delays. This is because other tasks may be running.
+        finally:
+            # Release all keys
+            await self._focused_input(direction, ['keyup'], enforce_delay=False, cooldown=0)
+            if secondary_direction:
+                await self._focused_input(secondary_direction, ['keyup'], enforce_delay=False, cooldown=0)
+            if jump:
+                await self._non_focused_input(self.key_binds['jump'], [win32con.WM_KEYUP], cooldown=0)
+
     @SharedResources.requires_focus
     async def move_mouse(self) -> None:
         """Requires focus because otherwise the window may not properly register mouse movements. In such a case, if mouse blocks visuals, it will keep blocking them."""
-        pass
+        raise NotImplementedError
 
-
-if __name__ == '__main__':
-    from asyncio import run
-    import win32con
-    handle = 0x001A05F2
-    test = Controller(handle, 'FarmFest1')
-    run(test.press('a', silenced=False, enforce_delay=False))
-    run(test.press("a", silenced=False, enforce_delay=True))
-    # run(test.press("pageup", silenced=True))
+    @SharedResources.requires_focus
+    async def click(self) -> None:
+        """Requires focus because otherwise the window may not properly register mouse movements. In such a case, if mouse blocks visuals, it will keep blocking them."""
+        raise NotImplementedError

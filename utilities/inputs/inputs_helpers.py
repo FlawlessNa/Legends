@@ -75,7 +75,7 @@ class _InputsHelpers:
         else:
             return KEYBOARD_MAPPING[key]
 
-    @lru_cache  # TODO - Time it to see if it's worth it
+    @lru_cache
     def _keyboard_layout_handle(self, hwnd: int | None = None) -> wintypes.HKL:
         """
         :param hwnd: Handle to the window to send the message to. If None, the handle associated with this InputHandler instance will be used.

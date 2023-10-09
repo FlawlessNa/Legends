@@ -104,6 +104,7 @@ class _FocusedInputs(_InputsHelpers):
         for item in inputs:
             input_structure, delay = item
             while self._exported_functions['SendInput'](*input_structure) != input_structure[0].value:
+                print('SendInput has failed')
                 await asyncio.sleep(0.01)  # This will only be called if the input is not sent successfully.
             await asyncio.sleep(delay)  # Allows for smaller delays between consecutive keys, such as when writing a message in-game, or between KEYUP/KEYDOWN commands.
         await asyncio.sleep(cooldown)

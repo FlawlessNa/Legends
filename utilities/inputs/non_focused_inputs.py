@@ -8,7 +8,7 @@ from ctypes import wintypes
 from utilities.inputs import _InputsHelpers
 from utilities.randomize_params import randomize_params
 
-
+from functools import lru_cache
 SYS_KEYS = ['alt', 'alt_right', 'F10']
 
 
@@ -30,6 +30,7 @@ class _NonFocusedInputs(_InputsHelpers):
 
             # PostMessageW will return 0 only if the message queue is full. In that case, we wait until it's not full anymore. This shouldn't really ever happen but still a precaution.
             while not self._exported_functions['PostMessageW'](*msg):
+                print("PostMessage has failed")
                 await asyncio.sleep(0.01)  # This will only be called if the message is not posted successfully.
             await asyncio.sleep(delay)  # Allows for smaller delays between consecutive keys, such as when writing a message in-game, or between KEYUP/KEYDOWN commands.
         await asyncio.sleep(cooldown)
