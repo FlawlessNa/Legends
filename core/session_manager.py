@@ -3,82 +3,63 @@ import multiprocessing
 import multiprocessing.connection
 
 from functools import partial
-from typing import Coroutine, Self
+from typing import Self
 
+from .bot import Bot
 from screen_recorder import Recorder
 
 
 class SessionManager:
     """
-    Entry point to launch any Bot session, which may consists of one or more processes.
+    Entry point to launch any Bot.
     The Manager will handle the following:
         - Establish and kill Discord communications
-        - Start screen recording and save session (through multiprocessing, since this is not related to the game and is CPU-intensive)
-        - Keep track of Logs and save those
-        - Start and stop the Bot (process(es)) (through asyncio, since this is related to the game and asyncio runs on a single-process/single-thread, which is more human-like).
+        - Launch an independent multiprocessing.Process to handle the screen recording. Recording is CPU-intensive and should not be done in the same process as the Bot.
+        - Keep track of Logs and save those # TODO
+        - Schedule each Bot as tasks to be executed in a single asyncio loop. This ensures no actions are executed in parallel, which would be suspicious.
+        - Perform automatic clean-up as necessary. When the Bot is stopped, the Manager will ensure the screen recording is stopped and saved.
     """
-    # def __init__(self, *coroutines: Coroutine) -> None:
-    #     self.coroutines: tuple[Coroutine] = coroutines
-    def __init__(self, f: callable) -> None:
-        self.f: callable = f
-        self.bot_process = None
+    def __init__(self, *bots_to_launch: Bot) -> None:
+        self.bots = bots_to_launch
         self.recorder_process = None
         self.receiver, self.sender = multiprocessing.Pipe(duplex=False)
 
     def __enter__(self) -> Self:
         """
-        Setup all tasks and processes.
+        Setup all Bot tasks.
+        Setup Recorder process.
+        # TODO - Handle logger?
         :return: self
         """
-        self.bot_process = multiprocessing.Process(target=self.f, name='Multi-Bot')
-
-        recorder_check = partial(self.check_recv_signal, self.receiver)
-        self.recorder_process = multiprocessing.Process(target=self.create_recorder, name='Screen Recorder', args=(recorder_check, ))
-
+        self.recorder_process = multiprocessing.Process(target=self.create_recorder, name='Screen Recorder', args=(self.receiver, ))
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.bot_process.join()
+        """
+        Whenever the context manager is exited, that means the asynchronous loop's execution has halted, for whatever reason. In such a case, all Bots are already stopped.
+        Assuming the Bots handle their own clean-up, the only thing left to do is to stop the screen recording and save it. To do send, we send a signal to the isolated recording Process.
+        :param exc_type: Exception Class.
+        :param exc_val: Exception Value (instance).
+        :param exc_tb: Exception Traceback.
+        :return: None
+        """
         self.sender.send('stop')
         self.recorder_process.join()
 
-        # self._release_all_keys()
-        # self.recorder.stop_and_save()
-    #
-    # async def _asynchronous_process(self):
-    #     async with asyncio.TaskGroup() as tg:
-    #         for coroutine in self.coroutines:
-    #             tg.create_task(coroutine)
-    #
-    # def _release_all_keys(self):
-    #     print('Releasing all keys')
-    #     pass
-
     @staticmethod
-    def create_recorder(func: callable):
-        recorder = Recorder(func)
-        recorder.start()
+    def create_recorder(receiver: multiprocessing.connection.Connection):
+        def f(recv_end: multiprocessing.connection.Connection):
+            if recv_end.poll():  # Check if a signal has been sent from the other end of the Pipe
+                signal = recv_end.recv()
+                if signal == 'stop':
+                    return True
+            return False
 
-    @staticmethod
-    def check_recv_signal(recv_end: multiprocessing.connection.Connection) -> bool:
-        if recv_end.poll():
-            signal = recv_end.recv()
-            if signal == 'stop':
-                return True
-        return False
+        recorder = Recorder(partial(f, receiver))
+        recorder.start_recording()
 
-    def start(self) -> None:
-        self.bot_process.start()
+    async def launch(self) -> None:
         self.recorder_process.start()
-
-
-# if __name__ == '__main__':
-#     handle = 0x001A05F2
-#     from core.controller import Controller
-#     test = Controller(handle, 'FarmFest1')
-#
-#     async def _test():
-#         await test.move('right', 5, True)
-#
-#     with SessionManager(_test) as manager:
-#         manager.start()
+        async with asyncio.TaskGroup() as tg:
+            for bot in self.bots:
+                tg.create_task(bot.run())

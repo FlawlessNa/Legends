@@ -8,7 +8,7 @@ from typing import Literal
 from win32com.client import Dispatch
 from win32gui import SetForegroundWindow, GetForegroundWindow
 
-from core import SharedResources
+from core.shared_resources import SharedResources
 from utilities.inputs import _InputsHelpers
 
 KEYEVENTF_EXTENDEDKEY = 0x0001

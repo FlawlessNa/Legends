@@ -14,6 +14,7 @@ class Recorder:
     """
     Loads in relevant recording parameters (user-specified) and records the entire session.
     At the end of the session, the recording is saved.
+    A callable needs to be provided when instantiating this class. This callable will be used to check when the recording should stop.
     """
 
     def __init__(self, func: callable, config_name: str = "recordings") -> None:
@@ -25,7 +26,7 @@ class Recorder:
         self.output: cv2.VideoWriter = cv2.VideoWriter(
             self.out_path,
             cv2.VideoWriter.fourcc(*self.config["four cc"]),
-            int(self.config["fps"]) * int(self.config["multiplier"]),
+            int(self.config["fps"]) * float(self.config["multiplier"]),
             (
                 ctypes.windll.user32.GetSystemMetrics(SM_CXSCREEN),
                 ctypes.windll.user32.GetSystemMetrics(SM_CYSCREEN),
@@ -37,7 +38,7 @@ class Recorder:
         )
         self.stop_recording = func
 
-    def start(self) -> None:
+    def start_recording(self) -> None:
         """
         Loops until it is told to stop and record images at regular intervals, based on user config.
         :return: None
@@ -50,7 +51,7 @@ class Recorder:
                 self.output.write(img)
 
                 end = time.perf_counter()
-                time.sleep(max(1 / int(self.config["fps"]) - (end - beginning), 0))
+                time.sleep(max(1 / int(self.config["fps"]) - (end - beginning), 0))  # Ensure that no more then user-specified FPS are recorded (prevents files from getting too large)
 
                 if self.stop_recording():
                     # logger.info(f'Screen recorder has stopped. Saving recording to {os.path.normpath(os.path.join(self.output_path, self.output_name))}')

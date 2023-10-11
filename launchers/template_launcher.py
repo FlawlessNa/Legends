@@ -1,23 +1,15 @@
-from core.session_manager import SessionManager
-from core.controller import Controller
 import asyncio
+from core.bot import Bot
+from core.session_manager import SessionManager
 
 
-def dummy_coroutine():
-    async def _test():
-        print('Async test before sleep')
-        await asyncio.sleep(10)
-        print("Async test after sleep")
-        raise Exception('Test exception')
-    # asyncio.run(controller.move('right', 5, True))
-    asyncio.run(_test())
+async def main(*bots: Bot) -> None:
+    with SessionManager(*bots) as session:
+        await session.launch()
+
 
 if __name__ == '__main__':
-    from functools import partial
-    from core.botprocess import BotProcess
     handle = 0x001A05F2
-    test = BotProcess(handle, 'FarmFest1')
+    bot1 = Bot(handle, 'FarmFest1')
+    asyncio.run(main(bot1))
 
-    # test_f = partial(dummy_coroutine, test)
-    with SessionManager(test) as session:
-        session.start()
