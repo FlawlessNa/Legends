@@ -21,4 +21,4 @@ class Bot(ABC):
         ), f"Missing keybindings.\nRequired:\n{self.required_keybindings()}\nProvided:\n{user_defined_keybindings}."
 
     async def run(self) -> None:
-        await self.controller.move("right", 5, False)
+        await self.controller.move("left", 5, False)

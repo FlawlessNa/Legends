@@ -1,6 +1,7 @@
 """
 Low-level module that handles inputs sent to a window through either PostMessage(...) or SendInput(...) functions.
 """
+import logging
 import win32con
 
 from ctypes import wintypes
@@ -10,6 +11,8 @@ from win32api import GetKeyState
 from .non_focused_inputs import _NonFocusedInputs
 from .focused_inputs import _FocusedInputs
 from ..randomize_params import randomize_params
+
+logger = logging.getLogger(__name__)
 
 
 class InputHandler(_FocusedInputs, _NonFocusedInputs):
@@ -21,6 +24,7 @@ class InputHandler(_FocusedInputs, _NonFocusedInputs):
         """
         super().__init__(handle)
         if GetKeyState(win32con.VK_NUMLOCK) != 0:
+            logger.info("NumLock is on. Turning it off.")
             inpt = self._input_array_constructor(
                 keys=["num_lock", "num_lock"],
                 events=["keydown", "keyup"],

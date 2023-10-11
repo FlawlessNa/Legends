@@ -3,13 +3,14 @@ import logging
 from configparser import ConfigParser, SectionProxy
 from paths import ROOT
 
+logger = logging.getLogger(__name__)
+
 
 def config_reader(
     filename: str,
     section: str | None = None,
     option: str | None = None,
     file_ext: str = ".ini",
-    verbose=False,
     *,
     full_path: str | None = None,
 ) -> ConfigParser | SectionProxy | str | None:
@@ -19,7 +20,6 @@ def config_reader(
     :param section: section of the config file to be read. If None, all sections will be read. Must exist in config file, otherwise a KeyError is raised.
     :param option: option of the config file to be read. If None, all options will be read. If section is None, this parameter is ignored. Must exist in config file, otherwise a KeyError is raised.
     :param file_ext: file extension of the config file to be read. Default is '.ini'.
-    :param verbose: If True, the logger will log the config file that has been read.
     :param full_path: If provided, the config file will be read from this full path instead.
     :return: ConfigParser object.
     """
@@ -28,8 +28,8 @@ def config_reader(
         full_path = os.path.join(ROOT, "configs", filename + file_ext)
     assert os.path.exists(full_path), f"Config file {full_path} does not exist."
     config.read(full_path)
-    if verbose:
-        logging.info(f"config read successfully from {full_path}")
+
+    logger.debug(f"config read successfully from {full_path}")
     if section is not None:
         if option is not None:
             return config[section][option]

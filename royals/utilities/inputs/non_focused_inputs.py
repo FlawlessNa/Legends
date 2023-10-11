@@ -1,6 +1,7 @@
 """Low-level module that handles the sending of inputs to any window through PostMessage(...)."""
 import asyncio
 import ctypes
+import logging
 import win32con
 
 from ctypes import wintypes
@@ -9,6 +10,7 @@ from .inputs_helpers import _InputsHelpers
 from ..randomize_params import randomize_params
 
 SYS_KEYS = ["alt", "alt_right", "F10"]
+logger = logging.getLogger(__name__)
 
 
 class _NonFocusedInputs(_InputsHelpers):
@@ -29,14 +31,23 @@ class _NonFocusedInputs(_InputsHelpers):
             msg, delay = item
 
             # PostMessageW will return 0 only if the message queue is full. In that case, we wait until it's not full anymore. This shouldn't really ever happen but still a precaution.
+            failure_count = 0
             while not self._exported_functions["PostMessageW"](*msg):
-                print("PostMessage has failed")
-                await asyncio.sleep(
-                    0.01
-                )  # This will only be called if the message is not posted successfully.
-            await asyncio.sleep(
-                delay
-            )  # Allows for smaller delays between consecutive keys, such as when writing a message in-game, or between KEYUP/KEYDOWN commands.
+                logger.error(f"Failed to post message {msg}")
+                failure_count += 1
+
+                # This will only be called if the message is not posted successfully.
+                await asyncio.sleep(0.01)
+                if failure_count > 10:
+                    logger.critical(
+                        f"Unable to post the message {msg} to the window {self.handle}"
+                    )
+                    raise RuntimeError(
+                        f"Failed to post message {msg} after 10 attempts."
+                    )
+
+            # Allows for smaller delays between consecutive keys, such as when writing a message in-game, or between KEYUP/KEYDOWN commands.
+            await asyncio.sleep(delay)
         await asyncio.sleep(cooldown)
 
     def _message_constructor(

@@ -1,11 +1,13 @@
 import asyncio
 import functools
+import logging
 import win32con
 from typing import Literal
 
 from .shared_resources import SharedResources
-from ..utilities import InputHandler
-from ..utilities import randomize_params
+from ..utilities import config_reader, InputHandler, randomize_params
+
+logger = logging.getLogger(__name__)
 
 
 class Controller(InputHandler):
@@ -32,12 +34,13 @@ class Controller(InputHandler):
         temp = {
             k: eval(v)
             for k, v in dict(
-                config_reader("keybindings", f"{self.ign}", verbose=True)
+                config_reader("keybindings", f"{self.ign}")
             ).items()
         }
         final = {}
         for val in temp.values():
             final.update(val)
+        logger.debug(f"Key bindings successfully retrieved for {self.ign}.")
         return final
 
     async def press(
@@ -92,6 +95,7 @@ class Controller(InputHandler):
         :return: None
         """
         if silenced:
+            logger.debug(f"Writing message {message} in window {self.handle} silently.")
             await self._non_focused_input(
                 list(message),
                 [win32con.WM_CHAR] * len(message),
@@ -100,6 +104,7 @@ class Controller(InputHandler):
             )
 
         else:
+            logger.debug(f"Writing message {message} in window {self.handle} LOUDLY.")
             message = [char for char in list(message) for _ in range(2)]
             events: list[Literal] = ["keydown", "keyup"] * (len(message) // 2)
             await self._focused_input(
@@ -111,7 +116,7 @@ class Controller(InputHandler):
                 **kwargs,
             )
 
-    @randomize_params("jump_interval")
+    @randomize_params("duration", "jump_interval")
     async def move(
         self,
         direction: Literal["left", "right", "up", "down"],
@@ -168,6 +173,9 @@ class Controller(InputHandler):
                 if jump:
                     tg.create_task(_jump_n_times(nbr_jumps))
 
+        logger.debug(
+            f"{self.ign} now moving {direction} for {duration} seconds. Jump={jump} and secondary direction={secondary_direction}."
+        )
         # Press direction and secondary direction
         await self._focused_input(direction, ["keydown"], enforce_delay=False)
         if secondary_direction:
@@ -193,6 +201,7 @@ class Controller(InputHandler):
                 await self._non_focused_input(
                     self.key_binds["jump"], [win32con.WM_KEYUP], cooldown=0
                 )
+            logger.debug(f"{self.ign} has successfully released movement keys.")
 
     @SharedResources.requires_focus
     async def move_mouse(self) -> None:

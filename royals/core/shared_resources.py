@@ -1,8 +1,11 @@
 import asyncio
 import ctypes
 import functools
+import logging
 
 from win32gui import GetForegroundWindow, SetForegroundWindow
+
+logger = logging.getLogger(__name__)
 
 
 class SharedResources:
@@ -22,7 +25,9 @@ class SharedResources:
         async def inner(*args, **kwargs):
             """Lock is required to prevent multiple tasks or processes from trying to use PC Focus simultaneously."""
             async with cls.focus_lock:  # Blocks until the lock is freed by the other process. Automatically frees the lock when the coroutine is finished.
+                logger.debug(f"Lock acquired by {func.__name__}")
                 res = await func(*args, **kwargs)
+            logger.debug(f"Lock released by {func.__name__}")
             return res
 
         return inner

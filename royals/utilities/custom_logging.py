@@ -1,3 +1,4 @@
+"""Re defines RotatingFileHandler and StreamHandler to acquire a lock before emitting a log message."""
 import logging.handlers
 import multiprocessing
 

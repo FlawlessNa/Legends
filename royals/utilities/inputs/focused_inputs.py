@@ -1,6 +1,7 @@
 """Low-level module that handles the sending of inputs to the focused window through SendInput(...)."""
 import asyncio
 import ctypes
+import logging
 import random
 
 from ctypes import wintypes
@@ -17,6 +18,8 @@ KEYEVENTF_UNICODE = 0x0004
 KEYEVENTF_SCANCODE = 0x0008
 
 ULONG_PTR = ctypes.POINTER(ctypes.c_ulong)
+
+logger = logging.getLogger(__name__)
 
 
 class MouseInputStruct(ctypes.Structure):
@@ -87,6 +90,7 @@ class _FocusedInputs(_InputsHelpers):
         :return: None
         """
         if GetForegroundWindow() != self.handle:
+            logger.debug(f"Activating window {self.handle}")
             shell = Dispatch("WScript.Shell")
             shell.SendKeys("%")
             SetForegroundWindow(self.handle)
@@ -106,17 +110,26 @@ class _FocusedInputs(_InputsHelpers):
         self.activate()
         for item in inputs:
             input_structure, delay = item
+            failure_count = 0
             while (
                 self._exported_functions["SendInput"](*input_structure)
                 != input_structure[0].value
             ):
-                print("SendInput has failed")
-                await asyncio.sleep(
-                    0.01
-                )  # This will only be called if the input is not sent successfully.
-            await asyncio.sleep(
-                delay
-            )  # Allows for smaller delays between consecutive keys, such as when writing a message in-game, or between KEYUP/KEYDOWN commands.
+                logger.error(f"Failed to send input {input_structure}")
+                failure_count += 1
+
+                # This will only be called if the input is not sent successfully.
+                await asyncio.sleep(0.01)
+                if failure_count > 10:
+                    logger.critical(
+                        f"Unable to send the structure {input_structure} to the window {self.handle}"
+                    )
+                    raise RuntimeError(
+                        f"Failed to send input {input_structure[0]} after 10 attempts."
+                    )
+            # Allows for smaller delays between consecutive keys, such as when writing a message in-game, or between KEYUP/KEYDOWN commands.
+            await asyncio.sleep(delay)
+
         await asyncio.sleep(cooldown)
 
     def _input_array_constructor(
@@ -150,7 +163,7 @@ class _FocusedInputs(_InputsHelpers):
         input_array_class = Input * nbr_inputs
         input_pointer = ctypes.POINTER(input_array_class)
         # TODO - Validate. The original argtypes (defined in __init__) uses a pointer to the Input structure, but I think we need a pointer to the Input *array* structure.
-        #  The array length varies between each call, so we need to re-define every time?
+        #  The array length varies between each call, so we need to re-define every time? Test without redefinitions, or timeit to see how redefinitions affects performance.
         self._exported_functions["SendInput"].argtypes = [
             wintypes.UINT,
             input_pointer,
@@ -158,12 +171,13 @@ class _FocusedInputs(_InputsHelpers):
         ]
 
         input_list = []
-        for idx, item in enumerate(zip(keys, events)):
+        for item in zip(keys, events):
             key, event = item
             input_list.append(self._input_structure_constructor(key, event, as_unicode))
 
         if enforce_delay:
             return_val = list()
+            # Create N different arrays of length 1, each containing a single input structure.
             for item in input_list:
                 input_single_array = input_array_class(item)
                 full_params = tuple(
@@ -178,6 +192,7 @@ class _FocusedInputs(_InputsHelpers):
                 )
             return return_val
         else:
+            # Create 1 single array of length N. All inputs sent simultaneously.
             input_array = input_array_class(*input_list)
             full_input = [
                 tuple(

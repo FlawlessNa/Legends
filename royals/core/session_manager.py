@@ -49,6 +49,7 @@ class SessionManager:
         :return: None
         """
         self.sender.send("stop")
+        logger.debug("Sent stop signal to recorder process")
         self.recorder_process.join()
 
     @staticmethod
@@ -72,4 +73,4 @@ class SessionManager:
         self.recorder_process.start()
         async with asyncio.TaskGroup() as tg:
             for bot in self.bots:
-                tg.create_task(bot.run())
+                tg.create_task(bot.run(), name=bot.__class__.__name__)
