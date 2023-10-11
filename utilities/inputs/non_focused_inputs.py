@@ -8,8 +8,6 @@ from ctypes import wintypes
 from utilities.inputs import _InputsHelpers
 from utilities.randomize_params import randomize_params
 
-from functools import lru_cache
-
 SYS_KEYS = ["alt", "alt_right", "F10"]
 
 
