@@ -4,8 +4,8 @@ import win32con
 from typing import Literal
 
 from .shared_resources import SharedResources
-from utilities import config_reader, randomize_params
-from utilities.inputs import InputHandler
+from ..utilities import InputHandler
+from ..utilities import randomize_params
 
 
 class Controller(InputHandler):

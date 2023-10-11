@@ -1,6 +1,5 @@
 import cv2
 import win32gui
-from utilities import Box, take_screenshot
 
 
 def box_finder(handle: int, box: Box | None = None) -> Box:
@@ -24,42 +23,48 @@ def box_finder(handle: int, box: Box | None = None) -> Box:
     :return: final Box
     """
     if box is None:
-        from utilities.screenshots import CLIENT_HORIZONTAL_MARGIN_PX, CLIENT_VERTICAL_MARGIN_PX
+        from royals.utilities.screenshots import (
+            CLIENT_HORIZONTAL_MARGIN_PX,
+            CLIENT_VERTICAL_MARGIN_PX,
+        )
+
         left, top, right, bottom = win32gui.GetClientRect(handle)
-        box = Box(left=left + CLIENT_HORIZONTAL_MARGIN_PX,
-                  top=top + CLIENT_VERTICAL_MARGIN_PX,
-                  right=right + CLIENT_HORIZONTAL_MARGIN_PX,
-                  bottom=bottom + CLIENT_VERTICAL_MARGIN_PX)
+        box = Box(
+            left=left + CLIENT_HORIZONTAL_MARGIN_PX,
+            top=top + CLIENT_VERTICAL_MARGIN_PX,
+            right=right + CLIENT_HORIZONTAL_MARGIN_PX,
+            bottom=bottom + CLIENT_VERTICAL_MARGIN_PX,
+        )
     while True:
         screenshot = take_screenshot(handle, box)
-        cv2.imshow('test', screenshot)
+        cv2.imshow("test", screenshot)
         key = cv2.waitKey(0)
 
-        if key == ord('Q'):
+        if key == ord("Q"):
             break
 
-        elif key == ord('A'):
+        elif key == ord("A"):
             box += Box(left=1, right=0, top=0, bottom=0, offset=True)
-        elif key == ord('a'):
+        elif key == ord("a"):
             box += Box(left=-1, right=0, top=0, bottom=0, offset=True)
 
-        elif key == ord('D'):
+        elif key == ord("D"):
             box += Box(left=0, right=-1, top=0, bottom=0, offset=True)
-        elif key == ord('d'):
+        elif key == ord("d"):
             box += Box(left=0, right=1, top=0, bottom=0, offset=True)
 
-        elif key == ord('W'):
+        elif key == ord("W"):
             box += Box(left=0, right=0, top=1, bottom=0, offset=True)
-        elif key == ord('w'):
+        elif key == ord("w"):
             box += Box(left=0, right=0, top=-1, bottom=0, offset=True)
 
-        elif key == ord('S'):
+        elif key == ord("S"):
             box += Box(left=0, right=0, top=0, bottom=-1, offset=True)
-        elif key == ord('s'):
+        elif key == ord("s"):
             box += Box(left=0, right=0, top=0, bottom=1, offset=True)
 
         else:
             continue
 
-    print(f'Final Box: {box}')
+    print(f"Final Box: {box}")
     return box

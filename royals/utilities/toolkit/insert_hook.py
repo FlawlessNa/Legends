@@ -6,14 +6,18 @@ from ctypes import wintypes
 import os
 
 handle = 0x000206B0
-lib = ctypes.cdll.LoadLibrary('../utilities/test.dll')
+lib = ctypes.cdll.LoadLibrary("../utilities/test.dll")
 
 WH_GETMESSAGE = 3
 
 
-GetMsgProc = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)(my_package.my_function)
+GetMsgProc = ctypes.WINFUNCTYPE(
+    ctypes.c_int, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM
+)(my_package.my_function)
 dwThreadId = 0x00005624
-hHook = ctypes.windll.user32.SetWindowsHookExA(WH_GETMESSAGE, GetMsgProc, hex(lib._handle), dwThreadId)
+hHook = ctypes.windll.user32.SetWindowsHookExA(
+    WH_GETMESSAGE, GetMsgProc, hex(lib._handle), dwThreadId
+)
 if not hHook:
     raise ctypes.WinError(ctypes.get_last_error())
 #

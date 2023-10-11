@@ -3,7 +3,8 @@ import inspect
 import itertools
 import random
 from typing import Literal
-from utilities import Box
+
+from .box import Box
 
 
 def randomize_params(

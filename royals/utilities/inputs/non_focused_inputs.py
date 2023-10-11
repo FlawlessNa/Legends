@@ -5,8 +5,8 @@ import win32con
 
 from ctypes import wintypes
 
-from utilities.inputs import _InputsHelpers
-from utilities.randomize_params import randomize_params
+from .inputs_helpers import _InputsHelpers
+from ..randomize_params import randomize_params
 
 SYS_KEYS = ["alt", "alt_right", "F10"]
 

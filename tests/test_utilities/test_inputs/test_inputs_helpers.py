@@ -3,7 +3,7 @@ import string
 import win32gui
 
 from unittest import TestCase
-from utilities.inputs import _InputsHelpers
+from royals.utilities import _InputsHelpers
 
 
 class TestInputsHelpers(TestCase):

@@ -4,8 +4,8 @@ import logging
 import os
 import time
 
-from screen_recorder.folder_manager import FolderManager
-from utilities import config_reader, take_screenshot
+from royals.utilities import config_reader, take_screenshot
+from .folder_manager import FolderManager
 
 SM_CXSCREEN = 0
 SM_CYSCREEN = 1
@@ -24,7 +24,7 @@ class Recorder:
         self.config: dict = dict(config_reader(config_name)["DEFAULT"])
         self.out_path = os.path.join(
             self.config["recordings folder"],
-            time.strftime('%Y%m%d_%H%M%S') + self.config["file extension"],
+            time.strftime("%Y%m%d_%H%M%S") + self.config["file extension"],
         )
         self.output: cv2.VideoWriter = cv2.VideoWriter(
             self.out_path,
@@ -48,22 +48,29 @@ class Recorder:
         """
         try:
             while True:
+                logger.debug("Recording")
                 beginning = time.perf_counter()
 
                 img = take_screenshot()
                 self.output.write(img)
 
                 end = time.perf_counter()
-                time.sleep(max(1 / int(self.config["fps"]) - (end - beginning), 0))  # Ensure that no more then user-specified FPS are recorded (prevents files from getting too large)
+                time.sleep(
+                    max(1 / int(self.config["fps"]) - (end - beginning), 0)
+                )  # Ensure that no more than user-specified FPS are recorded (prevents files from getting too large)
 
                 if self.stop_recording():
-                    logger.info(f'Screen recorder stopped. Saving recording to {os.path.normpath(os.path.join(self.out_path))}')
+                    logger.info(
+                        f"Screen recorder stopped. Saving recording to {os.path.normpath(os.path.join(self.out_path))}"
+                    )
                     self.output.release()
                     break
 
         # Failsafe to ensure video is properly saved at the end of the recording session
         finally:
             if self.output.isOpened():
-                logger.error(f'Screen recorder has unexpectedly stopped. Saving recording to {os.path.normpath(os.path.join(self.out_path))}')
+                logger.error(
+                    f"Screen recorder has unexpectedly stopped. Saving recording to {os.path.normpath(os.path.join(self.out_path))}"
+                )
                 self.output.release()
             self.output_manager.perform_cleanup()

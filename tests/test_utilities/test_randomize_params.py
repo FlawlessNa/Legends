@@ -1,5 +1,5 @@
 from unittest import TestCase
-from utilities import randomize_params, Box
+from royals.utilities import randomize_params, Box
 
 
 class Test(TestCase):

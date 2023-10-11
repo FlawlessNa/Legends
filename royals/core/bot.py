@@ -1,6 +1,6 @@
-import asyncio
-from abc import ABC, abstractmethod
-from core.controller import Controller
+from abc import ABC
+
+from .controller import Controller
 
 
 class Bot(ABC):
@@ -13,7 +13,9 @@ class Bot(ABC):
         pass
 
     def _validation_keybindings(self, user_defined_keybindings) -> None:
-        assert all(key in self.required_keybindings() for key in user_defined_keybindings), f"Missing keybindings.\nRequired:\n{self.required_keybindings()}\nProvided:\n{user_defined_keybindings}."
+        assert all(
+            key in self.required_keybindings() for key in user_defined_keybindings
+        ), f"Missing keybindings.\nRequired:\n{self.required_keybindings()}\nProvided:\n{user_defined_keybindings}."
 
     async def run(self) -> None:
-        await self.controller.move('left', 5, True)
+        await self.controller.move("right", 5, False)

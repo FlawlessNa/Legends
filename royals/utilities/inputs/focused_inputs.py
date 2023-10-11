@@ -8,8 +8,8 @@ from typing import Literal
 from win32com.client import Dispatch
 from win32gui import SetForegroundWindow, GetForegroundWindow
 
-from core.shared_resources import SharedResources
-from utilities.inputs import _InputsHelpers
+from .inputs_helpers import _InputsHelpers
+from royals.core.shared_resources import SharedResources
 
 KEYEVENTF_EXTENDEDKEY = 0x0001
 KEYEVENTF_KEYUP = 0x0002

@@ -7,8 +7,9 @@ from ctypes import wintypes
 from typing import Literal
 from win32api import GetKeyState
 
-from utilities.randomize_params import randomize_params
-from utilities.inputs import _FocusedInputs, _NonFocusedInputs
+from .non_focused_inputs import _NonFocusedInputs
+from .focused_inputs import _FocusedInputs
+from ..randomize_params import randomize_params
 
 
 class InputHandler(_FocusedInputs, _NonFocusedInputs):

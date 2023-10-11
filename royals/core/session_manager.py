@@ -2,28 +2,14 @@ import asyncio
 import logging
 import multiprocessing
 import multiprocessing.connection
-import time
 
 from functools import partial
 from typing import Self
 
-from .bot import Bot
-from screen_recorder import Recorder
+from royals.screen_recorder import Recorder
+from royals.core import Bot
 
 logger = logging.getLogger(__name__)
-
-formatter = logging.Formatter(fmt='%(levelname)s %(name)s - %(asctime)s::%(message)s', datefmt='%Y%m%d_%H%M%S')
-
-file_handler = logging.FileHandler(f'Session {time.strftime("%Y%m%d_%H%M%S")}.log')
-file_handler.setLevel(logging.DEBUG)
-file_handler.setFormatter(formatter)
-
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(formatter)
-
-logger.addHandler(file_handler)
-logger.addHandler(console_handler)
 
 
 class SessionManager:
@@ -36,6 +22,7 @@ class SessionManager:
         - Schedule each Bot as tasks to be executed in a single asyncio loop. This ensures no actions are executed in parallel, which would be suspicious.
         - Perform automatic clean-up as necessary. When the Bot is stopped, the Manager will ensure the screen recording is stopped and saved.
     """
+
     def __init__(self, *bots_to_launch: Bot) -> None:
         self.bots = bots_to_launch
         self.recorder_process = None
@@ -45,10 +32,11 @@ class SessionManager:
         """
         Setup all Bot tasks.
         Setup Recorder process.
-        # TODO - Handle logger?
         :return: self
         """
-        self.recorder_process = multiprocessing.Process(target=self.create_recorder, name='Screen Recorder', args=(self.receiver, ))
+        self.recorder_process = multiprocessing.Process(
+            target=self.create_recorder, name="Screen Recorder", args=(self.receiver,)
+        )
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -60,15 +48,17 @@ class SessionManager:
         :param exc_tb: Exception Traceback.
         :return: None
         """
-        self.sender.send('stop')
+        self.sender.send("stop")
         self.recorder_process.join()
 
     @staticmethod
     def create_recorder(receiver: multiprocessing.connection.Connection):
         def f(recv_end: multiprocessing.connection.Connection):
-            if recv_end.poll():  # Check if a signal has been sent from the other end of the Pipe
+            if (
+                recv_end.poll()
+            ):  # Check if a signal has been sent from the other end of the Pipe
                 signal = recv_end.recv()
-                if signal == 'stop':
+                if signal == "stop":
                     return True
             return False
 

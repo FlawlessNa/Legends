@@ -3,7 +3,7 @@ import win32con
 import win32gui
 import win32ui
 
-from utilities.box import Box
+from .box import Box
 
 CLIENT_HORIZONTAL_MARGIN_PX = 3
 CLIENT_VERTICAL_MARGIN_PX = 29
@@ -59,13 +59,13 @@ def take_screenshot(
     compatible_dc.DeleteDC()
     win32gui.ReleaseDC(handle, window_dc)
     win32gui.DeleteObject(data_bit_map.GetHandle())
-        #     break
-        #
-        # except win32ui.error:
-        #     logger.info(
-        #         f"Error in taking screenshot. Trying again. Dimensions parameter is {dimensions}"
-        #     )
-        #     time.sleep(1)
+    #     break
+    #
+    # except win32ui.error:
+    #     logger.info(
+    #         f"Error in taking screenshot. Trying again. Dimensions parameter is {dimensions}"
+    #     )
+    #     time.sleep(1)
 
     img = np.fromstring(signed_integers_array, dtype="uint8")
     img.shape = (height, width, 4)
