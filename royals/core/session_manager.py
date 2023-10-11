@@ -66,6 +66,9 @@ class SessionManager:
         recorder.start_recording()
 
     async def launch(self) -> None:
+        logger.info(
+            f'Launching {len(self.bots)} bots. The following bots will be launched: {", ".join([bot.__class__.__name__ for bot in self.bots])}'
+        )
         self.recorder_process.start()
         async with asyncio.TaskGroup() as tg:
             for bot in self.bots:

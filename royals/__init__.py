@@ -11,17 +11,16 @@ from paths import ROOT
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-logger.warning("test from royals.__init__")
 
 formatter = logging.Formatter(
     fmt="%(levelname)s--MODULE %(name)s--PROCESS %(processName)s - %(asctime)s::%(message)s",
     datefmt="%Y%m%d_%H%M%S",
 )  # TODO - If you ever switch to 3.12, then add TASK %(taskName)s to the formatter
 
-file_handler = custom_logging.MultiProcessFileHandler(
-    os.path.join(
-        ROOT, "logs", f'Session {time.strftime("%Y%m%d_%H%M")}.log'
-    )  # TODO -standardized log file name such that any process can write to same file.
+file_handler = custom_logging.MultiProcessRotatingFileHandler(
+    os.path.join(ROOT, "logs", f'Session {time.strftime("%Y%m%d")}.log'),
+    maxBytes=10 * (2**20),  # 10 MB
+    backupCount=100,
 )
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(formatter)

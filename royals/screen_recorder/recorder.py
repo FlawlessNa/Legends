@@ -47,8 +47,10 @@ class Recorder:
         :return: None
         """
         try:
+            logger.info(
+                f"Screen recorder started. Saving recording to {os.path.normpath(os.path.join(self.out_path))}"
+            )
             while True:
-                logger.debug("Recording")
                 beginning = time.perf_counter()
 
                 img = take_screenshot()

@@ -1,8 +1,8 @@
-import logging
+import logging.handlers
 import multiprocessing
 
 
-class MultiProcessFileHandler(logging.FileHandler):
+class MultiProcessRotatingFileHandler(logging.handlers.RotatingFileHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._lock = multiprocessing.Lock()
