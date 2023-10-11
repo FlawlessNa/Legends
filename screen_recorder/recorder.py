@@ -26,7 +26,10 @@ class Recorder:
             self.out_path,
             cv2.VideoWriter.fourcc(*self.config["four cc"]),
             int(self.config["fps"]) * int(self.config["multiplier"]),
-            (ctypes.windll.user32.GetSystemMetrics(SM_CXSCREEN), ctypes.windll.user32.GetSystemMetrics(SM_CYSCREEN)),
+            (
+                ctypes.windll.user32.GetSystemMetrics(SM_CXSCREEN),
+                ctypes.windll.user32.GetSystemMetrics(SM_CYSCREEN),
+            ),
         )
         self.output_manager: FolderManager = FolderManager(
             folder_path=self.config["recordings folder"],
@@ -40,7 +43,6 @@ class Recorder:
         :return: None
         """
         try:
-            start_time = time.perf_counter()
             while True:
                 beginning = time.perf_counter()
 
@@ -48,7 +50,7 @@ class Recorder:
                 self.output.write(img)
 
                 end = time.perf_counter()
-                time.sleep(max(1 / int(self.config['fps']) - (end - beginning), 0))
+                time.sleep(max(1 / int(self.config["fps"]) - (end - beginning), 0))
 
                 if self.stop_recording():
                     # logger.info(f'Screen recorder has stopped. Saving recording to {os.path.normpath(os.path.join(self.output_path, self.output_name))}')
@@ -59,7 +61,7 @@ class Recorder:
         finally:
             if self.output.isOpened():
                 # logger.info(f'Screen recorder has *unexpectedly* stopped. Saving recording to {os.path.normpath(os.path.join(self.output_path, self.output_name))}')
-                print('saving video')
+                print("saving video")
                 self.output.release()
-                print('video saved')
+                print("video saved")
             self.output_manager.perform_cleanup()
