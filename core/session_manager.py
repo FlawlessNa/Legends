@@ -1,12 +1,29 @@
 import asyncio
+import logging
 import multiprocessing
 import multiprocessing.connection
+import time
 
 from functools import partial
 from typing import Self
 
 from .bot import Bot
 from screen_recorder import Recorder
+
+logger = logging.getLogger(__name__)
+
+formatter = logging.Formatter(fmt='%(levelname)s %(name)s - %(asctime)s::%(message)s', datefmt='%Y%m%d_%H%M%S')
+
+file_handler = logging.FileHandler(f'Session {time.strftime("%Y%m%d_%H%M%S")}.log')
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(formatter)
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(formatter)
+
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
 
 
 class SessionManager:

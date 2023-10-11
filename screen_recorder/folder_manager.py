@@ -1,4 +1,7 @@
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 
 
 class FolderManager:
@@ -56,10 +59,8 @@ class FolderManager:
             file_to_remove = self.get_sorted_files_by_creation_time().pop(-1)
             self.clear_file(file_to_remove)
             files_removed += 1
-            # TODO - Logging
-            print(
+            logger.info(
                 f"{file_to_remove} has been deleted. Current directory size: {self.directory_size} GB."
             )
         if files_removed:
-            # TODO - Logging
-            print(f"{files_removed} files removed from {self.folder_path}")
+            logger.info(f"{files_removed} files removed from {self.folder_path}")
