@@ -19,11 +19,17 @@ class Recorder(ChildProcess):
     """
     Loads in relevant recording parameters (user-specified) and records the entire session.
     At the end of the session, the recording is saved.
-    A callable needs to be provided when instantiating this class. This callable will be used to check when the recording should stop.
+    The recorder is expected to run in a child process (separated from main process).
+    As such, it inherits from ChildProcess and relies on its connection with Main Process to know when to stop.
     """
 
-    def __init__(self, end_pipe: multiprocessing.connection.Connection, config_name: str = "recordings") -> None:
-        super().__init__(end_pipe)
+    def __init__(
+        self,
+        end_pipe: multiprocessing.connection.Connection,
+        mp_queue: multiprocessing.Queue,
+        config_name: str = "recordings",
+    ) -> None:
+        super().__init__(end_pipe, mp_queue, logger)
         self.config: dict = dict(config_reader(config_name)["DEFAULT"])
         self.out_path = os.path.join(
             self.config["recordings folder"],
@@ -62,7 +68,6 @@ class Recorder(ChildProcess):
                 time.sleep(
                     max(1 / int(self.config["fps"]) - (end - beginning), 0)
                 )  # Ensure that no more than user-specified FPS are recorded (prevents files from getting too large)
-
                 if self.stop_recording():
                     logger.info(
                         f"Screen recorder stopped. Saving recording to {os.path.normpath(os.path.join(self.out_path))}"

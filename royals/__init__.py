@@ -1,11 +1,10 @@
 from .core import Bot
 from .core import SessionManager
 
-import logging
+import logging.handlers
 import os
 import time
 
-from .utilities import custom_logging
 from paths import ROOT
 
 
@@ -19,7 +18,7 @@ formatter = logging.Formatter(
 
 if not os.path.exists(os.path.join(ROOT, "logs")):
     os.mkdir(os.path.join(ROOT, "logs"))
-file_handler = custom_logging.MultiProcessRotatingFileHandler(
+file_handler = logging.handlers.RotatingFileHandler(
     os.path.join(ROOT, "logs", f'Session {time.strftime("%Y%m%d")}.log'),
     maxBytes=10 * (2**20),  # 10 MB
     backupCount=100,
@@ -27,7 +26,7 @@ file_handler = custom_logging.MultiProcessRotatingFileHandler(
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(formatter)
 
-console_handler = custom_logging.MultiProcessStreamHandler()
+console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
 console_handler.setFormatter(formatter)
 

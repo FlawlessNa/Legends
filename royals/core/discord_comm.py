@@ -13,10 +13,14 @@ logger = logging.getLogger(__name__)
 class DiscordComm(discord.Client, ChildProcess):
     """Establishes communication with Discord, while maintaining the end of a Pipe object to communicate with the main process."""
 
-    def __init__(self, pipe_end: multiprocessing.connection.Connection) -> None:
+    def __init__(
+        self,
+        pipe_end: multiprocessing.connection.Connection,
+        logging_queue: multiprocessing.Queue,
+    ) -> None:
         super().__init__(intents=discord.Intents.all())
         self.config = config_reader("discord")
-        ChildProcess.__init__(self, pipe_end)
+        ChildProcess.__init__(self, pipe_end, logging_queue, logger)
 
     @cached_property
     def general_chat_id(self) -> int:
@@ -60,9 +64,9 @@ class DiscordComm(discord.Client, ChildProcess):
         """
         async with asyncio.TaskGroup() as tg:
             tg.create_task(self.start(self.config["DEFAULT"]["DISCORD_TOKEN"]))
-            tg.create_task(self.listener())
+            tg.create_task(self.main_process_listener())
 
-    async def listener(self) -> None:
+    async def main_process_listener(self) -> None:
         """
         This method is responsible for listening to the main process.
         If main process sends a None signal, then it means the process is shutting down and this method will close both the Discord client and the listener.
@@ -71,16 +75,15 @@ class DiscordComm(discord.Client, ChildProcess):
         """
         while True:
             # Check if a signal is received from main process, blocks Discord Process for 2 seconds, meaning Discord.client is idle during this time.
-            if self.pipe_end.poll(2):
+            if await asyncio.to_thread(self.pipe_end.poll):
                 signal = self.pipe_end.recv()
                 if signal is None:
                     logger.info("Stopping Discord Communications.")
+                    self.pipe_end.close()
                     await self.close()
                     break
                 else:
-                    logger.debug(
+                    logger.info(
                         f"{self.__class__.__name__} received a signal {signal}. Sending to Discord."
                     )
                     await self.get_channel(self.general_chat_id).send(signal)
-            # Here it's the opposite. The listener is idle while Discord.client is able to retrieve messages.
-            await asyncio.sleep(2)

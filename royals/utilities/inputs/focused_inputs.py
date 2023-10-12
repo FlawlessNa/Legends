@@ -129,7 +129,6 @@ class _FocusedInputs(_InputsHelpers):
                     )
             # Allows for smaller delays between consecutive keys, such as when writing a message in-game, or between KEYUP/KEYDOWN commands.
             await asyncio.sleep(delay)
-
         await asyncio.sleep(cooldown)
 
     def _input_array_constructor(
