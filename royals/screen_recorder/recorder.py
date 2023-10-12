@@ -1,11 +1,13 @@
 import cv2
 import ctypes
 import logging
+import multiprocessing.connection
 import os
 import time
 
 from royals.utilities import config_reader, take_screenshot
 from .folder_manager import FolderManager
+from ..utilities.child_process import ChildProcess
 
 SM_CXSCREEN = 0
 SM_CYSCREEN = 1
@@ -13,14 +15,15 @@ SM_CYSCREEN = 1
 logger = logging.getLogger(__name__)
 
 
-class Recorder:
+class Recorder(ChildProcess):
     """
     Loads in relevant recording parameters (user-specified) and records the entire session.
     At the end of the session, the recording is saved.
     A callable needs to be provided when instantiating this class. This callable will be used to check when the recording should stop.
     """
 
-    def __init__(self, func: callable, config_name: str = "recordings") -> None:
+    def __init__(self, end_pipe: multiprocessing.connection.Connection, config_name: str = "recordings") -> None:
+        super().__init__(end_pipe)
         self.config: dict = dict(config_reader(config_name)["DEFAULT"])
         self.out_path = os.path.join(
             self.config["recordings folder"],
@@ -39,7 +42,6 @@ class Recorder:
             folder_path=self.config["recordings folder"],
             max_folder_size=int(self.config["max recordings folder size (gb)"]),
         )
-        self.stop_recording = func
 
     def start_recording(self) -> None:
         """
@@ -76,3 +78,9 @@ class Recorder:
                 )
                 self.output.release()
             self.output_manager.perform_cleanup()
+
+    def stop_recording(self) -> bool:
+        if self.pipe_end.poll():
+            if self.pipe_end.recv() is None:
+                return True
+        return False
