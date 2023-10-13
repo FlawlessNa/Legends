@@ -20,7 +20,7 @@ class DiscordComm(discord.Client, ChildProcess):
     ) -> None:
         super().__init__(intents=discord.Intents.all())
         self.config = config_reader("discord")
-        ChildProcess.__init__(self, pipe_end, logging_queue, logger)
+        ChildProcess.__init__(self, pipe_end, logging_queue)
 
     @cached_property
     def general_chat_id(self) -> int:

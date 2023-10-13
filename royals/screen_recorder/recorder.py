@@ -29,7 +29,12 @@ class Recorder(ChildProcess):
         mp_queue: multiprocessing.Queue,
         config_name: str = "recordings",
     ) -> None:
-        super().__init__(end_pipe, mp_queue, logger)
+        """
+        :param end_pipe: The end of the Pipe object that is connected to the main process.
+        :param mp_queue: Queue object that is used to send log records to the main process.
+        :param config_name: Optional. Name of the config file to use. Defaults to "recordings".
+        """
+        super().__init__(end_pipe, mp_queue)
         self.config: dict = dict(config_reader(config_name)["DEFAULT"])
         self.out_path = os.path.join(
             self.config["recordings folder"],

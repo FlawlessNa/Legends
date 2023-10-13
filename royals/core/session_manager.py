@@ -84,8 +84,10 @@ class SessionManager:
 
         logger.debug("Stopping log listener")
         self.log_listener.stop()
-        # asyncio.get_running_loop().stop()
-        # asyncio.get_running_loop().close()
+
+        if exc_type is not None:
+            # TODO - Perform "Bots" cleanup since an error occur. (e.g. close all open windows)
+            pass
 
     @staticmethod
     def create_recorder(
@@ -107,12 +109,14 @@ class SessionManager:
         logger.info(
             f'Launching {len(self.bots)} bots. The following bots will be launched: {", ".join([bot.__class__.__name__ for bot in self.bots])}'
         )
-        asyncio.create_task(
+        disc_task = asyncio.create_task(
             self.discord_process_listener(), name="Discord Message Parser"
         )
         async with asyncio.TaskGroup() as tg:
             for bot in self.bots:
                 tg.create_task(bot.run(), name=bot.__class__.__name__)
+
+        disc_task.cancel()
 
     async def discord_process_listener(self) -> None:
         """
