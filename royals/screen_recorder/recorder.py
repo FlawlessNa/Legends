@@ -15,6 +15,41 @@ SM_CYSCREEN = 1
 logger = logging.getLogger(__name__)
 
 
+class RecorderLauncher:
+    """
+    Launches a Recorder ChildProcess, which is responsible for recording the entire session.
+    An independent multiprocessing.Process is created to handle the screen recording.
+    Recording is CPU-intensive and should not be done in the same process as the Bot.
+    """
+    def __init__(self, queue: multiprocessing.Queue) -> None:
+        self.recorder_receiver, self.recorder_sender = multiprocessing.Pipe(
+            duplex=False
+        )  # One way communication
+        self.logging_queue = queue
+        self.recorder_process = None
+
+    def __enter__(self) -> None:
+        self.recorder_process = multiprocessing.Process(
+            target=self.start_recording,
+            name="Screen Recorder",
+            args=(self.recorder_receiver, self.logging_queue),
+        )
+        self.recorder_process.start()
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.recorder_sender.send(None)
+        logger.debug("Sent stop signal to recorder process")
+        self.recorder_process.join()
+
+    @staticmethod
+    def start_recording(
+        receiver: multiprocessing.connection.Connection,
+        log_queue: multiprocessing.Queue,
+    ):
+        recorder = Recorder(receiver, log_queue)
+        recorder.start()
+
+
 class Recorder(ChildProcess):
     """
     Loads in relevant recording parameters (user-specified) and records the entire session.
@@ -54,7 +89,7 @@ class Recorder(ChildProcess):
             max_folder_size=int(self.config["max recordings folder size (gb)"]),
         )
 
-    def start_recording(self) -> None:
+    def start(self) -> None:
         """
         Loops until it is told to stop and record images at regular intervals, based on user config.
         :return: None

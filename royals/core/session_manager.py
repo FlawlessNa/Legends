@@ -6,15 +6,15 @@ import multiprocessing.connection
 
 from typing import Self
 
-from royals.screen_recorder import Recorder
-from .discord_comm import DiscordComm
+from royals.screen_recorder import RecorderLauncher
+from .discord_comm import DiscordLauncher
 from .bot import Bot
 
 
 logger = logging.getLogger(__name__)
 
 
-class SessionManager:
+class SessionManager(DiscordLauncher, RecorderLauncher):
     """
     Entry point to launch any Bot.
     The Manager will handle the following:
@@ -28,16 +28,10 @@ class SessionManager:
     """
 
     def __init__(self, *bots_to_launch: Bot) -> None:
+        queue = multiprocessing.Queue()
+        DiscordLauncher.__init__(self, queue)
+        RecorderLauncher.__init__(self, queue)
         self.bots = bots_to_launch
-
-        self.recorder_receiver, self.recorder_sender = multiprocessing.Pipe(
-            duplex=False
-        )  # One way communication
-        (
-            self.main_side,
-            self.discord_side,
-        ) = multiprocessing.Pipe()  # Two-way communication
-        self.logging_queue = multiprocessing.Queue()
         self.log_listener = logging.handlers.QueueListener(
             self.logging_queue, *logger.parent.handlers, respect_handler_level=True
         )
@@ -50,18 +44,8 @@ class SessionManager:
         Start listening to any log records from those child processes.
         :return: self
         """
-        self.recorder_process = multiprocessing.Process(
-            target=self.create_recorder,
-            name="Screen Recorder",
-            args=(self.recorder_receiver, self.logging_queue),
-        )
-        self.recorder_process.start()
-        self.discord_process = multiprocessing.Process(
-            target=self.establish_discord_comm,
-            name="Discord Communication",
-            args=(self.discord_side, self.logging_queue),
-        )
-        self.discord_process.start()
+        DiscordLauncher.__enter__(self)
+        RecorderLauncher.__enter__(self)
         self.log_listener.start()
         return self
 
@@ -74,13 +58,8 @@ class SessionManager:
         :param exc_tb: Exception Traceback.
         :return: None
         """
-        self.recorder_sender.send(None)
-        logger.debug("Sent stop signal to recorder process")
-
-        self.main_side.send(None)
-        logger.debug("Sent stop signal to discord process")
-        self.recorder_process.join()
-        self.discord_process.join()
+        DiscordLauncher.__exit__(self, exc_type, exc_val, exc_tb)
+        RecorderLauncher.__exit__(self, exc_type, exc_val, exc_tb)
 
         logger.debug("Stopping log listener")
         self.log_listener.stop()
@@ -89,28 +68,12 @@ class SessionManager:
             # TODO - Perform "Bots" cleanup since an error occur. (e.g. close all open windows)
             pass
 
-    @staticmethod
-    def create_recorder(
-        receiver: multiprocessing.connection.Connection,
-        log_queue: multiprocessing.Queue,
-    ):
-        recorder = Recorder(receiver, log_queue)
-        recorder.start_recording()
-
-    @staticmethod
-    def establish_discord_comm(
-        pipe_end: multiprocessing.connection.Connection,
-        log_queue: multiprocessing.Queue,
-    ):
-        discord_comm = DiscordComm(pipe_end, log_queue)
-        asyncio.run(discord_comm.connect_and_listen())
-
     async def launch(self) -> None:
         logger.info(
             f'Launching {len(self.bots)} bots. The following bots will be launched: {", ".join([bot.__class__.__name__ for bot in self.bots])}'
         )
         disc_task = asyncio.create_task(
-            self.discord_process_listener(), name="Discord Message Parser"
+            self.relay_discord_messages_to_main(), name="Discord Message Parser"
         )
         async with asyncio.TaskGroup() as tg:
             for bot in self.bots:
@@ -118,23 +81,3 @@ class SessionManager:
 
         disc_task.cancel()
 
-    async def discord_process_listener(self) -> None:
-        """
-        #TODO - refactor at the appropriate package location
-        # TODO - See if this blocks the main loop too much.
-        :return: None
-        """
-
-        while True:
-            if await asyncio.to_thread(self.main_side.poll):
-                message = self.main_side.recv()
-                if message.lower() == "kill":
-                    logger.info("Received KILL signal from Discord. Stopping all bots.")
-                    for task in asyncio.all_tasks():
-                        if task.get_name() in [
-                            bot.__class__.__name__ for bot in self.bots
-                        ]:
-                            task.cancel()
-                    break
-                logger.info(f"Received message from Discord: {message}")
-        logger.debug("No more parsing messages from Discord.")

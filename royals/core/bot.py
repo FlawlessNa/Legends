@@ -24,5 +24,4 @@ class Bot(ABC):
     async def run(self) -> None:
         await self.controller.move("left", 5, True)
         logger.info(f'{self.__class__.__name__} has finished running.')
-        # raise Exception
-        # await asyncio.sleep(100)
+
