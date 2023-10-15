@@ -5,13 +5,10 @@ import multiprocessing.connection
 
 from functools import cached_property
 
+from .parser import message_parser
 from royals.utilities import ChildProcess, config_reader
 
 logger = logging.getLogger(__name__)
-
-
-def parse_message(message: str) -> None:
-    pass
 
 
 class DiscordLauncher:
@@ -26,6 +23,7 @@ class DiscordLauncher:
         self.main_side, self.discord_side = multiprocessing.Pipe()
         self.logging_queue = queue
         self.discord_process = None
+        self.discord_listener = None
 
     def __enter__(self) -> None:
         self.discord_process = multiprocessing.Process(
@@ -34,30 +32,37 @@ class DiscordLauncher:
             args=(self.discord_side, self.logging_queue),
         )
         self.discord_process.start()
+        self.discord_listener = asyncio.create_task(
+            self.relay_disc_to_main(), name="Discord Action Dispatcher"
+        )
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.main_side.send(None)
+        self.main_side.close()
         logger.debug("Sent stop signal to discord process")
+
+        logger.debug("Stopping the Discord Action Dispatcher")
+        self.discord_listener.cancel()
+
         self.discord_process.join()
 
-    async def relay_discord_messages_to_main(self) -> None:
+    async def relay_disc_to_main(self) -> None:
         """
-        This method is responsible for listening to the discord process and see if any messages are received by discord user.
+        Main Process task.
+        This method is responsible for listening to the discord process and see if any actions are received by discord user.
+        It then performs those actions.
         :return: None
         """
         while True:
             if await asyncio.to_thread(self.main_side.poll):
                 message = self.main_side.recv()
-                parse_message(message)
-                # if message.lower() == "kill":
-                #     logger.info("Received KILL signal from Discord. Stopping all bots.")
-                #     for task in asyncio.all_tasks():
-                #         if task.get_name() in [
-                #             bot.__class__.__name__ for bot in self.bots
-                #         ]:
-                #             task.cancel()
-                #     break
-                logger.info(f"Received message from Discord: {message}")
+                action = message_parser(message, self.main_side)
+                if action is not None:
+                    breakpoint()
+                    logger.info(
+                        f"Performing action {action.__name__} as requested by discord user."
+                    )
+                    action()
 
     @staticmethod
     def start_discord_comms(
@@ -78,18 +83,20 @@ class DiscordComm(discord.Client, ChildProcess):
     ) -> None:
         super().__init__(intents=discord.Intents.all())
         self.config = config_reader("discord")
+        self.config_section = f"User {self.config['DEFAULT']['user']}"
         ChildProcess.__init__(self, pipe_end, logging_queue)
 
     @cached_property
-    def general_chat_id(self) -> int:
+    def chat_id(self) -> int:
         """
-        Retrieves the General chat channel, which is the default channel used.  # TODO - change this to use desired chat channel from configs.
+        Retrieves the Specified chat channel, which is the channel used for all communications within the current session.
         :return:
         """
         return [
             i.id
             for i in self.get_all_channels()
-            if i.name == "general" and i.type.name == "text"
+            if i.name == self.config[self.config_section]["DISCORD_CHANNEL"]
+            and i.type.name == "text"
         ].pop()
 
     async def on_ready(self) -> None:
@@ -108,11 +115,17 @@ class DiscordComm(discord.Client, ChildProcess):
         if msg.author == self.user:
             return
 
+        # Ensures only messages from specified discord user are processed. Additionally, messages must be sent in the specified channel.
+        elif (
+            msg.author.id != int(self.config[self.config_section]["DISCORD_ID"])
+            or msg.channel.name != self.config[self.config_section]["DISCORD_CHANNEL"]
+        ):
+            return
+
         logger.info(
             f"Received message from {msg.author.name}#{msg.author.discriminator} in channel {msg.channel.name}. Contents: {msg.content}"
         )
-        # TODO - See where it makes sense to parse the message and determine course of action. Might be in the discord process in order to free up main process. Depends on whether result is picklable.
-        self.pipe_end.send(msg.content)
+        self.pipe_end.send(msg.content)  # Send message to main process for parsing
 
     async def start(self, *args, **kwargs) -> None:
         """
@@ -124,10 +137,11 @@ class DiscordComm(discord.Client, ChildProcess):
             tg.create_task(
                 discord.Client.start(self, self.config["DEFAULT"]["DISCORD_TOKEN"])
             )
-            tg.create_task(self.relay_in_game_messages_to_discord())
+            tg.create_task(self.relay_main_to_disc())
 
-    async def relay_in_game_messages_to_discord(self) -> None:
+    async def relay_main_to_disc(self) -> None:
         """
+        Child Process task.
         This method is responsible for listening to the main process.
         If main process sends a None signal, then it means the process is shutting down and this method will close both the Discord client and the listener.
         Otherwise, the signal is assumed to be a message meant for the user. It is sent to the specified chat channel on Discord.
@@ -146,4 +160,4 @@ class DiscordComm(discord.Client, ChildProcess):
                     logger.info(
                         f"{self.__class__.__name__} received a signal {signal}. Sending to Discord."
                     )
-                    await self.get_channel(self.general_chat_id).send(signal)
+                    await self.get_channel(self.chat_id).send(signal)

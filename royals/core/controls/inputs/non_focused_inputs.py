@@ -7,7 +7,7 @@ import win32con
 from ctypes import wintypes
 
 from .inputs_helpers import _InputsHelpers
-from ..randomize_params import randomize_params
+from royals.utilities.randomize_params import randomize_params
 
 SYS_KEYS = ["alt", "alt_right", "F10"]
 logger = logging.getLogger(__name__)

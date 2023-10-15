@@ -10,7 +10,7 @@ from win32api import GetKeyState
 
 from .non_focused_inputs import _NonFocusedInputs
 from .focused_inputs import _FocusedInputs
-from ..randomize_params import randomize_params
+from royals.utilities.randomize_params import randomize_params
 
 logger = logging.getLogger(__name__)
 

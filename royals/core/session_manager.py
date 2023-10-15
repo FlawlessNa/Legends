@@ -7,7 +7,7 @@ import multiprocessing.connection
 from typing import Self
 
 from royals.screen_recorder import RecorderLauncher
-from .discord_comm import DiscordLauncher
+from .communications import DiscordLauncher
 from .bot import Bot
 
 
@@ -61,7 +61,7 @@ class SessionManager(DiscordLauncher, RecorderLauncher):
         DiscordLauncher.__exit__(self, exc_type, exc_val, exc_tb)
         RecorderLauncher.__exit__(self, exc_type, exc_val, exc_tb)
 
-        logger.debug("Stopping log listener")
+        logger.debug("Stopping Log listener")
         self.log_listener.stop()
 
         if exc_type is not None:
@@ -70,14 +70,11 @@ class SessionManager(DiscordLauncher, RecorderLauncher):
 
     async def launch(self) -> None:
         logger.info(
-            f'Launching {len(self.bots)} bots. The following bots will be launched: {", ".join([bot.__class__.__name__ for bot in self.bots])}'
+            f'Launching {len(self.bots)} bots. The following bots will be launched: {" ".join(repr(bot) for bot in self.bots)}'
         )
-        disc_task = asyncio.create_task(
-            self.relay_discord_messages_to_main(), name="Discord Message Parser"
-        )
+        # self.discord_listener = asyncio.create_task(
+        #     self.relay_disc_to_main(), name="Discord Message Parser"
+        # )
         async with asyncio.TaskGroup() as tg:
             for bot in self.bots:
                 tg.create_task(bot.run(), name=bot.__class__.__name__)
-
-        disc_task.cancel()
-

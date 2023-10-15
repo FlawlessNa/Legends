@@ -8,6 +8,9 @@ __pycache__/
 # Logs
 logs/
 
+# Configs
+configs/
+
 # Distribution / packaging
 .Python
 build/

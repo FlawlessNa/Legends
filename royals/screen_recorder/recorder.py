@@ -5,9 +5,8 @@ import multiprocessing.connection
 import os
 import time
 
-from royals.utilities import config_reader, take_screenshot
+from royals.utilities import config_reader, ChildProcess, take_screenshot
 from .folder_manager import FolderManager
-from ..utilities.child_process import ChildProcess
 
 SM_CXSCREEN = 0
 SM_CYSCREEN = 1
@@ -38,6 +37,7 @@ class RecorderLauncher:
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.recorder_sender.send(None)
+        self.recorder_sender.close()
         logger.debug("Sent stop signal to recorder process")
         self.recorder_process.join()
 
@@ -127,5 +127,6 @@ class Recorder(ChildProcess):
     def stop_recording(self) -> bool:
         if self.pipe_end.poll():
             if self.pipe_end.recv() is None:
+                self.pipe_end.close()
                 return True
         return False

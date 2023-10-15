@@ -4,8 +4,9 @@ import logging
 import win32con
 from typing import Literal
 
+from .inputs import InputHandler
 from .shared_resources import SharedResources
-from ..utilities import config_reader, InputHandler, randomize_params
+from royals.utilities import config_reader, randomize_params
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +172,7 @@ class Controller(InputHandler):
                     )
                 )
                 if jump:
-                    tg.create_task(_jump_n_times(nbr_jumps))
+                    tg.create_task(_jump_n_times(nbr_jumps)) # TODO - Remove delay and no awaiting, such that keydown/keyup for jumps are always together.
 
         logger.debug(
             f"{self.ign} now moving {direction} for {duration} seconds. Jump={jump} and secondary direction={secondary_direction}."
