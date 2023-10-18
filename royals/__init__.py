@@ -2,14 +2,16 @@
 Main module which imports the SessionManager and all defined bots.
 Additionally, the logger is configured here for the Main Process.
 """
-from .core import Bot, SessionManager
+from .core import Bot, BotLauncher, SessionManager
 
 import logging.handlers
 import os
+import pytesseract
 import time
 
-from paths import ROOT
+from paths import ROOT, TESSERACT
 
+pytesseract.pytesseract.tesseract_cmd = TESSERACT
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

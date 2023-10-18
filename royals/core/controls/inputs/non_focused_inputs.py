@@ -47,7 +47,8 @@ class _NonFocusedInputs(_InputsHelpers):
                     )
 
             # Allows for smaller delays between consecutive keys, such as when writing a message in-game, or between KEYUP/KEYDOWN commands.
-            await asyncio.sleep(delay)
+            if delay > 0:
+                await asyncio.sleep(delay)
         await asyncio.sleep(cooldown)
 
     def _message_constructor(

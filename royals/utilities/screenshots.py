@@ -3,7 +3,7 @@ import win32con
 import win32gui
 import win32ui
 
-from .box import Box
+from royals.utilities.box import Box
 
 CLIENT_HORIZONTAL_MARGIN_PX = 3
 CLIENT_VERTICAL_MARGIN_PX = 29
@@ -15,14 +15,14 @@ def take_screenshot(
     # mask: np.ndarray | None = None,
 ) -> np.ndarray:
     """
-    Function takes a rapid screenshot of the window associated with the handle passed in a parameter. If dimensions is provided, it takes only a screenshot of that region
-    within the window provided.
+    Function takes a rapid screenshot of the window associated with the handle passed in a parameter.
+    If dimensions is provided, it takes only a screenshot of that region within the window provided.
     If no handle is given, it takes a screenshot of the entire main screen.
     Returns the image taken as a numpy array.
 
-    :param mask: If provided, the image will be masked with the mask provided. Mask must be of the same shape as the image.
     :param handle: Integer representing the handle to the window being screenshot-ed. If None provided, the entire screen is captured instead.
     :param dimensions: Coord. within the window -relative to window position, or within screen if no window- to be recorded. Dictionary must have top, left, right, bottom keys.
+    :param mask: If provided, the image will be masked with the mask provided. Mask must be of the same shape as the image.
     :return: a numpy array representing the image captured.
     """
     if not handle:

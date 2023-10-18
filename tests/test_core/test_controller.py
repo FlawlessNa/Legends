@@ -1,5 +1,5 @@
 from unittest import TestCase
-
+"""Idea: Create a multiprocess. One will receive input through the builtin input() function, the other one sends the desired input. Then, assess that the received input is the same."""
 
 class TestController(TestCase):
     def test_activate(self):

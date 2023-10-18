@@ -20,6 +20,7 @@ class RecorderLauncher:
     An independent multiprocessing.Process is created to handle the screen recording.
     Recording is CPU-intensive and should not be done in the same process as the Bot.
     """
+
     def __init__(self, queue: multiprocessing.Queue) -> None:
         self.recorder_receiver, self.recorder_sender = multiprocessing.Pipe(
             duplex=False
@@ -46,7 +47,8 @@ class RecorderLauncher:
         receiver: multiprocessing.connection.Connection,
         log_queue: multiprocessing.Queue,
     ):
-        recorder = Recorder(receiver, log_queue)
+        ChildProcess.set_log_queue(log_queue)
+        recorder = Recorder(receiver)
         recorder.start()
 
 
@@ -61,7 +63,6 @@ class Recorder(ChildProcess):
     def __init__(
         self,
         end_pipe: multiprocessing.connection.Connection,
-        mp_queue: multiprocessing.Queue,
         config_name: str = "recordings",
     ) -> None:
         """
@@ -69,7 +70,7 @@ class Recorder(ChildProcess):
         :param mp_queue: Queue object that is used to send log records to the main process.
         :param config_name: Optional. Name of the config file to use. Defaults to "recordings".
         """
-        super().__init__(end_pipe, mp_queue)
+        super().__init__(end_pipe)
         self.config: dict = dict(config_reader(config_name)["DEFAULT"])
         self.out_path = os.path.join(
             self.config["recordings folder"],

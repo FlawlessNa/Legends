@@ -128,7 +128,8 @@ class _FocusedInputs(_InputsHelpers):
                         f"Failed to send input {input_structure[0]} after 10 attempts."
                     )
             # Allows for smaller delays between consecutive keys, such as when writing a message in-game, or between KEYUP/KEYDOWN commands.
-            await asyncio.sleep(delay)
+            if delay > 0:
+                await asyncio.sleep(delay)
         await asyncio.sleep(cooldown)
 
     def _input_array_constructor(
@@ -161,8 +162,6 @@ class _FocusedInputs(_InputsHelpers):
         nbr_inputs = 1 if enforce_delay else len(keys)
         input_array_class = Input * nbr_inputs
         input_pointer = ctypes.POINTER(input_array_class)
-        # TODO - Validate. The original argtypes (defined in __init__) uses a pointer to the Input structure, but I think we need a pointer to the Input *array* structure.
-        #  The array length varies between each call, so we need to re-define every time? Test without redefinitions, or timeit to see how redefinitions affects performance.
         self._exported_functions["SendInput"].argtypes = [
             wintypes.UINT,
             input_pointer,

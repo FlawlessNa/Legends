@@ -6,6 +6,7 @@ from typing import Literal
 
 from .inputs import InputHandler
 from .shared_resources import SharedResources
+
 from royals.utilities import config_reader, randomize_params
 
 logger = logging.getLogger(__name__)
@@ -34,9 +35,7 @@ class Controller(InputHandler):
         """
         temp = {
             k: eval(v)
-            for k, v in dict(
-                config_reader("keybindings", f"{self.ign}")
-            ).items()
+            for k, v in dict(config_reader("keybindings", f"{self.ign}")).items()
         }
         final = {}
         for val in temp.values():
@@ -156,7 +155,7 @@ class Controller(InputHandler):
             """Call the function multiple down, such that delay between keydown/keyup is small, but the cooldown between each jump is larger"""
             for _ in range(n):
                 await self._non_focused_input(
-                    self.key_binds["jump"], jump_events, cooldown=jump_interval
+                    self.key_binds["jump"], jump_events, cooldown=jump_interval, delay=0
                 )
 
         async def _combined_tasks() -> None:
@@ -172,7 +171,7 @@ class Controller(InputHandler):
                     )
                 )
                 if jump:
-                    tg.create_task(_jump_n_times(nbr_jumps)) # TODO - Remove delay and no awaiting, such that keydown/keyup for jumps are always together.
+                    tg.create_task(_jump_n_times(nbr_jumps))
 
         logger.debug(
             f"{self.ign} now moving {direction} for {duration} seconds. Jump={jump} and secondary direction={secondary_direction}."

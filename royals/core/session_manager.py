@@ -8,13 +8,14 @@ from typing import Self
 
 from royals.screen_recorder import RecorderLauncher
 from .communications import DiscordLauncher
-from .bot import Bot
+from .bot import BotLauncher
+from ..utilities import ChildProcess
 
 
 logger = logging.getLogger(__name__)
 
 
-class SessionManager(DiscordLauncher, RecorderLauncher):
+class SessionManager(BotLauncher, DiscordLauncher, RecorderLauncher):
     """
     Entry point to launch any Bot.
     The Manager will handle the following:
@@ -22,28 +23,29 @@ class SessionManager(DiscordLauncher, RecorderLauncher):
             Therefore, we launch a separate Process to handle Discord communications.
         - Launch an independent multiprocessing.Process to handle the screen recording. Recording is CPU-intensive and should not be done in the same process as the Bot.
         - Schedule each Bot as tasks to be executed in a single asyncio loop. This ensures no actions are executed in parallel, which would be suspicious.
-        - Schedule a listener for Discord messages (received from the Discord child process). #TODO - Parse those message and send them to the appropriate Bot.
+        - Schedule a listener for Discord messages (received from the Discord child process).
         - Schedule a listener for any log records from child processes.
         - Perform automatic clean-up as necessary. When the Bot is stopped, the Manager will ensure the screen recording is stopped and saved.
     """
+    queue = multiprocessing.Queue()
 
-    def __init__(self, *bots_to_launch: Bot) -> None:
-        queue = multiprocessing.Queue()
-        DiscordLauncher.__init__(self, queue)
-        RecorderLauncher.__init__(self, queue)
-        self.bots = bots_to_launch
+    def __init__(self) -> None:
+        BotLauncher.__init__(self)
+        DiscordLauncher.__init__(self, self.queue)
+        RecorderLauncher.__init__(self, self.queue)
         self.log_listener = logging.handlers.QueueListener(
             self.logging_queue, *logger.parent.handlers, respect_handler_level=True
         )
 
     def __enter__(self) -> Self:
         """
-        Setup all Bot tasks. Do not start.
+        Setup all Bot tasks. Start Monitoring process on each.
         Setup Recorder process. Start Recorder process.
         Setup Discord process. Start Discord process.
         Start listening to any log records from those child processes.
         :return: self
         """
+        BotLauncher.__enter__(self)
         DiscordLauncher.__enter__(self)
         RecorderLauncher.__enter__(self)
         self.log_listener.start()
@@ -58,6 +60,7 @@ class SessionManager(DiscordLauncher, RecorderLauncher):
         :param exc_tb: Exception Traceback.
         :return: None
         """
+        BotLauncher.__exit__(self, exc_type, exc_val, exc_tb)
         DiscordLauncher.__exit__(self, exc_type, exc_val, exc_tb)
         RecorderLauncher.__exit__(self, exc_type, exc_val, exc_tb)
 
@@ -72,9 +75,7 @@ class SessionManager(DiscordLauncher, RecorderLauncher):
         logger.info(
             f'Launching {len(self.bots)} bots. The following bots will be launched: {" ".join(repr(bot) for bot in self.bots)}'
         )
-        # self.discord_listener = asyncio.create_task(
-        #     self.relay_disc_to_main(), name="Discord Message Parser"
-        # )
-        async with asyncio.TaskGroup() as tg:
-            for bot in self.bots:
-                tg.create_task(bot.run(), name=bot.__class__.__name__)
+        try:
+            await BotLauncher.run_all()
+        finally:
+            logger.info("All bots have been stopped. Exiting.")

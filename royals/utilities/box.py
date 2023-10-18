@@ -7,9 +7,10 @@ from dataclasses import dataclass, field
 class Box:
     """
     Immutable class to be used to represent an in-game area, defined by left, top, right, bottom points.
-    Can be initialized directly into another dataclass.
-    Particularity of this class is that if an instance is passed on as a parameter into another method or function which is decorated by @randomized_params, the Box parameter will return
-    a random tuple of coordinates located inside the Box area.
+    Box can be read (through an OCR).
+    When offset = True, the box is considered to be an offset which should be added to another box, e.g. it represents coordinates relative to another box.
+    config can be provided as a string. This config is used as parameter for the OCR to improve accuracy.
+    When a Box is randomized, a random point inside the box is returned.
     """
 
     left: int
