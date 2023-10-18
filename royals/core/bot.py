@@ -28,8 +28,8 @@ class BotLauncher:
         for bot in Bot.all_bots:
             bot.monitoring_process = multiprocessing.Process(
                 target=bot.start_monitoring,
-                name=repr(bot),
-                args=(bot.monitoring_side, self.logging_queue)
+                name=f"{bot} Monitoring",
+                args=(bot.monitoring_side, self.logging_queue, repr(bot)),
             )
             bot.monitoring_process.start()
 
@@ -37,61 +37,80 @@ class BotLauncher:
         for bot in Bot.all_bots:
             bot.bot_side.send(None)
             bot.bot_side.close()
-            logger.debug(f"Sent stop signal to {bot} process")
-
-            logger.debug(f"Stopping the {bot} main task")
-            bot.main_task.cancel()
+            logger.debug(f"Sent stop signal to {bot} monitoring process")
             bot.monitoring_process.join()
+            logger.debug(f"Joined {bot} monitoring process")
+
+            logger.debug(f"Stopping {bot} main task")
+            bot.main_task.cancel()
 
     @classmethod
     async def run_all(cls):
         cls.blocker.set()  # Unblocks all Bots
 
         for bot in Bot.all_bots:
-            bot.task = asyncio.create_task(bot.enqueue_next_actions(cls.shared_queue), name=repr(bot))
+            bot.main_task = asyncio.create_task(
+                bot.action_listener(cls.shared_queue), name=repr(bot)
+            )
+            logger.info(f"Created task {bot.main_task}.")
 
         while True:
             await cls.blocker.wait()  # Blocks all Bots until a task clears the blocker. Used for Stopping/Pausing all bots through user-request from discord.
             queue_item = await cls.shared_queue.get()
+            if queue_item is None:
+                break
 
+            # Adds the task into the main event loop
             new_task = asyncio.create_task(
-                queue_item.action(), name=queue_item.name
-            )  # Adds the task into the main event loop
+                queue_item.action(), name=queue_item.identifier
+            )
 
-            # TODO - remove test callback and uncomment the lambda if it works
-            # new_task.add_done_callback(
-            #     lambda _: cls.shared_queue.task_done()
-            # )  # Ensures the queue is cleared after the task is done.
+            # Ensures the queue is cleared after the task is done. Callback executes even when task is cancelled.
+            new_task.add_done_callback(lambda _: cls.shared_queue.task_done())
 
-            def _test_callback(fut):
-                print(
-                    f"callback has been called on future {fut} to clear the queue. Prior size: {cls.shared_queue.qsize()}"
+            logger.debug(f"Created task {new_task}.")
+
+            if len(asyncio.all_tasks()) > 15:
+                logger.warning(
+                    f"Number of tasks in the event loop is {len(asyncio.all_tasks())}."
                 )
-                cls.shared_queue.task_done()
-                print(
-                    f"callback has been called on future {fut} to clear the queue. After size: {cls.shared_queue.qsize()}"
-                )
-            new_task.add_done_callback(_test_callback)
 
-    @staticmethod
-    def cancel_all_bots():
-        for bot in Bot.all_bots:
-            bot.main_task.cancel()
+    @classmethod
+    def cancel_all(cls):
+        cls.shared_queue.put_nowait(None)
+
+
+async def func():
+    await asyncio.sleep(3)
+    print("test")
 
 
 class BotMonitor(ChildProcess):
-    def __init__(self, pipe_end: multiprocessing.connection.Connection) -> None:
+    def __init__(
+        self, pipe_end: multiprocessing.connection.Connection, source: str
+    ) -> None:
         super().__init__(pipe_end)
+        self.source = source
 
     def start(self) -> None:
-        while True:
-            try:
-                pass
-            finally:
-                if not self.pipe_end.closed:
-                    self.pipe_end.send(None)
-                    self.pipe_end.close()
-                    break
+        try:
+            from .action import QueueAction
+            import time
+
+            # TODO - Implement multiprocessing.Lock on the monitoring to only send items through queue when the bot is ready - meaning it has finished executing the previous action. Use add_done_callback to set the Lock.
+            while True:
+                if self.pipe_end.poll():
+                    signal = self.pipe_end.recv()
+                    if signal is None:
+                        break
+
+                queue_item1 = QueueAction.from_tuple((0, self.source, func))
+                logger.debug(f"Sending {queue_item1} to main process.")
+                self.pipe_end.send(queue_item1)
+                time.sleep(1)
+        finally:
+            if not self.pipe_end.closed:
+                self.pipe_end.close()
 
 
 class Bot(ABC):
@@ -111,17 +130,18 @@ class Bot(ABC):
 
     @staticmethod
     def start_monitoring(
-            pipe_end: multiprocessing.connection.Connection,
-            log_queue: multiprocessing.Queue,
+        pipe_end: multiprocessing.connection.Connection,
+        log_queue: multiprocessing.Queue,
+        source: str,
     ):
         ChildProcess.set_log_queue(log_queue)
-        monitor = BotMonitor(pipe_end)
+        monitor = BotMonitor(pipe_end, source)
         monitor.start()
 
     def __repr__(self) -> str:
-        return f"Bot({self.__class__.__name__})--({self.ign})"
+        return f"{self.__class__.__name__}[{self.ign}]"
 
-    async def enqueue_next_actions(self, queue: asyncio.PriorityQueue) -> None:
+    async def action_listener(self, queue: asyncio.PriorityQueue) -> None:
         """
         Retrieves queue items from the monitoring loop (child process) and adds the item into the shared asynchronous queue.
         :return: None
@@ -129,4 +149,5 @@ class Bot(ABC):
         while True:
             if await asyncio.to_thread(self.bot_side.poll):
                 queue_item = self.bot_side.recv()
+                logger.debug(f"Received {queue_item} from {self} monitoring process.")
                 await queue.put(queue_item)

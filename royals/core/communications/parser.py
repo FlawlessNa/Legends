@@ -38,7 +38,7 @@ def message_parser(
         case "kill":
             # TODO - Close clients as well?
             logger.info("Received KILL signal from Discord. Stopping all bots.")
-            return BotLauncher.cancel_all_bots
+            return BotLauncher.cancel_all
         case "pause":
             pass
         case "resume":

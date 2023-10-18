@@ -8,7 +8,7 @@ from typing import Self
 
 from royals.screen_recorder import RecorderLauncher
 from .communications import DiscordLauncher
-from .bot import BotLauncher
+from .bot import Bot, BotLauncher
 
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,8 @@ class SessionManager(BotLauncher, DiscordLauncher, RecorderLauncher):
     """
     logging_queue = multiprocessing.Queue()
 
-    def __init__(self) -> None:
+    def __init__(self, *bots_to_launch: Bot) -> None:
+        self.bots = bots_to_launch
         BotLauncher.__init__(self, self.logging_queue)
         DiscordLauncher.__init__(self, self.logging_queue)
         RecorderLauncher.__init__(self, self.logging_queue)
@@ -77,4 +78,4 @@ class SessionManager(BotLauncher, DiscordLauncher, RecorderLauncher):
         try:
             await BotLauncher.run_all()
         finally:
-            logger.info("All bots have been stopped. Exiting.")
+            logger.info("All bots have been stopped. calling __exit__ on all launchers.")

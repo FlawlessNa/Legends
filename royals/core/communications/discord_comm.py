@@ -58,9 +58,8 @@ class DiscordLauncher:
                 message = self.main_side.recv()
                 action = message_parser(message, self.main_side)
                 if action is not None:
-                    breakpoint()
                     logger.info(
-                        f"Performing action {action.__name__} as requested by discord user."
+                        f"Performing action {action} as requested by discord user."
                     )
                     action()
 
