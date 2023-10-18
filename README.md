@@ -3,6 +3,7 @@
 ## TODO
 - [ ] Refactor game interface more accurately
 - [ ] Refactor Bot - All bots into a single Async Queue, each bot has a subprocess for Monitoring. Game Status is updated through monitoring as well.
+  - [ ] When done, update all docstrings as some are lacking now.
 - [ ] Enable np arrays/.png files to be sent through Pipe - then send images towards discord
 - [ ] GPT Automated Responses
 - [ ] Object Detection Modelling - For Characters (Generally), My characters (if required), Mobs (1 model per mob)

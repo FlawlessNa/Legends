@@ -67,7 +67,6 @@ class Recorder(ChildProcess):
     ) -> None:
         """
         :param end_pipe: The end of the Pipe object that is connected to the main process.
-        :param mp_queue: Queue object that is used to send log records to the main process.
         :param config_name: Optional. Name of the config file to use. Defaults to "recordings".
         """
         super().__init__(end_pipe)

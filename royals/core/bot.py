@@ -1,6 +1,6 @@
 import asyncio
 import logging
-import multiprocessing
+import multiprocessing.connection
 
 from abc import ABC, abstractmethod
 
@@ -21,16 +21,27 @@ class BotLauncher:
     shared_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
     blocker: asyncio.Event = asyncio.Event()
 
-    def __init__(self) -> None:
-        pass
+    def __init__(self, logging_queue: multiprocessing.Queue) -> None:
+        self.logging_queue = logging_queue
 
     def __enter__(self) -> None:
         for bot in Bot.all_bots:
-            bot.start_monitoring()
+            bot.monitoring_process = multiprocessing.Process(
+                target=bot.start_monitoring,
+                name=repr(bot),
+                args=(bot.monitoring_side, self.logging_queue)
+            )
+            bot.monitoring_process.start()
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         for bot in Bot.all_bots:
-            bot.kill()
+            bot.bot_side.send(None)
+            bot.bot_side.close()
+            logger.debug(f"Sent stop signal to {bot} process")
+
+            logger.debug(f"Stopping the {bot} main task")
+            bot.main_task.cancel()
+            bot.monitoring_process.join()
 
     @classmethod
     async def run_all(cls):
@@ -65,11 +76,22 @@ class BotLauncher:
     @staticmethod
     def cancel_all_bots():
         for bot in Bot.all_bots:
-            bot.task.cancel()
+            bot.main_task.cancel()
 
 
 class BotMonitor(ChildProcess):
-    pass
+    def __init__(self, pipe_end: multiprocessing.connection.Connection) -> None:
+        super().__init__(pipe_end)
+
+    def start(self) -> None:
+        while True:
+            try:
+                pass
+            finally:
+                if not self.pipe_end.closed:
+                    self.pipe_end.send(None)
+                    self.pipe_end.close()
+                    break
 
 
 class Bot(ABC):
@@ -78,14 +100,23 @@ class Bot(ABC):
     def __init__(self, handle, ign):
         self.ign = ign
         self.bot_side, self.monitoring_side = multiprocessing.Pipe()
-        self.monitoring_loop: BotMonitor = BotMonitor(self.monitoring_side)
         self.controller = Controller(handle=handle, ign=ign)
-        self.task: asyncio.Task | None = None
         self.update_bot_list(self)
+        self.main_task: asyncio.Task | None = None
+        self.monitoring_process: multiprocessing.Process | None = None
 
     @classmethod
     def update_bot_list(cls, bot: "Bot") -> None:
         cls.all_bots.append(bot)
+
+    @staticmethod
+    def start_monitoring(
+            pipe_end: multiprocessing.connection.Connection,
+            log_queue: multiprocessing.Queue,
+    ):
+        ChildProcess.set_log_queue(log_queue)
+        monitor = BotMonitor(pipe_end)
+        monitor.start()
 
     def __repr__(self) -> str:
         return f"Bot({self.__class__.__name__})--({self.ign})"

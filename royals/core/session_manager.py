@@ -9,7 +9,6 @@ from typing import Self
 from royals.screen_recorder import RecorderLauncher
 from .communications import DiscordLauncher
 from .bot import BotLauncher
-from ..utilities import ChildProcess
 
 
 logger = logging.getLogger(__name__)
@@ -27,12 +26,12 @@ class SessionManager(BotLauncher, DiscordLauncher, RecorderLauncher):
         - Schedule a listener for any log records from child processes.
         - Perform automatic clean-up as necessary. When the Bot is stopped, the Manager will ensure the screen recording is stopped and saved.
     """
-    queue = multiprocessing.Queue()
+    logging_queue = multiprocessing.Queue()
 
     def __init__(self) -> None:
-        BotLauncher.__init__(self)
-        DiscordLauncher.__init__(self, self.queue)
-        RecorderLauncher.__init__(self, self.queue)
+        BotLauncher.__init__(self, self.logging_queue)
+        DiscordLauncher.__init__(self, self.logging_queue)
+        RecorderLauncher.__init__(self, self.logging_queue)
         self.log_listener = logging.handlers.QueueListener(
             self.logging_queue, *logger.parent.handlers, respect_handler_level=True
         )
