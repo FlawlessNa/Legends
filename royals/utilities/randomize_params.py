@@ -43,9 +43,7 @@ def randomize_params(
                 tuple(arg for arg in args if arg not in ignore_args)
                 if args
                 else tuple(
-                    key
-                    for key, v in arguments_mapper.items()
-                    if key not in ignore_args
+                    key for key, v in arguments_mapper.items() if key not in ignore_args
                 )
             )
             for arg in itertools.chain(params_to_randomize, ignore_args):
@@ -74,7 +72,7 @@ def randomize_params(
 
             # For Box parameters, return a random point within their box areas instead
             randomized_params = {
-                k: v.random() if hasattr(v, 'random') else v
+                k: v.random() if hasattr(v, "random") else v
                 for k, v in randomized_params.items()
             }
 

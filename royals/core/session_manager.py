@@ -76,6 +76,8 @@ class SessionManager(BotLauncher, DiscordLauncher, RecorderLauncher):
         )
         try:
             await BotLauncher.run_all()
+        except Exception as e:
+            raise
         finally:
             logger.info(
                 "All bots have been stopped. calling __exit__ on all launchers."

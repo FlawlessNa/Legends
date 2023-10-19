@@ -10,7 +10,7 @@ from win32com.client import Dispatch
 from win32gui import SetForegroundWindow, GetForegroundWindow
 
 from .inputs_helpers import _InputsHelpers
-from royals.core.controls.shared_resources import SharedResources
+from .shared_resources import SharedResources
 
 KEYEVENTF_EXTENDEDKEY = 0x0001
 KEYEVENTF_KEYUP = 0x0002
@@ -84,30 +84,32 @@ class _FocusedInputs(_InputsHelpers):
     KEYBOARD = 1
     HARDWARE = 2
 
-    def activate(self) -> None:
+    @staticmethod
+    def activate(hwnd: int) -> None:
         """
         Activates the window associated with this controller. Any key press or mouse click will be sent to the active window.
         :return: None
         """
-        if GetForegroundWindow() != self.handle:
-            logger.debug(f"Activating window {self.handle}")
+        if GetForegroundWindow() != hwnd:
+            logger.debug(f"Activating window {hwnd}")
             shell = Dispatch("WScript.Shell")
             shell.SendKeys("%")
-            SetForegroundWindow(self.handle)
+            SetForegroundWindow(hwnd)
 
     @SharedResources.requires_focus
     async def _send_inputs(
-        self, inputs: list[list[tuple, float]], cooldown: float = 0.1
+        self, hwnd: int, inputs: list[list[tuple, float]], cooldown: float = 0.1
     ) -> None:
         """Activates the window associated with this controller and sends the required inputs. This requires window focus.
         An input structure may contain several inputs to be sent simultaneously (without any delay in between).
         If this is not desired, the enforce_delay parameter can be set to True (in higher-level API), and a delay will be enforced between each input.
+        :param hwnd: Handle to the window to send the input to.
         :param inputs: list of list[tuple, float]. Each tuple contains the parameters to be sent to SendInput, and the float is delay to be enforced after the input is sent.
             Note: When delays are not enforced, usually the list will be a single tuple, float, and float will be 0.0.
         :param cooldown: Cooldown after all inputs have been sent. Default is 0.1 seconds.
         :return: None
         """
-        self.activate()
+        self.activate(hwnd)
         for item in inputs:
             input_structure, delay = item
             failure_count = 0
@@ -122,7 +124,7 @@ class _FocusedInputs(_InputsHelpers):
                 await asyncio.sleep(0.01)
                 if failure_count > 10:
                     logger.critical(
-                        f"Unable to send the structure {input_structure} to the window {self.handle}"
+                        f"Unable to send the structure {input_structure} to the window {hwnd}"
                     )
                     raise RuntimeError(
                         f"Failed to send input {input_structure[0]} after 10 attempts."
@@ -134,6 +136,7 @@ class _FocusedInputs(_InputsHelpers):
 
     def _input_array_constructor(
         self,
+        hwnd: int,
         keys: list[str],
         events: list[str],
         enforce_delay: bool,
@@ -144,6 +147,7 @@ class _FocusedInputs(_InputsHelpers):
         Constructs the input array of structures to be sent to the window associated the provided handle. Send that input through SendInput.
         When enforce_delay is True, an array of length 1 is created for each key/event pair, and a random delay is enforced between each key press.
         Otherwise, an array of length n is created (n == len(keys) == len(events)), and there is no delay as all inputs are sent simultaneously.
+        :param hwnd: Handle to the window to send the input to.
         :param keys: list of string representation of the key(s) to be pressed.
         :param events: list of string Literals representing the type of event to be sent. Currently supported: 'keydown', 'keyup'.
         :param enforce_delay: bool. Whether to enforce a delay between each key press or not.
@@ -171,7 +175,9 @@ class _FocusedInputs(_InputsHelpers):
         input_list = []
         for item in zip(keys, events):
             key, event = item
-            input_list.append(self._input_structure_constructor(key, event, as_unicode))
+            input_list.append(
+                self._input_structure_constructor(hwnd, key, event, as_unicode)
+            )
 
         if enforce_delay:
             return_val = list()
@@ -185,6 +191,7 @@ class _FocusedInputs(_InputsHelpers):
                         wintypes.INT(ctypes.sizeof(input_single_array[0])),
                     ]
                 )
+                # Delay is randomized here to allow individual randomization between each input.
                 return_val.append(
                     [full_params, random.uniform(delay * 0.95, delay * 1.05)]
                 )
@@ -205,10 +212,15 @@ class _FocusedInputs(_InputsHelpers):
             return [full_input]
 
     def _input_structure_constructor(
-        self, key: str, event: Literal["keyup", "keydown"], as_unicode: bool = False
+        self,
+        hwnd: int,
+        key: str,
+        event: Literal["keyup", "keydown"],
+        as_unicode: bool = False,
     ) -> Input:
         """
         Constructs the input structure to be sent to the window associated the provided handle. Send that input through SendInput.
+        :param hwnd: Handle to the window to send the input to.
         :param key: String representation of the key to be pressed.
         :param event: Whether the event is a keyup or keydown.
         :param as_unicode: bool. Whether to send the key as a unicode character or not. This is only used when sending a single key and allows to differentiate between lowercase uppercase.
@@ -216,15 +228,13 @@ class _FocusedInputs(_InputsHelpers):
         """
         assert event in ["keyup", "keydown"], f"Event type {event} is not supported"
         flags = KEYEVENTF_EXTENDEDKEY if key in self.EXTENDED_KEYS else 0
-        vk_key = self._get_virtual_key(
-            key, False, self._keyboard_layout_handle(self.handle)
-        )
+        vk_key = self._get_virtual_key(key, False, self._keyboard_layout_handle(hwnd))
         if as_unicode:
             assert (
                 len(key) == 1
             ), f"Key {key} must be a single character when as_unicode=True"
             scan_code = self._get_virtual_key(
-                key, True, self._keyboard_layout_handle(self.handle)
+                key, True, self._keyboard_layout_handle(hwnd)
             )
             vk_key = 0
             flags |= KEYEVENTF_UNICODE
@@ -232,11 +242,10 @@ class _FocusedInputs(_InputsHelpers):
             scan_code = self._exported_functions["MapVirtualKeyExW"](
                 vk_key,
                 self.MAPVK_VK_TO_VSC_EX,
-                self._keyboard_layout_handle(self.handle),
+                self._keyboard_layout_handle(hwnd),
             )
         flags = flags | KEYEVENTF_KEYUP if event == "keyup" else flags
 
-        # keybd_input = KeyBdInputStruct(wintypes.WORD(vk_key), wintypes.WORD(scan_code), wintypes.DWORD(flags), wintypes.DWORD(0), None)
         keybd_input = KeyBdInputStruct(
             wintypes.WORD(vk_key),
             wintypes.WORD(scan_code),

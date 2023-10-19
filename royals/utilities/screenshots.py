@@ -12,7 +12,6 @@ CLIENT_VERTICAL_MARGIN_PX = 29
 def take_screenshot(
     handle: int | None = None,
     dimensions: dict | None | Box = None,
-    # mask: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Function takes a rapid screenshot of the window associated with the handle passed in a parameter.

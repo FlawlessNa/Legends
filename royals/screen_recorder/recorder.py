@@ -114,7 +114,8 @@ class Recorder(ChildProcess):
                     )
                     self.output.release()
                     break
-
+        except Exception as e:
+            raise
         # Failsafe to ensure video is properly saved at the end of the recording session
         finally:
             if self.output.isOpened():

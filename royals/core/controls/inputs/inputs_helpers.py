@@ -57,8 +57,7 @@ class _InputsHelpers:
     MAPVK_VSC_TO_VK_EX = 3
     MAPVK_VK_TO_VSC_EX = 4
 
-    def __init__(self, handle: int) -> None:
-        self.handle = handle
+    def __init__(self) -> None:
         self._exported_functions: dict[str, callable] = self._setup_exported_functions()
 
     @staticmethod
@@ -76,13 +75,11 @@ class _InputsHelpers:
             return KEYBOARD_MAPPING[key]
 
     @lru_cache
-    def _keyboard_layout_handle(self, hwnd: int | None = None) -> wintypes.HKL:
+    def _keyboard_layout_handle(self, hwnd: int) -> wintypes.HKL:
         """
-        :param hwnd: Handle to the window to send the message to. If None, the handle associated with this InputHandler instance will be used.
+        :param hwnd: Handle to the window to send the message to.
         :return: Handle to the keyboard layout of the window.
         """
-        if hwnd is None:
-            hwnd = self.handle
         thread_id = self._exported_functions["GetWindowThreadProcessId"](
             wintypes.HWND(hwnd), None
         )

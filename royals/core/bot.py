@@ -1,11 +1,13 @@
 import asyncio
+import itertools
 import logging
 import multiprocessing.connection
+import time
 
 from abc import ABC, abstractmethod
+from typing import Generator
 
-from .controls import Controller
-from ..utilities import ChildProcess
+from royals.utilities import ChildProcess
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +29,16 @@ class BotLauncher:
     def __enter__(self) -> None:
         for bot in Bot.all_bots:
             bot.monitoring_process = multiprocessing.Process(
-                target=bot.start_monitoring,
+                target=self.start_monitoring,
                 name=f"{bot} Monitoring",
-                args=(bot.monitoring_side, self.logging_queue, repr(bot)),
+                # args=(
+                #     bot.monitoring_side,
+                #     self.logging_queue,
+                #     repr(bot),
+                #     bot.items_to_monitor,
+                #     bot.next_map_rotation,
+                # ),
+                args=(bot, self.logging_queue),
             )
             bot.monitoring_process.start()
 
@@ -75,41 +84,80 @@ class BotLauncher:
                     f"Number of tasks in the event loop is {len(asyncio.all_tasks())}."
                 )
 
+    @staticmethod
+    def start_monitoring(
+        bot: "Bot",
+        log_queue: multiprocessing.Queue,
+        # pipe_end: multiprocessing.connection.Connection,
+        # log_queue: multiprocessing.Queue,
+        # source: str,
+        # items_to_monitor: list[Generator],
+        # next_map_rotation: Generator,
+    ):
+        ChildProcess.set_log_queue(log_queue)
+        monitor = BotMonitor(bot)
+        monitor.start()
+
     @classmethod
     def cancel_all(cls):
         cls.shared_queue.put_nowait(None)
 
 
-async def func():
-    await asyncio.sleep(3)
-    print("test")
-
-
 class BotMonitor(ChildProcess):
     def __init__(
-        self, pipe_end: multiprocessing.connection.Connection, source: str
+        self,
+        bot: "Bot"
+        # pipe_end: multiprocessing.connection.Connection,
+        # source: str,
+        # monitor: list[callable],
+        # next_map_rotation: callable,
+        # rotation_lock: multiprocessing.Lock
     ) -> None:
-        super().__init__(pipe_end)
-        self.source = source
+        super().__init__(bot.monitoring_side)
+        self.source = repr(bot)
+        self.monitoring_generators = bot.items_to_monitor
+        self.map_rotation_generator = bot.next_map_rotation
+        self.rotation_lock = bot.rotation_lock
 
     def start(self) -> None:
+        """
+        There are two types of generators that are monitored:
+        1. Generators that are used to monitor the game state (potions, pet food, inventories, chat feed, proper map, etc).
+        2. Generators that are used to determine the next map rotation.
+        On every iteration, all generators from 1. are checked once.
+        Then, the map rotation generator is checked whenever the bot is ready to perform an action related to map rotation.
+        :return: None
+        """
         try:
-            from .action import QueueAction
-            import time
+            generators = [
+                gen() for gen in self.monitoring_generators(self.pipe_end)
+            ]  # Instantiate all generators
+            map_rotation = self.map_rotation_generator(self.pipe_end)
 
-            # TODO - Implement multiprocessing.Lock on the monitoring to only send items through queue when the bot is ready - meaning it has finished executing the previous action. Use add_done_callback to set the Lock.
             while True:
+                # If main process sends None, it means we are exiting.
                 if self.pipe_end.poll():
                     signal = self.pipe_end.recv()
                     if signal is None:
                         break
 
-                queue_item1 = QueueAction.from_tuple((0, self.source, func))
-                logger.debug(f"Sending {queue_item1} to main process.")
-                self.pipe_end.send(queue_item1)
-                time.sleep(1)
+                for check in itertools.cycle(generators):
+                    before = time.time()
+                    next(check)
+                    logger.debug(
+                        f"Time taken to execute {check}: {time.time() - before}"
+                    )
+
+                if self.rotation_lock.acquire(block=False):
+                    next(map_rotation)
+                    self.rotation_lock.release()
+
+        except Exception as e:
+            raise
+
         finally:
             if not self.pipe_end.closed:
+                self.pipe_end.send(None)
                 self.pipe_end.close()
 
 
@@ -117,29 +165,36 @@ class Bot(ABC):
     all_bots: list["Bot"] = []
 
     def __init__(self, handle, ign):
+        self.handle = handle
         self.ign = ign
         self.bot_side, self.monitoring_side = multiprocessing.Pipe()
-        self.controller = Controller(handle=handle, ign=ign)
+        self.rotation_lock = multiprocessing.Lock()
         self.update_bot_list(self)
         self.main_task: asyncio.Task | None = None
         self.monitoring_process: multiprocessing.Process | None = None
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}[{self.ign}]"
 
     @classmethod
     def update_bot_list(cls, bot: "Bot") -> None:
         cls.all_bots.append(bot)
 
     @staticmethod
-    def start_monitoring(
-        pipe_end: multiprocessing.connection.Connection,
-        log_queue: multiprocessing.Queue,
-        source: str,
-    ):
-        ChildProcess.set_log_queue(log_queue)
-        monitor = BotMonitor(pipe_end, source)
-        monitor.start()
+    @abstractmethod
+    def items_to_monitor(child_pipe: multiprocessing.Pipe) -> Generator:
+        """
+        This property is used to define the items that are monitored by the monitoring loop.
+        Each item in this list is an iterator.
+        At each loop iteration, next() is called on each item in this list, at which point the generator may send an action through the multiprocess pipe.
+        :return: List of items to monitor.
+        """
+        pass
 
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}[{self.ign}]"
+    @staticmethod
+    @abstractmethod
+    def next_map_rotation(child_pipe: multiprocessing.Pipe) -> Generator:
+        pass
 
     async def action_listener(self, queue: asyncio.PriorityQueue) -> None:
         """
