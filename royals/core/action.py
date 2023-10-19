@@ -7,6 +7,7 @@ class QueueAction:
     A dataclass that represents an action to be executed in the queue. It is used to store the priority, identifier and actual task for the action to be executed.
     Only the priority is used to compare which actions to be executed next.
     """
+
     priority: int = field()
     identifier: str = field(compare=False)
     action: callable = field(compare=False)

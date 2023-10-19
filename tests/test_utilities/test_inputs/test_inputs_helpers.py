@@ -120,5 +120,8 @@ class TestInputsHelpers(TestCase):
         self.assertEqual(len(results), 3)
         for key, val in results.items():
             self.assertIsInstance(key, str)
-            self.assertTrue(key in ['MapVirtualKeyExW', 'GetWindowThreadProcessId', 'GetKeyboardLayout'])
+            self.assertTrue(
+                key
+                in ["MapVirtualKeyExW", "GetWindowThreadProcessId", "GetKeyboardLayout"]
+            )
             self.assertTrue(callable(val))

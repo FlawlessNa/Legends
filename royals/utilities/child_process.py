@@ -11,6 +11,7 @@ class ChildProcess:
     The Main Process has a QueueListener that listens to this queue and handles the log entries.
     This allows for all logs to be centralized into the same file.
     """
+
     log_queue: multiprocessing.Queue = None
 
     def __init__(
@@ -25,7 +26,9 @@ class ChildProcess:
         The LogQueue class attribute must be set before any instance of ChildProcess is created.
         :param pipe_end: End of the pipe received by child, used to communicate with parent.
         """
-        assert self.log_queue is not None, "Log Queue must be set before creating any child process."
+        assert (
+            self.log_queue is not None
+        ), "Log Queue must be set before creating any child process."
         self.pipe_end = pipe_end
         file_handler = logging.handlers.QueueHandler(self.log_queue)
         file_handler.setLevel(logging.DEBUG)

@@ -1,7 +1,5 @@
-import asyncio
 import logging
 import logging.handlers
-import multiprocessing
 import multiprocessing.connection
 
 from typing import Self
@@ -26,6 +24,7 @@ class SessionManager(BotLauncher, DiscordLauncher, RecorderLauncher):
         - Schedule a listener for any log records from child processes.
         - Perform automatic clean-up as necessary. When the Bot is stopped, the Manager will ensure the screen recording is stopped and saved.
     """
+
     logging_queue = multiprocessing.Queue()
 
     def __init__(self, *bots_to_launch: Bot) -> None:
@@ -78,4 +77,6 @@ class SessionManager(BotLauncher, DiscordLauncher, RecorderLauncher):
         try:
             await BotLauncher.run_all()
         finally:
-            logger.info("All bots have been stopped. calling __exit__ on all launchers.")
+            logger.info(
+                "All bots have been stopped. calling __exit__ on all launchers."
+            )
