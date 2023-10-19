@@ -61,12 +61,6 @@ class Test(TestCase):
             keys = [("a", "kw_a", "kw_b", "kw_c"), ("c",), tuple(), ("b", "c", "kw_b")]
             self._standard_comparison(res, defaults, randomized_keys=keys)
 
-            # Testing that convert_args works properly
-            with self.assertRaises(AssertionError):
-                randomize_params(convert_args={"kw_a": "int"})(self._test_function1)(
-                    kw_a="5", kw_b=10, kw_c=15.0
-                )
-
             # Nothing should happen when convert_args is specified but the requested args to randomize are not (int, float, Box)
             self.assertEqual(
                 randomize_params("kw_a", convert_args={"kw_a": "int"})(

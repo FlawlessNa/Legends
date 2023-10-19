@@ -4,8 +4,6 @@ import itertools
 import random
 from typing import Literal
 
-from .box import Box
-
 
 def randomize_params(
     *args,
@@ -47,7 +45,7 @@ def randomize_params(
                 else tuple(
                     key
                     for key, v in arguments_mapper.items()
-                    if isinstance(v, (int, float, Box)) and key not in ignore_args
+                    if key not in ignore_args
                 )
             )
             for arg in itertools.chain(params_to_randomize, ignore_args):
@@ -76,7 +74,7 @@ def randomize_params(
 
             # For Box parameters, return a random point within their box areas instead
             randomized_params = {
-                k: v.random_point() if isinstance(v, Box) else v
+                k: v.random() if hasattr(v, 'random') else v
                 for k, v in randomized_params.items()
             }
 

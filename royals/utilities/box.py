@@ -98,6 +98,6 @@ class Box:
     def center(self) -> tuple[float, float]:
         return (self.left + self.right) / 2, (self.top + self.bottom) / 2
 
-    def random_point(self) -> tuple[int, int]:
+    def random(self) -> tuple[int, int]:
         """Returns a random point inside the box"""
         return random.randint(*self.xrange), random.randint(*self.yrange)
