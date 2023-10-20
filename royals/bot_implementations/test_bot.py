@@ -6,12 +6,12 @@ from typing import Generator
 from royals.core import Bot, QueueAction
 from royals.core import controller
 
-HANDLE = 0x011205E2
+HANDLE = 0x00020700
 logger = logging.getLogger(__name__)
 
 
 async def _test(direction):
-    await controller.move(HANDLE, "FarmFest1", direction, 5)
+    await controller.move(HANDLE, "FarmFest1", direction, 3, True, jump_interval=0.5, secondary_direction="up")
 
 
 async def _test_check(key):
@@ -23,7 +23,7 @@ def mock_check(pipe: multiprocessing.connection.Connection) -> Generator:
 
     last_potion = 0
     while True:
-        if time.time() - last_potion > 30:
+        if time.time() - last_potion > 10:
             last_potion = time.time()
             pipe.send(
                 QueueAction(

@@ -21,9 +21,7 @@ def key_binds(ign: str) -> dict[str, str]:
     Retrieves the key bindings for the associated character from the keybindings config file.
     The configs cannot be changed while the bot is running. In-game key binds should therefore not be changed either.
     """
-    temp = {
-        k: eval(v) for k, v in dict(config_reader("keybindings", f"{ign}")).items()
-    }
+    temp = {k: eval(v) for k, v in dict(config_reader("keybindings", f"{ign}")).items()}
     final = {}
     for val in temp.values():
         final.update(val)
@@ -119,7 +117,7 @@ async def move(
     direction: Literal["left", "right", "up", "down"],
     duration: float,
     jump: bool = False,
-    jump_interval: float = 0.5,
+    jump_interval: float = 0,
     secondary_direction: Literal["up", "down"] | None = None,
     delay: float = 0.033,
 ) -> None:
@@ -143,74 +141,60 @@ async def move(
     if direction in ("up", "down"):
         assert secondary_direction is None
 
-    # Max. number of events to send into input message stream. The real events sent will be less, because the "real-time" delays are usually longer than the specified delay.
-    upper_bound = int(duration // delay)
-    events: list[Literal] = ["keydown"] * upper_bound
-    nbr_jumps = int(duration // jump_interval)
-    jump_events = [win32con.WM_KEYDOWN, win32con.WM_KEYUP]
-    repeated_direction = secondary_direction if secondary_direction else direction
+    keys = [direction]
+    events: list[Literal] = ["keydown"]
+    if secondary_direction:
+        keys.append(secondary_direction)
+        events.append("keydown")
+    if jump:
+        keys.append(key_binds(ign)["jump"])
+        events.append("keydown")
 
-    async def _jump_n_times(n: int) -> None:
-        """Call the function multiple down, such that delay between keydown/keyup is small, but the cooldown between each jump is larger"""
-        for _ in range(n):
-            await non_focused_input(
-                handle,
-                key_binds(ign)["jump"],
-                jump_events,
-                cooldown=jump_interval,
-                delay=0,
-            )
+    # Case 1 -> All keys are continuously held down. The automatic repeat feature is used to simulate this.
+    if (jump and jump_interval == 0) or (not jump):
+        repeated_key = (
+            key_binds(ign)["jump"]
+            if jump
+            else secondary_direction
+            if secondary_direction
+            else direction
+        )
+        upper_bounds = int(duration // delay) - len(events)
+        keys.extend([repeated_key] * upper_bounds)
+        events.extend(["keydown"] * upper_bounds)
 
-    async def _combined_tasks() -> None:
-        """The repeated keydown for direction/secondary direction is considered one task, the periodical jump is considered another. Wrap in a function to wait_for the entire task group."""
-        async with asyncio.TaskGroup() as tg:
-            tg.create_task(
-                focused_input(
-                    handle,
-                    repeated_direction,
-                    events,
-                    cooldown=0,
-                    enforce_delay=True,
-                    delay=delay,
-                )
-            )
-            if jump:
-                tg.create_task(_jump_n_times(nbr_jumps))
+    # Case 2 -> Jump key is not help down. This disables the automatic repeat feature as soon as a jump is triggered.
+    # Best case would be to have different delays for fist few keys vs. the rest, but I doubt this case will be triggered very often.
+    elif jump and jump_interval > 0:
+        nbr_jumps = int(duration // jump_interval)
+        jump_events = ["keydown", "keyup"]
+        keys.extend([key_binds(ign)["jump"]] * (nbr_jumps * 2))
+        events.extend(jump_events * nbr_jumps)
+        delay = jump_interval / 2
 
     logger.debug(
         f"{ign} now moving {direction} for {duration} seconds. Jump={jump} and secondary direction={secondary_direction}."
     )
-    # Press direction and secondary direction
-    await focused_input(handle, direction, ["keydown"], enforce_delay=False)
-    if secondary_direction:
-        await focused_input(
-            handle, secondary_direction, ["keydown"], enforce_delay=False
-        )
 
     # wait_for at most "duration" on the automatic repeat feature simulation + periodical jump (if applicable)
     try:
-        await asyncio.wait_for(_combined_tasks(), duration)
+        # await asyncio.wait_for(_combined_tasks(), duration)
+        await asyncio.wait_for(
+            focused_input(handle, keys, events, enforce_delay=True, delay=delay),
+            duration,
+        )
     except asyncio.TimeoutError:
         pass  # Simply stop the movement. This code is nearly always reached because the "real" delays are usually longer than the specified delays. This is because other tasks may be running.
     except Exception as e:
         raise
     finally:
-        # Release all keys
-        await focused_input(
-            handle, direction, ["keyup"], enforce_delay=False, cooldown=0
-        )
+        release_keys = [direction]
         if secondary_direction:
-            await focused_input(
-                handle,
-                secondary_direction,
-                ["keyup"],
-                enforce_delay=False,
-                cooldown=0,
-            )
+            release_keys.append(secondary_direction)
         if jump:
-            await non_focused_input(
-                handle, key_binds(ign)["jump"], [win32con.WM_KEYUP], cooldown=0
-            )
+            release_keys.append(key_binds(ign)["jump"])
+        release_events: list[Literal] = ["keyup"] * len(release_keys)
+        await focused_input(handle, release_keys, release_events, enforce_delay=False)
         logger.debug(f"{ign} has successfully released movement keys.")
 
 

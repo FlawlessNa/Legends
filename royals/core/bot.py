@@ -60,10 +60,16 @@ class BotLauncher:
             if queue_item is None:
                 break
 
+            for task in asyncio.all_tasks():
+                if getattr(task, "priority", 0) > queue_item.priority:
+                    logger.debug(f"{queue_item.identifier} has priority over task {task.get_name()}. Cancelling task.")
+                    task.cancel()
+
             # Adds the task into the main event loop
             new_task = asyncio.create_task(
                 queue_item.action(), name=queue_item.identifier
             )
+            new_task.priority = queue_item.priority
 
             # Ensures the queue is cleared after the task is done. Callback executes even when task is cancelled.
             new_task.add_done_callback(lambda _: cls.shared_queue.task_done())
