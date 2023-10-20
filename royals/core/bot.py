@@ -29,13 +29,6 @@ class BotLauncher:
             bot.monitoring_process = multiprocessing.Process(
                 target=self.start_monitoring,
                 name=f"{bot} Monitoring",
-                # args=(
-                #     bot.monitoring_side,
-                #     self.logging_queue,
-                #     repr(bot),
-                #     bot.items_to_monitor,
-                #     bot.next_map_rotation,
-                # ),
                 args=(bot, self.logging_queue),
             )
             bot.monitoring_process.start()
@@ -89,11 +82,6 @@ class BotLauncher:
     def start_monitoring(
         bot: "Bot",
         log_queue: multiprocessing.Queue,
-        # pipe_end: multiprocessing.connection.Connection,
-        # log_queue: multiprocessing.Queue,
-        # source: str,
-        # items_to_monitor: list[Generator],
-        # next_map_rotation: Generator,
     ):
         ChildProcess.set_log_queue(log_queue)
         monitor = BotMonitor(bot)
@@ -108,11 +96,6 @@ class BotMonitor(ChildProcess):
     def __init__(
         self,
         bot: "Bot"
-        # pipe_end: multiprocessing.connection.Connection,
-        # source: str,
-        # monitor: list[callable],
-        # next_map_rotation: callable,
-        # rotation_lock: multiprocessing.Lock
     ) -> None:
         super().__init__(bot.monitoring_side)
         self.source = repr(bot)

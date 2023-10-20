@@ -4,18 +4,18 @@ from functools import partial
 from typing import Generator
 
 from royals.core import Bot, QueueAction
-from royals.core import Controller
+from royals.core import controller
 
 HANDLE = 0x011205E2
 logger = logging.getLogger(__name__)
 
 
 async def _test(direction):
-    await Controller().move(HANDLE, "FarmFest1", direction, 5)
+    await controller.move(HANDLE, "FarmFest1", direction, 5)
 
 
 async def _test_check(key):
-    await Controller().press(HANDLE, key, silenced=True)
+    await controller.press(HANDLE, key, silenced=True)
 
 
 def mock_check(pipe: multiprocessing.connection.Connection) -> Generator:

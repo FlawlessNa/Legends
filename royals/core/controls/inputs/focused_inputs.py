@@ -9,7 +9,7 @@ from typing import Literal
 from win32com.client import Dispatch
 from win32gui import SetForegroundWindow, GetForegroundWindow
 
-from .inputs_helpers import _InputsHelpers
+from .inputs_helpers import _EXPORTED_FUNCTIONS, _get_virtual_key, _keyboard_layout_handle, EXTENDED_KEYS, MAPVK_VK_TO_VSC_EX
 from .shared_resources import SharedResources
 
 KEYEVENTF_EXTENDEDKEY = 0x0001
@@ -74,199 +74,183 @@ class Input(ctypes.Structure):
 
 
 InputArray = Input * 1
-LPINPUT = ctypes.POINTER(InputArray)
 
 
-class _FocusedInputs(_InputsHelpers):
-    """Low-level class that handles the sending of inputs to any window through SendInput(...). Inputs may be bundled together and sent at once."""
+MOUSE = 0
+KEYBOARD = 1
+HARDWARE = 2
 
-    MOUSE = 0
-    KEYBOARD = 1
-    HARDWARE = 2
 
-    @staticmethod
-    def activate(hwnd: int) -> None:
-        """
-        Activates the window associated with this controller. Any key press or mouse click will be sent to the active window.
-        :return: None
-        """
-        if GetForegroundWindow() != hwnd:
-            logger.debug(f"Activating window {hwnd}")
-            shell = Dispatch("WScript.Shell")
-            shell.SendKeys("%")
-            SetForegroundWindow(hwnd)
+def activate(hwnd: int) -> None:
+    """
+    Activates the window associated with the handle. Any key press or mouse click will be sent to the active window.
+    :return: None
+    """
+    if GetForegroundWindow() != hwnd:
+        logger.debug(f"Activating window {hwnd}")
+        shell = Dispatch("WScript.Shell")
+        shell.SendKeys("%")
+        SetForegroundWindow(hwnd)
 
-    @SharedResources.requires_focus
-    async def _send_inputs(
-        self, hwnd: int, inputs: list[list[tuple, float]], cooldown: float = 0.1
-    ) -> None:
-        """Activates the window associated with this controller and sends the required inputs. This requires window focus.
-        An input structure may contain several inputs to be sent simultaneously (without any delay in between).
-        If this is not desired, the enforce_delay parameter can be set to True (in higher-level API), and a delay will be enforced between each input.
-        :param hwnd: Handle to the window to send the input to.
-        :param inputs: list of list[tuple, float]. Each tuple contains the parameters to be sent to SendInput, and the float is delay to be enforced after the input is sent.
-            Note: When delays are not enforced, usually the list will be a single tuple, float, and float will be 0.0.
-        :param cooldown: Cooldown after all inputs have been sent. Default is 0.1 seconds.
-        :return: None
-        """
-        self.activate(hwnd)
-        for item in inputs:
-            input_structure, delay = item
-            failure_count = 0
-            while (
-                self._exported_functions["SendInput"](*input_structure)
-                != input_structure[0].value
-            ):
-                logger.error(f"Failed to send input {input_structure}")
-                failure_count += 1
 
-                # This will only be called if the input is not sent successfully.
-                await asyncio.sleep(0.01)
-                if failure_count > 10:
-                    logger.critical(
-                        f"Unable to send the structure {input_structure} to the window {hwnd}"
-                    )
-                    raise RuntimeError(
-                        f"Failed to send input {input_structure[0]} after 10 attempts."
-                    )
-            # Allows for smaller delays between consecutive keys, such as when writing a message in-game, or between KEYUP/KEYDOWN commands.
-            if delay > 0:
-                await asyncio.sleep(delay)
-        await asyncio.sleep(cooldown)
+@SharedResources.requires_focus
+async def _send_inputs(
+    hwnd: int, inputs: list[list[tuple, float]], cooldown: float = 0.1
+) -> None:
+    """Activates the window associated with the handle and sends the required inputs. This requires window focus.
+    An input structure may contain several inputs to be sent simultaneously (without any delay in between).
+    If this is not desired, the enforce_delay parameter can be set to True (in higher-level API), and a delay will be enforced between each input.
+    :param hwnd: Handle to the window to send the input to.
+    :param inputs: list of list[tuple, float]. Each tuple contains the parameters to be sent to SendInput, and the float is delay to be enforced after the input is sent.
+        Note: When delays are not enforced, usually the list will be a single tuple, float, and float will be 0.0.
+    :param cooldown: Cooldown after all inputs have been sent. Default is 0.1 seconds.
+    :return: None
+    """
+    activate(hwnd)
+    for item in inputs:
+        input_structure, delay = item
+        failure_count = 0
+        while (
+            _EXPORTED_FUNCTIONS["SendInput"](*input_structure)
+            != input_structure[0].value
+        ):
+            logger.error(f"Failed to send input {input_structure}")
+            failure_count += 1
 
-    def _input_array_constructor(
-        self,
-        hwnd: int,
-        keys: list[str],
-        events: list[str],
-        enforce_delay: bool,
-        as_unicode: bool = False,
-        delay: float = 0.033,
-    ) -> list[list[tuple, float]]:
-        """
-        Constructs the input array of structures to be sent to the window associated the provided handle. Send that input through SendInput.
-        When enforce_delay is True, an array of length 1 is created for each key/event pair, and a random delay is enforced between each key press.
-        Otherwise, an array of length n is created (n == len(keys) == len(events)), and there is no delay as all inputs are sent simultaneously.
-        :param hwnd: Handle to the window to send the input to.
-        :param keys: list of string representation of the key(s) to be pressed.
-        :param events: list of string Literals representing the type of event to be sent. Currently supported: 'keydown', 'keyup'.
-        :param enforce_delay: bool. Whether to enforce a delay between each key press or not.
-        :param as_unicode: bool. Whether to send the key as a unicode character or not. This is only used when sending a single key and allows to differentiate between lowercase uppercase.
-        :param delay: The delay (which will be randomized slightly) between each key press when enforce_delay is True.
-        :return: list of list[tuple, float]. Each tuple contains the parameters to be sent to SendInput, and the float is delay to be enforced after the input is sent.
-        """
+            # This will only be called if the input is not sent successfully.
+            await asyncio.sleep(0.01)
+            if failure_count > 10:
+                logger.critical(
+                    f"Unable to send the structure {input_structure} to the window {hwnd}"
+                )
+                raise RuntimeError(
+                    f"Failed to send input {input_structure[0]} after 10 attempts."
+                )
+        # Allows for smaller delays between consecutive keys, such as when writing a message in-game, or between KEYUP/KEYDOWN commands.
+        if delay > 0:
+            await asyncio.sleep(delay)
+    await asyncio.sleep(cooldown)
 
-        assert isinstance(keys, list) and isinstance(
-            events, list
-        ), f"Keys and messages must be lists."
-        assert len(keys) == len(
-            events
-        ), f"Msg and keys must have the same length when they are provided as lists."
 
-        nbr_inputs = 1 if enforce_delay else len(keys)
-        input_array_class = Input * nbr_inputs
-        input_pointer = ctypes.POINTER(input_array_class)
-        self._exported_functions["SendInput"].argtypes = [
-            wintypes.UINT,
-            input_pointer,
-            wintypes.INT,
+def _input_array_constructor(
+    hwnd: int,
+    keys: list[str],
+    events: list[str],
+    enforce_delay: bool,
+    as_unicode: bool = False,
+    delay: float = 0.033,
+) -> list[list[tuple, float]]:
+    """
+    Constructs the input array of structures to be sent to the window associated the provided handle. Send that input through SendInput.
+    When enforce_delay is True, an array of length 1 is created for each key/event pair, and a random delay is enforced between each key press.
+    Otherwise, an array of length n is created (n == len(keys) == len(events)), and there is no delay as all inputs are sent simultaneously.
+    :param hwnd: Handle to the window to send the input to.
+    :param keys: list of string representation of the key(s) to be pressed.
+    :param events: list of string Literals representing the type of event to be sent. Currently supported: 'keydown', 'keyup'.
+    :param enforce_delay: bool. Whether to enforce a delay between each key press or not.
+    :param as_unicode: bool. Whether to send the key as a unicode character or not. This is only used when sending a single key and allows to differentiate between lowercase uppercase.
+    :param delay: The delay (which will be randomized slightly) between each key press when enforce_delay is True.
+    :return: list of list[tuple, float]. Each tuple contains the parameters to be sent to SendInput, and the float is delay to be enforced after the input is sent.
+    """
+
+    assert isinstance(keys, list) and isinstance(
+        events, list
+    ), f"Keys and messages must be lists."
+    assert len(keys) == len(
+        events
+    ), f"Msg and keys must have the same length when they are provided as lists."
+
+    nbr_inputs = 1 if enforce_delay else len(keys)
+    input_array_class = Input * nbr_inputs
+    input_pointer = ctypes.POINTER(input_array_class)
+    _EXPORTED_FUNCTIONS["SendInput"].argtypes = [
+        wintypes.UINT,
+        input_pointer,
+        wintypes.INT,
+    ]
+
+    input_list = []
+    for item in zip(keys, events):
+        key, event = item
+        input_list.append(
+            _input_structure_constructor(hwnd, key, event, as_unicode)
+        )
+
+    if enforce_delay:
+        return_val = list()
+        # Create N different arrays of length 1, each containing a single input structure.
+        for item in input_list:
+            input_single_array = input_array_class(item)
+            full_params = tuple(
+                [
+                    wintypes.UINT(1),
+                    input_pointer(input_single_array),
+                    wintypes.INT(ctypes.sizeof(input_single_array[0])),
+                ]
+            )
+            # Delay is randomized here to allow individual randomization between each input.
+            return_val.append(
+                [full_params, random.uniform(delay * 0.95, delay * 1.05)]
+            )
+        return return_val
+    else:
+        # Create 1 single array of length N. All inputs sent simultaneously.
+        input_array = input_array_class(*input_list)
+        full_input = [
+            tuple(
+                [
+                    wintypes.UINT(nbr_inputs),
+                    input_pointer(input_array),
+                    wintypes.INT(ctypes.sizeof(input_array[0])),
+                ]
+            ),
+            0.0,
         ]
+        return [full_input]
 
-        input_list = []
-        for item in zip(keys, events):
-            key, event = item
-            input_list.append(
-                self._input_structure_constructor(hwnd, key, event, as_unicode)
-            )
 
-        if enforce_delay:
-            return_val = list()
-            # Create N different arrays of length 1, each containing a single input structure.
-            for item in input_list:
-                input_single_array = input_array_class(item)
-                full_params = tuple(
-                    [
-                        wintypes.UINT(1),
-                        input_pointer(input_single_array),
-                        wintypes.INT(ctypes.sizeof(input_single_array[0])),
-                    ]
-                )
-                # Delay is randomized here to allow individual randomization between each input.
-                return_val.append(
-                    [full_params, random.uniform(delay * 0.95, delay * 1.05)]
-                )
-            return return_val
-        else:
-            # Create 1 single array of length N. All inputs sent simultaneously.
-            input_array = input_array_class(*input_list)
-            full_input = [
-                tuple(
-                    [
-                        wintypes.UINT(nbr_inputs),
-                        input_pointer(input_array),
-                        wintypes.INT(ctypes.sizeof(input_array[0])),
-                    ]
-                ),
-                0.0,
-            ]
-            return [full_input]
-
-    def _input_structure_constructor(
-        self,
-        hwnd: int,
-        key: str,
-        event: Literal["keyup", "keydown"],
-        as_unicode: bool = False,
-    ) -> Input:
-        """
-        Constructs the input structure to be sent to the window associated the provided handle. Send that input through SendInput.
-        :param hwnd: Handle to the window to send the input to.
-        :param key: String representation of the key to be pressed.
-        :param event: Whether the event is a keyup or keydown.
-        :param as_unicode: bool. Whether to send the key as a unicode character or not. This is only used when sending a single key and allows to differentiate between lowercase uppercase.
-        :return: Input structure.
-        """
-        assert event in ["keyup", "keydown"], f"Event type {event} is not supported"
-        flags = KEYEVENTF_EXTENDEDKEY if key in self.EXTENDED_KEYS else 0
-        vk_key = self._get_virtual_key(key, False, self._keyboard_layout_handle(hwnd))
-        if as_unicode:
-            assert (
-                len(key) == 1
-            ), f"Key {key} must be a single character when as_unicode=True"
-            scan_code = self._get_virtual_key(
-                key, True, self._keyboard_layout_handle(hwnd)
-            )
-            vk_key = 0
-            flags |= KEYEVENTF_UNICODE
-        else:
-            scan_code = self._exported_functions["MapVirtualKeyExW"](
-                vk_key,
-                self.MAPVK_VK_TO_VSC_EX,
-                self._keyboard_layout_handle(hwnd),
-            )
-        flags = flags | KEYEVENTF_KEYUP if event == "keyup" else flags
-
-        keybd_input = KeyBdInputStruct(
-            wintypes.WORD(vk_key),
-            wintypes.WORD(scan_code),
-            wintypes.DWORD(flags),
-            wintypes.DWORD(0),
-            None,
+def _input_structure_constructor(
+    hwnd: int,
+    key: str,
+    event: Literal["keyup", "keydown"],
+    as_unicode: bool = False,
+) -> Input:
+    """
+    Constructs the input structure to be sent to the window associated the provided handle. Send that input through SendInput.
+    :param hwnd: Handle to the window to send the input to.
+    :param key: String representation of the key to be pressed.
+    :param event: Whether the event is a keyup or keydown.
+    :param as_unicode: bool. Whether to send the key as a unicode character or not. This is only used when sending a single key and allows to differentiate between lowercase uppercase.
+    :return: Input structure.
+    """
+    assert event in ["keyup", "keydown"], f"Event type {event} is not supported"
+    flags = KEYEVENTF_EXTENDEDKEY if key in EXTENDED_KEYS else 0
+    vk_key = _get_virtual_key(key, False, _keyboard_layout_handle(hwnd))
+    if as_unicode:
+        assert (
+            len(key) == 1
+        ), f"Key {key} must be a single character when as_unicode=True"
+        scan_code = _get_virtual_key(
+            key, True, _keyboard_layout_handle(hwnd)
         )
-        input_struct = Input(
-            type=self.KEYBOARD, structure=CombinedInput(ki=keybd_input)
+        vk_key = 0
+        flags |= KEYEVENTF_UNICODE
+    else:
+        scan_code = _EXPORTED_FUNCTIONS["MapVirtualKeyExW"](
+            vk_key,
+            MAPVK_VK_TO_VSC_EX,
+            _keyboard_layout_handle(hwnd),
         )
-        return input_struct
+    flags = flags | KEYEVENTF_KEYUP if event == "keyup" else flags
 
-    def _setup_exported_functions(self) -> dict[str, callable]:
-        """
-        :return: Dictionary of exported functions from the ctypes.windll module Expands method from InputHelpers to add SendInput.
-        """
-        send_input = ctypes.windll.user32.SendInput
-        send_input.restype = wintypes.UINT
-        send_input.argtypes = [
-            wintypes.UINT,
-            LPINPUT,
-            wintypes.INT,
-        ]  # LPINPUT is a pointer towards an Input structure, but we don't know the array size in advance
-        return {**super()._setup_exported_functions(), "SendInput": send_input}
+    keybd_input = KeyBdInputStruct(
+        wintypes.WORD(vk_key),
+        wintypes.WORD(scan_code),
+        wintypes.DWORD(flags),
+        wintypes.DWORD(0),
+        None,
+    )
+    input_struct = Input(
+        type=KEYBOARD, structure=CombinedInput(ki=keybd_input)
+    )
+    return input_struct
