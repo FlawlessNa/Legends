@@ -1,11 +1,9 @@
 import asyncio
-import itertools
 import logging
 import multiprocessing.connection
 import time
 
 from abc import ABC, abstractmethod
-from typing import Generator
 
 from royals.utilities import ChildProcess
 
@@ -77,6 +75,9 @@ class BotLauncher:
             # Ensures the queue is cleared after the task is done. Callback executes even when task is cancelled.
             new_task.add_done_callback(lambda _: cls.shared_queue.task_done())
 
+            if queue_item.callback is not None:
+                new_task.add_done_callback(queue_item.callback)
+
             logger.debug(f"Created task {new_task}.")
 
             if len(asyncio.all_tasks()) > 15:
@@ -132,7 +133,7 @@ class BotMonitor(ChildProcess):
             generators = [
                 gen() for gen in self.monitoring_generators(self.pipe_end)
             ]  # Instantiate all generators
-            map_rotation = self.map_rotation_generator(self.pipe_end)
+            map_rotation = self.map_rotation_generator(self.pipe_end)()
 
             while True:
                 # If main process sends None, it means we are exiting.
@@ -141,16 +142,16 @@ class BotMonitor(ChildProcess):
                     if signal is None:
                         break
 
-                for check in itertools.cycle(generators):
-                    before = time.time()
+                before = time.time()
+                for check in generators:
                     next(check)
-                    logger.debug(
-                        f"Time taken to execute {check}: {time.time() - before}"
-                    )
+                # logger.debug(
+                #     f"Time taken to execute all checks for {repr(self.source)}: {time.time() - before}"
+                # )
 
                 if self.rotation_lock.acquire(block=False):
+                    logger.debug(f"Acquired lock for {self.source} map rotation. Calling next rotation")
                     next(map_rotation)
-                    self.rotation_lock.release()
 
         except Exception as e:
             raise
@@ -160,7 +161,7 @@ class BotMonitor(ChildProcess):
                 self.pipe_end.send(None)
                 self.pipe_end.close()
 
-
+from functools import partial
 class Bot(ABC):
     all_bots: list["Bot"] = []
 
@@ -182,7 +183,7 @@ class Bot(ABC):
 
     @staticmethod
     @abstractmethod
-    def items_to_monitor(child_pipe: multiprocessing.Pipe) -> Generator:
+    def items_to_monitor(child_pipe: multiprocessing.Pipe) -> list[callable]:
         """
         This property is used to define the items that are monitored by the monitoring loop.
         Each item in this list is an iterator.
@@ -193,8 +194,13 @@ class Bot(ABC):
 
     @staticmethod
     @abstractmethod
-    def next_map_rotation(child_pipe: multiprocessing.Pipe) -> Generator:
+    def next_map_rotation(child_pipe: multiprocessing.Pipe) -> callable:
         pass
+
+    @staticmethod
+    def _rotation_callback(fut, *, lock: multiprocessing, source: str):
+        logger.debug(f"Callback called on {source} to release Rotation Lock")
+        lock.release()
 
     async def action_listener(self, queue: asyncio.PriorityQueue) -> None:
         """
@@ -204,5 +210,7 @@ class Bot(ABC):
         while True:
             if await asyncio.to_thread(self.bot_side.poll):
                 queue_item = self.bot_side.recv()
+                if queue_item.identifier == "mock_rotation":
+                    queue_item.callback = partial(self._rotation_callback, lock=self.rotation_lock, source=repr(self))
                 logger.debug(f"Received {queue_item} from {self} monitoring process.")
                 await queue.put(queue_item)

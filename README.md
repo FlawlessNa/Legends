@@ -3,6 +3,7 @@
 ## TODO
 - [ ] Refactor Bot - All bots into a single Async Queue, each bot has a subprocess for Monitoring. Game Status is updated through monitoring as well.
   - [ ] When done, update all docstrings as some are lacking now.
+  - [ ] Also, add task cancellation based on their priority - especially important for controller.move
 - [ ] Refactor game interface more accurately
 - [ ] Then, create tool that continuously takes screenshots (to build a training dataset) and also allows to simultaneously create minimap box objects
 - [ ] Object Detection Modelling - For Characters (Generally), My characters (if required), Mobs (1 model per mob)

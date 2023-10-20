@@ -25,9 +25,9 @@ class SharedResources:
         async def inner(*args, **kwargs):
             """Lock is required to prevent multiple tasks or processes from trying to use PC Focus simultaneously."""
             async with cls.focus_lock:  # Blocks until the lock is freed by the other process. Automatically frees the lock when the coroutine is finished.
-                logger.debug(f"Lock acquired by {func.__name__}")
+                logger.debug(f"Lock acquired by {func.__name__} with args {args} and kwargs {kwargs}")
                 res = await func(*args, **kwargs)
-            logger.debug(f"Lock released by {func.__name__}")
+            logger.debug(f"Lock released by {func.__name__} with args {args} and kwargs {kwargs}")
             return res
 
         return inner

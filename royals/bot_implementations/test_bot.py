@@ -1,14 +1,24 @@
+import logging
 import multiprocessing.connection
 from functools import partial
 from typing import Generator
 
 from royals.core import Bot, QueueAction
+from royals.core import Controller
 
-HANDLE = 0x001A05F2
+HANDLE = 0x011205E2
+logger = logging.getLogger(__name__)
+
+
+async def _test(direction):
+    await Controller().move(HANDLE, "FarmFest1", direction, 5)
+
+
+async def _test_check(key):
+    await Controller().press(HANDLE, key, silenced=True)
 
 
 def mock_check(pipe: multiprocessing.connection.Connection) -> Generator:
-    from royals.core import Controller
     import time
 
     last_potion = 0
@@ -19,36 +29,25 @@ def mock_check(pipe: multiprocessing.connection.Connection) -> Generator:
                 QueueAction(
                     priority=0,
                     identifier="mock_check",
-                    action=partial(
-                        Controller().press, HANDLE, "shift_right", silenced=True
-                    ),
-                )
+                    action=partial(_test_check, "insert"),
+                ),
             )
-            yield
+        yield
 
 
 def mock_rotation(pipe: multiprocessing.connection.Connection) -> Generator:
-    from royals.core import Controller
-    import time
+    import itertools
+
+    direction = itertools.cycle(["left", "right"])
 
     while True:
         pipe.send(
             QueueAction(
                 priority=1,
-                identifier="mock_rotation_right",
-                action=partial(Controller().move, HANDLE, "right", 5, jump=True),
+                identifier="mock_rotation",
+                action=partial(_test, next(direction)),
             )
         )
-        time.sleep(10)
-        yield
-        pipe.send(
-            QueueAction(
-                priority=1,
-                identifier="mock_rotation_left",
-                action=partial(Controller().move, HANDLE, "left", 5, jump=True),
-            )
-        )
-        time.sleep(10)
         yield
 
 
