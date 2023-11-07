@@ -131,6 +131,7 @@ class ChatLine(InGameBaseVisuals, ABC):
             idx = indices[0]
             x, _, w, _ = cv2.boundingRect(contours[indices[0]])
             return image[:, : x + w]
+        return image
 
 
 class General(ChatLine):
@@ -141,14 +142,18 @@ class General(ChatLine):
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         """
-        Try to extract the white text from the image.
+        Converts into HSV image and apply filters to try and turn off background while leaving chat intact.
+        HSV filter was configured using the hsv_filtering (in utilities-toolkit).
         Crop out the line once no more characters are clearly detected.
         To do so, if the horizontal between contours becomes too large, we assume those are noise and crop out.
         """
-        processed_img = cv2.inRange(image, (69, 69, 69), (255, 255, 255))
+        processed_img = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        lower = np.array([0, 0, 145])  # hMin, sMin, vMin
+        upper = np.array([179, 80, 255])  # hMax, sMax, vMax
+        processed_img = cv2.inRange(processed_img, lower, upper)
         processed_img = self._crop_based_on_contour(processed_img)
         processed_img = cv2.resize(
-            processed_img, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC
+            processed_img, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR
         )
         return processed_img
 
@@ -170,13 +175,27 @@ class GM(ChatLine):
 
 
 class Whisper(ChatLine):
-    chat_color = ((1, 1, 1), (0, 0, 0))  # TODO
+    chat_color = ((0, 255, 0), (0, 255, 0))
 
     def __init__(self, handle: int, img: np.ndarray):
         super().__init__(handle, img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        breakpoint()
+        """
+        Converts into HSV image and apply filters to try and turn off background while leaving chat intact.
+        HSV filter was configured using the hsv_filtering (in utilities-toolkit).
+        Crop out the line once no more characters are clearly detected.
+        To do so, if the horizontal between contours becomes too large, we assume those are noise and crop out.
+        """
+        processed_img = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        lower = np.array([49, 186, 110])  # hMin, sMin, vMin
+        upper = np.array([150, 255, 255])  # hMax, sMax, vMax
+        processed_img = cv2.inRange(processed_img, lower, upper)
+        processed_img = self._crop_based_on_contour(processed_img)
+        processed_img = cv2.resize(
+            processed_img, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR
+        )
+        return processed_img
 
     def get_author(self) -> str:
         pass
@@ -192,7 +211,7 @@ class Gachapon(ChatLine):
         processed_img = cv2.inRange(image, *self.chat_color)
         processed_img = cv2.bitwise_not(processed_img)
         processed_img = cv2.resize(
-            processed_img, None, fx=2, fy=2, interpolation=cv2.INTER_LINEAR
+            processed_img, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR
         )
         return processed_img
 
@@ -203,7 +222,6 @@ class Gachapon(ChatLine):
 class ItemSmega(ChatLine):
     chat_color = ((1, 195, 225), (15, 210, 240))
 
-    # chat_color = ((238, 68, 102), (238, 68, 102))
     def __init__(self, handle: int, img: np.ndarray):
         super().__init__(handle, img)
 
@@ -296,13 +314,16 @@ class Guild(ChatLine):
 class Megaphone(ChatLine):
     """Standard, single-channel megaphone lines."""
 
-    chat_color = ((1, 1, 1), (0, 0, 0))  # TODO
+    chat_color = ((119, 51, 0), (119, 51, 0))
 
     def __init__(self, handle: int, img: np.ndarray):
         super().__init__(handle, img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        breakpoint()
+        processed_img = cv2.resize(
+            image, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR
+        )
+        return processed_img
 
     def get_author(self) -> str:
         pass
