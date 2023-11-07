@@ -5,6 +5,9 @@
   - [ ] When done, update all docstrings as some are lacking now.
   - [x] Also, add task cancellation based on their priority - especially important for controller.move
 - [ ] Refactor game interface more accurately
+  - [ ] Chat -> Try additional pre-processing: Thresholding (improved?), Denoising (application of Gaussian and/or Median Blur), Contrast Enhancement (Make text more distinguishable from background)
+  - [ ] Chat -> Pre-trained model for semantic segmentation? Could help distinguish text from the rest.
+  - [ ] Chat -> Other OCR libraries?
 - [ ] Then, create tool that continuously takes screenshots (to build a training dataset) and also allows to simultaneously create minimap box objects
 - [ ] Object Detection Modelling - For Characters (Generally), My characters (if required), Mobs (1 model per mob)
 - [ ] Enable np arrays/.png files to be sent through Pipe - then send chat images towards discord
