@@ -11,7 +11,15 @@ logger = logging.getLogger(__name__)
 
 
 async def _test(direction):
-    await controller.move(HANDLE, "FarmFest1", direction, 3, True, jump_interval=0.5, secondary_direction="up")
+    await controller.move(
+        HANDLE,
+        "FarmFest1",
+        direction,
+        3,
+        True,
+        jump_interval=0.5,
+        secondary_direction="up",
+    )
 
 
 async def _test_check(key):

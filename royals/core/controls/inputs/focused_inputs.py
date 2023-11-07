@@ -9,7 +9,13 @@ from typing import Literal
 from win32com.client import Dispatch
 from win32gui import SetForegroundWindow, GetForegroundWindow
 
-from .inputs_helpers import _EXPORTED_FUNCTIONS, _get_virtual_key, _keyboard_layout_handle, EXTENDED_KEYS, MAPVK_VK_TO_VSC_EX
+from .inputs_helpers import (
+    _EXPORTED_FUNCTIONS,
+    _get_virtual_key,
+    _keyboard_layout_handle,
+    EXTENDED_KEYS,
+    MAPVK_VK_TO_VSC_EX,
+)
 from .shared_resources import SharedResources
 
 KEYEVENTF_EXTENDEDKEY = 0x0001
@@ -172,9 +178,7 @@ def _input_array_constructor(
     input_list = []
     for item in zip(keys, events):
         key, event = item
-        input_list.append(
-            _input_structure_constructor(hwnd, key, event, as_unicode)
-        )
+        input_list.append(_input_structure_constructor(hwnd, key, event, as_unicode))
 
     if enforce_delay:
         return_val = list()
@@ -189,9 +193,7 @@ def _input_array_constructor(
                 ]
             )
             # Delay is randomized here to allow individual randomization between each input.
-            return_val.append(
-                [full_params, random.uniform(delay * 0.95, delay * 1.05)]
-            )
+            return_val.append([full_params, random.uniform(delay * 0.95, delay * 1.05)])
         return return_val
     else:
         # Create 1 single array of length N. All inputs sent simultaneously.
@@ -230,9 +232,7 @@ def _input_structure_constructor(
         assert (
             len(key) == 1
         ), f"Key {key} must be a single character when as_unicode=True"
-        scan_code = _get_virtual_key(
-            key, True, _keyboard_layout_handle(hwnd)
-        )
+        scan_code = _get_virtual_key(key, True, _keyboard_layout_handle(hwnd))
         vk_key = 0
         flags |= KEYEVENTF_UNICODE
     else:
@@ -250,7 +250,5 @@ def _input_structure_constructor(
         wintypes.DWORD(0),
         None,
     )
-    input_struct = Input(
-        type=KEYBOARD, structure=CombinedInput(ki=keybd_input)
-    )
+    input_struct = Input(type=KEYBOARD, structure=CombinedInput(ki=keybd_input))
     return input_struct

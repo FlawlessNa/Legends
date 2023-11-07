@@ -1,3 +1,4 @@
+import cv2
 import numpy as np
 import win32con
 import win32gui
@@ -76,3 +77,52 @@ def take_screenshot(
     #     img = cv2.bitwise_and(img, img, mask=mask)
 
     return img
+
+
+def find_image(
+    haystack: np.ndarray,
+    needle: np.ndarray,
+    method: int = cv2.TM_CCORR_NORMED,
+    threshold: float = 0.99,
+    add_margins: bool = True,
+) -> list[Box]:
+    """
+    Find an image within another image.
+    :param haystack: The image to search in.
+    :param needle: The image to search for.
+    :param method: The method to use for finding the image. See https://docs.opencv.org/4.5.2/d4/dc6/tutorial_py_template_matching.html
+    :param threshold: The threshold to use for finding the image. See https://docs.opencv.org/4.5.2/d4/dc6/tutorial_py_template_matching.html
+    :param add_margins: Whether to add client horizontal/vertical margins to the found boxes or not. Default True.
+    :return: A list of boxes (regions) where the needle image was found.
+    """
+    result = cv2.matchTemplate(haystack, needle, method)
+    locations = np.where(result >= threshold)
+    locations = zip(*locations[::-1])
+
+    rectangles = list()
+    for loc in locations:
+        rect = [int(loc[0]), int(loc[1]), needle.shape[1], needle.shape[0]]
+        rectangles.append(rect)
+        rectangles.append(rect)
+
+    rectangles, weights = cv2.groupRectangles(rectangles, groupThreshold=1, eps=0.5)
+    if add_margins:
+        return [
+            Box(
+                left=r.tolist()[0] + CLIENT_HORIZONTAL_MARGIN_PX,
+                top=r.tolist()[1] + CLIENT_VERTICAL_MARGIN_PX,
+                right=r.tolist()[0] + r.tolist()[2] + CLIENT_HORIZONTAL_MARGIN_PX,
+                bottom=r.tolist()[1] + r.tolist()[3] + CLIENT_VERTICAL_MARGIN_PX,
+            )
+            for r in rectangles
+        ]
+    else:
+        return [
+            Box(
+                left=r.tolist()[0],
+                top=r.tolist()[1],
+                right=r.tolist()[0] + r.tolist()[2],
+                bottom=r.tolist()[1] + r.tolist()[3],
+            )
+            for r in rectangles
+        ]

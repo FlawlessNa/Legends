@@ -5,7 +5,13 @@ import win32con
 
 from ctypes import wintypes
 
-from .inputs_helpers import EXTENDED_KEYS, _EXPORTED_FUNCTIONS, _get_virtual_key, _keyboard_layout_handle, MAPVK_VK_TO_VSC_EX
+from .inputs_helpers import (
+    EXTENDED_KEYS,
+    _EXPORTED_FUNCTIONS,
+    _get_virtual_key,
+    _keyboard_layout_handle,
+    MAPVK_VK_TO_VSC_EX,
+)
 from royals.utilities import randomize_params
 
 SYS_KEYS = ["alt", "alt_right", "F10"]

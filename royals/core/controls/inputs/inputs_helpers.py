@@ -90,7 +90,7 @@ def _setup_exported_functions() -> dict[str, callable]:
         "GetWindowThreadProcessId": get_window_thread_process_id,
         "GetKeyboardLayout": get_keyboard_layout,
         "PostMessageW": post_message,
-        "SendInput": send_input
+        "SendInput": send_input,
     }
 
 

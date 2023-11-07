@@ -62,7 +62,9 @@ class BotLauncher:
 
             for task in asyncio.all_tasks():
                 if getattr(task, "priority", 0) > queue_item.priority:
-                    logger.debug(f"{queue_item.identifier} has priority over task {task.get_name()}. Cancelling task.")
+                    logger.debug(
+                        f"{queue_item.identifier} has priority over task {task.get_name()}. Cancelling task."
+                    )
                     task.cancel()
 
             # Adds the task into the main event loop
@@ -99,10 +101,7 @@ class BotLauncher:
 
 
 class BotMonitor(ChildProcess):
-    def __init__(
-        self,
-        bot: "Bot"
-    ) -> None:
+    def __init__(self, bot: "Bot") -> None:
         super().__init__(bot.monitoring_side)
         self.source = repr(bot)
         self.monitoring_generators = bot.items_to_monitor
@@ -139,7 +138,9 @@ class BotMonitor(ChildProcess):
                 # )
 
                 if self.rotation_lock.acquire(block=False):
-                    logger.debug(f"Acquired lock for {self.source} map rotation. Calling next rotation")
+                    logger.debug(
+                        f"Acquired lock for {self.source} map rotation. Calling next rotation"
+                    )
                     next(map_rotation)
 
         except Exception as e:
@@ -150,7 +151,10 @@ class BotMonitor(ChildProcess):
                 self.pipe_end.send(None)
                 self.pipe_end.close()
 
+
 from functools import partial
+
+
 class Bot(ABC):
     all_bots: list["Bot"] = []
 
@@ -200,6 +204,10 @@ class Bot(ABC):
             if await asyncio.to_thread(self.bot_side.poll):
                 queue_item = self.bot_side.recv()
                 if queue_item.identifier == "mock_rotation":
-                    queue_item.callback = partial(self._rotation_callback, lock=self.rotation_lock, source=repr(self))
+                    queue_item.callback = partial(
+                        self._rotation_callback,
+                        lock=self.rotation_lock,
+                        source=repr(self),
+                    )
                 logger.debug(f"Received {queue_item} from {self} monitoring process.")
                 await queue.put(queue_item)

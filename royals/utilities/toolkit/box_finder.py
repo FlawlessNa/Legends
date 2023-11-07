@@ -1,5 +1,6 @@
 import cv2
 import win32gui
+from royals.utilities import Box, take_screenshot
 
 
 def box_finder(handle: int, box: Box | None = None) -> Box:
@@ -68,3 +69,8 @@ def box_finder(handle: int, box: Box | None = None) -> Box:
 
     print(f"Final Box: {box}")
     return box
+
+
+if __name__ == "__main__":
+    HANDLE = 0x00070802
+    box_finder(HANDLE)

@@ -3,8 +3,9 @@ import numpy as np
 import pytesseract
 
 from abc import ABC, abstractmethod
-from functools import cached_property
-from royals.utilities import Box, take_screenshot
+from win32gui import GetClientRect
+
+from royals.utilities import Box, take_screenshot, find_image
 
 
 class InGameBaseVisuals(ABC):
@@ -12,6 +13,12 @@ class InGameBaseVisuals(ABC):
 
     def __init__(self, handle: int) -> None:
         self.handle = handle
+        if GetClientRect(handle)[-2:] == (1024, 768):
+            self._large_client = True
+        elif GetClientRect(handle)[-2:] == (800, 600):
+            self._large_client = False
+        else:
+            raise ValueError("Invalid window size")
 
     @abstractmethod
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
@@ -19,13 +26,15 @@ class InGameBaseVisuals(ABC):
 
     def read_from_box(self, box: Box, config: str | None = None) -> str:
         img = take_screenshot(self.handle, box)
-        processed = self._preprocess_img(img)
-        return self.read_from_img(processed, config)
+        if config is None:
+            config = box.config
+        return self.read_from_img(img, config)
 
     def read_from_img(self, image: np.ndarray, config: str | None = None) -> str:
         img = self._preprocess_img(image)
-        assert np.unique(img).size == 2, "Image is not binary"
-        return pytesseract.image_to_string(img, lang="eng", config=config)
+        result = pytesseract.image_to_data(img, lang="eng", config=config, output_type=pytesseract.Output.DICT)
+        filtered_res = [result["text"][i] for i in range(len(result["text"])) if int(result["conf"][i]) > 15]
+        return " ".join(filtered_res)
 
     @staticmethod
     def _color_detection(
@@ -61,23 +70,19 @@ class InGameBaseVisuals(ABC):
         return np.max(res) > threshold
 
 
-class InGameToggleableVisuals(InGameBaseVisuals):
+class InGameToggleableVisuals(InGameBaseVisuals, ABC):
     @abstractmethod
-    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        pass
-
     def is_displayed(self) -> bool:
         pass
 
 
-class InGameDynamicVisuals(InGameToggleableVisuals):
-    @abstractmethod
-    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        pass
+class InGameDynamicVisuals(InGameToggleableVisuals, ABC):
+    _menu_icon_detection_needle: np.ndarray
 
-    @cached_property
-    def _menu_icon_position(self) -> Box:
-        pass
-
-    def reset_menu_icon_position(self) -> None:
-        self.__dict__.pop("_menu_icon_position", None)
+    def _menu_icon_position(self) -> Box | None:
+        client_img = take_screenshot(self.handle)
+        boxes = find_image(client_img, self._menu_icon_detection_needle)
+        if len(boxes) > 1:
+            raise ValueError("More than one menu icon detected")
+        elif boxes:
+            return boxes.pop()

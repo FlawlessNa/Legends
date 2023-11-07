@@ -4,5 +4,9 @@ from ..in_game_visuals import InGameDynamicVisuals
 
 
 @dataclass(frozen=True)
-class InventoryVisuals(InGameDynamicVisuals):
-    handle: int
+class InventoryInterface:
+    pass
+
+
+class InventoryVisuals(InventoryInterface, InGameDynamicVisuals):
+    pass
