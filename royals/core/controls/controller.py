@@ -163,7 +163,7 @@ async def move(
         keys.extend([repeated_key] * upper_bounds)
         events.extend(["keydown"] * upper_bounds)
 
-    # Case 2 -> Jump key is not help down. This disables the automatic repeat feature as soon as a jump is triggered.
+    # Case 2 -> Jump key is not held down. This disables the automatic repeat feature as soon as a jump is triggered.
     # Best case would be to have different delays for fist few keys vs. the rest, but I doubt this case will be triggered very often.
     elif jump and jump_interval > 0:
         nbr_jumps = int(duration // jump_interval)

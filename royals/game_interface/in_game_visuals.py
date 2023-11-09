@@ -32,8 +32,14 @@ class InGameBaseVisuals(ABC):
 
     def read_from_img(self, image: np.ndarray, config: str | None = None) -> str:
         img = self._preprocess_img(image)
-        result = pytesseract.image_to_data(img, lang="eng", config=config, output_type=pytesseract.Output.DICT)
-        filtered_res = [result["text"][i] for i in range(len(result["text"])) if int(result["conf"][i]) > 15]
+        result = pytesseract.image_to_data(
+            img, lang="eng", config=config, output_type=pytesseract.Output.DICT
+        )
+        filtered_res = [
+            result["text"][i]
+            for i in range(len(result["text"]))
+            if int(result["conf"][i]) > 15
+        ]
         return " ".join(filtered_res)
 
     @staticmethod

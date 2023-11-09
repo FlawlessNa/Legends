@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Data folder
+data/
+
 # C extensions
 *.so
 # Logs
@@ -10,6 +13,8 @@ logs/
 
 # Configs
 configs/
+
+.idea/
 
 # Distribution / packaging
 .Python

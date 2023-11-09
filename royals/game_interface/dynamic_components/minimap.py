@@ -61,7 +61,9 @@ class Minimap(InGameDynamicVisuals):
                 else:
                     return "Partial"
 
-    def get_character_positions(self, character_type: str) -> list[tuple[float, float]] | None:
+    def get_character_positions(
+        self, character_type: str
+    ) -> list[tuple[float, float]] | None:
         """
         Returns the positions of all characters of a certain type on the minimap.
         :param character_type: Literal {"Self", "Stranger", "Party", "Buddy", "Guildie", "NPC"}

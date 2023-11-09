@@ -155,7 +155,10 @@ class General(ChatLine):
         processed_img = cv2.resize(
             processed_img, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR
         )
-        return processed_img
+        cv2.imshow("processed", processed_img)
+        cv2.imshow("gaussian", cv2.GaussianBlur(processed_img, (7, 7), 0))
+        cv2.waitKey(0)
+        return cv2.GaussianBlur(processed_img, (7, 7), 0)
 
     def get_author(self) -> str:
         pass
@@ -364,7 +367,20 @@ class Notice(ChatLine):
         super().__init__(handle, img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        breakpoint()
+        """
+        Converts into HSV image and apply filters to remove background noise.
+        HSV filter was configured using the hsv_filtering (in utilities-toolkit).
+        Crop out the line once no more characters are clearly detected.
+        """
+        processed_img = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        lower = np.array([79, 66, 92])  # hMin, sMin, vMin
+        upper = np.array([106, 166, 255])  # hMax, sMax, vMax
+        processed_img = cv2.inRange(processed_img, lower, upper)
+        processed_img = self._crop_based_on_contour(processed_img)
+        processed_img = cv2.resize(
+            processed_img, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR
+        )
+        return processed_img
 
     def get_author(self) -> str:
         pass

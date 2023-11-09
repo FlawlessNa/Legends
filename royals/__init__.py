@@ -2,7 +2,8 @@
 Main module which imports the SessionManager and all defined bots.
 Additionally, the logger is configured here for the Main Process.
 """
-from .core import Bot, BotLauncher, SessionManager
+
+from .core import BotLauncher, SessionManager, Bot
 
 import logging.handlers
 import os
