@@ -1,12 +1,13 @@
+import itertools
 import logging
 import multiprocessing.connection
 from functools import partial
 from typing import Generator
 
 from royals.core import Bot, QueueAction
-from royals.core import controller
+from .actions.mock import _test_action
+from .checks.mock import mock_check
 
-HANDLE = 0x00620DFE
 logger = logging.getLogger(__name__)
 
 
@@ -18,10 +19,20 @@ class SubwayMagicianTraining(Bot):
     def items_to_monitor(
         child_pipe: multiprocessing.connection.Connection,
     ) -> list[callable]:
-        return []
+        return [partial(mock_check, child_pipe)]
 
     @staticmethod
     def next_map_rotation(
         child_pipe: multiprocessing.connection.Connection,
-    ) -> callable:
-        return partial(mock_rotation, child_pipe)
+    ) -> Generator:
+
+        direction = itertools.cycle(["left", "right"])
+        while True:
+            child_pipe.send(
+                QueueAction(
+                    priority=1,
+                    identifier="mock_rotation",
+                    action=partial(_test_action, next(direction)),
+                )
+            )
+            yield

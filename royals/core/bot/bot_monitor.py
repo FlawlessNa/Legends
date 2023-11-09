@@ -29,7 +29,7 @@ class BotMonitor(ChildProcess):
             generators = [
                 gen() for gen in self.monitoring_generators(self.pipe_end)
             ]  # Instantiate all generators
-            map_rotation = self.map_rotation_generator(self.pipe_end)()
+            map_rotation = self.map_rotation_generator(self.pipe_end)
 
             while True:
                 # If main process sends None, it means we are exiting.

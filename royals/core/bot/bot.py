@@ -25,13 +25,14 @@ class Bot(ABC):
 
     @classmethod
     def update_bot_list(cls, bot: "Bot") -> None:
+        """Inserts newly created bot into the bot list."""
         cls.all_bots.append(bot)
 
     @staticmethod
     @abstractmethod
     def items_to_monitor(child_pipe: multiprocessing.Pipe) -> list[callable]:
         """
-        This property is used to define the items that are monitored by the monitoring loop.
+        This property is used to define the items that are monitored by the monitoring loop (Child Process).
         Each item in this list is an iterator.
         At each loop iteration, next() is called on each item in this list, at which point the generator may send an action through the multiprocess pipe.
         :return: List of items to monitor.
@@ -41,6 +42,12 @@ class Bot(ABC):
     @staticmethod
     @abstractmethod
     def next_map_rotation(child_pipe: multiprocessing.Pipe) -> callable:
+        """
+        This method is used to determine the next map rotation, based on CPU-intensive computations.
+        It is called from the BotMonitor, inside a Child Process.
+        :param child_pipe: The child process end of the pipe. Used to push actions towards the main process.
+        :return:
+        """
         pass
 
     @staticmethod
@@ -50,6 +57,7 @@ class Bot(ABC):
 
     async def action_listener(self, queue: asyncio.PriorityQueue) -> None:
         """
+        Main Process task.
         Retrieves queue items from the monitoring loop (child process) and adds the item into the shared asynchronous queue.
         :return: None
         """

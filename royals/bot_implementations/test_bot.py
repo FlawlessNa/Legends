@@ -1,3 +1,4 @@
+import itertools
 import logging
 import multiprocessing.connection
 from functools import partial
@@ -23,17 +24,11 @@ class TestBot(Bot):
     @staticmethod
     def next_map_rotation(
         child_pipe: multiprocessing.connection.Connection,
-    ) -> callable:
-        return partial(TestBot.mock_rotation, child_pipe)
-
-    @staticmethod
-    def mock_rotation(pipe: multiprocessing.connection.Connection) -> Generator:
-        import itertools
+    ) -> Generator:
 
         direction = itertools.cycle(["left", "right"])
-
         while True:
-            pipe.send(
+            child_pipe.send(
                 QueueAction(
                     priority=1,
                     identifier="mock_rotation",
