@@ -10,5 +10,5 @@ async def main(*bots: royals.Bot) -> None:
 
 if __name__ == "__main__":
     handle = 0x00620DFE
-    bot1 = TestBot(handle, "FarmFest1")
+    bot1 = royals.Bot(handle, "FarmFest1", monitor=TestBot)
     asyncio.run(main(bot1))

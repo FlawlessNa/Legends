@@ -3,7 +3,6 @@ import logging
 import multiprocessing
 
 from .bot import Bot
-from .bot_monitor import BotMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -21,14 +20,11 @@ class BotLauncher:
 
     def __init__(self, logging_queue: multiprocessing.Queue) -> None:
         self.logging_queue = logging_queue
+        Bot.logging_queue = logging_queue
 
     def __enter__(self) -> None:
         for bot in Bot.all_bots:
-            bot.monitoring_process = multiprocessing.Process(
-                target=BotMonitor.start_monitoring,
-                name=f"{bot} Monitoring",
-                args=(bot, self.logging_queue),
-            )
+            bot.set_monitoring_process()
             bot.monitoring_process.start()
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -38,7 +34,6 @@ class BotLauncher:
             logger.debug(f"Sent stop signal to {bot} monitoring process")
             bot.monitoring_process.join()
             logger.debug(f"Joined {bot} monitoring process")
-
             logger.debug(f"Stopping {bot} main task")
             bot.main_task.cancel()
 

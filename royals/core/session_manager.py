@@ -29,6 +29,7 @@ class SessionManager(BotLauncher, DiscordLauncher, RecorderLauncher):
 
     def __init__(self, *bots_to_launch: Bot) -> None:
         self.bots = bots_to_launch
+        Bot.update_logging_queue(self.logging_queue)
         BotLauncher.__init__(self, self.logging_queue)
         DiscordLauncher.__init__(self, self.logging_queue)
         RecorderLauncher.__init__(self, self.logging_queue)
