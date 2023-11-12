@@ -37,6 +37,10 @@ def init_control_gui():
     cv2.createTrackbar("VAdd", "Trackbars", 0, 255, nothing)
     cv2.createTrackbar("VSub", "Trackbars", 0, 255, nothing)
 
+    cv2.createTrackbar("Threshold1", "Trackbars", 0, 1000, nothing)
+    cv2.createTrackbar("Threshold2", "Trackbars", 0, 1000, nothing)
+    cv2.createTrackbar("Apply Canny", "Trackbars", 0, 1, nothing)
+
 
 def get_hsv_filter_from_controls():
     # Get current positions of all trackbars
@@ -53,17 +57,27 @@ def get_hsv_filter_from_controls():
     hsv_filter.vSub = cv2.getTrackbarPos("VSub", "Trackbars")
     return hsv_filter
 
-    # given an image and an HSV filter, apply the filter and return the resulting image.
-    # if a filter is not supplied, the control GUI trackbars will be used
+
+def get_canny_filter_from_controls():
+    if cv2.getTrackbarPos("Apply Canny", "Trackbars") == 1:
+        return (
+            cv2.getTrackbarPos("Threshold1", "Trackbars"),
+            cv2.getTrackbarPos("Threshold2", "Trackbars"),
+        )
 
 
-def apply_hsv_filter(original_image, hsv_filter=None):
+# given an image and an HSV filter, apply the filter and return the resulting image.
+# if a filter is not supplied, the control GUI trackbars will be used
+def apply_filters(original_image, hsv_filter=None, canny_filter=None):
     # convert image to HSV
     hsv = cv2.cvtColor(original_image, cv2.COLOR_BGR2HSV)
 
     # if we haven't been given a defined filter, use the filter values from the GUI
     if not hsv_filter:
         hsv_filter = get_hsv_filter_from_controls()
+
+    if not canny_filter:
+        canny_filter = get_canny_filter_from_controls()
 
     # add/subtract saturation and value
     h, s, v = cv2.split(hsv)
@@ -82,6 +96,9 @@ def apply_hsv_filter(original_image, hsv_filter=None):
 
     # convert back to BGR for imshow() to display it properly
     img = cv2.cvtColor(result, cv2.COLOR_HSV2BGR)
+
+    if canny_filter is not None:
+        img = cv2.Canny(img, *canny_filter, L2gradient=True)
 
     return img
 
@@ -133,6 +150,6 @@ if __name__ == "__main__":
     init_control_gui()
     while True:
         img = take_screenshot(HANDLE)
-        processed = apply_hsv_filter(img)
+        processed = apply_filters(img)
         cv2.imshow("processed", processed)
         cv2.waitKey(1)

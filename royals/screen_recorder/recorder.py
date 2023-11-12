@@ -41,6 +41,7 @@ class RecorderLauncher:
         self.recorder_sender.close()
         logger.debug("Sent stop signal to recorder process")
         self.recorder_process.join()
+        logger.info(f"RecorderLauncher exited.")
 
     @staticmethod
     def start_recording(

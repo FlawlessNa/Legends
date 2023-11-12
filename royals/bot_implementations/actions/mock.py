@@ -14,5 +14,4 @@ async def _test_action(direction):
         3,
         True,
         jump_interval=0.5,
-        secondary_direction="up",
     )

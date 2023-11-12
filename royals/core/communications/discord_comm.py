@@ -45,6 +45,7 @@ class DiscordLauncher:
         self.discord_listener.cancel()
 
         self.discord_process.join()
+        logger.info(f"DiscordLauncher exited.")
 
     async def relay_disc_to_main(self) -> None:
         """

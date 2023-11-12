@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Sequence
 
 from royals.game_interface import InGameBaseVisuals

@@ -85,8 +85,9 @@ class InGameToggleableVisuals(InGameBaseVisuals, ABC):
 class InGameDynamicVisuals(InGameToggleableVisuals, ABC):
     _menu_icon_detection_needle: np.ndarray
 
-    def _menu_icon_position(self) -> Box | None:
-        client_img = take_screenshot(self.handle)
+    def _menu_icon_position(self, client_img: np.ndarray | None = None) -> Box | None:
+        if client_img is None:
+            client_img = take_screenshot(self.handle)
         boxes = find_image(client_img, self._menu_icon_detection_needle)
         if len(boxes) > 1:
             raise ValueError("More than one menu icon detected")

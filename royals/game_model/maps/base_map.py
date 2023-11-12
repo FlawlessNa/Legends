@@ -1,0 +1,2 @@
+class BaseMap:
+    pass

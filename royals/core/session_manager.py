@@ -66,6 +66,7 @@ class SessionManager(BotLauncher, DiscordLauncher, RecorderLauncher):
 
         logger.debug("Stopping Log listener")
         self.log_listener.stop()
+        logger.info("SessionManager exited.")
 
         if exc_type is not None:
             # TODO - Perform "Bots" cleanup since an error occur. (e.g. close all open windows)
@@ -76,7 +77,7 @@ class SessionManager(BotLauncher, DiscordLauncher, RecorderLauncher):
             f'Launching {len(self.bots)} bots. The following bots will be launched: {" ".join(repr(bot) for bot in self.bots)}'
         )
         try:
-            await BotLauncher.run_all()
+            await Bot.run_all()
         except Exception as e:
             raise
         finally:

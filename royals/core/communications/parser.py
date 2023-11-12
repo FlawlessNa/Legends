@@ -4,7 +4,7 @@ import multiprocessing.connection
 from functools import partial
 from typing import Optional
 
-from ..bot import BotLauncher
+from ..bot import Bot
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ def message_parser(
         case "kill":
             # TODO - Close clients as well?
             logger.info("Received KILL signal from Discord. Stopping all bots.")
-            return BotLauncher.cancel_all
+            return Bot.cancel_all
         case "pause":
             pass
         case "resume":

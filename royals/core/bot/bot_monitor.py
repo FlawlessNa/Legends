@@ -19,7 +19,7 @@ class BotMonitor(ChildProcess, ABC):
     @abstractmethod
     def items_to_monitor(self) -> list[callable]:
         """
-        This property is used to define the items that are monitored by the monitoring loop (Child Process).
+        Child instances should store in this property a list of generators that are monitored by the monitoring loop (Child Process).
         Each item in this list is an iterator.
         At each loop iteration, next() is called on each item in this list, at which point the generator may send an action through the multiprocess pipe.
         :return: List of items to monitor.
@@ -27,10 +27,9 @@ class BotMonitor(ChildProcess, ABC):
         pass
 
     @abstractmethod
-    def next_map_rotation(self) -> Generator:
+    def next_map_rotation(self) -> list[callable]:
         """
-        This method is used to determine the next map rotation, based on CPU-intensive computations.
-        It is called from the BotMonitor, inside a Child Process.
+        Same behavior as items_to_monitor(), but the generators in this list are used to determine the next map rotation.
         :return:
         """
         pass
@@ -47,8 +46,10 @@ class BotMonitor(ChildProcess, ABC):
         try:
             generators = [
                 gen() for gen in self.items_to_monitor()
-            ]  # Instantiate all generators
-            map_rotation = self.next_map_rotation()
+            ]  # Instantiate all checks generators
+            map_rotation = [
+                gen() for gen in self.next_map_rotation()
+            ]  # Instantiate all map rotation generators
 
             while True:
                 # If main process sends None, it means we are exiting.
@@ -60,11 +61,8 @@ class BotMonitor(ChildProcess, ABC):
                 for check in generators:
                     next(check)
 
-                if self.watched_bot.rotation_lock.acquire(block=False):
-                    logger.debug(
-                        f"Acquired lock for {self.source} map rotation. Calling next rotation"
-                    )
-                    next(map_rotation)
+                for rotation in map_rotation:
+                    next(rotation)
 
         except Exception as e:
             raise
