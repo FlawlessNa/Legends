@@ -19,7 +19,7 @@ if __name__ == "__main__":
         f.write('from .base_map import BaseMap')
         f.write('\n')
         f.write('\n')
-        f.write('class KerningLine1Area1(BaseMap):')
+        f.write(f'class {OUTPUT_NAME.replace("_", " ").title().replace(" ", "")}(BaseMap):')
         f.write('\n')
 
         while True:
