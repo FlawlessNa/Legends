@@ -1,6 +1,6 @@
 import numpy as np
 
-# from .BaseMob import BaseMob
+# from .base_mob import BaseMob
 from royals.game_model.mobs.base_mob import BaseMob
 
 
