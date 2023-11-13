@@ -35,6 +35,7 @@ class TestBot(BotMonitor):
                         action=partial(_test_action, next(direction)),
                         release_rotation_lock=True,
                         is_cancellable=True,
+                        update_game_data=("test_mock",),
                     )
                 )
             yield

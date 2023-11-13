@@ -2,9 +2,9 @@ import logging
 import multiprocessing
 
 from abc import ABC, abstractmethod
-from typing import Generator
 
 from .bot import Bot
+from royals.game_model.game_data import GameData
 from royals.utilities import ChildProcess
 
 logger = logging.getLogger(__name__)
@@ -15,6 +15,7 @@ class BotMonitor(ChildProcess, ABC):
         super().__init__(bot.monitoring_side)
         self.source = repr(bot)
         self.watched_bot = bot
+        self.game_data: GameData = bot.game_data
 
     @abstractmethod
     def items_to_monitor(self) -> list[callable]:
@@ -39,8 +40,10 @@ class BotMonitor(ChildProcess, ABC):
         There are two types of generators that are monitored:
         1. Generators that are used to monitor the game state (potions, pet food, inventories, chat feed, proper map, etc).
         2. Generators that are used to determine the next map rotation.
-        On every iteration, all generators from 1. are checked once.
-        Then, the map rotation generator is checked whenever the bot is ready to perform an action related to map rotation.
+        On every iteration, we start by checking if the main process has sent anything through the pipe.
+        If so, we update the game data with the new information.
+        Then, all generators from 1. are checked once.
+        Lastly, all generators from 2. are checked once.
         :return: None
         """
         try:
@@ -57,6 +60,7 @@ class BotMonitor(ChildProcess, ABC):
                     signal = self.pipe_end.recv()
                     if signal is None:
                         break
+                    self.game_data.update(signal)
 
                 for check in generators:
                     next(check)

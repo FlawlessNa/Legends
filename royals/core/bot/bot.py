@@ -2,6 +2,7 @@ import asyncio
 import logging
 import multiprocessing.connection
 
+from functools import partial
 from typing import TYPE_CHECKING
 
 from .action import QueueAction
@@ -24,6 +25,7 @@ class Bot:
     ) -> None:
         self.handle = handle
         self.ign = ign
+        self.game_data = game_data
         self.monitor = monitor
 
         self.bot_side, self.monitoring_side = multiprocessing.Pipe()
@@ -51,13 +53,6 @@ class Bot:
             queue_item = await cls.shared_queue.get()
             if queue_item is None:
                 break
-
-            # for task in asyncio.all_tasks():
-            #     if getattr(task, "priority", 0) > queue_item.priority:
-            #         logger.debug(
-            #             f"{queue_item.identifier} has priority over task {task.get_name()}. Cancelling task."
-            #         )
-            #         task.cancel()
 
             new_task = cls.create_task(queue_item)
             logger.debug(f"Created task {new_task.get_name()}.")
@@ -91,8 +86,8 @@ class Bot:
         new_task.is_cancellable = queue_item.is_cancellable
 
         # Add any other callbacks specified by the QueueAction
-        if queue_item.callback is not None:
-            new_task.add_done_callback(queue_item.callback)
+        for callback in queue_item.callbacks:
+            new_task.add_done_callback(callback)
 
         # Keep track of when the task was originally created.
         new_task.creation_time = asyncio.get_running_loop().time()
@@ -137,8 +132,13 @@ class Bot:
         )
 
     def _rotation_callback(self, fut):
+        """Callback to use on map rotation actions if they need to acquire lock before executing."""
         logger.debug(f"Callback called on {self} to release Rotation Lock")
         self.rotation_lock.release()
+
+    def _send_update_signal(self, signal: tuple[str], fut):
+        """Callback to use on map rotation actions if they need to update game data."""
+        self.bot_side.send(signal)
 
     async def action_listener(self, queue: asyncio.PriorityQueue) -> None:
         """
@@ -158,7 +158,10 @@ class Bot:
                     break
 
                 if queue_item.release_rotation_lock:
-                    queue_item.callback = self._rotation_callback
+                    queue_item.callbacks.append(self._rotation_callback)
+
+                if queue_item.update_game_data is not None:
+                    queue_item.callbacks.append(partial(self._send_update_signal, queue_item.update_game_data))
 
                 logger.debug(f"Received {queue_item} from {self} monitoring process.")
                 await queue.put(queue_item)
