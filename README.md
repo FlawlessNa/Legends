@@ -2,6 +2,7 @@
 
 ## TODO
 - [x] Refactor Bot - All bots into a single Async Queue, each bot has a subprocess for Monitoring. Game Status is updated through monitoring as well.
+  - [ ] Add a async.Lock object to each individual both - this will prevent competing rotation action and check actions.
   - [ ] When done, update all docstrings as some are lacking now.
   - [x] Also, add task cancellation based on their priority - especially important for controller.move
 - [ ] Refactor game interface more accurately
@@ -9,7 +10,7 @@
 - [ ] GPT Automated Responses
 - [ ] Automated handle and IGN associated + retrieval
 - [ ] Minimap pathing - algorithm to find paths between point A and B based on minimap
-- [ ] Refactor QueueActions for additional capabilities
+- [x] Refactor QueueActions for additional capabilities
 - [ ] Common actions
 
 ## Nice to have

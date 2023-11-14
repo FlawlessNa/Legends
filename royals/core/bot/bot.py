@@ -37,7 +37,8 @@ class Bot:
         self.monitor = monitor
 
         self.bot_side, self.monitoring_side = multiprocessing.Pipe()
-        self.rotation_lock = multiprocessing.Lock()
+        self.rotation_lock = multiprocessing.Lock()  # Used to manage when map rotation can be enqueued
+        self.action_lock = asyncio.Lock()  # Used to manage multiple tasks being enqueued at the same time for a single bot
         self.update_bot_list(self)
 
         self.monitoring_process: multiprocessing.Process | None = None
@@ -141,8 +142,8 @@ class Bot:
 
     def _rotation_callback(self, fut):
         """Callback to use on map rotation actions if they need to acquire lock before executing."""
-        logger.debug(f"Callback called on {self} to release Rotation Lock")
         self.rotation_lock.release()
+        logger.debug(f"Rotation Lock released on {self} through callback")
 
     def _send_update_signal(self, signal: tuple[str], fut):
         """
@@ -151,6 +152,22 @@ class Bot:
         are not consumed within the main process.
         """
         self.bot_side.send(signal)
+
+    def _wrap_action(self, action: callable) -> callable:
+        """
+        Wrapper around actions to ensure they are not interfering with each other.
+        :param action: The action to be executed asynchronously.
+        :return: None
+        """
+        async def _wrapper():
+            await self.action_lock.acquire()
+            try:
+                logger.debug(f"Action Lock acquired for {self} for {action}")
+                await action()
+            finally:
+                self.action_lock.release()
+                logger.debug(f"Action Lock released for {self} for {action}")
+        return _wrapper
 
     async def action_listener(self, queue: asyncio.PriorityQueue) -> None:
         """
@@ -176,6 +193,9 @@ class Bot:
                     queue_item.callbacks.append(
                         partial(self._send_update_signal, queue_item.update_game_data)
                     )
+
+                # Wrap the action to ensure it is not interfering with other actions from the same bot.
+                queue_item.action = self._wrap_action(queue_item.action)
 
                 logger.debug(f"Received {queue_item} from {self} monitoring process.")
                 await queue.put(queue_item)

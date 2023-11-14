@@ -1,6 +1,7 @@
 """
 Low-level module that handles inputs sent to a window through either PostMessage(...) or SendInput(...) functions.
 """
+import asyncio
 import logging
 import win32con
 import win32gui
@@ -96,4 +97,5 @@ async def focused_input(
         as_unicode=as_unicode,
         delay=delay,
     )
-    await _send_inputs(hwnd, inputs, cooldown=cooldown)
+    await _send_inputs(hwnd, inputs)
+    await asyncio.sleep(cooldown)  # The cooldown is not within _send_inputs as this would hold the focus lock during cooldown.

@@ -9,11 +9,11 @@ class QueueAction:
     Only the priority is used to compare which actions to be executed next.
     """
 
-    priority: int = field()
     identifier: str = field(compare=False)
-    action: callable = field(compare=False)
-    is_cancellable: bool = field(compare=False, default=False)
-    is_map_rotation: bool = field(compare=False, default=False)
-    release_rotation_lock: bool = field(compare=False, default=False)
-    update_game_data: Optional[tuple[str]] = field(compare=False, default=None)
-    callbacks: list[callable] = field(compare=False, default_factory=list)
+    priority: int = field()
+    action: callable = field(compare=False, repr=False)
+    is_cancellable: bool = field(compare=False, default=False, repr=False)
+    is_map_rotation: bool = field(compare=False, default=False, repr=False)
+    release_rotation_lock: bool = field(compare=False, default=False, repr=False)
+    update_game_data: Optional[tuple[str]] = field(compare=False, default=None, repr=False)
+    callbacks: list[callable] = field(compare=False, default_factory=list, repr=False)

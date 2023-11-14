@@ -100,16 +100,13 @@ def activate(hwnd: int) -> None:
 
 
 @SharedResources.requires_focus
-async def _send_inputs(
-    hwnd: int, inputs: list[list[tuple, float]], cooldown: float = 0.1
-) -> None:
+async def _send_inputs(hwnd: int, inputs: list[list[tuple, float]]) -> None:
     """Activates the window associated with the handle and sends the required inputs. This requires window focus.
     An input structure may contain several inputs to be sent simultaneously (without any delay in between).
     If this is not desired, the enforce_delay parameter can be set to True (in higher-level API), and a delay will be enforced between each input.
     :param hwnd: Handle to the window to send the input to.
     :param inputs: list of list[tuple, float]. Each tuple contains the parameters to be sent to SendInput, and the float is delay to be enforced after the input is sent.
         Note: When delays are not enforced, usually the list will be a single tuple, float, and float will be 0.0.
-    :param cooldown: Cooldown after all inputs have been sent. Default is 0.1 seconds.
     :return: None
     """
     activate(hwnd)
@@ -135,7 +132,6 @@ async def _send_inputs(
         # Allows for smaller delays between consecutive keys, such as when writing a message in-game, or between KEYUP/KEYDOWN commands.
         if delay > 0:
             await asyncio.sleep(delay)
-    await asyncio.sleep(cooldown)
 
 
 def _input_array_constructor(
