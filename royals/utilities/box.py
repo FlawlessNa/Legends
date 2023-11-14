@@ -95,6 +95,10 @@ class Box:
         return self.top, self.bottom
 
     @property
+    def area(self) -> int:
+        return self.width * self.height
+
+    @property
     def center(self) -> tuple[float, float]:
         return (self.left + self.right) / 2, (self.top + self.bottom) / 2
 

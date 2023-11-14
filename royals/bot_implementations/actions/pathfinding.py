@@ -15,13 +15,3 @@ def get_to_target_pos(current: tuple[float, float],
     """
     pass
 
-
-def distance(current: tuple[float, float],
-             target: tuple[float, float]) -> float:
-    """
-    Computes the distance between two points.
-    :param current: Character position on minimap.
-    :param target: Target position on minimap.
-    :return: Distance between the two points.
-    """
-    return ((current[0] - target[0]) ** 2 + (current[1] - target[1]) ** 2) ** 0.5

@@ -15,6 +15,14 @@ logger = logging.getLogger(__name__)
 
 
 class Bot:
+    """
+    The Bot class is the main entry point for the botting framework.
+    It is responsible for packaging all actions received from Bot Monitors (child processes) into a shared queue.
+    It is also responsible for creating and cancelling tasks in the shared queue.
+    Each Bot instance furthers has a listening loop that listens for actions from the Bot Monitor, which they then put
+    into the shared queue (across all Bots).
+    """
+
     shared_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
     blocker: asyncio.Event = asyncio.Event()
     logging_queue: multiprocessing.Queue
@@ -137,7 +145,11 @@ class Bot:
         self.rotation_lock.release()
 
     def _send_update_signal(self, signal: tuple[str], fut):
-        """Callback to use on map rotation actions if they need to update game data."""
+        """
+        Callback to use on map rotation actions if they need to update game data.
+        Sends a signal back to the Child process to appropriately update Game Data. This way, CPU-intensive resources
+        are not consumed within the main process.
+        """
         self.bot_side.send(signal)
 
     async def action_listener(self, queue: asyncio.PriorityQueue) -> None:
@@ -161,7 +173,9 @@ class Bot:
                     queue_item.callbacks.append(self._rotation_callback)
 
                 if queue_item.update_game_data is not None:
-                    queue_item.callbacks.append(partial(self._send_update_signal, queue_item.update_game_data))
+                    queue_item.callbacks.append(
+                        partial(self._send_update_signal, queue_item.update_game_data)
+                    )
 
                 logger.debug(f"Received {queue_item} from {self} monitoring process.")
                 await queue.put(queue_item)

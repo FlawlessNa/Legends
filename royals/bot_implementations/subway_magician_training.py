@@ -1,10 +1,11 @@
 import logging
+import math
 from functools import partial
 from typing import Generator
 
 from royals.core import Bot, BotMonitor, QueueAction
 from royals.utilities import take_screenshot
-from .actions.pathfinding import get_to_target_pos, distance
+from .actions.pathfinding import get_to_target_pos
 from .checks.mock import mock_check
 from .checks.mobs_in_range import get_closest_mob_direction
 
@@ -25,7 +26,7 @@ class SubwayMagicianTraining(BotMonitor):
         while True:
             target = self.game_data.current_map.random_point()
 
-            while distance(self.game_data.current_pos, target) > 5:  # TODO - Find proper threshold
+            while math.dist(self.game_data.current_pos, target) > 5:  # TODO - Find proper threshold
                 if self.watched_bot.rotation_lock.acquire(block=False):
                     task = get_to_target_pos(self.game_data.current_pos, target, self.game_data.current_map)
                     self.pipe_end.send(

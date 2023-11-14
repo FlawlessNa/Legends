@@ -56,7 +56,7 @@ class BotMonitor(ChildProcess, ABC):
 
             while True:
                 # If main process sends None, it means we are exiting.
-                if self.pipe_end.poll():
+                while self.pipe_end.poll():
                     signal = self.pipe_end.recv()
                     if signal is None:
                         break
