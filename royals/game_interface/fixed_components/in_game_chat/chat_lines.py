@@ -55,7 +55,7 @@ class ChatLine(InGameBaseVisuals, ABC):
     def from_img(handle: int, chat_line_img: np.ndarray) -> "ChatLine":
         # Skip first rows of pixels in the line, because some characters of the previous line may be present (the "@" does so).
         # Skip right-hand side of the image, as sometimes login or cc notifications can mess up line type recognition.
-        img = chat_line_img[0:-2, 0:350]
+        img = chat_line_img[2: , 0:350]
         detected_types = set()
         for chat_type in ChatLine.all_chat_types:
             if InGameBaseVisuals._color_detection(
@@ -83,7 +83,7 @@ class ChatLine(InGameBaseVisuals, ABC):
         else:
             cv2.imshow(f"Multi Lines Recognized {detected_types}", chat_line_img)
             cv2.waitKey(1)
-            breakpoint()
+            breakpoint()  # TODO - Handle these cases, start by assuming cursor or a menu is overlapping the chat line.
 
     def read_text(self) -> str:
         return self.read_from_img(self.image, config="--psm 7")
@@ -155,9 +155,6 @@ class General(ChatLine):
         processed_img = cv2.resize(
             processed_img, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR
         )
-        cv2.imshow("processed", processed_img)
-        cv2.imshow("gaussian", cv2.GaussianBlur(processed_img, (7, 7), 0))
-        cv2.waitKey(0)
         return cv2.GaussianBlur(processed_img, (7, 7), 0)
 
     def get_author(self) -> str:
@@ -165,13 +162,17 @@ class General(ChatLine):
 
 
 class GM(ChatLine):
-    chat_color = ((1, 1, 1), (0, 0, 0))  # TODO
+    chat_color = ((190, 190, 190), (200, 200, 200))
+    # chat_color = ((0, 0, 0), (0, 0, 0))  # Alternative - this works, but requires modifications to ChatLine.from_img
 
     def __init__(self, handle: int, img: np.ndarray):
         super().__init__(handle, img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        breakpoint()
+        processed_img = cv2.resize(
+            image, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR
+        )
+        return processed_img
 
     def get_author(self) -> str:
         pass
@@ -433,7 +434,13 @@ class System(ChatLine):
         super().__init__(handle, img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        breakpoint()
+        processed_img = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        processed_img = cv2.inRange(processed_img, 60, 255)
+        processed_img = self._crop_based_on_contour(processed_img)
+        processed_img = cv2.resize(
+            image, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR
+        )
+        return processed_img
 
     def get_author(self) -> str:
         pass

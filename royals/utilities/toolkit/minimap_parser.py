@@ -1,7 +1,6 @@
 """
 Helper script to continuously record minimap positioning and record platform endpoints, portals, ladders, etc. based on key presses.
 """
-import cv2
 import keyboard
 import math
 import os
@@ -9,12 +8,11 @@ import os
 from paths import ROOT
 
 from royals.game_interface.dynamic_components.minimap import Minimap
-from royals.utilities import take_screenshot, Box
+from royals.utilities import Box
 
 HANDLE = 0x00620DFE
 OUTPUT_LOCATION = os.path.join(ROOT, "royals/game_model/maps/")
 OUTPUT_NAME = "kerning_line1_area1.py"
-JUMP_DIST = 6
 
 container = []
 
@@ -33,9 +31,9 @@ def write_feature(cont: list) -> None:
         pt2 = cont.pop(0)
         feature_name = input("Feature name: ")
         box = Box(
-            left=int(min(pt1[0], pt2[0])),
-            right=int(max(pt1[0], pt2[0])),
-            top=math.floor(min(pt1[1], pt2[1]) - JUMP_DIST),
+            left=math.floor(min(pt1[0], pt2[0])),
+            right=math.ceil(max(pt1[0], pt2[0])),
+            top=math.floor(min(pt1[1], pt2[1])),
             bottom=math.ceil(max(pt1[1], pt2[1])),
             name=feature_name,
             offset=True
