@@ -2,7 +2,7 @@
 
 ## TODO
 - [x] Refactor Package more appropriately - there should be a "botting" library and a "royals" implementation.
-  - [ ] Re-test Minimap, Chat Feed, and fix Logs from discord
+  - [ ] Re-test Minimap (DONE!), Chat Feed (TO DO), and fix Logs from discord
 - [ ] When done, update all docstrings as some are lacking now.
 - [ ] Minimap pathing - algorithm to find paths between point A and B based on minimap
 - [ ] Automated handle and IGN associated + retrieval

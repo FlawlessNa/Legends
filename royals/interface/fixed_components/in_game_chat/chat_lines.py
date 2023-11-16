@@ -37,8 +37,7 @@ class ChatLine(InGameBaseVisuals, ABC):
     )
     chat_color: tuple[tuple, tuple]
 
-    def __init__(self, handle: int, chat_line_img: np.ndarray) -> None:
-        super().__init__(handle)
+    def __init__(self, chat_line_img: np.ndarray) -> None:
         self.image = chat_line_img
         self._timestamp = time.ctime()
         self.text = self.read_text()
@@ -52,7 +51,7 @@ class ChatLine(InGameBaseVisuals, ABC):
         return self.__class__.__name__
 
     @staticmethod
-    def from_img(handle: int, chat_line_img: np.ndarray) -> "ChatLine":
+    def from_img(chat_line_img: np.ndarray) -> "ChatLine":
         # Skip first rows of pixels in the line, because some characters of the previous line may be present (the "@" does so).
         # Skip right-hand side of the image, as sometimes login or cc notifications can mess up line type recognition.
         img = chat_line_img[2: , 0:350]
@@ -77,7 +76,7 @@ class ChatLine(InGameBaseVisuals, ABC):
 
         if len(detected_types) == 1:
             chat_class = detected_types.pop()
-            chat_instance = chat_class(handle, chat_line_img)
+            chat_instance = chat_class(chat_line_img)
             return chat_instance
 
         else:
@@ -137,8 +136,8 @@ class ChatLine(InGameBaseVisuals, ABC):
 class General(ChatLine):
     chat_color = ((255, 255, 255), (255, 255, 255))
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         """
@@ -165,8 +164,8 @@ class GM(ChatLine):
     chat_color = ((190, 190, 190), (200, 200, 200))
     # chat_color = ((0, 0, 0), (0, 0, 0))  # Alternative - this works, but requires modifications to ChatLine.from_img
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = cv2.resize(
@@ -181,8 +180,8 @@ class GM(ChatLine):
 class Whisper(ChatLine):
     chat_color = ((0, 255, 0), (0, 255, 0))
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         """
@@ -208,8 +207,8 @@ class Whisper(ChatLine):
 class Gachapon(ChatLine):
     chat_color = ((51, 204, 153), (51, 204, 153))
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = cv2.inRange(image, *self.chat_color)
@@ -226,8 +225,8 @@ class Gachapon(ChatLine):
 class ItemSmega(ChatLine):
     chat_color = ((1, 195, 225), (15, 210, 240))
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = self._crop_white_rectangle(image)
@@ -243,8 +242,8 @@ class ItemSmega(ChatLine):
 class TVSmega(ChatLine):
     chat_color = ((238, 136, 255), (238, 136, 255))
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = self._crop_white_rectangle(image)
@@ -261,8 +260,8 @@ class TVSmega(ChatLine):
 class Smega(ChatLine):
     chat_color = ((68, 0, 119), (68, 0, 119))
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = self._crop_white_rectangle(image)
@@ -279,8 +278,8 @@ class Smega(ChatLine):
 class Alliance(ChatLine):
     chat_color = ((1, 1, 1), (0, 0, 0))  # TODO
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         breakpoint()
@@ -292,8 +291,8 @@ class Alliance(ChatLine):
 class Party(ChatLine):
     chat_color = ((1, 1, 1), (0, 0, 0))  # TODO
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         breakpoint()
@@ -305,8 +304,8 @@ class Party(ChatLine):
 class Guild(ChatLine):
     chat_color = ((1, 1, 1), (0, 0, 0))  # TODO
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         breakpoint()
@@ -320,8 +319,8 @@ class Megaphone(ChatLine):
 
     chat_color = ((119, 51, 0), (119, 51, 0))
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = cv2.resize(
@@ -336,8 +335,8 @@ class Megaphone(ChatLine):
 class Buddy(ChatLine):
     chat_color = ((1, 1, 1), (0, 0, 0))  # TODO
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         breakpoint()
@@ -349,8 +348,8 @@ class Buddy(ChatLine):
 class Spouse(ChatLine):
     chat_color = ((1, 1, 1), (0, 0, 0))  # TODO
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         breakpoint()
@@ -364,8 +363,8 @@ class Notice(ChatLine):
 
     chat_color = ((255, 204, 102), (255, 204, 102))
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         """
@@ -392,8 +391,8 @@ class MapleTip(ChatLine):
 
     chat_color = ((0, 255, 255), (0, 255, 255))
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = cv2.inRange(image, (0, 130, 90), (40, 255, 255))
@@ -410,8 +409,8 @@ class Warning(ChatLine):
 
     chat_color = ((170, 170, 255), (170, 170, 255))
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = cv2.inRange(image, (55, 65, 105), (170, 170, 255))
@@ -430,8 +429,8 @@ class System(ChatLine):
 
     chat_color = ((187, 187, 187), (187, 187, 187))
 
-    def __init__(self, handle: int, img: np.ndarray):
-        super().__init__(handle, img)
+    def __init__(self, img: np.ndarray):
+        super().__init__(img)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)

@@ -30,7 +30,7 @@ class ChatFeed(InGameToggleableVisuals, ABC):
     _chat_feed_height_detection_needle: np.ndarray = cv2.imread(
         os.path.join(
             ROOT,
-            "royals/interface/detection_images/chat_feed_height_detection_needle.png",
+            "royals/assets/detection_images/chat_feed_height_detection_needle.png",
         )
     )
 
@@ -162,7 +162,7 @@ class ChatFeed(InGameToggleableVisuals, ABC):
         """
         chat_img = take_screenshot(handle, self.get_chat_feed_box(handle))
         lines = reversed(np.split(chat_img, self.get_nbr_lines_displayed(handle), axis=0))
-        return (ChatLine.from_img(handle, img) for img in lines)
+        return (ChatLine.from_img(img) for img in lines)
 
 
 class LargeClientChatFeed(ChatFeed):

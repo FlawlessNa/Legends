@@ -1,1 +1,1 @@
-
+from .fixed_components.in_game_chat.chat_feed import LargeClientChatFeed

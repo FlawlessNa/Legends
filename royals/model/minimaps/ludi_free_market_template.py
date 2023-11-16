@@ -1,9 +1,10 @@
-from functools import cached_property
-
+import cv2
 import numpy as np
 
-from royals.model.minimap import Minimap
+from functools import cached_property
+
 from botting.utilities import Box
+from royals.interface.dynamic_components.minimap import Minimap
 
 
 class LudiFreeMarketTemplate(Minimap):
@@ -12,7 +13,26 @@ class LudiFreeMarketTemplate(Minimap):
         return super().features
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        pass
+        """
+        Creates a Grid-like image used for pathfinding algorithm.
+        :param image: Original minimap area image.
+        :return: Binary image with white pixels representing walkable areas.
+        """
+        processed = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        canvas = np.zeros_like(processed)
+        for feature in self.features.values():
+            rect = np.array(
+                [
+                    [feature.left, feature.top],
+                    [feature.left, feature.bottom],
+                    [feature.right, feature.bottom],
+                    [feature.right, feature.top],
+                ]
+            )
+            cv2.fillPoly(canvas, [np.array(rect)], (255, 255, 255))
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+        canvas = cv2.morphologyEx(canvas, cv2.MORPH_CLOSE, kernel)
+        return canvas
 
     @cached_property
     def bottom_platform(self) -> Box:

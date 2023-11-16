@@ -43,10 +43,10 @@ class BaseMinimap(InGameDynamicVisuals, ABC):
         ).pop()
         return self.features[target_feature].random()
 
-    def get_current_feature(self, current_position: tuple[float, float]) -> Box:
+    def get_feature_containing(self, position: tuple[float, float]) -> Box:
         """
         Returns the feature in which a given position is located.
         """
         for feature in self.features.values():
-            if current_position in feature:
+            if position in feature:
                 return feature

@@ -23,7 +23,7 @@ class Minimap(BaseMinimap, ABC):
     _menu_icon_detection_needle: np.ndarray = cv2.imread(
         os.path.join(
             ROOT,
-            "royals/interface/detection_images/world_icon.png",
+            "royals/assets/detection_images/world_icon.png",
         )
     )
     _self_color = ((34, 238, 255), (136, 255, 255))
@@ -113,7 +113,7 @@ class Minimap(BaseMinimap, ABC):
         :param world_icon_box: If provided, use this box instead of detecting the world icon.
         :return: list of (x, y) coordinates.
         """
-        map_area_box = self.get_map_area_box(client_img, world_icon_box)
+        map_area_box = self.get_map_area_box(handle, client_img, world_icon_box)
         if map_area_box:
             map_area_img = take_screenshot(handle, map_area_box)
             color = {
@@ -151,11 +151,11 @@ class Minimap(BaseMinimap, ABC):
         if client_img is None:
             client_img = take_screenshot(handle)
         if world_icon_box is None:
-            world_icon_box = self._menu_icon_position(client_img)
+            world_icon_box = self._menu_icon_position(handle, client_img)
 
-        entire_minimap_box = self._get_entire_minimap_box(client_img, world_icon_box)
+        entire_minimap_box = self._get_entire_minimap_box(handle, client_img, world_icon_box)
         if entire_minimap_box:
-            if self.get_minimap_state(client_img, world_icon_box) == "Full":
+            if self.get_minimap_state(handle, client_img, world_icon_box) == "Full":
                 top_offset = self._minimap_area_top_offset_full
             else:
                 top_offset = self._minimap_area_top_offset_partial
@@ -182,12 +182,12 @@ class Minimap(BaseMinimap, ABC):
             client_img = take_screenshot(handle)
         if world_icon_box is None:
             world_icon_box = self._menu_icon_position(client_img)
-        if self.get_minimap_state(client_img, world_icon_box) != "Full":
+        if self.get_minimap_state(handle, client_img, world_icon_box) != "Full":
             return
 
-        entire_minimap_box = self._get_entire_minimap_box(client_img, world_icon_box)
+        entire_minimap_box = self._get_entire_minimap_box(handle, client_img, world_icon_box)
         if entire_minimap_box:
-            map_area_box = self.get_map_area_box(client_img, world_icon_box)
+            map_area_box = self.get_map_area_box(handle, client_img, world_icon_box)
             return Box(
                 name="Minimap Title",
                 left=map_area_box.left,
@@ -212,7 +212,7 @@ class Minimap(BaseMinimap, ABC):
         if world_icon_box is None:
             world_icon_box = self._menu_icon_position(client_img)
 
-        state = self.get_minimap_state(client_img, world_icon_box)
+        state = self.get_minimap_state(handle, client_img, world_icon_box)
         if world_icon_box and state in ["Partial", "Full"]:
             # Extract World icon (from top to bottom) and all region at the left of the icon.
             minimap_temp_image = client_img[
