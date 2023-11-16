@@ -5,7 +5,7 @@ from abc import ABC
 from typing import Sequence
 
 from royals.game_interface import InGameBaseVisuals
-from royals.utilities import Box
+from botting.utilities import Box
 
 
 class BaseCharacter(InGameBaseVisuals, ABC):
@@ -51,7 +51,7 @@ class FarmFest1(BaseCharacter):
 if __name__ == "__main__":
     HANDLE = 0x00620DFE
     char = FarmFest1(HANDLE)
-    from royals.utilities import take_screenshot
+    from botting.utilities import take_screenshot
 
     while True:
         img = take_screenshot(HANDLE, char.detection_box)

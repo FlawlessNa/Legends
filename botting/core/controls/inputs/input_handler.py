@@ -13,7 +13,7 @@ from win32api import GetKeyState
 from .non_focused_inputs import _message_constructor, _post_messages
 from .focused_inputs import _input_array_constructor, _send_inputs
 from .inputs_helpers import _EXPORTED_FUNCTIONS
-from royals.utilities import randomize_params
+from botting.utilities import randomize_params
 
 logger = logging.getLogger(__name__)
 

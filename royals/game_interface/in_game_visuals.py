@@ -5,7 +5,7 @@ import pytesseract
 from abc import ABC, abstractmethod
 from win32gui import GetClientRect
 
-from royals.utilities import Box, take_screenshot, find_image
+from botting.utilities import Box, take_screenshot, find_image
 
 
 class InGameBaseVisuals(ABC):

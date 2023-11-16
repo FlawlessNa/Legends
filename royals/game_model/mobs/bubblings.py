@@ -36,7 +36,7 @@ if __name__ == "__main__":
     HANDLE = 0x00620DFE
     bubbling = Bubbling(HANDLE)
     import cv2
-    from royals.utilities import take_screenshot
+    from botting.utilities import take_screenshot
 
     while True:
         img = take_screenshot(HANDLE, bubbling.detection_box)

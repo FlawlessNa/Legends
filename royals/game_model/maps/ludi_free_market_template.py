@@ -1,7 +1,7 @@
 from functools import cached_property
 
 from .base_map import BaseMap
-from royals.utilities import Box
+from botting.utilities import Box
 
 
 class LudiFreeMarketTemplate(BaseMap):

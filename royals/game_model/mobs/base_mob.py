@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Sequence
 
 from royals.game_interface import InGameBaseVisuals
-from royals.utilities import Box
+from botting.utilities import Box
 
 
 class BaseMob(InGameBaseVisuals, ABC):

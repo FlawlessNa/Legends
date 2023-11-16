@@ -4,7 +4,7 @@ import win32con
 import win32gui
 import win32ui
 
-from royals.utilities.box import Box
+from .box import Box
 
 CLIENT_HORIZONTAL_MARGIN_PX = 3
 CLIENT_VERTICAL_MARGIN_PX = 29

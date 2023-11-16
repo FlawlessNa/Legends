@@ -12,7 +12,7 @@ from .inputs_helpers import (
     _keyboard_layout_handle,
     MAPVK_VK_TO_VSC_EX,
 )
-from royals.utilities import randomize_params
+from botting.utilities import randomize_params
 
 SYS_KEYS = ["alt", "alt_right", "F10"]
 logger = logging.getLogger(__name__)

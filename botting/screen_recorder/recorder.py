@@ -5,7 +5,7 @@ import multiprocessing.connection
 import os
 import time
 
-from royals.utilities import config_reader, ChildProcess, take_screenshot
+from botting.utilities import config_reader, ChildProcess, take_screenshot
 from .folder_manager import FolderManager
 
 SM_CXSCREEN = 0

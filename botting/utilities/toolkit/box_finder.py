@@ -1,6 +1,6 @@
 import cv2
 import win32gui
-from royals.utilities import Box, take_screenshot
+from botting.utilities import Box, take_screenshot
 
 
 def box_finder(handle: int, box: Box | None = None) -> Box:
@@ -24,7 +24,7 @@ def box_finder(handle: int, box: Box | None = None) -> Box:
     :return: final Box
     """
     if box is None:
-        from royals.utilities.screenshots import (
+        from botting.utilities.screenshots import (
             CLIENT_HORIZONTAL_MARGIN_PX,
             CLIENT_VERTICAL_MARGIN_PX,
         )

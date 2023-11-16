@@ -4,7 +4,7 @@ import os
 
 from paths import ROOT
 from royals.game_interface import InGameDynamicVisuals
-from royals.utilities import (
+from botting.utilities import (
     Box,
     take_screenshot,
     CLIENT_HORIZONTAL_MARGIN_PX,

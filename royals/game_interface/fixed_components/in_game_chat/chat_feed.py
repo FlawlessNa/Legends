@@ -8,7 +8,7 @@ from typing import Generator
 from .chat_lines import ChatLine
 from royals.game_interface import InGameToggleableVisuals
 from paths import ROOT
-from royals.utilities import Box, take_screenshot, find_image
+from botting.utilities import Box, take_screenshot, find_image
 
 
 class ChatFeed(InGameToggleableVisuals):

@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from royals.utilities import take_screenshot
+from botting.utilities import take_screenshot
 
 
 def init_control_gui():

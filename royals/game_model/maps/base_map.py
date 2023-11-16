@@ -5,7 +5,7 @@ from abc import ABC
 from ..mobs.base_mob import BaseMob
 from royals.game_interface import InGameBaseVisuals
 from royals.game_interface.dynamic_components.minimap import Minimap
-from royals.utilities import Box
+from botting.utilities import Box
 
 
 class BaseMap(InGameBaseVisuals, ABC):

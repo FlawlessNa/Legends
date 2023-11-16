@@ -6,7 +6,7 @@ import multiprocessing.connection
 from functools import cached_property
 
 from .parser import message_parser
-from royals.utilities import ChildProcess, config_reader
+from botting.utilities import ChildProcess, config_reader
 
 logger = logging.getLogger(__name__)
 

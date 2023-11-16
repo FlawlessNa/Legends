@@ -10,7 +10,7 @@ from typing import Literal
 
 from .inputs import focused_input, non_focused_input
 
-from royals.utilities import config_reader, randomize_params
+from botting.utilities import config_reader, randomize_params
 
 logger = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ import os
 from paths import ROOT
 
 from royals.game_interface.dynamic_components.minimap import Minimap
-from royals.utilities import Box
+from botting.utilities import Box
 
 HANDLE = 0x00620DFE
 OUTPUT_LOCATION = os.path.join(ROOT, "royals/game_model/maps/")

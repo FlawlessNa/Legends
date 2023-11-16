@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 
 from .bot import Bot
 from royals.game_model.game_data import GameData
-from royals.utilities import ChildProcess
+from botting.utilities import ChildProcess
 
 logger = logging.getLogger(__name__)
 

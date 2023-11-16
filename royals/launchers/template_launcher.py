@@ -1,10 +1,10 @@
 import asyncio
-import royals
+import botting
 from royals.bot_implementations import TestBot
 
 
-async def main(*bots: royals.Bot) -> None:
-    with royals.SessionManager(*bots) as session:
+async def main(*bots: botting.Bot) -> None:
+    with botting.SessionManager(*bots) as session:
         await session.launch()
 
 

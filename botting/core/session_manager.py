@@ -4,7 +4,7 @@ import multiprocessing.connection
 
 from typing import Self
 
-from royals.screen_recorder import RecorderLauncher
+from botting.screen_recorder import RecorderLauncher
 from .communications import DiscordLauncher
 from .bot import Bot, BotLauncher
 

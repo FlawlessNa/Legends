@@ -3,9 +3,8 @@ import os
 import sys
 import keyboard  # Need to install this package to run the data_builder script
 
-from functools import partial
 from paths import ROOT
-from royals.utilities import take_screenshot
+from botting.utilities import take_screenshot
 
 OUTPUT_FOLDER = os.path.join(ROOT, "data/character_detection")
 HANDLE = 0x00040E52
