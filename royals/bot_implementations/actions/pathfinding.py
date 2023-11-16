@@ -1,4 +1,4 @@
-from royals.game_model import BaseMap
+from royals.model import BaseMap
 from typing import Coroutine
 
 
