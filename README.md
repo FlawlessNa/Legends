@@ -2,12 +2,13 @@
 
 ## TODO
 - [x] Refactor Package more appropriately - there should be a "botting" library and a "royals" implementation.
+  - [ ] Re-test Minimap, Chat Feed, and fix Logs from discord
 - [ ] When done, update all docstrings as some are lacking now.
-- [ ] Refactor game interface more accurately
+- [ ] Minimap pathing - algorithm to find paths between point A and B based on minimap
+- [ ] Automated handle and IGN associated + retrieval
 - [ ] Enable np arrays/.png files to be sent through Pipe - then send chat images towards discord
 - [ ] GPT Automated Responses
-- [ ] Automated handle and IGN associated + retrieval
-- [ ] Minimap pathing - algorithm to find paths between point A and B based on minimap
+- [ ] Refactor game interface more accurately
 - [x] Refactor QueueActions for additional capabilities
 - [ ] Common actions
 
