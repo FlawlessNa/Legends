@@ -4,12 +4,11 @@ from royals.game_model.maps.kerning_line1_area1 import KerningLine1Area1
 from royals.game_model.maps.ludi_free_market_template import LudiFreeMarketTemplate
 
 # test = ChatFeed(HANDLE)
-from royals.utilities import take_screenshot
+from royals.utilities import take_screenshot, get_open_clients
 import math
 import cv2
 import numpy as np
 import pathfinding
-
 
 
 HANDLE = 0x00620DFE

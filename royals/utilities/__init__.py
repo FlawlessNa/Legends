@@ -1,4 +1,5 @@
 from .box import Box
+from .client_handler import get_open_clients
 from .child_process import ChildProcess
 from .config_reader import config_reader
 from .randomize_params import randomize_params
