@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from .maps.base_map import BaseMap
+from royals.game_model.maps.base_map import BaseMap
 
 
 @dataclass

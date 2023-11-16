@@ -4,7 +4,7 @@ import multiprocessing
 from abc import ABC, abstractmethod
 
 from .bot import Bot
-from royals.game_model.game_data import GameData
+from botting.core.bot.game_data import GameData
 from botting.utilities import ChildProcess
 
 logger = logging.getLogger(__name__)

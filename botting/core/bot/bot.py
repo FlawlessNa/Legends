@@ -6,7 +6,7 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 from .action import QueueAction
-from royals.game_model import GameData
+from .game_data import GameData
 
 if TYPE_CHECKING:
     from .bot_monitor import BotMonitor

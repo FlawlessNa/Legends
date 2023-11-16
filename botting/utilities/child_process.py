@@ -17,7 +17,7 @@ class ChildProcess:
     def __init__(
         self,
         pipe_end: multiprocessing.connection.Connection,
-        master_logger_name: str = "royals",
+        master_logger_name: str = "botting",
     ) -> None:
         """
         For any child process, the "global" logger/handlers are re-created, which is undesired.
