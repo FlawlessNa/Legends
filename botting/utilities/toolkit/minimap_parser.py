@@ -11,7 +11,7 @@ from royals.game_interface.dynamic_components.minimap import Minimap
 from botting.utilities import Box
 
 HANDLE = 0x00620DFE
-OUTPUT_LOCATION = os.path.join(ROOT, "royals/game_model/maps/")
+OUTPUT_LOCATION = os.path.join(ROOT, "royals/model/minimaps/")
 OUTPUT_NAME = "ludi_free_market_template.py"
 
 container = []

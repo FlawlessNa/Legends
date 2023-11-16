@@ -4,7 +4,6 @@ It contains the necessary tool to establish one or multiple botting processes,
 and provides abstractions into how a bot should be structured and implemented.
 """
 
-
 import logging.handlers
 import os
 import pytesseract
@@ -13,16 +12,18 @@ import time
 from .core import SessionManager, Bot
 from paths import ROOT, TESSERACT
 
-# The implementation should be made in a separate package, located at the same level as this package.
-IMPLEMENTATION_FOLDER = "royals"
 
 pytesseract.pytesseract.tesseract_cmd = TESSERACT
 
-logger = logging.getLogger(IMPLEMENTATION_FOLDER)
+# Set the root logger for the entire project.
+logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 
 class CustomFormatter(logging.Formatter):
+    """
+    Custom formatter for logging. Ensures most log messages are vertically aligned.
+    """
     def format(self, record):
         for attr, value in record.__dict__.items():
             if attr == "name":
@@ -35,7 +36,7 @@ class CustomFormatter(logging.Formatter):
 
 
 formatter = CustomFormatter(
-    fmt="{name} {levelname} -- PROCESS {processName} -- MODULE {name} -- {asctime}:::{message}",
+    fmt="{levelname} -- PROCESS {processName} -- MODULE {name} -- {asctime}:::{message}",
     style="{",
     datefmt="%Y.%m.%d. %H:%M:%S",
 )  # TODO - If you ever switch to 3.12, then add TASK %(taskName)s to the formatter

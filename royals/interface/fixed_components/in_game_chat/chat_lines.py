@@ -4,7 +4,7 @@ import time
 
 from abc import ABC, abstractmethod
 
-from royals.game_interface import InGameBaseVisuals
+from botting.visuals import InGameBaseVisuals
 
 
 class ChatLine(InGameBaseVisuals, ABC):

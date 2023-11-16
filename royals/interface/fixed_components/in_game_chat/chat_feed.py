@@ -2,21 +2,21 @@ import cv2
 import numpy as np
 import os
 
-from functools import cached_property
+from abc import ABC
+from functools import lru_cache
 from typing import Generator
 
 from .chat_lines import ChatLine
-from royals.game_interface import InGameToggleableVisuals
 from paths import ROOT
 from botting.utilities import Box, take_screenshot, find_image
+from botting.visuals import InGameToggleableVisuals
 
 
-class ChatFeed(InGameToggleableVisuals):
-    """
-    Base class for in-game chat feed.
-    Contains chat feed coordinates and methods for splitting feed into Chat Lines, as well as method to detect whether the chat feed is displayed.
-    Contains method to retrieve the exact chat feed box, which varies in-game based on how many lines are displayed.
-    """
+class ChatFeed(InGameToggleableVisuals, ABC):
+    _chat_typing_area: Box
+    _chat_feed_box: dict
+    _chat_feed_height_detection_box: Box
+    _chat_feed_displayed_detection_box: Box
 
     # These class attributes are the same for both large and small clients, therefore the same for all instances of ChatFeed.
     _chat_feed_line_height: int = 13
@@ -30,29 +30,9 @@ class ChatFeed(InGameToggleableVisuals):
     _chat_feed_height_detection_needle: np.ndarray = cv2.imread(
         os.path.join(
             ROOT,
-            "royals/game_interface/detection_images/chat_feed_height_detection_needle.png",
+            "royals/interface/detection_images/chat_feed_height_detection_needle.png",
         )
     )
-
-    def __init__(self, handle: int) -> None:
-        super().__init__(handle)
-        if self._large_client:
-            self._chat_typing_area: Box = Box(
-                left=83,
-                right=613,
-                top=731,
-                bottom=750,
-                config="--psm 7",
-            )
-            self._chat_feed_box = dict(left=4, right=628, bottom=724)
-            self._chat_feed_displayed_detection_box = Box(
-                left=6, right=82, top=732, bottom=750
-            )
-            self._chat_feed_height_detection_box = Box(
-                left=629, right=642, top=217, bottom=711
-            )
-        else:
-            raise NotImplementedError("Small client not implemented yet")
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         """The chat feed itself should never be read from. Instead, individual chat lines should. This function should therefore never be called."""
@@ -60,11 +40,13 @@ class ChatFeed(InGameToggleableVisuals):
             "Chat feed should never be read from directly. Read from chat lines instead."
         )
 
-    def is_displayed(self) -> bool:
+    def is_displayed(self, handle: int) -> bool:
         """
         Detects whether the chat feed is displayed or not. Check sequentially to avoid a double operation when the first one is true.
+        :param handle: Handle to the client window
+        :return: bool
         """
-        img = take_screenshot(self.handle, self._chat_feed_displayed_detection_box)
+        img = take_screenshot(handle, self._chat_feed_displayed_detection_box)
         if self._color_detection(
             img,
             needle_color=self._chat_feed_displayed_detection_color,
@@ -80,7 +62,7 @@ class ChatFeed(InGameToggleableVisuals):
         else:
             return False
 
-    def is_showing_latest(self) -> bool:
+    def is_showing_latest(self, handle: int) -> bool:
         """
         # TODO
         Checks whether lines displayed are the latest available lines.
@@ -88,31 +70,32 @@ class ChatFeed(InGameToggleableVisuals):
         - The chat feed is displayed
         - The chat scroll bar is not obstructed by cursor, and
         - At least 4 lines are displayed
+        :param handle: Handle to the client window
         :return: bool
         """
         if (
-            not self.is_displayed()
-            or self.get_nbr_lines_displayed is None
-            or self.get_nbr_lines_displayed < 4
+            not self.is_displayed(handle)
+            or self.get_nbr_lines_displayed(handle) is None
+            or self.get_nbr_lines_displayed(handle) < 4
         ):
             return False
         else:
             raise NotImplementedError
 
-    @cached_property
-    def get_nbr_lines_displayed(self) -> int | None:
+    @lru_cache
+    def get_nbr_lines_displayed(self, handle: int) -> int | None:
         """
         Returns the number of lines displayed in the chat feed.
         If the chat feed is not displayed or the detection needle is obstructed, returns None.
         This result is cached, as the number of lines displayed is usually not expected to change.
         To force a new detection, delete the cached property.
-        For example: self.__dict__.pop('get_nbr_lines_displayed', None)
-        :return:
+        :param handle: Handle to the client window
+        :return: int
         """
-        if not self.is_displayed():
+        if not self.is_displayed(handle):
             return
         else:
-            img = take_screenshot(self.handle, self._chat_feed_height_detection_box)
+            img = take_screenshot(handle, self._chat_feed_height_detection_box)
             location = find_image(
                 img,
                 self._chat_feed_height_detection_needle,
@@ -128,29 +111,31 @@ class ChatFeed(InGameToggleableVisuals):
                     + 2
                 )
 
-    def get_chat_feed_box(self) -> Box | None:
+    def get_chat_feed_box(self, handle: int) -> Box | None:
         """
         Returns the box coordinates of the entire chat feed. The box coordinates vary based on how many lines are displayed.
+        :param handle: Handle to the client window
         :return:
         """
-        if not self.is_displayed():
+        if not self.is_displayed(handle):
             return
         elif self.get_nbr_lines_displayed is not None:
             return Box(
                 **self._chat_feed_box,
                 top=int(
                     self._chat_feed_box["bottom"]
-                    - self._chat_feed_line_height * self.get_nbr_lines_displayed
+                    - self._chat_feed_line_height * self.get_nbr_lines_displayed(handle)
                 ),
             )
 
-    def get_chat_lines_box(self) -> tuple[Box]:
+    def get_chat_lines_box(self, handle: int) -> tuple[Box]:
         """
         Partitions the chat feed into individual lines and returns the
         box coordinates of each line, from bottom to top (in-screen), meaning most recent to least recent.
+        :param handle: Handle to the client window
         :return:
         """
-        chat_box = self.get_chat_feed_box()
+        chat_box = self.get_chat_feed_box(handle)
         return tuple(
             reversed(
                 [
@@ -162,18 +147,41 @@ class ChatFeed(InGameToggleableVisuals):
                         top=chat_box.top + self._chat_feed_line_height * i,
                         bottom=chat_box.top + self._chat_feed_line_height * (i + 1),
                     )
-                    for i in range(self.get_nbr_lines_displayed)
+                    for i in range(self.get_nbr_lines_displayed(handle))
                 ]
             )
         )
 
-    def parse(self) -> Generator:
+    def parse(self, handle: int) -> Generator:
         """
         Parses through the visible chat lines and returns a list of ChatLine objects.
         Starts by taking a screenshot of the entire chat. This prevents bugs that could happen
         if new lines appear while the parsing is in progress, as it ensure the original feed remains static.
+        :param handle: Handle to the client window
         :return:
         """
-        chat_img = take_screenshot(self.handle, self.get_chat_feed_box())
-        lines = reversed(np.split(chat_img, self.get_nbr_lines_displayed, axis=0))
-        return (ChatLine.from_img(self.handle, img) for img in lines)
+        chat_img = take_screenshot(handle, self.get_chat_feed_box(handle))
+        lines = reversed(np.split(chat_img, self.get_nbr_lines_displayed(handle), axis=0))
+        return (ChatLine.from_img(handle, img) for img in lines)
+
+
+class LargeClientChatFeed(ChatFeed):
+    """
+    In-game chat feed for large clients.
+    Contains chat feed coordinates and methods for splitting feed into Chat Lines, as well as method to detect whether the chat feed is displayed.
+    Contains method to retrieve the exact chat feed box, which varies in-game based on how many lines are displayed.
+    """
+
+    _chat_typing_area: Box = Box(
+        left=83,
+        right=613,
+        top=731,
+        bottom=750,
+        config="--psm 7",
+    )
+    _chat_feed_box = dict(left=4, right=628, bottom=724)
+    _chat_feed_displayed_detection_box = Box(left=6, right=82, top=732, bottom=750)
+    _chat_feed_height_detection_box = Box(left=629, right=642, top=217, bottom=711)
+
+class SmallClientChatFeed(ChatFeed):
+    pass

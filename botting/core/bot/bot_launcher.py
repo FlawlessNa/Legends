@@ -14,12 +14,8 @@ class BotLauncher:
     Additionally, it defines synchronization primitives that can be used by all bots as well.
     """
 
-    # shared_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
-    # blocker: asyncio.Event = asyncio.Event()
-
     def __init__(self, logging_queue: multiprocessing.Queue) -> None:
         self.logging_queue = logging_queue
-        Bot.logging_queue = logging_queue
 
     def __enter__(self) -> None:
         for bot in Bot.all_bots:

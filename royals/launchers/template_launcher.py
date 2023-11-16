@@ -1,6 +1,6 @@
 import asyncio
 import botting
-from royals.bot_implementations import TestBot
+import royals
 
 
 async def main(*bots: botting.Bot) -> None:
@@ -10,7 +10,7 @@ async def main(*bots: botting.Bot) -> None:
 
 if __name__ == "__main__":
     handle = 0x00620DFE
-    data = royals.GameData(handle, "FarmFest1")
+    data = royals.RoyalsData(handle, "FarmFest1")
 
-    bot1 = royals.Bot(handle, "FarmFest1", data, monitor=TestBot)
+    bot1 = botting.Bot(handle, "FarmFest1", data, monitor=royals.TestBot)
     asyncio.run(main(bot1))

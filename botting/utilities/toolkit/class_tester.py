@@ -1,5 +1,5 @@
 from royals.game_interface.dynamic_components.minimap import Minimap
-from royals.game_model.maps.ludi_free_market_template import LudiFreeMarketTemplate
+from royals.model.minimaps.ludi_free_market_template import LudiFreeMarketTemplate
 
 # test = ChatFeed(HANDLE)
 from botting.utilities import take_screenshot

@@ -1,10 +1,13 @@
 from functools import cached_property
 
-from .base_map import BaseMap
+from royals.model.minimap import Minimap
 from botting.utilities import Box
 
 
-class KerningLine1Area1(BaseMap):
+class KerningLine1Area1(Minimap):
+    @property
+    def features(self) -> dict[str, Box]:
+        return super().features
 
     @cached_property
     def bottom_platform(self) -> Box:

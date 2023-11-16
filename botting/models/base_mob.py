@@ -4,26 +4,18 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import Sequence
 
-from royals.game_interface import InGameBaseVisuals
 from botting.utilities import Box
+from botting.visuals import InGameBaseVisuals
 
 
 class BaseMob(InGameBaseVisuals, ABC):
     """
     Base class for all in-game Mobs.
-    Defines general detection methods used for on-screen mob detection.
+    Defines contour detection method used for on-screen mob detection.
+    This behavior can be overridden by the inheriting class.
     """
 
-    # Basically the whole screen minus the menus at the bottom
-    detection_box_large = Box(left=3, right=1027, top=29, bottom=725)
-    detection_box_small = NotImplemented
-
-    def __init__(self, handle: int) -> None:
-        super().__init__(handle)
-        if self._large_client:
-            self.detection_box = self.detection_box_large
-        else:
-            self.detection_box = self.detection_box_small
+    detection_box: Box
 
     @classmethod
     @abstractmethod

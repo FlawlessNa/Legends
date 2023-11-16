@@ -22,7 +22,6 @@ def take_screenshot(
 
     :param handle: Integer representing the handle to the window being screenshot-ed. If None provided, the entire screen is captured instead.
     :param dimensions: Coord. within the window -relative to window position, or within screen if no window- to be recorded. Dictionary must have top, left, right, bottom keys.
-    :param mask: If provided, the image will be masked with the mask provided. Mask must be of the same shape as the image.
     :return: a numpy array representing the image captured.
     """
     if not handle:

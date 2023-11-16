@@ -17,13 +17,12 @@ class ChildProcess:
     def __init__(
         self,
         pipe_end: multiprocessing.connection.Connection,
-        master_logger_name: str = "botting",
     ) -> None:
         """
         For any child process, the "global" logger/handlers are re-created, which is undesired.
         Therefore, we remove all handlers from the parent logger and add a QueueHandler instead.
         That way, any loggers created in child process will only have the QueueHandler.
-        The LogQueue class attribute must be set before any instance of ChildProcess is created.
+        The LogQueue class attribute must be set (within the child process) before any instance of ChildProcess is created.
         :param pipe_end: End of the pipe received by child, used to communicate with parent.
         """
         assert (
@@ -33,12 +32,17 @@ class ChildProcess:
         file_handler = logging.handlers.QueueHandler(self.log_queue)
         file_handler.setLevel(logging.DEBUG)
 
-        master = logging.getLogger(master_logger_name)
-        while master.hasHandlers():
-            master.handlers[0].close()
-            master.removeHandler(master.handlers[0])
-        master.addHandler(file_handler)
+        root = logging.getLogger()
+        while root.hasHandlers():
+            root.handlers[0].close()
+            root.removeHandler(root.handlers[0])
+        root.addHandler(file_handler)
 
     @classmethod
     def set_log_queue(cls, queue: multiprocessing.Queue) -> None:
+        """
+        Method to call from within a child process before creating a ChildProcess instance
+        (or any class instance that inherits from ChildProcess).
+        :param queue: The queue to which the log entries will be sent. The main process will dispatch the log entries to the appropriate handlers.
+        """
         cls.log_queue = queue

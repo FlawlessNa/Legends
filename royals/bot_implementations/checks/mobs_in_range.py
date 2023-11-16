@@ -2,7 +2,7 @@ import itertools
 import numpy as np
 
 from typing import Sequence
-from royals.game_model import BaseMob
+from royals.model import BaseMob
 
 
 def mob_count_in_img(img: np.ndarray,

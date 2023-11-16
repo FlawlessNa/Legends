@@ -1,7 +1,7 @@
+import cv2
 import numpy as np
 
-# from .base_mob import BaseMob
-from royals.game_model.mobs.base_mob import BaseMob
+from botting.models import BaseMob
 
 
 class Bubbling(BaseMob):
@@ -30,19 +30,3 @@ class Bubbling(BaseMob):
             return cv2.boundingRect(contour)[-1] > cls._minimal_rect_height
 
         return filter(lambda cnt: cond1(cnt) and cond2(cnt), contours)
-
-
-if __name__ == "__main__":
-    HANDLE = 0x00620DFE
-    bubbling = Bubbling(HANDLE)
-    import cv2
-    from botting.utilities import take_screenshot
-
-    while True:
-        img = take_screenshot(HANDLE, bubbling.detection_box)
-        rects = bubbling.get_onscreen_mobs(img)
-        for rect in rects:
-            x, y, w, h = rect
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), thickness=2)
-        cv2.imshow("test2", img)
-        cv2.waitKey(1)

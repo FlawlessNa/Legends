@@ -1,11 +1,8 @@
 # Royals-V2
 
 ## TODO
-- [x] Refactor Bot - All bots into a single Async Queue, each bot has a subprocess for Monitoring. Game Status is updated through monitoring as well.
-  - [ ] Add a async.Lock object to each individual both - this will prevent competing rotation action and check actions.
-  - [ ] When done, update all docstrings as some are lacking now.
-  - [x] Also, add task cancellation based on their priority - especially important for controller.move
-- [ ] Refactor Package more appropriately - there should be a "botting" library and a "royals" implementation.
+- [x] Refactor Package more appropriately - there should be a "botting" library and a "royals" implementation.
+- [ ] When done, update all docstrings as some are lacking now.
 - [ ] Refactor game interface more accurately
 - [ ] Enable np arrays/.png files to be sent through Pipe - then send chat images towards discord
 - [ ] GPT Automated Responses

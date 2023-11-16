@@ -1,10 +1,19 @@
 from functools import cached_property
 
-from .base_map import BaseMap
+import numpy as np
+
+from royals.model.minimap import Minimap
 from botting.utilities import Box
 
 
-class LudiFreeMarketTemplate(BaseMap):
+class LudiFreeMarketTemplate(Minimap):
+    @property
+    def features(self) -> dict[str, Box]:
+        return super().features
+
+    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
+        pass
+
     @cached_property
     def bottom_platform(self) -> Box:
         return Box(left=12, right=120, top=37, bottom=38, name="bottom_platform")
