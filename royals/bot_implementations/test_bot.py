@@ -3,7 +3,7 @@ import logging
 
 from functools import partial
 
-from royals.core import QueueAction, BotMonitor, Bot
+from botting.core import QueueAction, BotMonitor, Bot
 from .actions.mock import _test_action
 from .checks.mock import mock_check
 

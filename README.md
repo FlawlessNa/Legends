@@ -1,13 +1,14 @@
 # Royals-V2
 
 ## TODO
+- [x] Refactor Package more appropriately - there should be a "botting" library and a "royals" implementation.
+  - [ ] Re-test Minimap (DONE!), Chat Feed (DONE), and fix Logs from discord/asyncio (TODO)
+- [ ] When done, update all docstrings as some are lacking now.
 - [ ] Minimap pathing - algorithm to find paths between point A and B based on minimap
 - [ ] Automated handle and IGN associated + retrieval
-- [ ] Refactor Package more appropriately - there should be a "botting" library and a "royals" implementation.
-- [ ] When done, update all docstrings as some are lacking now.
-- [ ] Refactor game interface more accurately
 - [ ] Enable np arrays/.png files to be sent through Pipe - then send chat images towards discord
 - [ ] GPT Automated Responses
+- [ ] Refactor game interface more accurately
 - [ ] Common actions
 
 ## Nice to have

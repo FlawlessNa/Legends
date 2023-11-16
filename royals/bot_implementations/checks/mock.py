@@ -1,7 +1,8 @@
 import multiprocessing.connection
 from functools import partial
 from typing import Generator
-from royals.core import controller, QueueAction
+from botting.core import QueueAction
+from botting.core.controls import controller
 
 HANDLE = 0x00620DFE
 

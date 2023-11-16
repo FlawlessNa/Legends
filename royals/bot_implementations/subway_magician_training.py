@@ -3,11 +3,9 @@ import math
 from functools import partial
 from typing import Generator
 
-from royals.core import Bot, BotMonitor, QueueAction
-from royals.utilities import take_screenshot
+from botting.core import Bot, BotMonitor, QueueAction
 from .actions.pathfinding import get_to_target_pos
 from .checks.mock import mock_check
-from .checks.mobs_in_range import get_closest_mob_direction
 
 logger = logging.getLogger(__name__)
 
