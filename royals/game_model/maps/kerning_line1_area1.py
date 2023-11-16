@@ -1,14 +1,10 @@
 from functools import cached_property
 
-# from .base_map import BaseMap
-from royals.game_model.maps.base_map import BaseMap
+from .base_map import BaseMap
 from royals.utilities import Box
 
 
 class KerningLine1Area1(BaseMap):
-    @property
-    def map_features(self) -> dict[str, Box]:
-        return {box.name: box for box in self.__dict__.values() if isinstance(box, Box)}
 
     @cached_property
     def bottom_platform(self) -> Box:
@@ -33,25 +29,31 @@ class KerningLine1Area1(BaseMap):
     @cached_property
     def first_ladder_bot_to_main(self) -> Box:
         return Box(
-            left=31, right=31, top=48, bottom=55, name="first_ladder_bot_to_main"
+            left=31, right=32, top=48, bottom=55, name="first_ladder_bot_to_main"
         )
 
     @cached_property
     def second_ladder_bot_to_main(self) -> Box:
         return Box(
-            left=97, right=97, top=48, bottom=56, name="second_ladder_bot_to_main"
+            left=97, right=98, top=48, bottom=56, name="second_ladder_bot_to_main"
         )
 
     @cached_property
     def third_ladder_bot_to_main(self) -> Box:
         return Box(
-            left=126, right=126, top=48, bottom=56, name="third_ladder_bot_to_main"
+            left=126, right=127, top=48, bottom=56, name="third_ladder_bot_to_main"
         )
 
     @cached_property
     def fourth_ladder_bot_to_main(self) -> Box:
         return Box(
-            left=198, right=198, top=48, bottom=56, name="fifth_ladder_bot_to_main"
+            left=161, right=162, top=48, bottom=56, name="fifth_ladder_bot_to_main"
+        )
+
+    @cached_property
+    def fifth_ladder_bot_to_main(self) -> Box:
+        return Box(
+            left=198, right=199, top=48, bottom=56, name="fifth_ladder_bot_to_main"
         )
 
     @cached_property
@@ -64,11 +66,11 @@ class KerningLine1Area1(BaseMap):
 
     @cached_property
     def platform_1_right_ladder(self) -> Box:
-        return Box(left=86, right=86, top=26, bottom=37, name="platform_1_right_ladder")
+        return Box(left=86, right=87, top=26, bottom=37, name="platform_1_right_ladder")
 
     @cached_property
     def platform_1_left_ladder(self) -> Box:
-        return Box(left=55, right=55, top=26, bottom=34, name="platform_1_left_ladder")
+        return Box(left=55, right=56, top=26, bottom=34, name="platform_1_left_ladder")
 
     @cached_property
     def platform_2(self) -> Box:
@@ -76,7 +78,7 @@ class KerningLine1Area1(BaseMap):
 
     @cached_property
     def platform_2_ladder(self) -> Box:
-        return Box(left=117, right=117, top=29, bottom=40, name="platform_2_ladder")
+        return Box(left=117, right=118, top=29, bottom=40, name="platform_2_ladder")
 
     @cached_property
     def platform_3(self) -> Box:
@@ -89,13 +91,13 @@ class KerningLine1Area1(BaseMap):
     @cached_property
     def platform_4_right_ladder(self) -> Box:
         return Box(
-            left=174, right=174, top=25, bottom=36, name="platform_4_right_ladder"
+            left=174, right=175, top=25, bottom=36, name="platform_4_right_ladder"
         )
 
     @cached_property
     def platform_4_left_ladder(self) -> Box:
         return Box(
-            left=157, right=157, top=26, bottom=39, name="platform_4_left_ladder"
+            left=157, right=158, top=26, bottom=39, name="platform_4_left_ladder"
         )
 
     @cached_property
@@ -104,7 +106,7 @@ class KerningLine1Area1(BaseMap):
 
     @cached_property
     def platform_5_ladder(self) -> Box:
-        return Box(left=198, right=198, top=25, bottom=39, name="platform_5_ladder")
+        return Box(left=198, right=199, top=25, bottom=39, name="platform_5_ladder")
 
     @cached_property
     def safe_spot_right(self) -> Box:
@@ -113,7 +115,7 @@ class KerningLine1Area1(BaseMap):
     @cached_property
     def safe_spot_right_ladder(self) -> Box:
         return Box(
-            left=217, right=217, top=29, bottom=40, name="safe_spot_right_ladder"
+            left=217, right=218, top=29, bottom=40, name="safe_spot_right_ladder"
         )
 
     @cached_property
@@ -122,7 +124,7 @@ class KerningLine1Area1(BaseMap):
 
     @cached_property
     def platform_6_ladder(self) -> Box:
-        return Box(left=47, right=47, top=33, bottom=40, name="platform_6_ladder")
+        return Box(left=47, right=48, top=33, bottom=40, name="platform_6_ladder")
 
     @cached_property
     def platform_7(self) -> Box:
@@ -130,11 +132,11 @@ class KerningLine1Area1(BaseMap):
 
     @cached_property
     def platform_7_ladder(self) -> Box:
-        return Box(left=55, right=55, top=40, bottom=48, name="platform_7_ladder")
+        return Box(left=55, right=56, top=40, bottom=48, name="platform_7_ladder")
 
     @cached_property
     def platform_8_ladder(self) -> Box:
-        return Box(left=87, right=87, top=37, bottom=46, name="platform_8_ladder")
+        return Box(left=87, right=88, top=37, bottom=46, name="platform_8_ladder")
 
     @cached_property
     def platform_8(self) -> Box:
@@ -153,7 +155,7 @@ class KerningLine1Area1(BaseMap):
     @cached_property
     def platform_9_left_ladder(self) -> Box:
         return Box(
-            left=140, right=140, top=40, bottom=49, name="platform_9_left_ladder"
+            left=140, right=141, top=40, bottom=49, name="platform_9_left_ladder"
         )
 
     @cached_property
@@ -166,4 +168,4 @@ class KerningLine1Area1(BaseMap):
 
     @cached_property
     def platform_10_ladder(self) -> Box:
-        return Box(left=208, right=208, top=40, bottom=48, name="platform_10_ladder")
+        return Box(left=208, right=209, top=40, bottom=48, name="platform_10_ladder")

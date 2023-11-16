@@ -12,7 +12,7 @@ from royals.utilities import Box
 
 HANDLE = 0x00620DFE
 OUTPUT_LOCATION = os.path.join(ROOT, "royals/game_model/maps/")
-OUTPUT_NAME = "kerning_line1_area1.py"
+OUTPUT_NAME = "ludi_free_market_template.py"
 
 container = []
 

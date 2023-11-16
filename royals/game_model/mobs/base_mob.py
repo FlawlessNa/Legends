@@ -15,7 +15,15 @@ class BaseMob(InGameBaseVisuals, ABC):
     """
 
     # Basically the whole screen minus the menus at the bottom
-    detection_box = Box(left=3, right=1027, top=29, bottom=725)
+    detection_box_large = Box(left=3, right=1027, top=29, bottom=725)
+    detection_box_small = NotImplemented
+
+    def __init__(self, handle: int) -> None:
+        super().__init__(handle)
+        if self._large_client:
+            self.detection_box = self.detection_box_large
+        else:
+            self.detection_box = self.detection_box_small
 
     @classmethod
     @abstractmethod

@@ -3,3 +3,4 @@ opencv-python>=4.8.1.78
 numpy>=1.26.0
 discord>=2.3.2
 pytesseract>=0.3.10
+pathfinding>=1.0.4
