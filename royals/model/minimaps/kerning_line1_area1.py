@@ -1,6 +1,6 @@
 from functools import cached_property
 
-from royals.interface.dynamic_components.minimap import Minimap
+from royals.interface import Minimap
 from botting.utilities import Box
 
 

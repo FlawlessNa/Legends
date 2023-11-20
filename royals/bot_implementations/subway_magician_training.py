@@ -3,11 +3,12 @@ import math
 from functools import partial
 from typing import Generator
 
+from botting import PARENT_LOG
 from botting.core import Bot, BotMonitor, QueueAction
 from .actions.pathfinding import get_to_target_pos
 from .checks.mock import mock_check
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(f'{PARENT_LOG}.{__name__}')
 
 
 class SubwayMagicianTraining(BotMonitor):

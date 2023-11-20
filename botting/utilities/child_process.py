@@ -2,6 +2,8 @@ import logging
 import logging.handlers
 import multiprocessing.connection
 
+import botting
+
 
 class ChildProcess:
     """
@@ -32,7 +34,7 @@ class ChildProcess:
         file_handler = logging.handlers.QueueHandler(self.log_queue)
         file_handler.setLevel(logging.DEBUG)
 
-        root = logging.getLogger()
+        root = logging.getLogger(botting.PARENT_LOG)
         while root.hasHandlers():
             root.handlers[0].close()
             root.removeHandler(root.handlers[0])

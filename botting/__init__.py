@@ -13,10 +13,11 @@ from .core import SessionManager, Bot
 from paths import ROOT, TESSERACT
 
 
+PARENT_LOG = __name__
 pytesseract.pytesseract.tesseract_cmd = TESSERACT
 
 # Set the root logger for the entire project.
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
@@ -43,6 +44,7 @@ formatter = CustomFormatter(
 
 if not os.path.exists(os.path.join(ROOT, "logs")):
     os.mkdir(os.path.join(ROOT, "logs"))
+
 file_handler = logging.handlers.RotatingFileHandler(
     os.path.join(ROOT, "logs", f'Session {time.strftime("%Y%m%d")}.log'),
     maxBytes=10 * (2**20),  # 10 MB

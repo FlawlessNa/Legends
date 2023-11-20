@@ -1,5 +1,5 @@
-import inspect
 import random
+
 from abc import ABC, abstractmethod
 
 from botting.utilities import Box
@@ -20,28 +20,35 @@ class BaseMinimap(InGameDynamicVisuals, ABC):
     def features(self) -> dict[str, Box]:
         """
         Returns a dictionary of all the features of the map.
-        Default behavior is to return any property which returns a box, but this can be overridden.
+        Default behavior is to return any class attribute which returns a box, but this can be overridden.
         :return:
         """
-        if not self.__dict__:
-            inspect.getmembers(self)  # Forces calculation of all cached properties
-        return {box.name: box for box in self.__dict__.values() if isinstance(box, Box)}
+        return {
+            box.name: box
+            for box in self.__class__.__dict__.values()
+            if isinstance(box, Box)
+        }
 
     def random_point(self, feature_name: str | None = None) -> tuple[int, int]:
         """
         Returns a random point within the minimap.
-        First, select a feature at random, weighted by its area.
+        First, select a feature at random, weighted by its area (unless specified).
         Then, select a random point within the feature.
+        By convention, for features with width or height of 1, the point is selected to be the left or top coordinate.
         :return:
         """
-        if feature_name is not None:
-            return self.features[feature_name].random()
-
-        target_feature = random.choices(
-            list(self.features.keys()),
-            weights=[feature.area for feature in self.features.values()],
-        ).pop()
-        return self.features[target_feature].random()
+        if feature_name is None:
+            feature_name = random.choices(
+                list(self.features.keys()),
+                weights=[feature.area for feature in self.features.values()],
+            ).pop()
+        initial_point = self.features[feature_name].random()
+        if self.features[feature_name].width == 1:
+            return self.features[feature_name].left, initial_point[1]
+        elif self.features[feature_name].height == 1:
+            return initial_point[0], self.features[feature_name].top
+        else:
+            return initial_point
 
     def get_feature_containing(self, position: tuple[float, float]) -> Box:
         """

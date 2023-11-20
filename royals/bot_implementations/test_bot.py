@@ -3,11 +3,12 @@ import logging
 
 from functools import partial
 
+import botting
 from botting.core import QueueAction, BotMonitor, Bot
 from .actions.mock import _test_action
 from .checks.mock import mock_check
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(f'{botting.PARENT_LOG}.{__name__}')
 
 
 class TestBot(BotMonitor):

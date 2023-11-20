@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import os
 
-from abc import ABC
+from abc import ABC, abstractmethod
 
 from paths import ROOT
 from botting.models import BaseMinimap
@@ -26,6 +26,8 @@ class Minimap(BaseMinimap, ABC):
             "royals/assets/detection_images/world_icon.png",
         )
     )
+    height_limit_for_jump_down: int | None
+    horizontal_jump_distance: int | None
     _self_color = ((34, 238, 255), (136, 255, 255))
     _stranger_color = ((0, 0, 221), (17, 17, 255))
     _party_color = ((0, 119, 255), (0, 153, 255))  # TODO
@@ -42,8 +44,21 @@ class Minimap(BaseMinimap, ABC):
     _minimap_area_top_offset_partial: int = 21
     _minimap_area_top_offset_full: int = 64
 
+    @property
+    @abstractmethod
+    def teleporters(self) -> list[tuple[Box, Box]]:
+        """
+        Pairs of features that are connected in a single map.
+        For two-directional, add both (A, B) and (B, A).
+        :return: Returns a list of tuples of the form (from_feature, destination_feature).
+        """
+        pass
+
     def is_displayed(
-        self, handle: int, client_img: np.ndarray | None = None, world_icon_box: Box | None = None
+        self,
+        handle: int,
+        client_img: np.ndarray | None = None,
+        world_icon_box: Box | None = None,
     ) -> bool:
         """
         Looks into whether the minimap is either Partially or Fully displayed.
@@ -52,10 +67,16 @@ class Minimap(BaseMinimap, ABC):
         :param world_icon_box: If provided, use this box instead of detecting the world icon.
         :return: True if the minimap is either Partially or Fully displayed, False otherwise.
         """
-        return self.get_minimap_state(handle, client_img, world_icon_box) in ["Partial", "Full"]
+        return self.get_minimap_state(handle, client_img, world_icon_box) in [
+            "Partial",
+            "Full",
+        ]
 
     def get_minimap_state(
-        self, handle: int, client_img: np.ndarray | None = None, world_icon_box: Box | None = None
+        self,
+        handle: int,
+        client_img: np.ndarray | None = None,
+        world_icon_box: Box | None = None,
     ) -> str | None:
         """
         Returns the state of the minimap. Possible states are Hidden, Partial, or Fully displayed.
@@ -138,7 +159,10 @@ class Minimap(BaseMinimap, ABC):
             return result
 
     def get_map_area_box(
-        self, handle: int, client_img: np.ndarray | None = None, world_icon_box: Box | None = None
+        self,
+        handle: int,
+        client_img: np.ndarray | None = None,
+        world_icon_box: Box | None = None,
     ) -> Box | None:
         """
         Returns the box of the map area within the minimap.
@@ -153,7 +177,9 @@ class Minimap(BaseMinimap, ABC):
         if world_icon_box is None:
             world_icon_box = self._menu_icon_position(handle, client_img)
 
-        entire_minimap_box = self._get_entire_minimap_box(handle, client_img, world_icon_box)
+        entire_minimap_box = self._get_entire_minimap_box(
+            handle, client_img, world_icon_box
+        )
         if entire_minimap_box:
             if self.get_minimap_state(handle, client_img, world_icon_box) == "Full":
                 top_offset = self._minimap_area_top_offset_full
@@ -168,7 +194,10 @@ class Minimap(BaseMinimap, ABC):
             )
 
     def get_minimap_title_box(
-        self, handle: int, client_img: np.ndarray | None = None, world_icon_box: Box | None = None
+        self,
+        handle: int,
+        client_img: np.ndarray | None = None,
+        world_icon_box: Box | None = None,
     ) -> Box | None:
         """
         Returns the box of the minimap title.
@@ -185,7 +214,9 @@ class Minimap(BaseMinimap, ABC):
         if self.get_minimap_state(handle, client_img, world_icon_box) != "Full":
             return
 
-        entire_minimap_box = self._get_entire_minimap_box(handle, client_img, world_icon_box)
+        entire_minimap_box = self._get_entire_minimap_box(
+            handle, client_img, world_icon_box
+        )
         if entire_minimap_box:
             map_area_box = self.get_map_area_box(handle, client_img, world_icon_box)
             return Box(
@@ -197,7 +228,10 @@ class Minimap(BaseMinimap, ABC):
             )
 
     def _get_entire_minimap_box(
-        self, handle: int, client_img: np.ndarray | None = None, world_icon_box: Box | None = None
+        self,
+        handle: int,
+        client_img: np.ndarray | None = None,
+        world_icon_box: Box | None = None,
     ) -> Box | None:
         """
         Returns the position of the entire minimap on the screen.
@@ -267,3 +301,6 @@ class Minimap(BaseMinimap, ABC):
                 top=top_border,
                 bottom=top_border + int(detected_rows[-2]) - offset,
             )
+
+    def preprocess_for_grid(self, image: np.ndarray) -> np.ndarray:
+        return self._preprocess_img(image)

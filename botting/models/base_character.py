@@ -23,3 +23,8 @@ class BaseCharacter(InGameBaseVisuals, ABC):
     @abstractmethod
     def get_character_position(self, image: np.ndarray) -> Sequence[int] | None:
         pass
+
+    @property
+    @abstractmethod
+    def skills(self) -> list["Skills"]:
+        pass
