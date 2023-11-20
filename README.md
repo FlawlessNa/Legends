@@ -3,7 +3,7 @@
 ## TODO
 - [x] Refactor Package more appropriately - there should be a "botting" library and a "royals" implementation.
 - [ ] Minimap pathing
-  - [ ] Clean minimap class structure and grid constructor
+  - [ ] Clean minimap class structure and grid constructor (Add a Feature subclass of Box??)
   - [ ] algorithm to find paths between point A and B based on minimap
   - [ ] Translate path to movements
 - [ ] Automated handle and IGN associated + retrieval

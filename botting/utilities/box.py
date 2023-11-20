@@ -13,7 +13,7 @@ class Box:
     When a Box is randomized, a random point inside the box is returned.
     """
 
-    left: int
+    left: int = field()
     right: int
     top: int
     bottom: int

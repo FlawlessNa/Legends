@@ -8,9 +8,8 @@ import logging
 import win32con
 from typing import Literal
 
-from .inputs import focused_input, non_focused_input
-
 from botting.utilities import config_reader, randomize_params
+from .inputs import focused_input, non_focused_input
 
 logger = logging.getLogger(__name__)
 

@@ -4,20 +4,31 @@ from unittest import TestCase
 """
 Another idea: into the actual inputs/controller classes, for the exported DLL functions, add an .errcheck attribute with a callable. The callable is used to validate the return type of the function.
 This could be handy for testing purposes.
+
+Idea - Use unittest.mock objects to properly test how the SendInput/PostMessage are called, (how many times, with what arguments, etc).
 """
 
-class TestController(TestCase):
-    def test_activate(self):
-        self.fail()
-
+class Test(TestCase):
     def test_key_binds(self):
-        self.fail()
 
-    def test_hold_key(self):
         self.fail()
 
     def test_press(self):
+
         self.fail()
 
-    def test__non_silent_press(self):
+    def test_write(self):
+
+        self.fail()
+
+    def test_move(self):
+
+        self.fail()
+
+    def test_mouse_move(self):
+
+        self.fail()
+
+    def test_click(self):
+
         self.fail()
