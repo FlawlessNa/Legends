@@ -49,6 +49,7 @@ class TestBox(TestCase):
     def test___contains__(self):
         wrong_arg = (0, 0, 0)
         with self.assertRaises(ValueError):
+            # noinspection PyTypeChecker
             print(wrong_arg in self.box)
 
         self.assertTrue((0, 0) in self.box)
