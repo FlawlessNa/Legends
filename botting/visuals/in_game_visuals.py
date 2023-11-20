@@ -44,7 +44,7 @@ class InGameBaseVisuals(ABC):
         img = take_screenshot(handle, box)
         if config is None:
             config = box.config
-        return self.read_from_img(img, config)
+        return self.read_from_img(img, config, confidence_level)
 
     def read_from_img(
         self, image: np.ndarray, config: str | None = None, confidence_level: int = 15
