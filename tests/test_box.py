@@ -1,6 +1,6 @@
-from botting.utilities import Box
-
 from unittest import TestCase
+
+from botting.utilities import Box
 
 
 class TestBox(TestCase):
