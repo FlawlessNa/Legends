@@ -21,13 +21,12 @@ class TestInputsHelpers(TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         """
-        We use the handle to the foreground window to get the keyboard layout (This should normally be this PyCharm window). Technically since Windows 8, the active keyboard layout is the same
-        across all processes, so the handle should not matter.
+        We use the handle to the foreground window to get the keyboard layout (This should normally be this PyCharm window).
+        Technically since Windows 8, the active keyboard layout is the same across all processes, so the handle should not matter.
         We load a bunch of keyboard layouts to test that the functions work properly with different layouts.
         """
         cls.layout_name = ctypes.create_unicode_buffer(10)
         cls.handle = win32gui.GetForegroundWindow()
-        cls.inputs_helpers = _InputsHelpers(cls.handle)
 
         cls.activate_keyboard_layout = ctypes.windll.user32.ActivateKeyboardLayout
         cls.get_active_layout_name = ctypes.windll.user32.GetKeyboardLayoutNameW
@@ -70,16 +69,16 @@ class TestInputsHelpers(TestCase):
             self.activate_keyboard_layout(self.HKL_NEXT, 0)
 
             for c in string.ascii_letters:
-                vk_sensitive = self.inputs_helpers._get_virtual_key(
-                    c, True, self.inputs_helpers._keyboard_layout_handle()
+                vk_sensitive = _get_virtual_key(
+                    c, True, _keyboard_layout_handle(self.handle)
                 )
                 self.assertEqual(
                     vk_sensitive,
                     ord(c),
                     f"Virtual key for {c} is {vk_sensitive} instead of {ord(c)}",
                 )
-                vk_lower = self.inputs_helpers._get_virtual_key(
-                    c, False, self.inputs_helpers._keyboard_layout_handle()
+                vk_lower = _get_virtual_key(
+                    c, False, _keyboard_layout_handle(self.handle)
                 )
                 self.assertEqual(
                     vk_lower,
@@ -87,26 +86,29 @@ class TestInputsHelpers(TestCase):
                     f"Virtual key for {c} is {vk_lower} instead of {ord(c)}",
                 )
             for c in string.digits:
-                vk = self.inputs_helpers._get_virtual_key(
-                    c, False, self.inputs_helpers._keyboard_layout_handle()
+                vk = _get_virtual_key(
+                    c, False, _keyboard_layout_handle(self.handle)
                 )
                 self.assertEqual(
                     vk, ord(c), f"Virtual key for {c} is {vk} instead of {ord(c)}"
                 )
             for c in string.punctuation:
-                vk = self.inputs_helpers._get_virtual_key(
-                    c, True, self.inputs_helpers._keyboard_layout_handle()
+                vk = _get_virtual_key(
+                    c, True, _keyboard_layout_handle(self.handle)
                 )
                 self.assertEqual(
                     vk, ord(c), f"Virtual key for {c} is {vk} instead of {ord(c)}"
                 )
 
     def test__keyboard_layout_handle(self):
-        """Here we merely test that the returned value doesn't changes when we change the keyboard language settings. This is because the function is cached."""
-        prev_val = self.inputs_helpers._keyboard_layout_handle(self.handle)
+        """
+        Here we merely test that the returned value doesn't change when we change the keyboard language settings.
+        This is because the function is cached.
+         """
+        prev_val = _keyboard_layout_handle(self.handle)
         for _ in self.languages:
             self.activate_keyboard_layout(self.HKL_NEXT, 0)
-            new_val = self.inputs_helpers._keyboard_layout_handle(self.handle)
+            new_val = _keyboard_layout_handle(self.handle)
             self.assertEqual(
                 prev_val,
                 new_val,
@@ -115,13 +117,13 @@ class TestInputsHelpers(TestCase):
             prev_val = new_val
 
     def test__setup_exported_functions(self):
-        results = self.inputs_helpers._setup_exported_functions()
+        results = _setup_exported_functions()
         self.assertIsInstance(results, dict)
-        self.assertEqual(len(results), 3)
+        self.assertEqual(len(results), 5)
         for key, val in results.items():
             self.assertIsInstance(key, str)
             self.assertTrue(
                 key
-                in ["MapVirtualKeyExW", "GetWindowThreadProcessId", "GetKeyboardLayout"]
+                in ["MapVirtualKeyExW", "GetWindowThreadProcessId", "GetKeyboardLayout", "PostMessageW", "SendInput"]
             )
             self.assertTrue(callable(val))
