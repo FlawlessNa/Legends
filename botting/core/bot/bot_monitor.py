@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 class BotMonitor(ChildProcess, ABC):
-    def __init__(self, bot: Bot) -> None:
-        super().__init__(bot.monitoring_side)
+    def __init__(self, logging_queue: multiprocessing.Queue, bot: Bot) -> None:
+        super().__init__(logging_queue, bot.monitoring_side)
         self.source = repr(bot)
         self.watched_bot = bot
         self.game_data: GameData = bot.game_data
@@ -87,6 +87,6 @@ class BotMonitor(ChildProcess, ABC):
         :param log_queue: The logging queue that is used to send logs from the child process to the main process.
         :return:
         """
-        ChildProcess.set_log_queue(log_queue)
-        monitor = bot.monitor(bot)
+        # ChildProcess.set_log_queue(log_queue)
+        monitor = bot.monitor(log_queue, bot)
         monitor.start()

@@ -69,8 +69,7 @@ class DiscordLauncher:
         pipe_end: multiprocessing.connection.Connection,
         log_queue: multiprocessing.Queue,
     ):
-        ChildProcess.set_log_queue(log_queue)
-        discord_comm = DiscordComm(pipe_end)
+        discord_comm = DiscordComm(log_queue, pipe_end)
         asyncio.run(discord_comm.start())
 
 
@@ -79,12 +78,13 @@ class DiscordComm(discord.Client, ChildProcess):
 
     def __init__(
         self,
+        log_queue: multiprocessing.Queue,
         pipe_end: multiprocessing.connection.Connection,
     ) -> None:
         super().__init__(intents=discord.Intents.all())
         self.config = config_reader("discord")
         self.config_section = f"User {self.config['DEFAULT']['user']}"
-        ChildProcess.__init__(self, pipe_end)
+        ChildProcess.__init__(self, log_queue, pipe_end)
 
     @cached_property
     def chat_id(self) -> int:

@@ -9,7 +9,7 @@ async def main(*bots: botting.Bot) -> None:
 
 
 if __name__ == "__main__":
-    handle = 0x00620DFE
+    handle = 0x002E05E6
     data = royals.RoyalsData(handle, "FarmFest1")
 
     bot1 = botting.Bot(handle, "FarmFest1", data, monitor=royals.TestBot)

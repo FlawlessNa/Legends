@@ -48,8 +48,7 @@ class RecorderLauncher:
         receiver: multiprocessing.connection.Connection,
         log_queue: multiprocessing.Queue,
     ):
-        ChildProcess.set_log_queue(log_queue)
-        recorder = Recorder(receiver)
+        recorder = Recorder(log_queue, receiver)
         recorder.start()
 
 
@@ -63,6 +62,7 @@ class Recorder(ChildProcess):
 
     def __init__(
         self,
+        log_queue: multiprocessing.Queue,
         end_pipe: multiprocessing.connection.Connection,
         config_name: str = "recordings",
     ) -> None:
@@ -70,7 +70,7 @@ class Recorder(ChildProcess):
         :param end_pipe: The end of the Pipe object that is connected to the main process.
         :param config_name: Optional. Name of the config file to use. Defaults to "recordings".
         """
-        super().__init__(end_pipe)
+        super().__init__(log_queue, end_pipe)
         self.config: dict = dict(config_reader(config_name)["DEFAULT"])
         self.out_path = os.path.join(
             self.config["recordings folder"],

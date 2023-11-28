@@ -1,5 +1,6 @@
 import itertools
 import logging
+import multiprocessing
 
 from functools import partial
 
@@ -12,8 +13,8 @@ logger = logging.getLogger(f'{botting.PARENT_LOG}.{__name__}')
 
 
 class TestBot(BotMonitor):
-    def __init__(self, bot: Bot) -> None:
-        super().__init__(bot)
+    def __init__(self, log_queue: multiprocessing.Queue, bot: Bot) -> None:
+        super().__init__(log_queue, bot)
 
     def items_to_monitor(self) -> list[callable]:
         return [partial(mock_check, self.pipe_end)]

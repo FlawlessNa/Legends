@@ -1,6 +1,6 @@
 from botting.core.controls import controller
 
-HANDLE = 0x00620DFE
+HANDLE = 0x002E05E6
 
 
 async def _test_action(direction):
