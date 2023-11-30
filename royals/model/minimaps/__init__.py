@@ -1,0 +1,1 @@
+from .ludi_free_market_template import LudiFreeMarketTemplate

@@ -3,10 +3,10 @@ import random
 from abc import ABC, abstractmethod
 
 from botting.utilities import Box
-from botting.visuals import InGameDynamicVisuals
+from botting.visuals import InGameBaseVisuals
 
 
-class BaseMinimap(InGameDynamicVisuals, ABC):
+class BaseMinimapFeatures(InGameBaseVisuals, ABC):
     """
     Example for a class representing the in-game minimap.
     This should contain the necessary methods to detect the minimap location,

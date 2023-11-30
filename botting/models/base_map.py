@@ -1,6 +1,6 @@
 from abc import ABC
 
-from .base_minimap import BaseMinimap
+from .base_minimap import BaseMinimapFeatures
 from .base_mob import BaseMob
 from botting.utilities import Box
 from botting.visuals import InGameBaseVisuals
@@ -21,7 +21,7 @@ class BaseMap(InGameBaseVisuals, ABC):
 
     def __init__(
         self,
-        minimap: BaseMinimap,
+        minimap: BaseMinimapFeatures,
         mobs: list[BaseMob] | None = None,
         connections: list["BaseMap"] | None = None,
     ) -> None:

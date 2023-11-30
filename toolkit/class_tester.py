@@ -7,11 +7,14 @@ from pathfinding.core.grid import Grid
 from pathfinding.finder.a_star import AStarFinder
 
 
-HANDLE = 0x00620DFE
+HANDLE = 0x002E05E6
 
 if __name__ == "__main__":
     ludi = LudiFreeMarketTemplate()
+
     map_area = ludi.get_map_area_box(HANDLE)
+    while True:
+        print(ludi.get_character_positions(HANDLE, "NPC", map_area_box=map_area))
     canvas = np.zeros((map_area.height, map_area.width), dtype=np.uint8)
     canvas = ludi.preprocess_for_grid(canvas)
     grid = generate_grid_template(HANDLE, ludi)

@@ -2,19 +2,19 @@ import cv2
 import numpy as np
 import os
 
-from abc import ABC, abstractmethod
+from abc import ABC
 
 from paths import ROOT
-from botting.models import BaseMinimap
 from botting.utilities import (
     Box,
     take_screenshot,
     CLIENT_HORIZONTAL_MARGIN_PX,
     CLIENT_VERTICAL_MARGIN_PX,
 )
+from botting.visuals import InGameDynamicVisuals
 
 
-class Minimap(BaseMinimap, ABC):
+class Minimap(InGameDynamicVisuals, ABC):
     """
     Implements the royals in-game minimap.
     This is still an abstraction, since each "map" has their own features which need to be defined in child classes.
@@ -26,14 +26,25 @@ class Minimap(BaseMinimap, ABC):
             "royals/assets/detection_images/world_icon.png",
         )
     )
-    height_limit_for_jump_down: int | None
-    horizontal_jump_distance: int | None
-    _self_color = ((34, 238, 255), (136, 255, 255))
-    _stranger_color = ((0, 0, 221), (17, 17, 255))
-    _party_color = ((0, 119, 255), (0, 153, 255))  # TODO
-    _buddy_color = ((1, 1, 1), (0, 0, 0))  # TODO
-    _guildie_color = ((1, 1, 1), (0, 0, 0))  # TODO
-    _npc_color = ((0, 221, 0), (0, 255, 0))
+    # height_limit_for_jump_down: int | None
+    # horizontal_jump_distance: int | None
+    _self_color = [((136, 255, 255), (136, 255, 255))]
+    _self_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+
+    _stranger_color = [
+        ((0, 0, 255), (0, 0, 255)),
+        ((0, 0, 238), (0, 0, 238)),
+        ((0, 0, 221), (0, 0, 221)),
+    ]
+    _stranger_kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (5, 5))
+    _party_color = [((0, 119, 255), (0, 153, 255))]  # TODO
+    _party_kernel = None  # TODO
+    _buddy_color = [((1, 1, 1), (0, 0, 0))]  # TODO
+    _buddy_kernel = None  # TODO
+    _guildie_color = [((1, 1, 1), (0, 0, 0))]  # TODO
+    _guildie_kernel = None  # TODO
+    _npc_color = [((0, 221, 0), (0, 221, 0))]
+    _npc_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 3))
 
     _menu_icon_left_offset: int = -27
     _menu_icon_right_offset: int = -38
@@ -43,16 +54,6 @@ class Minimap(BaseMinimap, ABC):
 
     _minimap_area_top_offset_partial: int = 21
     _minimap_area_top_offset_full: int = 64
-
-    @property
-    @abstractmethod
-    def teleporters(self) -> list[tuple[Box, Box]]:
-        """
-        Pairs of features that are connected in a single map.
-        For two-directional, add both (A, B) and (B, A).
-        :return: Returns a list of tuples of the form (from_feature, destination_feature).
-        """
-        pass
 
     def is_displayed(
         self,
@@ -86,7 +87,7 @@ class Minimap(BaseMinimap, ABC):
         :return:
         """
         if world_icon_box is None:
-            world_icon_box = self._menu_icon_position(client_img)
+            world_icon_box = self._menu_icon_position(handle, client_img)
         if world_icon_box:
             detection_box = world_icon_box + Box(
                 offset=True,
@@ -125,19 +126,32 @@ class Minimap(BaseMinimap, ABC):
         character_type: str = "Self",
         client_img: np.ndarray | None = None,
         world_icon_box: Box | None = None,
-    ) -> list[tuple[float, float]] | None:
+        map_area_box: Box | None = None,
+    ) -> list[tuple[int, int]] | None:
         """
         Returns the positions of all characters of a certain type on the minimap.
         :param handle: Handle to the client.
         :param character_type: Literal {"Self", "Stranger", "Party", "Buddy", "Guildie", "NPC"}
         :param client_img: If provided, read from image directly instead of taking new ones.
         :param world_icon_box: If provided, use this box instead of detecting the world icon.
+        :param map_area_box: If provided, use map area box directly.
         :return: list of (x, y) coordinates.
         """
-        map_area_box = self.get_map_area_box(handle, client_img, world_icon_box)
+        if map_area_box is None:
+            map_area_box = self.get_map_area_box(handle, client_img, world_icon_box)
         if map_area_box:
-            map_area_img = take_screenshot(handle, map_area_box)
-            color = {
+            if client_img is not None:
+                map_area_img = client_img[
+                    map_area_box.top
+                    - CLIENT_VERTICAL_MARGIN_PX: map_area_box.bottom
+                    - CLIENT_VERTICAL_MARGIN_PX,
+                    map_area_box.left
+                    - CLIENT_HORIZONTAL_MARGIN_PX: map_area_box.right
+                    - CLIENT_HORIZONTAL_MARGIN_PX,
+                ]
+            else:
+                map_area_img = take_screenshot(handle, map_area_box)
+            colors = {
                 "Self": self._self_color,
                 "Stranger": self._stranger_color,
                 "Party": self._party_color,
@@ -145,18 +159,24 @@ class Minimap(BaseMinimap, ABC):
                 "Guildie": self._guildie_color,
                 "Npc": self._npc_color,
             }[character_type.capitalize()]
+            kernel = {
+                "Self": self._self_kernel,
+                "Stranger": self._stranger_kernel,
+                "Party": self._party_kernel,
+                "Buddy": self._buddy_kernel,
+                "Guildie": self._guildie_kernel,
+                "Npc": self._npc_kernel,
+            }[character_type.capitalize()]
 
-            detection_img = cv2.inRange(map_area_img, *color)
-            contours, _ = cv2.findContours(
-                detection_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-            )
-            moments = [cv2.moments(contour) for contour in contours]
-            result = [
-                (m["m10"] / m["m00"], m["m01"] / m["m00"]) for m in moments if m["m00"]
-            ]  # Calculate the center of the contour
-            if len(result) == 0 and len(contours) >= 1:
-                return [tuple(contours[0][0][0])]
-            return result
+            # Loop over each color and detect it. Combine the results before eroding.
+            mask = np.zeros_like(map_area_img[:, :, 0])
+            for color in colors:
+                detection_img = cv2.inRange(map_area_img, *color)
+                mask = cv2.bitwise_or(mask, detection_img)
+
+            eroded_detection = cv2.erode(mask, kernel)
+            y_x_list = list(zip(*np.where(eroded_detection == 255)))
+            return [(x, y) for y, x in y_x_list]
 
     def get_map_area_box(
         self,
@@ -210,7 +230,7 @@ class Minimap(BaseMinimap, ABC):
         if client_img is None:
             client_img = take_screenshot(handle)
         if world_icon_box is None:
-            world_icon_box = self._menu_icon_position(client_img)
+            world_icon_box = self._menu_icon_position(handle, client_img)
         if self.get_minimap_state(handle, client_img, world_icon_box) != "Full":
             return
 
@@ -244,7 +264,7 @@ class Minimap(BaseMinimap, ABC):
         if client_img is None:
             client_img = take_screenshot(handle)
         if world_icon_box is None:
-            world_icon_box = self._menu_icon_position(client_img)
+            world_icon_box = self._menu_icon_position(handle, client_img)
 
         state = self.get_minimap_state(handle, client_img, world_icon_box)
         if world_icon_box and state in ["Partial", "Full"]:
@@ -263,10 +283,18 @@ class Minimap(BaseMinimap, ABC):
             if np.count_nonzero(white_pixels) == 0:
                 return
 
-            # Find the 2nd left most "column" in the image for which all the pixels are white.
-            # Drop the first "column" of white pixels as it is the white border around the minimap, which we don't need.
+            # Find a "column" with all white pixels, followed by 3 columns with no white pixels. This is the minimap border.
+            # From there, find the next "column" of white pixels, which is where the map area starts.
             # Add 1 because the actual map area is 1 more pixel to the right
-            left_border = np.where(np.all(white_pixels == 255, axis=0))[0][1] + 1
+            full_columns = np.where(np.all(white_pixels == 255, axis=0))[0]
+            empty_columns = np.where(np.all(white_pixels == 0, axis=0))[0]
+            left_border = None
+            for col in full_columns:
+                if all(col + i in empty_columns for i in range(1, 4)):
+                    map_border = col
+                    map_border_idx = np.where(full_columns == map_border)[0][0]
+                    left_border = full_columns[map_border_idx + 1] + 1
+                    break
 
             # For the right border, use the world icon. Also shift by 1 pixel to the right.
             right_border = world_icon_box.right + 1
@@ -301,6 +329,3 @@ class Minimap(BaseMinimap, ABC):
                 top=top_border,
                 bottom=top_border + int(detected_rows[-2]) - offset,
             )
-
-    def preprocess_for_grid(self, image: np.ndarray) -> np.ndarray:
-        return self._preprocess_img(image)
