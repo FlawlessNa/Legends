@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from botting.models import BaseMob
+from botting.models_abstractions import BaseMob
 
 
 class Bubbling(BaseMob):

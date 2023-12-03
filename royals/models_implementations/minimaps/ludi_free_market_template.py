@@ -5,9 +5,12 @@ from functools import cached_property
 
 from botting.utilities import Box
 from royals.interface import Minimap
+from royals.models_implementations.mechanics import MinimapPathingMechanics
 
 
-class LudiFreeMarketTemplate(Minimap):
+class LudiFreeMarketTemplate(Minimap, MinimapPathingMechanics):
+    map_area_width = 116
+    map_area_height = 57
     height_limit_for_jump_down = None
     horizontal_jump_distance = 3
     bottom_platform: Box = Box(left=12, right=120, top=37, bottom=38, name="bottom_platform")

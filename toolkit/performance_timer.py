@@ -1,7 +1,7 @@
 from functools import partial
 from timeit import timeit
 
-from royals.model.minimaps import LudiFreeMarketTemplate
+from royals.models_implementations.minimaps import LudiFreeMarketTemplate
 
 test = LudiFreeMarketTemplate()
 HANDLE = 0x002E05E6

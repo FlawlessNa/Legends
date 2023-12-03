@@ -1,1 +1,0 @@
-from .minimap_mechanics import generate_grid_template

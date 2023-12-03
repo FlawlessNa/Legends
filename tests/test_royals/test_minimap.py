@@ -128,11 +128,18 @@ class TestMinimap(TestCase):
             (282, 198),
             (735, 232),
         ]
+        # Only applicable when minimap is fully displayed.
+        _extra_widths = [18, 18, None, None, 0, 0, 0, 0, 10, None, 0, 10]
         _map_area_box = [
             Box(
-                left=_map_area_top_left[i][0] + CLIENT_HORIZONTAL_MARGIN_PX,
-                right=_map_area_bot_right[i][0] + CLIENT_HORIZONTAL_MARGIN_PX + 1,
-                top=_map_area_top_left[i][1] + CLIENT_VERTICAL_MARGIN_PX - 1,
+                left=_map_area_top_left[i][0]
+                + CLIENT_HORIZONTAL_MARGIN_PX
+                + _extra_widths[i] // 2,
+                right=_map_area_bot_right[i][0]
+                + CLIENT_HORIZONTAL_MARGIN_PX
+                + 1
+                - _extra_widths[i] // 2,
+                top=_map_area_top_left[i][1] + CLIENT_VERTICAL_MARGIN_PX,
                 bottom=_map_area_bot_right[i][1] + CLIENT_VERTICAL_MARGIN_PX + 1,
             )
             if _map_area_top_left[i] is not None
@@ -252,7 +259,10 @@ class TestMinimap(TestCase):
                             pos[0]
                             - _map_area_box[i].left
                             + CLIENT_HORIZONTAL_MARGIN_PX,
-                            pos[1] - _map_area_box[i].top + CLIENT_VERTICAL_MARGIN_PX - 1,
+                            pos[1]
+                            - _map_area_box[i].top
+                            + CLIENT_VERTICAL_MARGIN_PX
+                            - 1,
                         )
                         for pos in position
                     ]
@@ -303,6 +313,7 @@ class TestMinimap(TestCase):
         """
         TODO - Test with "Party" members as well as "Guild" members and "Buddies".
         """
+
         def _single_test(expected, *params):
             actual = self.minimap.get_character_positions(*params)
             if expected is None:
@@ -311,21 +322,107 @@ class TestMinimap(TestCase):
                 set(actual),
                 set(expected),
             )
+
         for idx, img in enumerate(self.test_images):
-            _single_test(self._self_position[idx], 0, "Self", self.test_images[img], None, None)
-            _single_test(self._self_position[idx], 0, "Self", self.test_images[img], self._world_icons_box[idx], None)
-            _single_test(self._self_position[idx], 0, "Self", self.test_images[img], None, self._map_area_box[idx])
-            _single_test(self._self_position[idx], 0, "Self", self.test_images[img], self._world_icons_box[idx], self._map_area_box[idx])
+            _single_test(
+                self._self_position[idx], 0, "Self", self.test_images[img], None, None
+            )
+            _single_test(
+                self._self_position[idx],
+                0,
+                "Self",
+                self.test_images[img],
+                self._world_icons_box[idx],
+                None,
+            )
+            _single_test(
+                self._self_position[idx],
+                0,
+                "Self",
+                self.test_images[img],
+                None,
+                self._map_area_box[idx],
+            )
+            _single_test(
+                self._self_position[idx],
+                0,
+                "Self",
+                self.test_images[img],
+                self._world_icons_box[idx],
+                self._map_area_box[idx],
+            )
 
-            _single_test(self._stranger_position[idx], 0, "Stranger", self.test_images[img], None, None)
-            _single_test(self._stranger_position[idx], 0, "Stranger", self.test_images[img], self._world_icons_box[idx], None)
-            _single_test(self._stranger_position[idx], 0, "Stranger", self.test_images[img], None, self._map_area_box[idx])
-            _single_test(self._stranger_position[idx], 0, "Stranger", self.test_images[img], self._world_icons_box[idx], self._map_area_box[idx])
+            _single_test(
+                self._stranger_position[idx],
+                0,
+                "Stranger",
+                self.test_images[img],
+                None,
+                None,
+            )
+            _single_test(
+                self._stranger_position[idx],
+                0,
+                "Stranger",
+                self.test_images[img],
+                self._world_icons_box[idx],
+                None,
+            )
+            _single_test(
+                self._stranger_position[idx],
+                0,
+                "Stranger",
+                self.test_images[img],
+                None,
+                self._map_area_box[idx],
+            )
+            _single_test(
+                self._stranger_position[idx],
+                0,
+                "Stranger",
+                self.test_images[img],
+                self._world_icons_box[idx],
+                self._map_area_box[idx],
+            )
 
-            _single_test(self._npc_position[idx], 0, "NPC", self.test_images[img], None, None)
-            _single_test(self._npc_position[idx], 0, "NPC", self.test_images[img], self._world_icons_box[idx], None)
-            _single_test(self._npc_position[idx], 0, "NPC", self.test_images[img], None, self._map_area_box[idx])
-            _single_test(self._npc_position[idx], 0, "NPC", self.test_images[img], self._world_icons_box[idx], self._map_area_box[idx])
+            _single_test(
+                self._npc_position[idx], 0, "NPC", self.test_images[img], None, None
+            )
+            _single_test(
+                self._npc_position[idx],
+                0,
+                "NPC",
+                self.test_images[img],
+                self._world_icons_box[idx],
+                None,
+            )
+            _single_test(
+                self._npc_position[idx],
+                0,
+                "NPC",
+                self.test_images[img],
+                None,
+                self._map_area_box[idx],
+            )
+            _single_test(
+                self._npc_position[idx],
+                0,
+                "NPC",
+                self.test_images[img],
+                self._world_icons_box[idx],
+                self._map_area_box[idx],
+            )
+
+        # Lastly, an additional test is made to ensure that the function returns the same character position
+        # No matter where the minimap is on-screen and no matter whether it is full or partial.
+        # (Provided the character is actually in the same position, of course)
+        images = [
+            img
+            for img in os.listdir(os.path.join(ROOT, "tests/images"))
+            if img.startswith("test_character_position_minimap")
+        ]
+        positions = [self.minimap.get_character_positions(0, client_img=cv2.imread(f"images/{img}")) for img in images]
+        self.assertTrue(all([pos == positions[0] for pos in positions]))
 
     def test_get_map_area_box(self):
         for idx, img in enumerate(self.test_images):
@@ -345,8 +442,8 @@ class TestMinimap(TestCase):
     def test_get_minimap_title_box(self):
         boxes = [
             Box(
-                left=area_box.left,
-                right=area_box.right,
+                left=entire_box.left,
+                right=entire_box.right,
                 top=entire_box.top,
                 bottom=area_box.top,
             )

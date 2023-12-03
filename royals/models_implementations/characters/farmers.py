@@ -3,7 +3,7 @@ import numpy as np
 
 from typing import Sequence
 
-from botting.models import BaseCharacter
+from botting.models_abstractions import BaseCharacter
 from botting.utilities import Box
 
 

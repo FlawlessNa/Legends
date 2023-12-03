@@ -19,6 +19,8 @@ class Minimap(InGameDynamicVisuals, ABC):
     Implements the royals in-game minimap.
     This is still an abstraction, since each "map" has their own features which need to be defined in child classes.
     """
+    map_area_width: int = NotImplemented  # Subclass responsibility
+    map_area_height: int = NotImplemented  # Subclass responsibility
 
     _menu_icon_detection_needle: np.ndarray = cv2.imread(
         os.path.join(
@@ -26,8 +28,6 @@ class Minimap(InGameDynamicVisuals, ABC):
             "royals/assets/detection_images/world_icon.png",
         )
     )
-    # height_limit_for_jump_down: int | None
-    # horizontal_jump_distance: int | None
     _self_color = [((136, 255, 255), (136, 255, 255))]
     _self_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
 
@@ -52,8 +52,8 @@ class Minimap(InGameDynamicVisuals, ABC):
     _minimap_state_detection_color = ((255, 204, 85), (255, 204, 85))
     _minimap_area_detection_color = ((153, 119, 85), (153, 119, 85))
 
-    _minimap_area_top_offset_partial: int = 21
-    _minimap_area_top_offset_full: int = 64
+    _minimap_area_top_offset_partial: int = 22
+    _minimap_area_top_offset_full: int = 65
 
     def is_displayed(
         self,
@@ -187,6 +187,9 @@ class Minimap(InGameDynamicVisuals, ABC):
         """
         Returns the box of the map area within the minimap.
         Can only be used when the minimap is at least partially displayed.
+        Note: Child classes should always define the expected map_area_width and map_area_height.
+        If undefined, an attempt is made to detect those automatically, but this is not guaranteed to work.
+        Additionally, it slows down the process since more computations are required.
         :param handle: Handle to the client.
         :param client_img: If provided, read from image directly instead of taking new ones.
         :param world_icon_box: If provided, use this box instead of detecting the world icon.
@@ -201,14 +204,42 @@ class Minimap(InGameDynamicVisuals, ABC):
             handle, client_img, world_icon_box
         )
         if entire_minimap_box:
+
             if self.get_minimap_state(handle, client_img, world_icon_box) == "Full":
+                # When minimap is fully displayed, there are extra "vertical bands" outside the actual map area.
                 top_offset = self._minimap_area_top_offset_full
+
+                # If width is not defined, manually try to crop the extra "vertical bands" outside the actual map area.
+                if isinstance(self.map_area_width, type(NotImplemented)):
+                    # temp_img in this case is the actual map area box + the extra bands we try to get rid of
+                    temp_img = client_img[
+                        entire_minimap_box.top
+                        - CLIENT_VERTICAL_MARGIN_PX + top_offset: entire_minimap_box.bottom
+                        - CLIENT_VERTICAL_MARGIN_PX,
+                        entire_minimap_box.left
+                        - CLIENT_HORIZONTAL_MARGIN_PX: entire_minimap_box.right
+                        - CLIENT_HORIZONTAL_MARGIN_PX,
+                    ]
+                    _THRESHOLD = 160  # If mean column intensity above threshold, it's a vertical bright band to get rid of
+                    gray = cv2.cvtColor(temp_img, cv2.COLOR_BGR2GRAY)
+                    mean_vertical_intensity = np.mean(gray, axis=0)
+                    pale_columns = np.where(mean_vertical_intensity > _THRESHOLD)[0]
+                    extra_width = 0
+                    if pale_columns.size > 0:
+                        extra_width = (pale_columns[np.argmax(np.diff(pale_columns))] + 1) * 2
+                else:
+                    extra_width = entire_minimap_box.width - self.map_area_width
+                assert extra_width % 2 == 0
+                left_offset = extra_width // 2
+                right_offset = -extra_width // 2
             else:
                 top_offset = self._minimap_area_top_offset_partial
+                left_offset = 0
+                right_offset = 0
             return Box(
                 name="Minimap Area",
-                left=entire_minimap_box.left,
-                right=entire_minimap_box.right,
+                left=entire_minimap_box.left + left_offset,
+                right=entire_minimap_box.right + right_offset,
                 top=entire_minimap_box.top + top_offset,
                 bottom=entire_minimap_box.bottom,
             )
@@ -241,8 +272,8 @@ class Minimap(InGameDynamicVisuals, ABC):
             map_area_box = self.get_map_area_box(handle, client_img, world_icon_box)
             return Box(
                 name="Minimap Title",
-                left=map_area_box.left,
-                right=map_area_box.right,
+                left=entire_minimap_box.left,
+                right=entire_minimap_box.right,
                 top=entire_minimap_box.top,
                 bottom=map_area_box.top,
             )

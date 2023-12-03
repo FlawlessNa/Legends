@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
-from botting.models import BaseMap
+from botting.models_abstractions import BaseMap
 
 
 @dataclass
