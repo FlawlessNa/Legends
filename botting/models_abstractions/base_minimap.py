@@ -42,13 +42,7 @@ class BaseMinimapFeatures(InGameBaseVisuals, ABC):
                 list(self.features.keys()),
                 weights=[feature.area for feature in self.features.values()],
             ).pop()
-        initial_point = self.features[feature_name].random()
-        if self.features[feature_name].width == 1:
-            return self.features[feature_name].left, initial_point[1]
-        elif self.features[feature_name].height == 1:
-            return initial_point[0], self.features[feature_name].top
-        else:
-            return initial_point
+        return self.features[feature_name].random()
 
     def get_feature_containing(self, position: tuple[float, float]) -> Box:
         """

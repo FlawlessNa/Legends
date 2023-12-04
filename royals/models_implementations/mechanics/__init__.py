@@ -1,1 +1,1 @@
-from .minimap_mechanics import MinimapPathingMechanics
+from .minimap_mechanics import MinimapFeature, MinimapPathingMechanics
