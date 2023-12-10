@@ -5,7 +5,7 @@ from typing import Generator
 
 from botting import PARENT_LOG
 from botting.core import Bot, BotMonitor, QueueAction
-from .actions.pathfinding import get_to_target_pos
+from .actions.pathfinding import _get_path_to_target
 from .checks.mock import mock_check
 
 logger = logging.getLogger(f'{PARENT_LOG}.{__name__}')
@@ -27,7 +27,7 @@ class SubwayMagicianTraining(BotMonitor):
 
             while math.dist(self.game_data.current_pos, target) > 5:  # TODO - Find proper threshold
                 if self.watched_bot.rotation_lock.acquire(block=False):
-                    task = get_to_target_pos(self.game_data.current_pos, target, self.game_data.current_map)
+                    task = _get_path_to_target(self.game_data.current_pos, target, self.game_data.current_map)
                     self.pipe_end.send(
                         QueueAction(
                             priority=10,

@@ -34,6 +34,7 @@ async def press(
     silenced: bool = False,
     cooldown: float = 0.1,
     enforce_delay: bool = False,
+    down_or_up: Literal["keydown", "keyup"] | None = None,
     **kwargs,
 ) -> None:
     """
@@ -44,8 +45,13 @@ async def press(
     :param cooldown: Delay between each call to this function. However, several keys/inputs may be sent at once, and cooldown is only applied at the very end.
         Note: To control delay between each keys/inputs on a single call, pass in 'delay' as a keyword argument. Each delay will be slightly randomized.
     :param enforce_delay: Only applicable when silenced = False. If several inputs are sent at once, this will enforce a delay between each input. Otherwise, they are all simultaneous.
+    :param down_or_up: Whether to send a keydown or keyup event. If None, both are sent.
     :return: None
     """
+    if down_or_up is not None:
+        assert down_or_up in ["keydown", "keyup"]
+        assert not silenced, "Cannot send a keydown or keyup (as stand-alone) event when silenced=True."
+
     if silenced:
         await non_focused_input(
             handle,
@@ -58,7 +64,7 @@ async def press(
         await focused_input(
             handle,
             key,
-            ["keydown", "keyup"],
+            ["keydown", "keyup"] if down_or_up is None else [down_or_up],
             cooldown=cooldown,
             enforce_delay=enforce_delay,
             **kwargs,
@@ -119,6 +125,8 @@ async def move(
     jump_interval: float = 0,
     secondary_direction: Literal["up", "down"] | None = None,
     delay: float = 0.033,
+    enforce_delay: bool = True,
+    cooldown: float = 0,
 ) -> None:
     """
     Requires focus (Note: the lock is only used once all the inputs have been constructed, so it is not necessary to keep the lock for the entire duration of the function).
@@ -132,7 +140,9 @@ async def move(
     :param jump: bool. Whether to jump periodically or not.
     :param jump_interval: Interval between each jump. Only used if jump=True.
     :param secondary_direction: Secondary direction to press. Only used if direction is 'left' or 'right'. May be used to jump up ladders, jump down platforms, or enter portals.
-    :param delay: Default 0.033, which is somewhat equal to the keyboard automatic repeat feature as observed in Spy++ (on my PC setup).
+    :param delay: (In between each input) Default 0.033, which is somewhat equal to the keyboard automatic repeat feature as observed in Spy++ (on my PC setup).
+    :param enforce_delay: Whether to enforce a delay between each key press. If False, all inputs are sent simultaneously. Useful for quick jump + direction, or telecast.
+    :param cooldown: (After all inputs are sent) Cooldown after all messages have been sent. Default is 0.1 seconds.
     :return: None
     """
     assert direction in ("left", "right", "up", "down")
@@ -179,7 +189,7 @@ async def move(
     try:
         # await asyncio.wait_for(_combined_tasks(), duration)
         await asyncio.wait_for(
-            focused_input(handle, keys, events, enforce_delay=True, delay=delay),
+            focused_input(handle, keys, events, enforce_delay=enforce_delay, delay=delay),
             duration,
         )
     except asyncio.TimeoutError:
@@ -195,6 +205,8 @@ async def move(
         release_events: list[Literal] = ["keyup"] * len(release_keys)
         await focused_input(handle, release_keys, release_events, enforce_delay=False)
         logger.debug(f"{ign} has successfully released movement keys.")
+    if cooldown:
+        await asyncio.sleep(cooldown)
 
 
 async def mouse_move() -> None:

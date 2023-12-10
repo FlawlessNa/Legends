@@ -5,6 +5,7 @@ from typing import Sequence
 
 from royals.models_implementations.mechanics import (
     MinimapFeature,
+    MinimapConnection,
     MinimapPathingMechanics,
 )
 
@@ -12,17 +13,21 @@ from royals.models_implementations.mechanics import (
 class LudiFreeMarketTemplate(MinimapPathingMechanics):
     map_area_width = 116
     map_area_height = 57
+    minimap_speed: float = 7.891176807337812  # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
     bottom_platform: MinimapFeature = MinimapFeature(
         left=4,
         right=111,
         top=38,
         bottom=38,
         name="bottom_platform",
-        portal_source={
-            "FreeMarketEntrance": [(100, 38)],
-            "mid_left_portal": [(12, 38)],
-        },
-        portal_target={"FreeMarketEntrance": None, "mid_left_portal": [(13, 25)]},
+        connections=[
+            MinimapConnection(None, MinimapConnection.PORTAL, [(100, 38)]),
+            MinimapConnection(
+                "mid_left_portal", MinimapConnection.PORTAL, [(12, 38)], [(13, 25)]
+            ),
+            MinimapConnection("left_ladder", MinimapConnection.JUMP_ANY_AND_UP),
+            MinimapConnection("right_ladder", MinimapConnection.JUMP_ANY_AND_UP),
+        ],
     )
     mid_left_portal: MinimapFeature = MinimapFeature(
         left=11,
@@ -30,24 +35,32 @@ class LudiFreeMarketTemplate(MinimapPathingMechanics):
         top=25,
         bottom=25,
         name="mid_left_portal",
-        portal_source={"top_platform_0": True},
-        portal_target={"top_platform_0": [(10, 12)]},
-        jump_down={"bottom_platform": True},
-        jump={"mid_platform": True},
-        fall={"bottom_platform": True},
+        connections=[
+            MinimapConnection(
+                "top_platform_0",
+                MinimapConnection.PORTAL,
+                [(12, 25), (13, 25)],
+                [(10, 12)],
+            ),
+            MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
+            MinimapConnection("mid_platform", MinimapConnection.JUMP_RIGHT),
+            MinimapConnection("bottom_platform", MinimapConnection.FALL_ANY),
+        ]
     )
     mid_platform: MinimapFeature = MinimapFeature(
         left=17,
-        right=87,
+        right=86,
         top=25,
         bottom=25,
         name="mid_platform",
-        jump_down={"bottom_platform": True},
-        jump={
-            "mid_left_portal": [(17, 25), (18, 25), (19, 25)],
-            "mid_right_portal": [(85, 25), (86, 25), (87, 25)],
-        },
-        fall={"bottom_platform": True},
+        connections=[
+            MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
+            MinimapConnection("bottom_platform", MinimapConnection.FALL_ANY),
+            MinimapConnection("mid_left_portal", MinimapConnection.JUMP_LEFT),
+            MinimapConnection("mid_right_portal", MinimapConnection.JUMP_RIGHT),
+            MinimapConnection("platform_2_ladder", MinimapConnection.JUMP_ANY_AND_UP),
+            MinimapConnection("platform_5_ladder", MinimapConnection.JUMP_ANY_AND_UP),
+        ],
     )
     mid_right_portal: MinimapFeature = MinimapFeature(
         left=90,
@@ -55,10 +68,14 @@ class LudiFreeMarketTemplate(MinimapPathingMechanics):
         top=25,
         bottom=25,
         name="mid_right_portal",
-        portal_source={"bottom_platform": True},
-        portal_target={"bottom_platform": [(90, 38)]},
-        jump={"mid_platform": True},
-        fall={"bottom_platform": True},
+        connections=[
+            MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
+            MinimapConnection("bottom_platform", MinimapConnection.FALL_ANY),
+            MinimapConnection(
+                "bottom_platform", MinimapConnection.PORTAL, [(91, 25), (92, 25)], [(90, 38)]
+            ),
+            MinimapConnection("mid_platform", MinimapConnection.JUMP_LEFT),
+        ],
     )
     top_platform_0: MinimapFeature = MinimapFeature(
         left=9,
@@ -66,47 +83,39 @@ class LudiFreeMarketTemplate(MinimapPathingMechanics):
         top=12,
         bottom=12,
         name="top_platform_0",
-        jump={"top_platform_1": True},
-        jump_down={"bottom_platform": True},
-        fall={"bottom_platform": True},
+        connections=[
+            MinimapConnection("top_platform_1", MinimapConnection.JUMP_RIGHT),
+            MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
+            MinimapConnection("bottom_platform", MinimapConnection.FALL_ANY),
+        ],
     )
     top_platform_1: MinimapFeature = MinimapFeature(
         left=14,
-        right=23,
+        right=22,
         top=12,
         bottom=12,
         name="top_platform_1",
-        jump_down={
-            "mid_platform": [
-                (17, 12),
-                (18, 12),
-                (19, 12),
-                (20, 12),
-                (21, 12),
-                (22, 12),
-                (23, 12),
-            ],
-            "mid_left_portal": [(14, 12)],
-            "bottom_platform": [(16, 12), (15, 12)],
-        },
-        jump={
-            "top_platform_0": [(14, 12), (15, 12)],
-            "top_platform_2": [(23, 12), (22, 12)],
-        },
-        fall={"bottom_platform": [(14, 12)], "mid_platform": [(23, 12)]},
+        connections=[
+            MinimapConnection("top_platform_0", MinimapConnection.JUMP_LEFT),
+            MinimapConnection("top_platform_2", MinimapConnection.JUMP_RIGHT),
+            MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
+            MinimapConnection("mid_platform", MinimapConnection.JUMP_DOWN),
+            MinimapConnection("bottom_platform", MinimapConnection.FALL_LEFT),
+            MinimapConnection("mid_platform", MinimapConnection.FALL_RIGHT),
+        ],
     )
     top_platform_2: MinimapFeature = MinimapFeature(
         left=25,
-        right=34,
+        right=33,
         top=12,
         bottom=12,
         name="top_platform_2",
-        jump_down={"mid_platform": True},
-        jump={
-            "top_platform_1": [(25, 12), (26, 12)],
-            "top_platform_3": [(33, 12), (34, 12)],
-        },
-        fall={"mid_platform": True},
+        connections=[
+            MinimapConnection("top_platform_1", MinimapConnection.JUMP_LEFT),
+            MinimapConnection("top_platform_3", MinimapConnection.JUMP_RIGHT),
+            MinimapConnection("mid_platform", MinimapConnection.JUMP_DOWN),
+            MinimapConnection("mid_platform", MinimapConnection.FALL_ANY),
+        ],
     )
     top_platform_3: MinimapFeature = MinimapFeature(
         left=36,
@@ -114,12 +123,12 @@ class LudiFreeMarketTemplate(MinimapPathingMechanics):
         top=12,
         bottom=12,
         name="top_platform_3",
-        jump_down={"mid_platform": True},
-        jump={
-            "top_platform_2": [(36, 12), (37, 12)],
-            "top_platform_4": [(44, 12), (45, 12)],
-        },
-        fall={"mid_platform": True},
+        connections=[
+            MinimapConnection("top_platform_2", MinimapConnection.JUMP_LEFT),
+            MinimapConnection("top_platform_4", MinimapConnection.JUMP_RIGHT),
+            MinimapConnection("mid_platform", MinimapConnection.JUMP_DOWN),
+            MinimapConnection("mid_platform", MinimapConnection.FALL_ANY),
+        ],
     )
     top_platform_4: MinimapFeature = MinimapFeature(
         left=48,
@@ -127,38 +136,38 @@ class LudiFreeMarketTemplate(MinimapPathingMechanics):
         top=12,
         bottom=12,
         name="top_platform_4",
-        jump_down={"mid_platform": True},
-        jump={
-            "top_platform_3": [(48, 12), (49, 12)],
-            "top_platform_5": [(55, 12), (56, 12)],
-        },
-        fall={"mid_platform": True},
+        connections=[
+            MinimapConnection("top_platform_3", MinimapConnection.JUMP_LEFT),
+            MinimapConnection("top_platform_5", MinimapConnection.JUMP_RIGHT),
+            MinimapConnection("mid_platform", MinimapConnection.JUMP_DOWN),
+            MinimapConnection("mid_platform", MinimapConnection.FALL_ANY),
+        ],
     )
     top_platform_5: MinimapFeature = MinimapFeature(
         left=59,
-        right=68,
+        right=67,
         top=12,
         bottom=12,
         name="top_platform_5",
-        jump_down={"mid_platform": True},
-        jump={
-            "top_platform_4": [(58, 12), (59, 12)],
-            "top_platform_6": [(67, 12), (68, 12)],
-        },
-        fall={"mid_platform": True},
+        connections=[
+            MinimapConnection("top_platform_4", MinimapConnection.JUMP_LEFT),
+            MinimapConnection("top_platform_6", MinimapConnection.JUMP_RIGHT),
+            MinimapConnection("mid_platform", MinimapConnection.JUMP_DOWN),
+            MinimapConnection("mid_platform", MinimapConnection.FALL_ANY),
+        ],
     )
     top_platform_6: MinimapFeature = MinimapFeature(
         left=70,
-        right=79,
+        right=78,
         top=12,
         bottom=12,
         name="top_platform_6",
-        jump_down={"mid_platform": True},
-        jump={
-            "top_platform_5": [(70, 12), (71, 12)],
-            "top_platform_7": [(78, 12), (79, 12)],
-        },
-        fall={"mid_platform": True},
+        connections=[
+            MinimapConnection("top_platform_5", MinimapConnection.JUMP_LEFT),
+            MinimapConnection("top_platform_7", MinimapConnection.JUMP_RIGHT),
+            MinimapConnection("mid_platform", MinimapConnection.JUMP_DOWN),
+            MinimapConnection("mid_platform", MinimapConnection.FALL_ANY),
+        ],
     )
     top_platform_7: MinimapFeature = MinimapFeature(
         left=82,
@@ -166,22 +175,14 @@ class LudiFreeMarketTemplate(MinimapPathingMechanics):
         top=12,
         bottom=12,
         name="top_platform_7",
-        jump_down={
-            "mid_platform": [
-                (82, 12),
-                (83, 12),
-                (84, 12),
-                (85, 12),
-                (86, 12),
-                (87, 12),
-            ],
-            "bottom_platform": [(88, 12), (89, 12)],
-        },
-        jump={
-            "top_platform_6": [(82, 12), (83, 12)],
-            "top_right_portal": [(89, 12), (90, 12)],
-        },
-        fall={"mid_platform": [(82, 12)], "bottom_platform": [(90, 12)]},
+        connections=[
+            MinimapConnection("top_platform_6", MinimapConnection.JUMP_LEFT),
+            MinimapConnection("top_right_portal", MinimapConnection.JUMP_RIGHT),
+            MinimapConnection("mid_platform", MinimapConnection.JUMP_DOWN),
+            MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
+            MinimapConnection("mid_platform", MinimapConnection.FALL_LEFT),
+            MinimapConnection("bottom_platform", MinimapConnection.FALL_RIGHT),
+        ],
     )
     top_right_portal: MinimapFeature = MinimapFeature(
         left=93,
@@ -189,24 +190,57 @@ class LudiFreeMarketTemplate(MinimapPathingMechanics):
         top=12,
         bottom=12,
         name="top_right_portal",
-        portal_source={"mid_right_portal": True},
-        portal_target={"mid_right_portal": [(91, 25)]},
-        jump_down={"bottom_platform": True},
-        fall={"bottom_platform": True},
-        jump={"top_platform_7": [(93, 12), (94, 12)]},
+        connections=[
+            MinimapConnection("top_platform_7", MinimapConnection.JUMP_LEFT),
+            MinimapConnection("mid_right_portal", MinimapConnection.PORTAL, [(94, 25)], [(91, 25)]),
+            MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
+            MinimapConnection("bottom_platform", MinimapConnection.FALL_ANY),
+        ]
     )
-    # platform_5_ladder: MinimapFeature = MinimapFeature(
-    #     left=73, right=74, top=12, bottom=23, name="platform_5_ladder"
-    # )
-    # platform_2_ladder: MinimapFeature = MinimapFeature(
-    #     left=39, right=40, top=12, bottom=23, name="platform_2_ladder"
-    # )
-    # left_ladder: MinimapFeature = MinimapFeature(
-    #     left=33, right=34, top=24, bottom=37, name="left_ladder"
-    # )
-    # right_ladder: MinimapFeature = MinimapFeature(
-    #     left=82, right=83, top=24, bottom=36, name="right_ladder"
-    # )
+    platform_5_ladder: MinimapFeature = MinimapFeature(
+        left=65,
+        right=65,
+        top=12,
+        bottom=25,
+        name="platform_5_ladder",
+        connections=[
+            MinimapConnection("mid_platform", MinimapConnection.JUMP_LEFT),
+            MinimapConnection("mid_platform", MinimapConnection.JUMP_RIGHT),
+        ],
+    )
+    platform_2_ladder: MinimapFeature = MinimapFeature(
+        left=31,
+        right=31,
+        top=12,
+        bottom=25,
+        name="platform_2_ladder",
+        connections=[
+            MinimapConnection("mid_platform", MinimapConnection.JUMP_LEFT),
+            MinimapConnection("mid_platform", MinimapConnection.JUMP_RIGHT),
+        ],
+    )
+    left_ladder: MinimapFeature = MinimapFeature(
+        left=25,
+        right=25,
+        top=25,
+        bottom=38,
+        name="left_ladder",
+        connections=[
+            MinimapConnection("bottom_platform", MinimapConnection.JUMP_LEFT),
+            MinimapConnection("bottom_platform", MinimapConnection.JUMP_RIGHT),
+        ],
+    )
+    right_ladder: MinimapFeature = MinimapFeature(
+        left=74,
+        right=74,
+        top=25,
+        bottom=38,
+        name="right_ladder",
+        connections=[
+            MinimapConnection("bottom_platform", MinimapConnection.JUMP_LEFT),
+            MinimapConnection("bottom_platform", MinimapConnection.JUMP_RIGHT),
+        ],
+    )
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         """
@@ -221,7 +255,5 @@ class LudiFreeMarketTemplate(MinimapPathingMechanics):
             pt1: Sequence = (feature.left, feature.top)
             pt2: Sequence = (feature.right, feature.bottom)
             cv2.line(canvas, pt1, pt2, (255, 255, 255), 1)
-            # cv2.fillPoly(canvas, [np.array(rect)], (255, 255, 255))
-        # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-        # canvas = cv2.morphologyEx(canvas, cv2.MORPH_CLOSE, kernel)
+
         return canvas

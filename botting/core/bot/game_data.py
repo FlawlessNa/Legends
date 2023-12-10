@@ -14,7 +14,7 @@ class GameData(ABC):
     ign: str = field()
 
     current_map: BaseMap = field(repr=False, init=False)
-    current_pos: tuple[float, float] = field(repr=False, init=False)
+    # current_pos: tuple[int, int] = field(repr=False, init=False)
     current_hp_potions: int = field(repr=False, init=False)
     current_mp_potions: int = field(repr=False, init=False)
     current_pet_food: int = field(repr=False, init=False)

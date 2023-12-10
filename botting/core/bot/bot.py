@@ -29,12 +29,12 @@ class Bot:
     all_bots: list["Bot"] = []
 
     def __init__(
-        self, handle: int, ign: str, game_data: GameData, monitor: type["BotMonitor"]
+        self, monitor: type["BotMonitor"], handle: int, ign: str, game_data
     ) -> None:
+        self.monitor = monitor
         self.handle = handle
         self.ign = ign
         self.game_data = game_data
-        self.monitor = monitor
 
         self.bot_side, self.monitoring_side = multiprocessing.Pipe()
         self.rotation_lock = multiprocessing.Lock()  # Used to manage when map rotation can be enqueued
@@ -119,6 +119,8 @@ class Bot:
     @classmethod
     def cancel_all(cls):
         cls.shared_queue.put_nowait(None)
+        for bot in cls.all_bots:
+            bot.bot_side.send(None)
 
     @classmethod
     def update_logging_queue(cls, logging_queue: multiprocessing.Queue) -> None:

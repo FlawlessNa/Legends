@@ -1,12 +1,17 @@
 # Royals-V2
 
 ## TODO
-- [x] Refactor Package more appropriately - there should be a "botting" library and a "royals" implementation.
 - [ ] Minimap pathing
-  - [ ] Clean minimap class structure and grid constructor (Add a Feature subclass of Box??)
-  - [ ] algorithm to find paths between point A and B based on minimap
+  - [x] Clean minimap class structure and grid constructor (Add a Feature subclass of Box??)
+  - [x] algorithm to find paths between point A and B based on minimap
   - [ ] Translate path to movements
+    - [ ] Add basic movement functions
+      - [ ] Use a portal based on the direction you are arriving from
+      - [ ] Using a ladder
+      - [ ] Jumping into a rope/ladder
 - [ ] Automated handle and IGN associated + retrieval
+- [ ] Remove Asyncio.PriorityQueue and bypass by simply using the mp.Queue
+- [ ] RoyalsData - Should be instanciated within BotMonitor (child process) and updated from there.
 - [ ] Enable np arrays/.png files to be sent through Pipe - then send chat images towards discord
 - [ ] GPT Automated Responses
 - [ ] Character detection
@@ -18,9 +23,6 @@
   - [ ] Inventory
   - [ ] Level up detection
   - [ ] Ability Points assignment
-- [ ] Common actions
-  - [ ] Jumping on a rope/ladder
-  - [ ] Jumping from a platform to another
 - [ ] UnitTests on the botting library
 
 ## Nice to have
