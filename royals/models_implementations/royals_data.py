@@ -11,6 +11,7 @@ from royals.models_implementations.mechanics import MinimapPathingMechanics
 class RoyalsData(GameData):
     minimap_is_displayed: bool = field(repr=False, init=False)
     minimap_state: str = field(repr=False, init=False)
+    current_direction: str = field(default='right', repr=False, init=False)
     current_minimap: MinimapPathingMechanics = field(repr=False, init=False)
     current_minimap_title_img: np.ndarray = field(repr=False, init=False)
     current_minimap_area_box: Box = field(repr=False, init=False)

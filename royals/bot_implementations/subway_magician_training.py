@@ -1,11 +1,10 @@
 import logging
-import math
+
 from functools import partial
 from typing import Generator
 
 from botting import PARENT_LOG
-from botting.core import Bot, BotMonitor, QueueAction
-from .actions.pathfinding import _get_path_to_target
+from botting.core import Bot, BotMonitor
 from .checks.mock import mock_check
 
 logger = logging.getLogger(f'{PARENT_LOG}.{__name__}')
@@ -20,26 +19,6 @@ class SubwayMagicianTraining(BotMonitor):
 
     def next_map_rotation(self) -> list[callable]:
         return [self.get_to_next_point, self.attack_mobs]
-
-    def get_to_next_point(self) -> Generator:
-        while True:
-            target = self.game_data.current_map.random_point()
-
-            while math.dist(self.game_data.current_pos, target) > 5:  # TODO - Find proper threshold
-                if self.watched_bot.rotation_lock.acquire(block=False):
-                    task = _get_path_to_target(self.game_data.current_pos, target, self.game_data.current_map)
-                    self.pipe_end.send(
-                        QueueAction(
-                            priority=10,
-                            identifier="Map Rotation",
-                            action=task,
-                            is_cancellable=True,
-                            is_map_rotation=True,
-                            release_rotation_lock=True,
-                            update_game_data=("current_pos",),
-                        )
-                    )
-                yield
 
     def attack_mobs(self) -> Generator:
         pass

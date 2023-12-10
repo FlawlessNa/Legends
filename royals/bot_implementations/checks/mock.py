@@ -4,7 +4,7 @@ from typing import Generator
 from botting.core import QueueAction
 from botting.core.controls import controller
 
-HANDLE = 0x000A13EC
+HANDLE = 0x009D0B92
 
 
 async def _test_check(key):

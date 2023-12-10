@@ -1,11 +1,14 @@
 import cv2
 import itertools
+import math
 import numpy as np
 
 from functools import partial
 from pathfinding.finder.a_star import AStarFinder
+from typing import Generator
 
 from botting.core.controls import controller
+from royals.models_implementations.royals_data import RoyalsData
 from royals.bot_implementations.actions.movements import jump_on_rope
 from royals.models_implementations.mechanics import (
     MinimapPathingMechanics,
@@ -14,6 +17,32 @@ from royals.models_implementations.mechanics import (
 )
 
 DEBUG = True
+
+
+def random_rotation(data: RoyalsData) -> Generator:
+    """TODO - See if updating RoyalsData from outside this function properly works within the function."""
+    current_minimap = data.current_minimap
+    while True:
+        target_pos = current_minimap.random_point()
+        current_pos = current_minimap.get_character_positions(
+            data.handle, map_area_box=data.current_minimap_area_box
+        ).pop()
+
+        while math.dist(current_pos, target_pos) > 2:
+            current_pos = current_minimap.get_character_positions(
+                data.handle, map_area_box=data.current_minimap_area_box
+            ).pop()
+
+            actions = get_to_target(current_pos, target_pos, current_minimap)
+            try:
+                first_action = actions[0]
+                assert first_action.args == tuple()  # Ensures arguments are keywords-only
+                args = (data.handle, data.ign, first_action.keywords.get('direction', data.current_direction))
+                kwargs = getattr(first_action, 'keywords', {})
+                kwargs.pop('direction', None)
+                yield partial(first_action.func, *args, **kwargs)
+            except IndexError:
+                yield
 
 
 def _debug(
@@ -132,6 +161,9 @@ def _translate_path_into_movements(path: list[MinimapNode]) -> list[tuple[str, i
         if (
             squeezed_movements[i][0] == "JUMP_LEFT_AND_UP"
             and squeezed_movements[i + 1][0] == "JUMP_LEFT"
+        ) or (
+            squeezed_movements[i][0] == "JUMP_RIGHT_AND_UP"
+            and squeezed_movements[i + 1][0] == "JUMP_RIGHT"
         ):
             squeezed_movements.pop(i)
             squeezed_movements.pop(i)
@@ -159,12 +191,14 @@ def _convert_movements_to_actions(
             direction = movement[0].split("_")[-1].lower()
             duration = movement[1] / speed
             if movement[0] in ["FALL_LEFT", "FALL_RIGHT"]:
-                duration += 3 / speed  # Add extra nodes to make sure character goes beyond platform
+                duration += (
+                    3 / speed
+                )  # Add extra nodes to make sure character goes beyond platform
             elif direction in ["up", "down"]:
                 # In this case, check if this is the last movement, which means the target is on the same platform.
                 # If not, add extra nodes to make sure character goes beyond the ladder.
                 if not movement == moves[-1]:
-                    duration += 3 / speed
+                    duration += 5 / speed
             elif movement[0] in ["left", "right"]:
                 # In this case, check if the next movement is a simple "up" or "down" movement.
                 # If so, we add it as secondary direction, but only once we are close enough to the ladder.
@@ -174,14 +208,21 @@ def _convert_movements_to_actions(
                     if next_move[0] in ["up", "down"]:
                         if movement[1] < 5:
                             secondary_direction = next_move[0]
-                            duration += 3 / speed  # Make sure we automatically enter the ladder
+                            duration += (
+                                3 / speed
+                            )  # Make sure we reach the ladder
                         else:
-                            # Otherwise, make sure we stop before the ladder and it will be re-calculated next iteration
+                            # Otherwise, make sure we stop before the ladder and re-calculate on next iteration
                             duration -= 3 / speed
                 except IndexError:
                     pass
 
-            act = partial(controller.move, direction=direction, duration=duration, secondary_direction=secondary_direction)
+            act = partial(
+                controller.move,
+                direction=direction,
+                duration=duration,
+                secondary_direction=secondary_direction,
+            )
 
         elif movement[0] in ["JUMP_LEFT", "JUMP_RIGHT", "JUMP_DOWN", "JUMP_UP"]:
             direction = movement[0].split("_")[-1].lower()
@@ -192,7 +233,7 @@ def _convert_movements_to_actions(
                     duration=0.05,
                     jump=True,
                     enforce_delay=False,
-                    cooldown=0.5  # Leaves extra time to actually land before next action
+                    cooldown=0.5,  # Leaves extra time to actually land before next action
                 )
             ] * movement[1]
 
@@ -209,7 +250,12 @@ def _convert_movements_to_actions(
         elif movement[0] == "PORTAL":
             # Primary direction should be defined through InGameData, outside scope of this function.
             act = [
-                partial(controller.move, secondary_direction="up", duration=0.03, enforce_delay=False)
+                partial(
+                    controller.move,
+                    secondary_direction="up",
+                    duration=0.03,
+                    enforce_delay=False,
+                )
             ] * movement[1]
 
         elif movement[0] in [

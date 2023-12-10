@@ -7,7 +7,7 @@ import numpy as np
 import cv2
 import time
 from botting.core.controls import controller
-from royals.bot_implementations.actions.pathfinding import get_to_target
+from royals.bot_implementations.actions.random_rotation import get_to_target
 from functools import partial
 from typing import Literal
 
