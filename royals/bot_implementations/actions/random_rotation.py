@@ -24,22 +24,24 @@ def random_rotation(data: RoyalsData) -> Generator:
     current_minimap = data.current_minimap
     while True:
         target_pos = current_minimap.random_point()
-        current_pos = current_minimap.get_character_positions(
-            data.handle, map_area_box=data.current_minimap_area_box
-        ).pop()
+        current_pos = data.current_minimap_position
 
         while math.dist(current_pos, target_pos) > 2:
-            current_pos = current_minimap.get_character_positions(
-                data.handle, map_area_box=data.current_minimap_area_box
-            ).pop()
-
+            data.update('current_minimap_position')
+            current_pos = data.current_minimap_position
             actions = get_to_target(current_pos, target_pos, current_minimap)
             try:
                 first_action = actions[0]
-                assert first_action.args == tuple()  # Ensures arguments are keywords-only
-                args = (data.handle, data.ign, first_action.keywords.get('direction', data.current_direction))
-                kwargs = getattr(first_action, 'keywords', {})
-                kwargs.pop('direction', None)
+                assert (
+                    first_action.args == tuple()
+                )  # Ensures arguments are keywords-only
+                args = (
+                    data.handle,
+                    data.ign,
+                    first_action.keywords.get("direction", data.current_direction),
+                )
+                kwargs = getattr(first_action, "keywords", {})
+                kwargs.pop("direction", None)
                 yield partial(first_action.func, *args, **kwargs)
             except IndexError:
                 yield
@@ -208,9 +210,7 @@ def _convert_movements_to_actions(
                     if next_move[0] in ["up", "down"]:
                         if movement[1] < 5:
                             secondary_direction = next_move[0]
-                            duration += (
-                                3 / speed
-                            )  # Make sure we reach the ladder
+                            duration += 3 / speed  # Make sure we reach the ladder
                         else:
                             # Otherwise, make sure we stop before the ladder and re-calculate on next iteration
                             duration -= 3 / speed

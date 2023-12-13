@@ -1,22 +1,23 @@
 # Royals-V2
 
 ## TODO
-- [ ] Minimap pathing
-  - [x] Clean minimap class structure and grid constructor (Add a Feature subclass of Box??)
-  - [x] algorithm to find paths between point A and B based on minimap
-  - [ ] Translate path to movements
-    - [ ] Add basic movement functions
-      - [ ] Use a portal based on the direction you are arriving from
-      - [ ] Using a ladder
-      - [ ] Jumping into a rope/ladder
-- [ ] Automated handle and IGN associated + retrieval
-- [ ] Remove Asyncio.PriorityQueue and bypass by simply using the mp.Queue
-- [ ] RoyalsData - Should be instanciated within BotMonitor (child process) and updated from there.
-- [ ] Enable np arrays/.png files to be sent through Pipe - then send chat images towards discord
-- [ ] GPT Automated Responses
 - [ ] Character detection
   - [ ] Combine with Mob detection and skill range to determine if a mob is in range
+- [x] Remove Asyncio.PriorityQueue and bypass by simply using the mp.Queue
+- [x] RoyalsData - Should be instanciated within BotMonitor (child process) and updated from there.
+- [x] Automated handle and IGN associated + retrieval
+- [ ] Enable np arrays/.png files to be sent through Pipe - then send chat images towards discord
+- [ ] Anti Detection Features -> Features are monitored in the child processes, but reactions and coordinations between clients done in Main
+  - [ ] Chat Parsing + Automated Responses
+  - [ ] Minimap Parsing for strangers + random reaction
+  - [ ] Minimap Parsing for unexpected self movements + random reaction
+  - [ ] Minimap parsing to ensure still in proper map + random reaction
+  - [ ] Mob freeze (from a GM) + random reaction
+  - [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs + random reaction
+- [ ] GPT Automated Responses
+- [ ] For chat lines reading, try converting to gray and applying simple thresholding (general lines at least)
 - [ ] When done, update all docstrings as some are lacking now.
+- [ ] Minimap Parsing - "Draw" the minimap canvas while YOU manually move around the entire map. Then, translate drawings into features and adjust.
 - [ ] Mouse movements and mouse clicks
 - [ ] Refactor game interface more accurately
   - [ ] Quickslots

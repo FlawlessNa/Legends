@@ -183,5 +183,6 @@ class LargeClientChatFeed(ChatFeed):
     _chat_feed_displayed_detection_box = Box(left=6, right=82, top=732, bottom=750)
     _chat_feed_height_detection_box = Box(left=629, right=642, top=217, bottom=711)
 
+
 class SmallClientChatFeed(ChatFeed):
     pass

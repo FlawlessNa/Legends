@@ -1,20 +1,30 @@
-import logging
 import multiprocessing
 
 from abc import ABC, abstractmethod
 
-from .bot import Bot, GameData
+from .executor import Executor
+from botting.core.bot.game_data import GameData
 from botting.utilities import ChildProcess
 
-logger = logging.getLogger(__name__)
 
+class DecisionEngine(ChildProcess, ABC):
+    ign_finder: callable  # Function that returns the handle of a client given its IGN. Defined in child classes.
 
-class BotMonitor(ChildProcess, ABC):
-    def __init__(self, logging_queue: multiprocessing.Queue, bot: Bot) -> None:
+    def __init__(self, logging_queue: multiprocessing.Queue, bot: Executor) -> None:
         super().__init__(logging_queue, bot.monitoring_side)
         self.source = repr(bot)
         self.watched_bot = bot
-        self.game_data: GameData = bot.game_data
+        self.handle = bot.handle
+        self.ign = bot.ign
+
+    @property
+    @abstractmethod
+    def game_data(self) -> GameData:
+        """
+        Child instances should store in this property the game data that is being monitored.
+        :return: Game data.
+        """
+        pass
 
     @abstractmethod
     def items_to_monitor(self) -> list[callable]:
@@ -58,7 +68,7 @@ class BotMonitor(ChildProcess, ABC):
                 while self.pipe_end.poll():
                     signal = self.pipe_end.recv()
                     if signal is None:
-                        break
+                        raise RuntimeError
                     self.game_data.update(signal)
 
                 for check in generators:
@@ -66,6 +76,9 @@ class BotMonitor(ChildProcess, ABC):
 
                 for rotation in map_rotation:
                     next(rotation)
+
+        except RuntimeError:
+            pass
 
         except Exception as e:
             raise
@@ -77,7 +90,7 @@ class BotMonitor(ChildProcess, ABC):
 
     @staticmethod
     def start_monitoring(
-        bot: "Bot",
+        bot: "Executor",
         log_queue: multiprocessing.Queue,
     ):
         """
@@ -87,6 +100,5 @@ class BotMonitor(ChildProcess, ABC):
         :param log_queue: The logging queue that is used to send logs from the child process to the main process.
         :return:
         """
-        # ChildProcess.set_log_queue(log_queue)
-        monitor = bot.monitor(log_queue, bot)
+        monitor = bot.engine(log_queue, bot)
         monitor.start()

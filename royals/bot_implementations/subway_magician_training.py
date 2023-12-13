@@ -4,14 +4,14 @@ from functools import partial
 from typing import Generator
 
 from botting import PARENT_LOG
-from botting.core import Bot, BotMonitor
+from botting.core import Executor, DecisionEngine
 from .checks.mock import mock_check
 
 logger = logging.getLogger(f'{PARENT_LOG}.{__name__}')
 
 
-class SubwayMagicianTraining(BotMonitor):
-    def __init__(self, bot: Bot) -> None:
+class SubwayMagicianTraining(DecisionEngine):
+    def __init__(self, bot: Executor) -> None:
         super().__init__(bot)
 
     def items_to_monitor(self) -> list[callable]:

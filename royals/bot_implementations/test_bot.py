@@ -5,15 +5,15 @@ import multiprocessing
 from functools import partial
 
 import botting
-from botting.core import QueueAction, BotMonitor, Bot
+from botting.core import QueueAction, DecisionEngine, Executor
 from .actions.mock import _test_action
 from .checks.mock import mock_check
 
 logger = logging.getLogger(f'{botting.PARENT_LOG}.{__name__}')
 
 
-class TestBot(BotMonitor):
-    def __init__(self, log_queue: multiprocessing.Queue, bot: Bot) -> None:
+class TestBot(DecisionEngine):
+    def __init__(self, log_queue: multiprocessing.Queue, bot: Executor) -> None:
         super().__init__(log_queue, bot)
 
     def items_to_monitor(self) -> list[callable]:

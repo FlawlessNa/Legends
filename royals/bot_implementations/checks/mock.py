@@ -4,8 +4,7 @@ from typing import Generator
 from botting.core import QueueAction
 from botting.core.controls import controller
 
-HANDLE = 0x009D0B92
-
+HANDLE = 0x02300A26
 
 async def _test_check(key):
     await controller.press(HANDLE, key, silenced=True)
@@ -16,7 +15,7 @@ def mock_check(pipe: multiprocessing.connection.Connection) -> Generator:
 
     last_potion = 0
     while True:
-        if time.time() - last_potion > 10:
+        if time.time() - last_potion > 4:
             last_potion = time.time()
             pipe.send(
                 QueueAction(

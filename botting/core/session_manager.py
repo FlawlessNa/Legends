@@ -6,7 +6,7 @@ from typing import Self
 
 from botting.screen_recorder import RecorderLauncher
 from .communications import DiscordLauncher
-from .bot import Bot, BotLauncher
+from .bot import Executor, BotLauncher
 
 
 logger = logging.getLogger(__name__)
@@ -27,9 +27,9 @@ class SessionManager(BotLauncher, DiscordLauncher, RecorderLauncher):
 
     logging_queue = multiprocessing.Queue()
 
-    def __init__(self, *bots_to_launch: Bot) -> None:
+    def __init__(self, *bots_to_launch: Executor) -> None:
         self.bots = bots_to_launch
-        Bot.update_logging_queue(self.logging_queue)
+        Executor.update_logging_queue(self.logging_queue)
         BotLauncher.__init__(self, self.logging_queue)
         DiscordLauncher.__init__(self, self.logging_queue)
         RecorderLauncher.__init__(self, self.logging_queue)
@@ -77,9 +77,9 @@ class SessionManager(BotLauncher, DiscordLauncher, RecorderLauncher):
             f'Launching {len(self.bots)} bots. The following bots will be launched: {" ".join(repr(bot) for bot in self.bots)}'
         )
         try:
-            await Bot.run_all()
-        except Exception as e:
-            raise
+            await Executor.run_all()
+        # except Exception as e:
+        #     raise
         finally:
             logger.info(
                 "All bots have been stopped. calling __exit__ on all launchers."

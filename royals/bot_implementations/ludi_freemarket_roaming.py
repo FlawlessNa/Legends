@@ -3,20 +3,30 @@ import multiprocessing
 
 from functools import partial
 
-import botting
-import royals
+from botting import PARENT_LOG
+from botting.core import QueueAction, DecisionEngine, Executor
 
-from botting.core import QueueAction, BotMonitor, Bot
-from royals.bot_implementations.actions import random_rotation
+from royals import royals_ign_finder, RoyalsData
+from royals.models_implementations.minimaps import LudiFreeMarketTemplate as Ludi
+
 from .checks.mock import mock_check
+from .actions import random_rotation
 
-logger = logging.getLogger(f"{botting.PARENT_LOG}.{__name__}")
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
-class LudiFreeMarketRoaming(BotMonitor):
-    def __init__(self, log_queue: multiprocessing.Queue, bot: Bot) -> None:
+class LudiFreeMarketRoaming(DecisionEngine):
+    ign_finder = royals_ign_finder
+
+    def __init__(self, log_queue: multiprocessing.Queue, bot: Executor) -> None:
         super().__init__(log_queue, bot)
-        self.game_data: royals.RoyalsData = bot.game_data
+        self._game_data = RoyalsData(self.handle, self.ign)
+        self.game_data.current_minimap = Ludi()
+        self.game_data.update("current_minimap_area_box", "current_minimap_position")
+
+    @property
+    def game_data(self) -> RoyalsData:
+        return self._game_data
 
     def items_to_monitor(self) -> list[callable]:
         return [partial(mock_check, self.pipe_end)]
@@ -37,7 +47,7 @@ class LudiFreeMarketRoaming(BotMonitor):
                         QueueAction(
                             priority=10,
                             identifier="Map Rotation",
-                            action=next(generator),
+                            action=action,
                             is_cancellable=True,
                             is_map_rotation=True,
                             release_rotation_lock=True,
@@ -45,38 +55,3 @@ class LudiFreeMarketRoaming(BotMonitor):
                         )
                     )
             yield
-        # while True:
-        #     target = self.game_data.current_minimap.random_point()
-        #
-        #     while (
-        #         math.dist(self.game_data.current_minimap_position, target) > 5
-        #     ):  # TODO - Find proper threshold
-        #         self.game_data.update("current_minimap_position")
-        #
-        #         if self.watched_bot.rotation_lock.acquire(block=False):
-        #             logger.debug(
-        #                 "Rotation Lock acquired. Next action is being sent to main queue."
-        #             )
-        #             tasks = _get_path_to_target(
-        #                 self.game_data.current_minimap_position,
-        #                 target,
-        #                 self.game_data.handle,
-        #                 self.game_data.current_minimap,
-        #             )
-        #             if tasks:
-        #                 print(tasks[0])
-        #                 self.pipe_end.send(
-        #                     QueueAction(
-        #                         priority=10,
-        #                         identifier="Map Rotation",
-        #                         action=tasks[0],
-        #                         is_cancellable=True,
-        #                         is_map_rotation=True,
-        #                         release_rotation_lock=True,
-        #                         update_game_data=("current_minimap_position",),
-        #                     )
-        #                 )
-        #             else:
-        #                 logger.debug("Rotation Lock released since to task found.")
-        #                 self.watched_bot.rotation_lock.release()
-        #         yield

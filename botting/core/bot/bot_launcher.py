@@ -1,7 +1,7 @@
 import logging
 import multiprocessing
 
-from .bot import Bot
+from .executor import Executor
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +18,12 @@ class BotLauncher:
         self.logging_queue = logging_queue
 
     def __enter__(self) -> None:
-        for bot in Bot.all_bots:
+        for bot in Executor.all_bots:
             bot.set_monitoring_process()
             bot.monitoring_process.start()
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        for bot in Bot.all_bots:
+        for bot in Executor.all_bots:
             bot.bot_side.send(None)
             bot.bot_side.close()
             logger.debug(f"Sent stop signal to {bot} monitoring process")

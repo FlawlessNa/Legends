@@ -18,6 +18,9 @@ class RoyalsData(GameData):
     current_minimap_position: tuple[int, int] = field(repr=False, init=False)
 
     def update(self, *args) -> None:
+        if 'current_minimap_area_box' in args:
+            self.current_minimap_area_box = self.current_minimap.get_map_area_box(self.handle)
+
         if 'current_minimap_position' in args:
             new_pos = self.current_minimap.get_character_positions(self.handle, map_area_box=self.current_minimap_area_box)
             assert len(new_pos) == 1

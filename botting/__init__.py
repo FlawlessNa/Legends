@@ -10,7 +10,7 @@ import os
 import pytesseract
 import time
 
-from .core import SessionManager, Bot
+from .core import SessionManager, Executor, GameData
 from paths import ROOT, TESSERACT
 
 
