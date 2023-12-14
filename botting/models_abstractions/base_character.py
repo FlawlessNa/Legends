@@ -17,11 +17,12 @@ class BaseCharacter(InGameBaseVisuals, ABC):
 
     detection_box: Box
 
-    def __init__(self, skills: list["Skills"] | None = None) -> None:
-        self.skills = skills
+    def __init__(self, ign: str, skills: list["Skills"] | None = None) -> None:
+        self.ign = ign
+        self._skills = skills
 
     @abstractmethod
-    def get_character_position(self, image: np.ndarray) -> Sequence[int] | None:
+    def get_onscreen_position(self, image: np.ndarray | None) -> Sequence[int] | None:
         pass
 
     @property

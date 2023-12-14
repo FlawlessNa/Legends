@@ -200,7 +200,7 @@ class Minimap(InGameDynamicVisuals, ABC):
         if world_icon_box is None:
             world_icon_box = self._menu_icon_position(handle, client_img)
 
-        entire_minimap_box = self._get_entire_minimap_box(
+        entire_minimap_box = self.get_entire_minimap_box(
             handle, client_img, world_icon_box
         )
         if entire_minimap_box:
@@ -265,7 +265,7 @@ class Minimap(InGameDynamicVisuals, ABC):
         if self.get_minimap_state(handle, client_img, world_icon_box) != "Full":
             return
 
-        entire_minimap_box = self._get_entire_minimap_box(
+        entire_minimap_box = self.get_entire_minimap_box(
             handle, client_img, world_icon_box
         )
         if entire_minimap_box:
@@ -278,7 +278,7 @@ class Minimap(InGameDynamicVisuals, ABC):
                 bottom=map_area_box.top,
             )
 
-    def _get_entire_minimap_box(
+    def get_entire_minimap_box(
         self,
         handle: int,
         client_img: np.ndarray | None = None,

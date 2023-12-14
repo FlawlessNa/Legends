@@ -13,6 +13,7 @@ logger = logging.getLogger(f'{PARENT_LOG}.{__name__}')
 class SubwayMagicianTraining(DecisionEngine):
     def __init__(self, bot: Executor) -> None:
         super().__init__(bot)
+        self.game_data.update("current_minimap_area_box", "current_minimap_position", "current_entire_minimap_box")
 
     def items_to_monitor(self) -> list[callable]:
         return [partial(mock_check, self.pipe_end)]

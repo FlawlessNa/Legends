@@ -146,10 +146,21 @@ class HsvFilter:
 
 
 if __name__ == "__main__":
-    HANDLE = 0x00620DFE
+    HANDLE = 0x02300A26
+
     init_control_gui()
     while True:
-        img = take_screenshot(HANDLE)
+        img = take_screenshot(HANDLE, dict(left=0, right=1024, top=165, bottom=700))
         processed = apply_filters(img)
         cv2.imshow("processed", processed)
+        cv2.waitKey(1)
+        _hsv_lower = np.array([0, 0, 255])
+        _hsv_upper = np.array([179, 87, 255])
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        binary = cv2.inRange(hsv, _hsv_lower, _hsv_upper)
+        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        largest = max(contours, key=cv2.contourArea)
+
+        cv2.drawContours(img, [largest], 0, (0, 255, 0), 3)
+        cv2.imshow('contoured', img)
         cv2.waitKey(1)

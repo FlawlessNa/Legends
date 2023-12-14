@@ -1,10 +1,17 @@
 from functools import cached_property
 
+import numpy as np
+
 from royals.interface import Minimap
+
 from botting.utilities import Box
 
 
 class KerningLine1Area1(Minimap):
+
+    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
+        pass
+
     @property
     def features(self) -> dict[str, Box]:
         return super().features

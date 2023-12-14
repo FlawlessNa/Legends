@@ -21,15 +21,15 @@ DEBUG = True
 
 def random_rotation(data: RoyalsData) -> Generator:
     """TODO - See if updating RoyalsData from outside this function properly works within the function."""
-    current_minimap = data.current_minimap
+
     while True:
-        target_pos = current_minimap.random_point()
+        target_pos = data.current_minimap.random_point()
         current_pos = data.current_minimap_position
 
         while math.dist(current_pos, target_pos) > 2:
             data.update('current_minimap_position')
             current_pos = data.current_minimap_position
-            actions = get_to_target(current_pos, target_pos, current_minimap)
+            actions = get_to_target(current_pos, target_pos, data.current_minimap)
             try:
                 first_action = actions[0]
                 assert (

@@ -473,13 +473,13 @@ class TestMinimap(TestCase):
     def test__get_entire_minimap_box(self):
         for idx, img in enumerate(self.test_images):
             self.assertEqual(
-                self.minimap._get_entire_minimap_box(
+                self.minimap.get_entire_minimap_box(
                     self.dummy_handle, self.test_images[img], None
                 ),
                 self._entire_minimap_box[idx],
             )
             self.assertEqual(
-                self.minimap._get_entire_minimap_box(
+                self.minimap.get_entire_minimap_box(
                     self.dummy_handle, self.test_images[img], self._world_icons_box[idx]
                 ),
                 self._entire_minimap_box[idx],
