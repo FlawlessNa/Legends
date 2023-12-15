@@ -105,3 +105,6 @@ class Box:
     def random(self) -> tuple[int, int]:
         """Returns a random point inside the box"""
         return random.randint(*self.xrange), random.randint(*self.yrange)
+
+    def crop_client_img(self) -> tuple[slice]:
+        raise NotImplementedError

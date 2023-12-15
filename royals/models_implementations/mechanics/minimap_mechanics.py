@@ -1,9 +1,11 @@
+import cv2
 import numpy as np
 
 from abc import ABC
 from dataclasses import dataclass, field
 from pathfinding.core.grid import Grid
 from pathfinding.core.node import GridNode
+from typing import Sequence
 
 from botting.models_abstractions import BaseMinimapFeatures
 from botting.utilities import Box
@@ -163,6 +165,9 @@ class MinimapFeature(Box):
 
 class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
     minimap_speed: float
+    jump_height: int
+    jump_distance: int
+    jump_down_limit: int = 500  # No limit by default (500 is extremely large, will never be reached)
 
     def __init__(self):
         for feature in self.features.values():
@@ -172,6 +177,30 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                     for conn in feature.connections
                     if conn.other_feature_name is not None
                 ), "Invalid connection names."
+        self.grid = self.generate_grid_template()
+
+        # Compute a "parabola"-like equation to help in establishing connections
+        h, k = self.jump_distance / 2, self.jump_height
+        a = -k / h ** 2
+
+        self.jump_parabola_y = lambda x: - a * (x - h) ** 2 + k
+        self.jump_parabola_x = lambda y: h + np.sqrt(-(y - k) / a)  # Two solutions
+
+    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
+        """
+        Creates a Grid-like image used for pathfinding algorithm.
+        :param image: Original minimap area image.
+        :return: Binary image with white pixels representing walkable areas.
+        """
+        if len(image.shape) == 3:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        canvas = np.zeros_like(image)
+        for feature in self.features.values():
+            pt1: Sequence = (feature.left, feature.top)
+            pt2: Sequence = (feature.right, feature.bottom)
+            cv2.line(canvas, pt1, pt2, (255, 255, 255), 1)
+
+        return canvas
 
     @property
     def features(self) -> dict[str, MinimapFeature]:
@@ -203,74 +232,93 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         base_grid = MinimapGrid(matrix=np.where(canvas == 255, 1, 0))
 
         for feature in self.features.values():
-            for connection in feature.connections:
-                if connection.other_feature_name is None:
-                    continue  # TODO: Implement connections to other maps
-                other_feature = self.features[connection.other_feature_name]
+            for other_feature in self.features.values():
+                if feature == other_feature:
+                    continue
+                if other_feature.name in [conn.other_feature_name for conn in feature.connections]:
+                    # TODO -- Special connections not constructed by default, add custom-built ones here
+                    pass
 
-                if connection.connection_type == MinimapConnection.JUMP_DOWN:
-                    self._add_jump_down_connection(base_grid, feature, other_feature)
+                if feature.height == other_feature.height == 0:
+                    # Both are platforms
+                    vertical_distance = feature.top - other_feature.top
+                    if 0 < vertical_distance <= self.jump_down_limit:
+                        # Current Feature above the other - add potential jump down connections
+                        self._add_jump_down_connection(base_grid, feature, other_feature)
+                    elif 0 < -vertical_distance <= self.jump_height:
+                        # Current Feature below the other - add potential jump up connections
+                        self._add_jump_up_connection(base_grid, feature, other_feature)
 
-                elif connection.connection_type == MinimapConnection.JUMP_LEFT:
-                    self._add_jump_connection(base_grid, "left", feature, other_feature)
 
-                elif connection.connection_type == MinimapConnection.JUMP_RIGHT:
-                    self._add_jump_connection(
-                        base_grid, "right", feature, other_feature
-                    )
-
-                elif connection.connection_type == MinimapConnection.JUMP_UP:
-                    breakpoint()
-
-                elif connection.connection_type == MinimapConnection.FALL_LEFT:
-                    self._add_fall_connection(base_grid, "left", feature, other_feature)
-
-                elif connection.connection_type == MinimapConnection.FALL_RIGHT:
-                    self._add_fall_connection(
-                        base_grid, "right", feature, other_feature
-                    )
-
-                elif connection.connection_type == MinimapConnection.FALL_ANY:
-                    self._add_fall_connection(base_grid, "left", feature, other_feature)
-                    self._add_fall_connection(
-                        base_grid, "right", feature, other_feature
-                    )
-
-                elif connection.connection_type == MinimapConnection.JUMP_LEFT_AND_UP:
-                    self._add_jump_into_ladder_connection(
-                        base_grid, "left", feature, other_feature
-                    )
-
-                elif connection.connection_type == MinimapConnection.JUMP_RIGHT_AND_UP:
-                    self._add_jump_into_ladder_connection(
-                        base_grid, "right", feature, other_feature
-                    )
-
-                elif connection.connection_type == MinimapConnection.JUMP_ANY_AND_UP:
-                    self._add_jump_into_ladder_connection(
-                        base_grid, "left", feature, other_feature
-                    )
-                    self._add_jump_into_ladder_connection(
-                        base_grid, "right", feature, other_feature
-                    )
-
-                elif connection.connection_type == MinimapConnection.PORTAL:
-                    sources = (
-                        connection.custom_sources
-                        if connection.custom_sources is not None
-                        else [
-                            (i, feature.top)
-                            for i in range(feature.left, feature.right + 1)
-                        ]
-                    )
-                    self._add_portal_connection(
-                        base_grid,
-                        sources,
-                        connection.custom_destinations,
-                    )
-                else:
-                    breakpoint()
-                    raise NotImplementedError("Should not reach this point")
+            #
+            # for connection in feature.connections:
+            #     if connection.other_feature_name is None:
+            #         continue  # TODO: Implement connections to other maps
+            #     other_feature = self.features[connection.other_feature_name]
+            #
+            #     if connection.connection_type == MinimapConnection.JUMP_DOWN:
+            #         self._add_jump_down_connection(base_grid, feature, other_feature)
+            #
+            #     elif connection.connection_type == MinimapConnection.JUMP_LEFT:
+            #         self._add_jump_connection(base_grid, "left", feature, other_feature)
+            #
+            #     elif connection.connection_type == MinimapConnection.JUMP_RIGHT:
+            #         self._add_jump_connection(
+            #             base_grid, "right", feature, other_feature
+            #         )
+            #
+            #     elif connection.connection_type == MinimapConnection.JUMP_UP:
+            #         self._add_jump_up_connection(base_grid, feature, other_feature)
+            #
+            #     elif connection.connection_type == MinimapConnection.FALL_LEFT:
+            #         self._add_fall_connection(base_grid, "left", feature, other_feature)
+            #
+            #     elif connection.connection_type == MinimapConnection.FALL_RIGHT:
+            #         self._add_fall_connection(
+            #             base_grid, "right", feature, other_feature
+            #         )
+            #
+            #     elif connection.connection_type == MinimapConnection.FALL_ANY:
+            #         self._add_fall_connection(base_grid, "left", feature, other_feature)
+            #         self._add_fall_connection(
+            #             base_grid, "right", feature, other_feature
+            #         )
+            #
+            #     elif connection.connection_type == MinimapConnection.JUMP_LEFT_AND_UP:
+            #         self._add_jump_into_ladder_connection(
+            #             base_grid, "left", feature, other_feature
+            #         )
+            #
+            #     elif connection.connection_type == MinimapConnection.JUMP_RIGHT_AND_UP:
+            #         self._add_jump_into_ladder_connection(
+            #             base_grid, "right", feature, other_feature
+            #         )
+            #
+            #     elif connection.connection_type == MinimapConnection.JUMP_ANY_AND_UP:
+            #         self._add_jump_into_ladder_connection(
+            #             base_grid, "left", feature, other_feature
+            #         )
+            #         self._add_jump_into_ladder_connection(
+            #             base_grid, "right", feature, other_feature
+            #         )
+            #
+            #     elif connection.connection_type == MinimapConnection.PORTAL:
+            #         sources = (
+            #             connection.custom_sources
+            #             if connection.custom_sources is not None
+            #             else [
+            #                 (i, feature.top)
+            #                 for i in range(feature.left, feature.right + 1)
+            #             ]
+            #         )
+            #         self._add_portal_connection(
+            #             base_grid,
+            #             sources,
+            #             connection.custom_destinations,
+            #         )
+            #     else:
+            #         breakpoint()
+            #         raise NotImplementedError("Should not reach this point")
 
         return base_grid
 
@@ -295,6 +343,29 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                     grid.node(node, feature.top).connect(
                         grid.node(node, other_feature.top),
                         connection_type=MinimapConnection.JUMP_DOWN,
+                    )
+
+    @staticmethod
+    def _add_jump_up_connection(
+        grid: MinimapGrid, feature: MinimapFeature, other_feature: MinimapFeature
+    ) -> None:
+        """
+        Adds connections between each vertically parallel nodes between the two features, but only if there are no walkable
+        nodes in between them. Reversed order compared to jump down.
+        # TODO - See if custom behavior needed, for example for platforms where jumping down is only partially possible.
+        """
+
+        for node in range(feature.left, feature.right + 1):
+            if node in range(
+                other_feature.left, other_feature.right + 1
+            ):  # Make sure nodes are vertically aligned
+                if not any(
+                    grid.node(node, y).walkable
+                    for y in range(other_feature.top + 1, feature.top)
+                ):  # Make sure there are no walkable nodes in between
+                    grid.node(node, feature.top).connect(
+                        grid.node(node, other_feature.top),
+                        connection_type=MinimapConnection.JUMP_UP,
                     )
 
     @staticmethod

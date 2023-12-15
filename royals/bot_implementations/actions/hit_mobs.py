@@ -6,24 +6,25 @@ from typing import Generator, Sequence
 
 from botting.core import controller
 from botting.utilities import take_screenshot, Box
-from royals.models_implementations import RoyalsData
+from royals.models_implementations import RoyalsData, Skill
 
 
 DEBUG = True
 
 
-# def hit_closest_in_range(data: RoyalsData, skill: "Skill") -> Generator:
-def hit_closest_in_range(data: RoyalsData, skill: str) -> Generator:
+def hit_closest_in_range(data: RoyalsData, skill: Skill) -> Generator:
+
     while True:
-        # if data.character_in_a_ladder:
-        #     yield
-        # else:
+
         data.update("current_on_screen_position")
         x, y = data.current_on_screen_position
 
-        region = Box(left=x - 300, right=x + 300, top=y - 50, bottom=y + 125)
+        region = Box(left=x - skill.horizontal_screen_range,
+                     right=x + skill.horizontal_screen_range,
+                     top=y - skill.vertical_screen_range,
+                     bottom=y + skill.vertical_screen_range)
         x, y = region.width / 2, region.height / 2
-        # TODO - Crop image based on character location and skill range
+
         cropped_img = take_screenshot(data.handle, region)
 
         # There may be multiple types of mobs, and multiple mobs of each
@@ -31,10 +32,7 @@ def hit_closest_in_range(data: RoyalsData, skill: str) -> Generator:
         mobs_locations = [
             mob.get_onscreen_mobs(cropped_img) for mob in data.current_map.mobs
         ]
-        # if all(not mobs for mobs in mobs_locations):
-        #     yield
-        # else:
-        # For each mob type, find the closest, if any
+
         closest_mobs = []
         for mob in data.current_map.mobs:
             closest_mobs.append(
@@ -59,8 +57,7 @@ def hit_closest_in_range(data: RoyalsData, skill: str) -> Generator:
             yield
 
 
-# async def cast_skill(data: RoyalsData, skill: "Skill", direction: str) -> None:
-async def cast_skill(data: RoyalsData, skill: str, direction: str) -> None:
+async def cast_skill(data: RoyalsData, skill: Skill, direction: str = None) -> None:
     """
     Casts a skill in a given direction. Updates game status.
     :param data:
@@ -68,12 +65,14 @@ async def cast_skill(data: RoyalsData, skill: str, direction: str) -> None:
     :param direction:
     :return:
     """
-    if direction != data.current_direction:
-        await controller.press(
-            data.handle, direction, silenced=False, enforce_delay=True
-        )
-        data.update(current_direction=direction)
-    await controller.press(data.handle, skill, silenced=True, cooldown=0.4)
+    if skill.unidirectional:
+        assert direction in ("left", "right"), "Invalid direction."
+        if direction != data.current_direction:
+            await controller.press(
+                data.handle, direction, silenced=False, enforce_delay=True
+            )
+    data.update(current_direction=direction)  # TODO - Add this piece into the QueueAction wrapping instead
+    await controller.press(data.handle, skill.key_bind(data.ign), silenced=True, cooldown=skill.animation_time)
 
 
 def _get_closest_mob(

@@ -5,10 +5,8 @@ from functools import partial
 
 from botting import PARENT_LOG
 from botting.core import QueueAction, DecisionEngine, Executor
-
 from royals import royals_ign_finder, RoyalsData
 from royals.models_implementations.minimaps import LudiFreeMarketTemplate as Ludi
-
 from .checks.mock import mock_check
 from .actions import random_rotation
 

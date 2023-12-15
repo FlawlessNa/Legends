@@ -3,11 +3,13 @@
 ## TODO
 - [x] Character detection
   - [x] Combine with Mob detection and skill range to determine if a mob is in range
-- [ ] Implement Skills
+- [x] Implement Skills
+- [ ] Skill Specs Finder
 - [ ] Add multiple Rotation Locks - Each type of DecisionEngine will define how many locks it needs.
 - [ ] Finalize Kerning Line1
+- [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
 - [ ] Minimap Parsing - "Draw" the minimap canvas while YOU manually move around the entire map. Then, translate drawings into features and adjust.
-- [ ] Skill Specs Finder
+- [ ] When done, update all docstrings as some are lacking now.
 - [ ] Enable np arrays/.png files to be sent through Pipe - then send chat images towards discord
 - [ ] Anti Detection Features -> Features are monitored in the child processes, but reactions and coordinations between clients done in Main
   - [ ] Chat Parsing + Automated Responses
@@ -18,7 +20,6 @@
   - [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs + random reaction
 - [ ] GPT Automated Responses
 - [ ] For chat lines reading, try converting to gray and applying simple thresholding (general lines at least)
-- [ ] When done, update all docstrings as some are lacking now.
 - [ ] Mouse movements and mouse clicks
 - [ ] Refactor game interface more accurately
   - [ ] Quickslots

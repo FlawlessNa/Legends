@@ -1,181 +1,257 @@
-from functools import cached_property
-
-import numpy as np
-
-from royals.interface import Minimap
-
-from botting.utilities import Box
+from royals.models_implementations.mechanics import (
+    MinimapFeature,
+    MinimapConnection,
+    MinimapPathingMechanics,
+)
 
 
-class KerningLine1Area1(Minimap):
+class KerningLine1Area1(MinimapPathingMechanics):
+    map_area_width = 259
+    map_area_height = 79
 
-    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        pass
+    minimap_speed: float = 6.86478169800788  # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
+    jump_height: int = 5
+    jump_distance: int = 5
 
-    @property
-    def features(self) -> dict[str, Box]:
-        return super().features
+    bottom_platform: MinimapFeature = MinimapFeature(
+        left=20,
+        right=238,
+        top=57,
+        bottom=57,
+        name="bottom_platform",
+        # connections=[
+        #     MinimapConnection("first_wagon", MinimapConnection.JUMP_UP),
+        #     MinimapConnection("second_wagon", MinimapConnection.JUMP_UP),
 
-    @cached_property
-    def bottom_platform(self) -> Box:
-        return Box(left=19, right=237, top=56, bottom=57, name="bottom_platform")
-
-    @cached_property
-    def fourth_wagon(self) -> Box:
-        return Box(left=215, right=227, top=52, bottom=53, name="fourth_wagon")
-
-    @cached_property
-    def third_wagon(self) -> Box:
-        return Box(left=172, right=184, top=52, bottom=53, name="third_wagon")
-
-    @cached_property
-    def second_wagon(self) -> Box:
-        return Box(left=99, right=112, top=52, bottom=53, name="second_wagon")
-
-    @cached_property
-    def first_wagon(self) -> Box:
-        return Box(left=49, right=62, top=52, bottom=53, name="first_wagon")
-
-    @cached_property
-    def first_ladder_bot_to_main(self) -> Box:
-        return Box(
-            left=31, right=32, top=48, bottom=55, name="first_ladder_bot_to_main"
-        )
-
-    @cached_property
-    def second_ladder_bot_to_main(self) -> Box:
-        return Box(
-            left=97, right=98, top=48, bottom=56, name="second_ladder_bot_to_main"
-        )
-
-    @cached_property
-    def third_ladder_bot_to_main(self) -> Box:
-        return Box(
-            left=126, right=127, top=48, bottom=56, name="third_ladder_bot_to_main"
-        )
-
-    @cached_property
-    def fourth_ladder_bot_to_main(self) -> Box:
-        return Box(
-            left=161, right=162, top=48, bottom=56, name="fifth_ladder_bot_to_main"
-        )
-
-    @cached_property
-    def fifth_ladder_bot_to_main(self) -> Box:
-        return Box(
-            left=198, right=199, top=48, bottom=56, name="fifth_ladder_bot_to_main"
-        )
-
-    @cached_property
-    def main_platform(self) -> Box:
-        return Box(left=19, right=237, top=48, bottom=49, name="main_platform")
-
-    @cached_property
-    def platform_1(self) -> Box:
-        return Box(left=45, right=92, top=25, bottom=26, name="platform_1")
-
-    @cached_property
-    def platform_1_right_ladder(self) -> Box:
-        return Box(left=86, right=87, top=26, bottom=37, name="platform_1_right_ladder")
-
-    @cached_property
-    def platform_1_left_ladder(self) -> Box:
-        return Box(left=55, right=56, top=26, bottom=34, name="platform_1_left_ladder")
-
-    @cached_property
-    def platform_2(self) -> Box:
-        return Box(left=101, right=131, top=29, bottom=30, name="platform_2")
-
-    @cached_property
-    def platform_2_ladder(self) -> Box:
-        return Box(left=117, right=118, top=29, bottom=40, name="platform_2_ladder")
-
-    @cached_property
-    def platform_3(self) -> Box:
-        return Box(left=135, right=154, top=33, bottom=34, name="platform_3")
-
-    @cached_property
-    def platform_4(self) -> Box:
-        return Box(left=152, right=177, top=25, bottom=26, name="platform_4")
-
-    @cached_property
-    def platform_4_right_ladder(self) -> Box:
-        return Box(
-            left=174, right=175, top=25, bottom=36, name="platform_4_right_ladder"
-        )
-
-    @cached_property
-    def platform_4_left_ladder(self) -> Box:
-        return Box(
-            left=157, right=158, top=26, bottom=39, name="platform_4_left_ladder"
-        )
-
-    @cached_property
-    def platform_5(self) -> Box:
-        return Box(left=180, right=205, top=25, bottom=26, name="platform_5")
-
-    @cached_property
-    def platform_5_ladder(self) -> Box:
-        return Box(left=198, right=199, top=25, bottom=39, name="platform_5_ladder")
-
-    @cached_property
-    def safe_spot_right(self) -> Box:
-        return Box(left=214, right=221, top=29, bottom=30, name="safe_spot_right")
-
-    @cached_property
-    def safe_spot_right_ladder(self) -> Box:
-        return Box(
-            left=217, right=218, top=29, bottom=40, name="safe_spot_right_ladder"
-        )
-
-    @cached_property
-    def platform_6(self) -> Box:
-        return Box(left=29, right=54, top=32, bottom=34, name="platform_6")
-
-    @cached_property
-    def platform_6_ladder(self) -> Box:
-        return Box(left=47, right=48, top=33, bottom=40, name="platform_6_ladder")
-
-    @cached_property
-    def platform_7(self) -> Box:
-        return Box(left=34, right=64, top=40, bottom=41, name="platform_7")
-
-    @cached_property
-    def platform_7_ladder(self) -> Box:
-        return Box(left=55, right=56, top=40, bottom=48, name="platform_7_ladder")
-
-    @cached_property
-    def platform_8_ladder(self) -> Box:
-        return Box(left=87, right=88, top=37, bottom=46, name="platform_8_ladder")
-
-    @cached_property
-    def platform_8(self) -> Box:
-        return Box(left=73, right=109, top=37, bottom=38, name="platform_8")
-
-    @cached_property
-    def platform_9(self) -> Box:
-        return Box(left=118, right=171, top=40, bottom=41, name="platform_9")
-
-    @cached_property
-    def platform_9_right_ladder(self) -> Box:
-        return Box(
-            left=168, right=169, top=40, bottom=47, name="platform_9_right_ladder"
-        )
-
-    @cached_property
-    def platform_9_left_ladder(self) -> Box:
-        return Box(
-            left=140, right=141, top=40, bottom=49, name="platform_9_left_ladder"
-        )
-
-    @cached_property
-    def safe_spot_left(self) -> Box:
-        return Box(left=174, right=177, top=37, bottom=38, name="safe_spot_left")
-
-    @cached_property
-    def platform_10(self) -> Box:
-        return Box(left=180, right=227, top=40, bottom=41, name="platform_10")
-
-    @cached_property
-    def platform_10_ladder(self) -> Box:
-        return Box(left=208, right=209, top=40, bottom=48, name="platform_10_ladder")
+        #     MinimapConnection("third_wagon", MinimapConnection.JUMP_UP),
+        #     MinimapConnection("fourth_wagon", MinimapConnection.JUMP_UP),
+        #     MinimapConnection(
+        #         "first_ladder_bot_to_main", MinimapConnection.JUMP_ANY_AND_UP
+        #     ),
+        #     MinimapConnection(
+        #         "second_ladder_bot_to_main", MinimapConnection.JUMP_ANY_AND_UP
+        #     ),
+        #     MinimapConnection(
+        #         "third_ladder_bot_to_main", MinimapConnection.JUMP_ANY_AND_UP
+        #     ),
+        #     MinimapConnection(
+        #         "fourth_ladder_bot_to_main", MinimapConnection.JUMP_ANY_AND_UP
+        #     ),
+        #     MinimapConnection(
+        #         "fifth_ladder_bot_to_main", MinimapConnection.JUMP_ANY_AND_UP
+        #     ),
+        # ],
+    )
+    fourth_wagon: MinimapFeature = MinimapFeature(
+        left=216,
+        right=228,
+        top=53,
+        bottom=53,
+        name="fourth_wagon",
+        # connections=[
+        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
+        #     MinimapConnection("bottom_platform", MinimapConnection.FALL_ANY),
+        #     MinimapConnection("main_platform", MinimapConnection.JUMP_UP),
+        # ],
+    )
+    third_wagon: MinimapFeature = MinimapFeature(
+        left=172,
+        right=185,
+        top=53,
+        bottom=53,
+        name="third_wagon",
+        # connections=[
+        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
+        #     MinimapConnection("bottom_platform", MinimapConnection.FALL_ANY),
+        #     MinimapConnection("main_platform", MinimapConnection.JUMP_UP),
+        # ],
+    )
+    second_wagon: MinimapFeature = MinimapFeature(
+        left=100,
+        right=113,
+        top=53,
+        bottom=53,
+        name="second_wagon",
+        # connections=[
+        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
+        #     MinimapConnection("bottom_platform", MinimapConnection.FALL_ANY),
+        #     MinimapConnection("main_platform", MinimapConnection.JUMP_UP),
+        # ],
+    )
+    first_wagon: MinimapFeature = MinimapFeature(
+        left=50,
+        right=63,
+        top=53,
+        bottom=53,
+        name="first_wagon",
+        # connections=[
+        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
+        #     MinimapConnection("bottom_platform", MinimapConnection.FALL_ANY),
+        #     MinimapConnection("main_platform", MinimapConnection.JUMP_UP),
+        # ],
+    )
+    first_ladder_bot_to_main: MinimapFeature = MinimapFeature(
+        left=32,
+        right=32,
+        top=49,
+        bottom=57,
+        name="first_ladder_bot_to_main",
+        # connections=[
+        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_LEFT),
+        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_RIGHT),
+        # ],
+    )
+    second_ladder_bot_to_main: MinimapFeature = MinimapFeature(
+        left=98,
+        right=98,
+        top=49,
+        bottom=57,
+        name="second_ladder_bot_to_main",
+        # connections=[
+        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_LEFT),
+        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_RIGHT),
+        # ],
+    )
+    third_ladder_bot_to_main: MinimapFeature = MinimapFeature(
+        left=127,
+        right=127,
+        top=49,
+        bottom=57,
+        name="third_ladder_bot_to_main",
+        # connections=[
+        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_LEFT),
+        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_RIGHT),
+        # ],
+    )
+    fourth_ladder_bot_to_main: MinimapFeature = MinimapFeature(
+        left=162,
+        right=162,
+        top=49,
+        bottom=57,
+        name="fourth_ladder_bot_to_main",
+        # connections=[
+        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_LEFT),
+        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_RIGHT),
+        # ],
+    )
+    fifth_ladder_bot_to_main: MinimapFeature = MinimapFeature(
+        left=199,
+        right=199,
+        top=49,
+        bottom=57,
+        name="fifth_ladder_bot_to_main",
+        # connections=[
+        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_LEFT),
+        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_RIGHT),
+        # ],
+    )
+    main_platform: MinimapFeature = MinimapFeature(
+        left=20,
+        right=238,
+        top=49,
+        bottom=49,
+        name="main_platform",
+        # connections=[
+        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
+        #     MinimapConnection("first_wagon", MinimapConnection.JUMP_DOWN),
+        #     MinimapConnection("second_wagon", MinimapConnection.JUMP_DOWN),
+        #     MinimapConnection("third_wagon", MinimapConnection.JUMP_DOWN),
+        #     MinimapConnection("fourth_wagon", MinimapConnection.JUMP_DOWN),
+        #     MinimapConnection("platform_7_ladder", MinimapConnection.JUMP_ANY_AND_UP),
+        #     MinimapConnection("platform_8_ladder", MinimapConnection.JUMP_ANY_AND_UP),
+        #     MinimapConnection(
+        #         "platform_9_left_ladder", MinimapConnection.JUMP_ANY_AND_UP
+        #     ),
+        #     MinimapConnection(
+        #         "platform_9_right_ladder", MinimapConnection.JUMP_ANY_AND_UP
+        #     ),
+        #     MinimapConnection("platform_10_ladder", MinimapConnection.JUMP_ANY_AND_UP),
+        # ],
+    )
+    platform_1: MinimapFeature = MinimapFeature(
+        left=46,
+        right=93,
+        top=26,
+        bottom=26,
+        name="platform_1",
+        # connections=[
+        #     MinimapConnection("main_platform", MinimapConnection.JUMP_DOWN),
+        #     MinimapConnection("platform_6", MinimapConnection.JUMP_DOWN),
+        #     MinimapConnection("platform_6", MinimapConnection.FALL_LEFT),
+        #     MinimapConnection("platform_7", MinimapConnection.JUMP_DOWN),
+        #     MinimapConnection("platform_8", MinimapConnection.JUMP_DOWN),
+        #     MinimapConnection("platform_8", MinimapConnection.FALL_RIGHT),
+        # ],
+    )
+    platform_1_right_ladder: MinimapFeature = MinimapFeature(
+        left=87, right=87, top=26, bottom=38, name="platform_1_right_ladder"
+    )
+    platform_1_left_ladder: MinimapFeature = MinimapFeature(
+        left=56, right=56, top=26, bottom=33, name="platform_1_left_ladder"
+    )
+    platform_2: MinimapFeature = MinimapFeature(
+        left=102, right=132, top=30, bottom=30, name="platform_2"
+    )
+    platform_2_ladder: MinimapFeature = MinimapFeature(
+        left=118, right=118, top=30, bottom=41, name="platform_2_ladder"
+    )
+    platform_3: MinimapFeature = MinimapFeature(
+        left=136, right=154, top=34, bottom=34, name="platform_3"
+    )
+    platform_4: MinimapFeature = MinimapFeature(
+        left=153, right=178, top=26, bottom=26, name="platform_4"
+    )
+    platform_4_right_ladder: MinimapFeature = MinimapFeature(
+        left=175, right=175, top=26, bottom=37, name="platform_4_right_ladder"
+    )
+    platform_4_left_ladder: MinimapFeature = MinimapFeature(
+        left=158, right=158, top=26, bottom=41, name="platform_4_left_ladder"
+    )
+    platform_5: MinimapFeature = MinimapFeature(
+        left=181, right=206, top=26, bottom=26, name="platform_5"
+    )
+    platform_5_ladder: MinimapFeature = MinimapFeature(
+        left=199, right=199, top=26, bottom=42, name="platform_5_ladder"
+    )
+    safe_spot_right: MinimapFeature = MinimapFeature(
+        left=215, right=222, top=30, bottom=30, name="safe_spot_right"
+    )
+    safe_spot_right_ladder: MinimapFeature = MinimapFeature(
+        left=218, right=218, top=30, bottom=41, name="safe_spot_right_ladder"
+    )
+    platform_6: MinimapFeature = MinimapFeature(
+        left=29, right=54, top=34, bottom=34, name="platform_6"
+    )
+    platform_6_ladder: MinimapFeature = MinimapFeature(
+        left=48, right=48, top=34, bottom=41, name="platform_6_ladder"
+    )
+    platform_7: MinimapFeature = MinimapFeature(
+        left=35, right=65, top=41, bottom=41, name="platform_7"
+    )
+    platform_7_ladder: MinimapFeature = MinimapFeature(
+        left=56, right=56, top=41, bottom=49, name="platform_7_ladder"
+    )
+    platform_8_ladder: MinimapFeature = MinimapFeature(
+        left=88, right=88, top=38, bottom=47, name="platform_8_ladder"
+    )
+    platform_8: MinimapFeature = MinimapFeature(
+        left=74, right=110, top=38, bottom=38, name="platform_8"
+    )
+    platform_9: MinimapFeature = MinimapFeature(
+        left=119, right=172, top=41, bottom=41, name="platform_9"
+    )
+    platform_9_right_ladder: MinimapFeature = MinimapFeature(
+        left=169, right=169, top=41, bottom=49, name="platform_9_right_ladder"
+    )
+    platform_9_left_ladder: MinimapFeature = MinimapFeature(
+        left=141, right=141, top=41, bottom=49, name="platform_9_left_ladder"
+    )
+    safe_spot_left: MinimapFeature = MinimapFeature(
+        left=176, right=178, top=38, bottom=38, name="safe_spot_left"
+    )
+    platform_10: MinimapFeature = MinimapFeature(
+        left=181, right=228, top=41, bottom=41, name="platform_10"
+    )
+    platform_10_ladder: MinimapFeature = MinimapFeature(
+        left=209, right=209, top=41, bottom=49, name="platform_10_ladder"
+    )

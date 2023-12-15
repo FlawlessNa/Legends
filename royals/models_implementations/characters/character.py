@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import cv2
 import numpy as np
 
@@ -10,10 +11,12 @@ from botting.utilities import (
     config_reader,
 )
 
+from .skills import Skill
+
 DEBUG = False
 
 
-class Character(BaseCharacter):
+class Character(BaseCharacter, ABC):
     detection_box_large_client: Box = Box(left=3, right=1027, top=29, bottom=700)
     detection_box_small_client: Box = NotImplemented
 
@@ -85,7 +88,9 @@ class Character(BaseCharacter):
         detection_method = self._detection_methods[self._method]
         return detection_method(image, **self._detection_params)
 
-    def skills(self) -> list["Skills"]:
+    @property
+    @abstractmethod
+    def skills(self) -> dict[str, Skill]:
         raise NotImplementedError
 
     @property

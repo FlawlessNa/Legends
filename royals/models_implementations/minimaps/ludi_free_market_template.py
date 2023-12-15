@@ -1,8 +1,3 @@
-import cv2
-import numpy as np
-
-from typing import Sequence
-
 from royals.models_implementations.mechanics import (
     MinimapFeature,
     MinimapConnection,
@@ -242,18 +237,3 @@ class LudiFreeMarketTemplate(MinimapPathingMechanics):
         ],
     )
 
-    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        """
-        Creates a Grid-like image used for pathfinding algorithm.
-        :param image: Original minimap area image.
-        :return: Binary image with white pixels representing walkable areas.
-        """
-        if len(image.shape) == 3:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        canvas = np.zeros_like(image)
-        for feature in self.features.values():
-            pt1: Sequence = (feature.left, feature.top)
-            pt2: Sequence = (feature.right, feature.bottom)
-            cv2.line(canvas, pt1, pt2, (255, 255, 255), 1)
-
-        return canvas

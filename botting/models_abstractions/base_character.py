@@ -17,9 +17,8 @@ class BaseCharacter(InGameBaseVisuals, ABC):
 
     detection_box: Box
 
-    def __init__(self, ign: str, skills: list["Skills"] | None = None) -> None:
+    def __init__(self, ign: str) -> None:
         self.ign = ign
-        self._skills = skills
 
     @abstractmethod
     def get_onscreen_position(self, image: np.ndarray | None) -> Sequence[int] | None:
@@ -27,5 +26,5 @@ class BaseCharacter(InGameBaseVisuals, ABC):
 
     @property
     @abstractmethod
-    def skills(self) -> list["Skills"]:
+    def skills(self) -> list:
         pass

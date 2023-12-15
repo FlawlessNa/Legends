@@ -67,7 +67,7 @@ def _debug(
     )
     for node in path:
         path_img[node.y, node.x] = (0, 255, 0)
-    path_img = cv2.resize(path_img, None, fx=10, fy=10)
+    path_img = cv2.resize(path_img, None, fx=5, fy=5)
     cv2.imshow("_DEBUG_ Mode - PathFinding", path_img)
     cv2.waitKey(1)
 
@@ -103,7 +103,7 @@ def _get_path_to_target(
     :param in_game_minimap: Minimap implementation which contains minimap coordinates for all existing features.
     :return: A series of MinimapNodes that consist of the path to take to reach target.
     """
-    grid = in_game_minimap.generate_grid_template()
+    grid = in_game_minimap.grid
     start = grid.node(int(current[0]), int(current[1]))
     end = grid.node(target[0], target[1])
     finder = AStarFinder()

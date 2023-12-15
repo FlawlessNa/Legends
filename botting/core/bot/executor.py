@@ -35,9 +35,9 @@ class Executor:
         )
 
         self.bot_side, self.monitoring_side = multiprocessing.Pipe()
-        self.rotation_lock = (
-            multiprocessing.Lock()
-        )  # Used to manage when map rotation can be enqueued
+        self.rotation_locks = [
+            multiprocessing.Lock() for _ in range(5)  # TODO - Make this dynamic
+        ]  # Used to manage when map rotation can be enqueued
         self.action_lock = (
             asyncio.Lock()
         )  # Used to manage multiple tasks being enqueued at the same time for a single bot
@@ -82,7 +82,8 @@ class Executor:
         new_task.add_done_callback(self._exception_handler)
 
         new_task.is_in_queue = True
-        if queue_item.release_rotation_lock:
+        if queue_item.lock_id is not None:
+            new_task.lock_id = queue_item.lock_id
             new_task.add_done_callback(self._rotation_callback)
 
         if queue_item.update_game_data is not None:
@@ -147,8 +148,11 @@ class Executor:
 
     def _rotation_callback(self, fut):
         """Callback to use on map rotation actions if they need to acquire lock before executing."""
-        self.rotation_lock.release()
-        logger.debug(f"Rotation Lock released on {self} through callback")
+        self.rotation_locks[fut.lock_id].release()
+        if fut.cancelled():
+            logger.debug(f"Rotation Lock {fut.lock_id} released on {self} through callback. {fut.get_name()} is Cancelled.")
+        else:
+            logger.debug(f"Rotation Lock {fut.lock_id} released on {self} through callback. {fut.get_name()} is Done.")
 
     def _send_update_signal_callback(self, signal: tuple[str], fut):
         """
