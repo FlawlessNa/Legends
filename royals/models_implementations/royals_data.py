@@ -49,12 +49,13 @@ class RoyalsData(GameData):
                 self.character_in_a_ladder = self.current_minimap_feature.width == 0
 
         if "current_on_screen_position" in args:
-            hide_box = Box(
+            hide_minimap_box = Box(
                 max(0, self.current_entire_minimap_box.left - CLIENT_HORIZONTAL_MARGIN_PX - 5),
                 self.current_entire_minimap_box.right + CLIENT_HORIZONTAL_MARGIN_PX + 5,
                 max(0, self.current_entire_minimap_box.top - CLIENT_VERTICAL_MARGIN_PX - 10),
                 self.current_entire_minimap_box.bottom + CLIENT_VERTICAL_MARGIN_PX + 5,
             )
+            hide_tv_smega_box = Box(left=700, right=1024, top=0, bottom=300)
             self.current_on_screen_position = self.character.get_onscreen_position(
-                None, self.handle, [hide_box]
+                None, self.handle, [hide_minimap_box, hide_tv_smega_box]
             )

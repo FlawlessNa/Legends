@@ -51,7 +51,7 @@ def hit_closest_in_range(data: RoyalsData, skill: Skill) -> Generator:
         if closest is not None and not data.character_in_a_ladder:
             # Before yielding, we may need to change direction if the mob is not in the same direction as the character
             yield partial(
-                cast_skill, data, skill, "left" if x > closest[0] else "right"
+                cast_skill, data, skill, direction="left" if x > closest[0] else "right"
             )
         else:
             yield
@@ -65,12 +65,13 @@ async def cast_skill(data: RoyalsData, skill: Skill, direction: str = None) -> N
     :param direction:
     :return:
     """
-    if skill.unidirectional:
-        assert direction in ("left", "right"), "Invalid direction."
-        if direction != data.current_direction:
-            await controller.press(
-                data.handle, direction, silenced=False, enforce_delay=True
-            )
+    # TODO - Better handling of direction.
+    # if skill.unidirectional:
+    #     assert direction in ("left", "right"), "Invalid direction."
+    #     if direction != data.current_direction:
+    await controller.press(
+        data.handle, direction, silenced=False, enforce_delay=True
+    )
     data.update(current_direction=direction)  # TODO - Add this piece into the QueueAction wrapping instead
     await controller.press(data.handle, skill.key_bind(data.ign), silenced=True, cooldown=skill.animation_time)
 

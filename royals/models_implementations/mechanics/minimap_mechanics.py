@@ -57,9 +57,7 @@ class MinimapConnection:
     @classmethod
     def convert_to_string(cls, connection_type: int) -> str:
         connection_types = {
-            val: key
-            for key, val in cls.__dict__.items()
-            if isinstance(val, int)
+            val: key for key, val in cls.__dict__.items() if isinstance(val, int)
         }
         return connection_types[connection_type]
 
@@ -190,7 +188,9 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
     minimap_speed: float
     jump_height: int
     jump_distance: int
-    jump_down_limit: int = 500  # No limit by default (500 is extremely large, will never be reached)
+    jump_down_limit: int = (
+        500  # No limit by default (500 is extremely large, will never be reached)
+    )
 
     def __init__(self):
         for feature in self.features.values():
@@ -201,16 +201,16 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                     if conn.other_feature_name is not None
                 ), "Invalid connection names."
 
-        # Compute a "parabola"-like equation to help in establishing connections
-        h, k = self.jump_distance / 2, self.jump_height
-        a = k / h ** 2
-        self.jump_parabola_y = lambda x: - a * (x - h) ** 2 + k
-        self.jump_parabola_x1 = lambda y: h + np.sqrt(-(y - k) / a)  # Two solutions
-        self.jump_parabola_x2 = lambda y: h - np.sqrt(-(y - k) / a)  # Two solutions
-
         self.grid = self.generate_grid_template()
 
-    def _jump_trajectory(self, starting_point: tuple[int, int], direction: str, fall_only: bool = False):
+    def jump_parabola_y(self, x):
+        h, k = self.jump_distance / 2, self.jump_height
+        a = k / h**2
+        return -a * (x - h) ** 2 + k
+
+    def _jump_trajectory(
+        self, starting_point: tuple[int, int], direction: str, fall_only: bool = False
+    ):
         """
         Computes the trajectory of a jump in the specified direction.
         :param starting_point: Starting point of the trajectory.
@@ -221,25 +221,42 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         x_values = np.arange(starting_point[0], self.map_area_width, 0.1)
 
         if fall_only:
-            y_values = starting_point[1] - self.jump_parabola_y(x_values - starting_point[0] + self.jump_distance / 2) + self.jump_height
+            y_values = (
+                starting_point[1]
+                - self.jump_parabola_y(
+                    x_values - starting_point[0] + self.jump_distance / 2
+                )
+                + self.jump_height
+            )
         else:
-            y_values = starting_point[1] - self.jump_parabola_y(x_values - starting_point[0])
+            y_values = starting_point[1] - self.jump_parabola_y(
+                x_values - starting_point[0]
+            )
         if direction == "left":
-            x_values = np.linspace(starting_point[0], starting_point[0] - (x_values[-1] - starting_point[0]), len(y_values))
+            x_values = np.linspace(
+                starting_point[0],
+                starting_point[0] - (x_values[-1] - starting_point[0]),
+                len(y_values),
+            )
 
         # Now truncate the arrays such that they only contain points within the map area
-        mask = (x_values >= 0) & (x_values <= self.map_area_width) & (y_values >= 0) & (y_values <= self.map_area_height)
+        mask = (
+            (x_values >= 0)
+            & (x_values <= self.map_area_width)
+            & (y_values >= 0)
+            & (y_values <= self.map_area_height)
+        )
         x_values = x_values[mask].astype(int)
         y_values = y_values[mask].astype(int)
 
         # The rounding may cause adjacent cells to be only connected diagonally. Add buffer in such cases.
         buffered_x_values = []
         buffered_y_values = []
-        for i in range(len(x_values)-1):
+        for i in range(len(x_values) - 1):
             buffered_x_values.append(x_values[i])
             buffered_y_values.append(y_values[i])
-            dx = x_values[i+1] - x_values[i]
-            dy = y_values[i+1] - y_values[i]
+            dx = x_values[i + 1] - x_values[i]
+            dy = y_values[i + 1] - y_values[i]
             if abs(dx) == abs(dy) == 1:
                 buffered_x_values.append(x_values[i] + np.sign(dx))
                 buffered_y_values.append(y_values[i])
@@ -250,7 +267,9 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         x_values = np.array(buffered_x_values)
         y_values = np.array(buffered_y_values)
 
-        return sorted(set(zip(x_values, y_values)), key=list(zip(x_values, y_values)).index)
+        return sorted(
+            set(zip(x_values, y_values)), key=list(zip(x_values, y_values)).index
+        )
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         """
@@ -305,118 +324,115 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
             for node in feature:
                 # Build default connections from 'standard' mechanics
                 if feature.is_platform:
-
                     # Check for JUMP_UP connection by finding the closest walkable node above current one, if any
-                    for other_node in (base_grid.node(node[0], y) for y in range(node[1] - 1, node[1] - self.jump_height - 1, -1)):
+                    for other_node in (
+                        base_grid.node(node[0], y)
+                        for y in range(node[1] - 1, node[1] - self.jump_height - 1, -1)
+                    ):
                         if other_node.walkable:
-                            base_grid.node(*node).connect(base_grid.node(other_node.x, other_node.y), MinimapConnection.JUMP_UP)
+                            base_grid.node(*node).connect(
+                                base_grid.node(other_node.x, other_node.y),
+                                MinimapConnection.JUMP_UP,
+                            )
 
                     # Check for JUMP_DOWN connection by finding the closest walkable node below current one, if any
-                    for other_node in (base_grid.node(node[0], y) for y in range(node[1] + 1, min(node[1] + self.jump_down_limit, self.map_area_height))):
+                    for other_node in (
+                        base_grid.node(node[0], y)
+                        for y in range(
+                            node[1] + 1,
+                            min(
+                                node[1] + self.jump_down_limit + 1, self.map_area_height
+                            ),
+                        )
+                    ):
                         if other_node.walkable:
-                            base_grid.node(*node).connect(base_grid.node(other_node.x, other_node.y), MinimapConnection.JUMP_DOWN)
+                            base_grid.node(*node).connect(
+                                base_grid.node(other_node.x, other_node.y),
+                                MinimapConnection.JUMP_DOWN,
+                            )
                             break  # Only add one connection (the closest)
 
                     # Compute jump trajectories for both directions
                     left_trajectory = self._jump_trajectory(node, "left")
                     right_trajectory = self._jump_trajectory(node, "right")
-
-                    # For each direction, check intersection with other features and establish connection, if any
-                    for other_node in left_trajectory:
-                        if not base_grid.node(*other_node).walkable:
-                            continue
-                        else:
-                            other_feature = self.get_feature_containing(other_node)
-                            if other_feature != feature:
-                                # If the other feature is a platform, the rest of the trajectory is ignored as this stops the movement
-                                if other_feature.is_platform:
-                                    base_grid.node(*node).connect(base_grid.node(*other_node), MinimapConnection.JUMP_LEFT)
-                                    break
-                                # If it's a ladder, we keep checking the remainder as the ladder can be bypassed
-                                elif other_feature.is_ladder:
-                                    base_grid.node(*node).connect(base_grid.node(*other_node), MinimapConnection.JUMP_LEFT_AND_UP)
-
-                    for other_node in right_trajectory:
-                        if not base_grid.node(*other_node).walkable:
-                            continue
-                        else:
-                            other_feature = self.get_feature_containing(other_node)
-                            if other_feature != feature:
-                                # If the other feature is a platform, the rest of the trajectory is ignored as this stops the movement
-                                if other_feature.is_platform:
-                                    base_grid.node(*node).connect(base_grid.node(*other_node), MinimapConnection.JUMP_RIGHT)
-                                    break
-                                # If it's a ladder, we keep checking the remainder as the ladder can be bypassed
-                                elif other_feature.is_ladder:
-                                    base_grid.node(*node).connect(base_grid.node(*other_node), MinimapConnection.JUMP_RIGHT_AND_UP)
+                    self._parse_trajectory(node, feature, left_trajectory, MinimapConnection.JUMP_LEFT, MinimapConnection.JUMP_LEFT_AND_UP,  base_grid)
+                    self._parse_trajectory(node, feature, right_trajectory, MinimapConnection.JUMP_RIGHT, MinimapConnection.JUMP_RIGHT_AND_UP, base_grid)
 
                     # Check for FALL_LEFT connection
                     if node == (feature.left, feature.top):
-                        left_trajectory = self._jump_trajectory(node, "left", fall_only=True)
-                        for other_node in left_trajectory:
-                            if not base_grid.node(*other_node).walkable:
-                                continue
-                            else:
-                                other_feature = self.get_feature_containing(other_node)
-                                # If the other feature is a platform, the rest of the trajectory is ignored as this stops the movement
-                                if other_feature.is_platform:
-                                    base_grid.node(*node).connect(base_grid.node(*other_node), MinimapConnection.FALL_LEFT)
-                                    break
-                                # If it's a ladder, we keep checking the remainder as the ladder can be bypassed
-                                elif other_feature.is_ladder:
-                                    # TODO - If every needed, add a "FALL_LEFT_AND_UP" connection
-                                    pass
+                        left_trajectory = self._jump_trajectory(
+                            node, "left", fall_only=True
+                        )
+                        self._parse_trajectory(node, feature, left_trajectory, MinimapConnection.FALL_LEFT, MinimapConnection.FALL_LEFT, base_grid)  # TODO - Add FALL_LEFT_AND_UP if needed
 
                     # Check for FALL_RIGHT connection
                     if node == (feature.right, feature.top):
-                        right_trajectory = self._jump_trajectory(node, "right", fall_only=True)
-                        for other_node in right_trajectory:
-                            if not base_grid.node(*other_node).walkable:
-                                continue
-                            else:
-                                other_feature = self.get_feature_containing(other_node)
-                                # If the other feature is a platform, the rest of the trajectory is ignored as this stops the movement
-                                if other_feature.is_platform:
-                                    base_grid.node(*node).connect(base_grid.node(*other_node), MinimapConnection.FALL_RIGHT)
-                                    break
-                                # If it's a ladder, we keep checking the remainder as the ladder can be bypassed
-                                elif other_feature.is_ladder:
-                                    # TODO - If every needed, add a "FALL_RIGHT_AND_UP" connection
-                                    pass
+                        right_trajectory = self._jump_trajectory(
+                            node, "right", fall_only=True
+                        )
+                        self._parse_trajectory(node, feature, right_trajectory, MinimapConnection.FALL_RIGHT, MinimapConnection.FALL_RIGHT, base_grid)  # TODO - Add FALL_RIGHT_AND_UP if needed
 
                 elif feature.is_ladder:
-                    # Skip the node on top to make sure jumping out of it doesnt lead back to platform at top (if any)
-                    if node[1] == feature.top:
+                    # Skip the node on top to make sure jumping out of it doesn't lead back to platform at top (if any)
+                    if node[1] == feature.top or node[1] == feature.bottom:
                         continue
 
                     # Compute jump trajectories for both directions
-                    left_trajectory = self._jump_trajectory(node, "left", fall_only=True)
-                    for other_node in left_trajectory:
-                        if not base_grid.node(*other_node).walkable:
-                            continue
-                        else:
-                            other_feature = self.get_feature_containing(other_node)
-                            # If the other feature is a platform, the rest of the trajectory is ignored as this stops the movement
-                            if other_feature.is_platform:
-                                base_grid.node(*node).connect(base_grid.node(*other_node), MinimapConnection.JUMP_LEFT)
-                                break
-                            # If it's a ladder, we keep checking the remainder as the ladder can be bypassed
-                            elif other_feature.is_ladder:
-                                base_grid.node(*node).connect(base_grid.node(*other_node), MinimapConnection.JUMP_LEFT_AND_UP)
-#
-                    right_trajectory = self._jump_trajectory(node, "right", fall_only=True)
-                    for other_node in right_trajectory:
-                        if not base_grid.node(*other_node).walkable:
-                            continue
-                        else:
-                            other_feature = self.get_feature_containing(other_node)
-                            # If the other feature is a platform, the rest of the trajectory is ignored as this stops the movement
-                            if other_feature.is_platform:
-                                base_grid.node(*node).connect(base_grid.node(*other_node), MinimapConnection.JUMP_RIGHT)
-                                break
-                            # If it's a ladder, we keep checking the remainder as the ladder can be bypassed
-                            elif other_feature.is_ladder:
-                                base_grid.node(*node).connect(base_grid.node(*other_node), MinimapConnection.JUMP_RIGHT_AND_UP)
+                    left_trajectory = self._jump_trajectory(
+                        node, "left", fall_only=True
+                    )
+                    self._parse_trajectory(node, feature, left_trajectory, MinimapConnection.JUMP_LEFT, MinimapConnection.JUMP_LEFT_AND_UP, base_grid)
+
+                    right_trajectory = self._jump_trajectory(
+                        node, "right", fall_only=True
+                    )
+                    self._parse_trajectory(node, feature, right_trajectory, MinimapConnection.JUMP_RIGHT, MinimapConnection.JUMP_RIGHT_AND_UP, base_grid)
+
+        return base_grid
+
+    def _parse_trajectory(
+        self,
+        node: tuple[int, int],
+        feature: MinimapFeature,
+        trajectory: list[tuple[int, int]],
+        connection_type_platform: int,
+        connection_type_ladder: int,
+        grid: MinimapGrid
+    ):
+        """
+        Parses a trajectory and adds connections to the grid.
+        :param node: Starting point of the trajectory.
+        :param trajectory: List of points representing the trajectory.
+        :param grid: Grid to add connections to.
+        :return:
+        """
+        for other_node in trajectory:
+            if not grid.node(*other_node).walkable:
+                continue
+            elif other_node == node:
+                continue
+            elif feature.is_platform and (other_node[1] == node[1] and abs(other_node[0] - node[0]) <= 1):
+                continue
+            elif feature.is_ladder and (other_node[0] == node[0] and abs(other_node[1] - node[1]) <= 1):
+                continue
+            else:
+                other_feature = self.get_feature_containing(other_node)
+                if other_feature != feature:
+                    # If the other feature is a platform, the rest of the trajectory is ignored as this stops the movement
+                    if other_feature.is_platform:
+                        grid.node(*node).connect(
+                            grid.node(*other_node),
+                            connection_type_platform,
+                        )
+                        break
+                    # If it's a ladder, we keep checking the remainder as the ladder can be bypassed
+                    elif other_feature.is_ladder:
+                        grid.node(*node).connect(
+                            grid.node(*other_node),
+                            connection_type_ladder)
+                else:
+                    break
+
 # #------------------------------------------------------- Original (below)-------------------------------------------------------#
 #             #
 #             # for connection in feature.connections:

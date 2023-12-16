@@ -20,7 +20,6 @@ DEBUG = True
 
 
 def random_rotation(data: RoyalsData) -> Generator:
-    """TODO - See if updating RoyalsData from outside this function properly works within the function."""
 
     while True:
         target_pos = data.current_minimap.random_point()
@@ -108,6 +107,7 @@ def _get_path_to_target(
     end = grid.node(target[0], target[1])
     finder = AStarFinder()
     path, runs = finder.find_path(start, end, grid)
+    grid.cleanup()
 
     if DEBUG:
         _debug(in_game_minimap, start, end, path)
@@ -156,19 +156,20 @@ def _translate_path_into_movements(path: list[MinimapNode]) -> list[tuple[str, i
 
     # Lastly, there is a case that cannot be easily addressed through grid-making:
     # Whenever character is using a rope as a "shortcut" for a horizontal walking movement.
-    # This case can be identified whenever there is a "JUMP_LEFT_AND_UP" immediately followed by "JUMP_LEFT" (or right).
+    # This case can be identified whenever there is a "JUMP_LEFT_AND_UP" immediately followed by "down" (or right).
     # In this case, we remove both.
     # TODO - See if this can be addressed in grid-making instead (issue now is that weights are difficult to compute)
     for i in range(len(squeezed_movements) - 1):
         if (
             squeezed_movements[i][0] == "JUMP_LEFT_AND_UP"
-            and squeezed_movements[i + 1][0] == "JUMP_LEFT"
+            and squeezed_movements[i + 1][0] == "down"
         ) or (
             squeezed_movements[i][0] == "JUMP_RIGHT_AND_UP"
-            and squeezed_movements[i + 1][0] == "JUMP_RIGHT"
+            and squeezed_movements[i + 1][0] == "down"
         ):
-            squeezed_movements.pop(i)
-            squeezed_movements.pop(i)
+            if len(squeezed_movements) > 2:
+                squeezed_movements.pop(i)
+                squeezed_movements.pop(i)
             break
 
     return squeezed_movements

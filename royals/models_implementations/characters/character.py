@@ -17,7 +17,7 @@ DEBUG = False
 
 
 class Character(BaseCharacter, ABC):
-    detection_box_large_client: Box = Box(left=3, right=1027, top=29, bottom=700)
+    detection_box_large_client: Box = Box(left=200, right=800, top=29, bottom=700)
     detection_box_small_client: Box = NotImplemented
 
     def __init__(self, ign: str, client_size: str) -> None:
@@ -82,9 +82,13 @@ class Character(BaseCharacter, ABC):
         if DEBUG:
             _debug(image, largest, cx, cy, self._offset)
 
-        return cx + self._offset[0], cy + self._offset[1]
+        return cx + self._offset[0] + detection_box.left, cy + self._offset[1] + detection_box.top
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
+        # TODO Remove this eventually, especially when using a model - this negates "portals" on screen as they tend to interfere with podium
+        white_pixels = cv2.inRange(image, np.array([200, 235, 235]), np.array([255, 255, 255]))
+        image[white_pixels == 255] = [0, 0, 0]
+
         detection_method = self._detection_methods[self._method]
         return detection_method(image, **self._detection_params)
 

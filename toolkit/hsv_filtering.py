@@ -154,9 +154,13 @@ if __name__ == "__main__":
         processed = apply_filters(img)
         cv2.imshow("processed", processed)
         cv2.waitKey(1)
-        _hsv_lower = np.array([0, 0, 255])
-        _hsv_upper = np.array([179, 87, 255])
+        filters = get_hsv_filter_from_controls()
+        _hsv_lower = np.array([filters.hMin, filters.sMin, filters.vMin])
+        _hsv_upper = np.array([filters.hMax, filters.sMax, filters.vMax])
+        white_pixels = cv2.inRange(img, np.array([200, 235, 235]), np.array([255, 255, 255]))
+        img[white_pixels == 255] = [0, 0, 0]
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
         binary = cv2.inRange(hsv, _hsv_lower, _hsv_upper)
         contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         largest = max(contours, key=cv2.contourArea)
