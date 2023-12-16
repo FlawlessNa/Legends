@@ -195,8 +195,8 @@ class LudiFreeMarketTemplate(MinimapPathingMechanics):
     platform_5_ladder: MinimapFeature = MinimapFeature(
         left=65,
         right=65,
-        top=12,
-        bottom=25,
+        top=13,
+        bottom=24,
         name="platform_5_ladder",
         connections=[
             MinimapConnection("mid_platform", MinimapConnection.JUMP_LEFT),
@@ -206,8 +206,8 @@ class LudiFreeMarketTemplate(MinimapPathingMechanics):
     platform_2_ladder: MinimapFeature = MinimapFeature(
         left=31,
         right=31,
-        top=12,
-        bottom=25,
+        top=13,
+        bottom=24,
         name="platform_2_ladder",
         connections=[
             MinimapConnection("mid_platform", MinimapConnection.JUMP_LEFT),
@@ -217,8 +217,8 @@ class LudiFreeMarketTemplate(MinimapPathingMechanics):
     left_ladder: MinimapFeature = MinimapFeature(
         left=25,
         right=25,
-        top=25,
-        bottom=38,
+        top=26,
+        bottom=37,
         name="left_ladder",
         connections=[
             MinimapConnection("bottom_platform", MinimapConnection.JUMP_LEFT),
@@ -228,8 +228,8 @@ class LudiFreeMarketTemplate(MinimapPathingMechanics):
     right_ladder: MinimapFeature = MinimapFeature(
         left=74,
         right=74,
-        top=25,
-        bottom=38,
+        top=26,
+        bottom=37,
         name="right_ladder",
         connections=[
             MinimapConnection("bottom_platform", MinimapConnection.JUMP_LEFT),

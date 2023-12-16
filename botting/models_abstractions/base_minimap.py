@@ -44,7 +44,7 @@ class BaseMinimapFeatures(InGameBaseVisuals, ABC):
             ).pop()
         return self.features[feature_name].random()
 
-    def get_feature_containing(self, position: tuple[float, float]) -> Box:
+    def get_feature_containing(self, position: tuple[float, float]):
         """
         Returns the feature in which a given position is located.
         """
