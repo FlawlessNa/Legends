@@ -19,6 +19,7 @@ class Minimap(InGameDynamicVisuals, ABC):
     Implements the royals in-game minimap.
     This is still an abstraction, since each "map" has their own features which need to be defined in child classes.
     """
+
     map_area_width: int = NotImplemented  # Subclass responsibility
     map_area_height: int = NotImplemented  # Subclass responsibility
 
@@ -143,10 +144,10 @@ class Minimap(InGameDynamicVisuals, ABC):
             if client_img is not None:
                 map_area_img = client_img[
                     map_area_box.top
-                    - CLIENT_VERTICAL_MARGIN_PX: map_area_box.bottom
+                    - CLIENT_VERTICAL_MARGIN_PX : map_area_box.bottom
                     - CLIENT_VERTICAL_MARGIN_PX,
                     map_area_box.left
-                    - CLIENT_HORIZONTAL_MARGIN_PX: map_area_box.right
+                    - CLIENT_HORIZONTAL_MARGIN_PX : map_area_box.right
                     - CLIENT_HORIZONTAL_MARGIN_PX,
                 ]
             else:
@@ -204,7 +205,6 @@ class Minimap(InGameDynamicVisuals, ABC):
             handle, client_img, world_icon_box
         )
         if entire_minimap_box:
-
             if self.get_minimap_state(handle, client_img, world_icon_box) == "Full":
                 # When minimap is fully displayed, there are extra "vertical bands" outside the actual map area.
                 top_offset = self._minimap_area_top_offset_full
@@ -214,10 +214,11 @@ class Minimap(InGameDynamicVisuals, ABC):
                     # temp_img in this case is the actual map area box + the extra bands we try to get rid of
                     temp_img = client_img[
                         entire_minimap_box.top
-                        - CLIENT_VERTICAL_MARGIN_PX + top_offset: entire_minimap_box.bottom
+                        - CLIENT_VERTICAL_MARGIN_PX
+                        + top_offset : entire_minimap_box.bottom
                         - CLIENT_VERTICAL_MARGIN_PX,
                         entire_minimap_box.left
-                        - CLIENT_HORIZONTAL_MARGIN_PX: entire_minimap_box.right
+                        - CLIENT_HORIZONTAL_MARGIN_PX : entire_minimap_box.right
                         - CLIENT_HORIZONTAL_MARGIN_PX,
                     ]
                     _THRESHOLD = 160  # If mean column intensity above threshold, it's a vertical bright band to get rid of
@@ -226,7 +227,9 @@ class Minimap(InGameDynamicVisuals, ABC):
                     pale_columns = np.where(mean_vertical_intensity > _THRESHOLD)[0]
                     extra_width = 0
                     if pale_columns.size > 0:
-                        extra_width = (pale_columns[np.argmax(np.diff(pale_columns))] + 1) * 2
+                        extra_width = (
+                            pale_columns[np.argmax(np.diff(pale_columns))] + 1
+                        ) * 2
                 else:
                     extra_width = entire_minimap_box.width - self.map_area_width
                 assert extra_width % 2 == 0

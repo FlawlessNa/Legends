@@ -16,9 +16,11 @@ class ChildProcess:
 
     log_queue: multiprocessing.Queue = None
 
-    def __new__(cls,
-                log_queue: multiprocessing.Queue,
-                pipe_end: multiprocessing.connection.Connection) -> "ChildProcess":
+    def __new__(
+        cls,
+        log_queue: multiprocessing.Queue,
+        pipe_end: multiprocessing.connection.Connection,
+    ) -> "ChildProcess":
         """
         Before creating a new instance, make sure that the class attribute log_queue is not set.
         This ensures that there is only a single instance of ChildProcess per Python Process.
@@ -31,12 +33,16 @@ class ChildProcess:
         if cls.log_queue is None:
             cls.log_queue = log_queue
         else:
-            raise RuntimeError("There should only be a single ChildProcess instance per Python Process.")
+            raise RuntimeError(
+                "There should only be a single ChildProcess instance per Python Process."
+            )
         return instance
 
-    def __init__(self,
-                 log_queue: multiprocessing.Queue,
-                 pipe_end: multiprocessing.connection.Connection) -> None:
+    def __init__(
+        self,
+        log_queue: multiprocessing.Queue,
+        pipe_end: multiprocessing.connection.Connection,
+    ) -> None:
         """
         For each child process, we want to ensure that the log entries are sent to the same queue by a QueueHandler.
         Therefore, we remove all other handlers from the parent logger and add a QueueHandler instead.

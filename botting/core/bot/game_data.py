@@ -10,6 +10,7 @@ class GameData(ABC):
     Base class to represent in-game data. This class is meant to be inherited by a class that will be used to store data about the game client.
     Here, sample data attributes are provided, but the inheriting class can add/remove more attributes as needed.
     """
+
     handle: int = field(repr=False)
     ign: str = field()
 

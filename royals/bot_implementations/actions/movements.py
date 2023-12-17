@@ -13,8 +13,11 @@ async def jump_on_rope(
     :param kwargs: Keyword arguments to pass to the controller.
     :return:
     """
-
-    await controller.press(handle, "up", cooldown=0, down_or_up="keydown")
-    await controller.move(handle, ign, direction, jump=True, enforce_delay=False, duration=0.05)
-    await asyncio.sleep(0.5)
-    await controller.press(handle, "up", cooldown=0, down_or_up="keyup")
+    try:
+        await controller.press(handle, "up", cooldown=0, down_or_up="keydown")
+        await controller.move(
+            handle, ign, direction, jump=True, enforce_delay=False, duration=0.05
+        )
+        await asyncio.sleep(0.5)
+    finally:
+        await controller.press(handle, "up", cooldown=0, down_or_up="keyup")

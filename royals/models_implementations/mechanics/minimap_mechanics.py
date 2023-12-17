@@ -330,10 +330,12 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                         for y in range(node[1] - 1, node[1] - self.jump_height - 1, -1)
                     ):
                         if other_node.walkable:
-                            base_grid.node(*node).connect(
-                                base_grid.node(other_node.x, other_node.y),
-                                MinimapConnection.JUMP_UP,
-                            )
+                            other_feature = self.get_feature_containing((other_node.x, other_node.y))
+                            if not other_feature.is_ladder:
+                                base_grid.node(*node).connect(
+                                    base_grid.node(other_node.x, other_node.y),
+                                    MinimapConnection.JUMP_UP,
+                                )
 
                     # Check for JUMP_DOWN connection by finding the closest walkable node below current one, if any
                     for other_node in (
@@ -355,22 +357,50 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                     # Compute jump trajectories for both directions
                     left_trajectory = self._jump_trajectory(node, "left")
                     right_trajectory = self._jump_trajectory(node, "right")
-                    self._parse_trajectory(node, feature, left_trajectory, MinimapConnection.JUMP_LEFT, MinimapConnection.JUMP_LEFT_AND_UP,  base_grid)
-                    self._parse_trajectory(node, feature, right_trajectory, MinimapConnection.JUMP_RIGHT, MinimapConnection.JUMP_RIGHT_AND_UP, base_grid)
+                    self._parse_trajectory(
+                        node,
+                        feature,
+                        left_trajectory,
+                        MinimapConnection.JUMP_LEFT,
+                        MinimapConnection.JUMP_LEFT_AND_UP,
+                        base_grid,
+                    )
+                    self._parse_trajectory(
+                        node,
+                        feature,
+                        right_trajectory,
+                        MinimapConnection.JUMP_RIGHT,
+                        MinimapConnection.JUMP_RIGHT_AND_UP,
+                        base_grid,
+                    )
 
                     # Check for FALL_LEFT connection
                     if node == (feature.left, feature.top):
                         left_trajectory = self._jump_trajectory(
                             node, "left", fall_only=True
                         )
-                        self._parse_trajectory(node, feature, left_trajectory, MinimapConnection.FALL_LEFT, MinimapConnection.FALL_LEFT, base_grid)  # TODO - Add FALL_LEFT_AND_UP if needed
+                        self._parse_trajectory(
+                            node,
+                            feature,
+                            left_trajectory,
+                            MinimapConnection.FALL_LEFT,
+                            MinimapConnection.FALL_LEFT,
+                            base_grid,
+                        )  # TODO - Add FALL_LEFT_AND_UP if needed
 
                     # Check for FALL_RIGHT connection
                     if node == (feature.right, feature.top):
                         right_trajectory = self._jump_trajectory(
                             node, "right", fall_only=True
                         )
-                        self._parse_trajectory(node, feature, right_trajectory, MinimapConnection.FALL_RIGHT, MinimapConnection.FALL_RIGHT, base_grid)  # TODO - Add FALL_RIGHT_AND_UP if needed
+                        self._parse_trajectory(
+                            node,
+                            feature,
+                            right_trajectory,
+                            MinimapConnection.FALL_RIGHT,
+                            MinimapConnection.FALL_RIGHT,
+                            base_grid,
+                        )  # TODO - Add FALL_RIGHT_AND_UP if needed
 
                 elif feature.is_ladder:
                     # Skip the node on top to make sure jumping out of it doesn't lead back to platform at top (if any)
@@ -381,12 +411,26 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                     left_trajectory = self._jump_trajectory(
                         node, "left", fall_only=True
                     )
-                    self._parse_trajectory(node, feature, left_trajectory, MinimapConnection.JUMP_LEFT, MinimapConnection.JUMP_LEFT_AND_UP, base_grid)
+                    self._parse_trajectory(
+                        node,
+                        feature,
+                        left_trajectory,
+                        MinimapConnection.JUMP_LEFT,
+                        MinimapConnection.JUMP_LEFT_AND_UP,
+                        base_grid,
+                    )
 
                     right_trajectory = self._jump_trajectory(
                         node, "right", fall_only=True
                     )
-                    self._parse_trajectory(node, feature, right_trajectory, MinimapConnection.JUMP_RIGHT, MinimapConnection.JUMP_RIGHT_AND_UP, base_grid)
+                    self._parse_trajectory(
+                        node,
+                        feature,
+                        right_trajectory,
+                        MinimapConnection.JUMP_RIGHT,
+                        MinimapConnection.JUMP_RIGHT_AND_UP,
+                        base_grid,
+                    )
 
         return base_grid
 
@@ -397,7 +441,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         trajectory: list[tuple[int, int]],
         connection_type_platform: int,
         connection_type_ladder: int,
-        grid: MinimapGrid
+        grid: MinimapGrid,
     ):
         """
         Parses a trajectory and adds connections to the grid.
@@ -411,9 +455,14 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                 continue
             elif other_node == node:
                 continue
-            elif feature.is_platform and (other_node[1] == node[1] and abs(other_node[0] - node[0]) <= 1):
+            # TODO - refactor using grid.neighbors
+            elif feature.is_platform and (
+                other_node[1] == node[1] and abs(other_node[0] - node[0]) <= 1
+            ):
                 continue
-            elif feature.is_ladder and (other_node[0] == node[0] and abs(other_node[1] - node[1]) <= 1):
+            elif feature.is_ladder and (
+                other_node[0] == node[0] and abs(other_node[1] - node[1]) <= 1
+            ):
                 continue
             else:
                 other_feature = self.get_feature_containing(other_node)
@@ -428,258 +477,11 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                     # If it's a ladder, we keep checking the remainder as the ladder can be bypassed
                     elif other_feature.is_ladder:
                         grid.node(*node).connect(
-                            grid.node(*other_node),
-                            connection_type_ladder)
+                            grid.node(*other_node), connection_type_ladder
+                        )
+                        # Also add the horizontal distance as weight to the ladder
+                        grid.node(*other_node).weight = abs(
+                            other_node[0] - node[0]
+                        )
                 else:
                     break
-
-# #------------------------------------------------------- Original (below)-------------------------------------------------------#
-#             #
-#             # for connection in feature.connections:
-#             #     if connection.other_feature_name is None:
-#             #         continue  # TODO: Implement connections to other maps
-#             #     other_feature = self.features[connection.other_feature_name]
-#             #
-#             #     if connection.connection_type == MinimapConnection.JUMP_DOWN:
-#             #         self._add_jump_down_connection(base_grid, feature, other_feature)
-#             #
-#             #     elif connection.connection_type == MinimapConnection.JUMP_LEFT:
-#             #         self._add_jump_connection(base_grid, "left", feature, other_feature)
-#             #
-#             #     elif connection.connection_type == MinimapConnection.JUMP_RIGHT:
-#             #         self._add_jump_connection(
-#             #             base_grid, "right", feature, other_feature
-#             #         )
-#             #
-#             #     elif connection.connection_type == MinimapConnection.JUMP_UP:
-#             #         self._add_jump_up_connection(base_grid, feature, other_feature)
-#             #
-#             #     elif connection.connection_type == MinimapConnection.FALL_LEFT:
-#             #         self._add_fall_connection(base_grid, "left", feature, other_feature)
-#             #
-#             #     elif connection.connection_type == MinimapConnection.FALL_RIGHT:
-#             #         self._add_fall_connection(
-#             #             base_grid, "right", feature, other_feature
-#             #         )
-#             #
-#             #     elif connection.connection_type == MinimapConnection.FALL_ANY:
-#             #         self._add_fall_connection(base_grid, "left", feature, other_feature)
-#             #         self._add_fall_connection(
-#             #             base_grid, "right", feature, other_feature
-#             #         )
-#             #
-#             #     elif connection.connection_type == MinimapConnection.JUMP_LEFT_AND_UP:
-#             #         self._add_jump_into_ladder_connection(
-#             #             base_grid, "left", feature, other_feature
-#             #         )
-#             #
-#             #     elif connection.connection_type == MinimapConnection.JUMP_RIGHT_AND_UP:
-#             #         self._add_jump_into_ladder_connection(
-#             #             base_grid, "right", feature, other_feature
-#             #         )
-#             #
-#             #     elif connection.connection_type == MinimapConnection.JUMP_ANY_AND_UP:
-#             #         self._add_jump_into_ladder_connection(
-#             #             base_grid, "left", feature, other_feature
-#             #         )
-#             #         self._add_jump_into_ladder_connection(
-#             #             base_grid, "right", feature, other_feature
-#             #         )
-#             #
-#             #     elif connection.connection_type == MinimapConnection.PORTAL:
-#             #         sources = (
-#             #             connection.custom_sources
-#             #             if connection.custom_sources is not None
-#             #             else [
-#             #                 (i, feature.top)
-#             #                 for i in range(feature.left, feature.right + 1)
-#             #             ]
-#             #         )
-#             #         self._add_portal_connection(
-#             #             base_grid,
-#             #             sources,
-#             #             connection.custom_destinations,
-#             #         )
-#             #     else:
-#             #         breakpoint()
-#             #         raise NotImplementedError("Should not reach this point")
-#
-#         return base_grid
-#
-#     @staticmethod
-#     def _add_jump_down_connection(
-#         grid: MinimapGrid, feature: MinimapFeature, other_feature: MinimapFeature
-#     ) -> None:
-#         """
-#         Adds connections between each vertically parallel nodes between the two features, but only if there are no walkable
-#         nodes in between them.
-#         # TODO - See if custom behavior needed, for example for platforms where jumping down is only partially possible.
-#         """
-#
-#         for node in range(feature.left, feature.right + 1):
-#             if node in range(
-#                 other_feature.left, other_feature.right + 1
-#             ):  # Make sure nodes are vertically aligned
-#                 if not any(
-#                     grid.node(node, y).walkable
-#                     for y in range(feature.top + 1, other_feature.top)
-#                 ):  # Make sure there are no walkable nodes in between
-#                     grid.node(node, feature.top).connect(
-#                         grid.node(node, other_feature.top),
-#                         connection_type=MinimapConnection.JUMP_DOWN,
-#                     )
-#
-#     @staticmethod
-#     def _add_jump_up_connection(
-#         grid: MinimapGrid, feature: MinimapFeature, other_feature: MinimapFeature
-#     ) -> None:
-#         """
-#         Adds connections between each vertically parallel nodes between the two features, but only if there are no walkable
-#         nodes in between them. Reversed order compared to jump down.
-#         # TODO - See if custom behavior needed, for example for platforms where jumping down is only partially possible.
-#         """
-#
-#         for node in range(feature.left, feature.right + 1):
-#             if node in range(
-#                 other_feature.left, other_feature.right + 1
-#             ):  # Make sure nodes are vertically aligned
-#                 if not any(
-#                     grid.node(node, y).walkable
-#                     for y in range(other_feature.top + 1, feature.top)
-#                 ):  # Make sure there are no walkable nodes in between
-#                     grid.node(node, feature.top).connect(
-#                         grid.node(node, other_feature.top),
-#                         connection_type=MinimapConnection.JUMP_UP,
-#                     )
-#
-#     @staticmethod
-#     def _add_jump_connection(
-#         grid: MinimapGrid,
-#         direction: str,
-#         feature: MinimapFeature,
-#         other_feature: MinimapFeature,
-#         horizontal_distance: int = 5,
-#     ) -> None:
-#         """
-#         If feature is a platform, adds connections between endpoints of both features.
-#         If feature is a ladder, adds a connection between each point in the ladder and the other feature with the horizontal distance.
-#         Weights are added to limit jumps when possible.
-#         # TODO - See if custom behavior needed, for example for platforms where jumping down is only partially possible.
-#         """
-#         assert direction in ["left", "right"], "Invalid direction for jump connection."
-#         connection_type = (
-#             MinimapConnection.JUMP_LEFT
-#             if direction == "left"
-#             else MinimapConnection.JUMP_RIGHT
-#         )
-#         if feature.height == 0:
-#             feature_end = feature.left if direction == "left" else feature.right
-#             other_feature_end = (
-#                 other_feature.right if direction == "left" else other_feature.left
-#             )
-#             grid.node(feature_end, feature.top).connect(
-#                 grid.node(other_feature_end, other_feature.top),
-#                 connection_type=connection_type,
-#             )
-#             grid.node(feature_end, feature.top).weight = abs(
-#                 feature_end - other_feature_end
-#             )
-#         elif feature.width == 0:
-#             # Jumping out of a ladder
-#             other_feature_end = (
-#                 feature.left - horizontal_distance
-#                 if direction == "left"
-#                 else feature.right + horizontal_distance
-#             )
-#             # Don't connect the first nodes as the character may not be able to actually jump down the ladder from there
-#             for node in range(feature.top + 2, feature.bottom):
-#                 grid.node(feature.left, node).connect(
-#                     grid.node(other_feature_end, other_feature.top),
-#                     connection_type=connection_type,
-#                 )
-#                 # No need to add weight on ladders as its very easy to jump down from them
-#                 # grid.node(feature.left, node).weight = (
-#                 #     abs(feature.left - other_feature_end) + 1
-#                 # )
-#
-#     @staticmethod
-#     def _add_fall_connection(
-#         grid: MinimapGrid,
-#         direction: str,
-#         feature: MinimapFeature,
-#         other_feature: MinimapFeature,
-#         horizontal_distance: int = 5,
-#     ) -> None:
-#         """
-#         Adds connections between endpoints of the feature and points of the other feature a certain horizontal
-#         distance from those endpoints.
-#         """
-#         assert direction in ["left", "right"], "Invalid direction for fall connection."
-#         connection_type = (
-#             MinimapConnection.FALL_LEFT
-#             if direction == "left"
-#             else MinimapConnection.FALL_RIGHT
-#         )
-#         feature_end = feature.left if direction == "left" else feature.right
-#         other_feature_pt = (
-#             feature_end + horizontal_distance
-#             if direction == "right"
-#             else feature_end - horizontal_distance
-#         )
-#         grid.node(feature_end, feature.top).connect(
-#             grid.node(other_feature_pt, other_feature.top),
-#             connection_type=connection_type,
-#         )
-#
-#     @staticmethod
-#     def _add_portal_connection(
-#         grid: MinimapGrid,
-#         source_nodes: list[tuple[int, int]],
-#         target_node: list[tuple[int, int]],
-#     ) -> None:
-#         """
-#         Adds connections between nodes into the grid based on portals in-game.
-#         Weight is left unchanged (No extra cost to use portals; in most cases its.
-#         """
-#         assert len(target_node) == 1, "Portal target must be a single node."
-#         target_node = target_node[0]
-#         for source in source_nodes:
-#             grid.node(*source).connect(
-#                 grid.node(*target_node), connection_type=MinimapConnection.PORTAL
-#             )
-#
-#     @staticmethod
-#     def _add_jump_into_ladder_connection(
-#         grid: MinimapGrid,
-#         direction: str,
-#         feature: MinimapFeature,
-#         other_feature: MinimapFeature,
-#         jump_horizontal_distance: int = 3,
-#         jump_vertical_distance: int = 4,
-#     ) -> None:
-#         """
-#         Adds connections between nodes into the grid based on jump into ladder in-game.
-#         # TODO - Change if custom nodes are needed here.
-#         """
-#         assert (
-#             feature.height == 0 and other_feature.width == 0
-#         ), "Invalid features for jump into ladder."
-#         assert direction in [
-#             "left",
-#             "right",
-#         ], "Invalid direction for jump into ladder."
-#         horizontal_distance = (
-#             -jump_horizontal_distance
-#             if direction == "right"
-#             else jump_horizontal_distance
-#         )
-#         connection_type = (
-#             MinimapConnection.JUMP_RIGHT_AND_UP
-#             if direction == "right"
-#             else MinimapConnection.JUMP_LEFT_AND_UP
-#         )
-#
-#         grid.node(other_feature.left + horizontal_distance, feature.top).connect(
-#             grid.node(other_feature.left, feature.top - jump_vertical_distance),
-#             connection_type=connection_type,
-#         )

@@ -105,6 +105,7 @@ class InGameToggleableVisuals(InGameBaseVisuals, ABC):
     """
     Base class for in-game visuals that can be toggled on and off (usually through a keybind or mouse click).
     """
+
     @abstractmethod
     def is_displayed(self, handle: int) -> bool:
         """
@@ -123,9 +124,12 @@ class InGameDynamicVisuals(InGameToggleableVisuals, ABC):
     This image can be only a small portion of the visual, as long as it is unique enough to be detected.
     The detection is made through templateMatching. If the visual is obstructed, it may not be properly detected.
     """
+
     _menu_icon_detection_needle: np.ndarray
 
-    def _menu_icon_position(self, handle: int, client_img: np.ndarray | None = None) -> Box | None:
+    def _menu_icon_position(
+        self, handle: int, client_img: np.ndarray | None = None
+    ) -> Box | None:
         """
         Use the detection image to find the menu icon position.
         Child classes can use the result of this method to pinpoint the entire visual.

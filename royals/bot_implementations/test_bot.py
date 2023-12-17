@@ -9,7 +9,7 @@ from botting.core import QueueAction, DecisionEngine, Executor
 from .actions.mock import _test_action
 from .checks.mock import mock_check
 
-logger = logging.getLogger(f'{botting.PARENT_LOG}.{__name__}')
+logger = logging.getLogger(f"{botting.PARENT_LOG}.{__name__}")
 
 
 class TestBot(DecisionEngine):

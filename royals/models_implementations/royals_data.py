@@ -3,7 +3,11 @@ import numpy as np
 from dataclasses import dataclass, field
 
 from botting.core import GameData
-from botting.utilities import Box, CLIENT_HORIZONTAL_MARGIN_PX, CLIENT_VERTICAL_MARGIN_PX
+from botting.utilities import (
+    Box,
+    CLIENT_HORIZONTAL_MARGIN_PX,
+    CLIENT_VERTICAL_MARGIN_PX,
+)
 from royals.models_implementations.characters.character import Character
 from royals.models_implementations.mechanics import MinimapPathingMechanics
 
@@ -23,7 +27,10 @@ class RoyalsData(GameData):
     character_in_a_ladder: bool = field(repr=False, init=False, default=False)
 
     def update(self, *args, **kwargs) -> None:
-        if kwargs.get("current_direction", self.current_direction) != self.current_direction:
+        if (
+            kwargs.get("current_direction", self.current_direction)
+            != self.current_direction
+        ):
             self.current_direction = kwargs["current_direction"]
 
         if "current_minimap_area_box" in args:
@@ -50,9 +57,19 @@ class RoyalsData(GameData):
 
         if "current_on_screen_position" in args:
             hide_minimap_box = Box(
-                max(0, self.current_entire_minimap_box.left - CLIENT_HORIZONTAL_MARGIN_PX - 5),
+                max(
+                    0,
+                    self.current_entire_minimap_box.left
+                    - CLIENT_HORIZONTAL_MARGIN_PX
+                    - 5,
+                ),
                 self.current_entire_minimap_box.right + CLIENT_HORIZONTAL_MARGIN_PX + 5,
-                max(0, self.current_entire_minimap_box.top - CLIENT_VERTICAL_MARGIN_PX - 10),
+                max(
+                    0,
+                    self.current_entire_minimap_box.top
+                    - CLIENT_VERTICAL_MARGIN_PX
+                    - 10,
+                ),
                 self.current_entire_minimap_box.bottom + CLIENT_VERTICAL_MARGIN_PX + 5,
             )
             hide_tv_smega_box = Box(left=700, right=1024, top=0, bottom=300)

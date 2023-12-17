@@ -98,4 +98,6 @@ async def focused_input(
         delay=delay,
     )
     await _send_inputs(hwnd, inputs)
-    await asyncio.sleep(cooldown)  # The cooldown is not within _send_inputs as this would hold the focus lock during cooldown.
+    await asyncio.sleep(
+        cooldown
+    )  # The cooldown is not within _send_inputs as this would hold the focus lock during cooldown.

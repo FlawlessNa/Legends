@@ -22,7 +22,6 @@ class KerningLine1Area1(MinimapPathingMechanics):
         # connections=[
         #     MinimapConnection("first_wagon", MinimapConnection.JUMP_UP),
         #     MinimapConnection("second_wagon", MinimapConnection.JUMP_UP),
-
         #     MinimapConnection("third_wagon", MinimapConnection.JUMP_UP),
         #     MinimapConnection("fourth_wagon", MinimapConnection.JUMP_UP),
         #     MinimapConnection(
