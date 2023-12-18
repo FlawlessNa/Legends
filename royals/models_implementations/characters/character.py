@@ -82,11 +82,16 @@ class Character(BaseCharacter, ABC):
         if DEBUG:
             _debug(image, largest, cx, cy, self._offset)
 
-        return cx + self._offset[0] + detection_box.left, cy + self._offset[1] + detection_box.top
+        return (
+            cx + self._offset[0] + detection_box.left,
+            cy + self._offset[1] + detection_box.top,
+        )
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         # TODO Remove this eventually, especially when using a model - this negates "portals" on screen as they tend to interfere with podium
-        white_pixels = cv2.inRange(image, np.array([200, 235, 235]), np.array([255, 255, 255]))
+        white_pixels = cv2.inRange(
+            image, np.array([200, 235, 235]), np.array([255, 255, 255])
+        )
         image[white_pixels == 255] = [0, 0, 0]
 
         detection_method = self._detection_methods[self._method]

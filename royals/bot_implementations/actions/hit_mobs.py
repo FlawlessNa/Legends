@@ -13,16 +13,16 @@ DEBUG = True
 
 
 def hit_closest_in_range(data: RoyalsData, skill: Skill) -> Generator:
-
     while True:
-
         data.update("current_on_screen_position")
         x, y = data.current_on_screen_position
 
-        region = Box(left=x - skill.horizontal_screen_range,
-                     right=x + skill.horizontal_screen_range,
-                     top=y - skill.vertical_screen_range,
-                     bottom=y + skill.vertical_screen_range)
+        region = Box(
+            left=x - skill.horizontal_screen_range,
+            right=x + skill.horizontal_screen_range,
+            top=y - skill.vertical_screen_range,
+            bottom=y + skill.vertical_screen_range,
+        )
         x, y = region.width / 2, region.height / 2
 
         cropped_img = take_screenshot(data.handle, region)
@@ -69,11 +69,16 @@ async def cast_skill(data: RoyalsData, skill: Skill, direction: str = None) -> N
     # if skill.unidirectional:
     #     assert direction in ("left", "right"), "Invalid direction."
     #     if direction != data.current_direction:
+    await controller.press(data.handle, direction, silenced=False, enforce_delay=True)
+    data.update(
+        current_direction=direction
+    )  # TODO - Add this piece into the QueueAction wrapping instead
     await controller.press(
-        data.handle, direction, silenced=False, enforce_delay=True
+        data.handle,
+        skill.key_bind(data.ign),
+        silenced=True,
+        cooldown=skill.animation_time,
     )
-    data.update(current_direction=direction)  # TODO - Add this piece into the QueueAction wrapping instead
-    await controller.press(data.handle, skill.key_bind(data.ign), silenced=True, cooldown=skill.animation_time)
 
 
 def _get_closest_mob(

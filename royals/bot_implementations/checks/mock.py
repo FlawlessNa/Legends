@@ -6,6 +6,7 @@ from botting.core.controls import controller
 
 HANDLE = 0x02300A26
 
+
 async def _test_check(key):
     await controller.press(HANDLE, key, silenced=True)
 

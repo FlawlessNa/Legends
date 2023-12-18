@@ -15,5 +15,7 @@ class QueueAction:
     is_cancellable: bool = field(compare=False, default=False, repr=False)
     is_map_rotation: bool = field(compare=False, default=False, repr=False)
     lock_id: int = field(compare=False, default=None, repr=False)
-    update_game_data: Optional[tuple[str] | dict] = field(compare=False, default=None, repr=False)
+    update_game_data: Optional[tuple[str] | dict] = field(
+        compare=False, default=None, repr=False
+    )
     callbacks: list[callable] = field(compare=False, default_factory=list, repr=False)

@@ -57,7 +57,9 @@ async def press(
     """
     if down_or_up is not None:
         assert down_or_up in ["keydown", "keyup"]
-        assert not silenced, "Cannot send a keydown or keyup (as stand-alone) event when silenced=True."
+        assert (
+            not silenced
+        ), "Cannot send a keydown or keyup (as stand-alone) event when silenced=True."
 
     if silenced:
         await non_focused_input(
@@ -214,7 +216,9 @@ async def move(
     try:
         # await asyncio.wait_for(_combined_tasks(), duration)
         await asyncio.wait_for(
-            focused_input(handle, keys, events, enforce_delay=enforce_delay, delay=delay),
+            focused_input(
+                handle, keys, events, enforce_delay=enforce_delay, delay=delay
+            ),
             duration,
         )
     except asyncio.TimeoutError:

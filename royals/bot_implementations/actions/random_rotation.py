@@ -20,13 +20,12 @@ DEBUG = True
 
 
 def random_rotation(data: RoyalsData) -> Generator:
-
     while True:
         target_pos = data.current_minimap.random_point()
         current_pos = data.current_minimap_position
 
         while math.dist(current_pos, target_pos) > 2:
-            data.update('current_minimap_position')
+            data.update("current_minimap_position")
             current_pos = data.current_minimap_position
             actions = get_to_target(current_pos, target_pos, data.current_minimap)
             try:

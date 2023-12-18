@@ -161,7 +161,9 @@ class ChatFeed(InGameToggleableVisuals, ABC):
         :return:
         """
         chat_img = take_screenshot(handle, self.get_chat_feed_box(handle))
-        lines = reversed(np.split(chat_img, self.get_nbr_lines_displayed(handle), axis=0))
+        lines = reversed(
+            np.split(chat_img, self.get_nbr_lines_displayed(handle), axis=0)
+        )
         return (ChatLine.from_img(img) for img in lines)
 
 

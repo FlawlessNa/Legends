@@ -19,4 +19,4 @@ class Skill:
 
     @lru_cache
     def key_bind(self, ign: str) -> str:
-        return eval(config_reader('keybindings', ign, 'Skill Keys'))[self.name]
+        return eval(config_reader("keybindings", ign, "Skill Keys"))[self.name]

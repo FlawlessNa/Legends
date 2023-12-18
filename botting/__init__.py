@@ -30,6 +30,7 @@ if current_process.name == "MainProcess":
         """
         Custom formatter for logging. Ensures most log messages are vertically aligned.
         """
+
         def format(self, record):
             for attr, value in record.__dict__.items():
                 if attr == "name":
@@ -39,7 +40,6 @@ if current_process.name == "MainProcess":
                 elif attr == "levelname":
                     record.__dict__[attr] = record.__dict__[attr].ljust(10)
             return super().format(record)
-
 
     formatter = CustomFormatter(
         fmt="{levelname} -- PROCESS {processName} -- MODULE {name} -- {asctime}:::{message}",

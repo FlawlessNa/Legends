@@ -238,4 +238,3 @@ class LudiFreeMarketTemplate(MinimapPathingMechanics):
         #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_RIGHT),
         # ],
     )
-

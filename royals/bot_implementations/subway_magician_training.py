@@ -36,7 +36,9 @@ class SubwayMagicianTraining(DecisionEngine):
         return self._game_data
 
     def items_to_monitor(self) -> list[callable]:
-        return []  # TODO - Add a check that looks whether current node is walkable. if not walkable and static + 10s, then add some movement
+        return (
+            []
+        )  # TODO - Add a check that looks whether current node is walkable. if not walkable and static + 10s, then add some movement
 
     def next_map_rotation(self) -> list[callable]:
         return [self.random_rotation, self.train]

@@ -150,9 +150,13 @@ class Executor:
         """Callback to use on map rotation actions if they need to acquire lock before executing."""
         self.rotation_locks[fut.lock_id].release()
         if fut.cancelled():
-            logger.debug(f"Rotation Lock {fut.lock_id} released on {self} through callback. {fut.get_name()} is Cancelled.")
+            logger.debug(
+                f"Rotation Lock {fut.lock_id} released on {self} through callback. {fut.get_name()} is Cancelled."
+            )
         else:
-            logger.debug(f"Rotation Lock {fut.lock_id} released on {self} through callback. {fut.get_name()} is Done.")
+            logger.debug(
+                f"Rotation Lock {fut.lock_id} released on {self} through callback. {fut.get_name()} is Done."
+            )
 
     def _send_update_signal_callback(self, signal: tuple[str], fut):
         """

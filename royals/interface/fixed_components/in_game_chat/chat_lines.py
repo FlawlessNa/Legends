@@ -54,7 +54,7 @@ class ChatLine(InGameBaseVisuals, ABC):
     def from_img(chat_line_img: np.ndarray) -> "ChatLine":
         # Skip first rows of pixels in the line, because some characters of the previous line may be present (the "@" does so).
         # Skip right-hand side of the image, as sometimes login or cc notifications can mess up line type recognition.
-        img = chat_line_img[2: , 0:350]
+        img = chat_line_img[2:, 0:350]
         detected_types = set()
         for chat_type in ChatLine.all_chat_types:
             if InGameBaseVisuals._color_detection(
