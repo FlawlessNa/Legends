@@ -49,13 +49,13 @@ class ChatFeed(InGameToggleableVisuals, ABC):
         img = take_screenshot(handle, self._chat_feed_displayed_detection_box)
         if self._color_detection(
             img,
-            needle_color=self._chat_feed_displayed_detection_color,
+            color=self._chat_feed_displayed_detection_color,
             pixel_threshold=20,
         ):
             return True
         elif self._color_detection(
             img,
-            needle_color=self._chat_feed_displayed_detection_color_alt,
+            color=self._chat_feed_displayed_detection_color_alt,
             pixel_threshold=20,
         ):
             return True

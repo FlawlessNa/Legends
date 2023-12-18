@@ -21,13 +21,13 @@ class BaseMob(InGameBaseVisuals, ABC):
     @abstractmethod
     def _filter(cls, contours) -> list[np.ndarray]:
         """
-        Filters the contours found in the image to only return the ones assumed to be "mob-like".
+        Filters the contours found to only return the ones assumed to be "mob-like".
         """
         pass
 
     def get_onscreen_mobs(self, image: np.ndarray) -> list[Sequence[int]]:
         """
-        Returns a list of tuples containing the coordinates of the mobs found on-screen.
+        Returns a list of tuples of the coordinates for each mob found on-screen.
         :return: Coordinates are, in order, x, y, width, height.
         """
         processed = self._preprocess_img(image)

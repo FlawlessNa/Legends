@@ -1,3 +1,7 @@
+"""
+Exports the necessary functions from windll.user32 to be used by the input module.
+Retrieves appropriate virtual key code given keyboard layout and key name.
+"""
 import ctypes
 import win32api
 import win32con
@@ -81,7 +85,8 @@ def _setup_exported_functions() -> dict[str, callable]:
         wintypes.LPARAM,
     ]
 
-    # Note - The argtypes of SendInput is defined in each function type, since the array length may change at each call.
+    # Note - The argtypes of SendInput is defined in each function type,
+    # since the array length may change at each call.
     send_input = ctypes.windll.user32.SendInput
     send_input.restype = wintypes.UINT
 

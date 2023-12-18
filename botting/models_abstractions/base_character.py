@@ -10,9 +10,11 @@ from botting.utilities import Box
 class BaseCharacter(InGameBaseVisuals, ABC):
     """
     Base class for all characters.
-    Should be used to define general detection methods used for on-screen character detection.
-    Should also define anything related to the character (skills, buffs, etc).
-    The detection_box should be sufficiently large such that the character is always within it.
+    Should be used to define general detection methods used for on-screen
+     character detection.
+    Should also define anything related to the character (skills, buffs, etc.).
+    The detection_box should be sufficiently large such
+     that the character is always within it.
     """
 
     detection_box: Box

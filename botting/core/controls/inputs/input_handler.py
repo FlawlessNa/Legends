@@ -1,5 +1,6 @@
 """
-Low-level module that handles inputs sent to a window through either PostMessage(...) or SendInput(...) functions.
+Low-level module that handles inputs sent to a window through either
+PostMessage(...) or SendInput(...) functions.
 """
 import asyncio
 import logging
@@ -39,18 +40,24 @@ async def non_focused_input(
     **kwargs
 ) -> None:
     """
-    Constructs the input array of structures to be sent to the window associated the provided handle. Send that input through PostMessage.
-    Note: While this function is broken down in two components, there's no real gain in doing so. It is merely for consistency with the _focused_input() version.
+    Constructs the input array of structures to be sent to the window.
+    Send that input through PostMessage.
+    Note: While this function is broken down in two components,
+     there's no real gain in doing so.
+     It is merely for consistency with the _focused_input() version.
     :param hwnd: Handle to the window to send the message to.
     :param keys: String representation of the key(s) to be pressed.
-    :param messages: Type of message to be sent. Currently supported: WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_CHAR. If it is a list, it must be the same length as the keys list.
-    :param delay: Cooldown between each call of PostMessage(...). Default is 0.033 seconds.
-    :param cooldown: Cooldown after all messages have been sent. Default is 0.1 seconds.
+    :param messages: Type of message to be sent.
+    Currently supported: WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_CHAR.
+     If it is a list, it must be the same length as the keys list.
+    :param delay: Cooldown between each PostMessage() call. Default is 0.033 seconds.
+    :param cooldown: Cooldown after all messages sent. Default is 0.1 seconds.
     :return: None
     """
     if isinstance(
         keys, str
-    ):  # If only one key is provided, we convert it to a list to simplify the rest of the code. In such a case, we also set delay to 0.
+    ):  # If only one key is provided, we convert it to a list to
+        # simplify the rest of the code. In such a case, we also set delay to 0.
         keys = [keys] * len(messages) if isinstance(messages, list) else [keys]
         delay = 0 if len(keys) == 1 else delay
     if not isinstance(messages, list):
@@ -73,15 +80,20 @@ async def focused_input(
     cooldown: float = 0.1,
 ) -> None:
     """
-    Constructs the input array of structures to be sent to the window associated with this InputHandler instance. It then activates and sends the input to the window through SendInput.
-    Note: This function is broken down to allow only the input construction to be made without using the Focus Lock. The Lock is therefore only used once everything is ready to be sent.
+    Constructs the input array of structures to be sent to the window.
+    It then activates and sends the input to the window through SendInput.
+    Note: This function is broken down to allow only the input construction to be made
+     without using the Focus Lock.
+     The Lock is only used once everything is ready to be sent.
     :param hwnd: Handle to the window to send the message to.
     :param keys: String representation of the key(s) to be pressed.
-    :param event_type: Type of event to be sent. Currently supported: keyup, keydown. If it is a list, it must be the same length as the keys list.
+    :param event_type: Type of event to be sent. Currently supported: keyup, keydown.
+     If it is a list, it must be the same length as the keys list.
     :param enforce_delay: Whether to enforce a delay between each key press.
-    :param as_unicode: Whether to send the keys as unicode characters. If True, the keys must be of length 1.
+    :param as_unicode: Whether to send the keys as unicode characters.
+    If True, the keys must be of length 1.
     :param delay: Delay between each call of SendInput(...). Default is 0.033 seconds.
-    :param cooldown: Cooldown after all messages have been sent. Default is 0.1 seconds.
+    :param cooldown: Cooldown after all messages sent. Default is 0.1 seconds.
     :return: None
     """
     if isinstance(keys, str):
@@ -98,4 +110,5 @@ async def focused_input(
         delay=delay,
     )
     await _send_inputs(hwnd, inputs)
-    await asyncio.sleep(cooldown)  # The cooldown is not within _send_inputs as this would hold the focus lock during cooldown.
+    # The cooldown is not within _send_inputs as this would hold the focus lock during cooldown.
+    await asyncio.sleep(cooldown)

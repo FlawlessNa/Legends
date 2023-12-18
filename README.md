@@ -1,16 +1,18 @@
 # Royals-V2
 
 ## TODO
-- [x] Character detection
-  - [x] Combine with Mob detection and skill range to determine if a mob is in range
 - [x] Implement Skills
 - [ ] Skill Specs Finder
 - [ ] Add multiple Rotation Locks - Each type of DecisionEngine will define how many locks it needs.
-- [ ] Finalize Kerning Line1
+- [ ] Improvements to the QueueAction wrapping
+- [ ] Improvements to RoyalsData management
+- [ ] Major clean-up of the Royals library
 - [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
 - [ ] Minimap Parsing - "Draw" the minimap canvas while YOU manually move around the entire map. Then, translate drawings into features and adjust.
 - [ ] When done, update all docstrings as some are lacking now.
 - [ ] Enable np arrays/.png files to be sent through Pipe - then send chat images towards discord
+- [ ] Failsafes
+  - [ ] Watch for no movements when movement is expected, add actions to solve when that happens
 - [ ] Anti Detection Features -> Features are monitored in the child processes, but reactions and coordinations between clients done in Main
   - [ ] Chat Parsing + Automated Responses
   - [ ] Minimap Parsing for strangers + random reaction
@@ -21,6 +23,7 @@
 - [ ] GPT Automated Responses
 - [ ] For chat lines reading, try converting to gray and applying simple thresholding (general lines at least)
 - [ ] Mouse movements and mouse clicks
+- [ ] Character detection - model improvement, gather more data
 - [ ] Refactor game interface more accurately
   - [ ] Quickslots
   - [ ] Inventory

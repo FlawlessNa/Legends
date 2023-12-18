@@ -14,14 +14,25 @@ def randomize_params(
     enforce_sign: bool = True,
 ) -> callable:
     """
-    This decorator randomizes any integers, floats and Box that the decorated function uses parameters (default).
-    If args are provided as positional string arguments, these must correspond to existing arguments within the decorated function. In such case, only these are randomized.
-    :param args: If specified, these args (and no other) will be randomized. They must correspond to existing arguments within the decorated function.
-    :param perc_threshold: default = 5%, which is the margin around the parameter value. Parameters are randomized within that margin.
-    :param abs_threshold: If specified, parameters will be randomized centered around +/- the absolute parameter value.
-    :param ignore_args: default = None. If specified, these arguments in the underlying function will not be randomized.
-    :param convert_args: default = None. If specified, these arguments will be converted to the specified type after randomization. The type must be either 'int' or 'float'.
-    :param enforce_sign: default = True. If True, the sign of the randomized value will be compared against sign of original value. A ValueError is raised if signs are different.
+    This decorator randomizes any integers, floats and Box
+     that the decorated function uses parameters (default).
+    If args are provided as positional string arguments, these must correspond
+     to existing arguments within the decorated function.
+     In such case, only these are randomized.
+    :param args: If specified, these args (and no other) will be randomized.
+     They must correspond to existing arguments within the decorated function.
+    :param perc_threshold: default = 5%, is the margin around the parameter value.
+     Parameters are randomized within that margin.
+    :param abs_threshold: If specified, parameters will be randomized centered
+     around +/- the absolute parameter value.
+    :param ignore_args: default = None. If specified, these arguments in the
+     underlying function will not be randomized.
+    :param convert_args: default = None. If specified, these arguments will be
+     converted to the specified type after randomization.
+      Valid types are either 'int' or 'float'.
+    :param enforce_sign: default = True. If True, the sign of the randomized
+     value will be compared against sign of original value.
+     A ValueError is raised if signs are different.
     :return: Callable with randomized arguments
     """
     if isinstance(ignore_args, str):

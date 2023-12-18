@@ -57,7 +57,8 @@ class Recorder(ChildProcess):
     Loads in relevant recording parameters (user-specified) and records the entire session.
     At the end of the session, the recording is saved.
     The recorder is expected to run in a child process (separated from main process).
-    As such, it inherits from ChildProcess and relies on its connection with Main Process to know when to stop.
+    As such, it inherits from ChildProcess and relies on its connection with Main
+     Process to know when to stop.
     """
 
     def __init__(
@@ -67,8 +68,8 @@ class Recorder(ChildProcess):
         config_name: str = "recordings",
     ) -> None:
         """
-        :param end_pipe: The end of the Pipe object that is connected to the main process.
-        :param config_name: Optional. Name of the config file to use. Defaults to "recordings".
+        :param end_pipe: End of the Pipe object that is connected to the main process.
+        :param config_name: Name of the config file to use. Defaults to "recordings".
         """
         super().__init__(log_queue, end_pipe)
         self.config: dict = dict(config_reader(config_name)["DEFAULT"])

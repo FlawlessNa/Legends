@@ -13,8 +13,9 @@ logger = logging.getLogger(__name__)
 
 class DiscordLauncher:
     """
-    Launches a DiscordComm ChildProcess, which is responsible for establishing communication with Discord.
-    While discord API is already asynchronous, we want to ensure that the bots are not blocked by any Discord-related actions.
+    Launches a DiscordComm ChildProcess, responsible for communication with Discord.
+    While discord API is already asynchronous, we want to ensure that the bots are
+     not blocked by any Discord-related actions.
     Therefore, we launch a separate Process to handle Discord communications.
     """
 
@@ -50,7 +51,8 @@ class DiscordLauncher:
     async def relay_disc_to_main(self) -> None:
         """
         Main Process task.
-        This method is responsible for listening to the discord process and see if any actions are received by discord user.
+        Responsible for listening to the discord process and see if any actions
+         are requested by discord user.
         It then performs those actions.
         :return: None
         """
@@ -74,7 +76,10 @@ class DiscordLauncher:
 
 
 class DiscordComm(discord.Client, ChildProcess):
-    """Establishes communication with Discord, while maintaining the end of a Pipe object to communicate with the main process."""
+    """
+    Establishes communication with Discord,
+     while maintaining the end of a Pipe object to communicate with the main process.
+    """
 
     def __init__(
         self,
@@ -89,7 +94,8 @@ class DiscordComm(discord.Client, ChildProcess):
     @cached_property
     def chat_id(self) -> int:
         """
-        Retrieves the Specified chat channel, which is the channel used for all communications within the current session.
+        Retrieves the Specified chat channel,
+         which is the channel used for all communications within the current session.
         :return:
         """
         return [
@@ -100,13 +106,18 @@ class DiscordComm(discord.Client, ChildProcess):
         ].pop()
 
     async def on_ready(self) -> None:
-        """Callback function triggered by discord.Client whenever connection is established."""
+        """
+        Callback function triggered by discord.Client when connection is established.
+        """
         logger.info(f"Discord Communication Established with {self.user}.")
 
     async def on_message(self, msg: discord.Message) -> None:
         """
-        Callback that is triggered every time a message is sent/received from the discord channel.
-        The message source is first checked. If it is from the bot itself, then it is ignored. If it is from current user, then message is passed on to main process for parsing.
+        Callback that is triggered every time a message is sent/received
+         from the discord channel.
+        The message source is first checked. If it is from the bot itself,
+         then it is ignored. If it is from current user, then message is passed
+         on to main process for parsing.
         :param msg: The message instance.
         :return:
         """
@@ -115,7 +126,8 @@ class DiscordComm(discord.Client, ChildProcess):
         if msg.author == self.user:
             return
 
-        # Ensures only messages from specified discord user are processed. Additionally, messages must be sent in the specified channel.
+        # Ensures only messages from specified discord user are processed.
+        # Additionally, messages must be sent in the specified channel.
         elif (
             msg.author.id != int(self.config[self.config_section]["DISCORD_ID"])
             or msg.channel.name != self.config[self.config_section]["DISCORD_CHANNEL"]
@@ -129,9 +141,10 @@ class DiscordComm(discord.Client, ChildProcess):
 
     async def start(self, *args, **kwargs) -> None:
         """
-        Creates a TaskGroup to run the Discord client asynchronously with the listener.
-        The discord client listens for any discord events (currently only defined: on_message). It relays these messages to the main process.
-        The listener listens for any signals from the main process. It relays these messages to discord.
+        Creates a TaskGroup to run the Discord client asynchronously
+         with the listener.
+        The discord client listens for discord events. and relays to main.
+        The listener listens for signals from the main process and relays to discord.
         """
         async with asyncio.TaskGroup() as tg:
             tg.create_task(
@@ -143,12 +156,15 @@ class DiscordComm(discord.Client, ChildProcess):
         """
         Child Process task.
         This method is responsible for listening to the main process.
-        If main process sends a None signal, then it means the process is shutting down and this method will close both the Discord client and the listener.
-        Otherwise, the signal is assumed to be a message meant for the user. It is sent to the specified chat channel on Discord.
+        If main process sends a None signal, then it means the process is shutting down
+         and this method will close both the Discord client and the listener.
+        Otherwise, the signal is assumed to be a message meant for the user.
+        It is sent to the specified chat channel on Discord.
         :return: None
         """
         while True:
-            # Check if a signal is received from main process, blocks Discord Process for 2 seconds, meaning Discord.client is idle during this time.
+            # Check if a signal is received from main process, blocks Discord Process
+            # for 2 seconds, meaning Discord.client is idle during this time.
             if await asyncio.to_thread(self.pipe_end.poll):
                 signal = self.pipe_end.recv()
                 if signal is None:

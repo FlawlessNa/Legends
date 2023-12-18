@@ -10,7 +10,7 @@ def get_open_clients(
     Get all the windows that are titled with the provided titles.
     By default, the titles are read from the config file.
     :param window_titles: List of strings representing the window titles to look for.
-    :return: List of Window objects.
+    :return: List of handles for each window.
     """
 
     def _enum_window_callback(hwnd, window_list):
