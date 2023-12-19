@@ -5,20 +5,27 @@ import keyboard
 import math
 import os
 
+import numpy as np
+
 from paths import ROOT
 
-from royals.game_interface.dynamic_components.minimap import Minimap
+from royals.interface.dynamic_components.minimap import Minimap
 from botting.utilities import Box
 
-HANDLE = 0x00620DFE
+HANDLE = 0x02300A26
 OUTPUT_LOCATION = os.path.join(ROOT, "royals/models_implementations/minimaps/")
-OUTPUT_NAME = "ludi_free_market_template.py"
+OUTPUT_NAME = "test.py"
 
 container = []
 
 
+class FakeMinimap(Minimap):
+    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
+        pass
+
+
 def take_position(minimap: Minimap) -> None:
-    pt = minimap.get_character_positions()
+    pt = minimap.get_character_positions(HANDLE)
     assert len(pt) == 1
     pt = pt.pop()
     print(pt)
@@ -39,24 +46,31 @@ def write_feature(cont: list) -> None:
             offset=True
         )
         with open(os.path.join(OUTPUT_LOCATION, OUTPUT_NAME), "a") as f:
-            f.write(f"\t@cached_property\n")
-            f.write(f"\tdef {feature_name}(self) -> Box:\n")
-            f.write(f"\t\treturn {repr(box)}\n")
+            f.write(f"\t{feature_name}: MinimapFeature = MinimapFeature(")
             f.write("\n")
+            f.write(f"\t\tleft={box.left},\n")
+            f.write(f"\t\tright={box.right},\n")
+            f.write(f"\t\ttop={box.top},\n")
+            f.write(f"\t\tbottom={box.bottom},\n")
+            f.write(f"\t\tname={repr(box.name)},\n")
+            f.write("\t)\n")
 
 
 if __name__ == "__main__":
-    minimap = Minimap(HANDLE)
+    minimap = FakeMinimap()
 
     with open(os.path.join(OUTPUT_LOCATION, OUTPUT_NAME), "w") as f:
-        f.write("from functools import cached_property\n")
-        f.write("\n")
-        f.write("from .base_map import BaseMap\n")
-        f.write("from royals.utilities import Box\n")
+        f.write(
+"""from royals.models_implementations.mechanics import (
+    MinimapFeature,
+    MinimapConnection,
+    MinimapPathingMechanics,
+)
+    """)
         f.write("\n")
         f.write("\n")
         f.write(
-            f'class {OUTPUT_NAME.removesuffix(".py").replace("_", " ").title().replace(" ", "")}(BaseMap):\n'
+            f'class {OUTPUT_NAME.removesuffix(".py").replace("_", " ").title().replace(" ", "")}(MinimapPathingMechanics):\n'
         )
         f.write("\n")
 

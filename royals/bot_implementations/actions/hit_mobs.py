@@ -15,49 +15,52 @@ DEBUG = True
 def hit_closest_in_range(data: RoyalsData, skill: Skill) -> Generator:
     while True:
         data.update("current_on_screen_position")
-        x, y = data.current_on_screen_position
-
-        region = Box(
-            left=x - skill.horizontal_screen_range,
-            right=x + skill.horizontal_screen_range,
-            top=y - skill.vertical_screen_range,
-            bottom=y + skill.vertical_screen_range,
-        )
-        x, y = region.width / 2, region.height / 2
-
-        cropped_img = take_screenshot(data.handle, region)
-
-        # There may be multiple types of mobs, and multiple mobs of each
-        # The goal is to find the closest mob of any type
-        mobs_locations = [
-            mob.get_onscreen_mobs(cropped_img) for mob in data.current_map.mobs
-        ]
-
-        closest_mobs = []
-        for mob in data.current_map.mobs:
-            closest_mobs.append(
-                _get_closest_mob(
-                    (x, y), mobs_locations[data.current_map.mobs.index(mob)]
-                )
-            )
-        closest_mobs = [
-            mob for mob in closest_mobs if mob is not None
-        ]  # Filter out None values
-        closest = None
-        if closest_mobs:
-            closest = min(closest_mobs, key=lambda mob: math.dist((x, y), mob))
-        if DEBUG:
-            _debug(cropped_img, (x, y), closest)
-        if closest is not None and not data.character_in_a_ladder:
-            # Before yielding, we may need to change direction if the mob is not in the same direction as the character
-            yield partial(
-                cast_skill, data, skill, direction="left" if x > closest[0] else "right"
-            )
-        else:
+        if data.current_on_screen_position is None:
             yield
+        else:
+            x, y = data.current_on_screen_position
+
+            region = Box(
+                left=x - skill.horizontal_screen_range,
+                right=x + skill.horizontal_screen_range,
+                top=y - skill.vertical_screen_range,
+                bottom=y + skill.vertical_screen_range,
+            )
+            x, y = region.width / 2, region.height / 2
+
+            cropped_img = take_screenshot(data.handle, region)
+
+            # There may be multiple types of mobs, and multiple mobs of each
+            # The goal is to find the closest mob of any type
+            mobs_locations = [
+                mob.get_onscreen_mobs(cropped_img) for mob in data.current_map.mobs
+            ]
+
+            closest_mobs = []
+            for mob in data.current_map.mobs:
+                closest_mobs.append(
+                    _get_closest_mob(
+                        (x, y), mobs_locations[data.current_map.mobs.index(mob)]
+                    )
+                )
+            closest_mobs = [
+                mob for mob in closest_mobs if mob is not None
+            ]  # Filter out None values
+            closest = None
+            if closest_mobs:
+                closest = min(closest_mobs, key=lambda mob: math.dist((x, y), mob))
+            if DEBUG:
+                _debug(cropped_img, (x, y), closest)
+            if closest is not None and not data.character_in_a_ladder:
+                # Before yielding, we may need to change direction if the mob is not in the same direction as the character
+                yield partial(
+                    cast_skill, data.handle, data.ign,  skill, direction="left" if x > closest[0] else "right"
+                )
+            else:
+                yield
 
 
-async def cast_skill(data: RoyalsData, skill: Skill, direction: str = None) -> None:
+async def cast_skill(handle: int, ign: str, skill: Skill, direction: str = None) -> None:
     """
     Casts a skill in a given direction. Updates game status.
     :param data:
@@ -69,13 +72,13 @@ async def cast_skill(data: RoyalsData, skill: Skill, direction: str = None) -> N
     # if skill.unidirectional:
     #     assert direction in ("left", "right"), "Invalid direction."
     #     if direction != data.current_direction:
-    await controller.press(data.handle, direction, silenced=False, enforce_delay=True)
-    data.update(
-        current_direction=direction
-    )  # TODO - Add this piece into the QueueAction wrapping instead
+    await controller.press(handle, direction, silenced=False, enforce_delay=True)
+    # data.update(
+    #     current_direction=direction
+    # )  # TODO - Add this piece into the QueueAction wrapping instead
     await controller.press(
-        data.handle,
-        skill.key_bind(data.ign),
+        handle,
+        skill.key_bind(ign),
         silenced=True,
         cooldown=skill.animation_time,
     )

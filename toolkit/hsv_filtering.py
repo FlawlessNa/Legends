@@ -157,14 +157,12 @@ if __name__ == "__main__":
         filters = get_hsv_filter_from_controls()
         _hsv_lower = np.array([filters.hMin, filters.sMin, filters.vMin])
         _hsv_upper = np.array([filters.hMax, filters.sMax, filters.vMax])
-        white_pixels = cv2.inRange(img, np.array([200, 235, 235]), np.array([255, 255, 255]))
-        img[white_pixels == 255] = [0, 0, 0]
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
         binary = cv2.inRange(hsv, _hsv_lower, _hsv_upper)
         contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        largest = max(contours, key=cv2.contourArea)
-
-        cv2.drawContours(img, [largest], 0, (0, 255, 0), 3)
+        rects = [cv2.boundingRect(cnt) for cnt in contours if 675 <= cv2.contourArea(cnt) <= 725]
+        for x, y, w, h in rects:
+            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 3)
         cv2.imshow('contoured', img)
         cv2.waitKey(1)

@@ -1,7 +1,8 @@
-from abc import ABC, abstractmethod
 import cv2
 import numpy as np
+import os
 
+from abc import ABC, abstractmethod
 from typing import Sequence
 
 from botting.models_abstractions import BaseCharacter
@@ -10,10 +11,10 @@ from botting.utilities import (
     take_screenshot,
     config_reader,
 )
-
+from paths import ROOT
 from .skills import Skill
 
-DEBUG = False
+DEBUG = True
 
 
 class Character(BaseCharacter, ABC):
@@ -33,6 +34,15 @@ class Character(BaseCharacter, ABC):
         )
         assert client_size.lower() in ("large", "small")
         self._client_size = client_size
+
+        _model_path = config_reader("character_detection", self.ign, "Detection Model")
+        if len(_model_path) > 0:
+            if not os.path.exists(_model_path):
+                _model_path = os.path.join(ROOT, _model_path)
+                assert os.path.exists(_model_path), f"Model {_model_path} does not exist."
+            self._model = cv2.CascadeClassifier(_model_path)
+        else:
+            self._model = None
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.ign})"
@@ -72,6 +82,27 @@ class Character(BaseCharacter, ABC):
             processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
         largest = max(contours, key=cv2.contourArea)
+
+        # Cross-validate both rectangles, if a model is used
+        if self._model is not None:
+            rects, lvls, weights = self._model.detectMultiScale3(
+                image, 1.1, 6, 0, (50, 50), (90, 90), True
+            )
+            if len(weights):
+                max_conf = np.argmax(weights)
+                (x, y, w, h) = rects[max_conf]
+                if DEBUG:
+                    cv2.rectangle(image, (x, y), (x + w, y + h), (255, 0, 0), 2)
+
+                cnt_x, cnt_y, cnt_w, cnt_h = cv2.boundingRect(largest)
+                cnt_x += self._offset[0]
+                cnt_y += self._offset[1]
+                xi = max(x, cnt_x)
+                yi = max(y, cnt_y)
+                wi = min(x + w, cnt_x + cnt_w) - xi
+                hi = min(y + h, cnt_y + cnt_h) - yi
+                if not wi * hi > 0:
+                    return None
 
         moments = cv2.moments(largest)
         if moments["m00"] == 0:
@@ -139,6 +170,8 @@ class Character(BaseCharacter, ABC):
 def _debug(image: np.ndarray, contour, cx, cy, offset) -> None:
     # Then draw a rectangle around it
     x, y, w, h = cv2.boundingRect(contour)
+    x += offset[0]
+    y += offset[1]
     cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 3)
     cv2.circle(image, (cx + offset[0], cy + offset[1]), 5, (0, 0, 255), -1)
     cv2.imshow("_DEBUG_ Character.get_on_screen_position", image)

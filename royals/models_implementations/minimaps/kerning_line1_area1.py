@@ -11,7 +11,7 @@ class KerningLine1Area1(MinimapPathingMechanics):
 
     minimap_speed: float = 6.86478169800788  # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
     jump_height: int = 5
-    jump_distance: int = 5
+    jump_distance: int = 4
 
     bottom_platform: MinimapFeature = MinimapFeature(
         left=20,
@@ -19,27 +19,6 @@ class KerningLine1Area1(MinimapPathingMechanics):
         top=57,
         bottom=57,
         name="bottom_platform",
-        # connections=[
-        #     MinimapConnection("first_wagon", MinimapConnection.JUMP_UP),
-        #     MinimapConnection("second_wagon", MinimapConnection.JUMP_UP),
-        #     MinimapConnection("third_wagon", MinimapConnection.JUMP_UP),
-        #     MinimapConnection("fourth_wagon", MinimapConnection.JUMP_UP),
-        #     MinimapConnection(
-        #         "first_ladder_bot_to_main", MinimapConnection.JUMP_ANY_AND_UP
-        #     ),
-        #     MinimapConnection(
-        #         "second_ladder_bot_to_main", MinimapConnection.JUMP_ANY_AND_UP
-        #     ),
-        #     MinimapConnection(
-        #         "third_ladder_bot_to_main", MinimapConnection.JUMP_ANY_AND_UP
-        #     ),
-        #     MinimapConnection(
-        #         "fourth_ladder_bot_to_main", MinimapConnection.JUMP_ANY_AND_UP
-        #     ),
-        #     MinimapConnection(
-        #         "fifth_ladder_bot_to_main", MinimapConnection.JUMP_ANY_AND_UP
-        #     ),
-        # ],
     )
     fourth_wagon: MinimapFeature = MinimapFeature(
         left=216,
@@ -47,11 +26,6 @@ class KerningLine1Area1(MinimapPathingMechanics):
         top=53,
         bottom=53,
         name="fourth_wagon",
-        # connections=[
-        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
-        #     MinimapConnection("bottom_platform", MinimapConnection.FALL_ANY),
-        #     MinimapConnection("main_platform", MinimapConnection.JUMP_UP),
-        # ],
     )
     third_wagon: MinimapFeature = MinimapFeature(
         left=172,
@@ -59,11 +33,6 @@ class KerningLine1Area1(MinimapPathingMechanics):
         top=53,
         bottom=53,
         name="third_wagon",
-        # connections=[
-        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
-        #     MinimapConnection("bottom_platform", MinimapConnection.FALL_ANY),
-        #     MinimapConnection("main_platform", MinimapConnection.JUMP_UP),
-        # ],
     )
     second_wagon: MinimapFeature = MinimapFeature(
         left=100,
@@ -71,11 +40,6 @@ class KerningLine1Area1(MinimapPathingMechanics):
         top=53,
         bottom=53,
         name="second_wagon",
-        # connections=[
-        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
-        #     MinimapConnection("bottom_platform", MinimapConnection.FALL_ANY),
-        #     MinimapConnection("main_platform", MinimapConnection.JUMP_UP),
-        # ],
     )
     first_wagon: MinimapFeature = MinimapFeature(
         left=50,
@@ -83,11 +47,6 @@ class KerningLine1Area1(MinimapPathingMechanics):
         top=53,
         bottom=53,
         name="first_wagon",
-        # connections=[
-        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
-        #     MinimapConnection("bottom_platform", MinimapConnection.FALL_ANY),
-        #     MinimapConnection("main_platform", MinimapConnection.JUMP_UP),
-        # ],
     )
     first_ladder_bot_to_main: MinimapFeature = MinimapFeature(
         left=32,
@@ -95,10 +54,6 @@ class KerningLine1Area1(MinimapPathingMechanics):
         top=50,
         bottom=56,
         name="first_ladder_bot_to_main",
-        # connections=[
-        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_LEFT),
-        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_RIGHT),
-        # ],
     )
     second_ladder_bot_to_main: MinimapFeature = MinimapFeature(
         left=98,
@@ -106,10 +61,6 @@ class KerningLine1Area1(MinimapPathingMechanics):
         top=50,
         bottom=56,
         name="second_ladder_bot_to_main",
-        # connections=[
-        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_LEFT),
-        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_RIGHT),
-        # ],
     )
     third_ladder_bot_to_main: MinimapFeature = MinimapFeature(
         left=127,
@@ -117,10 +68,6 @@ class KerningLine1Area1(MinimapPathingMechanics):
         top=50,
         bottom=56,
         name="third_ladder_bot_to_main",
-        # connections=[
-        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_LEFT),
-        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_RIGHT),
-        # ],
     )
     fourth_ladder_bot_to_main: MinimapFeature = MinimapFeature(
         left=162,
@@ -128,10 +75,6 @@ class KerningLine1Area1(MinimapPathingMechanics):
         top=50,
         bottom=56,
         name="fourth_ladder_bot_to_main",
-        # connections=[
-        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_LEFT),
-        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_RIGHT),
-        # ],
     )
     fifth_ladder_bot_to_main: MinimapFeature = MinimapFeature(
         left=199,
@@ -139,10 +82,6 @@ class KerningLine1Area1(MinimapPathingMechanics):
         top=50,
         bottom=56,
         name="fifth_ladder_bot_to_main",
-        # connections=[
-        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_LEFT),
-        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_RIGHT),
-        # ],
     )
     main_platform: MinimapFeature = MinimapFeature(
         left=20,
@@ -150,22 +89,6 @@ class KerningLine1Area1(MinimapPathingMechanics):
         top=49,
         bottom=49,
         name="main_platform",
-        # connections=[
-        #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_DOWN),
-        #     MinimapConnection("first_wagon", MinimapConnection.JUMP_DOWN),
-        #     MinimapConnection("second_wagon", MinimapConnection.JUMP_DOWN),
-        #     MinimapConnection("third_wagon", MinimapConnection.JUMP_DOWN),
-        #     MinimapConnection("fourth_wagon", MinimapConnection.JUMP_DOWN),
-        #     MinimapConnection("platform_7_ladder", MinimapConnection.JUMP_ANY_AND_UP),
-        #     MinimapConnection("platform_8_ladder", MinimapConnection.JUMP_ANY_AND_UP),
-        #     MinimapConnection(
-        #         "platform_9_left_ladder", MinimapConnection.JUMP_ANY_AND_UP
-        #     ),
-        #     MinimapConnection(
-        #         "platform_9_right_ladder", MinimapConnection.JUMP_ANY_AND_UP
-        #     ),
-        #     MinimapConnection("platform_10_ladder", MinimapConnection.JUMP_ANY_AND_UP),
-        # ],
     )
     platform_1: MinimapFeature = MinimapFeature(
         left=46,
@@ -173,14 +96,6 @@ class KerningLine1Area1(MinimapPathingMechanics):
         top=26,
         bottom=26,
         name="platform_1",
-        # connections=[
-        #     MinimapConnection("main_platform", MinimapConnection.JUMP_DOWN),
-        #     MinimapConnection("platform_6", MinimapConnection.JUMP_DOWN),
-        #     MinimapConnection("platform_6", MinimapConnection.FALL_LEFT),
-        #     MinimapConnection("platform_7", MinimapConnection.JUMP_DOWN),
-        #     MinimapConnection("platform_8", MinimapConnection.JUMP_DOWN),
-        #     MinimapConnection("platform_8", MinimapConnection.FALL_RIGHT),
-        # ],
     )
     platform_1_right_ladder: MinimapFeature = MinimapFeature(
         left=87, right=87, top=27, bottom=37, name="platform_1_right_ladder"

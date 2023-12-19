@@ -15,7 +15,7 @@ class Magician(Character):
                 "Attack",
                 animation_time=0.8,
                 horizontal_screen_range=310,
-                vertical_screen_range=75,
+                vertical_screen_range=30,
             ),
         }
 

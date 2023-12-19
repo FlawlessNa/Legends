@@ -1,12 +1,16 @@
 import cv2
 import itertools
+import logging
 import math
 import numpy as np
+import random
+import time
 
 from functools import partial
 from pathfinding.finder.a_star import AStarFinder
 from typing import Generator
 
+from botting import PARENT_LOG
 from botting.core.controls import controller
 from royals.models_implementations.royals_data import RoyalsData
 from royals.bot_implementations.actions.movements import jump_on_rope
@@ -16,11 +20,14 @@ from royals.models_implementations.mechanics import (
     MinimapConnection,
 )
 
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
+
 DEBUG = True
 
 
 def random_rotation(data: RoyalsData) -> Generator:
     while True:
+        err_count = 0
         target_pos = data.current_minimap.random_point()
         current_pos = data.current_minimap_position
 
@@ -40,9 +47,21 @@ def random_rotation(data: RoyalsData) -> Generator:
                 )
                 kwargs = getattr(first_action, "keywords", {})
                 kwargs.pop("direction", None)
+                err_count = 0
                 yield partial(first_action.func, *args, **kwargs)
             except IndexError:
-                yield
+                if err_count > 10:
+                    logger.error("Could not understand where the fk we are")
+                    raise RuntimeError("Unable to understand where the fk we are")
+                elif err_count > 2:
+                    direction = random.choice(["left", "right"])
+                    yield partial(controller.move, data.handle, data.ign, direction, duration=1, jump=True)
+                    time.sleep(1)
+
+                if not data.current_minimap.grid.node(*current_pos).walkable:
+                    err_count += 1
+                    time.sleep(1)
+
 
 
 def _debug(
@@ -86,6 +105,9 @@ def get_to_target(
     """
     path = _get_path_to_target(current, target, in_game_minimap)
     movements = _translate_path_into_movements(path)
+    if movements:
+        if movements[0] == ('down', 1) and not in_game_minimap.grid.node(*current).walkable:
+            movements.pop(0)
     return _convert_movements_to_actions(movements, in_game_minimap.minimap_speed)
 
 
@@ -96,6 +118,7 @@ def _get_path_to_target(
 ) -> list[MinimapNode]:
     """
     Computes the path from current to target using map features.
+
     :param current: Character position on minimap.
     :param target: Target position on minimap.
     :param in_game_minimap: Minimap implementation which contains minimap coordinates for all existing features.
