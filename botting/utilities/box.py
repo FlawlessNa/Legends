@@ -6,10 +6,13 @@ from dataclasses import dataclass, field
 @dataclass(frozen=True)
 class Box:
     """
-    Immutable class to be used to represent an in-game area, defined by left, top, right, bottom points.
-    Box can be read (through an OCR).
-    When offset = True, the box is considered to be an offset which should be added to another box, e.g. it represents coordinates relative to another box.
-    config can be provided as a string. This config is used as parameter for the OCR to improve accuracy.
+    Immutable class to be used to represent an in-game area,
+    defined by left, top, right, bottom points.
+    Box are used to crop screenshots and/or numpy arrays representing an image.
+    Text enclosed within a Box can be read using OCR.
+    When offset = True, the box is considered an offset to be added to another box,
+     e.g. it represents coordinates relative to another box.
+    Config can be provided as a string, used for improved accuracy with the OCR.
     When a Box is randomized, a random point inside the box is returned.
     """
 
@@ -22,7 +25,9 @@ class Box:
     config: str | None = field(default=None, compare=False, repr=False)
 
     def __post_init__(self):
-        """Ensures that boxes not interpreted as offsets to another boxes should have positive dimensions"""
+        """
+        Ensures that non-offset boxes have positive dimensions.
+        """
         if not self.offset:
             assert (
                 self.width >= 0
@@ -33,11 +38,14 @@ class Box:
 
     def __add__(self, other):
         """
-        Adding two boxes together simply adds all their coordinates together.
+        Add two boxes together by adding all their coordinates together.
         If both boxes have a config argument which is different, raise a Value error.
         If both boxes have a name argument which is different, raise a Value error.
-        Otherwise, the resulting box will have the name of the only box with a name (or both boxes' name if they have the same name), and a similar behavior for config.
-        Adding two offset boxes together results in a new offset box. Adding a non-offset box to an offset box result in a non-offset box.
+        Otherwise, the resulting box will have the name of the only box with a name
+         (or both boxes' name if they have the same name).
+        The same behavior apply for their config attribute.
+        Adding two offset boxes together results in a new offset box.
+        Adding a non-offset box to an offset box result in a non-offset box.
         """
         if not isinstance(other, Box):
             raise TypeError(
@@ -65,7 +73,7 @@ class Box:
 
     def __getitem__(self, item):
         """
-        Allows to access the Box's attributes as if it was a dictionary. such as box['left'] or box['right']
+        Allows to access the Box's attributes as if it was a dictionary.
         """
         return getattr(self, item)
 
@@ -107,4 +115,7 @@ class Box:
         return random.randint(*self.xrange), random.randint(*self.yrange)
 
     def crop_client_img(self) -> tuple[slice]:
+        """
+        Returns the slices to be used to crop a full-client image.
+        """
         raise NotImplementedError

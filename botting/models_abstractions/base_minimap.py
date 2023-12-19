@@ -20,7 +20,8 @@ class BaseMinimapFeatures(InGameBaseVisuals, ABC):
     def features(self) -> dict[str, Box]:
         """
         Returns a dictionary of all the features of the map.
-        Default behavior is to return any class attribute which returns a box, but this can be overridden.
+        Default behavior is to return any class attribute which returns a box.
+        This can be overridden.
         :return:
         """
         return {
@@ -34,8 +35,7 @@ class BaseMinimapFeatures(InGameBaseVisuals, ABC):
         Returns a random point within the minimap.
         First, select a feature at random, weighted by its area (unless specified).
         Then, select a random point within the feature.
-        By convention, for features with width or height of 1, the point is selected to be the left or top coordinate.
-        :return:
+        :return: (x, y) coordinates of the random point.
         """
         if feature_name is None:
             feature_name = random.choices(

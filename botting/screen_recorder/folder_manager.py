@@ -35,7 +35,8 @@ class FolderManager:
     @property
     def max_size_exceeded(self) -> bool:
         """
-        Checks whether the total size of all recordings exceeds the accepted threshold, as defined in user config (in GB).
+        Checks whether the total size of all recordings exceeds the accepted threshold,
+         as defined in user config (in GB).
         :return: True if the max size is exceeded, False otherwise
         """
         return self.directory_size > self.max_size
@@ -51,7 +52,8 @@ class FolderManager:
 
     def perform_cleanup(self) -> None:
         """
-        This function deletes the oldest files until the overall directory size gets below the acceptable threshold.
+        This function deletes the oldest files until the overall directory size
+         gets below the acceptable threshold.
         :return: None
         """
         files_removed = 0

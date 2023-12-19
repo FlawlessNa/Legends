@@ -15,13 +15,16 @@ def take_screenshot(
     dimensions: dict | None | Box = None,
 ) -> np.ndarray:
     """
-    Function takes a rapid screenshot of the window associated with the handle passed in a parameter.
-    If dimensions is provided, it takes only a screenshot of that region within the window provided.
+    Function takes a rapid screenshot of the window associated with handle parameter.
+    If dimensions are provided, it takes only a screenshot of that region.
     If no handle is given, it takes a screenshot of the entire main screen.
     Returns the image taken as a numpy array.
 
-    :param handle: Integer representing the handle to the window being screenshot-ed. If None provided, the entire screen is captured instead.
-    :param dimensions: Coord. within the window -relative to window position, or within screen if no window- to be recorded. Dictionary must have top, left, right, bottom keys.
+    :param handle: Integer representing the handle to the window being screenshot-ed.
+     If None provided, the entire screen is captured instead.
+    :param dimensions: Coord. within the window -relative to window position,
+     or within screen if no window- to be recorded.
+     Dictionary must have top, left, right, bottom keys.
     :return: a numpy array representing the image captured.
     """
     if not handle:

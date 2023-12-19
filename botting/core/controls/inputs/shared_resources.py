@@ -11,19 +11,23 @@ logger = logging.getLogger(__name__)
 class SharedResources:
     focus_lock = (
         asyncio.Lock()
-    )  # All instances of this class will share the same lock. This is used to prevent multiple processes from trying to use PC Focus simultaneously.
+    )  # All instances of this class will share the same lock.
+    # Used to prevent multiple processes from trying to use PC Focus simultaneously.
 
     @classmethod
     def requires_focus(cls, func: callable) -> callable:
         """
-        Use this decorator to ensure a lock is acquired for any coroutine that require the PC focus (foreground window).
-        In that sense, the lock is not required, but the decorator is still useful to ensure that the focus is returned to the original window after the function is executed.
+        Use this decorator to ensure a lock is acquired for any coroutine that
+        require the PC focus (foreground window).
         :return: The function after the acquiring the lock.
         """
 
         @functools.wraps(func)
         async def inner(*args, **kwargs):
-            """Lock is required to prevent multiple tasks or processes from trying to use PC Focus simultaneously."""
+            """
+            Lock is required to prevent multiple tasks or processes from trying
+             to use PC Focus simultaneously.
+            """
             await cls.focus_lock.acquire()
             try:
                 logger.debug(f"Focus Lock acquired by {func.__name__}")
@@ -37,7 +41,10 @@ class SharedResources:
 
     @staticmethod
     def return_focus_to_owner(func: callable) -> callable:
-        """Ensures that the focus is returned to the original window after the function or coroutine is executed."""
+        """
+        Ensures that the focus is returned to the original window after the function
+        or coroutine is executed.
+        """
 
         @functools.wraps(func)
         async def inner(*args, **kwargs):
