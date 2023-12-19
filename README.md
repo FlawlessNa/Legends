@@ -4,7 +4,7 @@
 - [x] Implement Skills
 - [ ] Skill Specs Finder
 - [ ] Switch back to a single Rotation Lock and coordination between rotation generators
-- [ ] Significant improvements required to Mob detection - combine with their HP bar
+- [ ] Significant improvements required to Mob detection - combine with their HP bar, DMG display, and model
 - [ ] Significant improvements required to Character detection - detection needs to be more stable
 - [ ] Improvements to the QueueAction wrapping
 - [ ] Generic Failsafe framework
