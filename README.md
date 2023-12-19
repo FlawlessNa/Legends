@@ -3,13 +3,17 @@
 ## TODO
 - [x] Implement Skills
 - [ ] Skill Specs Finder
-- [ ] Add multiple Rotation Locks - Each type of DecisionEngine will define how many locks it needs.
+- [ ] Switch back to a single Rotation Lock and coordination between rotation generators
+- [ ] Significant improvements required to Mob detection - combine with their HP bar
+- [ ] Significant improvements required to Character detection - detection needs to be more stable
 - [ ] Improvements to the QueueAction wrapping
+- [ ] Generic Failsafe framework
 - [ ] Improvements to RoyalsData management
-- [ ] Major clean-up of the Royals library
 - [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
-- [ ] Minimap Parsing - "Draw" the minimap canvas while YOU manually move around the entire map. Then, translate drawings into features and adjust.
+- [ ] Major clean-up of the Royals library
 - [ ] When done, update all docstrings as some are lacking now.
+  - [ ] Botting.core
+  - [ ] Royals
 - [ ] Enable np arrays/.png files to be sent through Pipe - then send chat images towards discord
 - [ ] Failsafes
   - [ ] Watch for no movements when movement is expected, add actions to solve when that happens
