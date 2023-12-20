@@ -1,19 +1,14 @@
 import cv2
 import itertools
 import logging
-import math
-import numpy as np
-import random
-import time
 
+import numpy as np
 from functools import partial
 from pathfinding.finder.a_star import AStarFinder
-from typing import Generator
 
 from botting import PARENT_LOG
 from botting.core.controls import controller
-from royals.models_implementations.royals_data import RoyalsData
-from royals.bot_implementations.actions.movements import jump_on_rope
+from royals.actions.movements import jump_on_rope
 from royals.models_implementations.mechanics import (
     MinimapPathingMechanics,
     MinimapNode,
@@ -23,45 +18,6 @@ from royals.models_implementations.mechanics import (
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 DEBUG = True
-
-
-def random_rotation(data: RoyalsData) -> Generator:
-    while True:
-        err_count = 0
-        target_pos = data.current_minimap.random_point()
-        current_pos = data.current_minimap_position
-
-        while math.dist(current_pos, target_pos) > 2:
-            data.update("current_minimap_position")
-            current_pos = data.current_minimap_position
-            actions = get_to_target(current_pos, target_pos, data.current_minimap)
-            try:
-                first_action = actions[0]
-                assert (
-                    first_action.args == tuple()
-                )  # Ensures arguments are keywords-only
-                args = (
-                    data.handle,
-                    data.ign,
-                    first_action.keywords.get("direction", data.current_direction),
-                )
-                kwargs = getattr(first_action, "keywords", {})
-                kwargs.pop("direction", None)
-                err_count = 0
-                yield partial(first_action.func, *args, **kwargs)
-            except IndexError:
-                if err_count > 10:
-                    logger.error("Could not understand where the fk we are")
-                    raise RuntimeError("Unable to understand where the fk we are")
-                elif err_count > 2:
-                    direction = random.choice(["left", "right"])
-                    yield partial(controller.move, data.handle, data.ign, direction, duration=1, jump=True)
-                    time.sleep(1)
-
-                if not data.current_minimap.grid.node(*current_pos).walkable:
-                    err_count += 1
-                    time.sleep(1)
-
 
 
 def _debug(

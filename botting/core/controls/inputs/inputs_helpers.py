@@ -30,6 +30,7 @@ KEYBOARD_MAPPING = {
     "pageup": win32con.VK_PRIOR,
     "pagedown": win32con.VK_NEXT,
     "num_lock": win32con.VK_NUMLOCK,
+    "space": win32con.VK_SPACE,
 }
 
 EXTENDED_KEYS = (

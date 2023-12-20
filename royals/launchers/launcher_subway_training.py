@@ -12,7 +12,13 @@ async def main(*bots: botting.Executor) -> None:
 
 
 if __name__ == "__main__":
+    char1 = royals.models_implementations.characters.Magician
+
     bot1 = botting.Executor(
-        engine=royals.bot_implementations.SubwayMagicianTraining2, ign="FarmFest1"
+        engine=royals.bot_implementations.SubwayTraining,
+        ign="FarmFest1",
+        client_size="large",
+        character_class=char1,
+        training_skill="Magic Claw"
     )
     asyncio.run(main(bot1))

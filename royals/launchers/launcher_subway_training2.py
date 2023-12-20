@@ -4,6 +4,7 @@ Used to launch any character randomly roaming in one of the Ludi FM maps.
 import asyncio
 import botting
 import royals.bot_implementations
+import royals.models_implementations
 
 
 async def main(*bots: botting.Executor) -> None:
@@ -12,7 +13,13 @@ async def main(*bots: botting.Executor) -> None:
 
 
 if __name__ == "__main__":
+    char1 = royals.models_implementations.characters.Cleric
+
     bot1 = botting.Executor(
-        engine=royals.bot_implementations.SubwayMagicianTraining, ign="FarmFest1"
+        engine=royals.bot_implementations.SubwayTraining2,
+        ign="FarmFest1",
+        client_size="large",
+        character_class=char1,
+        training_skill="Heal"
     )
     asyncio.run(main(bot1))

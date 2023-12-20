@@ -48,7 +48,22 @@ class FPArchMage(FPMage):
 
 
 class Cleric(Magician):
-    pass
+    @property
+    def skills(self) -> dict[str, Skill]:
+        return {
+            **super().skills,
+            "Heal": Skill(
+                "Heal",
+                "Attack",
+                animation_time=0.25,
+                horizontal_screen_range=200,
+                vertical_screen_range=80,
+                unidirectional=False
+            ),  # TODO - Confirm animation time
+        }
+
+    def __init__(self, ign: str, client_size: str) -> None:
+        super().__init__(ign, client_size)
 
 
 class Priest(Cleric):

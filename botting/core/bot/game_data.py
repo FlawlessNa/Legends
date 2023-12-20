@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
-from botting.models_abstractions import BaseMap, BaseCharacter
+from botting.models_abstractions import BaseMap, BaseCharacter, BaseMob
 
 
 @dataclass
@@ -16,6 +16,7 @@ class GameData(ABC):
 
     character: BaseCharacter = field(repr=False, init=False)
     current_map: BaseMap = field(repr=False, init=False)
+    current_mobs: list[BaseMob] = field(repr=False, init=False)
     current_on_screen_position: tuple[int, int] = field(repr=False, init=False)
     current_hp_potions: int = field(repr=False, init=False)
     current_mp_potions: int = field(repr=False, init=False)

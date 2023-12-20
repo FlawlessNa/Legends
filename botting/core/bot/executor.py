@@ -27,17 +27,16 @@ class Executor:
     logging_queue: multiprocessing.Queue
     all_bots: list["Executor"] = []
 
-    def __init__(self, engine: type["DecisionEngine"], ign: str) -> None:
+    def __init__(self, engine: type["DecisionEngine"], ign: str, **kwargs) -> None:
         self.engine = engine
+        self.engine_kwargs = kwargs
         self.ign = ign
         self.handle = client_handler.get_client_handle(
             self.ign, ign_finder=engine.ign_finder
         )
 
         self.bot_side, self.monitoring_side = multiprocessing.Pipe()
-        self.rotation_locks = [
-            multiprocessing.Lock() for _ in range(5)  # TODO - Make this dynamic
-        ]  # Used to manage when map rotation can be enqueued
+        self.rotation_lock = multiprocessing.Lock()  # Used for enqueueing of rotation
         self.action_lock = (
             asyncio.Lock()
         )  # Used to manage multiple tasks being enqueued at the same time for a single bot
@@ -82,8 +81,7 @@ class Executor:
         new_task.add_done_callback(self._exception_handler)
 
         new_task.is_in_queue = True
-        if queue_item.lock_id is not None:
-            new_task.lock_id = queue_item.lock_id
+        if queue_item.release_lock_on_callback:
             new_task.add_done_callback(self._rotation_callback)
 
         if queue_item.update_game_data is not None:
@@ -144,18 +142,19 @@ class Executor:
             target=self.engine.start_monitoring,
             name=f"{self} Monitoring",
             args=(self, Executor.logging_queue),
+            kwargs=self.engine_kwargs
         )
 
     def _rotation_callback(self, fut):
         """Callback to use on map rotation actions if they need to acquire lock before executing."""
-        self.rotation_locks[fut.lock_id].release()
+        self.rotation_lock.release()
         if fut.cancelled():
             logger.debug(
-                f"Rotation Lock {fut.lock_id} released on {self} through callback. {fut.get_name()} is Cancelled."
+                f"Rotation Lock released on {self} through callback. {fut.get_name()} is Cancelled."
             )
         else:
             logger.debug(
-                f"Rotation Lock {fut.lock_id} released on {self} through callback. {fut.get_name()} is Done."
+                f"Rotation Lock released on {self} through callback. {fut.get_name()} is Done."
             )
 
     def _send_update_signal_callback(self, signal: tuple[str], fut):

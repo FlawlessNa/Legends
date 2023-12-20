@@ -1,15 +1,18 @@
 # Royals-V2
 
 ## TODO
-- [x] Implement Skills
-- [ ] Skill Specs Finder
 - [ ] Switch back to a single Rotation Lock and coordination between rotation generators
+  - [ ] Still need to figure out rotation lock with mobs hitting
+  - [ ] Still need to figure out how to make Random rotation uncancellable in some specific cases
 - [ ] Significant improvements required to Mob detection - combine with their HP bar
+  - [ ] Clean thhe pre-processing to remove the additional layer of the filter function
 - [ ] Significant improvements required to Character detection - detection needs to be more stable
+  - [ ] Add 20+ Pos/Neg imgs for each map coded with mobs & skill animations and retrain model
 - [ ] Improvements to the QueueAction wrapping
 - [ ] Generic Failsafe framework
 - [ ] Improvements to RoyalsData management
 - [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
+- [ ] Skill Specs Finder
 - [ ] Major clean-up of the Royals library
 - [ ] When done, update all docstrings as some are lacking now.
   - [ ] Botting.core
@@ -40,4 +43,5 @@
   - [ ] Chat - Pre-trained model for semantic segmentation? Could help distinguish text from the rest.
   - [ ] Chat - Other OCR libraries? OCRopus & EasyOCR in particular.
   - [ ] Chat - Otherwise, build a modelling dataset with tons of chat lines and train a model to read text.
+  - [ ] Bossing idea - use "Action Recognition" algorithms to detect boss attacks and react accordingly - Ask GPT about it
 ![image](https://github.com/FlawlessNa/Royals-V2/assets/106719178/c2620077-d36e-4a8d-b39b-f200a196cd2e)

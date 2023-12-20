@@ -10,7 +10,7 @@ from botting.utilities import ChildProcess
 class DecisionEngine(ChildProcess, ABC):
     ign_finder: callable  # Function that returns the handle of a client given its IGN. Defined in child classes.
 
-    def __init__(self, logging_queue: multiprocessing.Queue, bot: Executor) -> None:
+    def __init__(self, logging_queue: multiprocessing.Queue, bot: Executor, *args, **kwargs) -> None:
         super().__init__(logging_queue, bot.monitoring_side)
         self.source = repr(bot)
         self.watched_bot = bot
@@ -68,17 +68,18 @@ class DecisionEngine(ChildProcess, ABC):
                 while self.pipe_end.poll():
                     signal = self.pipe_end.recv()
                     if signal is None:
-                        raise RuntimeError
+                        break
                     self.game_data.update(signal)
 
                 for check in generators:
-                    next(check)
+                    res = next(check)
+                    if res:
+                        self.pipe_end.send(res)
 
                 for rotation in map_rotation:
-                    next(rotation)
-
-        except RuntimeError:
-            pass
+                    res = next(rotation)
+                    if res:
+                        self.pipe_end.send(res)
 
         except Exception as e:
             raise
@@ -92,6 +93,7 @@ class DecisionEngine(ChildProcess, ABC):
     def start_monitoring(
         bot: "Executor",
         log_queue: multiprocessing.Queue,
+        **kwargs
     ):
         """
         The only BotMonitor method created in Main Process. It is set up into a mp.Process and started as a child from there.
@@ -100,5 +102,5 @@ class DecisionEngine(ChildProcess, ABC):
         :param log_queue: The logging queue that is used to send logs from the child process to the main process.
         :return:
         """
-        monitor = bot.engine(log_queue, bot)
+        monitor = bot.engine(log_queue, bot, **kwargs)
         monitor.start()

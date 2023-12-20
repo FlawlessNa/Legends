@@ -1,5 +1,5 @@
 from dataclasses import field, dataclass
-from typing import Optional
+from typing import Optional, Generator
 
 
 @dataclass(order=True)
@@ -13,9 +13,41 @@ class QueueAction:
     priority: int = field()
     action: callable = field(compare=False, repr=False)
     is_cancellable: bool = field(compare=False, default=False, repr=False)
-    is_map_rotation: bool = field(compare=False, default=False, repr=False)
-    lock_id: int = field(compare=False, default=None, repr=False)
     update_game_data: Optional[tuple[str] | dict] = field(
         compare=False, default=None, repr=False
     )
+    release_lock_on_callback: bool = field(compare=False, default=False, repr=False)
     callbacks: list[callable] = field(compare=False, default_factory=list, repr=False)
+
+    @classmethod
+    def action_generator(cls,
+                         *,
+                         release_lock_on_callback: bool = False,
+                         cancellable: bool = False,
+                         priority: int = 99,
+                         callbacks: list[callable] = None) -> callable:
+        """
+        A decorator that is used to wrap a generator function that yields actions to be executed in the queue.
+        Retrieve the output from the generator and wrap it in a QueueAction.
+        :return: A QueueAction.
+        """
+        def _decorator(generator: callable) -> callable:
+            def _wrapper(*args, **kwargs) -> Generator:
+                generator_instance = generator(*args, **kwargs)
+                while True:
+                    action = next(generator_instance)
+                    if action:
+                        yield cls(
+                            identifier=" ".join([i.capitalize() for i in generator.__name__.split("_")]),
+                            priority=priority,
+                            action=action,
+                            is_cancellable=cancellable,
+                            update_game_data=kwargs.get("update_game_data", None),
+                            release_lock_on_callback=release_lock_on_callback,
+                            callbacks=callbacks if callbacks is not None else [],
+                        )
+                    else:
+                        yield
+
+            return _wrapper
+        return _decorator

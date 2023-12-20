@@ -1,14 +1,10 @@
 import logging
 import multiprocessing
 
-from functools import partial
-
 from botting import PARENT_LOG
 from botting.core import QueueAction, DecisionEngine, Executor
 from royals import royals_ign_finder, RoyalsData
 from royals.models_implementations.minimaps import LudiFreeMarketTemplate as Ludi
-from .checks.mock import mock_check
-from .actions import random_rotation
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -27,7 +23,7 @@ class LudiFreeMarketRoaming(DecisionEngine):
         return self._game_data
 
     def items_to_monitor(self) -> list[callable]:
-        return [partial(mock_check, self.pipe_end)]
+        return []
 
     def next_map_rotation(self) -> list[callable]:
         return [self.random_rotation]
@@ -48,7 +44,6 @@ class LudiFreeMarketRoaming(DecisionEngine):
                             action=action,
                             is_cancellable=True,
                             is_map_rotation=True,
-                            release_rotation_lock=True,
                             update_game_data=("current_minimap_position",),
                         )
                     )

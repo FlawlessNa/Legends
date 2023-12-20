@@ -20,6 +20,8 @@ class ChildProcess:
         cls,
         log_queue: multiprocessing.Queue,
         pipe_end: multiprocessing.connection.Connection,
+        *args,
+        **kwargs
     ) -> "ChildProcess":
         """
         Before creating a new instance, ensure that the class attribute
