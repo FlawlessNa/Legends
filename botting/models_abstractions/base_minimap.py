@@ -30,6 +30,16 @@ class BaseMinimapFeatures(InGameBaseVisuals, ABC):
             if isinstance(box, Box)
         }
 
+    @property
+    @abstractmethod
+    def feature_cycle(self) -> list[Box]:
+        """
+        Returns a list of the features to be cycled through. This is used for smarter
+        map rotations.
+        :return:
+        """
+        pass
+
     def random_point(self, feature_name: str | None = None) -> tuple[int, int]:
         """
         Returns a random point within the minimap.
