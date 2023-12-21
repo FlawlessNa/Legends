@@ -18,8 +18,10 @@
   - [ ] Botting.core
   - [ ] Royals
 - [ ] Enable np arrays/.png files to be sent through Pipe - then send chat images towards discord
-- [ ] Failsafes
+- [ ] Failsafes (for normal scenarios, NOT for anti-detection)
   - [ ] Watch for no movements when movement is expected, add actions to solve when that happens
+- [ ] Emergency triggers
+  - [ ] Course of action when any error is encountered, before program exists
 - [ ] Anti Detection Features -> Features are monitored in the child processes, but reactions and coordinations between clients done in Main
   - [ ] Chat Parsing + Automated Responses
   - [ ] Minimap Parsing for strangers + random reaction

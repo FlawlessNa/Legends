@@ -1,4 +1,5 @@
 import asyncio
+import random
 from botting.core.controls import controller
 from typing import Literal
 
@@ -21,3 +22,20 @@ async def jump_on_rope(
         await asyncio.sleep(0.5)
     finally:
         await controller.press(handle, "up", cooldown=0, down_or_up="keyup")
+
+
+async def random_jump(
+        handle: int, ign: str, **kwargs
+):
+    """
+    Randomly jump in a direction. Used as a failsafe action when stuck
+    in ladder or in an undefined node.
+    :param handle:
+    :param ign:
+    :param kwargs:
+    :return:
+    """
+    direction = random.choice(["left", "right"])
+    await controller.move(
+        handle, ign, direction, jump=True, enforce_delay=False, duration=0.05, **kwargs
+    )
