@@ -1,3 +1,4 @@
+from botting.utilities import Box
 from royals.models_implementations.mechanics import (
     MinimapFeature,
     MinimapConnection,
@@ -9,9 +10,23 @@ class PathOfTime1(MinimapPathingMechanics):
     map_area_width = 116
     map_area_height = 88
 
-    minimap_speed: float = 7.686336000692184  # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
+    # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
+    minimap_speed: float = 7.686336000692184
     jump_height: int = 5
     jump_distance: int = 4
+
+    @property
+    def feature_cycle(self) -> list[MinimapFeature]:
+        return [
+            self.first_platform,
+            self.second_platform,
+            self.third_platform,
+            self.fourth_platform,
+            self.fifth_platform,
+            self.fourth_platform,
+            self.third_platform,
+            self.second_platform
+        ]
 
     first_platform: MinimapFeature = MinimapFeature(
         left=4,

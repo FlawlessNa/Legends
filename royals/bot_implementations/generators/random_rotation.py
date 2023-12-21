@@ -14,10 +14,6 @@ from royals.actions import random_jump
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
-async def _rotation_failsafe_response():
-    pass
-
-
 @QueueAction.action_generator(release_lock_on_callback=True, cancellable=True)
 @failsafe_generator(max_tries=5, sleep_time=0.5, response=random_jump)
 def random_rotation(data: RoyalsData, rotation_lock: mp.Lock = None) -> Generator:

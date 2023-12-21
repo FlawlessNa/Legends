@@ -2,14 +2,17 @@
 
 ## TODO
 
-- [ ] Significant improvements required to Mob detection - combine with their HP bar
+- Smart Rotation
   - [ ] Idea - When mob is detected, register current MINIMAP location, and converge into that location until no more detections.
+- Significant improvements required to Mob detection
+  - [ ] combine with their HP bar
   - [ ] Clean the pre-processing to remove the additional layer of the filter function
   - [ ] Define additional generic detection functions for mobs
+- [ ] Add teleport into movements + pathing
 - [ ] Significant improvements required to Character detection - detection needs to be more stable
   - [ ] Add 20+ Pos/Neg imgs for each map coded with mobs & skill animations and retrain model
 - [ ] Improvements to the QueueAction wrapping
-- [ ] Generic Failsafe framework
+- [x] Generic Failsafe framework
 - [ ] Improvements to RoyalsData management
 - [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
 - [ ] Skill Specs Finder
@@ -18,7 +21,9 @@
   - [ ] Botting.core
   - [ ] Royals
 - [ ] Enable np arrays/.png files to be sent through Pipe - then send chat images towards discord
-- [ ] Failsafes (for normal scenarios, NOT for anti-detection)
+- [ ] Generic Failsafe framework (for normal scenarios, NOT for anti-detection)
+  - [ ] Generic expression to evaluate (time-based, attempts-based, or other)
+  - [x] Watch for no pathing
   - [ ] Watch for no movements when movement is expected, add actions to solve when that happens
 - [ ] Emergency triggers
   - [ ] Course of action when any error is encountered, before program exists
@@ -32,7 +37,7 @@
 - [ ] GPT Automated Responses
 - [ ] For chat lines reading, try converting to gray and applying simple thresholding (general lines at least)
 - [ ] Mouse movements and mouse clicks
-- [ ] Character detection - model improvement, gather more data
+- [ ] Finalize Discord communications
 - [ ] Refactor game interface more accurately
   - [ ] Quickslots
   - [ ] Inventory
