@@ -4,19 +4,19 @@ from functools import partial
 
 from botting.core import DecisionEngine, Executor
 from royals import royals_ign_finder, RoyalsData
-from royals.models_implementations.minimaps import KerningLine1Area2
-from royals.models_implementations.mobs import JrWraith
+from royals.models_implementations.minimaps import PathOfTime1
+from royals.models_implementations.mobs import PlatoonChronos
 from .generators import random_rotation, hit_mobs
 
 
-class SubwayTraining2(DecisionEngine):
+class PathOfTime1Training(DecisionEngine):
     ign_finder = royals_ign_finder
 
     def __init__(self, log_queue: multiprocessing.Queue, bot: Executor, **kwargs) -> None:
         super().__init__(log_queue, bot)
         self._game_data = RoyalsData(self.handle, self.ign)
-        self.game_data.current_minimap = KerningLine1Area2()
-        self.game_data.current_mobs = [JrWraith()]
+        self.game_data.current_minimap = PathOfTime1()
+        self.game_data.current_mobs = [PlatoonChronos()]
 
         assert 'character_class' in kwargs, "character_class must be provided."
         assert 'training_skill' in kwargs, "training_skill must be provided."

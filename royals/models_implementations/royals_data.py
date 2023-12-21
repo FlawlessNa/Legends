@@ -25,6 +25,7 @@ class RoyalsData(GameData):
     current_minimap_position: tuple[int, int] = field(repr=False, init=False)
     current_minimap_feature: Box = field(repr=False, init=False)
     character_in_a_ladder: bool = field(repr=False, init=False, default=False)
+    currently_attacking: bool = field(repr=False, init=False, default=False)
 
     def update(self, *args, **kwargs) -> None:
         if (
@@ -47,7 +48,7 @@ class RoyalsData(GameData):
             new_pos = self.current_minimap.get_character_positions(
                 self.handle, map_area_box=self.current_minimap_area_box
             )
-            assert len(new_pos) == 1
+            assert len(new_pos) == 1, f"Found {len(new_pos)} positions."
             self.current_minimap_position = new_pos.pop()
             self.current_minimap_feature = self.current_minimap.get_feature_containing(
                 self.current_minimap_position
@@ -74,5 +75,5 @@ class RoyalsData(GameData):
             )
             hide_tv_smega_box = Box(left=700, right=1024, top=0, bottom=300)
             self.current_on_screen_position = self.character.get_onscreen_position(
-                None, self.handle, [hide_minimap_box, hide_tv_smega_box]
+                None, self.handle, [hide_minimap_box, hide_tv_smega_box] # TODO - Add Chat Box as well into hiding
             )

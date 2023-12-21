@@ -73,10 +73,10 @@ class Recorder(ChildProcess):
         """
         super().__init__(log_queue, end_pipe)
         self.config: dict = dict(config_reader(config_name)["DEFAULT"])
-        self.out_path = os.path.join(
+        self.out_path: str = str(os.path.join(
             self.config["recordings folder"],
             time.strftime("%Y%m%d_%H%M%S") + self.config["file extension"],
-        )
+        ))
         self.output: cv2.VideoWriter = cv2.VideoWriter(
             self.out_path,
             cv2.VideoWriter.fourcc(*self.config["four cc"]),
@@ -104,6 +104,7 @@ class Recorder(ChildProcess):
                 beginning = time.perf_counter()
 
                 img = take_screenshot()
+                # gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
                 self.output.write(img)
 
                 end = time.perf_counter()

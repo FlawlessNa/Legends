@@ -3,7 +3,10 @@ import numpy as np
 import os
 
 from abc import ABC, abstractmethod
-from typing import Sequence
+from typing import Any, List, Sequence
+
+from cv2 import Mat
+from numpy import dtype, generic, ndarray
 
 from botting.models_abstractions import BaseCharacter
 from botting.utilities import (
@@ -18,17 +21,25 @@ DEBUG = True
 
 
 class Character(BaseCharacter, ABC):
-    detection_box_large_client: Box = Box(left=200, right=800, top=29, bottom=700)
+    detection_box_large_client: Box = Box(left=0, right=1024, top=29, bottom=700)
     detection_box_small_client: Box = NotImplemented
 
     def __init__(self, ign: str, client_size: str) -> None:
         super().__init__(ign)
-        self._method = config_reader(
-            "character_detection", self.ign, "Detection Method"
+        self._preprocessing_method = config_reader(
+            "character_detection", self.ign, "Preprocessing Method"
         )
-        self._detection_params = eval(
-            config_reader("character_detection", self.ign, "Detection Parameters")
+        self._preprocessing_params = eval(
+            config_reader("character_detection", self.ign, "Preprocessing Parameters")
         )
+        _detection_methods = eval(
+            config_reader("character_detection", self.ign, "Detection Methods")
+        )
+        self._detection_methods = {
+            i: eval(config_reader("character_detection", self.ign, f"{i} Parameters"))
+            for i in _detection_methods
+        }
+
         self._offset: tuple[int, int] = eval(
             config_reader("character_detection", self.ign, "Detection Offset")
         )
@@ -39,7 +50,9 @@ class Character(BaseCharacter, ABC):
         if len(_model_path) > 0:
             if not os.path.exists(_model_path):
                 _model_path = os.path.join(ROOT, _model_path)
-                assert os.path.exists(_model_path), f"Model {_model_path} does not exist."
+                assert os.path.exists(
+                    _model_path
+                ), f"Model {_model_path} does not exist."
             self._model = cv2.CascadeClassifier(_model_path)
         else:
             self._model = None
@@ -77,24 +90,47 @@ class Character(BaseCharacter, ABC):
             for region in regions_to_hide:
                 processed[region.top : region.bottom, region.left : region.right] = 0
 
-        # Find largest contour
-        contours, _ = cv2.findContours(
-            processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
-        largest = max(contours, key=cv2.contourArea)
+        res = None
+        largest = None
+        if "Contour Detection" in self._detection_methods:
+            res = self._apply_contour_detection(
+                processed, **self._detection_methods["Contour Detection"]
+            )
+            if len(res):
+                largest = cv2.boundingRect(max(res, key=cv2.contourArea))
+
+        if "Bounding Rectangles" in self._detection_methods:
+            assert (
+                "Contour Detection" in self._detection_methods
+            ), "Bounding Rectangles must be used with Contour Detection"
+            res = self._apply_bounding_rectangles(
+                res, **self._detection_methods["Bounding Rectangles"]
+            )
+            if len(res):
+                largest = max(res, key=lambda x: x[2] * x[3])
+
+        if "Rectangle Grouping" in self._detection_methods:
+            assert (
+                "Bounding Rectangles" in self._detection_methods
+            ), "Rectangle Grouping must be used with Bounding Rectangles"
+            res = self._apply_rectangle_grouping(
+                res, **self._detection_methods["Rectangle Grouping"]
+            )
+            if len(res):
+                largest = max(res, key=lambda x: x[2] * x[3])
 
         # Cross-validate both rectangles, if a model is used
         if self._model is not None:
             rects, lvls, weights = self._model.detectMultiScale3(
                 image, 1.1, 6, 0, (50, 50), (90, 90), True
             )
-            if len(weights):
+            if len(weights) and largest is not None:
                 max_conf = np.argmax(weights)
                 (x, y, w, h) = rects[max_conf]
                 if DEBUG:
                     cv2.rectangle(image, (x, y), (x + w, y + h), (255, 0, 0), 2)
 
-                cnt_x, cnt_y, cnt_w, cnt_h = cv2.boundingRect(largest)
+                cnt_x, cnt_y, cnt_w, cnt_h = largest
                 cnt_x += self._offset[0]
                 cnt_y += self._offset[1]
                 xi = max(x, cnt_x)
@@ -104,29 +140,26 @@ class Character(BaseCharacter, ABC):
                 if not wi * hi > 0:
                     return None
 
-        moments = cv2.moments(largest)
-        if moments["m00"] == 0:
-            return None
-        cx = int(moments["m10"] / moments["m00"])
-        cy = int(moments["m01"] / moments["m00"])
+        if largest is not None:
+            x, y, w, h = largest
+            cx, cy = int(x + w // 2), int(y + h // 2)
+            # moments = cv2.moments(largest)
+            # if moments["m00"] == 0:
+            #     return None
+            # cx = int(moments["m10"] / moments["m00"])
+            # cy = int(moments["m01"] / moments["m00"])
 
-        if DEBUG:
-            _debug(image, largest, cx, cy, self._offset)
+            if DEBUG:
+                _debug(image, largest, cx, cy, self._offset)
 
-        return (
-            cx + self._offset[0] + detection_box.left,
-            cy + self._offset[1] + detection_box.top,
-        )
+            return (
+                cx + self._offset[0] + detection_box.left,
+                cy + self._offset[1] + detection_box.top,
+            )
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        # TODO Remove this eventually, especially when using a model - this negates "portals" on screen as they tend to interfere with podium
-        white_pixels = cv2.inRange(
-            image, np.array([200, 235, 235]), np.array([255, 255, 255])
-        )
-        image[white_pixels == 255] = [0, 0, 0]
-
-        detection_method = self._detection_methods[self._method]
-        return detection_method(image, **self._detection_params)
+        detection_method = self._preprocessing_functions[self._preprocessing_method]
+        return detection_method(image, **self._preprocessing_params)
 
     @property
     @abstractmethod
@@ -134,12 +167,45 @@ class Character(BaseCharacter, ABC):
         raise NotImplementedError
 
     @property
-    def _detection_methods(self) -> dict[str, callable]:
+    def _preprocessing_functions(self) -> dict[str, callable]:
         return {
             "Color Filtering": self._apply_color_filtering,
             "HSV Filtering": self._apply_hsv_filtering,
             "Template Matching": self._apply_template_matching,
         }
+
+    @property
+    def _detection_functions(self) -> dict[str, callable]:
+        return {
+            "Contour Detection": self._apply_contour_detection,
+            "Bounding Rectangles": self._apply_bounding_rectangles,
+            "Rectangle Grouping": self._apply_rectangle_grouping,
+            "Convex Hull": self._apply_convex_hull,
+        }
+
+    @staticmethod
+    def _apply_contour_detection(
+        image: np.ndarray, **kwargs
+    ) -> Sequence[ndarray | ndarray[Any, dtype[generic | generic]] | Any]:
+        contours, _ = cv2.findContours(image, **kwargs)
+        return contours
+
+    @staticmethod
+    def _apply_bounding_rectangles(
+        contours: Sequence[ndarray | ndarray[Any, dtype[generic | generic]] | Any],
+        **kwargs,
+    ) -> list[Sequence[int]]:
+        return [cv2.boundingRect(cnt) for cnt in contours]
+
+    @staticmethod
+    def _apply_rectangle_grouping(
+        rects: list[Sequence[int]], **kwargs
+    ) -> Sequence[Sequence[int]]:
+        return cv2.groupRectangles(rects, **kwargs)[0]
+
+    @staticmethod
+    def _apply_convex_hull(contour: Sequence[int], **kwargs) -> Sequence[int]:
+        return cv2.convexHull(contour, **kwargs)
 
     @staticmethod
     def _apply_color_filtering(
@@ -167,9 +233,9 @@ class Character(BaseCharacter, ABC):
         raise NotImplementedError
 
 
-def _debug(image: np.ndarray, contour, cx, cy, offset) -> None:
+def _debug(image: np.ndarray, rect, cx, cy, offset) -> None:
     # Then draw a rectangle around it
-    x, y, w, h = cv2.boundingRect(contour)
+    x, y, w, h = rect
     x += offset[0]
     y += offset[1]
     cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 3)

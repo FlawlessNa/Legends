@@ -1,11 +1,11 @@
 # Royals-V2
 
 ## TODO
-- [ ] Switch back to a single Rotation Lock and coordination between rotation generators
-  - [ ] Still need to figure out rotation lock with mobs hitting
-  - [ ] Still need to figure out how to make Random rotation uncancellable in some specific cases
+
 - [ ] Significant improvements required to Mob detection - combine with their HP bar
-  - [ ] Clean thhe pre-processing to remove the additional layer of the filter function
+  - [ ] Idea - When mob is detected, register current MINIMAP location, and converge into that location until no more detections.
+  - [ ] Clean the pre-processing to remove the additional layer of the filter function
+  - [ ] Define additional generic detection functions for mobs
 - [ ] Significant improvements required to Character detection - detection needs to be more stable
   - [ ] Add 20+ Pos/Neg imgs for each map coded with mobs & skill animations and retrain model
 - [ ] Improvements to the QueueAction wrapping

@@ -24,7 +24,7 @@ def random_rotation(data: RoyalsData, rotation_lock: mp.Lock = None) -> Generato
             data.update("current_minimap_position")
             current_pos = data.current_minimap_position
             actions = get_to_target(current_pos, target_pos, data.current_minimap)
-            if actions:
+            if actions and not data.currently_attacking:
                 first_action = actions[0]
                 args = (
                     data.handle,
