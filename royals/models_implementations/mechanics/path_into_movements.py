@@ -49,6 +49,7 @@ def get_to_target(
     current: tuple[int, int],
     target: tuple[int, int],
     in_game_minimap: MinimapPathingMechanics,
+    teleport_allowed: bool = False
 ) -> list[partial]:
     """
     Computes the path from current to target using map features.
@@ -57,10 +58,11 @@ def get_to_target(
     :param current: Current minimap position.
     :param target: Target minimap position.
     :param in_game_minimap: The current minimap in-game.
+    :param teleport_allowed: Whether to allow teleportation.
     :return: List of incomplete partial objects that require further args/kwargs.
     """
     path = _get_path_to_target(current, target, in_game_minimap)
-    movements = _translate_path_into_movements(path)
+    movements = _translate_path_into_movements(path, teleport_allowed)
     if movements:
         if movements[0] == ('down', 1) and not in_game_minimap.grid.node(*current).walkable:
             movements.pop(0)
@@ -92,7 +94,9 @@ def _get_path_to_target(
     return path
 
 
-def _translate_path_into_movements(path: list[MinimapNode]) -> list[tuple[str, int]]:
+def _translate_path_into_movements(
+        path: list[MinimapNode], teleport: bool
+) -> list[tuple[str, int]]:
     """
     Translates a path into a series of movements. Each movement is represented by a tuple of two items.
     The first item is a str representing the actual movement.
@@ -149,6 +153,13 @@ def _translate_path_into_movements(path: list[MinimapNode]) -> list[tuple[str, i
                 squeezed_movements.pop(i)
                 squeezed_movements.pop(i)
             break
+
+    # TODO - Resqueeze squeezed_movements again since removal of movements may have created new duplicates.
+    breakpoint()
+
+    # TODO - Then Add teleportation when allowed
+    if teleport:
+        breakpoint()
 
     return squeezed_movements
 
