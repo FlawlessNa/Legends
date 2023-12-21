@@ -127,6 +127,7 @@ class Executor:
             if fut.exception() is not None:
                 logger.exception(f"Exception occurred in task {fut.get_name()}.")
                 self.cancel_all()
+                raise fut.exception()
         except asyncio.CancelledError:
             pass
 
@@ -146,7 +147,12 @@ class Executor:
         )
 
     def _rotation_callback(self, fut):
-        """Callback to use on map rotation actions if they need to acquire lock before executing."""
+        """
+        Callback to use on map rotation actions if they need to acquire lock before executing.
+        In some cases, such as failsafe responses, the lock has not been acquired yet.
+        For this reason, try to acquire the lock before releasing it.
+        """
+        self.rotation_lock.acquire(block=False)
         self.rotation_lock.release()
         if fut.cancelled():
             logger.debug(

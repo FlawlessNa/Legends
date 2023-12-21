@@ -50,8 +50,4 @@ def random_rotation(data: RoyalsData, rotation_lock: mp.Lock = None) -> Generato
                     res = partial(first_action.func, *args, **kwargs)
             else:
                 res = False
-                walkable = data.current_minimap.grid.node(*current_pos).walkable
-                logger.warning(
-                    f"No path to target. Current {current_pos}, Walkable {walkable}"
-                )
             yield res
