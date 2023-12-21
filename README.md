@@ -4,13 +4,16 @@
 
 - Smart Rotation
   - [ ] Idea - When mob is detected, register current MINIMAP location, and converge into that location until no more detections.
+- [ ] Add teleport into movements + pathing
+- [ ] Significant improvements required to Character detection - detection needs to be more stable
+  - [ ] Re-do detection using current framework
+  - [ ] Add 20+ Pos/Neg imgs for each map coded with mobs & skill animations and retrain model
 - Significant improvements required to Mob detection
   - [ ] combine with their HP bar
   - [ ] Clean the pre-processing to remove the additional layer of the filter function
   - [ ] Define additional generic detection functions for mobs
-- [ ] Add teleport into movements + pathing
-- [ ] Significant improvements required to Character detection - detection needs to be more stable
-  - [ ] Add 20+ Pos/Neg imgs for each map coded with mobs & skill animations and retrain model
+- [ ] MinimapPathing - Redefine how connection weights are used.
+- [ ] Generic Generator class for the botting library + incorporated failsafe methods
 - [ ] Improvements to the QueueAction wrapping
 - [ ] Improvements to RoyalsData management
 - [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)

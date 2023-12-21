@@ -10,6 +10,7 @@ async def jump_on_rope(
     """
     Jumps on a rope.
     :param handle: Handle of the game.
+    :param ign: IGN of the character.
     :param direction: Direction to jump in.
     :param kwargs: Keyword arguments to pass to the controller.
     :return:
@@ -24,9 +25,7 @@ async def jump_on_rope(
         await controller.press(handle, "up", cooldown=0, down_or_up="keyup")
 
 
-async def random_jump(
-        handle: int, ign: str, **kwargs
-):
+async def random_jump(handle: int, ign: str, **kwargs):
     """
     Randomly jump in a direction. Used as a failsafe action when stuck
     in ladder or in an undefined node.
@@ -39,3 +38,4 @@ async def random_jump(
     await controller.move(
         handle, ign, direction, jump=True, enforce_delay=False, duration=0.05, **kwargs
     )
+

@@ -27,6 +27,7 @@ class PathOfTime1Training(DecisionEngine):
             "current_entire_minimap_box",
         )
         self._training_skill = self.game_data.character.skills[kwargs['training_skill']]
+        self._teleport_skill = self.game_data.character.skills['Teleport']
 
     @property
     def game_data(self) -> RoyalsData:
@@ -39,6 +40,6 @@ class PathOfTime1Training(DecisionEngine):
 
     def next_map_rotation(self) -> list[callable]:
         return [
-            partial(smart_rotation, self.game_data, self.watched_bot.rotation_lock),
+            partial(smart_rotation, self.game_data, self.watched_bot.rotation_lock, teleport=self._teleport_skill),
             partial(hit_mobs, self.game_data, self._training_skill)
         ]

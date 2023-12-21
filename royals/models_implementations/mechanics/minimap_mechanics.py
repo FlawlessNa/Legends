@@ -75,6 +75,8 @@ class MinimapConnection:
     PORTAL = 11
     TELEPORT_LEFT = NotImplemented
     TELEPORT_RIGHT = NotImplemented
+    TELEPORT_UP = NotImplemented
+    TELEPORT_DOWN = NotImplemented
     FLASH_JUMP_LEFT = NotImplemented
     FLASH_JUMP_RIGHT = NotImplemented
 

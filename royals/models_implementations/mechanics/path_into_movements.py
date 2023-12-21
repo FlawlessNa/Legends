@@ -8,7 +8,7 @@ from pathfinding.finder.a_star import AStarFinder
 
 from botting import PARENT_LOG
 from botting.core.controls import controller
-from royals.actions.movements import jump_on_rope
+from royals.actions import jump_on_rope, teleport
 from royals.models_implementations.mechanics import (
     MinimapPathingMechanics,
     MinimapNode,
@@ -49,7 +49,7 @@ def get_to_target(
     current: tuple[int, int],
     target: tuple[int, int],
     in_game_minimap: MinimapPathingMechanics,
-    teleport_allowed: bool = False
+    teleport_allowed: bool = False,
 ) -> list[partial]:
     """
     Computes the path from current to target using map features.
@@ -64,7 +64,10 @@ def get_to_target(
     path = _get_path_to_target(current, target, in_game_minimap)
     movements = _translate_path_into_movements(path, teleport_allowed)
     if movements:
-        if movements[0] == ('down', 1) and not in_game_minimap.grid.node(*current).walkable:
+        if (
+            movements[0] == ("down", 1)
+            and not in_game_minimap.grid.node(*current).walkable
+        ):
             movements.pop(0)
     return _convert_movements_to_actions(movements, in_game_minimap.minimap_speed)
 
@@ -95,7 +98,7 @@ def _get_path_to_target(
 
 
 def _translate_path_into_movements(
-        path: list[MinimapNode], teleport: bool
+    path: list[MinimapNode], teleport: bool
 ) -> list[tuple[str, int]]:
     """
     Translates a path into a series of movements. Each movement is represented by a tuple of two items.
@@ -152,14 +155,23 @@ def _translate_path_into_movements(
             if len(squeezed_movements) > 2:
                 squeezed_movements.pop(i)
                 squeezed_movements.pop(i)
+
+            if i > 0:
+                if squeezed_movements[i - 1][0] == squeezed_movements[i][0]:
+                    nbr_to_add = squeezed_movements.pop(i)
+                    squeezed_movements[i - 1] = (
+                        squeezed_movements[i - 1][0],
+                        squeezed_movements[i - 1][-1] + nbr_to_add,
+                    )
             break
 
-    # TODO - Resqueeze squeezed_movements again since removal of movements may have created new duplicates.
-    breakpoint()
-
-    # TODO - Then Add teleportation when allowed
+    # Convert horizontal movements into teleports when allowed
     if teleport:
-        breakpoint()
+        for i in range(len(squeezed_movements)):
+            if squeezed_movements[i][0] in ["left", "right"] and squeezed_movements[i][1] >= 9:
+                direction = squeezed_movements[i][0]
+                squeezed_movements.insert(i, (f'TELEPORT_{direction.upper()}', 1))
+                break
 
     return squeezed_movements
 
@@ -248,9 +260,11 @@ def _convert_movements_to_actions(
                 )
             ] * movement[1]
 
+        elif movement[0] in ["TELEPORT_LEFT", "TELEPORT_RIGHT", "TELEPORT_UP", "TELEPORT_DOWN"]:
+            direction = movement[0].split("_")[-1].lower()
+            act = [partial(teleport, direction=direction)] * movement[1]
+
         elif movement[0] in [
-            "TELEPORT_LEFT",
-            "TELEPORT_RIGHT",
             "FLASH_JUMP_LEFT",
             "FLASH_JUMP_RIGHT",
         ]:
