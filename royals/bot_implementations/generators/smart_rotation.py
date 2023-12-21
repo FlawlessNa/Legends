@@ -38,14 +38,13 @@ def smart_rotation(
     target_features = itertools.cycle(data.current_minimap.feature_cycle)
     next_feature = random.choice(data.current_minimap.feature_cycle)
     for _ in range(data.current_minimap.feature_cycle.index(next_feature)):
-        next_feature = next(target_features)
+        next(target_features)
 
     while True:
         next_feature = next(target_features)
-        current_pos = data.current_minimap_position
         target_pos = next_feature.random()
 
-        while math.dist(current_pos, target_pos) > 2 and data.current_minimap_feature != next_feature:
+        while math.dist(data.current_minimap_position, target_pos) > 2 and data.current_minimap_feature != next_feature:
             yield _single_iteration(data, target_pos, rotation_lock)
 
         # Once the inner loop is broken, it means we are at the target feature.
@@ -53,7 +52,7 @@ def smart_rotation(
         time_reached = time.perf_counter()
         while time.perf_counter() - time_reached < time_spent_on_feature:
             target_pos = next_feature.random()
-            while math.dist(current_pos, target_pos) > 2:
+            while math.dist(data.current_minimap_position, target_pos) > 2:
                 yield _single_iteration(data, target_pos, rotation_lock)
 
 

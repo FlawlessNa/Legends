@@ -6,7 +6,7 @@ from botting.core import DecisionEngine, Executor
 from royals import royals_ign_finder, RoyalsData
 from royals.models_implementations.minimaps import PathOfTime1
 from royals.models_implementations.mobs import PlatoonChronos
-from .generators import random_rotation, hit_mobs
+from .generators import smart_rotation, hit_mobs
 
 
 class PathOfTime1Training(DecisionEngine):
@@ -39,6 +39,6 @@ class PathOfTime1Training(DecisionEngine):
 
     def next_map_rotation(self) -> list[callable]:
         return [
-            partial(random_rotation, self.game_data, self.watched_bot.rotation_lock),
+            partial(smart_rotation, self.game_data, self.watched_bot.rotation_lock),
             partial(hit_mobs, self.game_data, self._training_skill)
         ]
