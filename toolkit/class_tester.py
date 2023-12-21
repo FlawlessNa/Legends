@@ -2,11 +2,14 @@ import os
 import cv2
 import numpy as np
 
-from botting.utilities import take_screenshot
+from botting.utilities import take_screenshot, Box, CLIENT_VERTICAL_MARGIN_PX, CLIENT_HORIZONTAL_MARGIN_PX
 from royals.models_implementations import RoyalsData
 from paths import ROOT
+from royals.models_implementations.minimaps import PathOfTime1
 from royals.models_implementations.characters import Cleric
 from royals.interface.dynamic_components.minimap import Minimap
+
+
 
 class FakeMinimap(Minimap):
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
@@ -17,11 +20,29 @@ HANDLE = 0x02300A26
 
 
 if __name__ == "__main__":
-    test = Cleric('FarmFest1', 'large')
-
+    test = Cleric("FarmFest1", "large")
+    minimap = PathOfTime1()
+    entire_box = minimap.get_entire_minimap_box(HANDLE)
+    hide_tv_smega_box = Box(left=700, right=1024, top=0, bottom=300)
+    hide_minimap_box = Box(
+        max(
+            0,
+            entire_box.left - CLIENT_HORIZONTAL_MARGIN_PX - 5,
+        ),
+        entire_box.right + CLIENT_HORIZONTAL_MARGIN_PX + 5,
+        max(
+            0,
+            entire_box.top - CLIENT_VERTICAL_MARGIN_PX - 10,
+        ),
+        entire_box.bottom + CLIENT_VERTICAL_MARGIN_PX + 5,
+    )
     while True:
-
-        test.get_onscreen_position(None, HANDLE)
+        # print(
+        #     test.get_onscreen_position(
+        #         None, HANDLE, regions_to_hide=[hide_minimap_box, hide_tv_smega_box]
+        #     )
+        # )
+        print(minimap.get_character_positions(HANDLE))
 
         # img = take_screenshot(HANDLE)
         # processed = cv2.inRange(img, (68, 68, 51), (68, 68, 51))
