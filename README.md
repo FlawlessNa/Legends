@@ -12,7 +12,6 @@
 - [ ] Significant improvements required to Character detection - detection needs to be more stable
   - [ ] Add 20+ Pos/Neg imgs for each map coded with mobs & skill animations and retrain model
 - [ ] Improvements to the QueueAction wrapping
-- [x] Generic Failsafe framework
 - [ ] Improvements to RoyalsData management
 - [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
 - [ ] Skill Specs Finder

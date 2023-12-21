@@ -9,7 +9,7 @@ class Magician(Character):
         return {
             "Magic Guard": Skill(
                 "Magic Guard", "Buff", 600, animation_time=0.6
-            ),  # TODO - Confirm animation time
+            ),  # TODO - Figure real animation time
             "Magic Claw": Skill(
                 "Magic Claw",
                 "Attack",
@@ -17,6 +17,15 @@ class Magician(Character):
                 horizontal_screen_range=310,
                 vertical_screen_range=30,
             ),
+            "Teleport": Skill(  # Put here since shared across all 2nd job magicians
+                "Teleport",
+                "Movement",
+                animation_time=0.5,  # TODO - Figure real animation time
+                horizontal_screen_range=150,
+                vertical_screen_range=150,
+                horizontal_minimap_distance=9,
+                vertical_minimap_distance=9,
+            )
         }
 
     def __init__(self, ign: str, client_size: str) -> None:
