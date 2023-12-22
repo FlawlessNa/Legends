@@ -12,7 +12,7 @@
   - [ ] combine with their HP bar
   - [ ] Clean the pre-processing to remove the additional layer of the filter function
   - [ ] Define additional generic detection functions for mobs
-- [ ] MinimapPathing - Redefine how connection weights are used.
+- [x] MinimapPathing - Redefine how connection weights are used.
 - [ ] Generic Generator class for the botting library + incorporated failsafe methods
 - [ ] Improvements to the QueueAction wrapping
 - [ ] Improvements to RoyalsData management

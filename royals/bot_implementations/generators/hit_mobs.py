@@ -28,7 +28,7 @@ def hit_mobs(data: RoyalsData, skill: Skill) -> Generator:
             not data.character_in_a_ladder
             and time.perf_counter() - last_cast >= skill.animation_time
         ):
-            data.update(currently_attacking=False)
+            # data.update(currently_attacking=False)
             data.update("current_on_screen_position")
             on_screen_pos = (
                 data.current_on_screen_position
@@ -65,6 +65,8 @@ def hit_mobs(data: RoyalsData, skill: Skill) -> Generator:
         if res is not None:
             last_cast = time.perf_counter()
             data.update(currently_attacking=True)
+        else:
+            data.update(currently_attacking=False)
 
         yield res
 
