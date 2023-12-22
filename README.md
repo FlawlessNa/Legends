@@ -4,7 +4,7 @@
 
 - Smart Rotation
   - [ ] Idea - When mob is detected, register current MINIMAP location, and converge into that location until no more detections.
-- [ ] Add teleport into movements + pathing
+- [x] Add teleport into movements + pathing
 - [ ] Significant improvements required to Character detection - detection needs to be more stable
   - [ ] Re-do detection using current framework
   - [ ] Add 20+ Pos/Neg imgs for each map coded with mobs & skill animations and retrain model

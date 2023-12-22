@@ -106,6 +106,7 @@ class MinimapNode(GridNode):
 class MinimapGrid(Grid):
     """
     Exactly the same as the Grid class, except that it uses MinimapNodes instead of GridNodes.
+    Weights between nodes are also calculated differently for connections.
     """
 
     nodes: list[list[MinimapNode]]
@@ -122,6 +123,18 @@ class MinimapGrid(Grid):
         :return:
         """
         return self.nodes[y][x]
+
+    def calc_cost(self, node_a: MinimapNode, node_b: MinimapNode, weighted=False):
+        """
+        Get the cost between neighbor nodes.
+        If the nodes are neighbors through a connection, add the horizontal distance
+        into the cost. This avoids unnecessary jumps on platforms and such.
+        """
+        ng = super().calc_cost(node_a, node_b, weighted)
+        if node_b in node_a.connections:
+            dx = abs(node_a.x - node_b.x)
+            ng += dx
+        return ng
 
     def _replace_nodes(self):
         for y, row in enumerate(self.nodes):
