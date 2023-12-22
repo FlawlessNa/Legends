@@ -131,7 +131,7 @@ class MinimapGrid(Grid):
         into the cost. This avoids unnecessary jumps on platforms and such.
         """
         ng = super().calc_cost(node_a, node_b, weighted)
-        if node_b in node_a.connections:
+        if node_a.connections and node_b in node_a.connections:
             dx = abs(node_a.x - node_b.x)
             ng += dx
         return ng
