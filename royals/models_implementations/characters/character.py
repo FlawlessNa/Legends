@@ -137,7 +137,7 @@ class Character(BaseCharacter, ABC):
                 yi = max(y, cnt_y)
                 wi = min(x + w, cnt_x + cnt_w) - xi
                 hi = min(y + h, cnt_y + cnt_h) - yi
-                if not wi * hi > 0:
+                if not wi > 0 and hi > 0:
                     return None
 
         if largest is not None:
