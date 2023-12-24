@@ -5,7 +5,7 @@ import numpy as np
 from botting.utilities import take_screenshot, Box, CLIENT_VERTICAL_MARGIN_PX, CLIENT_HORIZONTAL_MARGIN_PX
 from royals.models_implementations import RoyalsData
 from paths import ROOT
-from royals.models_implementations.minimaps import PathOfTime1
+from royals.models_implementations.minimaps import MysteriousPath3
 from royals.models_implementations.characters import Cleric
 from royals.interface.dynamic_components.minimap import Minimap
 
@@ -16,12 +16,12 @@ class FakeMinimap(Minimap):
         pass
 
 
-HANDLE = 0x02300A26
+HANDLE = 0x00F90FA4
 
 
 if __name__ == "__main__":
-    test = Cleric("FarmFest1", "large")
-    minimap = PathOfTime1()
+    test = Cleric("FarmFest1", 'Elephant Cape', "large")
+    minimap = MysteriousPath3()
     entire_box = minimap.get_entire_minimap_box(HANDLE)
     hide_tv_smega_box = Box(left=700, right=1024, top=0, bottom=300)
     hide_minimap_box = Box(
@@ -37,13 +37,13 @@ if __name__ == "__main__":
         entire_box.bottom + CLIENT_VERTICAL_MARGIN_PX + 5,
     )
     while True:
-        # print(
-        #     test.get_onscreen_position(
-        #         None, HANDLE, regions_to_hide=[hide_minimap_box, hide_tv_smega_box]
-        #     )
-        # )
-        print(minimap.get_character_positions(HANDLE))
-
+        print(
+            test.get_onscreen_position(
+                None, HANDLE, regions_to_hide=[hide_minimap_box, hide_tv_smega_box]
+            )
+        )
+        # print(minimap.get_character_positions(HANDLE))
+        # print(minimap.get_map_area_box(HANDLE))
         # img = take_screenshot(HANDLE)
         # processed = cv2.inRange(img, (68, 68, 51), (68, 68, 51))
         # contours, _ = cv2.findContours(processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)

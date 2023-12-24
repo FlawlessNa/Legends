@@ -41,6 +41,11 @@ def init_control_gui_hsv():
     cv2.createTrackbar("Threshold2", "Trackbars HSV", 0, 1000, nothing)
     cv2.createTrackbar("Apply Canny", "Trackbars HSV", 0, 1, nothing)
 
+    cv2.createTrackbar("groupThresh", "Trackbars HSV", 1, 100, nothing)
+    cv2.createTrackbar("Eps", "Trackbars HSV", 0, 100, nothing)
+    cv2.createTrackbar("minWidth", "Trackbars HSV", 0, 100, nothing)
+    cv2.createTrackbar("minHeight", "Trackbars HSV", 0, 100, nothing)
+
 
 def init_control_gui_color():
     """
@@ -64,11 +69,18 @@ def init_control_gui_color():
     cv2.createTrackbar("BMax", "Trackbars Color", 0, 255, nothing)
     cv2.createTrackbar("GMax", "Trackbars Color", 0, 255, nothing)
     cv2.createTrackbar("RMax", "Trackbars Color", 0, 255, nothing)
-    cv2.createTrackbar("Eps", "Trackbars Color", 0, 1000, nothing)
+    cv2.createTrackbar("groupThresh", "Trackbars Color", 1, 100, nothing)
+    cv2.createTrackbar("Eps", "Trackbars Color", 0, 100, nothing)
+    cv2.createTrackbar("minWidth", "Trackbars Color", 0, 100, nothing)
+    cv2.createTrackbar("minHeight", "Trackbars Color", 0, 100, nothing)
+    cv2.createTrackbar("maxWidth", "Trackbars Color", 0, 1000, nothing)
+    cv2.createTrackbar("maxHeight", "Trackbars Color", 0, 1000, nothing)
     # Set default value for Max HSV trackbars
     cv2.setTrackbarPos("BMax", "Trackbars Color", 255)
     cv2.setTrackbarPos("GMax", "Trackbars Color", 255)
     cv2.setTrackbarPos("RMax", "Trackbars Color", 255)
+    cv2.setTrackbarPos("maxWidth", "Trackbars Color", 1000)
+    cv2.setTrackbarPos("maxHeight", "Trackbars Color", 1000)
 
 
 def get_hsv_filter_from_controls():
@@ -84,6 +96,10 @@ def get_hsv_filter_from_controls():
     hsv_filter.sSub = cv2.getTrackbarPos("SSub", "Trackbars HSV")
     hsv_filter.vAdd = cv2.getTrackbarPos("VAdd", "Trackbars HSV")
     hsv_filter.vSub = cv2.getTrackbarPos("VSub", "Trackbars HSV")
+    hsv_filter.groupthresh = cv2.getTrackbarPos("groupThresh", "Trackbars HSV")
+    hsv_filter.eps = cv2.getTrackbarPos("Eps", "Trackbars HSV") / 10
+    hsv_filter.w = cv2.getTrackbarPos("minWidth", "Trackbars HSV")
+    hsv_filter.h = cv2.getTrackbarPos("minHeight", "Trackbars HSV")
     return hsv_filter
 
 
@@ -96,7 +112,12 @@ def get_colors_filter_from_controls():
     colors_filter.bMax = cv2.getTrackbarPos("BMax", "Trackbars Color")
     colors_filter.gMax = cv2.getTrackbarPos("GMax", "Trackbars Color")
     colors_filter.rMax = cv2.getTrackbarPos("RMax", "Trackbars Color")
-    colors_filter.eps = cv2.getTrackbarPos("Eps", "Trackbars Color")
+    colors_filter.eps = cv2.getTrackbarPos("Eps", "Trackbars Color") / 10
+    colors_filter.groupthresh = cv2.getTrackbarPos("groupThresh", "Trackbars Color")
+    colors_filter.minw = cv2.getTrackbarPos("minWidth", "Trackbars Color")
+    colors_filter.minh = cv2.getTrackbarPos("minHeight", "Trackbars Color")
+    colors_filter.maxw = cv2.getTrackbarPos("maxWidth", "Trackbars Color")
+    colors_filter.maxh = cv2.getTrackbarPos("maxHeight", "Trackbars Color")
     return colors_filter
 
 
@@ -191,6 +212,10 @@ class HsvFilter:
         sSub=None,
         vAdd=None,
         vSub=None,
+        groupthresh=None,
+        eps=None,
+        w=None,
+        h=None,
     ):
         self.hMin = hMin
         self.sMin = sMin
@@ -202,6 +227,10 @@ class HsvFilter:
         self.sSub = sSub
         self.vAdd = vAdd
         self.vSub = vSub
+        self.groupthresh = groupthresh
+        self.eps = eps
+        self.w = w
+        self.h = h
 
 
 class ColorsFilter:
@@ -214,6 +243,11 @@ class ColorsFilter:
         gMax=None,
         rMax=None,
         eps=None,
+        groupthresh=None,
+        minw=None,
+        minh=None,
+        maxw=None,
+        maxh=None,
     ):
         self.bMin = bMin
         self.gMin = gMin
@@ -222,10 +256,15 @@ class ColorsFilter:
         self.gMax = gMax
         self.rMax = rMax
         self.eps = eps
+        self.groupthresh = groupthresh
+        self.minw = maxw
+        self.minh = minh
+        self.maxw = maxw
+        self.maxh = maxh
 
 
 if __name__ == "__main__":
-    HANDLE = 0x02300A26
+    HANDLE = 0x00F90FA4
     USE_HSV = False
     USE_COLORS = True
 
@@ -239,6 +278,7 @@ if __name__ == "__main__":
         img_color = img_hsv.copy()
 
         if USE_HSV:
+            img_hsv_grouped = img_hsv.copy()
             processed_hsv = apply_hsv_filters(img_hsv)
             cv2.imshow("processed_hsv", processed_hsv)
             cv2.waitKey(1)
@@ -252,8 +292,18 @@ if __name__ == "__main__":
             )
             hsv_rects = [cv2.boundingRect(cnt) for cnt in hsv_contours]
             for x, y, w, h in hsv_rects:
-                cv2.rectangle(img_hsv, (x, y), (x + w, y + h), (0, 255, 0), 3)
+                if w >= hsv_filters.w and h >= hsv_filters.h:
+                    cv2.rectangle(img_hsv, (x, y), (x + w, y + h), (0, 255, 0), 3)
             cv2.imshow("contoured_hsv", img_hsv)
+            cv2.waitKey(1)
+
+            hsv_groups = cv2.groupRectangles(hsv_rects, hsv_filters.groupthresh, hsv_filters.eps)
+
+            for rect in hsv_groups[0]:
+                x, y, w, h = rect
+                if w >= hsv_filters.w and h >= hsv_filters.h:
+                    cv2.rectangle(img_hsv_grouped, (x, y), (x + w, y + h), (0, 0, 255), 3)
+            cv2.imshow("contoured_hsv_grouped", img_hsv_grouped)
             cv2.waitKey(1)
 
         if USE_COLORS:
@@ -280,11 +330,13 @@ if __name__ == "__main__":
                 cv2.drawContours(img_color_cnt, [cnt], 0, (0, 255, 0), 3)
             colors_rects = [cv2.boundingRect(cnt) for cnt in colors_contours]
             for x, y, w, h in colors_rects:
-                cv2.rectangle(img_color_rect, (x, y), (x + w, y + h), (0, 255, 0), 3)
+                if colors_filters.minw <= w <= colors_filters.maxw and colors_filters.minh <= h <= colors_filters.maxh:
+                    cv2.rectangle(img_color_rect, (x, y), (x + w, y + h), (0, 255, 0), 3)
 
             grouped = cv2.groupRectangles(colors_rects, 1, colors_filters.eps)
             for x, y, w, h in grouped[0]:
-                cv2.rectangle(img_color_grouped, (x, y), (x + w, y + h), (0, 0, 255), 3)
+                if colors_filters.minw <= w <= colors_filters.maxw and colors_filters.minh <= h <= colors_filters.maxh:
+                    cv2.rectangle(img_color_grouped, (x, y), (x + w, y + h), (0, 0, 255), 3)
 
             hulls = [cv2.convexHull(cnt) for cnt in colors_contours]
             for hull in hulls:
@@ -293,3 +345,4 @@ if __name__ == "__main__":
             cv2.imshow("contoured_color_rect", img_color_rect)
             cv2.imshow("contoured_color_grouped", img_color_grouped)
             cv2.imshow("contoured_color_hull", img_color_hull)
+            cv2.waitKey(1)

@@ -16,6 +16,18 @@ class BaseMob(InGameBaseVisuals, ABC):
     """
 
     detection_box: Box
+    _hsv_lower: np.ndarray = NotImplemented
+    _hsv_upper: np.ndarray = NotImplemented
+    _color_lower: np.ndarray = NotImplemented
+    _color_upper: np.ndarray = NotImplemented
+
+    _minimal_rect_height: int = NotImplemented
+    _maximal_rect_height: int = NotImplemented
+    _minimal_rect_width: int = NotImplemented
+    _maximal_rect_width: int = NotImplemented
+    _minimal_rect_area: int = NotImplemented
+    _maximal_rect_area: int = NotImplemented
+
 
     @classmethod
     @abstractmethod
@@ -34,7 +46,10 @@ class BaseMob(InGameBaseVisuals, ABC):
         contours, _ = cv2.findContours(
             processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
-        return [cv2.boundingRect(cnt) for cnt in self._filter(contours)]
+        try:
+            return [cv2.boundingRect(cnt) for cnt in self._filter(contours)]
+        except Exception as e:
+            breakpoint()
 
     def get_mob_count(self, image: np.ndarray) -> int:
         """

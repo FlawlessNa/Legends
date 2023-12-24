@@ -1,35 +1,33 @@
-import logging
 import multiprocessing
 
 from functools import partial
 
-from botting import PARENT_LOG
-from botting.core import  DecisionEngine, Executor
+from botting.core import DecisionEngine, Executor
 from royals import royals_ign_finder, RoyalsData
-from royals.models_implementations.minimaps import KerningLine1Area1
-from royals.models_implementations.mobs import Bubbling
-
-from .generators import hit_mobs, random_rotation
-
-logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
+from royals.models_implementations.minimaps import MysteriousPath3
+from royals.models_implementations.mobs import SelkieJr, Slimy
+from .generators import smart_rotation, hit_mobs
 
 
-class SubwayTraining(DecisionEngine):
+class MysteriousPath3Training(DecisionEngine):
     ign_finder = royals_ign_finder
 
     def __init__(self, log_queue: multiprocessing.Queue, bot: Executor, **kwargs) -> None:
         super().__init__(log_queue, bot)
         self._game_data = RoyalsData(self.handle, self.ign)
-        self.game_data.current_minimap = KerningLine1Area1()
-        self.game_data.current_mobs = [Bubbling()]
+        self.game_data.current_minimap = MysteriousPath3()
+        self.game_data.current_mobs = [SelkieJr(), Slimy()]
 
         assert 'character_class' in kwargs, "character_class must be provided."
+        assert 'training_skill' in kwargs, "training_skill must be provided."
         self.game_data.character = kwargs['character_class'](self.ign, kwargs['section'], kwargs.get('client_size', 'large'))
         self.game_data.update(
             "current_minimap_area_box",
             "current_minimap_position",
             "current_entire_minimap_box",
         )
+        self._training_skill = self.game_data.character.skills[kwargs['training_skill']]
+        self._teleport_skill = self.game_data.character.skills['Teleport']
 
     @property
     def game_data(self) -> RoyalsData:
@@ -42,6 +40,6 @@ class SubwayTraining(DecisionEngine):
 
     def next_map_rotation(self) -> list[callable]:
         return [
-            partial(random_rotation, self.game_data, self.watched_bot.rotation_lock),
-            partial(hit_mobs, self.game_data, self.watched_bot.rotation_lock)
+            partial(smart_rotation, self.game_data, self.watched_bot.rotation_lock, teleport=self._teleport_skill),
+            partial(hit_mobs, self.game_data, self._training_skill)
         ]

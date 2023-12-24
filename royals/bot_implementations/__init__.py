@@ -1,4 +1,5 @@
 from .ludi_freemarket_roaming import LudiFreeMarketRoaming
+from .mysterious_path3_training import MysteriousPath3Training
+from .path_of_time1_training import PathOfTime1Training
 from .subway_area1_training import SubwayTraining
 from .subway_area2_training import SubwayTraining2
-from .path_of_time1_training import PathOfTime1Training

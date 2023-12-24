@@ -28,8 +28,8 @@ class Magician(Character):
             )
         }
 
-    def __init__(self, ign: str, client_size: str) -> None:
-        super().__init__(ign, client_size)
+    def __init__(self, ign: str, section: str, client_size: str) -> None:
+        super().__init__(ign, section, client_size)
 
 
 class ILWizard(Magician):
@@ -71,8 +71,8 @@ class Cleric(Magician):
             ),  # TODO - Confirm animation time
         }
 
-    def __init__(self, ign: str, client_size: str) -> None:
-        super().__init__(ign, client_size)
+    def __init__(self, ign: str, section: str, client_size: str) -> None:
+        super().__init__(ign, section, client_size)
 
 
 class Priest(Cleric):

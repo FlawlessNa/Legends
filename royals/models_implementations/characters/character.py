@@ -24,29 +24,29 @@ class Character(BaseCharacter, ABC):
     detection_box_large_client: Box = Box(left=0, right=1024, top=29, bottom=700)
     detection_box_small_client: Box = NotImplemented
 
-    def __init__(self, ign: str, client_size: str) -> None:
+    def __init__(self, ign: str, section: str, client_size: str) -> None:
         super().__init__(ign)
         self._preprocessing_method = config_reader(
-            "character_detection", self.ign, "Preprocessing Method"
+            "character_detection", section, "Preprocessing Method"
         )
         self._preprocessing_params = eval(
-            config_reader("character_detection", self.ign, "Preprocessing Parameters")
+            config_reader("character_detection", section, "Preprocessing Parameters")
         )
         _detection_methods = eval(
-            config_reader("character_detection", self.ign, "Detection Methods")
+            config_reader("character_detection", section, "Detection Methods")
         )
         self._detection_methods = {
-            i: eval(config_reader("character_detection", self.ign, f"{i} Parameters"))
+            i: eval(config_reader("character_detection", section, f"{i} Parameters"))
             for i in _detection_methods
         }
 
         self._offset: tuple[int, int] = eval(
-            config_reader("character_detection", self.ign, "Detection Offset")
+            config_reader("character_detection", section, "Detection Offset")
         )
         assert client_size.lower() in ("large", "small")
         self._client_size = client_size
 
-        _model_path = config_reader("character_detection", self.ign, "Detection Model")
+        _model_path = config_reader("character_detection", section, "Detection Model")
         if len(_model_path) > 0:
             if not os.path.exists(_model_path):
                 _model_path = os.path.join(ROOT, _model_path)
@@ -119,6 +119,18 @@ class Character(BaseCharacter, ABC):
             if len(res):
                 largest = max(res, key=lambda x: x[2] * x[3])
 
+        if 'Dimension Filtering' in self._detection_methods:
+            assert (
+                "Bounding Rectangles" in self._detection_methods
+            ), "Dimension Filtering must be used with Bounding Rectangles"
+            min_w = self._detection_methods["Dimension Filtering"].get('min_width', 0)
+            min_h = self._detection_methods["Dimension Filtering"].get('min_height', 0)
+            max_w = self._detection_methods["Dimension Filtering"].get('max_width', 9999)
+            max_h = self._detection_methods["Dimension Filtering"].get('max_height', 9999)
+            res = [rect for rect in res if min_w <= rect[2] <= max_w and min_h <= rect[3] <= max_h]
+            if len(res):
+                largest = max(res, key=lambda x: x[2] * x[3])
+
         # Cross-validate both rectangles, if a model is used
         if self._model is not None:
             rects, lvls, weights = self._model.detectMultiScale3(
@@ -143,11 +155,6 @@ class Character(BaseCharacter, ABC):
         if largest is not None:
             x, y, w, h = largest
             cx, cy = int(x + w // 2), int(y + h // 2)
-            # moments = cv2.moments(largest)
-            # if moments["m00"] == 0:
-            #     return None
-            # cx = int(moments["m10"] / moments["m00"])
-            # cy = int(moments["m01"] / moments["m00"])
 
             if DEBUG:
                 _debug(image, largest, cx, cy, self._offset)

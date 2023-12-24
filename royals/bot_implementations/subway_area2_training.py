@@ -20,7 +20,7 @@ class SubwayTraining2(DecisionEngine):
 
         assert 'character_class' in kwargs, "character_class must be provided."
         assert 'training_skill' in kwargs, "training_skill must be provided."
-        self.game_data.character = kwargs['character_class'](self.ign, kwargs.get('client_size', 'large'))
+        self.game_data.character = kwargs['character_class'](self.ign, kwargs['section'], kwargs.get('client_size', 'large'))
         self.game_data.update(
             "current_minimap_area_box",
             "current_minimap_position",

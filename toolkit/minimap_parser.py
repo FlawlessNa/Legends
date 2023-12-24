@@ -12,9 +12,9 @@ from paths import ROOT
 from royals.interface.dynamic_components.minimap import Minimap
 from botting.utilities import Box
 
-HANDLE = 0x02300A26
+HANDLE = 0x00F90FA4
 OUTPUT_LOCATION = os.path.join(ROOT, "royals/models_implementations/minimaps/")
-OUTPUT_NAME = "path_of_time1.py"
+OUTPUT_NAME = "mysterious_path3.py"
 
 container = []
 
