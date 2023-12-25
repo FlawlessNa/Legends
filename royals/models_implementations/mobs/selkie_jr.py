@@ -5,12 +5,12 @@ from botting.models_abstractions import BaseMob
 
 
 class SelkieJr(BaseMob):
-    _color_lower = np.array([0, 0, 0])
-    _color_upper = np.array([33, 75, 59])
-    _minimal_rect_width = 68
-    _minimal_rect_height = 65
-    _maximal_rect_width = 114
-    _maximal_rect_height = 135
+    _color_lower = np.array([82, 0, 21])
+    _color_upper = np.array([132, 45, 33])
+    _minimal_rect_width = 0
+    _minimal_rect_height = 0
+    _maximal_rect_width = 1000
+    _maximal_rect_height = 1000
 
     @classmethod
     def _preprocess_img(cls, image: np.ndarray) -> np.ndarray:

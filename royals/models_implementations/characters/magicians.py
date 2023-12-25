@@ -66,7 +66,7 @@ class Cleric(Magician):
                 "Attack",
                 animation_time=0.25,
                 horizontal_screen_range=200,
-                vertical_screen_range=80,
+                vertical_screen_range=125,
                 unidirectional=False
             ),  # TODO - Confirm animation time
         }

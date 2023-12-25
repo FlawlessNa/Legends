@@ -5,14 +5,16 @@ from botting.models_abstractions import BaseMob
 
 
 class Slimy(BaseMob):
-    _color_lower = np.array([53, 58, 219])
-    _color_upper = np.array([62, 81, 246])
+    _hsv_lower = np.array([53, 58, 219])
+    _hsv_upper = np.array([62, 81, 246])
     _minimal_rect_height = 4
     _minimal_rect_width = 6
+    _maximal_rect_width = 15
 
     @classmethod
     def _preprocess_img(cls, image: np.ndarray) -> np.ndarray:
-        binary = cv2.inRange(image, cls._color_lower, cls._color_upper)
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        binary = cv2.inRange(hsv, cls._hsv_lower, cls._hsv_upper)
         return binary
 
     @classmethod
@@ -26,7 +28,7 @@ class Slimy(BaseMob):
         def cond2(cnt):
             return (
                 cls._minimal_rect_width
-                <= cv2.boundingRect(cnt)[-2]
+                <= cv2.boundingRect(cnt)[-2] <= cls._maximal_rect_width
             )
 
         return filter(cond1 and cond2, contours)

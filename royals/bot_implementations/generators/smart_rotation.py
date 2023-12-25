@@ -73,7 +73,7 @@ def _single_iteration(data: RoyalsData,
     res = None
     data.update("current_minimap_position")
     current_pos = data.current_minimap_position
-    actions = get_to_target(current_pos, target_pos, data.current_minimap, teleport)
+    actions = get_to_target(current_pos, target_pos, data.current_minimap, True if teleport is not None else False)
     if actions and not data.currently_attacking:
         first_action = actions[0]
         args = (

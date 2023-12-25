@@ -24,12 +24,12 @@ def hit_mobs(data: RoyalsData, skill: Skill) -> Generator:
     while True:
         res = None
         closest_mob_direction = None
+        data.update("current_on_screen_position")
         if (
             not data.character_in_a_ladder
             and time.perf_counter() - last_cast >= skill.animation_time
         ):
             # data.update(currently_attacking=False)
-            data.update("current_on_screen_position")
             on_screen_pos = (
                 data.current_on_screen_position
                 if data.current_on_screen_position is not None

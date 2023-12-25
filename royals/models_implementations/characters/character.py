@@ -88,7 +88,7 @@ class Character(BaseCharacter, ABC):
 
         if regions_to_hide is not None:
             for region in regions_to_hide:
-                processed[region.top : region.bottom, region.left : region.right] = 0
+                processed[region.top:region.bottom, region.left:region.right] = 0
 
         res = None
         largest = None
@@ -131,6 +131,10 @@ class Character(BaseCharacter, ABC):
             if len(res):
                 largest = max(res, key=lambda x: x[2] * x[3])
 
+        # After all pre-processing + detection, if no result, there should not be any largest either.
+        if not len(res):
+            largest = None
+
         # Cross-validate both rectangles, if a model is used
         if self._model is not None:
             rects, lvls, weights = self._model.detectMultiScale3(
@@ -149,16 +153,19 @@ class Character(BaseCharacter, ABC):
                 yi = max(y, cnt_y)
                 wi = min(x + w, cnt_x + cnt_w) - xi
                 hi = min(y + h, cnt_y + cnt_h) - yi
-                if not wi > 0 and hi > 0:
+                if not (wi > 0 and hi > 0):
                     return None
 
+        cx = None
+        cy = None
         if largest is not None:
             x, y, w, h = largest
             cx, cy = int(x + w // 2), int(y + h // 2)
 
-            if DEBUG:
-                _debug(image, largest, cx, cy, self._offset)
+        if DEBUG:
+            _debug(image, largest, cx, cy, self._offset)
 
+        if cx is not None and cy is not None:
             return (
                 cx + self._offset[0] + detection_box.left,
                 cy + self._offset[1] + detection_box.top,
@@ -242,11 +249,12 @@ class Character(BaseCharacter, ABC):
 
 def _debug(image: np.ndarray, rect, cx, cy, offset) -> None:
     # Then draw a rectangle around it
-    x, y, w, h = rect
-    x += offset[0]
-    y += offset[1]
-    cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 3)
-    cv2.circle(image, (cx + offset[0], cy + offset[1]), 5, (0, 0, 255), -1)
+    if rect is not None:
+        x, y, w, h = rect
+        x += offset[0]
+        y += offset[1]
+        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 3)
+        cv2.circle(image, (cx + offset[0], cy + offset[1]), 5, (0, 0, 255), -1)
     cv2.imshow("_DEBUG_ Character.get_on_screen_position", image)
     cv2.waitKey(1)
 
