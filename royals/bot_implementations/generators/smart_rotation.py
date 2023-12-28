@@ -48,16 +48,34 @@ def smart_rotation(
         next_feature = next(target_features)
         target_pos = next_feature.random()
 
-        while math.dist(data.current_minimap_position, target_pos) > 2 and data.current_minimap_feature != next_feature:
+        while math.dist(data.current_minimap_position, target_pos) > 2 or data.current_minimap_feature != next_feature:
             yield _single_iteration(data, target_pos, rotation_lock, teleport)
 
-        # Once the inner loop is broken, it means we are at the target feature.
-        # Stay there for a while.
-        time_reached = time.perf_counter()
-        while time.perf_counter() - time_reached < time_spent_on_feature:
-            target_pos = next_feature.random()
-            while math.dist(data.current_minimap_position, target_pos) > 2:
-                yield _single_iteration(data, target_pos, rotation_lock, teleport)
+        # Once the inner loop is done, it means we are at the target feature.
+        # Start by covering the features coverage_area while blindly attacking.
+        # Then, gravitate towards the central_point of the feature until no more mobs are detected for X seconds.
+        # TODO - Figure out systematic way to continuously attack mobs
+        assert next_feature.is_platform, f"Feature {next_feature.name} is not a platform."
+        left_edge = next_feature.left_edge
+        right_edge = next_feature.right_edge
+        target_pos = left_edge if data.current_minimap_position[0] <= next_feature.center[0] else right_edge
+
+        while math.dist(data.current_minimap_position, target_pos) > 2:
+            yield _single_iteration(data, target_pos, rotation_lock, teleport)
+        target_pos = left_edge if target_pos == right_edge else right_edge
+        while math.dist(data.current_minimap_position, target_pos) > 2:
+            yield _single_iteration(data, target_pos, rotation_lock, teleport)
+
+        # At this point the coverage area is covered. Now, gravitate towards the center of the feature.
+        target_pos = next_feature.central_node if next_feature.central_node is not None else (int(next_feature.center[0]), int(next_feature.center[1]))
+        while math.dist(data.current_minimap_position, target_pos) > 2 and time.perf_counter() - data.last_mob_detection < 4:
+            yield _single_iteration(data, target_pos, rotation_lock, teleport)
+        #
+        # time_reached = time.perf_counter()
+        # while time.perf_counter() - time_reached < time_spent_on_feature:
+        #     target_pos = next_feature.random()
+        #     while math.dist(data.current_minimap_position, target_pos) > 2:
+        #         yield _single_iteration(data, target_pos, rotation_lock, teleport)
 
 
 def _single_iteration(data: RoyalsData,
@@ -94,6 +112,8 @@ def _single_iteration(data: RoyalsData,
                 f"Rotation Lock acquired. Sending Next Random Rotation."
             )
             res = partial(first_action.func, *args, **kwargs)
+    elif data.currently_attacking:
+        pass
     else:
         res = False
     return res

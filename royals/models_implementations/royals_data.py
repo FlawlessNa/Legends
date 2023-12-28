@@ -26,13 +26,17 @@ class RoyalsData(GameData):
     current_minimap_feature: Box = field(repr=False, init=False)
     character_in_a_ladder: bool = field(repr=False, init=False, default=False)
     currently_attacking: bool = field(repr=False, init=False, default=False)
+    last_mob_detection: float = field(repr=False, init=False, default=0)
 
     def update(self, *args, **kwargs) -> None:
-        if (
-            kwargs.get("current_direction", self.current_direction)
-            != self.current_direction
-        ):
+
+        direction = kwargs.pop("current_direction", self.current_direction)
+        if direction != self.current_direction:
             self.current_direction = kwargs["current_direction"]
+
+        for k, v in kwargs.items():
+            assert hasattr(self, k), f"Invalid attribute {k}."
+            setattr(self, k, v)
 
         if "current_minimap_area_box" in args:
             self.current_minimap_area_box = self.current_minimap.get_map_area_box(

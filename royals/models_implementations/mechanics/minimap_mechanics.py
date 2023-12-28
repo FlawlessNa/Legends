@@ -1,7 +1,8 @@
 import cv2
 import numpy as np
+import random
 
-from abc import ABC
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathfinding.core.grid import Grid
 from pathfinding.core.node import GridNode
@@ -162,6 +163,9 @@ class MinimapFeature(Box):
 
     name: str
     connections: list[MinimapConnection] = field(default_factory=list)
+    central_node: tuple[int, int] = field(default=None)
+    area_coverage: float = field(default=0.9)
+    randomized_edge: int = field(default=5)
 
     def __post_init__(self):
         super().__post_init__()
@@ -176,6 +180,16 @@ class MinimapFeature(Box):
     @property
     def is_ladder(self) -> bool:
         return self.width == 0
+
+    @property
+    def left_edge(self) -> tuple[int, int]:
+        rand_buffer = random.randint(-self.randomized_edge, self.randomized_edge)
+        return max(int(rand_buffer + self.left + self.width * (1 - self.area_coverage) / 2), self.left), self.top
+
+    @property
+    def right_edge(self) -> tuple[int, int]:
+        rand_buffer = random.randint(-self.randomized_edge, self.randomized_edge)
+        return min(int(rand_buffer + self.right - self.width * (1 - self.area_coverage) / 2), self.right), self.top
 
     @property
     def area(self) -> int:
@@ -206,6 +220,16 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
     jump_down_limit: int = (
         500  # No limit by default (500 is extremely large, will never be reached)
     )
+
+    @property
+    @abstractmethod
+    def feature_cycle(self) -> list[MinimapFeature]:
+        """
+        Returns a list of the features to be cycled through. This is used for smarter
+        map rotations.
+        :return:
+        """
+        pass
 
     def __init__(self):
         for feature in self.features.values():
