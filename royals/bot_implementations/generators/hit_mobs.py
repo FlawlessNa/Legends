@@ -66,7 +66,8 @@ def hit_mobs(data: RoyalsData, skill: Skill) -> Generator:
             last_cast = time.perf_counter()
             data.update(last_mob_detection=time.perf_counter())
             data.update(currently_attacking=True)
-        else:            data.update(currently_attacking=False)
+        else:
+            data.update(currently_attacking=False)
 
         yield res
 
