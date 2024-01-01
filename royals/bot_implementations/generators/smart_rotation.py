@@ -68,7 +68,7 @@ def smart_rotation(
 
         # At this point the coverage area is covered. Now, gravitate towards the center of the feature.
         target_pos = next_feature.central_node if next_feature.central_node is not None else (int(next_feature.center[0]), int(next_feature.center[1]))
-        while math.dist(data.current_minimap_position, target_pos) > 2 and time.perf_counter() - data.last_mob_detection < 4:
+        while math.dist(data.current_minimap_position, target_pos) > 2 and time.perf_counter() - data.last_mob_detection > 4:
             yield _single_iteration(data, target_pos, rotation_lock, teleport)
         #
         # time_reached = time.perf_counter()

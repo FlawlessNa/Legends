@@ -109,3 +109,95 @@ class MysteriousPath3(MinimapPathingMechanics):
         bottom=64,
         name="box5",
     )
+    left_boat_upper_59: MinimapFeature = MinimapFeature(
+        left=52,
+        right=94,
+        top=59,
+        bottom=59,
+        name="left_boat_upper_59",
+    )
+    left_boat_upper_60: MinimapFeature = MinimapFeature(
+        left=52,
+        right=94,
+        top=60,
+        bottom=60,
+        name="left_boat_upper_60",
+    )
+    left_boat_upper_61: MinimapFeature = MinimapFeature(
+        left=52,
+        right=94,
+        top=61,
+        bottom=61,
+        name="left_boat_upper_61",
+    )
+    left_boat_upper_62: MinimapFeature = MinimapFeature(
+        left=52,
+        right=94,
+        top=62,
+        bottom=62,
+        name="left_boat_upper_62",
+    )
+    left_boat_middle_67: MinimapFeature = MinimapFeature(
+        left=54,
+        right=92,
+        top=67,
+        bottom=67,
+        name="left_boat_middle_67",
+    )
+    left_boat_middle_66: MinimapFeature = MinimapFeature(
+        left=54,
+        right=92,
+        top=66,
+        bottom=66,
+        name="left_boat_middle_66",
+    )
+    left_boat_bottom_73: MinimapFeature = MinimapFeature(
+        left=54,
+        right=92,
+        top=73,
+        bottom=73,
+        name="left_boat_bottom_73",
+    )
+    left_boat_bottom_72: MinimapFeature = MinimapFeature(
+        left=54,
+        right=92,
+        top=72,
+        bottom=72,
+        name="left_boat_bottom_72",
+    )
+    right_boat_bottom_73: MinimapFeature = MinimapFeature(
+        left=172,
+        right=200,
+        top=73,
+        bottom=73,
+        name="right_boat_bottom_73",
+    )
+
+    right_platform_bench: MinimapFeature = MinimapFeature(
+        left=173,
+        right=179,
+        top=37,
+        bottom=37,
+        name="right_platform_bench",
+    )
+    right_platform_sign_1: MinimapFeature = MinimapFeature(
+        left=174,
+        right=177,
+        top=31,
+        bottom=31,
+        name="right_platform_sign_1",
+    )
+    right_platform_thrash: MinimapFeature = MinimapFeature(
+        left=179,
+        right=183,
+        top=34,
+        bottom=34,
+        name="right_platform_thrash",
+    )
+    right_platform_sign_2: MinimapFeature = MinimapFeature(
+        left=181,
+        right=185,
+        top=29,
+        bottom=29,
+        name="right_platform_sign_2",
+    )

@@ -40,21 +40,21 @@ if __name__ == "__main__":
         entire_box.bottom + CLIENT_VERTICAL_MARGIN_PX + 5,
     )
     while True:
-        img = take_screenshot(HANDLE)
-        slimy_rects = slimy.get_onscreen_mobs(img)
-        selkie_rects = selkie.get_onscreen_mobs(img)
-        for (x, y, w, h) in slimy_rects:
-            cv2.rectangle(img, (x, y), (x+w, y+h), (0, 0, 255), 2)
-        for (x, y, w, h) in selkie_rects:
-            cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
-        cv2.imshow('img', img)
-        cv2.waitKey(1)
+        # img = take_screenshot(HANDLE)
+        # slimy_rects = slimy.get_onscreen_mobs(img)
+        # selkie_rects = selkie.get_onscreen_mobs(img)
+        # for (x, y, w, h) in slimy_rects:
+        #     cv2.rectangle(img, (x, y), (x+w, y+h), (0, 0, 255), 2)
+        # for (x, y, w, h) in selkie_rects:
+        #     cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        # cv2.imshow('img', img)
+        # cv2.waitKey(1)
         # print(
         #     test.get_onscreen_position(
         #         None, HANDLE, regions_to_hide=[hide_minimap_box, hide_tv_smega_box]
         #     )
         # )
-        # print(minimap.get_character_positions(HANDLE))
+        print(minimap.get_character_positions(HANDLE))
         # print(minimap.get_map_area_box(HANDLE))
         # img = take_screenshot(HANDLE)
         # processed = cv2.inRange(img, (68, 68, 51), (68, 68, 51))
