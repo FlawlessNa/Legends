@@ -9,9 +9,10 @@
   - [x] Re-do detection using current framework
   - [] Add 20+ Pos/Neg imgs for each map coded with mobs & skill animations and retrain model (In progress)
 - Significant improvements required to Mob detection
-  - [ ] combine with their HP bar
+  - [ ] Add pre-processing techniques such as minimal nbr of detection to be considered a mob
   - [ ] Clean the pre-processing to remove the additional layer of the filter function
   - [ ] Define additional generic detection functions for mobs
+  - [ ] [Optional] combine with their HP bar
 - [ ] Generic Generator class for the botting library + incorporated failsafe methods
 - [ ] Improvements to the QueueAction wrapping
 - [ ] Improvements to RoyalsData management

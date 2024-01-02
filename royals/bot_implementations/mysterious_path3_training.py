@@ -4,6 +4,7 @@ from functools import partial
 
 from botting.core import DecisionEngine, Executor
 from royals import royals_ign_finder, RoyalsData
+from royals.bot_implementations.generators import rebuff
 from royals.models_implementations.minimaps import MysteriousPath3
 from royals.models_implementations.mobs import SelkieJr, Slimy
 from .generators import smart_rotation, hit_mobs
@@ -34,9 +35,10 @@ class MysteriousPath3Training(DecisionEngine):
         return self._game_data
 
     def items_to_monitor(self) -> list[callable]:
-        return (
-            []
-        )  # TODO - Add a check that looks whether current node is walkable. if not walkable and static + 10s, then add some movement
+        return [
+            rebuff.Rebuff(self.game_data, self.game_data.character.skills['Holy Symbol'])
+        ]
+          # TODO - Add a check that looks whether current node is walkable. if not walkable and static + 10s, then add some movement
 
     def next_map_rotation(self) -> list[callable]:
         return [

@@ -69,6 +69,19 @@ class Cleric(Magician):
                 vertical_screen_range=125,
                 unidirectional=False
             ),  # TODO - Confirm animation time
+            "Bless": Skill(
+                "Bless",
+                "Party Buff",
+                animation_time=0.5,  # TODO - Confirm animation time
+                unidirectional=False,
+                duration=200
+            ),
+            "Invincible": Skill(
+                "Invincible",
+                "Buff",
+                animation_time=0.5,  # TODO - Confirm animation time
+                duration=300
+            )
         }
 
     def __init__(self, ign: str, section: str, client_size: str) -> None:
@@ -76,7 +89,21 @@ class Cleric(Magician):
 
 
 class Priest(Cleric):
-    pass
+    @property
+    def skills(self) -> dict[str, Skill]:
+        return {
+            **super().skills,
+            "Holy Symbol": Skill(
+                "Holy Symbol",
+                "Party Buff",
+                animation_time=0.75,  # TODO - Confirm animation time
+                unidirectional=False,
+                duration=90
+            ),
+        }
+
+    def __init__(self, ign: str, section: str, client_size: str) -> None:
+        super().__init__(ign, section, client_size)
 
 
 class Bishop(Priest):
