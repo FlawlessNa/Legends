@@ -2,6 +2,7 @@ import multiprocessing
 
 from abc import ABC, abstractmethod
 
+from .decision_generator import DecisionGenerator
 from .executor import Executor
 from botting.core.bot.game_data import GameData
 from botting.utilities import ChildProcess
@@ -16,6 +17,8 @@ class DecisionEngine(ChildProcess, ABC):
         self.watched_bot = bot
         self.handle = bot.handle
         self.ign = bot.ign
+        self.args = args
+        self.kwargs = kwargs
 
     @property
     @abstractmethod
@@ -27,7 +30,7 @@ class DecisionEngine(ChildProcess, ABC):
         pass
 
     @abstractmethod
-    def items_to_monitor(self) -> list[callable]:
+    def items_to_monitor(self) -> list[DecisionGenerator]:
         """
         Child instances should store in this property a list of generators that are monitored by the monitoring loop (Child Process).
         Each item in this list is an iterator.
@@ -37,7 +40,7 @@ class DecisionEngine(ChildProcess, ABC):
         pass
 
     @abstractmethod
-    def next_map_rotation(self) -> list[callable]:
+    def next_map_rotation(self) -> list[DecisionGenerator]:
         """
         Same behavior as items_to_monitor(), but the generators in this list are used to determine the next map rotation.
         :return:
@@ -57,10 +60,10 @@ class DecisionEngine(ChildProcess, ABC):
         """
         try:
             generators = [
-                gen() for gen in self.items_to_monitor()
+                gen(*self.args, **self.kwargs) for gen in self.items_to_monitor()
             ]  # Instantiate all checks generators
             map_rotation = [
-                gen() for gen in self.next_map_rotation()
+                gen(*self.args, **self.kwargs) for gen in self.next_map_rotation()
             ]  # Instantiate all map rotation generators
 
             while True:

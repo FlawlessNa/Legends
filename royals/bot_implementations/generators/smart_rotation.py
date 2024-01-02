@@ -23,7 +23,6 @@ logger = logging.getLogger(PARENT_LOG + "." + __name__)
 def smart_rotation(
         data: RoyalsData,
         rotation_lock: mp.Lock = None,
-        time_spent_on_feature: float = 10,
         teleport: Skill = None,
 ) -> Generator:
     """
@@ -33,7 +32,6 @@ def smart_rotation(
     for desired amount of time. Once the time is up, go to next feature and repeat.
     :param data:
     :param rotation_lock:
-    :param time_spent_on_feature:
     :param teleport:
     :return:
     """
