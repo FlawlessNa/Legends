@@ -3,7 +3,7 @@ import multiprocessing
 from functools import partial
 
 from botting.core import DecisionEngine, Executor, DecisionGenerator
-from botting.models_abstractions import BaseMap, BaseCharacter
+from botting.models_abstractions import BaseMap
 
 from royals import royals_ign_finder, RoyalsData
 from royals.bot_implementations.generators import hit_mobs, rebuff, smart_rotation
@@ -19,6 +19,7 @@ class TrainingEngine(DecisionEngine):
         game_map: BaseMap,
         character: callable,
         training_skill: str,
+        buffs: list[str] | None = None,
     ) -> None:
         super().__init__(log_queue, bot)
         self._game_data = RoyalsData(self.handle, self.ign)
@@ -34,12 +35,30 @@ class TrainingEngine(DecisionEngine):
 
         self._training_skill = self.game_data.character.skills[training_skill]
         self._teleport_skill = self.game_data.character.skills.get("Teleport")
+        if buffs:
+            self._buffs_to_use = [self.game_data.character.skills[buff] for buff in buffs]
+        else:
+            self._buffs_to_use = []
+        for skill in self.game_data.character.skills.values():
+            if (
+                skill.type in ["Buff", "Party Buff"]
+                and skill.use_by_default
+                and skill not in self._buffs_to_use
+            ):
+                self._buffs_to_use.append(skill)
 
     @property
     def game_data(self) -> RoyalsData:
         return self._game_data
 
     def items_to_monitor(self) -> list[callable]:
+        generators = []
+        for skill in self.game_data.character.skills.values():
+            if skill.type in ["Buff", "Party Buff"] and skill in self._buffs_to_use:
+                generators.append(
+                    rebuff.Rebuff(self.game_data, skill)
+                )
+
         return [
             rebuff.Rebuff(
                 self.game_data, self.game_data.character.skills["Holy Symbol"]

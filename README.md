@@ -2,6 +2,9 @@
 
 ## TODO
 - Debug windows should appear on every call for 'continuous' debugging
+- Engine/launchers refactoring:
+- [x] Create a single Training launcher
+- [ ] Customize training launcher for Buffs
 - Smart Rotation
   - [ ] Idea - When new platform reached, cover x% of the platform while blindly attacking, then converge into mid-ish platform. Then, wait until Y seconds without any mob detection before next rotation
 - [ ] Significant improvements required to Character detection - detection needs to be more stable
@@ -15,7 +18,7 @@
   - [ ] [Optional] combine with their HP bar
 - [ ] Generic Generator class for the botting library + incorporated failsafe methods
 - [ ] Improvements to the QueueAction wrapping
-- [ ] Improvements to RoyalsData management
+- [ ] Improvements to RoyalsData management (split into subclasses)
 - [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
 - [ ] Skill Specs Finder
 - [ ] Major clean-up of the Royals library

@@ -16,6 +16,7 @@ class Skill:
     vertical_screen_range: int = field(default=0, repr=False)
     cooldown: int = field(default=0, repr=False)
     animation_time: float = field(default=0, repr=False)
+    use_by_default: bool = field(default=True, repr=False)
 
     @lru_cache
     def key_bind(self, ign: str) -> str:
