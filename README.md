@@ -1,13 +1,13 @@
 # Royals-V2
 
 ## TODO
-
+- Debug windows should appear on every call for 'continuous' debugging
 - Smart Rotation
   - [ ] Idea - When new platform reached, cover x% of the platform while blindly attacking, then converge into mid-ish platform. Then, wait until Y seconds without any mob detection before next rotation
-- [ ] Add un-used side platforms in MP3 + reaction methods to return to standard platforms when necessary (Could be through standardized generators)
 - [ ] Significant improvements required to Character detection - detection needs to be more stable
   - [x] Re-do detection using current framework
-  - [] Add 20+ Pos/Neg imgs for each map coded with mobs & skill animations and retrain model (In progress)
+  - [x] Add 20+ Pos/Neg imgs for each map coded with mobs & skill animations and retrain model (In progress)
+  - [ ] Standardize code and transfer detection framework into botting library
 - Significant improvements required to Mob detection
   - [ ] Add pre-processing techniques such as minimal nbr of detection to be considered a mob
   - [ ] Clean the pre-processing to remove the additional layer of the filter function
