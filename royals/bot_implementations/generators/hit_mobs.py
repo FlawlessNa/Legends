@@ -7,11 +7,10 @@ from functools import partial
 from typing import Sequence, Generator
 
 from botting.core import QueueAction
-from botting.models_abstractions import BaseMob
+from botting.models_abstractions import BaseMob, Skill
 from botting.utilities import take_screenshot, Box
 from royals import RoyalsData
 from royals.actions import cast_skill
-from royals.models_implementations import Skill
 
 DEBUG = True
 

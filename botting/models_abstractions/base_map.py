@@ -1,12 +1,13 @@
 from abc import ABC
+from dataclasses import dataclass
 
 from .base_minimap import BaseMinimapFeatures
 from .base_mob import BaseMob
 from botting.utilities import Box
-from botting.visuals import InGameBaseVisuals
 
 
-class BaseMap(InGameBaseVisuals, ABC):
+@dataclass
+class BaseMap(ABC):
     """
     This class is an example of how a map can be defined.
     A map may contain the following:
@@ -16,15 +17,6 @@ class BaseMap(InGameBaseVisuals, ABC):
     - Connections to other minimaps
     This is merely an example. Map implementations may vary.
     """
-
     detection_box: Box
-
-    def __init__(
-        self,
-        minimap: BaseMinimapFeatures,
-        mobs: list[BaseMob] | None = None,
-        connections: list["BaseMap"] | None = None,
-    ) -> None:
-        self.mobs = mobs
-        self.minimap = minimap
-        self.connections = connections
+    mobs: tuple[BaseMob]
+    minimap: BaseMinimapFeatures

@@ -5,7 +5,7 @@ from royals.models_implementations.mechanics import (
 )
 
 
-class LudiFreeMarketTemplate(MinimapPathingMechanics):
+class LudiFreeMarketTemplateMinimap(MinimapPathingMechanics):
     map_area_width = 116
     map_area_height = 57
     jump_height = 4

@@ -5,7 +5,7 @@ from royals.models_implementations.mechanics import (
 )
 
 
-class MysteriousPath3(MinimapPathingMechanics):
+class MysteriousPath3Minimap(MinimapPathingMechanics):
     map_area_width = 254
     map_area_height = 87
 

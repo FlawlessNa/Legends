@@ -10,9 +10,9 @@ from typing import Generator
 
 from botting import PARENT_LOG
 from botting.core import QueueAction, failsafe_generator
+from botting.models_abstractions import Skill
 from royals import RoyalsData
 from royals.models_implementations.mechanics.path_into_movements import get_to_target
-from royals.models_implementations.characters.skills import Skill
 from royals.actions import random_jump
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)

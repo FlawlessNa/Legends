@@ -5,7 +5,7 @@ from royals.models_implementations.mechanics import (
 )
 
 
-class KerningLine1Area1(MinimapPathingMechanics):
+class KerningLine1Area1Minimap(MinimapPathingMechanics):
     map_area_width = 259
     map_area_height = 79
 

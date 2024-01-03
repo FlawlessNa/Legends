@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 
 from botting.models_abstractions import BaseMob
+from botting.utilities import Box
 
 
 class SelkieJr(BaseMob):
@@ -11,6 +12,9 @@ class SelkieJr(BaseMob):
     _minimal_rect_height = 0
     _maximal_rect_width = 1000
     _maximal_rect_height = 1000
+
+    def __init__(self, detection_box: Box):
+        super().__init__(detection_box)
 
     @classmethod
     def _preprocess_img(cls, image: np.ndarray) -> np.ndarray:

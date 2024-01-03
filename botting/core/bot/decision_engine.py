@@ -13,12 +13,10 @@ class DecisionEngine(ChildProcess, ABC):
 
     def __init__(self, logging_queue: multiprocessing.Queue, bot: Executor, *args, **kwargs) -> None:
         super().__init__(logging_queue, bot.monitoring_side)
+        self.rotation_lock = bot.rotation_lock
         self.source = repr(bot)
-        self.watched_bot = bot
         self.handle = bot.handle
         self.ign = bot.ign
-        self.args = args
-        self.kwargs = kwargs
 
     @property
     @abstractmethod
@@ -47,6 +45,10 @@ class DecisionEngine(ChildProcess, ABC):
         """
         pass
 
+    @abstractmethod
+    def anti_detection_checks(self) -> list[DecisionGenerator]:
+        pass
+
     def start(self) -> None:
         """
         There are two types of generators that are monitored:
@@ -60,10 +62,10 @@ class DecisionEngine(ChildProcess, ABC):
         """
         try:
             generators = [
-                gen(*self.args, **self.kwargs) for gen in self.items_to_monitor()
+                gen() for gen in self.items_to_monitor()
             ]  # Instantiate all checks generators
             map_rotation = [
-                gen(*self.args, **self.kwargs) for gen in self.next_map_rotation()
+                gen() for gen in self.next_map_rotation()
             ]  # Instantiate all map rotation generators
 
             while True:

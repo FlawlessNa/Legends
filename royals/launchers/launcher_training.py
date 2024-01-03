@@ -4,11 +4,18 @@ Launcher used for single-bot training model.
 import asyncio
 import botting
 
-from functools import partial
-
 from royals.characters import Priest
-from royals.engines import Training
+from royals.engines import TrainingEngine
 from royals.maps import MysteriousPath3
+
+
+CHARACTER_NAME = "FarmFest1"
+CHARACTER_CLASS = Priest
+TRAINING_SKILL = "Heal"
+TRAINING_MAP = MysteriousPath3
+
+DETECTION_CONFIG_SECTION = "Elephant Cape"
+CLIENT_SIZE = "large"
 
 
 async def main(*bots: botting.Executor) -> None:
@@ -17,18 +24,19 @@ async def main(*bots: botting.Executor) -> None:
 
 
 if __name__ == "__main__":
-    engine = partial(
-        Training,
-        ign="FarmFest1",
-        client_size="large",
-        character_detection='Elephant Cape',
-        character_class=Priest,
-        map=MysteriousPath3,
-        training_skill="Heal"
+    character = CHARACTER_CLASS(CHARACTER_NAME,
+                                detection_configs=DETECTION_CONFIG_SECTION,
+                                client_size=CLIENT_SIZE
+                                )
+    engine_kwargs = dict(
+        character=character,
+        game_map=TRAINING_MAP,
+        training_skill=TRAINING_SKILL
     )
 
     bot = botting.Executor(
-        engine=engine,
-        ign="FarmFest1",
+        engine=TrainingEngine,
+        ign=CHARACTER_NAME,
+        **engine_kwargs
     )
     asyncio.run(main(bot))

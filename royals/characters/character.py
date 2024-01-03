@@ -24,29 +24,29 @@ class Character(BaseCharacter, ABC):
     detection_box_large_client: Box = Box(left=0, right=1024, top=29, bottom=700)
     detection_box_small_client: Box = NotImplemented
 
-    def __init__(self, ign: str, section: str, client_size: str) -> None:
+    def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:
         super().__init__(ign)
         self._preprocessing_method = config_reader(
-            "character_detection", section, "Preprocessing Method"
+            "character_detection", detection_configs, "Preprocessing Method"
         )
         self._preprocessing_params = eval(
-            config_reader("character_detection", section, "Preprocessing Parameters")
+            config_reader("character_detection", detection_configs, "Preprocessing Parameters")
         )
         _detection_methods = eval(
-            config_reader("character_detection", section, "Detection Methods")
+            config_reader("character_detection", detection_configs, "Detection Methods")
         )
         self._detection_methods = {
-            i: eval(config_reader("character_detection", section, f"{i} Parameters"))
+            i: eval(config_reader("character_detection", detection_configs, f"{i} Parameters"))
             for i in _detection_methods
         }
 
         self._offset: tuple[int, int] = eval(
-            config_reader("character_detection", section, "Detection Offset")
+            config_reader("character_detection", detection_configs, "Detection Offset")
         )
         assert client_size.lower() in ("large", "small")
         self._client_size = client_size
 
-        _model_path = config_reader("character_detection", section, "Detection Model")
+        _model_path = config_reader("character_detection", detection_configs, "Detection Model")
         if len(_model_path) > 0:
             if not os.path.exists(_model_path):
                 _model_path = os.path.join(ROOT, _model_path)

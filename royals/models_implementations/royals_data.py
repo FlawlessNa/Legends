@@ -8,7 +8,7 @@ from botting.utilities import (
     CLIENT_HORIZONTAL_MARGIN_PX,
     CLIENT_VERTICAL_MARGIN_PX,
 )
-from royals.models_implementations.characters.character import Character
+from royals.characters.character import Character
 from royals.models_implementations.mechanics import MinimapPathingMechanics
 
 

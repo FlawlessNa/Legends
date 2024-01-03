@@ -1,16 +1,8 @@
 import asyncio
 import time
-import os
-import cv2
 import numpy as np
 
 from botting.core import controller
-from botting.utilities import take_screenshot, Box, CLIENT_VERTICAL_MARGIN_PX, CLIENT_HORIZONTAL_MARGIN_PX
-from royals.models_implementations import RoyalsData
-from paths import ROOT
-from royals.models_implementations.minimaps import MysteriousPath3
-from royals.models_implementations.mobs import SelkieJr, Slimy
-from royals.models_implementations.characters import Cleric
 from royals.interface.dynamic_components.minimap import Minimap
 
 

@@ -14,8 +14,6 @@ class BaseMob(InGameBaseVisuals, ABC):
     Defines contour detection method used for on-screen mob detection.
     This behavior can be overridden by the inheriting class.
     """
-
-    detection_box: Box
     _hsv_lower: np.ndarray = NotImplemented
     _hsv_upper: np.ndarray = NotImplemented
     _color_lower: np.ndarray = NotImplemented
@@ -28,6 +26,8 @@ class BaseMob(InGameBaseVisuals, ABC):
     _minimal_rect_area: int = NotImplemented
     _maximal_rect_area: int = NotImplemented
 
+    def __init__(self, detection_box: Box):
+        self.detection_box = detection_box
 
     @classmethod
     @abstractmethod

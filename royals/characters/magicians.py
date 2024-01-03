@@ -31,8 +31,8 @@ class Magician(Character):
             )
         }
 
-    def __init__(self, ign: str, section: str, client_size: str) -> None:
-        super().__init__(ign, section, client_size)
+    def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:
+        super().__init__(ign, detection_configs, client_size)
 
 
 class ILWizard(Magician):
@@ -87,8 +87,8 @@ class Cleric(Magician):
             )
         }
 
-    def __init__(self, ign: str, section: str, client_size: str) -> None:
-        super().__init__(ign, section, client_size)
+    def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:
+        super().__init__(ign, detection_configs, client_size)
 
 
 class Priest(Cleric):
@@ -105,8 +105,8 @@ class Priest(Cleric):
             ),
         }
 
-    def __init__(self, ign: str, section: str, client_size: str) -> None:
-        super().__init__(ign, section, client_size)
+    def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:
+        super().__init__(ign, detection_configs, client_size)
 
 
 class Bishop(Priest):

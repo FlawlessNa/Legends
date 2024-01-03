@@ -6,7 +6,7 @@ from functools import partial
 from botting.core import DecisionGenerator, QueueAction
 from royals import RoyalsData
 from royals.actions import cast_skill
-from royals.models_implementations.characters.skills import Skill
+from royals.characters import Skill
 
 
 class Rebuff(DecisionGenerator):

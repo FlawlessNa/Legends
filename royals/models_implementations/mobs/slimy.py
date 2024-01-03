@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 
 from botting.models_abstractions import BaseMob
+from botting.utilities import Box
 
 
 class Slimy(BaseMob):
@@ -10,6 +11,9 @@ class Slimy(BaseMob):
     _minimal_rect_height = 4
     _minimal_rect_width = 6
     _maximal_rect_width = 15
+
+    def __init__(self, detection_box: Box):
+        super().__init__(detection_box)
 
     @classmethod
     def _preprocess_img(cls, image: np.ndarray) -> np.ndarray:

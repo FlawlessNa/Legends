@@ -2,10 +2,10 @@ import multiprocessing
 
 from functools import partial
 
-from botting.core import DecisionEngine, Executor
+from botting.core import DecisionEngine, Executor, DecisionGenerator
 from royals import royals_ign_finder, RoyalsData
 from royals.bot_implementations.generators import rebuff
-from royals.models_implementations.minimaps import MysteriousPath3
+from royals.models_implementations.minimaps import MysteriousPath3Minimap
 from royals.models_implementations.mobs import SelkieJr, Slimy
 from .generators import smart_rotation, hit_mobs
 
@@ -16,7 +16,7 @@ class MysteriousPath3Training(DecisionEngine):
     def __init__(self, log_queue: multiprocessing.Queue, bot: Executor, **kwargs) -> None:
         super().__init__(log_queue, bot)
         self._game_data = RoyalsData(self.handle, self.ign)
-        self.game_data.current_minimap = MysteriousPath3()
+        self.game_data.current_minimap = MysteriousPath3Minimap()
         self.game_data.current_mobs = [SelkieJr(), Slimy()]
 
         assert 'character_class' in kwargs, "character_class must be provided."
@@ -45,3 +45,6 @@ class MysteriousPath3Training(DecisionEngine):
             partial(smart_rotation, self.game_data, self.watched_bot.rotation_lock, teleport=self._teleport_skill),
             partial(hit_mobs, self.game_data, self._training_skill)
         ]
+
+    def anti_detection_checks(self) -> list[DecisionGenerator]:
+        return []

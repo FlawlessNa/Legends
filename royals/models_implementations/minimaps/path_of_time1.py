@@ -6,7 +6,7 @@ from royals.models_implementations.mechanics import (
 )
 
 
-class PathOfTime1(MinimapPathingMechanics):
+class PathOfTime1Minimap(MinimapPathingMechanics):
     map_area_width = 116
     map_area_height = 88
 
