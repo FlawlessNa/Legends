@@ -8,8 +8,11 @@ class Magician(Character):
     def skills(self) -> dict[str, Skill]:
         return {
             "Magic Guard": Skill(
-                "Magic Guard", "Buff", 600, animation_time=0.6
-            ),  # TODO - Figure real animation time
+                "Magic Guard",
+                "Buff",
+                duration=600,
+                animation_time=0.6
+            ),
             "Magic Claw": Skill(
                 "Magic Claw",
                 "Attack",
@@ -20,7 +23,7 @@ class Magician(Character):
             "Teleport": Skill(  # Put here since shared across all 2nd job magicians
                 "Teleport",
                 "Movement",
-                animation_time=0.5,  # TODO - Figure real animation time
+                animation_time=0.6,
                 horizontal_screen_range=150,
                 vertical_screen_range=150,
                 horizontal_minimap_distance=9,
@@ -64,22 +67,22 @@ class Cleric(Magician):
             "Heal": Skill(
                 "Heal",
                 "Attack",
-                animation_time=0.25,
+                animation_time=0.6,
                 horizontal_screen_range=200,
                 vertical_screen_range=125,
                 unidirectional=False
-            ),  # TODO - Confirm animation time
+            ),
             "Bless": Skill(
                 "Bless",
                 "Party Buff",
-                animation_time=0.5,  # TODO - Confirm animation time
+                animation_time=0.6,
                 unidirectional=False,
                 duration=200
             ),
             "Invincible": Skill(
                 "Invincible",
                 "Buff",
-                animation_time=0.5,  # TODO - Confirm animation time
+                animation_time=0.6,
                 duration=300
             )
         }
@@ -96,9 +99,9 @@ class Priest(Cleric):
             "Holy Symbol": Skill(
                 "Holy Symbol",
                 "Party Buff",
-                animation_time=0.75,  # TODO - Confirm animation time
+                animation_time=2.2,
                 unidirectional=False,
-                duration=90
+                duration=120
             ),
         }
 

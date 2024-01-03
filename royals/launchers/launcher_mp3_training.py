@@ -13,7 +13,7 @@ async def main(*bots: botting.Executor) -> None:
 
 
 if __name__ == "__main__":
-    char1 = royals.models_implementations.characters.Cleric
+    char1 = royals.models_implementations.characters.Priest
 
     bot1 = botting.Executor(
         engine=royals.bot_implementations.MysteriousPath3Training,
