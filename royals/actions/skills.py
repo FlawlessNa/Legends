@@ -1,10 +1,12 @@
 from botting.core import controller
-from royals.models_implementations import Skill
+from botting.models_abstractions import Skill
 
 from typing import Literal
 
 
-async def cast_skill(handle: int, ign: str, skill: Skill, direction: str = None) -> None:
+async def cast_skill(
+    handle: int, ign: str, skill: Skill, direction: str = None
+) -> None:
     """
     Casts a skill in a given direction. Updates game status.
     :param handle:
@@ -28,7 +30,10 @@ async def cast_skill(handle: int, ign: str, skill: Skill, direction: str = None)
 
 
 async def teleport(
-    handle: int, ign: str, direction: Literal["left", "right", "down", "up"], teleport_skill: Skill
+    handle: int,
+    ign: str,
+    direction: Literal["left", "right", "down", "up"],
+    teleport_skill: Skill,
 ):
     """
     Casts teleport in a given direction.
@@ -40,6 +45,8 @@ async def teleport(
     """
     try:
         await controller.press(handle, direction, cooldown=0, down_or_up="keydown")
-        await controller.press(handle, teleport_skill.key_bind(ign), cooldown=teleport_skill.animation_time)
+        await controller.press(
+            handle, teleport_skill.key_bind(ign), cooldown=teleport_skill.animation_time
+        )
     finally:
         await controller.press(handle, direction, cooldown=0, down_or_up="keyup")

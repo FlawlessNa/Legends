@@ -173,9 +173,12 @@ def _translate_path_into_movements(
     # Convert horizontal movements into teleports when allowed
     if teleport:
         for i in range(len(squeezed_movements)):
-            if squeezed_movements[i][0] in ["left", "right"] and squeezed_movements[i][1] >= 9:
+            if (
+                squeezed_movements[i][0] in ["left", "right"]
+                and squeezed_movements[i][1] >= 9
+            ):
                 direction = squeezed_movements[i][0]
-                squeezed_movements.insert(i, (f'TELEPORT_{direction.upper()}', 1))
+                squeezed_movements.insert(i, (f"TELEPORT_{direction.upper()}", 1))
                 break
 
     return squeezed_movements
@@ -265,7 +268,12 @@ def _convert_movements_to_actions(
                 )
             ] * movement[1]
 
-        elif movement[0] in ["TELEPORT_LEFT", "TELEPORT_RIGHT", "TELEPORT_UP", "TELEPORT_DOWN"]:
+        elif movement[0] in [
+            "TELEPORT_LEFT",
+            "TELEPORT_RIGHT",
+            "TELEPORT_UP",
+            "TELEPORT_DOWN",
+        ]:
             direction = movement[0].split("_")[-1].lower()
             act = [partial(teleport, direction=direction)] * movement[1]
 

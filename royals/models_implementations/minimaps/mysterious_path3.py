@@ -36,7 +36,7 @@ class MysteriousPath3Minimap(MinimapPathingMechanics):
         top=68,
         bottom=68,
         name="bot_platform",
-        central_node=(115, 68)
+        central_node=(115, 68),
     )
     first_ladder: MinimapFeature = MinimapFeature(
         left=101,

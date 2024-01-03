@@ -19,8 +19,8 @@ if __name__ == "__main__":
         engine=royals.bot_implementations.MysteriousPath3Training,
         ign="FarmFest1",
         client_size="large",
-        section='Elephant Cape',
+        section="Elephant Cape",
         character_class=char1,
-        training_skill="Heal"
+        training_skill="Heal",
     )
     asyncio.run(main(bot1))

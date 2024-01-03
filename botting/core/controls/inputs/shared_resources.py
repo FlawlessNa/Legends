@@ -9,9 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class SharedResources:
-    focus_lock = (
-        asyncio.Lock()
-    )  # All instances of this class will share the same lock.
+    focus_lock = asyncio.Lock()  # All instances of this class will share the same lock.
     # Used to prevent multiple processes from trying to use PC Focus simultaneously.
 
     @classmethod

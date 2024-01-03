@@ -3,19 +3,17 @@ import numpy as np
 import os
 
 from abc import ABC, abstractmethod
-from typing import Any, List, Sequence
+from typing import Any, Sequence
 
-from cv2 import Mat
 from numpy import dtype, generic, ndarray
 
-from botting.models_abstractions import BaseCharacter
+from botting.models_abstractions import BaseCharacter, Skill
 from botting.utilities import (
     Box,
     take_screenshot,
     config_reader,
 )
 from paths import ROOT
-from .skills import Skill
 
 DEBUG = True
 
@@ -30,13 +28,19 @@ class Character(BaseCharacter, ABC):
             "character_detection", detection_configs, "Preprocessing Method"
         )
         self._preprocessing_params = eval(
-            config_reader("character_detection", detection_configs, "Preprocessing Parameters")
+            config_reader(
+                "character_detection", detection_configs, "Preprocessing Parameters"
+            )
         )
         _detection_methods = eval(
             config_reader("character_detection", detection_configs, "Detection Methods")
         )
         self._detection_methods = {
-            i: eval(config_reader("character_detection", detection_configs, f"{i} Parameters"))
+            i: eval(
+                config_reader(
+                    "character_detection", detection_configs, f"{i} Parameters"
+                )
+            )
             for i in _detection_methods
         }
 
@@ -46,7 +50,9 @@ class Character(BaseCharacter, ABC):
         assert client_size.lower() in ("large", "small")
         self._client_size = client_size
 
-        _model_path = config_reader("character_detection", detection_configs, "Detection Model")
+        _model_path = config_reader(
+            "character_detection", detection_configs, "Detection Model"
+        )
         if len(_model_path) > 0:
             if not os.path.exists(_model_path):
                 _model_path = os.path.join(ROOT, _model_path)
@@ -88,7 +94,7 @@ class Character(BaseCharacter, ABC):
 
         if regions_to_hide is not None:
             for region in regions_to_hide:
-                processed[region.top:region.bottom, region.left:region.right] = 0
+                processed[region.top : region.bottom, region.left : region.right] = 0
 
         res = None
         largest = None
@@ -119,15 +125,23 @@ class Character(BaseCharacter, ABC):
             if len(res):
                 largest = max(res, key=lambda x: x[2] * x[3])
 
-        if 'Dimension Filtering' in self._detection_methods:
+        if "Dimension Filtering" in self._detection_methods:
             assert (
                 "Bounding Rectangles" in self._detection_methods
             ), "Dimension Filtering must be used with Bounding Rectangles"
-            min_w = self._detection_methods["Dimension Filtering"].get('min_width', 0)
-            min_h = self._detection_methods["Dimension Filtering"].get('min_height', 0)
-            max_w = self._detection_methods["Dimension Filtering"].get('max_width', 9999)
-            max_h = self._detection_methods["Dimension Filtering"].get('max_height', 9999)
-            res = [rect for rect in res if min_w <= rect[2] <= max_w and min_h <= rect[3] <= max_h]
+            min_w = self._detection_methods["Dimension Filtering"].get("min_width", 0)
+            min_h = self._detection_methods["Dimension Filtering"].get("min_height", 0)
+            max_w = self._detection_methods["Dimension Filtering"].get(
+                "max_width", 9999
+            )
+            max_h = self._detection_methods["Dimension Filtering"].get(
+                "max_height", 9999
+            )
+            res = [
+                rect
+                for rect in res
+                if min_w <= rect[2] <= max_w and min_h <= rect[3] <= max_h
+            ]
             if len(res):
                 largest = max(res, key=lambda x: x[2] * x[3])
 

@@ -19,6 +19,6 @@ if __name__ == "__main__":
         ign="FarmFest1",
         client_size="large",
         character_class=char1,
-        training_skill="Magic Claw"
+        training_skill="Magic Claw",
     )
     asyncio.run(main(bot1))

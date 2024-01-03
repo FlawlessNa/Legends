@@ -1,6 +1,5 @@
-from dataclasses import field
+from botting.models_abstractions import Skill
 from .character import Character
-from .skills import Skill
 
 
 class Magician(Character):
@@ -8,10 +7,7 @@ class Magician(Character):
     def skills(self) -> dict[str, Skill]:
         return {
             "Magic Guard": Skill(
-                "Magic Guard",
-                "Buff",
-                duration=600,
-                animation_time=0.6
+                "Magic Guard", "Buff", duration=600, animation_time=0.6
             ),
             "Magic Claw": Skill(
                 "Magic Claw",
@@ -28,7 +24,7 @@ class Magician(Character):
                 vertical_screen_range=150,
                 horizontal_minimap_distance=9,
                 vertical_minimap_distance=9,
-            )
+            ),
         }
 
     def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:
@@ -70,21 +66,16 @@ class Cleric(Magician):
                 animation_time=0.6,
                 horizontal_screen_range=200,
                 vertical_screen_range=125,
-                unidirectional=False
+                unidirectional=False,
             ),
             "Bless": Skill(
                 "Bless",
                 "Party Buff",
                 animation_time=0.6,
                 unidirectional=False,
-                duration=200
+                duration=200,
             ),
-            "Invincible": Skill(
-                "Invincible",
-                "Buff",
-                animation_time=0.6,
-                duration=300
-            )
+            "Invincible": Skill("Invincible", "Buff", animation_time=0.6, duration=300),
         }
 
     def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:
@@ -101,7 +92,7 @@ class Priest(Cleric):
                 "Party Buff",
                 animation_time=2.2,
                 unidirectional=False,
-                duration=120
+                duration=120,
             ),
         }
 

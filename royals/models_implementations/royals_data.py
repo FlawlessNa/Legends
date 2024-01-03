@@ -29,13 +29,16 @@ class RoyalsData(GameData):
     last_mob_detection: float = field(repr=False, init=False, default=0)
 
     def update(self, *args, **kwargs) -> None:
-
         direction = kwargs.pop("current_direction", self.current_direction)
         if direction != self.current_direction:
             self.current_direction = kwargs["current_direction"]
 
         for k, v in kwargs.items():
-            assert hasattr(self, k), f"Invalid attribute {k}."
+            assert (
+                hasattr(self, k)
+                or k in self.__annotations__
+                or any(k in base.__annotations__ for base in self.__class__.__bases__)
+            ), f"Invalid attribute {k}."
             setattr(self, k, v)
 
         if "current_minimap_area_box" in args:
@@ -79,5 +82,10 @@ class RoyalsData(GameData):
             )
             hide_tv_smega_box = Box(left=700, right=1024, top=0, bottom=300)
             self.current_on_screen_position = self.character.get_onscreen_position(
-                None, self.handle, [hide_minimap_box, hide_tv_smega_box] # TODO - Add Chat Box as well into hiding
+                None,
+                self.handle,
+                [
+                    hide_minimap_box,
+                    hide_tv_smega_box,
+                ],  # TODO - Add Chat Box as well into hiding
             )

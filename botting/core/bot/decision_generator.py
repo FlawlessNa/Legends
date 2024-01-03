@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 
 
 class DecisionGenerator(ABC):
-
     @abstractmethod
     def __call__(self, *args, **kwargs) -> iter:
         pass
@@ -16,4 +15,3 @@ class DecisionGenerator(ABC):
     @abstractmethod
     def _failsafe(self):
         pass
-

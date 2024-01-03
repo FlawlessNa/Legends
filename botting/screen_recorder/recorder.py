@@ -73,10 +73,12 @@ class Recorder(ChildProcess):
         """
         super().__init__(log_queue, end_pipe)
         self.config: dict = dict(config_reader(config_name)["DEFAULT"])
-        self.out_path: str = str(os.path.join(
-            self.config["recordings folder"],
-            time.strftime("%Y%m%d_%H%M%S") + self.config["file extension"],
-        ))
+        self.out_path: str = str(
+            os.path.join(
+                self.config["recordings folder"],
+                time.strftime("%Y%m%d_%H%M%S") + self.config["file extension"],
+            )
+        )
         self.output: cv2.VideoWriter = cv2.VideoWriter(
             self.out_path,
             cv2.VideoWriter.fourcc(*self.config["four cc"]),

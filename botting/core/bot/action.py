@@ -20,17 +20,20 @@ class QueueAction:
     callbacks: list[callable] = field(compare=False, default_factory=list, repr=False)
 
     @classmethod
-    def action_generator(cls,
-                         *,
-                         release_lock_on_callback: bool = False,
-                         cancellable: bool = False,
-                         priority: int = 99,
-                         callbacks: list[callable] = None) -> callable:
+    def action_generator(
+        cls,
+        *,
+        release_lock_on_callback: bool = False,
+        cancellable: bool = False,
+        priority: int = 99,
+        callbacks: list[callable] = None
+    ) -> callable:
         """
         A decorator that is used to wrap a generator function that yields actions to be executed in the queue.
         Retrieve the output from the generator and wrap it in a QueueAction.
         :return: A QueueAction.
         """
+
         def _decorator(generator: callable) -> callable:
             def _wrapper(*args, **kwargs) -> Generator:
                 generator_instance = generator(*args, **kwargs)
@@ -38,7 +41,9 @@ class QueueAction:
                     action = next(generator_instance)
                     if action:
                         yield cls(
-                            identifier=" ".join([i.capitalize() for i in generator.__name__.split("_")]),
+                            identifier=" ".join(
+                                [i.capitalize() for i in generator.__name__.split("_")]
+                            ),
                             priority=priority,
                             action=action,
                             is_cancellable=cancellable,
@@ -50,4 +55,5 @@ class QueueAction:
                         yield
 
             return _wrapper
+
         return _decorator

@@ -7,11 +7,12 @@ from .game_data import GameData
 logger = logging.getLogger(__name__)
 
 
-def failsafe_generator(max_tries: int,
-                       sleep_time: float = 0,
-                       max_time: float = None,
-                       response: callable = None,
-                       ):
+def failsafe_generator(
+    max_tries: int,
+    sleep_time: float = 0,
+    max_time: float = None,
+    response: callable = None,
+):
     def decorator(wrapped_generator):
         @functools.wraps(wrapped_generator)
         def wrapper_gen(*args, **kwargs):
@@ -23,7 +24,9 @@ def failsafe_generator(max_tries: int,
             game_data = args[[isinstance(arg, GameData) for arg in args].index(True)]
             handle = game_data.handle
             ign = game_data.ign
-            failsafe_response = functools.partial(response, handle, ign) if response else None
+            failsafe_response = (
+                functools.partial(response, handle, ign) if response else None
+            )
 
             while True:
                 gen_res = next(gen)
@@ -60,4 +63,5 @@ def failsafe_generator(max_tries: int,
                     yield gen_res
 
         return wrapper_gen
+
     return decorator

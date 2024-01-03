@@ -17,6 +17,7 @@ class BaseMap(ABC):
     - Connections to other minimaps
     This is merely an example. Map implementations may vary.
     """
+
     detection_box: Box
     mobs: tuple[BaseMob]
     minimap: BaseMinimapFeatures

@@ -184,12 +184,28 @@ class MinimapFeature(Box):
     @property
     def left_edge(self) -> tuple[int, int]:
         rand_buffer = random.randint(-self.randomized_edge, self.randomized_edge)
-        return max(int(rand_buffer + self.left + self.width * (1 - self.area_coverage) / 2), self.left), self.top
+        return (
+            max(
+                int(
+                    rand_buffer + self.left + self.width * (1 - self.area_coverage) / 2
+                ),
+                self.left,
+            ),
+            self.top,
+        )
 
     @property
     def right_edge(self) -> tuple[int, int]:
         rand_buffer = random.randint(-self.randomized_edge, self.randomized_edge)
-        return min(int(rand_buffer + self.right - self.width * (1 - self.area_coverage) / 2), self.right), self.top
+        return (
+            min(
+                int(
+                    rand_buffer + self.right - self.width * (1 - self.area_coverage) / 2
+                ),
+                self.right,
+            ),
+            self.top,
+        )
 
     @property
     def area(self) -> int:
@@ -369,7 +385,9 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                         for y in range(node[1] - 1, node[1] - self.jump_height - 1, -1)
                     ):
                         if other_node.walkable:
-                            other_feature = self.get_feature_containing((other_node.x, other_node.y))
+                            other_feature = self.get_feature_containing(
+                                (other_node.x, other_node.y)
+                            )
                             if not other_feature.is_ladder:
                                 base_grid.node(*node).connect(
                                     base_grid.node(other_node.x, other_node.y),
@@ -519,8 +537,6 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                             grid.node(*other_node), connection_type_ladder
                         )
                         # Also add the horizontal distance as weight to the ladder
-                        grid.node(*other_node).weight = abs(
-                            other_node[0] - node[0]
-                        )
+                        grid.node(*other_node).weight = abs(other_node[0] - node[0])
                 else:
                     break

@@ -19,11 +19,7 @@ class BaseCharacter(InGameBaseVisuals, ABC):
 
     detection_box: Box
 
-    def __init__(self,
-                 ign: str,
-                 detection_configs: str,
-                 *args,
-                 **kwargs) -> None:
+    def __init__(self, ign: str, *args, **kwargs) -> None:
         self.ign = ign
 
     @abstractmethod

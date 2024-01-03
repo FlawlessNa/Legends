@@ -421,7 +421,12 @@ class TestMinimap(TestCase):
             for img in os.listdir(os.path.join(ROOT, "tests/images"))
             if img.startswith("test_character_position_minimap")
         ]
-        positions = [self.minimap.get_character_positions(0, client_img=cv2.imread(f"images/{img}")) for img in images]
+        positions = [
+            self.minimap.get_character_positions(
+                0, client_img=cv2.imread(f"images/{img}")
+            )
+            for img in images
+        ]
         self.assertTrue(all([pos == positions[0] for pos in positions]))
 
     def test_get_map_area_box(self):

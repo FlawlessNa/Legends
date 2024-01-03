@@ -4,11 +4,12 @@ from botting.utilities import Box
 
 
 class TestBox(TestCase):
-
     def setUp(self) -> None:
-        self.box = Box(left=0, right=10, top=0, bottom=10, name='box1', config='test')
-        self.box2 = Box(left=0, right=20, top=0, bottom=30, name='box2')
-        self.box_offset = Box(left=0, right=10, top=0, bottom=10, offset=True, config='test2')
+        self.box = Box(left=0, right=10, top=0, bottom=10, name="box1", config="test")
+        self.box2 = Box(left=0, right=20, top=0, bottom=30, name="box2")
+        self.box_offset = Box(
+            left=0, right=10, top=0, bottom=10, offset=True, config="test2"
+        )
         self.box_offset2 = Box(left=-10, right=10, top=-10, bottom=10, offset=True)
         self.box_offset3 = Box(left=10, right=-10, top=10, bottom=-10, offset=True)
 
@@ -23,8 +24,8 @@ class TestBox(TestCase):
         self.assertEqual(test.right, 30)
         self.assertEqual(test.top, 0)
         self.assertEqual(test.bottom, 40)
-        self.assertEqual(test.name, 'box2')
-        self.assertEqual(test.config, 'test2')
+        self.assertEqual(test.name, "box2")
+        self.assertEqual(test.config, "test2")
 
     def test___add__(self):
         with self.assertRaises(TypeError):
@@ -35,16 +36,16 @@ class TestBox(TestCase):
             self.box + self.box_offset
 
     def test___getitem__(self):
-        self.assertEqual(self.box['left'], 0)
-        self.assertEqual(self.box['right'], 10)
-        self.assertEqual(self.box['top'], 0)
-        self.assertEqual(self.box['bottom'], 10)
-        self.assertEqual(self.box['name'], 'box1')
-        self.assertEqual(self.box['offset'], False)
-        self.assertEqual(self.box['config'], 'test')
-        self.assertEqual(self.box_offset['offset'], True)
+        self.assertEqual(self.box["left"], 0)
+        self.assertEqual(self.box["right"], 10)
+        self.assertEqual(self.box["top"], 0)
+        self.assertEqual(self.box["bottom"], 10)
+        self.assertEqual(self.box["name"], "box1")
+        self.assertEqual(self.box["offset"], False)
+        self.assertEqual(self.box["config"], "test")
+        self.assertEqual(self.box_offset["offset"], True)
         with self.assertRaises(AttributeError):
-            print(self.box['wrong_key'])
+            print(self.box["wrong_key"])
 
     def test___contains__(self):
         wrong_arg = (0, 0, 0)
@@ -107,20 +108,20 @@ class TestBox(TestCase):
     def test_random(self):
         for i in range(1000):
             x, y = self.box.random()
-            self.assertIn(x, range(0, 10+1))
-            self.assertIn(y, range(0, 10+1))
+            self.assertIn(x, range(0, 10 + 1))
+            self.assertIn(y, range(0, 10 + 1))
 
             x, y = self.box2.random()
-            self.assertIn(x, range(0, 20+1))
-            self.assertIn(y, range(0, 30+1))
+            self.assertIn(x, range(0, 20 + 1))
+            self.assertIn(y, range(0, 30 + 1))
 
             x, y = self.box_offset.random()
-            self.assertIn(x, range(0, 10+1))
-            self.assertIn(y, range(0, 10+1))
+            self.assertIn(x, range(0, 10 + 1))
+            self.assertIn(y, range(0, 10 + 1))
 
             x, y = self.box_offset2.random()
-            self.assertIn(x, range(-10, 10+1))
-            self.assertIn(y, range(-10, 10+1))
+            self.assertIn(x, range(-10, 10 + 1))
+            self.assertIn(y, range(-10, 10 + 1))
 
             with self.assertRaises(ValueError):
                 x, y = self.box_offset3.random()

@@ -11,7 +11,9 @@ from botting.utilities import ChildProcess
 class DecisionEngine(ChildProcess, ABC):
     ign_finder: callable  # Function that returns the handle of a client given its IGN. Defined in child classes.
 
-    def __init__(self, logging_queue: multiprocessing.Queue, bot: Executor, *args, **kwargs) -> None:
+    def __init__(
+        self, logging_queue: multiprocessing.Queue, bot: Executor, *args, **kwargs
+    ) -> None:
         super().__init__(logging_queue, bot.monitoring_side)
         self.rotation_lock = bot.rotation_lock
         self.source = repr(bot)
@@ -95,11 +97,7 @@ class DecisionEngine(ChildProcess, ABC):
                 self.pipe_end.close()
 
     @staticmethod
-    def start_monitoring(
-        bot: "Executor",
-        log_queue: multiprocessing.Queue,
-        **kwargs
-    ):
+    def start_monitoring(bot: "Executor", log_queue: multiprocessing.Queue, **kwargs):
         """
         The only BotMonitor method created in Main Process. It is set up into a mp.Process and started as a child from there.
         Starts the monitoring process by creating a BotMonitor instance (within child process) and then call its start() method.

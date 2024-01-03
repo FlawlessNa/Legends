@@ -24,18 +24,13 @@ class Slimy(BaseMob):
     @classmethod
     def _filter(cls, contours: tuple[np.ndarray]) -> tuple:
         def cond1(cnt):
-            return (
-                cls._minimal_rect_height
-                <= cv2.boundingRect(cnt)[-1]
-            )
+            return cls._minimal_rect_height <= cv2.boundingRect(cnt)[-1]
 
         def cond2(cnt):
             return (
                 cls._minimal_rect_width
-                <= cv2.boundingRect(cnt)[-2] <= cls._maximal_rect_width
+                <= cv2.boundingRect(cnt)[-2]
+                <= cls._maximal_rect_width
             )
 
         return filter(cond1 and cond2, contours)
-
-
-

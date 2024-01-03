@@ -25,7 +25,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
             self.fifth_platform,
             self.fourth_platform,
             self.third_platform,
-            self.second_platform
+            self.second_platform,
         ]
 
     first_platform: MinimapFeature = MinimapFeature(

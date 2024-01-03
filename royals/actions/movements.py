@@ -38,4 +38,3 @@ async def random_jump(handle: int, ign: str, **kwargs):
     await controller.move(
         handle, ign, direction, jump=True, enforce_delay=False, duration=0.05, **kwargs
     )
-

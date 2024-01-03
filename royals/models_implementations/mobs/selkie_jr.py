@@ -26,16 +26,15 @@ class SelkieJr(BaseMob):
         def cond1(cnt):
             return (
                 cls._minimal_rect_height
-                <= cv2.boundingRect(cnt)[-1] <= cls._maximal_rect_height
+                <= cv2.boundingRect(cnt)[-1]
+                <= cls._maximal_rect_height
             )
 
         def cond2(cnt):
             return (
                 cls._minimal_rect_width
-                <= cv2.boundingRect(cnt)[-2] <= cls._maximal_rect_width
+                <= cv2.boundingRect(cnt)[-2]
+                <= cls._maximal_rect_width
             )
 
         return filter(cond1 and cond2, contours)
-
-
-

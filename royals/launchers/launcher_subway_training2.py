@@ -20,6 +20,6 @@ if __name__ == "__main__":
         ign="FarmFest1",
         client_size="large",
         character_class=char1,
-        training_skill="Heal"
+        training_skill="Heal",
     )
     asyncio.run(main(bot1))

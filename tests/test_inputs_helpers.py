@@ -3,7 +3,11 @@ import string
 import win32gui
 
 from unittest import TestCase
-from botting.core.controls.inputs.inputs_helpers import _setup_exported_functions, _get_virtual_key, _keyboard_layout_handle
+from botting.core.controls.inputs.inputs_helpers import (
+    _setup_exported_functions,
+    _get_virtual_key,
+    _keyboard_layout_handle,
+)
 
 
 class TestInputsHelpers(TestCase):
@@ -86,16 +90,12 @@ class TestInputsHelpers(TestCase):
                     f"Virtual key for {c} is {vk_lower} instead of {ord(c)}",
                 )
             for c in string.digits:
-                vk = _get_virtual_key(
-                    c, False, _keyboard_layout_handle(self.handle)
-                )
+                vk = _get_virtual_key(c, False, _keyboard_layout_handle(self.handle))
                 self.assertEqual(
                     vk, ord(c), f"Virtual key for {c} is {vk} instead of {ord(c)}"
                 )
             for c in string.punctuation:
-                vk = _get_virtual_key(
-                    c, True, _keyboard_layout_handle(self.handle)
-                )
+                vk = _get_virtual_key(c, True, _keyboard_layout_handle(self.handle))
                 self.assertEqual(
                     vk, ord(c), f"Virtual key for {c} is {vk} instead of {ord(c)}"
                 )
@@ -104,7 +104,7 @@ class TestInputsHelpers(TestCase):
         """
         Here we merely test that the returned value doesn't change when we change the keyboard language settings.
         This is because the function is cached.
-         """
+        """
         prev_val = _keyboard_layout_handle(self.handle)
         for _ in self.languages:
             self.activate_keyboard_layout(self.HKL_NEXT, 0)
@@ -124,6 +124,12 @@ class TestInputsHelpers(TestCase):
             self.assertIsInstance(key, str)
             self.assertTrue(
                 key
-                in ["MapVirtualKeyExW", "GetWindowThreadProcessId", "GetKeyboardLayout", "PostMessageW", "SendInput"]
+                in [
+                    "MapVirtualKeyExW",
+                    "GetWindowThreadProcessId",
+                    "GetKeyboardLayout",
+                    "PostMessageW",
+                    "SendInput",
+                ]
             )
             self.assertTrue(callable(val))

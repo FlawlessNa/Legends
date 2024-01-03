@@ -29,7 +29,10 @@ class PlatoonChronos(BaseMob):
 
         rects = [cv2.boundingRect(cnt) for cnt in contours if cond1(cnt)]
         grouped = cv2.groupRectangles(rects, 1, 2)
-        grouped_contours = [np.array([[x, y], [x + w, y], [x + w, y + h], [x, y + h]]) for x, y, w, h in grouped[0]]
+        grouped_contours = [
+            np.array([[x, y], [x + w, y], [x + w, y + h], [x, y + h]])
+            for x, y, w, h in grouped[0]
+        ]
 
         #
         # def cond2(contour):
@@ -37,5 +40,3 @@ class PlatoonChronos(BaseMob):
         # return filter(lambda cnt: cond1(cnt), contours)
         return grouped_contours
         # return filter(lambda cnt: cond1(cnt) and cond2(cnt), contours)
-
-

@@ -143,7 +143,7 @@ class Executor:
             target=self.engine.start_monitoring,
             name=f"{self} Monitoring",
             args=(self, Executor.logging_queue),
-            kwargs=self.engine_kwargs
+            kwargs=self.engine_kwargs,
         )
 
     def _rotation_callback(self, fut):

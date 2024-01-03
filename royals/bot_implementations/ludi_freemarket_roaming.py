@@ -4,7 +4,7 @@ import multiprocessing
 from botting import PARENT_LOG
 from botting.core import QueueAction, DecisionEngine, Executor
 from royals import royals_ign_finder, RoyalsData
-from royals.models_implementations.minimaps import LudiFreeMarketTemplate as Ludi
+from royals.models_implementations.minimaps import LudiFreeMarketTemplateMinimap as Ludi
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 

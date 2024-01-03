@@ -4,9 +4,9 @@ import time
 from functools import partial
 
 from botting.core import DecisionGenerator, QueueAction
+from botting.models_abstractions import Skill
 from royals import RoyalsData
 from royals.actions import cast_skill
-from royals.characters import Skill
 
 
 class Rebuff(DecisionGenerator):
@@ -26,15 +26,11 @@ class Rebuff(DecisionGenerator):
 
     def __next__(self):
         if time.perf_counter() >= self._next_call:
-            self._next_call = time.perf_counter() + (self._skill.duration * random.uniform(0.9, 1))
-            action = partial(cast_skill,
-                             self.data.handle,
-                             self.data.ign,
-                             self._skill
-                             )
-            return QueueAction(self._skill.name,
-                               5,
-                               action)
+            self._next_call = time.perf_counter() + (
+                self._skill.duration * random.uniform(0.9, 1)
+            )
+            action = partial(cast_skill, self.data.handle, self.data.ign, self._skill)
+            return QueueAction(self._skill.name, 5, action)
 
     def _failsafe(self):
         pass

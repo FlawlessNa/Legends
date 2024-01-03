@@ -4,6 +4,8 @@ Launcher used for single-bot training model.
 import asyncio
 import botting
 
+from functools import partial
+
 from royals.characters import Priest
 from royals.engines import TrainingEngine
 from royals.maps import MysteriousPath3
@@ -24,19 +26,15 @@ async def main(*bots: botting.Executor) -> None:
 
 
 if __name__ == "__main__":
-    character = CHARACTER_CLASS(CHARACTER_NAME,
-                                detection_configs=DETECTION_CONFIG_SECTION,
-                                client_size=CLIENT_SIZE
-                                )
+    character = partial(
+        CHARACTER_CLASS,
+        CHARACTER_NAME,
+        detection_configs=DETECTION_CONFIG_SECTION,
+        client_size=CLIENT_SIZE,
+    )
     engine_kwargs = dict(
-        character=character,
-        game_map=TRAINING_MAP,
-        training_skill=TRAINING_SKILL
+        character=character, game_map=TRAINING_MAP, training_skill=TRAINING_SKILL
     )
 
-    bot = botting.Executor(
-        engine=TrainingEngine,
-        ign=CHARACTER_NAME,
-        **engine_kwargs
-    )
+    bot = botting.Executor(engine=TrainingEngine, ign=CHARACTER_NAME, **engine_kwargs)
     asyncio.run(main(bot))
