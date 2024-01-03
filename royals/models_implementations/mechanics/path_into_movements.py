@@ -69,6 +69,9 @@ def get_to_target(
             and not in_game_minimap.grid.node(*current).walkable
         ):
             movements.pop(0)
+
+        if movements[0][0] in ["up", "down"] and in_game_minimap.get_feature_containing(current).is_platform:
+            movements.pop(0)
     return _convert_movements_to_actions(movements, in_game_minimap.minimap_speed)
 
 
