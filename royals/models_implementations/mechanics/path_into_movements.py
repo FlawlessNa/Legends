@@ -70,8 +70,10 @@ def get_to_target(
         ):
             movements.pop(0)
 
-        if movements[0][0] in ["up", "down"] and in_game_minimap.get_feature_containing(current).is_platform:
-            movements.pop(0)
+        elif movements[0][0] in ["up", "down"]:
+            feature = in_game_minimap.get_feature_containing(current)
+            if feature is not None and feature.is_platform:
+                movements.pop(0)
     return _convert_movements_to_actions(movements, in_game_minimap.minimap_speed)
 
 
