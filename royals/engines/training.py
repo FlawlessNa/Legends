@@ -58,12 +58,7 @@ class TrainingEngine(DecisionEngine):
                 generators.append(
                     rebuff.Rebuff(self.game_data, skill)
                 )
-
-        return [
-            rebuff.Rebuff(
-                self.game_data, self.game_data.character.skills["Holy Symbol"]
-            )
-        ]
+        return generators
 
     def next_map_rotation(self) -> list[callable]:
         return [

@@ -93,6 +93,7 @@ class Priest(Cleric):
                 animation_time=2.2,
                 unidirectional=False,
                 duration=120,
+                _use_by_default=True
             ),
         }
 

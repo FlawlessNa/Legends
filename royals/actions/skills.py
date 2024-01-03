@@ -17,7 +17,7 @@ async def cast_skill(
     """
     # TODO - Better handling of direction.
     if skill.unidirectional:
-        await controller.press(handle, direction, silenced=False, enforce_delay=True)
+        await controller.press(handle, direction if direction else 'left', silenced=False, enforce_delay=True)
     # data.update(
     #     current_direction=direction
     # )  # TODO - Add this piece into the QueueAction wrapping instead

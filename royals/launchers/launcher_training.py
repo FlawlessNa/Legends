@@ -33,7 +33,10 @@ if __name__ == "__main__":
         client_size=CLIENT_SIZE,
     )
     engine_kwargs = dict(
-        character=character, game_map=TRAINING_MAP, training_skill=TRAINING_SKILL
+        character=character,
+        game_map=TRAINING_MAP,
+        training_skill=TRAINING_SKILL,
+        buffs=["Invincible"],
     )
 
     bot = botting.Executor(engine=TrainingEngine, ign=CHARACTER_NAME, **engine_kwargs)

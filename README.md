@@ -2,9 +2,6 @@
 
 ## TODO
 - Debug windows should appear on every call for 'continuous' debugging
-- Engine/launchers refactoring:
-- [x] Create a single Training launcher
-- [ ] Customize training launcher for Buffs
 - Smart Rotation
   - [ ] Idea - When new platform reached, cover x% of the platform while blindly attacking, then converge into mid-ish platform. Then, wait until Y seconds without any mob detection before next rotation
 - [ ] Significant improvements required to Character detection - detection needs to be more stable
