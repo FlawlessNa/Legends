@@ -183,7 +183,7 @@ class MinimapFeature(Box):
 
     @property
     def left_edge(self) -> tuple[int, int]:
-        rand_buffer = random.randint(-self.randomized_edge, self.randomized_edge)
+        rand_buffer = random.randint(0, self.randomized_edge)
         return (
             max(
                 int(
@@ -196,7 +196,7 @@ class MinimapFeature(Box):
 
     @property
     def right_edge(self) -> tuple[int, int]:
-        rand_buffer = random.randint(-self.randomized_edge, self.randomized_edge)
+        rand_buffer = random.randint(-self.randomized_edge, 0)
         return (
             min(
                 int(

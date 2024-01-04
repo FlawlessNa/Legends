@@ -2,6 +2,8 @@
 
 ## TODO
 - Debug windows should appear on every call for 'continuous' debugging
+- Add teleport connections into pathfinding algorithm
+- Clean pathfinding algorithm code?
 - Smart Rotation
   - [ ] Idea - When new platform reached, cover x% of the platform while blindly attacking, then converge into mid-ish platform. Then, wait until Y seconds without any mob detection before next rotation
 - [ ] Significant improvements required to Character detection - detection needs to be more stable
@@ -31,6 +33,7 @@
   - [ ] Course of action when any error is encountered, before program exists
 - [ ] Anti Detection Features -> Features are monitored in the child processes, but reactions and coordinations between clients done in Main
   - [ ] Chat Parsing + Automated Responses
+  - [ ] Blue Notification detection (chat invite, other invites, etc)
   - [ ] Minimap Parsing for strangers + random reaction
   - [ ] Minimap Parsing for unexpected self movements + random reaction
   - [ ] Minimap parsing to ensure still in proper map + random reaction

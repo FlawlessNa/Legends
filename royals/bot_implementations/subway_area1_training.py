@@ -9,7 +9,7 @@ from royals import royals_ign_finder, RoyalsData
 from royals.models_implementations.minimaps import KerningLine1Area1Minimap
 from royals.models_implementations.mobs import Bubbling
 
-from .generators import hit_mobs, random_rotation
+from royals.generators import hit_mobs, random_rotation
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 

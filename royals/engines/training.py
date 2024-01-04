@@ -6,7 +6,7 @@ from botting.core import DecisionEngine, Executor, DecisionGenerator
 from botting.models_abstractions import BaseMap
 
 from royals import royals_ign_finder, RoyalsData
-from royals.bot_implementations.generators import hit_mobs, rebuff, smart_rotation
+from royals.generators import hit_mobs, SmartRotation, Rebuff
 
 
 class TrainingEngine(DecisionEngine):
@@ -23,7 +23,6 @@ class TrainingEngine(DecisionEngine):
     ) -> None:
         super().__init__(log_queue, bot)
         self._game_data = RoyalsData(self.handle, self.ign)
-        self.game_data.current_minimap = game_map.minimap
         self.game_data.update(
             "current_minimap_area_box",
             "current_minimap_position",
@@ -56,18 +55,13 @@ class TrainingEngine(DecisionEngine):
         for skill in self.game_data.character.skills.values():
             if skill.type in ["Buff", "Party Buff"] and skill in self._buffs_to_use:
                 generators.append(
-                    rebuff.Rebuff(self.game_data, skill)
+                    Rebuff(self.game_data, skill)
                 )
         return generators
 
     def next_map_rotation(self) -> list[callable]:
         return [
-            partial(
-                smart_rotation,
-                self.game_data,
-                self.rotation_lock,
-                teleport=self._teleport_skill,
-            ),
+            SmartRotation(self.game_data, self.rotation_lock, teleport=self._teleport_skill),
             partial(hit_mobs, self.game_data, self._training_skill),
         ]
 

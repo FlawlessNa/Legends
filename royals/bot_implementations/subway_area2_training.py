@@ -6,7 +6,7 @@ from botting.core import DecisionEngine, Executor
 from royals import royals_ign_finder, RoyalsData
 from royals.models_implementations.minimaps import KerningLine1Area2Minimap
 from royals.models_implementations.mobs import JrWraith
-from .generators import random_rotation, hit_mobs
+from royals.generators import random_rotation, hit_mobs
 
 
 class SubwayTraining2(DecisionEngine):

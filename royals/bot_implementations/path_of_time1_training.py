@@ -6,7 +6,7 @@ from botting.core import DecisionEngine, Executor
 from royals import royals_ign_finder, RoyalsData
 from royals.models_implementations.minimaps import PathOfTime1Minimap
 from royals.models_implementations.mobs import PlatoonChronos
-from .generators import smart_rotation, hit_mobs
+from royals.generators import smart_rotation, hit_mobs
 
 
 class PathOfTime1Training(DecisionEngine):

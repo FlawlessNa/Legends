@@ -4,10 +4,10 @@ from functools import partial
 
 from botting.core import DecisionEngine, Executor, DecisionGenerator
 from royals import royals_ign_finder, RoyalsData
-from royals.bot_implementations.generators import rebuff
+from ..generators import rebuff
 from royals.models_implementations.minimaps import MysteriousPath3Minimap
 from royals.models_implementations.mobs import SelkieJr, Slimy
-from .generators import smart_rotation, hit_mobs
+from royals.generators import smart_rotation, hit_mobs
 
 
 class MysteriousPath3Training(DecisionEngine):
