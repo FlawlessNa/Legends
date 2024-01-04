@@ -15,6 +15,7 @@ CHARACTER_NAME = "FarmFest1"
 CHARACTER_CLASS = Priest
 TRAINING_SKILL = "Heal"
 TRAINING_MAP = MysteriousPath3
+MOB_COUNT_THRESHOLD = 3
 
 DETECTION_CONFIG_SECTION = "Elephant Cape"
 CLIENT_SIZE = "large"
@@ -36,6 +37,7 @@ if __name__ == "__main__":
         character=character,
         game_map=TRAINING_MAP,
         training_skill=TRAINING_SKILL,
+        mob_count_threshold=MOB_COUNT_THRESHOLD,
         buffs=["Invincible"],
     )
 

@@ -7,6 +7,8 @@ from typing import Sequence
 from botting.utilities import Box
 from botting.visuals import InGameBaseVisuals
 
+DEBUG = True
+
 
 class BaseMob(InGameBaseVisuals, ABC):
     """
@@ -48,6 +50,8 @@ class BaseMob(InGameBaseVisuals, ABC):
             processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
         try:
+            if DEBUG:
+                _debug(image, contours)
             return [cv2.boundingRect(cnt) for cnt in self._filter(contours)]
         except Exception as e:
             breakpoint()
@@ -57,3 +61,10 @@ class BaseMob(InGameBaseVisuals, ABC):
         Returns the number of mobs found on-screen.
         """
         return len(self.get_onscreen_mobs(image))
+
+
+def _debug(image: np.ndarray, contours) -> None:
+    # Draw all contours
+    cv2.drawContours(image, contours, -1, (0, 255, 0), 4)
+    cv2.imshow("_DEBUG_ BaseMob.get_onscreen_mobs", image)
+    cv2.waitKey(1)

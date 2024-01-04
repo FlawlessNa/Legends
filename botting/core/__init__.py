@@ -4,7 +4,6 @@ from .bot import (
     QueueAction,
     DecisionEngine,
     GameData,
-    failsafe_generator,
     DecisionGenerator,
 )
 from .controls import controller

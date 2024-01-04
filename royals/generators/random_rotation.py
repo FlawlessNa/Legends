@@ -6,7 +6,7 @@ from functools import partial
 from typing import Generator
 
 from botting import PARENT_LOG
-from botting.core import QueueAction, failsafe_generator
+from botting.core import QueueAction
 from royals import RoyalsData
 from royals.models_implementations.mechanics.path_into_movements import get_to_target
 from royals.actions import random_jump
@@ -15,7 +15,6 @@ logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
 @QueueAction.action_generator(release_lock_on_callback=True, cancellable=True)
-@failsafe_generator(max_tries=5, sleep_time=0.5, response=random_jump)
 def random_rotation(data: RoyalsData, rotation_lock: mp.Lock = None) -> Generator:
     while True:
         target_pos = data.current_minimap.random_point()

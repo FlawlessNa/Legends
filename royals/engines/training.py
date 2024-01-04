@@ -1,12 +1,10 @@
 import multiprocessing
 
-from functools import partial
-
 from botting.core import DecisionEngine, Executor, DecisionGenerator
 from botting.models_abstractions import BaseMap
 
 from royals import royals_ign_finder, RoyalsData
-from royals.generators import hit_mobs, SmartRotation, Rebuff
+from royals.generators import MobsHitting, SmartRotation, Rebuff
 
 
 class TrainingEngine(DecisionEngine):
@@ -19,6 +17,7 @@ class TrainingEngine(DecisionEngine):
         game_map: BaseMap,
         character: callable,
         training_skill: str,
+        mob_count_threshold: int = 2,
         buffs: list[str] | None = None,
     ) -> None:
         super().__init__(log_queue, bot)
@@ -34,6 +33,7 @@ class TrainingEngine(DecisionEngine):
 
         self._training_skill = self.game_data.character.skills[training_skill]
         self._teleport_skill = self.game_data.character.skills.get("Teleport")
+        self._mob_count_threshold = mob_count_threshold
         if buffs:
             self._buffs_to_use = [self.game_data.character.skills[buff] for buff in buffs]
         else:
@@ -62,7 +62,7 @@ class TrainingEngine(DecisionEngine):
     def next_map_rotation(self) -> list[callable]:
         return [
             SmartRotation(self.game_data, self.rotation_lock, teleport=self._teleport_skill),
-            partial(hit_mobs, self.game_data, self._training_skill),
+            MobsHitting(self.game_data, self._training_skill, self._mob_count_threshold),
         ]
 
     def anti_detection_checks(self) -> list[DecisionGenerator]:

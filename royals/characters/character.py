@@ -271,14 +271,3 @@ def _debug(image: np.ndarray, rect, cx, cy, offset) -> None:
         cv2.circle(image, (cx + offset[0], cy + offset[1]), 5, (0, 0, 255), -1)
     cv2.imshow("_DEBUG_ Character.get_on_screen_position", image)
     cv2.waitKey(1)
-
-
-if __name__ == "__main__":
-    HANDLE = 0x02300A26
-    test = Character("FarmFest1", "large")
-    while True:
-        test.get_onscreen_position(
-            None,
-            handle=HANDLE,
-            regions_to_hide=[Box(left=0, right=275, top=0, bottom=195)],
-        )
