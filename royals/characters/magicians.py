@@ -95,6 +95,14 @@ class Priest(Cleric):
                 duration=120,
                 _use_by_default=True
             ),
+            "Shining Ray": Skill(
+                "Shining Ray",
+                "Attack",
+                animation_time=1.1,
+                horizontal_screen_range=200,
+                vertical_screen_range=125,
+                unidirectional=False,
+            ),
         }
 
     def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:

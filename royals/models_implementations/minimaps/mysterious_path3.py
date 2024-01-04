@@ -30,6 +30,20 @@ class MysteriousPath3Minimap(MinimapPathingMechanics):
         bottom=62,
         name="car_safe_spot",
     )
+    car_odd_spot1: MinimapFeature = MinimapFeature(
+        left=136,
+        right=137,
+        top=64,
+        bottom=64,
+        name="car_odd_spot1",
+    )
+    car_odd_spot2: MinimapFeature = MinimapFeature(
+        left=135,
+        right=137,
+        top=65,
+        bottom=65,
+        name="car_odd_spot2",
+    )
     bot_platform: MinimapFeature = MinimapFeature(
         left=91,
         right=185,
@@ -58,6 +72,41 @@ class MysteriousPath3Minimap(MinimapPathingMechanics):
         top=22,
         bottom=39,
         name="second_ladder",
+    )
+    plank_37: MinimapFeature = MinimapFeature(
+        left=113,
+        right=116,
+        top=37,
+        bottom=37,
+        name="plank_37"
+    )
+    plank_38: MinimapFeature = MinimapFeature(
+        left=113,
+        right=116,
+        top=38,
+        bottom=38,
+        name="plank_38"
+    )
+    plank_39: MinimapFeature = MinimapFeature(
+        left=113,
+        right=116,
+        top=39,
+        bottom=39,
+        name="plank_39"
+    )
+    plank_40: MinimapFeature = MinimapFeature(
+        left=113,
+        right=116,
+        top=40,
+        bottom=40,
+        name="plank_40"
+    )
+    plank_41: MinimapFeature = MinimapFeature(
+        left=113,
+        right=116,
+        top=41,
+        bottom=41,
+        name="plank_41"
     )
     box1: MinimapFeature = MinimapFeature(
         left=115,

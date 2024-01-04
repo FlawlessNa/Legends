@@ -122,7 +122,7 @@ def _debug(
         for loc in mobs_locations:
             x, y, w, h = loc
             cv2.rectangle(
-                img, (int(x), int(y)), (int(x + w), int(y + h)), (255, 255, 255), 2
+                img, (int(x), int(y)), (int(x + w), int(y + h)), (0, 0, 0), 2
             )
 
     x, y = current_pos
