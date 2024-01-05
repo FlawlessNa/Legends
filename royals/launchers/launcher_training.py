@@ -8,14 +8,15 @@ from functools import partial
 
 from royals.characters import Priest
 from royals.engines import TrainingEngine
-from royals.maps import MysteriousPath3
+from royals.maps import EncounterWithTheBuddha
 
 
 CHARACTER_NAME = "FarmFest1"
 CHARACTER_CLASS = Priest
-TRAINING_SKILL = "Heal"
-TRAINING_MAP = MysteriousPath3
-MOB_COUNT_THRESHOLD = 3
+TRAINING_SKILL = "Shining Ray"
+TRAINING_MAP = EncounterWithTheBuddha
+MOB_COUNT_THRESHOLD = 4
+TIME_LIMIT_CENTRAL_TARGET = 60
 
 DETECTION_CONFIG_SECTION = "Elephant Cape"
 CLIENT_SIZE = "large"
@@ -38,7 +39,8 @@ if __name__ == "__main__":
         game_map=TRAINING_MAP,
         training_skill=TRAINING_SKILL,
         mob_count_threshold=MOB_COUNT_THRESHOLD,
-        buffs=["Invincible"],
+        buffs=["Invincible", "Magic Guard", "Bless"],
+        time_limit=TIME_LIMIT_CENTRAL_TARGET,
     )
 
     bot = botting.Executor(engine=TrainingEngine, ign=CHARACTER_NAME, **engine_kwargs)

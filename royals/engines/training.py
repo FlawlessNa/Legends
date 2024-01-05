@@ -17,6 +17,7 @@ class TrainingEngine(DecisionEngine):
         game_map: BaseMap,
         character: callable,
         training_skill: str,
+        time_limit: float = 15,
         mob_count_threshold: int = 2,
         buffs: list[str] | None = None,
     ) -> None:
@@ -34,6 +35,7 @@ class TrainingEngine(DecisionEngine):
         self._training_skill = self.game_data.character.skills[training_skill]
         self._teleport_skill = self.game_data.character.skills.get("Teleport")
         self._mob_count_threshold = mob_count_threshold
+        self._time_limit_central_node = time_limit
         if buffs:
             self._buffs_to_use = [self.game_data.character.skills[buff] for buff in buffs]
         else:
@@ -61,7 +63,7 @@ class TrainingEngine(DecisionEngine):
 
     def next_map_rotation(self) -> list[callable]:
         return [
-            SmartRotation(self.game_data, self.rotation_lock, teleport=self._teleport_skill),
+            SmartRotation(self.game_data, self.rotation_lock, teleport=self._teleport_skill, time_limit=self._time_limit_central_node),
             MobsHitting(self.game_data, self._training_skill, self._mob_count_threshold),
         ]
 

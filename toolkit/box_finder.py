@@ -72,5 +72,5 @@ def box_finder(handle: int, box: Box | None = None) -> Box:
 
 
 if __name__ == "__main__":
-    HANDLE = 0x00070802
+    HANDLE = 0x00F90FA4
     box_finder(HANDLE)

@@ -18,8 +18,9 @@ logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
 class SmartRotation(DecisionGenerator):
-    def __init__(self, data: RoyalsData, lock: mp.Lock, teleport: Skill = None) -> None:
+    def __init__(self, data: RoyalsData, lock: mp.Lock, teleport: Skill = None, time_limit: float = 15) -> None:
         self.data = data
+        self.time_limit = time_limit
         self._lock = lock
         self._teleport = teleport
         self._target_cycle = itertools.cycle(self.data.current_minimap.feature_cycle)
@@ -105,11 +106,18 @@ class SmartRotation(DecisionGenerator):
             )
             self._next_feature_covered.append(self._next_target)
             self._cancellable = False
+            self._center_targeted_at = time.perf_counter()
 
         else:
             self._on_central_target = True
             # Once the center of the feature is targeted, stay there for X seconds before rotating.
             if time.perf_counter() - self.data.last_mob_detection > 2:
+                self._next_feature = next(self._target_cycle)
+                self._next_target = self._next_feature.random()
+                self._next_feature_covered.clear()
+                self._cancellable = True
+
+            elif time.perf_counter() - self._center_targeted_at > self.time_limit:
                 self._next_feature = next(self._target_cycle)
                 self._next_target = self._next_feature.random()
                 self._next_feature_covered.clear()

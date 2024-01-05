@@ -51,7 +51,7 @@ class BaseMob(InGameBaseVisuals, ABC):
         )
         try:
             if DEBUG:
-                _debug(image, contours)
+                _debug(image, list(self._filter(contours)))
             return [cv2.boundingRect(cnt) for cnt in self._filter(contours)]
         except Exception as e:
             breakpoint()
@@ -65,6 +65,7 @@ class BaseMob(InGameBaseVisuals, ABC):
 
 def _debug(image: np.ndarray, contours) -> None:
     # Draw all contours
-    cv2.drawContours(image, contours, -1, (0, 255, 0), 4)
+    if contours:
+        cv2.drawContours(image, contours, -1, (0, 255, 255), 4)
     cv2.imshow("_DEBUG_ BaseMob.get_onscreen_mobs", image)
     cv2.waitKey(1)
