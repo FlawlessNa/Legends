@@ -4,7 +4,7 @@ import random
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from pathfinding.core.grid import Grid
+from pathfinding.core.grid import Grid, DiagonalMovement
 from pathfinding.core.node import GridNode
 from typing import Sequence
 
@@ -108,6 +108,7 @@ class MinimapGrid(Grid):
     """
     Exactly the same as the Grid class, except that it uses MinimapNodes instead of GridNodes.
     Weights between nodes are also calculated differently for connections.
+    Special treatment of TELEPORT connections depending on whether they are allowed or not.
     """
 
     nodes: list[list[MinimapNode]]
@@ -115,6 +116,7 @@ class MinimapGrid(Grid):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._replace_nodes()
+        self.allow_teleport = None
 
     def node(self, x, y) -> MinimapNode:
         """
@@ -129,13 +131,35 @@ class MinimapGrid(Grid):
         """
         Get the cost between neighbor nodes.
         If the nodes are neighbors through a connection, add the horizontal distance
-        into the cost. This avoids unnecessary jumps on platforms and such.
+        into the cost. This avoids unnecessary jumps on platforms/ropes and such.
         """
         ng = super().calc_cost(node_a, node_b, weighted)
         if node_a.connections and node_b in node_a.connections:
             dx = abs(node_a.x - node_b.x)
             ng += dx
         return ng
+
+    def neighbors(
+        self, node: MinimapNode,
+        diagonal_movement: DiagonalMovement = DiagonalMovement.never
+    ) -> list[GridNode]:
+        """
+        Same as original Grid, but removes TELEPORT connections if not allowed.
+        """
+        assert isinstance(self.allow_teleport, bool), "Must set allow_teleport before calling neighbors."
+        neighbors = super().neighbors(node, diagonal_movement)
+        result = neighbors.copy()
+        if not self.allow_teleport:
+            for neighbor in neighbors:
+                if node.connections and neighbor in node.connections:
+                    if node.connections_types[node.connections.index(neighbor)] in [
+                        MinimapConnection.TELEPORT_UP,
+                        MinimapConnection.TELEPORT_DOWN,
+                        MinimapConnection.TELEPORT_LEFT,
+                        MinimapConnection.TELEPORT_RIGHT
+                    ]:
+                        result.remove(neighbor)
+        return result
 
     def _replace_nodes(self):
         for y, row in enumerate(self.nodes):
@@ -234,8 +258,11 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
     jump_height: int
     jump_distance: int
     jump_down_limit: int = (
-        500  # No limit by default (500 is extremely large, will never be reached)
+        500  # No limit by default (500 px is extremely large, will never be reached)
     )
+    teleport_h_dist: int  # Horizontal distance of teleport
+    teleport_v_up_dist: int  # Vertical distance of teleport (upwards)
+    teleport_v_down_dist: int  # Vertical distance of teleport (downwards)
 
     @property
     @abstractmethod
@@ -257,6 +284,9 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                 ), "Invalid connection names."
 
         self.grid = self.generate_grid_template()
+
+    def set_teleport_allowed(self, allow_teleport: bool):
+        self.grid.allow_teleport = allow_teleport
 
     def jump_parabola_y(self, x):
         h, k = self.jump_distance / 2, self.jump_height
@@ -379,6 +409,10 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
             for node in feature:
                 # Build default connections from 'standard' mechanics
                 if feature.is_platform:
+                    self._add_vertical_connection(base_grid, node, MinimapConnection.JUMP_UP)
+                    self._add_vertical_connection(base_grid, node, MinimapConnection.JUMP_DOWN)
+                    self._add_vertical_connection(base_grid, node, MinimapConnection.TELEPORT_UP)
+                    self._add_vertical_connection(base_grid, node, MinimapConnection.TELEPORT_DOWN)
                     # Check for JUMP_UP connection by finding the closest walkable node above current one, if any
                     for other_node in (
                         base_grid.node(node[0], y)
