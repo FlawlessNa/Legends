@@ -14,6 +14,10 @@ class BuddhaMinimap(MinimapPathingMechanics):
     jump_height: int = 5
     jump_distance: int = 5
 
+    teleport_h_dist = 9
+    teleport_v_up_dist = 5
+    teleport_v_down_dist = 9
+
     @property
     def feature_cycle(self) -> list[MinimapFeature]:
         return [

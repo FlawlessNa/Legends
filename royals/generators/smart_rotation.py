@@ -46,7 +46,6 @@ class SmartRotation(DecisionGenerator):
             next(self._target_cycle)
 
         self._last_pos_change = time.perf_counter()
-        self.data.current_minimap.set_teleport_allowed(True if self._teleport is not None else False)
 
         return iter(self)
 
@@ -136,7 +135,6 @@ class SmartRotation(DecisionGenerator):
             self.data.current_minimap_position,
             self._next_target,
             self.data.current_minimap,
-            True if self._teleport is not None else False,
         )
         if actions:
             self._deadlock_counter = 0

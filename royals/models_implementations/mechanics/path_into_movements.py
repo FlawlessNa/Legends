@@ -49,7 +49,6 @@ def get_to_target(
     current: tuple[int, int],
     target: tuple[int, int],
     in_game_minimap: MinimapPathingMechanics,
-    teleport_allowed: bool = False,
 ) -> list[partial]:
     """
     Computes the path from current to target using map features.
@@ -58,7 +57,6 @@ def get_to_target(
     :param current: Current minimap position.
     :param target: Target minimap position.
     :param in_game_minimap: The current minimap in-game.
-    :param teleport_allowed: Whether to allow teleportation.
     :return: List of incomplete partial objects that require further args/kwargs.
     """
     path = _get_path_to_target(current, target, in_game_minimap)

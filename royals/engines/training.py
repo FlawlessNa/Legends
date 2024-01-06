@@ -34,6 +34,7 @@ class TrainingEngine(DecisionEngine):
 
         self._training_skill = self.game_data.character.skills[training_skill]
         self._teleport_skill = self.game_data.character.skills.get("Teleport")
+        self.game_data.current_minimap.generate_grid_template(True if self._teleport_skill is not None else False)
         self._mob_count_threshold = mob_count_threshold
         self._time_limit_central_node = time_limit
         if buffs:

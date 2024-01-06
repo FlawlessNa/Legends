@@ -113,10 +113,10 @@ class MinimapGrid(Grid):
 
     nodes: list[list[MinimapNode]]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, allow_teleport: bool, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._replace_nodes()
-        self.allow_teleport = None
+        self.allow_teleport = allow_teleport
 
     def node(self, x, y) -> MinimapNode:
         """
@@ -130,23 +130,30 @@ class MinimapGrid(Grid):
     def calc_cost(self, node_a: MinimapNode, node_b: MinimapNode, weighted=False):
         """
         Get the cost between neighbor nodes.
-        If the nodes are neighbors through a connection, add the horizontal distance
+        If the nodes are neighbors through a connection, add the horizontal distance, except for teleport
         into the cost. This avoids unnecessary jumps on platforms/ropes and such.
         """
         ng = super().calc_cost(node_a, node_b, weighted)
         if node_a.connections and node_b in node_a.connections:
-            dx = abs(node_a.x - node_b.x)
-            ng += dx
+            conn_type = node_a.connections_types[node_a.connections.index(node_b)]
+            if conn_type not in [
+                MinimapConnection.TELEPORT_UP,
+                MinimapConnection.TELEPORT_DOWN,
+                MinimapConnection.TELEPORT_LEFT,
+                MinimapConnection.TELEPORT_RIGHT,
+            ]:
+                dx = abs(node_a.x - node_b.x)
+                ng += dx
         return ng
 
     def neighbors(
-        self, node: MinimapNode,
-        diagonal_movement: DiagonalMovement = DiagonalMovement.never
+        self,
+        node: MinimapNode,
+        diagonal_movement: DiagonalMovement = DiagonalMovement.never,
     ) -> list[GridNode]:
         """
         Same as original Grid, but removes TELEPORT connections if not allowed.
         """
-        assert isinstance(self.allow_teleport, bool), "Must set allow_teleport before calling neighbors."
         neighbors = super().neighbors(node, diagonal_movement)
         result = neighbors.copy()
         if not self.allow_teleport:
@@ -156,7 +163,7 @@ class MinimapGrid(Grid):
                         MinimapConnection.TELEPORT_UP,
                         MinimapConnection.TELEPORT_DOWN,
                         MinimapConnection.TELEPORT_LEFT,
-                        MinimapConnection.TELEPORT_RIGHT
+                        MinimapConnection.TELEPORT_RIGHT,
                     ]:
                         result.remove(neighbor)
         return result
@@ -282,21 +289,16 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                     for conn in feature.connections
                     if conn.other_feature_name is not None
                 ), "Invalid connection names."
-
-        self.grid = self.generate_grid_template()
-
-    def set_teleport_allowed(self, allow_teleport: bool):
-        self.grid.allow_teleport = allow_teleport
+        self.grid = None
 
     def jump_parabola_y(self, x):
         h, k = self.jump_distance / 2, self.jump_height
         a = k / h**2
         return -a * (x - h) ** 2 + k
 
-    def _find_horizontal_teleport_node(self,
-                                       starting_point: tuple[int, int],
-                                       direction: str,
-                                       grid: MinimapGrid) -> tuple[int, int]:
+    def _find_horizontal_teleport_node(
+        self, starting_point: tuple[int, int], direction: str, grid: MinimapGrid
+    ) -> None:
         """
         For any given node, look whether there are other walkable (platform) nodes at self.teleport_h_dist
         of horizontal distance and within a vertical range equal to self.teleport_v_up_dist // 2.
@@ -307,20 +309,38 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         :return:
         """
         vertical_range = self.teleport_v_up_dist // 2
-        assert direction in ['left', 'right'], "Invalid direction for teleport."
-        if direction == 'right':
+        assert direction in ["left", "right"], "Invalid direction for teleport."
+        if direction == "right":
             x_val = starting_point[0] + self.teleport_h_dist
+            connection_type = MinimapConnection.TELEPORT_RIGHT
         else:
             x_val = starting_point[0] - self.teleport_h_dist
+            connection_type = MinimapConnection.TELEPORT_LEFT
 
-        for y_val in range(starting_point[1] - 1, starting_point[1] - vertical_range - 1, - 1):
-            if grid.node(x_val, y_val).walkable and self.get_feature_containing((x_val, y_val)).is_platform:
-                return x_val, y_val
+        for y_val in range(
+            starting_point[1] - 1, starting_point[1] - vertical_range - 1, -1
+        ):
+            if (
+                grid.node(x_val, y_val).walkable
+                and self.get_feature_containing((x_val, y_val)).is_platform
+            ):
+                grid.node(*starting_point).connect(
+                    grid.node(x_val, y_val),
+                    connection_type=connection_type,
+                )
+                return
 
         # If nothing upwards, start from same horizontal line and go downwards
         for y_val in range(starting_point[1], starting_point[1] + vertical_range + 1):
-            if grid.node(x_val, y_val).walkable and self.get_feature_containing((x_val, y_val)).is_platform:
-                return x_val, y_val
+            if (
+                grid.node(x_val, y_val).walkable
+                and self.get_feature_containing((x_val, y_val)).is_platform
+            ):
+                grid.node(*starting_point).connect(
+                    grid.node(x_val, y_val),
+                    connection_type=connection_type,
+                )
+                return
 
     def _jump_trajectory(
         self, starting_point: tuple[int, int], direction: str, fall_only: bool = False
@@ -414,7 +434,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
             if isinstance(feat, MinimapFeature)
         }
 
-    def generate_grid_template(self) -> MinimapGrid:
+    def generate_grid_template(self, allow_teleport: bool) -> None:
         """
         Generates a "grid"-like array of the minimap, which includes royals mechanics.
         Those mechanics are:
@@ -428,7 +448,9 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         canvas = np.zeros((height, width), dtype=np.uint8)
         canvas = self._preprocess_img(canvas)
 
-        base_grid = MinimapGrid(matrix=np.where(canvas == 255, 1, 0))
+        base_grid = MinimapGrid(
+            matrix=np.where(canvas == 255, 1, 0), allow_teleport=allow_teleport
+        )
 
         for feature in self.features.values():
             if feature.connections:
@@ -438,10 +460,21 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
             for node in feature:
                 # Build default connections from 'standard' mechanics
                 if feature.is_platform:
-                    self._add_vertical_connection(base_grid, node, MinimapConnection.JUMP_UP)
-                    self._add_vertical_connection(base_grid, node, MinimapConnection.JUMP_DOWN)
-                    self._add_vertical_connection(base_grid, node, MinimapConnection.TELEPORT_UP)
-                    self._add_vertical_connection(base_grid, node, MinimapConnection.TELEPORT_DOWN)
+                    self._add_vertical_connection(
+                        base_grid, node, MinimapConnection.JUMP_UP
+                    )
+                    self._add_vertical_connection(
+                        base_grid, node, MinimapConnection.JUMP_DOWN
+                    )
+                    if base_grid.allow_teleport:
+                        self._add_vertical_connection(
+                            base_grid, node, MinimapConnection.TELEPORT_UP
+                        )
+                        self._add_vertical_connection(
+                            base_grid, node, MinimapConnection.TELEPORT_DOWN
+                        )
+                        self._find_horizontal_teleport_node(node, "left", base_grid)
+                        self._find_horizontal_teleport_node(node, "right", base_grid)
 
                     # Compute jump trajectories for both directions
                     left_trajectory = self._jump_trajectory(node, "left")
@@ -521,7 +554,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                         base_grid,
                     )
 
-        return base_grid
+        self.grid = base_grid
 
     def _parse_trajectory(
         self,
@@ -589,7 +622,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         :return:
         """
         if connection_type == MinimapConnection.JUMP_UP:
-            rng = range(node[1] - self.jump_height - 1, node[1] - 1)
+            rng = range(node[1] - self.jump_height - 1, node[1])
 
         elif connection_type == MinimapConnection.JUMP_DOWN:
             rng = range(
@@ -598,7 +631,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
             )
 
         elif connection_type == MinimapConnection.TELEPORT_UP:
-            rng = range(node[1] - self.teleport_v_up_dist - 1, node[1] - 1)
+            rng = range(node[1] - self.teleport_v_up_dist - 1, node[1])
 
         elif connection_type == MinimapConnection.TELEPORT_DOWN:
             rng = range(node[1] + 1, node[1] + self.teleport_v_down_dist + 1)
@@ -609,8 +642,11 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
             )
 
         for other_node in (grid.node(node[0], y) for y in rng):
-            if other_node.walkable and self.get_feature_containing(
-                (other_node.x, other_node.y)
-            ).is_platform:
+            if (
+                other_node.walkable
+                and self.get_feature_containing(
+                    (other_node.x, other_node.y)
+                ).is_platform
+            ):
                 grid.node(*node).connect(other_node, connection_type)
                 break

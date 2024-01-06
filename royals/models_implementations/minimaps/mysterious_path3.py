@@ -1,6 +1,5 @@
 from royals.models_implementations.mechanics import (
     MinimapFeature,
-    MinimapConnection,
     MinimapPathingMechanics,
 )
 
@@ -14,6 +13,10 @@ class MysteriousPath3Minimap(MinimapPathingMechanics):
     jump_height: int = 5
     jump_distance: int = 5
     jump_down_limit: int = 30
+
+    teleport_h_dist = 9
+    teleport_v_up_dist = 5
+    teleport_v_down_dist = 9
 
     @property
     def feature_cycle(self) -> list[MinimapFeature]:

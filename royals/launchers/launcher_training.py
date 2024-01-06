@@ -8,13 +8,13 @@ from functools import partial
 
 from royals.characters import Priest
 from royals.engines import TrainingEngine
-from royals.maps import EncounterWithTheBuddha
+from royals.maps import EncounterWithTheBuddha, MysteriousPath3
 
 
 CHARACTER_NAME = "FarmFest1"
 CHARACTER_CLASS = Priest
 TRAINING_SKILL = "Shining Ray"
-TRAINING_MAP = EncounterWithTheBuddha
+TRAINING_MAP = MysteriousPath3
 MOB_COUNT_THRESHOLD = 4
 TIME_LIMIT_CENTRAL_TARGET = 60
 
