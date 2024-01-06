@@ -54,7 +54,7 @@ def get_to_target(
     """
     Computes the path from current to target using map features.
     Translates this path into movements, and converts those movements into in-game actions.
-    Returns a list of partial objects. However, these partial objects may still require additional args/kwargs.
+    Returns a list of incomplete partial objects.
     :param current: Current minimap position.
     :param target: Target minimap position.
     :param in_game_minimap: The current minimap in-game.
@@ -62,7 +62,7 @@ def get_to_target(
     :return: List of incomplete partial objects that require further args/kwargs.
     """
     path = _get_path_to_target(current, target, in_game_minimap)
-    movements = _translate_path_into_movements(path, teleport_allowed)
+    movements = _translate_path_into_movements(path, in_game_minimap)
     if movements:
         if (
             movements[0] == ("down", 1)
@@ -103,14 +103,14 @@ def _get_path_to_target(
 
 
 def _translate_path_into_movements(
-    path: list[MinimapNode], teleport: bool
+    path: list[MinimapNode], in_game_minimap: MinimapPathingMechanics
 ) -> list[tuple[str, int]]:
     """
     Translates a path into a series of movements. Each movement is represented by a tuple of two items.
     The first item is a str representing the actual movement.
-    The second item is an int representing the number of nodes to walk through.
+    The second item is an int unit representing the number of nodes/times to do the movement.
     :param path: List of MinimapNodes representing the path to take.
-    :return: List of ("movement to do", "number of nodes to walk through") tuples.
+    :return: List of ("movement to do", "number of nodes/times to go through") tuples.
     """
 
     # We start by translating the path into a series of "movements" (up, down, left, right, jump, teleport, etc.).
@@ -118,17 +118,25 @@ def _translate_path_into_movements(
     for i in range(len(path) - 1):
         current_node = path[i]
         next_node = path[i + 1]
+        current_feature = in_game_minimap.get_feature_containing(
+            (current_node.x, current_node.y)
+        )
+        if current_feature is None:
+            continue  # TODO - See if this causes any issue
+
         dx = next_node.x - current_node.x
         dy = next_node.y - current_node.y
 
-        # Cases when there's only 1 unit of displacement - Simply walk in that direction
-        if dx == 1 and dy == 0:
+        # Cases when there's only 1 unit of displacement; Simply walk in that direction
+        # right/left only allowed if node is a platform
+        # up/down only allowed if node is a ladder
+        if dx == 1 and dy == 0 and current_feature.is_platform:
             movements.append("right")
-        elif dx == -1 and dy == 0:
+        elif dx == -1 and dy == 0 and current_feature.is_platform:
             movements.append("left")
-        elif dx == 0 and dy == 1:
+        elif dx == 0 and dy == 1 and current_feature.is_ladder:
             movements.append("down")
-        elif dx == 0 and dy == -1:
+        elif dx == 0 and dy == -1 and current_feature.is_ladder:
             movements.append("up")
 
         # Otherwise, Nodes are connected. Need to determine connection type.
@@ -139,7 +147,7 @@ def _translate_path_into_movements(
 
             movements.append(MinimapConnection.convert_to_string(connection_type))
         else:
-            breakpoint()
+            breakpoint()  # TODO - Remove this after testing; irregular features will reach this point technically
             raise NotImplementedError("Not supposed to reach this point.")
 
     squeezed_movements = [(k, len(list(g))) for k, g in itertools.groupby(movements)]
@@ -149,37 +157,37 @@ def _translate_path_into_movements(
     # This case can be identified whenever there is a "JUMP_LEFT_AND_UP" immediately followed by "down" (or right).
     # In this case, we remove both.
     # TODO - See if this can be addressed in grid-making instead (issue now is that weights are difficult to compute)
-    for i in range(len(squeezed_movements) - 1):
-        if (
-            squeezed_movements[i][0] == "JUMP_LEFT_AND_UP"
-            and squeezed_movements[i + 1][0] == "down"
-        ) or (
-            squeezed_movements[i][0] == "JUMP_RIGHT_AND_UP"
-            and squeezed_movements[i + 1][0] == "down"
-        ):
-            if len(squeezed_movements) > 2:
-                squeezed_movements.pop(i)
-                squeezed_movements.pop(i)
-
-            if i > 0:
-                if squeezed_movements[i - 1][0] == squeezed_movements[i][0]:
-                    nbr_to_add = squeezed_movements.pop(i)
-                    squeezed_movements[i - 1] = (
-                        squeezed_movements[i - 1][0],
-                        squeezed_movements[i - 1][-1] + nbr_to_add,
-                    )
-            break
+    # for i in range(len(squeezed_movements) - 1):
+    #     if (
+    #         squeezed_movements[i][0] == "JUMP_LEFT_AND_UP"
+    #         and squeezed_movements[i + 1][0] == "down"
+    #     ) or (
+    #         squeezed_movements[i][0] == "JUMP_RIGHT_AND_UP"
+    #         and squeezed_movements[i + 1][0] == "down"
+    #     ):
+    #         if len(squeezed_movements) > 2:
+    #             squeezed_movements.pop(i)
+    #             squeezed_movements.pop(i)
+    #
+    #         if i > 0:
+    #             if squeezed_movements[i - 1][0] == squeezed_movements[i][0]:
+    #                 nbr_to_add = squeezed_movements.pop(i)
+    #                 squeezed_movements[i - 1] = (
+    #                     squeezed_movements[i - 1][0],
+    #                     squeezed_movements[i - 1][-1] + nbr_to_add,
+    #                 )
+    #         break
 
     # Convert horizontal movements into teleports when allowed
-    if teleport:
-        for i in range(len(squeezed_movements)):
-            if (
-                squeezed_movements[i][0] in ["left", "right"]
-                and squeezed_movements[i][1] >= 9
-            ):
-                direction = squeezed_movements[i][0]
-                squeezed_movements.insert(i, (f"TELEPORT_{direction.upper()}", 1))
-                break
+    # if teleport:
+    #     for i in range(len(squeezed_movements)):
+    #         if (
+    #             squeezed_movements[i][0] in ["left", "right"]
+    #             and squeezed_movements[i][1] >= 9
+    #         ):
+    #             direction = squeezed_movements[i][0]
+    #             squeezed_movements.insert(i, (f"TELEPORT_{direction.upper()}", 1))
+    #             break
 
     return squeezed_movements
 

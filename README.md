@@ -3,6 +3,7 @@
 ## TODO
 - Add teleport connections into pathfinding algorithm
 - Clean pathfinding algorithm code?
+- [ ] Also clean the path translator - for "irregular" features, make sure up/down movements are simply ignored. 
 - [ ] Generic Generator class for the botting library + incorporated failsafe methods
 -  [ ] Add failsafe on MobHitting?
 -  [ ] Add failsafe on Rebuff?

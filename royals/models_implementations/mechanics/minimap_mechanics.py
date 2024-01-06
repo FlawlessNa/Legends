@@ -74,10 +74,10 @@ class MinimapConnection:
     JUMP_RIGHT_AND_UP = 9
     JUMP_ANY_AND_UP = 10
     PORTAL = 11
-    TELEPORT_LEFT = NotImplemented
-    TELEPORT_RIGHT = NotImplemented
-    TELEPORT_UP = NotImplemented
-    TELEPORT_DOWN = NotImplemented
+    TELEPORT_LEFT = 12
+    TELEPORT_RIGHT = 13
+    TELEPORT_UP = 14
+    TELEPORT_DOWN = 15
     FLASH_JUMP_LEFT = NotImplemented
     FLASH_JUMP_RIGHT = NotImplemented
 
@@ -293,6 +293,35 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         a = k / h**2
         return -a * (x - h) ** 2 + k
 
+    def _find_horizontal_teleport_node(self,
+                                       starting_point: tuple[int, int],
+                                       direction: str,
+                                       grid: MinimapGrid) -> tuple[int, int]:
+        """
+        For any given node, look whether there are other walkable (platform) nodes at self.teleport_h_dist
+        of horizontal distance and within a vertical range equal to self.teleport_v_up_dist // 2.
+        Start by prioritizing any such node upwards. If not any, then look into same horizontal line.
+        If not any, then finally look downwards.
+        :param starting_point:
+        :param direction:
+        :return:
+        """
+        vertical_range = self.teleport_v_up_dist // 2
+        assert direction in ['left', 'right'], "Invalid direction for teleport."
+        if direction == 'right':
+            x_val = starting_point[0] + self.teleport_h_dist
+        else:
+            x_val = starting_point[0] - self.teleport_h_dist
+
+        for y_val in range(starting_point[1] - 1, starting_point[1] - vertical_range - 1, - 1):
+            if grid.node(x_val, y_val).walkable and self.get_feature_containing((x_val, y_val)).is_platform:
+                return x_val, y_val
+
+        # If nothing upwards, start from same horizontal line and go downwards
+        for y_val in range(starting_point[1], starting_point[1] + vertical_range + 1):
+            if grid.node(x_val, y_val).walkable and self.get_feature_containing((x_val, y_val)).is_platform:
+                return x_val, y_val
+
     def _jump_trajectory(
         self, starting_point: tuple[int, int], direction: str, fall_only: bool = False
     ):
@@ -413,37 +442,6 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                     self._add_vertical_connection(base_grid, node, MinimapConnection.JUMP_DOWN)
                     self._add_vertical_connection(base_grid, node, MinimapConnection.TELEPORT_UP)
                     self._add_vertical_connection(base_grid, node, MinimapConnection.TELEPORT_DOWN)
-                    # Check for JUMP_UP connection by finding the closest walkable node above current one, if any
-                    for other_node in (
-                        base_grid.node(node[0], y)
-                        for y in range(node[1] - 1, node[1] - self.jump_height - 1, -1)
-                    ):
-                        if other_node.walkable:
-                            other_feature = self.get_feature_containing(
-                                (other_node.x, other_node.y)
-                            )
-                            if not other_feature.is_ladder:
-                                base_grid.node(*node).connect(
-                                    base_grid.node(other_node.x, other_node.y),
-                                    MinimapConnection.JUMP_UP,
-                                )
-
-                    # Check for JUMP_DOWN connection by finding the closest walkable node below current one, if any
-                    for other_node in (
-                        base_grid.node(node[0], y)
-                        for y in range(
-                            node[1] + 1,
-                            min(
-                                node[1] + self.jump_down_limit + 1, self.map_area_height
-                            ),
-                        )
-                    ):
-                        if other_node.walkable:
-                            base_grid.node(*node).connect(
-                                base_grid.node(other_node.x, other_node.y),
-                                MinimapConnection.JUMP_DOWN,
-                            )
-                            break  # Only add one connection (the closest)
 
                     # Compute jump trajectories for both directions
                     left_trajectory = self._jump_trajectory(node, "left")
@@ -574,3 +572,45 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                         grid.node(*other_node).weight = abs(other_node[0] - node[0])
                 else:
                     break
+
+    def _add_vertical_connection(
+        self, grid: MinimapGrid, node: tuple[int, int], connection_type: int
+    ):
+        """
+        Adds a vertical connection to the grid.
+        :param grid: Grid to add connection to.
+        :param node: Node to add connection to.
+        :param connection_type: Type of connection to add.
+            - JUMP_UP: Find the furthest walkable node within jump_height range, if any
+            - JUMP_DOWN: Find the nearest walkable node below current one
+                (within jump_down range)
+            - TELEPORT_UP: Find the furthest walkable node within teleport_v_up_dist range
+            - TELEPORT_DOWN: Find the nearest walkable node within teleport_v_down_dist
+        :return:
+        """
+        if connection_type == MinimapConnection.JUMP_UP:
+            rng = range(node[1] - self.jump_height - 1, node[1] - 1)
+
+        elif connection_type == MinimapConnection.JUMP_DOWN:
+            rng = range(
+                node[1] + 1,
+                min(node[1] + self.jump_down_limit + 1, self.map_area_height),
+            )
+
+        elif connection_type == MinimapConnection.TELEPORT_UP:
+            rng = range(node[1] - self.teleport_v_up_dist - 1, node[1] - 1)
+
+        elif connection_type == MinimapConnection.TELEPORT_DOWN:
+            rng = range(node[1] + 1, node[1] + self.teleport_v_down_dist + 1)
+
+        else:
+            raise NotImplementedError(
+                f"Connection type {connection_type} not implemented."
+            )
+
+        for other_node in (grid.node(node[0], y) for y in rng):
+            if other_node.walkable and self.get_feature_containing(
+                (other_node.x, other_node.y)
+            ).is_platform:
+                grid.node(*node).connect(other_node, connection_type)
+                break
