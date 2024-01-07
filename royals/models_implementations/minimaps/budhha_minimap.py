@@ -9,6 +9,9 @@ class BuddhaMinimap(MinimapPathingMechanics):
     map_area_width = 194
     map_area_height = 55
 
+    full_map_area_left_offset = 1
+    full_map_area_right_offset = 2
+
     # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
     minimap_speed: float = 7.5
     jump_height: int = 5
