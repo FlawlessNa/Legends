@@ -1,7 +1,7 @@
 # Royals-V2
 
 ## TODO
-- Fix Minimap (full mode)
+- Refactor bubbling for leeching up to lv30 of main BS
 - [ ] Generic Generator class for the botting library + incorporated failsafe methods
 -  [ ] Add failsafe on MobHitting?
 -  [ ] Add failsafe on Rebuff?
