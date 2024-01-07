@@ -1,7 +1,6 @@
 # Royals-V2
 
 ## TODO
-- Refactor bubbling for leeching up to lv30 of main BS
 - [ ] Generic Generator class for the botting library + incorporated failsafe methods
 -  [ ] Add failsafe on MobHitting?
 -  [ ] Add failsafe on Rebuff?
@@ -15,6 +14,7 @@
   - [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs + random reaction
 - [x] Significant improvements required to Character detection - detection needs to be more stable
   - [ ] Standardize code and transfer detection framework into botting library
+- [ ] Implement better handling of QueueAction Priority
 - Significant improvements required to Mob detection
   - [ ] Add pre-processing techniques such as minimal nbr of detection to be considered a mob
   - [ ] Clean the pre-processing to remove the additional layer of the filter function
