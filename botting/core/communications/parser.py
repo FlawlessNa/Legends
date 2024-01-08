@@ -1,17 +1,17 @@
+import asyncio
 import logging
-import multiprocessing.connection
 
 from functools import partial
 from typing import Optional
 
-from ..bot import Executor
+from botting.core import QueueAction
 
 logger = logging.getLogger(__name__)
 
 
 def message_parser(
-    message: str, main_pipe: multiprocessing.connection.Connection
-) -> Optional[callable]:
+    message: str
+) -> Optional[QueueAction]:
     """
     Message Parsing is made inside the Main Process. This way, the returned actions are not required to be picklable (e.g. transferable between processes).
     Supported commands:
@@ -38,7 +38,7 @@ def message_parser(
         case "kill":
             # TODO - Close clients as well?
             logger.info("Received KILL signal from Discord. Stopping all bots.")
-            return Executor.cancel_all
+            return None
         case "pause":
             pass
         case "resume":
@@ -48,4 +48,8 @@ def message_parser(
         case "write":
             pass
         case _:
-            return partial(main_pipe.send, f"Command {command} not recognized.")
+            return QueueAction(
+
+                action=partial(asyncio.sleep, 0),
+                user_message=f"Command {command} not recognized."
+            )

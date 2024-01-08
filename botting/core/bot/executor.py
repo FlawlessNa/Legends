@@ -6,6 +6,7 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 from .action import QueueAction
+from botting.core.communications import message_parser
 from botting.utilities import client_handler
 
 if TYPE_CHECKING:
@@ -26,6 +27,7 @@ class Executor:
     blocker: asyncio.Event = asyncio.Event()
     logging_queue: multiprocessing.Queue
     discord_pipe: multiprocessing.connection.Connection
+    discord_listener: asyncio.Task
     all_bots: list["Executor"] = []
 
     def __init__(self, engine: type["DecisionEngine"], ign: str, **kwargs) -> None:
@@ -54,6 +56,7 @@ class Executor:
         cls.blocker.set()  # Unblocks all Bots
 
         async with asyncio.TaskGroup() as tg:
+            cls.discord_listener = tg.create_task(cls.relay_disc_to_main(), name="Discord Listener")
             for bot in cls.all_bots:
                 bot.main_task = tg.create_task(bot.engine_listener(), name=repr(bot))
                 logger.info(f"Created task {bot.main_task.get_name()}.")
@@ -62,6 +65,31 @@ class Executor:
     def cancel_all(cls):
         for bot in cls.all_bots:
             bot.bot_side.send(None)
+        cls.discord_pipe.send(None)
+
+    @classmethod
+    async def relay_disc_to_main(cls) -> None:
+        """
+        Main Process task.
+        Responsible for listening to the discord process and see if any actions
+         are requested by discord user.
+        It then performs those actions.
+        :return: None
+        """
+        while True:
+            if await asyncio.to_thread(cls.discord_pipe.poll):
+                message: str = cls.discord_pipe.recv()
+                action: QueueAction = message_parser(message)
+                if action is None:
+                    logger.info(f"Received {message} from discord process. Exiting.")
+                    cls.cancel_all()
+                    cls.discord_pipe.send(None)
+                    break
+                else:
+                    logger.info(
+                        f"Performing action {action} as requested by discord user."
+                    )
+                    new_task = cls.all_bots[0].create_task(action)
 
     def create_task(self, queue_item: QueueAction) -> asyncio.Task:
         """
