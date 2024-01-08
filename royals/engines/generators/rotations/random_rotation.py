@@ -9,7 +9,6 @@ from botting import PARENT_LOG
 from botting.core import QueueAction
 from royals import RoyalsData
 from royals.models_implementations.mechanics.path_into_movements import get_to_target
-from royals.actions import random_jump
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 

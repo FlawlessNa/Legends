@@ -25,6 +25,7 @@ class Executor:
 
     blocker: asyncio.Event = asyncio.Event()
     logging_queue: multiprocessing.Queue
+    discord_pipe: multiprocessing.connection.Connection
     all_bots: list["Executor"] = []
 
     def __init__(self, engine: type["DecisionEngine"], ign: str, **kwargs) -> None:
@@ -118,6 +119,11 @@ class Executor:
         cls.logging_queue = logging_queue
 
     @classmethod
+    def update_discord_pipe(cls, discord_pipe: multiprocessing.connection.Connection) -> None:
+        """Updates the discord pipe for all bots."""
+        cls.discord_pipe = discord_pipe
+
+    @classmethod
     def update_bot_list(cls, bot: "Executor") -> None:
         """Inserts newly created bot into the bot list."""
         cls.all_bots.append(bot)
@@ -209,8 +215,14 @@ class Executor:
                     break
 
                 logger.debug(f"Received {queue_item} from {self} monitoring process.")
+
                 new_task = self.create_task(queue_item)
                 logger.debug(f"Created task {new_task.get_name()}.")
+
+                if queue_item.user_message is not None:
+                    logger.info(f'Sending message towards Discord Process')
+                    for msg in queue_item.user_message:
+                        self.discord_pipe.send(msg)
 
                 if len(asyncio.all_tasks()) > 15:
                     logger.warning(

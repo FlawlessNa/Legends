@@ -16,6 +16,7 @@ class QueueAction:
     update_game_data: Optional[tuple[str] | dict] = field(
         compare=False, default=None, repr=False
     )
+    user_message: list = field(compare=False, default=None, repr=False)
     release_lock_on_callback: bool = field(compare=False, default=False, repr=False)
     callbacks: list[callable] = field(compare=False, default_factory=list, repr=False)
 

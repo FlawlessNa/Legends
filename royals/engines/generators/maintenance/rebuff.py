@@ -27,7 +27,7 @@ class Rebuff(DecisionGenerator):
     def __next__(self) -> QueueAction | None:
         if time.perf_counter() >= self._next_call:
             self._next_call = time.perf_counter() + (
-                self._skill.duration * random.uniform(0.9, 1)
+                max(self._skill.duration, self._skill.cooldown) * random.uniform(0.9, 1)
             )
             action = partial(cast_skill, self.data.handle, self.data.ign, self._skill)
             return QueueAction(self._skill.name, 5, action)

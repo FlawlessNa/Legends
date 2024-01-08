@@ -4,7 +4,7 @@ from botting.core import DecisionEngine, Executor, DecisionGenerator
 from botting.models_abstractions import BaseMap
 
 from royals import royals_ign_finder, RoyalsData
-from .generators import MobsHitting, SmartRotation, Rebuff, PetFood
+from .generators import MobsHitting, SmartRotation, Rebuff, PetFood, MobCheck
 
 
 class TrainingEngine(DecisionEngine):
@@ -70,4 +70,6 @@ class TrainingEngine(DecisionEngine):
         ]
 
     def anti_detection_checks(self) -> list[DecisionGenerator]:
-        return []
+        return [
+            MobCheck(self.game_data, time_threshold=10, mob_threshold=3),
+        ]
