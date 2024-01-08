@@ -9,7 +9,7 @@ from botting.core import DecisionGenerator, controller, QueueAction
 from botting.utilities import take_screenshot
 from royals import RoyalsData
 
-logger = logging.getLogger(f'{PARENT_LOG}.{__name__}')
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
 class MobCheck(DecisionGenerator):
@@ -17,10 +17,10 @@ class MobCheck(DecisionGenerator):
     Generator for checking if mobs are on screen.
     Emergency action is taken if mobs are not detected for a certain amount of time.
     """
-    def __init__(self,
-                 data: RoyalsData,
-                 time_threshold: int = 10,
-                 mob_threshold: int = 3) -> None:
+
+    def __init__(
+        self, data: RoyalsData, time_threshold: int = 10, mob_threshold: int = 3
+    ) -> None:
         self.data = data
         self.time_threshold = time_threshold
         self.mob_threshold = mob_threshold
@@ -39,13 +39,7 @@ class MobCheck(DecisionGenerator):
         nbr_mobs = 0
         mobs = self.data.current_mobs
         for mob in mobs:
-            nbr_mobs += mob.get_mob_count(self._img)
-
-        # TODO - Remove this
-        import cv2
-        cv2.imshow('client', self._img)
-        cv2.waitKey(1)
-        print(nbr_mobs)
+            nbr_mobs += mob.get_mob_count(self._img, debug=False)
 
         if nbr_mobs >= self.mob_threshold:
             self._last_mob_detection = time.perf_counter()
@@ -64,13 +58,31 @@ class MobCheck(DecisionGenerator):
         :return:
         """
         self._counter = 0
-        reaction_text = random.choice([
-            'wtf', 'wut', 'wtf?', 'hmmm?', '?', '???', 'uh', 'huh', 'tha hell', 'wth', 'wth?', 'wtf!', 'wtf!?',
-        ])
-        logger.warning(f'No mobs detected for {self.time_threshold} seconds. Writing {reaction_text}.')
+        reaction_text = random.choice(
+            [
+                "wtf",
+                "wut",
+                "wtf?",
+                "hmmm?",
+                "?",
+                "???",
+                "uh",
+                "huh",
+                "tha hell",
+                "wth",
+                "wth?",
+                "wtf!",
+                "wtf!?",
+            ]
+        )
+        logger.warning(
+            f"No mobs detected for {self.time_threshold} seconds. Writing {reaction_text}."
+        )
 
-        func = partial(controller.write, handle=self.data.handle, text=reaction_text)
-        return QueueAction(f'{self.__class__.__name__} reaction',
-                           priority=1,
-                           action=func,
-                           user_message=['No mobs detected for 10 seconds.', self._img])
+        func = partial(controller.write, handle=self.data.handle, message=reaction_text)
+        return QueueAction(
+            f"{self.__class__.__name__} reaction",
+            priority=1,
+            action=func,
+            user_message=[f"No mobs detected for {self.time_threshold} seconds.", self._img],
+        )

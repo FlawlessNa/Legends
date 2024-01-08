@@ -1,4 +1,5 @@
 import asyncio
+import cv2
 import discord
 import logging
 import multiprocessing.connection
@@ -174,19 +175,18 @@ class DiscordComm(discord.Client, ChildProcess):
                     self.pipe_end.close()
                     await self.close()
                     break
-                elif isinstance(signal, list):
-                    for item in signal:
-                        if isinstance(item, str):
-                            logger.info(
-                                f"{self.__class__.__name__} received a signal {item}. Sending to Discord."
-                            )
-                            await self.get_channel(self.chat_id).send(item)
-                        elif isinstance(item, np.ndarray):
-                            item.tofile('temp.png')
-                            with open("screenshot.png", "rb") as f:
-                                await self.get_channel(self.chat_id).send(file=discord.File(f))
-                            # Now delete the file
-                            os.remove("temp.png")
+                else:
+                    if isinstance(signal, str):
+                        logger.info(
+                            f"{self.__class__.__name__} received a signal {signal}. Sending to Discord."
+                        )
+                        await self.get_channel(self.chat_id).send(signal)
+                    elif isinstance(signal, np.ndarray):
+                        cv2.imwrite('temp.png', signal)
+                        with open("temp.png", "rb") as f:
+                            await self.get_channel(self.chat_id).send(file=discord.File(f))
+                        # Now delete the file
+                        os.remove("temp.png")
 
-                        else:
-                            raise NotImplementedError
+                    else:
+                        raise NotImplementedError

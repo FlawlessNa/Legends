@@ -13,6 +13,10 @@ class KerningLine1Area1Minimap(MinimapPathingMechanics):
     jump_height: int = 5
     jump_distance: int = 4
 
+    @property
+    def feature_cycle(self) -> list[MinimapFeature]:
+        return []
+
     bottom_platform: MinimapFeature = MinimapFeature(
         left=20,
         right=238,

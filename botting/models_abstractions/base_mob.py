@@ -29,6 +29,8 @@ class BaseMob(InGameBaseVisuals, ABC):
     _minimal_rect_area: int = NotImplemented
     _maximal_rect_area: int = NotImplemented
 
+    _multiplier: int = NotImplemented  # Used to count mobs on screen, since some mobs are counted as multiple contours.
+
     def __init__(self, detection_box: Box):
         self.detection_box = detection_box
 
@@ -40,7 +42,7 @@ class BaseMob(InGameBaseVisuals, ABC):
         """
         pass
 
-    def get_onscreen_mobs(self, image: np.ndarray) -> list[Sequence[int]]:
+    def get_onscreen_mobs(self, image: np.ndarray, debug: bool = True) -> list[Sequence[int]]:
         """
         Returns a list of tuples of the coordinates for each mob found on-screen.
         :return: Coordinates are, in order, x, y, width, height.
@@ -50,17 +52,17 @@ class BaseMob(InGameBaseVisuals, ABC):
             processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
         try:
-            if DEBUG:
+            if DEBUG and debug:
                 _debug(image, list(self._filter(contours)))
             return [cv2.boundingRect(cnt) for cnt in self._filter(contours)]
         except Exception as e:
             breakpoint()
 
-    def get_mob_count(self, image: np.ndarray) -> int:
+    def get_mob_count(self, image: np.ndarray, **kwargs) -> int:
         """
         Returns the number of mobs found on-screen.
         """
-        return len(self.get_onscreen_mobs(image))
+        return len(self.get_onscreen_mobs(image, **kwargs)) // self._multiplier
 
 
 def _debug(image: np.ndarray, contours) -> None:

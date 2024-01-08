@@ -34,14 +34,11 @@ class SessionManager(BotLauncher, DiscordLauncher, RecorderLauncher):
     def __init__(self, *bots_to_launch: Executor) -> None:
         self.bots = bots_to_launch
 
-        self.bot_launcher = BotLauncher(self.logging_queue)
-        self.discord_launcher = DiscordLauncher(self.logging_queue)
-        self.recorder_launcher = RecorderLauncher(self.logging_queue)
-        # BotLauncher.__init__(self, self.logging_queue)
-        # DiscordLauncher.__init__(self, self.logging_queue)
-        # RecorderLauncher.__init__(self, self.logging_queue)
+        BotLauncher.__init__(self, self.logging_queue)
+        DiscordLauncher.__init__(self, self.logging_queue)
+        RecorderLauncher.__init__(self, self.logging_queue)
         Executor.update_logging_queue(self.logging_queue)
-        Executor.update_discord_pipe(self.discord_launcher.main_side)
+        Executor.update_discord_pipe(self.main_side)
         self.log_listener = logging.handlers.QueueListener(
             self.logging_queue, *logger.parent.handlers, respect_handler_level=True
         )

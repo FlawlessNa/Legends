@@ -10,6 +10,7 @@ class DreamyGhost(BaseMob):
     _color_upper = np.array([225, 205, 255])
     _minimal_rect_width = 8
     _minimal_rect_height = 10
+    _multiplier = 3
 
     def __init__(self, detection_box: Box):
         super().__init__(detection_box)
