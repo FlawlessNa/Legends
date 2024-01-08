@@ -73,6 +73,7 @@ class Executor:
     @classmethod
     async def relay_disc_to_main(cls) -> None:
         """
+        TODO - Refactor to make it work with multiple executors simultaneously. Requires improved parsing.
         Main Process task.
         Responsible for listening to the discord process and see if any actions
          are requested by discord user.
