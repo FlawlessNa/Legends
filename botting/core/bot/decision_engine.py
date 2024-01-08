@@ -1,4 +1,5 @@
 import multiprocessing
+import time
 
 from abc import ABC, abstractmethod
 
@@ -86,15 +87,19 @@ class DecisionEngine(ChildProcess, ABC):
                     if res:
                         self.pipe_end.send(res)
 
-                for rotation in map_rotation:
-                    res = next(rotation)
-                    if res:
-                        self.pipe_end.send(res)
+                if not self.game_data.block_rotation:
+                    for rotation in map_rotation:
+                        res = next(rotation)
+                        if res:
+                            self.pipe_end.send(res)
 
                 for check in anti_detection:
                     res = next(check)
                     if res:
                         self.pipe_end.send(res)
+
+                if self.game_data.shut_down_at is not None and time.perf_counter() > self.game_data.shut_down_at:
+                    break
 
         except Exception as e:
             raise

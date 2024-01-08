@@ -28,7 +28,7 @@ def message_parser(
     :return: If True, the loop relaying messages from Discord to the main process will be stopped.
     """
 
-    supported_commands = ["kill", "pause", "resume", "stop", "write"]
+    supported_commands = ["kill", "pause", "resume", "stop", "write", "hold"]
 
     # Command is always the first word
     command = message.lower().split(" ")[0]
@@ -39,11 +39,25 @@ def message_parser(
         case "pause":
             pass
         case "resume":
-            pass
+            return QueueAction(
+                identifier='Resuming',
+                priority=0,
+                action=partial(asyncio.sleep, 0),
+                user_message=["Resuming all bots"],
+                update_game_data={'shut_down_at': None, 'block_rotation': False}
+            )
         case "stop":
             pass
         case "write":
             pass
+        case "hold":
+            return QueueAction(
+                identifier='Hold',
+                priority=0,
+                action=partial(asyncio.sleep, 0),
+                user_message=["All bots now on hold"],
+                update_game_data={'shut_down_at': None, 'block_rotation': True}
+            )
         case _:
             return QueueAction(
                 identifier='Unknown Discord Command', priority=0,

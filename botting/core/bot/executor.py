@@ -207,7 +207,7 @@ class Executor:
                 f"Rotation Lock released on {self} through callback. {fut.get_name()} is Done."
             )
 
-    def _send_update_signal_callback(self, signal: tuple[str], fut):
+    def _send_update_signal_callback(self, signal: tuple[str] | dict, fut):
         """
         Callback to use on map rotation actions if they need to update game data.
         Sends a signal back to the Child process to appropriately update Game Data. This way, CPU-intensive resources

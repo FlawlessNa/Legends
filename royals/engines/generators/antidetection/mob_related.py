@@ -60,7 +60,6 @@ class MobCheck(DecisionGenerator):
         3. Send Discord Alert
         :return:
         """
-        self._counter = 0
         reaction_text = random.choice(
             [
                 "wtf",
@@ -84,9 +83,16 @@ class MobCheck(DecisionGenerator):
 
         func = partial(write_in_chat, handle=self.data.handle, message=reaction_text, channel='general')
         self._last_trigger = time.perf_counter()
+        self.data.update(block_rotation=True, shut_down_at=self._last_trigger + self.cooldown)
         return QueueAction(
             f"{self.__class__.__name__} reaction",
             priority=1,
             action=func,
-            user_message=[f"No mobs detected for {self.time_threshold} seconds.", self._img],
+            user_message=[
+                f"""
+                No mobs detected for {self.time_threshold} seconds. Shutting Down in {self.cooldown} seconds.
+                Send Resume to continue.
+                Send Hold to pause indefinitely.
+                """,
+                self._img],
         )
