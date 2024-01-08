@@ -83,6 +83,7 @@ class MobCheck(DecisionGenerator):
 
         func = partial(write_in_chat, handle=self.data.handle, message=reaction_text, channel='general')
         self._last_trigger = time.perf_counter()
+        self._counter = 0
         self.data.update(block_rotation=True, shut_down_at=self._last_trigger + self.cooldown)
         return QueueAction(
             f"{self.__class__.__name__} reaction",

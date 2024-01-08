@@ -80,7 +80,10 @@ class DecisionEngine(ChildProcess, ABC):
                     signal = self.pipe_end.recv()
                     if signal is None:
                         return
-                    self.game_data.update(signal)
+                    elif isinstance(signal, dict):
+                        self.game_data.update(**signal)
+                    else:
+                        self.game_data.update(signal)
 
                 for check in generators:
                     res = next(check)
