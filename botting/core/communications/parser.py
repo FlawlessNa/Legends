@@ -4,7 +4,7 @@ import logging
 from functools import partial
 from typing import Optional
 
-from botting.core import QueueAction
+from botting.core.bot.action import QueueAction
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,6 @@ def message_parser(
                  -h: Whisper chat (responding to last whisper)
 
     :param message: The message to parse, received from Discord and written by user. The first word should always be the command to perform.
-    :param main_pipe: The end of the Pipe object that connects main process to the child.
     :return: If True, the loop relaying messages from Discord to the main process will be stopped.
     """
 
@@ -36,8 +35,6 @@ def message_parser(
 
     match command:
         case "kill":
-            # TODO - Close clients as well?
-            logger.info("Received KILL signal from Discord. Stopping all bots.")
             return None
         case "pause":
             pass
@@ -49,7 +46,7 @@ def message_parser(
             pass
         case _:
             return QueueAction(
-
+                identifier='Unknown Discord Command', priority=0,
                 action=partial(asyncio.sleep, 0),
-                user_message=f"Command {command} not recognized."
+                user_message=[f"Command {command} not recognized."]
             )

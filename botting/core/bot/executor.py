@@ -56,7 +56,9 @@ class Executor:
         cls.blocker.set()  # Unblocks all Bots
 
         async with asyncio.TaskGroup() as tg:
-            cls.discord_listener = tg.create_task(cls.relay_disc_to_main(), name="Discord Listener")
+            cls.discord_listener = tg.create_task(
+                cls.relay_disc_to_main(), name="Discord Listener"
+            )
             for bot in cls.all_bots:
                 bot.main_task = tg.create_task(bot.engine_listener(), name=repr(bot))
                 logger.info(f"Created task {bot.main_task.get_name()}.")
@@ -66,6 +68,7 @@ class Executor:
         for bot in cls.all_bots:
             bot.bot_side.send(None)
         cls.discord_pipe.send(None)
+        cls.discord_listener.cancel()
 
     @classmethod
     async def relay_disc_to_main(cls) -> None:
@@ -139,6 +142,11 @@ class Executor:
                     )
                     task.cancel()
 
+        if queue_item.user_message is not None:
+            logger.info(f"Sending message towards Discord Process")
+            for msg in queue_item.user_message:
+                self.discord_pipe.send(msg)
+
         return new_task
 
     @classmethod
@@ -147,7 +155,9 @@ class Executor:
         cls.logging_queue = logging_queue
 
     @classmethod
-    def update_discord_pipe(cls, discord_pipe: multiprocessing.connection.Connection) -> None:
+    def update_discord_pipe(
+        cls, discord_pipe: multiprocessing.connection.Connection
+    ) -> None:
         """Updates the discord pipe for all bots."""
         cls.discord_pipe = discord_pipe
 
@@ -246,11 +256,6 @@ class Executor:
 
                 new_task = self.create_task(queue_item)
                 logger.debug(f"Created task {new_task.get_name()}.")
-
-                if queue_item.user_message is not None:
-                    logger.info(f'Sending message towards Discord Process')
-                    for msg in queue_item.user_message:
-                        self.discord_pipe.send(msg)
 
                 if len(asyncio.all_tasks()) > 15:
                     logger.warning(

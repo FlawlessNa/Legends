@@ -78,7 +78,7 @@ class DecisionEngine(ChildProcess, ABC):
                 while self.pipe_end.poll():
                     signal = self.pipe_end.recv()
                     if signal is None:
-                        break
+                        return
                     self.game_data.update(signal)
 
                 for check in generators:
