@@ -1,3 +1,4 @@
+from .antidetection.mob_related import MobCheck
 from .rotations.smart_rotation import SmartRotation
 from .rotations.hit_mobs import MobsHitting
 from .rotations.random_rotation import random_rotation

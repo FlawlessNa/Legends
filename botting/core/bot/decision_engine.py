@@ -69,6 +69,9 @@ class DecisionEngine(ChildProcess, ABC):
             map_rotation = [
                 gen() for gen in self.next_map_rotation()
             ]  # Instantiate all map rotation generators
+            anti_detection = [
+                gen() for gen in self.anti_detection_checks()
+            ]  # Instantiate all anti-detection checks generators
 
             while True:
                 # If main process sends None, it means we are exiting.
@@ -85,6 +88,11 @@ class DecisionEngine(ChildProcess, ABC):
 
                 for rotation in map_rotation:
                     res = next(rotation)
+                    if res:
+                        self.pipe_end.send(res)
+
+                for check in anti_detection:
+                    res = next(check)
                     if res:
                         self.pipe_end.send(res)
 
