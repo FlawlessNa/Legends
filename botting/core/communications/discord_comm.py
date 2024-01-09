@@ -154,7 +154,8 @@ class DiscordComm(discord.Client, ChildProcess):
                         logger.info(
                             f"{self.__class__.__name__} received a signal {signal}. Sending to Discord."
                         )
-                        await self.get_channel(self.chat_id).send(signal)
+                        msg = f'<@{self.config[self.config_section]["DISCORD_ID"]}> {signal}'
+                        await self.get_channel(self.chat_id).send(msg)
                     elif isinstance(signal, np.ndarray):
                         cv2.imwrite('temp.png', signal)
                         with open("temp.png", "rb") as f:
