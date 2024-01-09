@@ -1,11 +1,13 @@
 import asyncio
+import cv2
 import discord
 import logging
 import multiprocessing.connection
+import numpy as np
+import os
 
 from functools import cached_property
 
-from .parser import message_parser
 from botting.utilities import ChildProcess, config_reader
 
 logger = logging.getLogger(__name__)
@@ -24,7 +26,6 @@ class DiscordLauncher:
         self.main_side, self.discord_side = multiprocessing.Pipe()
         self.logging_queue = queue
         self.discord_process = None
-        self.discord_listener = None
 
     def __enter__(self) -> None:
         self.discord_process = multiprocessing.Process(
@@ -33,38 +34,14 @@ class DiscordLauncher:
             args=(self.discord_side, self.logging_queue),
         )
         self.discord_process.start()
-        self.discord_listener = asyncio.create_task(
-            self.relay_disc_to_main(), name="Discord Action Dispatcher"
-        )
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.main_side.send(None)
         self.main_side.close()
         logger.debug("Sent stop signal to discord process")
 
-        logger.debug("Stopping the Discord Action Dispatcher")
-        self.discord_listener.cancel()
-
         self.discord_process.join()
         logger.info(f"DiscordLauncher exited.")
-
-    async def relay_disc_to_main(self) -> None:
-        """
-        Main Process task.
-        Responsible for listening to the discord process and see if any actions
-         are requested by discord user.
-        It then performs those actions.
-        :return: None
-        """
-        while True:
-            if await asyncio.to_thread(self.main_side.poll):
-                message = self.main_side.recv()
-                action = message_parser(message, self.main_side)
-                if action is not None:
-                    logger.info(
-                        f"Performing action {action} as requested by discord user."
-                    )
-                    action()
 
     @staticmethod
     def start_discord_comms(
@@ -173,7 +150,18 @@ class DiscordComm(discord.Client, ChildProcess):
                     await self.close()
                     break
                 else:
-                    logger.info(
-                        f"{self.__class__.__name__} received a signal {signal}. Sending to Discord."
-                    )
-                    await self.get_channel(self.chat_id).send(signal)
+                    if isinstance(signal, str):
+                        logger.info(
+                            f"{self.__class__.__name__} received a signal {signal}. Sending to Discord."
+                        )
+                        msg = f'<@{self.config[self.config_section]["DISCORD_ID"]}> {signal}'
+                        await self.get_channel(self.chat_id).send(msg)
+                    elif isinstance(signal, np.ndarray):
+                        cv2.imwrite('temp.png', signal)
+                        with open("temp.png", "rb") as f:
+                            await self.get_channel(self.chat_id).send(file=discord.File(f))
+                        # Now delete the file
+                        os.remove("temp.png")
+
+                    else:
+                        raise NotImplementedError

@@ -8,7 +8,7 @@ from botting.utilities import (
     CLIENT_HORIZONTAL_MARGIN_PX,
     CLIENT_VERTICAL_MARGIN_PX,
 )
-from royals.models_implementations.characters.character import Character
+from royals.characters.character import Character
 from royals.models_implementations.mechanics import MinimapPathingMechanics
 
 
@@ -25,13 +25,21 @@ class RoyalsData(GameData):
     current_minimap_position: tuple[int, int] = field(repr=False, init=False)
     current_minimap_feature: Box = field(repr=False, init=False)
     character_in_a_ladder: bool = field(repr=False, init=False, default=False)
+    currently_attacking: bool = field(repr=False, init=False, default=False)
+    last_mob_detection: float = field(repr=False, init=False, default=0)
 
     def update(self, *args, **kwargs) -> None:
-        if (
-            kwargs.get("current_direction", self.current_direction)
-            != self.current_direction
-        ):
+        direction = kwargs.pop("current_direction", self.current_direction)
+        if direction != self.current_direction:
             self.current_direction = kwargs["current_direction"]
+
+        for k, v in kwargs.items():
+            assert (
+                hasattr(self, k)
+                or k in self.__annotations__
+                or any(k in base.__annotations__ for base in self.__class__.__bases__)
+            ), f"Invalid attribute {k}."
+            setattr(self, k, v)
 
         if "current_minimap_area_box" in args:
             self.current_minimap_area_box = self.current_minimap.get_map_area_box(
@@ -47,7 +55,7 @@ class RoyalsData(GameData):
             new_pos = self.current_minimap.get_character_positions(
                 self.handle, map_area_box=self.current_minimap_area_box
             )
-            assert len(new_pos) == 1
+            assert len(new_pos) == 1, f"Found {len(new_pos)} positions."
             self.current_minimap_position = new_pos.pop()
             self.current_minimap_feature = self.current_minimap.get_feature_containing(
                 self.current_minimap_position
@@ -74,5 +82,10 @@ class RoyalsData(GameData):
             )
             hide_tv_smega_box = Box(left=700, right=1024, top=0, bottom=300)
             self.current_on_screen_position = self.character.get_onscreen_position(
-                None, self.handle, [hide_minimap_box, hide_tv_smega_box]
+                None,
+                self.handle,
+                [
+                    hide_minimap_box,
+                    hide_tv_smega_box,
+                ],  # TODO - Add Chat Box as well into hiding
             )

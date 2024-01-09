@@ -1,4 +1,4 @@
-from .test_bot import TestBot
 from .ludi_freemarket_roaming import LudiFreeMarketRoaming
-from .subway_magician_training import SubwayMagicianTraining
-from .subway_magician_training_2 import SubwayMagicianTraining2
+from .mysterious_path3_training import MysteriousPath3Training
+from .path_of_time1_training import PathOfTime1Training
+from .subway_area2_training import SubwayTraining2

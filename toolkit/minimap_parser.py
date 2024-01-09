@@ -12,9 +12,9 @@ from paths import ROOT
 from royals.interface.dynamic_components.minimap import Minimap
 from botting.utilities import Box
 
-HANDLE = 0x02300A26
+HANDLE = 0x00F90FA4
 OUTPUT_LOCATION = os.path.join(ROOT, "royals/models_implementations/minimaps/")
-OUTPUT_NAME = "test.py"
+OUTPUT_NAME = "mysterious_path3.py"
 
 container = []
 
@@ -58,6 +58,9 @@ def write_feature(cont: list) -> None:
 
 if __name__ == "__main__":
     minimap = FakeMinimap()
+    map_area_box = minimap.get_map_area_box(HANDLE)
+    minimap.map_area_width = map_area_box.width
+    minimap.map_area_height = map_area_box.height
 
     with open(os.path.join(OUTPUT_LOCATION, OUTPUT_NAME), "w") as f:
         f.write(

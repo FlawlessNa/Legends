@@ -8,15 +8,14 @@ class Test(TestCase):
         self.logger = logger
 
     def test_config_reader(self):
-
-        with self.assertLogs(self.logger, level='DEBUG') as cm:
-            config_reader(filename='game', section='Client', option='Window Titles')
+        with self.assertLogs(self.logger, level="DEBUG") as cm:
+            config_reader(filename="game", section="Client", option="Window Titles")
 
         with self.assertRaises(AssertionError):
-            config_reader(filename='keybindings', file_ext='.txt')
+            config_reader(filename="keybindings", file_ext=".txt")
 
         with self.assertRaises(KeyError):
-            config_reader(filename='keybindings', section='random_section')
+            config_reader(filename="keybindings", section="random_section")
 
         with self.assertRaises(KeyError):
-            config_reader(filename='game', section='Client', option='random_option')
+            config_reader(filename="game", section="Client", option="random_option")

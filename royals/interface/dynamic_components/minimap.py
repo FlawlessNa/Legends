@@ -22,6 +22,8 @@ class Minimap(InGameDynamicVisuals, ABC):
 
     map_area_width: int = NotImplemented  # Subclass responsibility
     map_area_height: int = NotImplemented  # Subclass responsibility
+    full_map_area_left_offset: int = NotImplemented  # Subclass responsibility
+    full_map_area_right_offset: int = NotImplemented  # Subclass responsibility
 
     _menu_icon_detection_needle: np.ndarray = cv2.imread(
         os.path.join(
@@ -221,20 +223,26 @@ class Minimap(InGameDynamicVisuals, ABC):
                         - CLIENT_HORIZONTAL_MARGIN_PX : entire_minimap_box.right
                         - CLIENT_HORIZONTAL_MARGIN_PX,
                     ]
-                    _THRESHOLD = 160  # If mean column intensity above threshold, it's a vertical bright band to get rid of
                     gray = cv2.cvtColor(temp_img, cv2.COLOR_BGR2GRAY)
                     mean_vertical_intensity = np.mean(gray, axis=0)
-                    pale_columns = np.where(mean_vertical_intensity > _THRESHOLD)[0]
-                    extra_width = 0
-                    if pale_columns.size > 0:
-                        extra_width = (
-                            pale_columns[np.argmax(np.diff(pale_columns))] + 1
-                        ) * 2
+                    differences = np.abs(np.diff(mean_vertical_intensity))
+                    _THRESHOLD = 100  # If extremities show large differences in brightness, get rid of them
+                    extra_columns = np.where(differences > _THRESHOLD)[0]
+                    while extra_columns.size <= 1:
+                        _THRESHOLD -= 2
+                        extra_columns = np.where(differences > _THRESHOLD)[0]
+                    if extra_columns.size > 0:
+                        left_offset = extra_columns[0] + 1
+                        right_offset = -(mean_vertical_intensity.shape[0] - extra_columns[-1] - 1)
+                    else:
+                        left_offset = right_offset = 0
                 else:
                     extra_width = entire_minimap_box.width - self.map_area_width
-                assert extra_width % 2 == 0
-                left_offset = extra_width // 2
-                right_offset = -extra_width // 2
+                    if extra_width % 2 == 0:
+                        left_offset = right_offset = extra_width // 2
+                    else:
+                        left_offset = self.full_map_area_left_offset
+                        right_offset = -self.full_map_area_right_offset
             else:
                 top_offset = self._minimap_area_top_offset_partial
                 left_offset = 0

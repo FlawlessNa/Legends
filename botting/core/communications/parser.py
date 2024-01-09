@@ -1,17 +1,17 @@
+import asyncio
 import logging
-import multiprocessing.connection
 
 from functools import partial
 from typing import Optional
 
-from ..bot import Executor
+from botting.core.bot.action import QueueAction
 
 logger = logging.getLogger(__name__)
 
 
 def message_parser(
-    message: str, main_pipe: multiprocessing.connection.Connection
-) -> Optional[callable]:
+    message: str
+) -> Optional[QueueAction]:
     """
     Message Parsing is made inside the Main Process. This way, the returned actions are not required to be picklable (e.g. transferable between processes).
     Supported commands:
@@ -25,27 +25,42 @@ def message_parser(
                  -h: Whisper chat (responding to last whisper)
 
     :param message: The message to parse, received from Discord and written by user. The first word should always be the command to perform.
-    :param main_pipe: The end of the Pipe object that connects main process to the child.
     :return: If True, the loop relaying messages from Discord to the main process will be stopped.
     """
 
-    supported_commands = ["kill", "pause", "resume", "stop", "write"]
+    supported_commands = ["kill", "pause", "resume", "stop", "write", "hold"]
 
     # Command is always the first word
     command = message.lower().split(" ")[0]
 
     match command:
         case "kill":
-            # TODO - Close clients as well?
-            logger.info("Received KILL signal from Discord. Stopping all bots.")
-            return Executor.cancel_all
+            return None
         case "pause":
             pass
         case "resume":
-            pass
+            return QueueAction(
+                identifier='Resuming',
+                priority=0,
+                action=partial(asyncio.sleep, 0),
+                user_message=["Resuming all bots"],
+                update_game_data={'shut_down_at': None, 'block_rotation': False}
+            )
         case "stop":
             pass
         case "write":
             pass
+        case "hold":
+            return QueueAction(
+                identifier='Hold',
+                priority=0,
+                action=partial(asyncio.sleep, 0),
+                user_message=["All bots now on hold"],
+                update_game_data={'shut_down_at': None, 'block_rotation': True}
+            )
         case _:
-            return partial(main_pipe.send, f"Command {command} not recognized.")
+            return QueueAction(
+                identifier='Unknown Discord Command', priority=0,
+                action=partial(asyncio.sleep, 0),
+                user_message=[f"Command {command} not recognized."]
+            )

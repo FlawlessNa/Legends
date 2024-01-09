@@ -102,7 +102,11 @@ class TestChildProcess(TestCase):
         processes = [
             multiprocessing.Process(
                 target=self._child_proc_three_four,
-                args=(self.shared_queue, None, int(100000 / self.nbr_subprocesses)),  # Log a very large number of records such that the file is rotated.
+                args=(
+                    self.shared_queue,
+                    None,
+                    int(100000 / self.nbr_subprocesses),
+                ),  # Log a very large number of records such that the file is rotated.
                 name=f"{i}",
             )
             for i in range(self.nbr_subprocesses)
@@ -116,6 +120,7 @@ class TestChildProcess(TestCase):
             :param emit_func: the emit function of a Handler.
             :return:
             """
+
             def inner(*args, **kwargs):
                 nonlocal i
                 i += 1
@@ -128,7 +133,9 @@ class TestChildProcess(TestCase):
             # Wrap the emit function of the RotatingFileHandler to count the number of times it is called.
             if isinstance(handler, logging.handlers.RotatingFileHandler):
                 handler.emit = wrapper(handler.emit)
-                initial_nbr_log_files = len(os.listdir(os.path.dirname(handler.baseFilename)))
+                initial_nbr_log_files = len(
+                    os.listdir(os.path.dirname(handler.baseFilename))
+                )
 
         self.listener.start()
         for process in processes:
