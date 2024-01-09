@@ -12,6 +12,8 @@
   - [ ] Minimap parsing to ensure still in proper map + random reaction
   - [ ] Mob freeze (from a GM) + random reaction
   - [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs + random reaction
+  - [ ] GM Logo detection
+  - [ ] Nice-to-have, for Ulu only - look into building an "unknown" object detection method, using UNKAD methodology
 - [x] Significant improvements required to Character detection - detection needs to be more stable
   - [ ] Standardize code and transfer detection framework into botting library
 - [ ] Implement better handling of QueueAction Priority
