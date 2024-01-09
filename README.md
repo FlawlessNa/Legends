@@ -4,6 +4,7 @@
 - [ ] Generic Generator class for the botting library + incorporated failsafe methods
 -  [ ] Add failsafe on MobHitting?
 -  [ ] Add failsafe on Rebuff?
+- [ ] Add a generic RotationGenerator for re-usable functions and methods
 - [ ] Anti Detection Features -> Features are monitored in the child processes, but reactions and coordinations between clients done in Main
   - [ ] Chat Parsing + Automated Responses
   - [ ] Blue Notification detection (chat invite, other invites, etc)

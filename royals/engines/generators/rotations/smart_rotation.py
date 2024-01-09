@@ -18,7 +18,13 @@ logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
 class SmartRotation(DecisionGenerator):
-    def __init__(self, data: RoyalsData, lock: mp.Lock, teleport: Skill = None, time_limit: float = 15) -> None:
+    def __init__(
+        self,
+        data: RoyalsData,
+        lock: mp.Lock,
+        teleport: Skill = None,
+        time_limit: float = 15,
+    ) -> None:
         self.data = data
         self.time_limit = time_limit
         self._lock = lock
@@ -29,6 +35,7 @@ class SmartRotation(DecisionGenerator):
         self._next_target = None  # Used for rotation
         self._next_feature_covered = None  # Used for rotation
 
+        self._prev_pos = None  # Used for failsafe
         self._last_pos_change = None  # Used for failsafe
         self._deadlock_counter = 0  # Used for failsafe
 
@@ -50,6 +57,8 @@ class SmartRotation(DecisionGenerator):
         return iter(self)
 
     def __next__(self) -> QueueAction | None:
+        self._prev_pos = self.data.current_minimap_position
+        self.data.update("current_minimap_position")
         self._set_next_target()
         res = self._single_iteration()
 
@@ -125,10 +134,8 @@ class SmartRotation(DecisionGenerator):
 
     def _single_iteration(self) -> callable:
         res = None
-        prev_pos = self.data.current_minimap_position
-        self.data.update("current_minimap_position")
 
-        if prev_pos != self.data.current_minimap_position:
+        if self._prev_pos != self.data.current_minimap_position:
             self._last_pos_change = time.perf_counter()
 
         actions = get_to_target(
@@ -163,7 +170,6 @@ class SmartRotation(DecisionGenerator):
         return res
 
     def _failsafe(self) -> callable:
-
         # If no change in position for 5 seconds, trigger failsafe
         if time.perf_counter() - self._last_pos_change > 15:
             logger.warning(

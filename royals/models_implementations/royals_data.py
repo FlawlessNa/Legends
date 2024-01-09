@@ -9,7 +9,7 @@ from botting.utilities import (
     CLIENT_VERTICAL_MARGIN_PX,
 )
 from royals.characters.character import Character
-from royals.models_implementations.mechanics import MinimapPathingMechanics
+from royals.models_implementations.mechanics import MinimapPathingMechanics, MinimapFeature
 
 
 @dataclass
@@ -23,7 +23,7 @@ class RoyalsData(GameData):
     current_minimap_area_box: Box = field(repr=False, init=False)
     current_entire_minimap_box: Box = field(repr=False, init=False)
     current_minimap_position: tuple[int, int] = field(repr=False, init=False)
-    current_minimap_feature: Box = field(repr=False, init=False)
+    current_minimap_feature: MinimapFeature = field(repr=False, init=False)
     character_in_a_ladder: bool = field(repr=False, init=False, default=False)
     currently_attacking: bool = field(repr=False, init=False, default=False)
     last_mob_detection: float = field(repr=False, init=False, default=0)

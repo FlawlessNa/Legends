@@ -21,6 +21,7 @@ DEBUG = True
 class Character(BaseCharacter, ABC):
     detection_box_large_client: Box = Box(left=0, right=1024, top=29, bottom=700)
     detection_box_small_client: Box = NotImplemented
+    main_skill: str = NotImplemented
 
     def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:
         super().__init__(ign)

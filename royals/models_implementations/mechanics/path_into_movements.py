@@ -122,6 +122,10 @@ def _translate_path_into_movements(
         if current_feature is None:
             continue  # TODO - See if this causes any issue
 
+        next_feature = in_game_minimap.get_feature_containing(
+            (next_node.x, next_node.y)
+        )
+
         dx = next_node.x - current_node.x
         dy = next_node.y - current_node.y
 
@@ -132,9 +136,9 @@ def _translate_path_into_movements(
             movements.append("right")
         elif dx == -1 and dy == 0 and current_feature.is_platform:
             movements.append("left")
-        elif dx == 0 and dy == 1 and current_feature.is_ladder:
+        elif dx == 0 and dy == 1 and (current_feature.is_ladder or next_feature.is_ladder):
             movements.append("down")
-        elif dx == 0 and dy == -1 and current_feature.is_ladder:
+        elif dx == 0 and dy == -1 and (current_feature.is_ladder or next_feature.is_ladder):
             movements.append("up")
 
         # Otherwise, Nodes are connected. Need to determine connection type.

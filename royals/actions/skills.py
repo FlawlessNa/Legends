@@ -32,7 +32,7 @@ async def cast_skill(
 async def teleport(
     handle: int,
     ign: str,
-    direction: Literal["left", "right", "down", "up"],
+    direction: str,
     teleport_skill: Skill,
 ):
     """
@@ -50,3 +50,37 @@ async def teleport(
         )
     finally:
         await controller.press(handle, direction, cooldown=0, down_or_up="keyup")
+
+
+async def telecast(
+    handle: int,
+    ign: str,
+    direction: str,
+    teleport_skill: Skill,
+    ultimate_skill: Skill
+):
+    """
+    Teleport while casting ultimate in a given direction.
+    :param handle:
+    :param ign:
+    :param direction:
+    :param teleport_skill:
+    :param ultimate_skill:
+    :return:
+    """
+    try:
+        await controller.press(handle, direction, cooldown=0, down_or_up="keydown")
+        await controller.press(
+            handle, teleport_skill.key_bind(ign), cooldown=0, down_or_up="keydown"
+        )
+        await controller.press(
+            handle, ultimate_skill.key_bind(ign), cooldown=0, down_or_up="keydown"
+        )
+    finally:
+        await controller.press(handle, direction, cooldown=0, down_or_up="keyup")
+        await controller.press(
+            handle, teleport_skill.key_bind(ign), cooldown=0, down_or_up="keyup"
+        )
+        await controller.press(
+            handle, ultimate_skill.key_bind(ign), cooldown=teleport_skill.animation_time, down_or_up="keyup"
+        )

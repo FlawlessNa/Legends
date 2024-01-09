@@ -10,6 +10,7 @@ class Bubbling(BaseMob):
     _minimal_rect_height = 25
     _minimal_rect_area = 350
     _maximal_rect_area = 5000
+    _multiplier = 1
 
     @classmethod
     def _preprocess_img(cls, image: np.ndarray) -> np.ndarray:
