@@ -311,10 +311,10 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         vertical_range = self.teleport_v_up_dist // 2
         assert direction in ["left", "right"], "Invalid direction for teleport."
         if direction == "right":
-            x_val = starting_point[0] + self.teleport_h_dist
+            x_val = min(starting_point[0] + self.teleport_h_dist, grid.width)
             connection_type = MinimapConnection.TELEPORT_RIGHT
         else:
-            x_val = starting_point[0] - self.teleport_h_dist
+            x_val = max(starting_point[0] - self.teleport_h_dist, 0)
             connection_type = MinimapConnection.TELEPORT_LEFT
 
         for y_val in range(
