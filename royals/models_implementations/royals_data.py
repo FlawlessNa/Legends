@@ -27,6 +27,7 @@ class RoyalsData(GameData):
     character_in_a_ladder: bool = field(repr=False, init=False, default=False)
     currently_attacking: bool = field(repr=False, init=False, default=False)
     last_mob_detection: float = field(repr=False, init=False, default=0)
+    next_target: tuple[int, int] = field(repr=False, init=False)
 
     def update(self, *args, **kwargs) -> None:
         direction = kwargs.pop("current_direction", self.current_direction)

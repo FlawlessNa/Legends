@@ -82,11 +82,11 @@ class LeechingEngine(DecisionEngine):
                 ultimate=self._training_skill,
                 mob_threshold=self._mob_count_threshold,
             ),
-            # LocalizedRebuff(self.game_data,
-            #                 self.rotation_lock,
-            #                 self._teleport_skill,
-            #                 buffs,
-            #                 self._rebuff_location)
+            LocalizedRebuff(self.game_data,
+                            self.rotation_lock,
+                            self._teleport_skill,
+                            buffs,
+                            self._rebuff_location)
         ]
 
     def anti_detection_checks(self) -> list[DecisionGenerator]:

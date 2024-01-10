@@ -79,7 +79,7 @@ class LocalizedRebuff(Rotation):
                 math.dist(self.data.current_minimap_position, self.target)
                 > self._minimap_range
             ):
-                pass
+                self.data.update(next_target=self.target)
                 # actions = get_to_target(
                 #     self.data.current_minimap_position,
                 #     self.target,
@@ -102,7 +102,7 @@ class LocalizedRebuff(Rotation):
                     min(skill.duration for skill in self.buffs) * random.uniform(0.9, 1)
                 )
                 action = partial(self.cast_all, self.buffs, self.data.handle, self.data.ign)
-                return QueueAction("Rebuffing on Party", 2, action, release_lock_on_callback=True)
+                return QueueAction("Rebuffing on Party", 2, action, is_cancellable=False)
 
     def _failsafe(self, *args, **kwargs):
         pass
@@ -110,6 +110,7 @@ class LocalizedRebuff(Rotation):
     @staticmethod
     async def _run_all_actions(partials, timeout: int = 5):
         async def _coro():
+            await asyncio.sleep(0.25)
             for action in partials:
                 await action()
         await asyncio.wait_for(_coro(), timeout=timeout)

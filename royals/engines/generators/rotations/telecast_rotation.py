@@ -32,7 +32,8 @@ class TelecastRotation(Rotation):
         self._mob_threshold = mob_threshold
 
     def __call__(self):
-        self._next_target = self.data.current_minimap.random_point()
+        self.data.update(next_target=self.data.current_minimap.random_point())
+        self._next_target = self.data.next_target
         self._last_pos_change = time.perf_counter()
         return iter(self)
 
@@ -40,7 +41,8 @@ class TelecastRotation(Rotation):
         if math.dist(self.data.current_minimap_position, self._next_target) > 2:
             pass
         else:
-            self._next_target = self.data.current_minimap.random_point()
+            self.data.update(next_target=self.data.current_minimap.random_point())
+        self._next_target = self.data.next_target
 
     def _single_iteration(self):
         img = take_screenshot(self.data.handle, self.data.current_map.detection_box)
@@ -64,7 +66,7 @@ class TelecastRotation(Rotation):
 
             else:
                 # Sufficient mobs and not currently on a ladder
-                if not actions[0].func.__name__ == 'teleport':
+                if not actions[0].func.__name__ == "teleport":
                     # If first movement isn't a teleport, simply cast skill instead
                     res = partial(
                         cast_skill, self.data.handle, self.data.ign, self._ultimate
@@ -80,29 +82,32 @@ class TelecastRotation(Rotation):
                                 "direction", self.data.current_direction
                             )
                         )
-                    res = partial(self._full_telecast,
-                                  self.data.handle,
-                                  self.data.ign,
-                                  self._teleport,
-                                  self._ultimate,
-                                  directions
-                                  )
+                    res = partial(
+                        self._full_telecast,
+                        self.data.handle,
+                        self.data.ign,
+                        self._teleport,
+                        self._ultimate,
+                        directions,
+                    )
 
             if self._lock is None:
                 return res
             elif self._lock.acquire(block=False):
-                logger.debug(
-                    f"Rotation Lock acquired. Sending Next Random Rotation."
-                )
+                logger.debug(f"Rotation Lock acquired. Sending Next Random Rotation.")
                 return res
 
     @staticmethod
-    async def _full_telecast(handle: int, ign: str, teleport_skill: Skill, ultimate_skill: Skill, directions: list[str]) -> None:
+    async def _full_telecast(
+        handle: int,
+        ign: str,
+        teleport_skill: Skill,
+        ultimate_skill: Skill,
+        directions: list[str],
+    ) -> None:
         async def _coro():
             direction = directions.pop(0)
-            await telecast(
-                handle, ign, direction, teleport_skill, ultimate_skill
-            )
+            await telecast(handle, ign, direction, teleport_skill, ultimate_skill)
             while directions:
                 direction = directions.pop(0)
                 await teleport(
@@ -111,6 +116,7 @@ class TelecastRotation(Rotation):
                     direction,
                     teleport_skill,
                 )
+
         await asyncio.wait_for(_coro(), timeout=ultimate_skill.animation_time)
 
     @staticmethod
