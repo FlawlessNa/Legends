@@ -3,5 +3,5 @@ from .rotations.hit_mobs import MobsHitting
 from .rotations.random_rotation import RandomRotation
 from .rotations.smart_rotation import SmartRotation
 from .rotations.telecast_rotation import TelecastRotation
-from .maintenance.rebuff import Rebuff
+from .maintenance.rebuff import Rebuff, LocalizedRebuff
 from .maintenance.time_based import PetFood, MountFood

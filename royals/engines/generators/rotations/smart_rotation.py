@@ -8,8 +8,9 @@ import time
 from functools import partial
 
 from botting import PARENT_LOG
-from botting.core import DecisionGenerator, QueueAction
+from botting.core import QueueAction
 from botting.models_abstractions import Skill
+from .base_rotation import Rotation
 from royals import RoyalsData
 from royals.models_implementations.mechanics.path_into_movements import get_to_target
 from royals.actions import random_jump
@@ -17,7 +18,7 @@ from royals.actions import random_jump
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
-class SmartRotation(DecisionGenerator):
+class SmartRotation(Rotation):
     def __init__(
         self,
         data: RoyalsData,
@@ -25,19 +26,13 @@ class SmartRotation(DecisionGenerator):
         teleport: Skill = None,
         time_limit: float = 15,
     ) -> None:
-        self.data = data
+        super().__init__(data, lock, teleport)
         self.time_limit = time_limit
-        self._lock = lock
-        self._teleport = teleport
         self._target_cycle = itertools.cycle(self.data.current_minimap.feature_cycle)
 
         self._next_feature = None  # Used for rotation
         self._next_target = None  # Used for rotation
         self._next_feature_covered = None  # Used for rotation
-
-        self._prev_pos = None  # Used for failsafe
-        self._last_pos_change = None  # Used for failsafe
-        self._deadlock_counter = 0  # Used for failsafe
 
         self._on_central_target = False  # Impacts rotation behavior
         self._cancellable = True  # Impacts rotation behavior
@@ -146,22 +141,14 @@ class SmartRotation(DecisionGenerator):
         if actions:
             self._deadlock_counter = 0
             first_action = actions[0]
-            args = (
-                self.data.handle,
-                self.data.ign,
-                first_action.keywords.get("direction", self.data.current_direction),
-            )
-            kwargs = first_action.keywords
-            kwargs.pop("direction", None)
-            if first_action.func.__name__ == "teleport":
-                kwargs.update(teleport_skill=self._teleport)
+            res = self._create_partial(first_action)
 
             if self._lock is None:
-                res = partial(first_action.func, *args, **kwargs)
+                return res
 
             elif self._lock.acquire(block=False):
                 logger.debug(f"Rotation Lock acquired. Sending Next Random Rotation.")
-                res = partial(first_action.func, *args, **kwargs)
+                return res
         elif self._on_central_target:
             self._deadlock_counter = 0
         else:
@@ -169,20 +156,3 @@ class SmartRotation(DecisionGenerator):
 
         return res
 
-    def _failsafe(self) -> callable:
-        # If no change in position for 5 seconds, trigger failsafe
-        if time.perf_counter() - self._last_pos_change > 15:
-            logger.warning(
-                f"{self.__class__.__name__} Failsafe Triggered Due to static position"
-            )
-            self._last_pos_change = time.perf_counter()
-            return True
-
-        elif self._deadlock_counter > 30:
-            logger.warning(
-                f"{self.__class__.__name__} Failsafe Triggered Due to no path found"
-            )
-            self._deadlock_counter = 0
-            return True
-
-        return False

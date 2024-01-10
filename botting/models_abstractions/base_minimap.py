@@ -14,6 +14,7 @@ class BaseMinimapFeatures(InGameBaseVisuals, ABC):
     It should also contain features found on the minimap and their coordinates.
     This lays the foundation for "random" movements while botting.
     """
+    central_node: tuple[int, int] = NotImplemented
 
     @property
     @abstractmethod

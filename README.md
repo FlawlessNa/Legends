@@ -15,6 +15,7 @@
   - [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs + random reaction
   - [ ] GM Logo detection
   - [ ] Nice-to-have, for Ulu only - look into building an "unknown" object detection method, using UNKAD methodology
+  - [ ] For complex movements (teleport, telecast, etc), use Spy++ to find exact key combinations when done by human, and make sure to properly replicate (should be very easy)
 - [x] Significant improvements required to Character detection - detection needs to be more stable
   - [ ] Standardize code and transfer detection framework into botting library
 - [ ] Implement better handling of QueueAction Priority

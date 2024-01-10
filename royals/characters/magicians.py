@@ -93,6 +93,7 @@ class Priest(Cleric):
                 animation_time=2.2,
                 unidirectional=False,
                 duration=120,
+                horizontal_minimap_distance=8,
                 _use_by_default=True,
             ),
             "Shining Ray": Skill(
@@ -129,6 +130,7 @@ class Bishop(Priest):
                 animation_time=1.5,
                 unidirectional=False,
                 _use_by_default=True,
+                horizontal_minimap_distance=10,
                 duration=300
             ),
         }

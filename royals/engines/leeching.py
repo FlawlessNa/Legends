@@ -4,7 +4,7 @@ from botting.core import DecisionEngine, Executor, DecisionGenerator
 from botting.models_abstractions import BaseMap
 
 from royals import royals_ign_finder, RoyalsData
-from .generators import TelecastRotation, Rebuff, PetFood, MobCheck
+from .generators import TelecastRotation, Rebuff, LocalizedRebuff, PetFood, MobCheck
 
 
 class LeechingEngine(DecisionEngine):
@@ -16,6 +16,7 @@ class LeechingEngine(DecisionEngine):
         bot: Executor,
         game_map: BaseMap,
         character: callable,
+        rebuff_location: tuple[int, int] = None,
         mob_count_threshold: int = 5,
         buffs: list[str] | None = None,
     ) -> None:
@@ -51,6 +52,11 @@ class LeechingEngine(DecisionEngine):
             ):
                 self._buffs_to_use.append(skill)
 
+        if rebuff_location:
+            self._rebuff_location = rebuff_location
+        else:
+            self._rebuff_location = self.game_data.current_minimap.central_node
+
     @property
     def game_data(self) -> RoyalsData:
         return self._game_data
@@ -64,6 +70,10 @@ class LeechingEngine(DecisionEngine):
         return generators
 
     def next_map_rotation(self) -> list[callable]:
+        buffs = []
+        for skill in self.game_data.character.skills.values():
+            if skill.type in ["Party Buff"] and skill in self._buffs_to_use:
+                buffs.append(skill)
         return [
             TelecastRotation(
                 self.game_data,
@@ -72,7 +82,11 @@ class LeechingEngine(DecisionEngine):
                 ultimate=self._training_skill,
                 mob_threshold=self._mob_count_threshold,
             ),
-            # LocalizedRebuff(self.game_data),
+            # LocalizedRebuff(self.game_data,
+            #                 self.rotation_lock,
+            #                 self._teleport_skill,
+            #                 buffs,
+            #                 self._rebuff_location)
         ]
 
     def anti_detection_checks(self) -> list[DecisionGenerator]:

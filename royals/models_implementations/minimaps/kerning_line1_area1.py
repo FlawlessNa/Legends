@@ -18,6 +18,10 @@ class KerningLine1Area1Minimap(MinimapPathingMechanics):
     teleport_v_down_dist = 11
 
     @property
+    def central_node(self) -> tuple[int, int]:
+        return int(self.platform_8_ladder.center[0]), int(self.platform_8_ladder.center[1])
+
+    @property
     def feature_cycle(self) -> list[MinimapFeature]:
         return []
 
@@ -133,7 +137,7 @@ class KerningLine1Area1Minimap(MinimapPathingMechanics):
         left=181, right=206, top=26, bottom=26, name="platform_5"
     )
     platform_5_ladder: MinimapFeature = MinimapFeature(
-        left=199, right=199, top=27, bottom=41, name="platform_5_ladder"
+        left=199, right=199, top=27, bottom=40, name="platform_5_ladder"
     )
     safe_spot_right: MinimapFeature = MinimapFeature(
         left=215, right=222, top=30, bottom=30, name="safe_spot_right"
