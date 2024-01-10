@@ -6,15 +6,15 @@ import botting
 
 from functools import partial
 
-from royals.characters import Priest
-from royals.engines import TrainingEngine
-from royals.maps import EncounterWithTheBuddha
+import royals.characters
+import royals.engines
+import royals.maps
 
 
 CHARACTER_NAME = "FarmFest1"
-CHARACTER_CLASS = Priest
+CHARACTER_CLASS = royals.characters.Priest
 TRAINING_SKILL = "Shining Ray"
-TRAINING_MAP = EncounterWithTheBuddha
+TRAINING_MAP = royals.maps.EncounterWithTheBuddha
 MOB_COUNT_THRESHOLD = 4
 TIME_LIMIT_CENTRAL_TARGET = 60
 
@@ -43,5 +43,5 @@ if __name__ == "__main__":
         time_limit=TIME_LIMIT_CENTRAL_TARGET,
     )
 
-    bot = botting.Executor(engine=TrainingEngine, ign=CHARACTER_NAME, **engine_kwargs)
+    bot = botting.Executor(engine=royals.engines.TrainingEngine, ign=CHARACTER_NAME, **engine_kwargs)
     asyncio.run(main(bot))

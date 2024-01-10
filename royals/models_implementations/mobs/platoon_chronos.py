@@ -12,6 +12,7 @@ class PlatoonChronos(BaseMob):
     # _minimal_rect_height = 25
     _minimal_rect_area = 10
     _maximal_rect_area = 90
+    _multiplier = 1
 
     @classmethod
     def _preprocess_img(cls, image: np.ndarray) -> np.ndarray:

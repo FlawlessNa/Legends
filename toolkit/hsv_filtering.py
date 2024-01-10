@@ -264,7 +264,7 @@ class ColorsFilter:
 
 
 if __name__ == "__main__":
-    HANDLE = 0x00F90FA4
+    HANDLE = 0x008D108A
     USE_HSV = False
     USE_COLORS = True
 
