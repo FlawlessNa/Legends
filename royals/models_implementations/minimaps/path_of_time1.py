@@ -15,6 +15,12 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
     jump_height: int = 5
     jump_distance: int = 4
 
+    teleport_h_dist = 9
+    teleport_v_up_dist = 8
+    teleport_v_down_dist = 10
+
+
+
     @property
     def feature_cycle(self) -> list[MinimapFeature]:
         return [
