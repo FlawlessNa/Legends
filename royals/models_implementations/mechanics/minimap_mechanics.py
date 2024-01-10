@@ -311,7 +311,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         vertical_range = self.teleport_v_up_dist // 2
         assert direction in ["left", "right"], "Invalid direction for teleport."
         if direction == "right":
-            x_val = min(starting_point[0] + self.teleport_h_dist, grid.width)
+            x_val = min(starting_point[0] + self.teleport_h_dist, grid.width - 1)
             connection_type = MinimapConnection.TELEPORT_RIGHT
         else:
             x_val = max(starting_point[0] - self.teleport_h_dist, 0)
