@@ -7,6 +7,8 @@ from typing import Sequence
 from botting.utilities import Box
 from botting.visuals import InGameBaseVisuals
 
+DEBUG = True
+
 
 class BaseMob(InGameBaseVisuals, ABC):
     """
@@ -15,7 +17,22 @@ class BaseMob(InGameBaseVisuals, ABC):
     This behavior can be overridden by the inheriting class.
     """
 
-    detection_box: Box
+    _hsv_lower: np.ndarray = NotImplemented
+    _hsv_upper: np.ndarray = NotImplemented
+    _color_lower: np.ndarray = NotImplemented
+    _color_upper: np.ndarray = NotImplemented
+
+    _minimal_rect_height: int = NotImplemented
+    _maximal_rect_height: int = NotImplemented
+    _minimal_rect_width: int = NotImplemented
+    _maximal_rect_width: int = NotImplemented
+    _minimal_rect_area: int = NotImplemented
+    _maximal_rect_area: int = NotImplemented
+
+    _multiplier: int = NotImplemented  # Used to count mobs on screen, since some mobs are counted as multiple contours.
+
+    def __init__(self, detection_box: Box):
+        self.detection_box = detection_box
 
     @classmethod
     @abstractmethod
@@ -25,7 +42,7 @@ class BaseMob(InGameBaseVisuals, ABC):
         """
         pass
 
-    def get_onscreen_mobs(self, image: np.ndarray) -> list[Sequence[int]]:
+    def get_onscreen_mobs(self, image: np.ndarray, debug: bool = True) -> list[Sequence[int]]:
         """
         Returns a list of tuples of the coordinates for each mob found on-screen.
         :return: Coordinates are, in order, x, y, width, height.
@@ -34,10 +51,23 @@ class BaseMob(InGameBaseVisuals, ABC):
         contours, _ = cv2.findContours(
             processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
-        return [cv2.boundingRect(cnt) for cnt in self._filter(contours)]
+        try:
+            if DEBUG and debug:
+                _debug(image, list(self._filter(contours)))
+            return [cv2.boundingRect(cnt) for cnt in self._filter(contours)]
+        except Exception as e:
+            breakpoint()
 
-    def get_mob_count(self, image: np.ndarray) -> int:
+    def get_mob_count(self, image: np.ndarray, **kwargs) -> int:
         """
         Returns the number of mobs found on-screen.
         """
-        return len(self.get_onscreen_mobs(image))
+        return len(self.get_onscreen_mobs(image, **kwargs)) // self._multiplier
+
+
+def _debug(image: np.ndarray, contours) -> None:
+    # Draw all contours
+    if contours:
+        cv2.drawContours(image, contours, -1, (0, 255, 255), 4)
+    cv2.imshow("_DEBUG_ BaseMob.get_onscreen_mobs", image)
+    cv2.waitKey(1)

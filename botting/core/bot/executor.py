@@ -6,6 +6,7 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 from .action import QueueAction
+from botting.core.communications import message_parser
 from botting.utilities import client_handler
 
 if TYPE_CHECKING:
@@ -25,19 +26,20 @@ class Executor:
 
     blocker: asyncio.Event = asyncio.Event()
     logging_queue: multiprocessing.Queue
+    discord_pipe: multiprocessing.connection.Connection
+    discord_listener: asyncio.Task
     all_bots: list["Executor"] = []
 
-    def __init__(self, engine: type["DecisionEngine"], ign: str) -> None:
+    def __init__(self, engine: type["DecisionEngine"], ign: str, **kwargs) -> None:
         self.engine = engine
+        self.engine_kwargs = kwargs
         self.ign = ign
         self.handle = client_handler.get_client_handle(
             self.ign, ign_finder=engine.ign_finder
         )
 
         self.bot_side, self.monitoring_side = multiprocessing.Pipe()
-        self.rotation_locks = [
-            multiprocessing.Lock() for _ in range(5)  # TODO - Make this dynamic
-        ]  # Used to manage when map rotation can be enqueued
+        self.rotation_lock = multiprocessing.Lock()  # Used for enqueueing of rotation
         self.action_lock = (
             asyncio.Lock()
         )  # Used to manage multiple tasks being enqueued at the same time for a single bot
@@ -54,6 +56,9 @@ class Executor:
         cls.blocker.set()  # Unblocks all Bots
 
         async with asyncio.TaskGroup() as tg:
+            cls.discord_listener = tg.create_task(
+                cls.relay_disc_to_main(), name="Discord Listener"
+            )
             for bot in cls.all_bots:
                 bot.main_task = tg.create_task(bot.engine_listener(), name=repr(bot))
                 logger.info(f"Created task {bot.main_task.get_name()}.")
@@ -62,6 +67,33 @@ class Executor:
     def cancel_all(cls):
         for bot in cls.all_bots:
             bot.bot_side.send(None)
+        cls.discord_pipe.send(None)
+        cls.discord_listener.cancel()
+
+    @classmethod
+    async def relay_disc_to_main(cls) -> None:
+        """
+        TODO - Refactor to make it work with multiple executors simultaneously. Requires improved parsing.
+        Main Process task.
+        Responsible for listening to the discord process and see if any actions
+         are requested by discord user.
+        It then performs those actions.
+        :return: None
+        """
+        while True:
+            if await asyncio.to_thread(cls.discord_pipe.poll):
+                message: str = cls.discord_pipe.recv()
+                action: QueueAction = message_parser(message)
+                if action is None:
+                    logger.info(f"Received {message} from discord process. Exiting.")
+                    cls.cancel_all()
+                    cls.discord_pipe.send(None)
+                    break
+                else:
+                    logger.info(
+                        f"Performing action {action} as requested by discord user."
+                    )
+                    new_task = cls.all_bots[0].create_task(action)
 
     def create_task(self, queue_item: QueueAction) -> asyncio.Task:
         """
@@ -82,8 +114,7 @@ class Executor:
         new_task.add_done_callback(self._exception_handler)
 
         new_task.is_in_queue = True
-        if queue_item.lock_id is not None:
-            new_task.lock_id = queue_item.lock_id
+        if queue_item.release_lock_on_callback:
             new_task.add_done_callback(self._rotation_callback)
 
         if queue_item.update_game_data is not None:
@@ -112,12 +143,24 @@ class Executor:
                     )
                     task.cancel()
 
+        if queue_item.user_message is not None:
+            logger.info(f"Sending message towards Discord Process")
+            for msg in queue_item.user_message:
+                self.discord_pipe.send(msg)
+
         return new_task
 
     @classmethod
     def update_logging_queue(cls, logging_queue: multiprocessing.Queue) -> None:
         """Updates the logging queue for all bots."""
         cls.logging_queue = logging_queue
+
+    @classmethod
+    def update_discord_pipe(
+        cls, discord_pipe: multiprocessing.connection.Connection
+    ) -> None:
+        """Updates the discord pipe for all bots."""
+        cls.discord_pipe = discord_pipe
 
     @classmethod
     def update_bot_list(cls, bot: "Executor") -> None:
@@ -129,6 +172,7 @@ class Executor:
             if fut.exception() is not None:
                 logger.exception(f"Exception occurred in task {fut.get_name()}.")
                 self.cancel_all()
+                raise fut.exception()
         except asyncio.CancelledError:
             pass
 
@@ -144,21 +188,27 @@ class Executor:
             target=self.engine.start_monitoring,
             name=f"{self} Monitoring",
             args=(self, Executor.logging_queue),
+            kwargs=self.engine_kwargs,
         )
 
     def _rotation_callback(self, fut):
-        """Callback to use on map rotation actions if they need to acquire lock before executing."""
-        self.rotation_locks[fut.lock_id].release()
+        """
+        Callback to use on map rotation actions if they need to acquire lock before executing.
+        In some cases, such as failsafe responses, the lock has not been acquired yet.
+        For this reason, try to acquire the lock before releasing it.
+        """
+        self.rotation_lock.acquire(block=False)
+        self.rotation_lock.release()
         if fut.cancelled():
             logger.debug(
-                f"Rotation Lock {fut.lock_id} released on {self} through callback. {fut.get_name()} is Cancelled."
+                f"Rotation Lock released on {self} through callback. {fut.get_name()} is Cancelled."
             )
         else:
             logger.debug(
-                f"Rotation Lock {fut.lock_id} released on {self} through callback. {fut.get_name()} is Done."
+                f"Rotation Lock released on {self} through callback. {fut.get_name()} is Done."
             )
 
-    def _send_update_signal_callback(self, signal: tuple[str], fut):
+    def _send_update_signal_callback(self, signal: tuple[str] | dict, fut):
         """
         Callback to use on map rotation actions if they need to update game data.
         Sends a signal back to the Child process to appropriately update Game Data. This way, CPU-intensive resources
@@ -204,6 +254,7 @@ class Executor:
                     break
 
                 logger.debug(f"Received {queue_item} from {self} monitoring process.")
+
                 new_task = self.create_task(queue_item)
                 logger.debug(f"Created task {new_task.get_name()}.")
 

@@ -1,29 +1,25 @@
 import asyncio
+import time
 import numpy as np
 
-from botting.models_abstractions import BaseMap
-from royals.models_implementations import RoyalsData
-from royals.models_implementations.minimaps import (
-    KerningLine1Area1,
-    LudiFreeMarketTemplate,
-)
-from royals.models_implementations.characters import Magician
-from royals.models_implementations.mobs import Bubbling
-from royals.bot_implementations.actions.hit_mobs import hit_closest_in_range
-from royals.bot_implementations.actions.random_rotation import random_rotation
+from botting.core import controller
+from royals.interface.dynamic_components.minimap import Minimap
+from royals.models_implementations.minimaps import BuddhaMinimap
 
 
-HANDLE = 0x02300A26
+
+class FakeMinimap(Minimap):
+    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
+        pass
+
+
+HANDLE = 0x00F90FA4
 
 
 if __name__ == "__main__":
-    data = RoyalsData(HANDLE, "FarmFest1")
-    data.current_minimap = LudiFreeMarketTemplate()
-    data.current_minimap_area_box = data.current_minimap.get_map_area_box(HANDLE)
-    data.update("current_minimap_position")
-    generator = random_rotation(data)
-
+    # asyncio.run(controller.press(HANDLE, 'up', down_or_up='keydown', silenced=False))
+    minimap = BuddhaMinimap()
     while True:
-        action = next(generator)
-        if action:
-            asyncio.run(action())
+        # box = minimap.get_map_area_box(HANDLE)
+        print(minimap.get_character_positions(HANDLE))
+        # print(minimap.get_character_positions(HANDLE))

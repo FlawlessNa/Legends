@@ -54,9 +54,7 @@ async def non_focused_input(
     :param cooldown: Cooldown after all messages sent. Default is 0.1 seconds.
     :return: None
     """
-    if isinstance(
-        keys, str
-    ):  # If only one key is provided, we convert it to a list to
+    if isinstance(keys, str):  # If only one key is provided, we convert it to a list to
         # simplify the rest of the code. In such a case, we also set delay to 0.
         keys = [keys] * len(messages) if isinstance(messages, list) else [keys]
         delay = 0 if len(keys) == 1 else delay

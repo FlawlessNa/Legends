@@ -44,6 +44,8 @@ class TestMinimap(TestCase):
             False,
             True,
             True,
+            True,
+            True,
         ]
         cls._minimap_state = [
             "Full",
@@ -58,6 +60,8 @@ class TestMinimap(TestCase):
             "Hidden",
             "Partial",
             "Full",
+            "Partial",
+            "Full"
         ]
         # Defined by looking at pixel positions with Paint
         _world_icons_top_left = [
@@ -73,6 +77,8 @@ class TestMinimap(TestCase):
             (780, 445),
             (248, 86),
             (701, 77),
+            (417, 171),
+            (568, 247)
         ]
         # Defined by looking at pixel positions with Paint
         _world_icons_bot_right = [
@@ -88,6 +94,8 @@ class TestMinimap(TestCase):
             (813, 454),
             (281, 95),
             (734, 86),
+            (450, 180),
+            (601, 256)
         ]
         cls._world_icons_box = [
             Box(
@@ -112,6 +120,8 @@ class TestMinimap(TestCase):
             None,
             (126, 108),
             (569, 142),
+            (258, 193),
+            (406, 312),
         ]
         # Defined by looking at pixel positions with Paint
         _map_area_bot_right = [
@@ -127,18 +137,20 @@ class TestMinimap(TestCase):
             None,
             (282, 198),
             (735, 232),
+            (451, 247),
+            (602, 366)
         ]
         # Only applicable when minimap is fully displayed.
-        _extra_widths = [18, 18, None, None, 0, 0, 0, 0, 10, None, 0, 10]
+        _extra_widths = [18, 18, None, None, 0, 0, 0, 0, 10, None, 0, 10, 0, [1, 2]]
         _map_area_box = [
             Box(
                 left=_map_area_top_left[i][0]
                 + CLIENT_HORIZONTAL_MARGIN_PX
-                + _extra_widths[i] // 2,
+                + [_extra_widths[i] // 2 if isinstance(_extra_widths[i], int) else _extra_widths[i][0]].pop(),
                 right=_map_area_bot_right[i][0]
                 + CLIENT_HORIZONTAL_MARGIN_PX
                 + 1
-                - _extra_widths[i] // 2,
+                - [_extra_widths[i] // 2 if isinstance(_extra_widths[i], int) else _extra_widths[i][1]].pop(),
                 top=_map_area_top_left[i][1] + CLIENT_VERTICAL_MARGIN_PX,
                 bottom=_map_area_bot_right[i][1] + CLIENT_VERTICAL_MARGIN_PX + 1,
             )
@@ -161,6 +173,8 @@ class TestMinimap(TestCase):
             None,
             (126, 86),
             (569, 77),
+            (258, 171),
+            (406, 247),
         ]
         cls._entire_minimap_box = [
             Box(
@@ -187,6 +201,8 @@ class TestMinimap(TestCase):
             None,
             [(226, 161)],
             [(683, 195)],
+            [(397, 228)],
+            [(579, 347)],
         ]
         _stranger_position = [
             [],
@@ -201,6 +217,8 @@ class TestMinimap(TestCase):
             None,
             [(186, 147), (190, 180), (195, 180), (208, 178)],
             [(634, 181), (638, 214), (643, 214), (656, 212)],
+            [],
+            []
         ]
         _npc_position = [
             [],
@@ -215,6 +233,8 @@ class TestMinimap(TestCase):
             None,
             [(134, 180), (144, 163), (157, 165), (165, 165)],
             [(582, 214), (592, 197), (605, 199), (613, 199)],
+            [],
+            [],
         ]
         _corrected_self_position = []
         _corrected_stranger_position = []
@@ -421,7 +441,12 @@ class TestMinimap(TestCase):
             for img in os.listdir(os.path.join(ROOT, "tests/images"))
             if img.startswith("test_character_position_minimap")
         ]
-        positions = [self.minimap.get_character_positions(0, client_img=cv2.imread(f"images/{img}")) for img in images]
+        positions = [
+            self.minimap.get_character_positions(
+                0, client_img=cv2.imread(f"images/{img}")
+            )
+            for img in images
+        ]
         self.assertTrue(all([pos == positions[0] for pos in positions]))
 
     def test_get_map_area_box(self):

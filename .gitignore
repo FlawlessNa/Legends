@@ -11,9 +11,6 @@ data/
 # Logs
 logs/
 
-# Configs
-configs/
-
 .idea/
 
 # Distribution / packaging
