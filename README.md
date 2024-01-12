@@ -12,8 +12,9 @@
   - [ ] Cooldown buffs
   
 ### Generic Generator class for the botting library + incorporated failsafe methods
-  -  [ ] Add failsafe on MobHitting
-  -  [ ] Add failsafe on Rebuff
+  - [ ] Add failsafe on MobHitting
+  - [ ] Add failsafe on Rebuff
+  - [ ] Add failsafe on any Rotation Generators - Movement is expected if action is not cancelled
 
 ### Anti Detection Features
   - [ ] Chat Parsing (try grayscale preprocessing on "general" lines) + GPT Automated Responses

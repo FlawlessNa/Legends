@@ -149,7 +149,12 @@ def _translate_path_into_movements(
 
             # When there are more than 1 connection type, prioritize Teleport, if existing.
             if current_node.connections.count(next_node) > 1 and in_game_minimap.grid.allow_teleport:
-                breakpoint()
+                idx = [idx for idx, node in enumerate(current_node.connections) if node == next_node]
+                all_connection_types = [current_node.connections_types[i] for i in idx]
+                for conn in all_connection_types:
+                    if MinimapConnection.convert_to_string(conn).startswith('TELEPORT'):
+                        connection_type = conn
+                        break
 
             movements.append(MinimapConnection.convert_to_string(connection_type))
         else:
