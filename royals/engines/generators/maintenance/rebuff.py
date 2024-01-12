@@ -80,28 +80,12 @@ class LocalizedRebuff(Rotation):
                 > self._minimap_range
             ):
                 self.data.update(next_target=self.target)
-                # actions = get_to_target(
-                #     self.data.current_minimap_position,
-                #     self.target,
-                #     self.data.current_minimap,
-                # )
-                # res = self._create_partial(actions[0])
-                # self._next_call = time.perf_counter() + res.keywords.get('duration', self._cooldown)
-                # if not self._acquired:
-                #     self._lock.acquire(block=True)
-                # self._acquired = True
-                # return QueueAction(
-                #     identifier=self.__class__.__name__,
-                #     priority=2,
-                #     action=res,
-                #     is_cancellable=False,
-                # )
             else:
-                print('Rebuffing')
                 self._next_call = time.perf_counter() + (
                     min(skill.duration for skill in self.buffs) * random.uniform(0.9, 1)
                 )
-                action = partial(self.cast_all, self.buffs, self.data.handle, self.data.ign)
+                wait_time = max(self.data.ultimate.animation_time - (time.perf_counter() - self.data.last_cast), 0)
+                action = partial(self.cast_all, wait_time, self.buffs, self.data.handle, self.data.ign)
                 return QueueAction("Rebuffing on Party", 2, action, is_cancellable=False)
 
     def _failsafe(self, *args, **kwargs):
@@ -116,7 +100,8 @@ class LocalizedRebuff(Rotation):
         await asyncio.wait_for(_coro(), timeout=timeout)
 
     @staticmethod
-    async def cast_all(skills: list[Skill], *args):
+    async def cast_all(wait_time: float, skills: list[Skill], *args):
+        await asyncio.sleep(wait_time)
         for skill in skills:
             await cast_skill(*args, skill=skill)
 

@@ -6,12 +6,24 @@ from royals.models_implementations.mechanics import (
 
 
 class KerningLine1Area2Minimap(MinimapPathingMechanics):
+    @property
+    def feature_cycle(self) -> list[MinimapFeature]:
+        return []
+
+    @property
+    def central_node(self) -> tuple[int, int]:
+        return int(self.safe_spot.center[0]), int(self.safe_spot.center[1])
+
     map_area_width = 259
     map_area_height = 79
 
     minimap_speed: float = 7.466178677298277  # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
     jump_height: int = 5
-    jump_distance: int = 4
+    jump_distance: int = 5
+
+    teleport_h_dist = 9
+    teleport_v_down_dist = 10
+    teleport_v_up_dist = 8
 
     # bottom_platform: MinimapFeature = MinimapFeature(
     #     left=20,

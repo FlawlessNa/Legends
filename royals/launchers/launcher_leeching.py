@@ -14,9 +14,11 @@ import royals.maps
 
 
 CHARACTER_NAME = "FarmFest1"
+LEECHERS_NAMES = ["FarmFest2", "FarmFest3", "FarmFest4", "FarmFest5", "LootFest"]
 CHARACTER_CLASS = royals.characters.Bishop
-TRAINING_MAP = royals.maps.Line1Area1
-MOB_COUNT_THRESHOLD = 7
+LEECHERS_CLASSES = [royals.characters.Magician] * 4 + [royals.characters.Rogue]
+TRAINING_MAP = royals.maps.PathOfTime1
+MOB_COUNT_THRESHOLD = 5
 
 DETECTION_CONFIG_SECTION = "Elephant Cape"
 CLIENT_SIZE = "large"
@@ -41,4 +43,8 @@ if __name__ == "__main__":
     )
 
     bot = botting.Executor(engine=royals.engines.LeechingEngine, ign=CHARACTER_NAME, **engine_kwargs)
+    # leechers = [
+    #     botting.Executor(engine=royals.engines.Leecher, ign=name, **{"character": char})
+    #     for name, char in zip(LEECHERS_NAMES, LEECHERS_CLASSES)
+    # ]
     asyncio.run(main(bot))

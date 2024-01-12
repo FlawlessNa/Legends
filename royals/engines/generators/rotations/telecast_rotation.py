@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 import logging
 import math
 import multiprocessing as mp
@@ -30,18 +31,26 @@ class TelecastRotation(Rotation):
         super().__init__(data, lock, teleport_skill)
         self._ultimate = ultimate
         self._mob_threshold = mob_threshold
+        self._feature_generator = None
 
     def __call__(self):
-        self.data.update(next_target=self.data.current_minimap.random_point())
+        self.data.update(next_target=self.data.current_minimap.random_point(),
+                         last_cast=time.perf_counter(),
+                         ultimate=self._ultimate)
         self._next_target = self.data.next_target
         self._last_pos_change = time.perf_counter()
+        if len(self.data.current_minimap.feature_cycle):
+            self._feature_generator = itertools.cycle(self.data.current_minimap.feature_cycle)
         return iter(self)
 
     def _set_next_target(self):
         if math.dist(self.data.current_minimap_position, self._next_target) > 2:
             pass
         else:
-            self.data.update(next_target=self.data.current_minimap.random_point())
+            if len(self.data.current_minimap.feature_cycle):
+                self.data.update(next_target=next(self._feature_generator).random())
+            else:
+                self.data.update(next_target=self.data.current_minimap.random_point())
         self._next_target = self.data.next_target
 
     def _single_iteration(self):
@@ -65,9 +74,11 @@ class TelecastRotation(Rotation):
                 res = self._create_partial(actions[0])
 
             else:
+                self.data.update(last_cast=time.perf_counter())
                 # Sufficient mobs and not currently on a ladder
                 if not actions[0].func.__name__ == "teleport":
                     # If first movement isn't a teleport, simply cast skill instead
+
                     res = partial(
                         cast_skill, self.data.handle, self.data.ign, self._ultimate
                     )

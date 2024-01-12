@@ -71,3 +71,6 @@ class CharacterStats(InGameBaseVisuals):
 
     def get_ign(self, handle: int) -> str:
         return self.read_from_box(handle, self.ign_box)
+
+    def get_level(self, handle: int) -> int:
+        return int(self.read_from_box(handle, self.level_box))
