@@ -25,6 +25,21 @@ KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_UNICODE = 0x0004
 KEYEVENTF_SCANCODE = 0x0008
 
+MOUSEEVENTF_MOVE = 0x0001
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_RIGHTDOWN = 0x0008
+MOUSEEVENTF_RIGHTUP = 0x0010
+MOUSEEVENTF_MIDDLEDOWN = 0x0020
+MOUSEEVENTF_MIDDLEUP = 0x0040
+MOUSEEVENTF_XDOWN = 0x0080
+MOUSEEVENTF_XUP = 0x0100
+MOUSEEVENTF_WHEEL = 0x0800
+MOUSEEVENTF_HWHEEL = 0x1000
+MOUSEEVENTF_MOVE_NOCOALESCE = 0x2000
+MOUSEEVENTF_VIRTUALDESK = 0x4000
+MOUSEEVENTF_ABSOLUTE = 0x8000
+
 ULONG_PTR = ctypes.POINTER(ctypes.c_ulong)
 
 logger = logging.getLogger(__name__)
@@ -162,9 +177,9 @@ def _input_array_constructor(
     """
     Constructs the input array of structures to be sent to the window associated
      the provided handle. Send that input through SendInput.
-    When enforce_delay=True, an array of length 1 is created for each key/event pair,
+    When enforce_delay=True, N arrays of length 1 are created for each key/event pair,
      and a random delay is enforced between each key press.
-    Otherwise, an array of length n is created (n == len(keys) == len(events)),
+    Otherwise, 1 array of length N is created (N == len(keys) == len(events)),
      and there is no delay as all inputs are sent simultaneously.
     :param hwnd: Handle to the window to send the input to.
     :param keys: list of string representation of the key(s) to be pressed.
@@ -275,4 +290,61 @@ def _input_structure_constructor(
         None,
     )
     input_struct = Input(type=KEYBOARD, structure=CombinedInput(ki=keybd_input))
+    return input_struct
+
+
+def _mouse_input_array_constructor(
+    x_trajectory: list[int | None],
+    y_trajectory: list[int | None],
+    events: list[Literal["click", "down", "up"] | None],
+    mouse_data: list[int | None],
+    delay: float
+) -> list[list[tuple, float]]:
+    return_val = []
+    for x, y, event, mouse in zip(x_trajectory, y_trajectory, events, mouse_data):
+        input_structure = _mouse_input_structure_constructor(x, y, event, mouse)
+        return_val.append([
+            (1, input_structure, ctypes.sizeof(input_structure)),
+            random.uniform(delay * 0.95, delay * 1.05)
+            ])
+    return return_val
+
+
+def _mouse_input_structure_constructor(
+    x: int | None,
+    y: int | None,
+    event: Literal["click", "down", "up"] | None,
+    mouse_data: int | None,
+) -> Input:
+    """
+    :param x: Absolute X target mouse cursor position.
+    :param y: Absolute Y target mouse cursor position.
+    :param event: Whether the event is a click, down or up, or nothing.
+    :param mouse_data: Set to 0 unless mouse scroll is used.
+    :return:
+    """
+    flags = 0
+    if x is not None and y is not None:
+        flags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE
+
+    if event is not None:
+        if event == "click":
+            flags |= MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_LEFTUP
+        elif event == "down":
+            flags |= MOUSEEVENTF_LEFTDOWN
+        elif event == "up":
+            flags |= MOUSEEVENTF_LEFTUP
+        else:
+            raise ValueError(f"Event {event} is not supported.")
+
+    assert flags != 0, f"Either x, y or event must be provided."
+    mouse_input = MouseInputStruct(
+        wintypes.LONG(x),
+        wintypes.LONG(y),
+        wintypes.DWORD(mouse_data),
+        wintypes.DWORD(flags),
+        wintypes.DWORD(0),
+        None,
+    )
+    input_struct = Input(type=MOUSE, structure=CombinedInput(mi=mouse_input))
     return input_struct

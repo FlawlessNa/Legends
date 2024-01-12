@@ -1,10 +1,9 @@
 # Royals-V2
 
 ## TODO
-<<<<<<< HEAD
-- [x] Implement Skills
+- [ ] Implement variable speed/jumps/movements based on in-game speed/jump 
 - [ ] Skill Specs Finder
-- [ ] Switch back to a single Rotation Lock and coordination between rotation generators
+- [ ] Improved MinimapPathing - Specifically, solve mix-ups between jumps and teleports.
 - [ ] Significant improvements required to Mob detection - combine with their HP bar, DMG display, and model
 - [ ] Significant improvements required to Character detection - detection needs to be more stable
 - [ ] Improvements to the QueueAction wrapping
@@ -61,6 +60,8 @@
   - [ ] Inventory
   - [ ] Level up detection
   - [ ] Ability Points assignment
+- [ ] Inventory management revamp
+- [ ] Farming Monitoring of data (mesos/h, exp/h, godlies, etc)
 - [ ] UnitTests on the botting library
 
 ## Nice to have
