@@ -4,7 +4,7 @@ from botting.core import DecisionEngine, Executor, DecisionGenerator
 from botting.models_abstractions import BaseMap
 
 from royals import royals_ign_finder, RoyalsData
-from .generators import MobsHitting, SmartRotation, Rebuff, PetFood, MobCheck
+from .generators import MobsHitting, SmartRotation, Rebuff, PetFood, MobCheck, DistributeAP
 
 
 class TrainingEngine(DecisionEngine):
@@ -66,6 +66,7 @@ class TrainingEngine(DecisionEngine):
             if skill.type in ["Buff", "Party Buff"] and skill in self._buffs_to_use:
                 generators.append(Rebuff(self.game_data, skill))
         generators.append(PetFood(self.game_data))
+        generators.append(DistributeAP(self.game_data))
         return generators
 
     def next_map_rotation(self) -> list[callable]:

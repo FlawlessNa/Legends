@@ -261,6 +261,8 @@ class Executor:
                 logger.debug(f"Created task {new_task.get_name()}.")
 
                 if len(asyncio.all_tasks()) > 15:
+                    for t in asyncio.all_tasks():
+                        print(t)
                     logger.warning(
                         f"Number of tasks in the event loop is {len(asyncio.all_tasks())}."
                     )

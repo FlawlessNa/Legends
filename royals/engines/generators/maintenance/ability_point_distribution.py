@@ -1,15 +1,18 @@
-import asyncio
+import numpy as np
 import time
 from functools import partial
 
 from botting.core import DecisionGenerator, QueueAction, controller
 from botting.utilities import config_reader, take_screenshot
 from royals import RoyalsData
+from royals.interface import AbilityMenu, CharacterStats
 
 
 class DistributeAP(DecisionGenerator):
     def __init__(self, game_data: RoyalsData) -> None:
         self.data = game_data
+        self.data.ability_menu = AbilityMenu()
+        self.data.character_stats = CharacterStats()
 
         self._key = eval(config_reader("keybindings", self.data.ign, "Non Skill Keys"))[
             "Ability Menu"
@@ -18,32 +21,44 @@ class DistributeAP(DecisionGenerator):
             self.data.character.main_stat
         ]
         self._current_lvl_img = self._prev_lvl_img = None
+        self._next_call = None
 
     def _failsafe(self):
         pass
 
     def __call__(self):
-        self._prev_lvl_img = take_screenshot(self.data.handle, self.data.character_stats.level_box)
+        self._prev_lvl_img = take_screenshot(
+            self.data.handle, self.data.character_stats.level_box
+        )
         self._current_lvl_img = self._prev_lvl_img
+        self._next_call = time.perf_counter()
         return iter(self)
 
     def __next__(self):
-        if self._current_lvl_img != self._prev_lvl_img:
+        if time.perf_counter() < self._next_call:
+            return
+
+        if not np.array_equal(self._current_lvl_img, self._prev_lvl_img):
             if not self.data.ability_menu.is_displayed(self.data.handle):
+                self._next_call = time.perf_counter() + 1
                 return QueueAction(
                     identifier="Opening ability menu",
                     priority=1,
                     action=partial(
-                        controller.press, self.data.handle, self._key, silenced=True
+                        controller.press, self.data.handle, self._key, silenced=True, cooldown=0
                     ),
                 )
+
             else:
                 # Start by looking whether we have AP to distribute
                 ap_available = self.data.ability_menu.get_available_ap(self.data.handle)
                 if ap_available > 0:
                     # If we do, distribute it
-                    target_box = self.data.ability_menu.get_abs_box(self.data.handle, self._offset_box)
+                    target_box = self.data.ability_menu.get_abs_box(
+                        self.data.handle, self._offset_box
+                    )
                     target = target_box.random()
+                    self._next_call = time.perf_counter() + 1
                     return QueueAction(
                         identifier="Distributing AP",
                         priority=1,
@@ -52,16 +67,23 @@ class DistributeAP(DecisionGenerator):
                         ),
                     )
                 else:
+                    self._current_lvl_img = take_screenshot(
+                        self.data.handle, self.data.character_stats.level_box
+                    )
+                    self._prev_lvl_img = self._current_lvl_img
                     return QueueAction(
                         identifier="Closing ability menu",
                         priority=1,
                         action=partial(
-                            controller.press, self.data.handle, self._key, silenced=True
+                            controller.press, self.data.handle, self._key, silenced=True, cooldown=0
                         ),
                     )
         else:
             self._prev_lvl_img = self._current_lvl_img.copy()
-            self._current_lvl_img = take_screenshot(self.data.handle, self.data.character_stats.level_box)
+            self._current_lvl_img = take_screenshot(
+                self.data.handle, self.data.character_stats.level_box
+            )
+            self._next_call = time.perf_counter() + 60
 
     @staticmethod
     async def _distribute_ap(

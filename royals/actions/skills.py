@@ -22,6 +22,7 @@ async def cast_skill(
             direction if direction else "left",
             silenced=False,
             enforce_delay=True,
+            cooldown=0
         )
     # data.update(
     #     current_direction=direction

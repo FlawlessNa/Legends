@@ -47,6 +47,9 @@ class SmartRotation(Rotation):
                 next(self._target_cycle)
         else:
             self._next_target = self.data.current_minimap.random_point()
+            self._next_feature = self.data.current_minimap.get_feature_containing(
+                self._next_target
+            )
 
         self._next_feature_covered = []
         self._last_pos_change = time.perf_counter()
@@ -125,6 +128,9 @@ class SmartRotation(Rotation):
                     self._next_target = self._next_feature.random()
                 else:
                     self._next_target = self.data.current_minimap.random_point()
+                    self._next_feature = self.data.current_minimap.get_feature_containing(
+                        self._next_target
+                    )
                 self._next_feature_covered.clear()
                 self._cancellable = True
 

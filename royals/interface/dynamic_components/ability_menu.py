@@ -121,10 +121,10 @@ class AbilityMenu(InGameDynamicVisuals):
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        return cv2.bitwise_not(gray)
+        return cv2.resize(cv2.bitwise_not(gray), None, fx=10, fy=10)
 
     def is_displayed(self, handle: int) -> bool:
-        raise NotImplementedError
+        return True if self._menu_icon_position(handle) is not None else False
 
     def get_available_ap(self, handle: int) -> int | None:
         img = take_screenshot(handle)

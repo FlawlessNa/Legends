@@ -214,29 +214,35 @@ class MinimapFeature(Box):
 
     @property
     def left_edge(self) -> tuple[int, int]:
-        rand_buffer = random.randint(0, self.randomized_edge)
-        return (
-            max(
-                int(
-                    rand_buffer + self.left + self.width * (1 - self.area_coverage) / 2
+        if self.is_platform:
+            rand_buffer = random.randint(0, self.randomized_edge)
+            return (
+                max(
+                    int(
+                        rand_buffer + self.left + self.width * (1 - self.area_coverage) / 2
+                    ),
+                    self.left,
                 ),
-                self.left,
-            ),
-            self.top,
-        )
+                self.top,
+            )
+        else:
+            return int(self.center[0]), int(self.center[1])
 
     @property
     def right_edge(self) -> tuple[int, int]:
-        rand_buffer = random.randint(-self.randomized_edge, 0)
-        return (
-            min(
-                int(
-                    rand_buffer + self.right - self.width * (1 - self.area_coverage) / 2
+        if self.is_platform:
+            rand_buffer = random.randint(-self.randomized_edge, 0)
+            return (
+                min(
+                    int(
+                        rand_buffer + self.right - self.width * (1 - self.area_coverage) / 2
+                    ),
+                    self.right,
                 ),
-                self.right,
-            ),
-            self.top,
-        )
+                self.top,
+            )
+        else:
+            return int(self.center[0]), int(self.center[1])
 
     @property
     def area(self) -> int:

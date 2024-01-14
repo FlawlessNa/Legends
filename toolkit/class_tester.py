@@ -23,4 +23,4 @@ if __name__ == "__main__":
         cv2.imshow("test", img)
         cv2.waitKey(1)
 
-        print(menu.get_available_ap(HANDLE))
+        print(menu.is_displayed(HANDLE))
