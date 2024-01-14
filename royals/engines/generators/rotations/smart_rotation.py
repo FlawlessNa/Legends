@@ -38,17 +38,18 @@ class SmartRotation(Rotation):
         self._cancellable = True  # Impacts rotation behavior
 
     def __call__(self):
-        self._next_feature = random.choice(self.data.current_minimap.feature_cycle)
-        self._next_target = self._next_feature.random()
+        if len(self.data.current_minimap.feature_cycle) > 0:
+            self._next_feature = random.choice(self.data.current_minimap.feature_cycle)
+            self._next_target = self._next_feature.random()
+            for _ in range(
+                self.data.current_minimap.feature_cycle.index(self._next_feature)
+            ):
+                next(self._target_cycle)
+        else:
+            self._next_target = self.data.current_minimap.random_point()
+
         self._next_feature_covered = []
-
-        for _ in range(
-            self.data.current_minimap.feature_cycle.index(self._next_feature)
-        ):
-            next(self._target_cycle)
-
         self._last_pos_change = time.perf_counter()
-
         return iter(self)
 
     def __next__(self) -> QueueAction | None:
@@ -115,15 +116,15 @@ class SmartRotation(Rotation):
         else:
             self._on_central_target = True
             # Once the center of the feature is targeted, stay there for X seconds before rotating.
-            if time.perf_counter() - self.data.last_mob_detection > 2:
-                self._next_feature = next(self._target_cycle)
-                self._next_target = self._next_feature.random()
-                self._next_feature_covered.clear()
-                self._cancellable = True
-
-            elif time.perf_counter() - self._center_targeted_at > self.time_limit:
-                self._next_feature = next(self._target_cycle)
-                self._next_target = self._next_feature.random()
+            if (
+                time.perf_counter() - self.data.last_mob_detection > 2
+                or time.perf_counter() - self._center_targeted_at > self.time_limit
+            ):
+                if len(self.data.current_minimap.feature_cycle) > 0:
+                    self._next_feature = next(self._target_cycle)
+                    self._next_target = self._next_feature.random()
+                else:
+                    self._next_target = self.data.current_minimap.random_point()
                 self._next_feature_covered.clear()
                 self._cancellable = True
 
@@ -153,5 +154,3 @@ class SmartRotation(Rotation):
             self._deadlock_counter = 0
         else:
             self._deadlock_counter += 1
-
-        return res

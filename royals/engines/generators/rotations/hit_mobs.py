@@ -55,7 +55,7 @@ class MobsHitting(DecisionGenerator):
                 cropped_img, self.data.current_mobs
             )
 
-            if self.skill.unidirectional:
+            if self.skill.unidirectional and mobs_locations:
                 closest_mob_direction = self.get_closest_mob_direction(
                     (x, y), mobs_locations
                 )
@@ -124,4 +124,5 @@ class MobsHitting(DecisionGenerator):
 
         # Find minimum distance in terms of absolute value, but retain its sign
         closest_mob_idx = np.argmin(np.abs(distances))
-        return "left" if distances[closest_mob_idx] < 0 else "right"
+        horizontal_distance = centers[closest_mob_idx][0] - character_pos[0]
+        return "left" if horizontal_distance < 0 else "right"

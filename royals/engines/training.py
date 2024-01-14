@@ -20,6 +20,7 @@ class TrainingEngine(DecisionEngine):
         time_limit: float = 15,
         mob_count_threshold: int = 2,
         buffs: list[str] | None = None,
+        teleport_enabled: bool = True
     ) -> None:
         super().__init__(log_queue, bot)
         self._game_data = RoyalsData(self.handle, self.ign)
@@ -34,6 +35,8 @@ class TrainingEngine(DecisionEngine):
 
         self._training_skill = self.game_data.character.skills[training_skill]
         self._teleport_skill = self.game_data.character.skills.get("Teleport")
+        if not teleport_enabled:
+            self._teleport_skill = None
         self.game_data.current_minimap.generate_grid_template(
             True if self._teleport_skill is not None else False
         )

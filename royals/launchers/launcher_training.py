@@ -11,15 +11,19 @@ import royals.engines
 import royals.maps
 
 
-CHARACTER_NAME = "FarmFest1"
-CHARACTER_CLASS = royals.characters.Priest
-TRAINING_SKILL = "Shining Ray"
-TRAINING_MAP = royals.maps.EncounterWithTheBuddha
-MOB_COUNT_THRESHOLD = 4
-TIME_LIMIT_CENTRAL_TARGET = 60
+CHARACTER_NAME = "WrongDoor"
+CHARACTER_CLASS = royals.characters.Magician
+TRAINING_SKILL = "Magic Claw"
+TRAINING_MAP = royals.maps.Line1Area1
+MOB_COUNT_THRESHOLD = 1
+TIME_LIMIT_CENTRAL_TARGET = 5
+
+BUFFS = []
 
 DETECTION_CONFIG_SECTION = "Elephant Cape"
 CLIENT_SIZE = "large"
+
+DISABLE_TELEPORT = True
 
 
 async def main(*bots: botting.Executor) -> None:
@@ -39,8 +43,9 @@ if __name__ == "__main__":
         game_map=TRAINING_MAP,
         training_skill=TRAINING_SKILL,
         mob_count_threshold=MOB_COUNT_THRESHOLD,
-        buffs=["Invincible", "Magic Guard", "Bless"],
+        buffs=BUFFS,
         time_limit=TIME_LIMIT_CENTRAL_TARGET,
+        teleport_enabled=not DISABLE_TELEPORT
     )
 
     bot = botting.Executor(
