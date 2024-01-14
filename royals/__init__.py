@@ -1,4 +1,4 @@
-from .models_implementations.royals_data import RoyalsData
+from royals.data.royals_data import RoyalsData
 
 from .interface.fixed_components.character_stats import CharacterStats
 

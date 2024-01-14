@@ -4,16 +4,13 @@ from functools import partial
 
 from botting.core import DecisionGenerator, QueueAction, controller
 from botting.utilities import config_reader, take_screenshot
-from royals import RoyalsData
-from royals.interface import AbilityMenu, CharacterStats
+from royals.data import MaintenanceData
 
 
 class DistributeAP(DecisionGenerator):
-    def __init__(self, game_data: RoyalsData) -> None:
-        self.data = game_data
-        self.data.ability_menu = AbilityMenu()
-        self.data.character_stats = CharacterStats()
-
+    def __init__(self, data: MaintenanceData) -> None:
+        self.data = data
+        self.data.update("ability_menu", "character_stats")
         self._key = eval(config_reader("keybindings", self.data.ign, "Non Skill Keys"))[
             "Ability Menu"
         ]

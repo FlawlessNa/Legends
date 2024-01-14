@@ -6,9 +6,8 @@ from functools import partial
 
 from botting import PARENT_LOG
 from botting.core import DecisionGenerator, QueueAction
-from botting.utilities import take_screenshot
-from royals import RoyalsData
 from royals.actions import write_in_chat
+from royals.data import AntiDetectionData
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -21,10 +20,10 @@ class MobCheck(DecisionGenerator):
 
     def __init__(
         self,
-        data: RoyalsData,
-        time_threshold: int = 10,
-        mob_threshold: int = 3,
-        cooldown: int = 60,
+        data: AntiDetectionData,
+        time_threshold: int,
+        mob_threshold: int,
+        cooldown: int,
     ) -> None:
         self.data = data
         self.time_threshold = time_threshold
@@ -34,7 +33,6 @@ class MobCheck(DecisionGenerator):
     def __call__(self):
         self._last_mob_detection = time.perf_counter()
         self._counter = 0
-        self._img = None
         self._last_trigger = 0
         return iter(self)
 
@@ -45,11 +43,11 @@ class MobCheck(DecisionGenerator):
         ):
             return self._failsafe()
 
-        self._img = take_screenshot(self.data.handle)
+        self.data.update("latest_client_img")
         nbr_mobs = 0
         mobs = self.data.current_mobs
         for mob in mobs:
-            nbr_mobs += mob.get_mob_count(self._img, debug=False)
+            nbr_mobs += mob.get_mob_count(self.data.latest_client_img.copy(), debug=False)
 
         if nbr_mobs >= self.mob_threshold:
             self._last_mob_detection = time.perf_counter()
@@ -61,7 +59,7 @@ class MobCheck(DecisionGenerator):
     def _failsafe(self) -> QueueAction:
         """
         Triggers emergency reaction, which is three-fold:
-        1. Block bot from continuing until user calls RESUME from discord.  # TODO
+        1. Block bot from continuing until user calls RESUME from discord.
             Note: If no RESUME within 60 seconds, the bot stops.  # TODO (but within Executor, not here)
         2. Random reaction in general chat
         3. Send Discord Alert
@@ -109,6 +107,6 @@ class MobCheck(DecisionGenerator):
                 Send Resume to continue.
                 Send Hold to pause indefinitely.
                 """,
-                self._img,
+                self.data.latest_client_img,
             ],
         )

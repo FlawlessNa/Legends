@@ -4,6 +4,14 @@ from dataclasses import dataclass, field
 from botting.models_abstractions import BaseMap, BaseCharacter, BaseMob
 
 
+def get_all_annotations(class_: type) -> dict:
+    annotations = class_.__annotations__
+    for base in class_.__bases__:
+        if not base is object:
+            annotations.update(get_all_annotations(base))
+    return annotations
+
+
 @dataclass
 class GameData(ABC):
     """
@@ -13,25 +21,14 @@ class GameData(ABC):
 
     handle: int = field(repr=False)
     ign: str = field()
+    character: BaseCharacter = field(default=None)
+    current_map: BaseMap = field(default=None)
+    current_mobs: tuple[BaseMob] = field(default=None, repr=False)
 
-    character: BaseCharacter = field(repr=False, init=False)
-    current_map: BaseMap = field(repr=False, init=False)
-    current_mobs: list[BaseMob] = field(repr=False, init=False)
-    current_on_screen_position: tuple[int, int] = field(repr=False, init=False)
-    current_hp_potions: int = field(repr=False, init=False)
-    current_mp_potions: int = field(repr=False, init=False)
-    current_pet_food: int = field(repr=False, init=False)
-    current_mount_food: int = field(repr=False, init=False)
-    current_mesos: int = field(repr=False, init=False)
-    current_storage_space: int = field(repr=False, init=False)
-    current_inventory_equip_space: int = field(repr=False, init=False)
-    current_inventory_use_space: int = field(repr=False, init=False)
-    current_inventory_etc_space: int = field(repr=False, init=False)
-    current_level: int = field(repr=False, init=False)
-    block_rotation: bool = field(default=False, init=False)
-    shut_down_at: float = field(default=None, init=False)
+    block_rotation: bool = field(default=False, repr=False)
+    block_maintenance: bool = field(default=False, repr=False)
+    block_anti_detection: bool = field(default=False, repr=False)
 
-    @abstractmethod
     def update(self, *args, **kwargs) -> None:
         """
         This method will be called whenever an in-game action is completed/cancelled. It is meant to update the data attributes of the class.
@@ -41,4 +38,23 @@ class GameData(ABC):
             If the character used a potion, then the current potion count should be updated.
             etc.
         """
+        annotations = get_all_annotations(self.__class__)
+        for k, v in kwargs.items():
+            assert k in annotations, f"Invalid attribute {k}"
+            setattr(self, k, v)
+
+        for arg in args:
+            updater = self.args_dict[arg]
+            setattr(self, arg, updater())
+
+    @property
+    @abstractmethod
+    def args_dict(self) -> dict[str, callable]:
+        """
+        Use this to map *args received by "self.update" to their updating methodology.
+        :return:
+        """
         pass
+
+
+import inspect

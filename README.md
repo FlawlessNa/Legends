@@ -47,12 +47,16 @@
   - [ ] Add a PerformanceData class for monitoring (mesos/h, exp/h, etc)
   - [ ] DecisionEngine should not have to update anything. Each Generator should deal with their own requirements.
 
+### Error Management
+  - [ ] Ability to close all clients if error occurs
+  - [ ] Ability to send all characters to lounge if error occurs
+
 ### Misc
-- [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
-- [ ] Skill Specs Finder
-- [x] Mouse movements and mouse clicks
-- [ ] Finalize Discord communications
-- [ ] UnitTests on the botting library
+  - [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
+  - [ ] Skill Specs Finder
+  - [x] Mouse movements and mouse clicks
+  - [ ] Finalize Discord communications
+  - [ ] UnitTests on the botting library
 
 ### Documentation
   - [ ] Botting.core

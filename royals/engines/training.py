@@ -4,7 +4,14 @@ from botting.core import DecisionEngine, Executor, DecisionGenerator
 from botting.models_abstractions import BaseMap
 
 from royals import royals_ign_finder, RoyalsData
-from .generators import MobsHitting, SmartRotation, Rebuff, PetFood, MobCheck, DistributeAP
+from .generators import (
+    MobsHitting,
+    SmartRotation,
+    Rebuff,
+    PetFood,
+    MobCheck,
+    DistributeAP,
+)
 
 
 class TrainingEngine(DecisionEngine):
@@ -20,31 +27,38 @@ class TrainingEngine(DecisionEngine):
         time_limit: float = 15,
         mob_count_threshold: int = 2,
         buffs: list[str] | None = None,
-        teleport_enabled: bool = True
+        teleport_enabled: bool = True,
     ) -> None:
         super().__init__(log_queue, bot)
-        self._game_data = RoyalsData(self.handle, self.ign)
-        self.game_data.update(
-            "current_minimap_area_box",
-            "current_minimap_position",
-            "current_entire_minimap_box",
-            current_minimap=game_map.minimap,
+
+        self._game_data = RoyalsData(
+            self.handle,
+            self.ign,
+            character(),
+            current_map=game_map,
             current_mobs=game_map.mobs,
-            character=character(),
+            current_minimap=game_map.minimap
+        )
+        self._training_skill = self.game_data.get_skill(training_skill)
+        if teleport_enabled:
+            try:
+                self._teleport_skill = self.game_data.get_skill("Teleport")
+            except KeyError:
+                self._teleport_skill = None
+        else:
+            self._teleport_skill = None
+
+        self.game_data.update(current_minimap=self.game_data.current_map.minimap)
+        self.game_data.update(
+            "minimap_grid",
+            allow_teleport=True if self._teleport_skill is not None else False,
         )
 
-        self._training_skill = self.game_data.character.skills[training_skill]
-        self._teleport_skill = self.game_data.character.skills.get("Teleport")
-        if not teleport_enabled:
-            self._teleport_skill = None
-        self.game_data.current_minimap.generate_grid_template(
-            True if self._teleport_skill is not None else False
-        )
         self._mob_count_threshold = mob_count_threshold
         self._time_limit_central_node = time_limit
         if buffs:
             self._buffs_to_use = [
-                self.game_data.character.skills[buff] for buff in buffs
+                self.game_data.get_skill(buff) for buff in buffs
             ]
         else:
             self._buffs_to_use = []
