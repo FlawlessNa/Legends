@@ -18,10 +18,11 @@
 
 ### Anti Detection Features
   - [ ] Chat Parsing (try grayscale preprocessing on "general" lines) + GPT Automated Responses
-  - [ ] Blue Notification detection (chat invite, other invites, etc)
+  - [ ] Abnormal Status Detection (look for gray line types)
   - [ ] Minimap Parsing for strangers + random reaction
   - [ ] Minimap Parsing for unexpected self movements + random reaction
   - [ ] Minimap parsing to ensure still in proper map + random reaction
+  - [ ] Blue Notification detection (chat invite, other invites, etc)
   - [ ] Mob freeze (from a GM) + random reaction
   - [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs + random reaction
   - [ ] GM Logo detection
