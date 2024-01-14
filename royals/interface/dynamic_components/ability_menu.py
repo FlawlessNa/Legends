@@ -74,10 +74,10 @@ class AbilityMenu(InGameDynamicVisuals):
     @property
     def stat_mapper(self) -> dict[str, Box]:
         return {
-            'STR': self.str_box,
-            'DEX': self.dex_box,
-            'INT': self.int_box,
-            'LUK': self.luk_box,
+            'STR': self.add_str_box,
+            'DEX': self.add_dex_box,
+            'INT': self.add_int_box,
+            'LUK': self.add_luk_box,
         }
 
 

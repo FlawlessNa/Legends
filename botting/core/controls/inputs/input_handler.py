@@ -124,7 +124,6 @@ async def focused_mouse_input(
 ):
     """
     Constructs the input array of mouse structures to be sent to the window.
-    TODO - See if the window needs to be activate.
     Note: This function is broken down to allow only the input construction to be made
      without using the Focus Lock.
      The Lock is only used once everything is ready to be sent.
@@ -138,6 +137,18 @@ async def focused_mouse_input(
     :param cooldown: Cooldown after all inputs are sent. Default is 0.1 seconds.
     :return: None
     """
+    if not isinstance(x_trajectory, list):
+        x_trajectory = [x_trajectory]
+
+    if not isinstance(y_trajectory, list):
+        y_trajectory = [y_trajectory]
+
+    if not isinstance(events, list):
+        events = [events] * len(x_trajectory)
+
+    if mouse_data is None:
+        mouse_data = [0] * len(events)
+
     inputs = _mouse_input_array_constructor(
         x_trajectory=x_trajectory,
         y_trajectory=y_trajectory,

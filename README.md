@@ -4,13 +4,14 @@
 
 ### Leeching Engine
   - [ ] Rebuffing from Leechers
-  - [ ] Automated AP distribution
   - [ ] Ultimate Cast failsafe - check if MP has changed by at least X%
   
 ### Maintenance Generators
   - [ ] Check character still alive
   - [ ] Check Potions Pet Food, Mount Food
   - [ ] Cooldown buffs
+  - [ ] Inventory Management
+  - [ ] Automated AP distribution
   
 ### Generic Generator class for the botting library + incorporated failsafe methods
   - [ ] Add failsafe on MobHitting

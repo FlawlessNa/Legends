@@ -5,13 +5,30 @@ Contains all high-level functions necessary for interacting with the game.
 import asyncio
 import functools
 import logging
+import numpy as np
+import pytweening
+import random
+import win32api
 import win32con
+import win32gui
 from typing import Literal
 
 from botting.utilities import config_reader, randomize_params
 from .inputs import focused_input, non_focused_input, focused_mouse_input
 
 logger = logging.getLogger(__name__)
+WIDTH, HEIGHT = win32api.GetSystemMetrics(0), win32api.GetSystemMetrics(1)
+
+
+def get_refresh_rate() -> int:
+    """
+    Retrieves the refresh rate of the monitor.
+    :return: Refresh rate in Hz.
+    """
+    return int(win32api.EnumDisplaySettings().DisplayFrequency)
+
+
+REFRESH_RATE = get_refresh_rate()
 
 
 @functools.lru_cache
@@ -237,39 +254,87 @@ async def move(
         await asyncio.sleep(cooldown)
 
 
+@randomize_params("total_duration")
 async def mouse_move(
     handle: int,
-    target: tuple[int, int],
-    duration: float = None,
-    tween: callable = None,
-    **kwargs
+    target: tuple[int | float, int | float],
+    total_duration: float = 0.5,
+    **kwargs,
 ) -> None:
     """
-    TODO - See if focused is required. Implement duration + tweening.
+    Calculates the mouse movement path and sends the inputs to the window.
+    A random tweening function is chosen, which dictates the shape of the trajectory.
+    :param handle: Window handle to the process.
+    :param target: Target position of the mouse.
+    :param total_duration: Duration of the movement. If 0, the mouse is moved instantly.
     """
-    x = [target[0]]
-    y = [target[1]]
+    tween = random.choice(
+        [
+            pytweening.easeInQuad,
+            pytweening.easeOutQuad,
+            pytweening.easeInOutQuad,
+            pytweening.easeInCubic,
+            pytweening.easeOutCubic,
+            pytweening.easeInOutCubic,
+            pytweening.easeInQuart,
+            pytweening.easeOutQuart,
+            pytweening.easeInOutQuart,
+            pytweening.easeInQuint,
+            pytweening.easeOutQuint,
+            pytweening.easeInOutQuint,
+            pytweening.easeInSine,
+            pytweening.easeOutSine,
+            pytweening.easeInOutSine,
+            pytweening.easeInExpo,
+            pytweening.easeOutExpo,
+            pytweening.easeInOutExpo,
+            pytweening.easeInCirc,
+            pytweening.easeOutCirc,
+            pytweening.easeInOutCirc,
+            pytweening.easeInElastic,
+            pytweening.easeOutElastic,
+            pytweening.easeInOutElastic,
+            pytweening.easeInBack,
+            pytweening.easeOutBack,
+            pytweening.easeInOutBack,
+            pytweening.easeInBounce,
+            pytweening.easeOutBounce,
+            pytweening.easeInOutBounce,
+        ]
+    )
+
+    window_rect = win32gui.GetWindowRect(handle)
+    x0, y0 = win32api.GetCursorPos()
+    x1 = target[0] + window_rect[0]
+    y1 = target[1] + window_rect[1]
+
+    if total_duration == 0:
+        x, y = [int(x1 * 65536 // WIDTH)], [int(y1 * 65536 // HEIGHT)]
+
+    else:
+        step_duration = max(1 / REFRESH_RATE, 0.01)
+        num_steps = int(total_duration / step_duration)
+        rng = np.linspace(0, 1, num_steps)
+        trajectory = [pytweening.getPointOnLine(x0, y0, x1, y1, tween(t)) for t in rng]
+        x, y = zip(*trajectory)
+        x = [int(i * 65536 // WIDTH) for i in x]
+        y = [int(i * 65536 // HEIGHT) for i in y]
+
+        kwargs.update(delay=step_duration)
+
     await focused_mouse_input(handle, x, y, None, **kwargs)
 
 
 async def click(
     handle: int,
-    target: tuple[int, int] = None,
-    down_or_up: Literal["down", "up"] | None = None,
+    down_or_up: Literal["click", "down", "up"] = "click",
+    nbr_times: int = 1,
 ) -> None:
     """
-    TODO - See if focused is required.
+    :param handle:
+    :param down_or_up:
+    :param nbr_times:
+    :return:
     """
-    if down_or_up is None:
-        flags = win32con.MOUSEEVENTF_LEFTDOWN | win32con.MOUSEEVENTF_LEFTUP
-    elif down_or_up == "down":
-        flags = win32con.MOUSEEVENTF_LEFTDOWN
-    elif down_or_up == "up":
-        flags = win32con.MOUSEEVENTF_LEFTUP
-    else:
-        raise ValueError(f"Invalid down_or_up value: {down_or_up}")
-
-    if target is not None:
-        flags |= win32con.MOUSEEVENTF_MOVE | win32con.MOUSEEVENTF_ABSOLUTE
-
-
+    events = [down_or_up] * nbr_times
+    await focused_mouse_input(handle, None, None, events)

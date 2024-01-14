@@ -4,3 +4,5 @@ numpy>=1.26.0
 discord>=2.3.2
 pytesseract>=0.3.10
 pathfinding>=1.0.4
+pytweening>=1.0.7
+keyboard>=0.13.5

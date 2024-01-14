@@ -3,6 +3,7 @@ Low-level module that handles sending inputs to the focused window through SendI
 """
 import asyncio
 import ctypes
+import itertools
 import logging
 import random
 
@@ -106,9 +107,9 @@ class Input(ctypes.Structure):
 InputArray = Input * 1
 
 
-MOUSE = 0
-KEYBOARD = 1
-HARDWARE = 2
+MOUSE = wintypes.DWORD(0)
+KEYBOARD = wintypes.DWORD(1)
+HARDWARE = wintypes.DWORD(2)
 
 
 def activate(hwnd: int) -> None:
@@ -300,11 +301,24 @@ def _mouse_input_array_constructor(
     mouse_data: list[int | None],
     delay: float
 ) -> list[list[tuple, float]]:
+
     return_val = []
-    for x, y, event, mouse in zip(x_trajectory, y_trajectory, events, mouse_data):
+    input_array_class = Input * 1
+    input_pointer = ctypes.POINTER(input_array_class)
+    _EXPORTED_FUNCTIONS["SendInput"].argtypes = [
+        wintypes.UINT,
+        input_pointer,
+        wintypes.INT,
+    ]
+
+    for x, y, event, mouse in itertools.zip_longest(x_trajectory, y_trajectory, events, mouse_data):
         input_structure = _mouse_input_structure_constructor(x, y, event, mouse)
+        input_array = input_array_class(input_structure)
         return_val.append([
-            (1, input_structure, ctypes.sizeof(input_structure)),
+            (wintypes.UINT(1),
+             input_pointer(input_array),
+             wintypes.INT(ctypes.sizeof(input_structure))
+             ),
             random.uniform(delay * 0.95, delay * 1.05)
             ])
     return return_val
@@ -326,6 +340,9 @@ def _mouse_input_structure_constructor(
     flags = 0
     if x is not None and y is not None:
         flags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE
+    else:
+        x = 0
+        y = 0
 
     if event is not None:
         if event == "click":
