@@ -233,7 +233,9 @@ class Minimap(InGameDynamicVisuals, ABC):
                         extra_columns = np.where(differences > _THRESHOLD)[0]
                     if extra_columns.size > 0:
                         left_offset = extra_columns[0] + 1
-                        right_offset = -(mean_vertical_intensity.shape[0] - extra_columns[-1] - 1)
+                        right_offset = -(
+                            mean_vertical_intensity.shape[0] - extra_columns[-1] - 1
+                        )
                     else:
                         left_offset = right_offset = 0
                 else:

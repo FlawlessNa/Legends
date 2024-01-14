@@ -299,9 +299,8 @@ def _mouse_input_array_constructor(
     y_trajectory: list[int | None],
     events: list[Literal["click", "down", "up"] | None],
     mouse_data: list[int | None],
-    delay: float
+    delay: float,
 ) -> list[list[tuple, float]]:
-
     return_val = []
     input_array_class = Input * 1
     input_pointer = ctypes.POINTER(input_array_class)
@@ -311,16 +310,21 @@ def _mouse_input_array_constructor(
         wintypes.INT,
     ]
 
-    for x, y, event, mouse in itertools.zip_longest(x_trajectory, y_trajectory, events, mouse_data):
+    for x, y, event, mouse in itertools.zip_longest(
+        x_trajectory, y_trajectory, events, mouse_data
+    ):
         input_structure = _mouse_input_structure_constructor(x, y, event, mouse)
         input_array = input_array_class(input_structure)
-        return_val.append([
-            (wintypes.UINT(1),
-             input_pointer(input_array),
-             wintypes.INT(ctypes.sizeof(input_structure))
-             ),
-            random.uniform(delay * 0.95, delay * 1.05)
-            ])
+        return_val.append(
+            [
+                (
+                    wintypes.UINT(1),
+                    input_pointer(input_array),
+                    wintypes.INT(ctypes.sizeof(input_structure)),
+                ),
+                random.uniform(delay * 0.95, delay * 1.05),
+            ]
+        )
     return return_val
 
 

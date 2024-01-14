@@ -46,6 +46,7 @@ class LocalizedRebuff(Rotation):
     Generator for rebuffing at a target location.
     All party buffs are cast when at location.
     """
+
     def __init__(
         self,
         data: RoyalsData,
@@ -53,7 +54,7 @@ class LocalizedRebuff(Rotation):
         teleport_skill: Skill,
         buffs: list[Skill],
         target: tuple[int, int],
-        cooldown: int = 5
+        cooldown: int = 5,
     ):
         super().__init__(data, lock, teleport_skill)
         self.buffs = buffs
@@ -84,9 +85,21 @@ class LocalizedRebuff(Rotation):
                 self._next_call = time.perf_counter() + (
                     min(skill.duration for skill in self.buffs) * random.uniform(0.9, 1)
                 )
-                wait_time = max(self.data.ultimate.animation_time - (time.perf_counter() - self.data.last_cast), 0)
-                action = partial(self.cast_all, wait_time, self.buffs, self.data.handle, self.data.ign)
-                return QueueAction("Rebuffing on Party", 2, action, is_cancellable=False)
+                wait_time = max(
+                    self.data.ultimate.animation_time
+                    - (time.perf_counter() - self.data.last_cast),
+                    0,
+                )
+                action = partial(
+                    self.cast_all,
+                    wait_time,
+                    self.buffs,
+                    self.data.handle,
+                    self.data.ign,
+                )
+                return QueueAction(
+                    "Rebuffing on Party", 2, action, is_cancellable=False
+                )
 
     def _failsafe(self, *args, **kwargs):
         pass
@@ -97,6 +110,7 @@ class LocalizedRebuff(Rotation):
             await asyncio.sleep(0.25)
             for action in partials:
                 await action()
+
         await asyncio.wait_for(_coro(), timeout=timeout)
 
     @staticmethod

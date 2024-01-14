@@ -42,7 +42,9 @@ if __name__ == "__main__":
         mob_count_threshold=MOB_COUNT_THRESHOLD,
     )
 
-    bot = botting.Executor(engine=royals.engines.LeechingEngine, ign=CHARACTER_NAME, **engine_kwargs)
+    bot = botting.Executor(
+        engine=royals.engines.LeechingEngine, ign=CHARACTER_NAME, **engine_kwargs
+    )
     # leechers = [
     #     botting.Executor(engine=royals.engines.Leecher, ign=name, **{"character": char})
     #     for name, char in zip(LEECHERS_NAMES, LEECHERS_CLASSES)

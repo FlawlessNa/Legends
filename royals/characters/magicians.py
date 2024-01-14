@@ -113,7 +113,7 @@ class Priest(Cleric):
 
 
 class Bishop(Priest):
-    main_skill = 'Genesis'
+    main_skill = "Genesis"
 
     @property
     def skills(self) -> dict[str, Skill]:
@@ -134,7 +134,7 @@ class Bishop(Priest):
                 unidirectional=False,
                 _use_by_default=True,
                 horizontal_minimap_distance=15,
-                duration=300
+                duration=300,
             ),
         }
 

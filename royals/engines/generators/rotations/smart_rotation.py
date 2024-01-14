@@ -155,4 +155,3 @@ class SmartRotation(Rotation):
             self._deadlock_counter += 1
 
         return res
-

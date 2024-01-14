@@ -136,9 +136,17 @@ def _translate_path_into_movements(
             movements.append("right")
         elif dx == -1 and dy == 0 and current_feature.is_platform:
             movements.append("left")
-        elif dx == 0 and dy == 1 and (current_feature.is_ladder or next_feature.is_ladder):
+        elif (
+            dx == 0
+            and dy == 1
+            and (current_feature.is_ladder or next_feature.is_ladder)
+        ):
             movements.append("down")
-        elif dx == 0 and dy == -1 and (current_feature.is_ladder or next_feature.is_ladder):
+        elif (
+            dx == 0
+            and dy == -1
+            and (current_feature.is_ladder or next_feature.is_ladder)
+        ):
             movements.append("up")
 
         # Otherwise, Nodes are connected. Need to determine connection type.
@@ -148,11 +156,18 @@ def _translate_path_into_movements(
             ]
 
             # When there are more than 1 connection type, prioritize Teleport, if existing.
-            if current_node.connections.count(next_node) > 1 and in_game_minimap.grid.allow_teleport:
-                idx = [idx for idx, node in enumerate(current_node.connections) if node == next_node]
+            if (
+                current_node.connections.count(next_node) > 1
+                and in_game_minimap.grid.allow_teleport
+            ):
+                idx = [
+                    idx
+                    for idx, node in enumerate(current_node.connections)
+                    if node == next_node
+                ]
                 all_connection_types = [current_node.connections_types[i] for i in idx]
                 for conn in all_connection_types:
-                    if MinimapConnection.convert_to_string(conn).startswith('TELEPORT'):
+                    if MinimapConnection.convert_to_string(conn).startswith("TELEPORT"):
                         connection_type = conn
                         break
 

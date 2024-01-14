@@ -73,7 +73,9 @@ class MobsHitting(DecisionGenerator):
         if (
             res
             and not self.data.character_in_a_ladder
-            and time.perf_counter() - self._last_cast >= self.skill.animation_time * 1.05  # Small buffer to avoid more tasks being queued up - TODO - Improve this
+            and time.perf_counter() - self._last_cast
+            >= self.skill.animation_time
+            * 1.05  # Small buffer to avoid more tasks being queued up - TODO - Improve this
         ):
             self._last_cast = time.perf_counter()
             return QueueAction(

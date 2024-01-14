@@ -10,7 +10,10 @@ from botting.utilities import (
     CLIENT_VERTICAL_MARGIN_PX,
 )
 from royals.characters.character import Character
-from royals.models_implementations.mechanics import MinimapPathingMechanics, MinimapFeature
+from royals.models_implementations.mechanics import (
+    MinimapPathingMechanics,
+    MinimapFeature,
+)
 from royals.interface import AbilityMenu, CharacterStats
 
 

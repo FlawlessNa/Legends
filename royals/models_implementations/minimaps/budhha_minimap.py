@@ -28,9 +28,5 @@ class BuddhaMinimap(MinimapPathingMechanics):
         ]
 
     main_platform: MinimapFeature = MinimapFeature(
-        left=9,
-        right=184,
-        top=35,
-        bottom=35,
-        name='main_platform'
+        left=9, right=184, top=35, bottom=35, name="main_platform"
     )

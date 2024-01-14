@@ -49,7 +49,7 @@
 ### Misc
 - [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
 - [ ] Skill Specs Finder
-- [ ] Mouse movements and mouse clicks
+- [x] Mouse movements and mouse clicks
 - [ ] Finalize Discord communications
 - [ ] UnitTests on the botting library
 

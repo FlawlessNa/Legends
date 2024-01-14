@@ -21,7 +21,9 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
 
     @property
     def central_node(self) -> tuple[int, int]:
-        return int(self.third_platform_right_ladder.center[0]), int(self.third_platform_right_ladder.center[1])
+        return int(self.third_platform_right_ladder.center[0]), int(
+            self.third_platform_right_ladder.center[1]
+        )
 
     @property
     def feature_cycle(self) -> list[MinimapFeature]:

@@ -43,5 +43,7 @@ if __name__ == "__main__":
         time_limit=TIME_LIMIT_CENTRAL_TARGET,
     )
 
-    bot = botting.Executor(engine=royals.engines.TrainingEngine, ign=CHARACTER_NAME, **engine_kwargs)
+    bot = botting.Executor(
+        engine=royals.engines.TrainingEngine, ign=CHARACTER_NAME, **engine_kwargs
+    )
     asyncio.run(main(bot))

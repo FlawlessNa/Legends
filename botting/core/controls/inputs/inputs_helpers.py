@@ -31,7 +31,7 @@ KEYBOARD_MAPPING = {
     "pagedown": win32con.VK_NEXT,
     "num_lock": win32con.VK_NUMLOCK,
     "space": win32con.VK_SPACE,
-    'enter': win32con.VK_RETURN,
+    "enter": win32con.VK_RETURN,
 }
 
 EXTENDED_KEYS = (

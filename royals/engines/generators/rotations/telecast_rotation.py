@@ -34,13 +34,17 @@ class TelecastRotation(Rotation):
         self._feature_generator = None
 
     def __call__(self):
-        self.data.update(next_target=self.data.current_minimap.random_point(),
-                         last_cast=time.perf_counter(),
-                         ultimate=self._ultimate)
+        self.data.update(
+            next_target=self.data.current_minimap.random_point(),
+            last_cast=time.perf_counter(),
+            ultimate=self._ultimate,
+        )
         self._next_target = self.data.next_target
         self._last_pos_change = time.perf_counter()
         if len(self.data.current_minimap.feature_cycle):
-            self._feature_generator = itertools.cycle(self.data.current_minimap.feature_cycle)
+            self._feature_generator = itertools.cycle(
+                self.data.current_minimap.feature_cycle
+            )
         return iter(self)
 
     def _set_next_target(self):

@@ -77,39 +77,19 @@ class MysteriousPath3Minimap(MinimapPathingMechanics):
         name="second_ladder",
     )
     plank_37: MinimapFeature = MinimapFeature(
-        left=113,
-        right=116,
-        top=37,
-        bottom=37,
-        name="plank_37"
+        left=113, right=116, top=37, bottom=37, name="plank_37"
     )
     plank_38: MinimapFeature = MinimapFeature(
-        left=113,
-        right=116,
-        top=38,
-        bottom=38,
-        name="plank_38"
+        left=113, right=116, top=38, bottom=38, name="plank_38"
     )
     plank_39: MinimapFeature = MinimapFeature(
-        left=113,
-        right=116,
-        top=39,
-        bottom=39,
-        name="plank_39"
+        left=113, right=116, top=39, bottom=39, name="plank_39"
     )
     plank_40: MinimapFeature = MinimapFeature(
-        left=113,
-        right=116,
-        top=40,
-        bottom=40,
-        name="plank_40"
+        left=113, right=116, top=40, bottom=40, name="plank_40"
     )
     plank_41: MinimapFeature = MinimapFeature(
-        left=113,
-        right=116,
-        top=41,
-        bottom=41,
-        name="plank_41"
+        left=113, right=116, top=41, bottom=41, name="plank_41"
     )
     box1: MinimapFeature = MinimapFeature(
         left=115,

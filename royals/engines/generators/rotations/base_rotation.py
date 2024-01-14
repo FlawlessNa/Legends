@@ -18,6 +18,7 @@ class Rotation(DecisionGenerator, ABC):
     """
     Base class for all rotations, where a few helper methods are defined.
     """
+
     def __init__(self, data: RoyalsData, lock, teleport: Skill = None) -> None:
         self.data = data
         self._lock = lock

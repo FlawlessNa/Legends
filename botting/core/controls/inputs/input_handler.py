@@ -12,7 +12,11 @@ from typing import Literal
 from win32api import GetKeyState
 
 from .non_focused_inputs import _message_constructor, _post_messages
-from .focused_inputs import _input_array_constructor, _send_inputs, _mouse_input_array_constructor
+from .focused_inputs import (
+    _input_array_constructor,
+    _send_inputs,
+    _mouse_input_array_constructor,
+)
 from .inputs_helpers import _EXPORTED_FUNCTIONS
 from botting.utilities import randomize_params
 
@@ -120,7 +124,7 @@ async def focused_mouse_input(
     events: list[Literal["click", "down", "up"]] | None,
     delay: float = 0.033,
     mouse_data: list[int] | None = None,
-    cooldown: float = 0.1
+    cooldown: float = 0.1,
 ):
     """
     Constructs the input array of mouse structures to be sent to the window.

@@ -7,9 +7,7 @@ class Rogue(Character):
 
     @property
     def skills(self) -> dict[str, Skill]:
-        return {
-
-        }
+        return {}
 
     def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:
         super().__init__(ign, detection_configs, client_size)

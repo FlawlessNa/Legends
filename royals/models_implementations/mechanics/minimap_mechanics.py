@@ -334,7 +334,9 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                 return
 
         # If nothing upwards, start from same horizontal line and go downwards
-        for y_val in range(starting_point[1] + 1, starting_point[1] + vertical_range + 1):
+        for y_val in range(
+            starting_point[1] + 1, starting_point[1] + vertical_range + 1
+        ):
             if (
                 grid.node(x_val, y_val).walkable
                 and self.get_feature_containing((x_val, y_val)).is_platform

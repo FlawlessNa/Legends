@@ -24,7 +24,6 @@ class Leecher(DecisionEngine):
             character_stats=CharacterStats(),
         )
 
-
     @property
     def game_data(self) -> RoyalsData:
         return self._game_data

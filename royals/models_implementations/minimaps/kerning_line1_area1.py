@@ -19,7 +19,9 @@ class KerningLine1Area1Minimap(MinimapPathingMechanics):
 
     @property
     def central_node(self) -> tuple[int, int]:
-        return int(self.platform_8_ladder.center[0]), int(self.platform_8_ladder.center[1])
+        return int(self.platform_8_ladder.center[0]), int(
+            self.platform_8_ladder.center[1]
+        )
 
     @property
     def feature_cycle(self) -> list[MinimapFeature]:
