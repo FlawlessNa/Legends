@@ -45,6 +45,7 @@
 ### RoyalsData Management
   - [ ] Split into several subclasses, each specific to a generator
   - [ ] Add a PerformanceData class for monitoring (mesos/h, exp/h, etc)
+  - [ ] DecisionEngine should not have to update anything. Each Generator should deal with their own requirements.
 
 ### Misc
 - [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)

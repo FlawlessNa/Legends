@@ -3,7 +3,7 @@ import time
 from functools import partial
 
 from botting.core import DecisionGenerator, QueueAction, controller
-from botting.utilities import config_reader
+from botting.utilities import config_reader, take_screenshot
 from royals import RoyalsData
 
 
@@ -17,18 +17,18 @@ class DistributeAP(DecisionGenerator):
         self._offset_box = self.data.ability_menu.stat_mapper[
             self.data.character.main_stat
         ]
+        self._current_lvl_img = self._prev_lvl_img = None
 
     def _failsafe(self):
         pass
 
     def __call__(self):
-        self.data.update("current_level")
-        self._current_lvl = self.data.current_level
+        self._prev_lvl_img = take_screenshot(self.data.handle, self.data.character_stats.level_box)
+        self._current_lvl_img = self._prev_lvl_img
         return iter(self)
 
     def __next__(self):
-        self.data.update("current_level")
-        if self.data.current_level > self._current_lvl:
+        if self._current_lvl_img != self._prev_lvl_img:
             if not self.data.ability_menu.is_displayed(self.data.handle):
                 return QueueAction(
                     identifier="Opening ability menu",
@@ -42,15 +42,16 @@ class DistributeAP(DecisionGenerator):
                 ap_available = self.data.ability_menu.get_available_ap(self.data.handle)
                 if ap_available > 0:
                     # If we do, distribute it
+                    target_box = self.data.ability_menu.get_abs_box(self.data.handle, self._offset_box)
+                    target = target_box.random()
                     return QueueAction(
                         identifier="Distributing AP",
                         priority=1,
                         action=partial(
-                            self._distribute_ap, self.data.handle, ..., ap_available
+                            self._distribute_ap, self.data.handle, target, ap_available
                         ),
                     )
                 else:
-                    self._current_lvl = self.data.current_level
                     return QueueAction(
                         identifier="Closing ability menu",
                         priority=1,
@@ -59,13 +60,12 @@ class DistributeAP(DecisionGenerator):
                         ),
                     )
         else:
-            time.sleep(60)
+            self._prev_lvl_img = self._current_lvl_img.copy()
+            self._current_lvl_img = take_screenshot(self.data.handle, self.data.character_stats.level_box)
 
     @staticmethod
     async def _distribute_ap(
         handle: int, target_stat: tuple[int, int], nbr_of_clicks: int = 5
     ):
-        await controller.mouse_move(handle, target)
-        for _ in range(nbr_of_clicks):
-            await controller.click()
-            await asyncio.sleep(0.1)
+        await controller.mouse_move(handle, target_stat)
+        await controller.click(handle, nbr_times=nbr_of_clicks)

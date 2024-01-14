@@ -99,6 +99,3 @@ class RoyalsData(GameData):
                     hide_tv_smega_box,
                 ],  # TODO - Add Chat Box as well into hiding
             )
-
-        if "current_level" in args:
-            self.current_level = self.character_stats.get_level(self.handle)

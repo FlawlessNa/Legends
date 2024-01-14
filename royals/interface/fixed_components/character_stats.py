@@ -1,3 +1,4 @@
+import cv2
 import numpy as np
 import string
 
@@ -67,7 +68,10 @@ class CharacterStats(InGameBaseVisuals):
     )
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        return image
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        if gray.shape == (self.level_box.height, self.level_box.width):
+            gray = cv2.inRange(gray, np.array([255]), np.array([255]))
+        return gray
 
     def get_ign(self, handle: int) -> str:
         return self.read_from_box(handle, self.ign_box)

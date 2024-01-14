@@ -1,14 +1,15 @@
 import asyncio
+import cv2
 import time
 import random
 import numpy as np
 import win32gui
 
 from botting.core import controller
-from botting.utilities import client_handler
+from botting.utilities import client_handler, take_screenshot
 from royals import royals_ign_finder
 
-from royals.interface import AbilityMenu
+from royals.interface import AbilityMenu, CharacterStats
 
 
 HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
@@ -16,10 +17,10 @@ import win32api
 
 if __name__ == "__main__":
     menu = AbilityMenu()
+    stats = CharacterStats()
     while True:
-        menu_pos = menu._menu_icon_position(HANDLE)
-        int_box = menu_pos + menu.stat_mapper["INT"]
-        asyncio.run(controller.mouse_move(HANDLE, int_box.center, total_duration=0))
-        asyncio.run(controller.click(HANDLE, nbr_times=2))
-        breakpoint()
-        # asyncio.run(controller.click(HANDLE, nbr_times=2))
+        img = take_screenshot(HANDLE, stats.level_box)
+        cv2.imshow("test", img)
+        cv2.waitKey(1)
+
+        print(menu.get_available_ap(HANDLE))

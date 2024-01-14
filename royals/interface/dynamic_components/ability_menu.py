@@ -3,9 +3,13 @@ import numpy as np
 import os
 import string
 from paths import ROOT
-from functools import cached_property
 from botting.visuals import InGameDynamicVisuals
-from botting.utilities import Box
+from botting.utilities import (
+    Box,
+    take_screenshot,
+    CLIENT_VERTICAL_MARGIN_PX,
+    CLIENT_HORIZONTAL_MARGIN_PX,
+)
 
 
 class AbilityMenu(InGameDynamicVisuals):
@@ -89,7 +93,7 @@ class AbilityMenu(InGameDynamicVisuals):
         offset=True,
         name="AP",
         left=91,
-        right=-49,
+        right=-50,
         top=197,
         bottom=193,
         config=f"--psm 7 -c tessedit_char_whitelist={string.digits}",
@@ -116,13 +120,30 @@ class AbilityMenu(InGameDynamicVisuals):
     #     }
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        pass
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        return cv2.bitwise_not(gray)
 
     def is_displayed(self, handle: int) -> bool:
         raise NotImplementedError
 
-    def get_available_ap(self, handle: int) -> int:
-        return int(self.read_from_box(handle, self.ability_points_box))
+    def get_available_ap(self, handle: int) -> int | None:
+        img = take_screenshot(handle)
+        icon = self._menu_icon_position(handle, img)
+        box = icon + self.ability_points_box
+        cropped = img[
+                  box.top-CLIENT_VERTICAL_MARGIN_PX:box.bottom-CLIENT_VERTICAL_MARGIN_PX,
+                  box.left-CLIENT_HORIZONTAL_MARGIN_PX:box.right-CLIENT_HORIZONTAL_MARGIN_PX
+                  ]
+        try:
+            return int(self.read_from_img(cropped, box.config))
+        except ValueError:
+            return
+
+    def get_abs_box(self, handle: int, relative_box: Box) -> Box | None:
+        img = take_screenshot(handle)
+        icon = self._menu_icon_position(handle, img)
+        return icon + relative_box
+
 
     @property
     def stat_mapper(self) -> dict[str, Box]:
