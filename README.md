@@ -1,6 +1,7 @@
 # Royals-V2
 
 ## TODO
+
 ### Leeching Engine
   - [ ] Rebuffing from Leechers
   - [ ] Automated AP distribution
@@ -59,7 +60,6 @@
   - [ ] Quickslots
   - [ ] Inventory
   - [ ] Level up detection
-
 
 ## Nice to have
   - [ ] Chat - Try additional pre-processing: Thresholding (improved?), Denoising (application of Gaussian and/or Median Blur), Contrast Enhancement (Make text more distinguishable from background)

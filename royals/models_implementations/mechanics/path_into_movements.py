@@ -162,44 +162,6 @@ def _translate_path_into_movements(
             raise NotImplementedError("Not supposed to reach this point.")
 
     squeezed_movements = [(k, len(list(g))) for k, g in itertools.groupby(movements)]
-
-    # Lastly, there is a case that cannot be easily addressed through grid-making:
-    # Whenever character is using a rope as a "shortcut" for a horizontal walking movement.
-    # This case can be identified whenever there is a "JUMP_LEFT_AND_UP" immediately followed by "down" (or right).
-    # In this case, we remove both.
-    # TODO - See if this can be addressed in grid-making instead (issue now is that weights are difficult to compute)
-    # for i in range(len(squeezed_movements) - 1):
-    #     if (
-    #         squeezed_movements[i][0] == "JUMP_LEFT_AND_UP"
-    #         and squeezed_movements[i + 1][0] == "down"
-    #     ) or (
-    #         squeezed_movements[i][0] == "JUMP_RIGHT_AND_UP"
-    #         and squeezed_movements[i + 1][0] == "down"
-    #     ):
-    #         if len(squeezed_movements) > 2:
-    #             squeezed_movements.pop(i)
-    #             squeezed_movements.pop(i)
-    #
-    #         if i > 0:
-    #             if squeezed_movements[i - 1][0] == squeezed_movements[i][0]:
-    #                 nbr_to_add = squeezed_movements.pop(i)
-    #                 squeezed_movements[i - 1] = (
-    #                     squeezed_movements[i - 1][0],
-    #                     squeezed_movements[i - 1][-1] + nbr_to_add,
-    #                 )
-    #         break
-
-    # Convert horizontal movements into teleports when allowed
-    # if teleport:
-    #     for i in range(len(squeezed_movements)):
-    #         if (
-    #             squeezed_movements[i][0] in ["left", "right"]
-    #             and squeezed_movements[i][1] >= 9
-    #         ):
-    #             direction = squeezed_movements[i][0]
-    #             squeezed_movements.insert(i, (f"TELEPORT_{direction.upper()}", 1))
-    #             break
-
     return squeezed_movements
 
 

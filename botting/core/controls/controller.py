@@ -9,7 +9,7 @@ import win32con
 from typing import Literal
 
 from botting.utilities import config_reader, randomize_params
-from .inputs import focused_input, non_focused_input
+from .inputs import focused_input, non_focused_input, focused_mouse_input
 
 logger = logging.getLogger(__name__)
 
@@ -214,7 +214,6 @@ async def move(
 
     # wait_for at most "duration" on the automatic repeat feature simulation + periodical jump (if applicable)
     try:
-        # await asyncio.wait_for(_combined_tasks(), duration)
         await asyncio.wait_for(
             focused_input(
                 handle, keys, events, enforce_delay=enforce_delay, delay=delay
@@ -238,11 +237,39 @@ async def move(
         await asyncio.sleep(cooldown)
 
 
-async def mouse_move() -> None:
-    """Requires focus because otherwise the window may not properly register mouse movements. In such a case, if mouse blocks visuals, it will keep blocking them."""
-    raise NotImplementedError
+async def mouse_move(
+    handle: int,
+    target: tuple[int, int],
+    duration: float = None,
+    tween: callable = None,
+    **kwargs
+) -> None:
+    """
+    TODO - See if focused is required. Implement duration + tweening.
+    """
+    x = [target[0]]
+    y = [target[1]]
+    await focused_mouse_input(handle, x, y, None, **kwargs)
 
 
-async def click() -> None:
-    """Requires focus because otherwise the window may not properly register mouse movements. In such a case, if mouse blocks visuals, it will keep blocking them."""
-    raise NotImplementedError
+async def click(
+    handle: int,
+    target: tuple[int, int] = None,
+    down_or_up: Literal["down", "up"] | None = None,
+) -> None:
+    """
+    TODO - See if focused is required.
+    """
+    if down_or_up is None:
+        flags = win32con.MOUSEEVENTF_LEFTDOWN | win32con.MOUSEEVENTF_LEFTUP
+    elif down_or_up == "down":
+        flags = win32con.MOUSEEVENTF_LEFTDOWN
+    elif down_or_up == "up":
+        flags = win32con.MOUSEEVENTF_LEFTUP
+    else:
+        raise ValueError(f"Invalid down_or_up value: {down_or_up}")
+
+    if target is not None:
+        flags |= win32con.MOUSEEVENTF_MOVE | win32con.MOUSEEVENTF_ABSOLUTE
+
+
