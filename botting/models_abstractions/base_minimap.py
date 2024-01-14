@@ -15,6 +15,8 @@ class BaseMinimapFeatures(InGameBaseVisuals, ABC):
     This lays the foundation for "random" movements while botting.
     """
 
+    central_node: tuple[int, int] = NotImplemented
+
     @property
     @abstractmethod
     def features(self) -> dict[str, Box]:

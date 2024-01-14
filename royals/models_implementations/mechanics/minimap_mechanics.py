@@ -302,7 +302,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         """
         For any given node, look whether there are other walkable (platform) nodes at self.teleport_h_dist
         of horizontal distance and within a vertical range equal to self.teleport_v_up_dist // 2.
-        Start by prioritizing any such node upwards. If not any, then look into same horizontal line.
+        Start by prioritizing any such node upwards.
         If not any, then finally look downwards.
         :param starting_point:
         :param direction:
@@ -311,14 +311,17 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         vertical_range = self.teleport_v_up_dist // 2
         assert direction in ["left", "right"], "Invalid direction for teleport."
         if direction == "right":
-            x_val = min(starting_point[0] + self.teleport_h_dist, grid.width - 1)
+            x_val = starting_point[0] + self.teleport_h_dist
             connection_type = MinimapConnection.TELEPORT_RIGHT
         else:
-            x_val = max(starting_point[0] - self.teleport_h_dist, 0)
+            x_val = starting_point[0] - self.teleport_h_dist
             connection_type = MinimapConnection.TELEPORT_LEFT
 
+        if not 0 <= x_val <= self.map_area_width - 1:
+            return
+
         for y_val in range(
-            starting_point[1] - 1, starting_point[1] - vertical_range - 1, -1
+            starting_point[1], starting_point[1] - vertical_range - 1, -1
         ):
             if (
                 grid.node(x_val, y_val).walkable
@@ -331,7 +334,9 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                 return
 
         # If nothing upwards, start from same horizontal line and go downwards
-        for y_val in range(starting_point[1], starting_point[1] + vertical_range + 1):
+        for y_val in range(
+            starting_point[1] + 1, starting_point[1] + vertical_range + 1
+        ):
             if (
                 grid.node(x_val, y_val).walkable
                 and self.get_feature_containing((x_val, y_val)).is_platform
@@ -622,7 +627,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         :return:
         """
         if connection_type == MinimapConnection.JUMP_UP:
-            rng = range(node[1] - self.jump_height - 1, node[1])
+            rng = range(node[1] - self.jump_height, node[1])
 
         elif connection_type == MinimapConnection.JUMP_DOWN:
             rng = range(

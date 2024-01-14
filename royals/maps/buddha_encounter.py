@@ -10,6 +10,4 @@ from royals.models_implementations.mobs import DreamyGhost
 class EncounterWithTheBuddha(BaseMap):
     detection_box: Box = Box(left=3, right=1027, top=482, bottom=573, name=None)
     minimap: BuddhaMinimap = BuddhaMinimap()
-    mobs: tuple[BaseMob] = (
-        DreamyGhost(Box(left=0, right=1024, top=29, bottom=700)),
-    )
+    mobs: tuple[BaseMob] = (DreamyGhost(Box(left=0, right=1024, top=29, bottom=700)),)

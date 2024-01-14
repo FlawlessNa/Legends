@@ -122,6 +122,10 @@ def _translate_path_into_movements(
         if current_feature is None:
             continue  # TODO - See if this causes any issue
 
+        next_feature = in_game_minimap.get_feature_containing(
+            (next_node.x, next_node.y)
+        )
+
         dx = next_node.x - current_node.x
         dy = next_node.y - current_node.y
 
@@ -132,9 +136,17 @@ def _translate_path_into_movements(
             movements.append("right")
         elif dx == -1 and dy == 0 and current_feature.is_platform:
             movements.append("left")
-        elif dx == 0 and dy == 1 and current_feature.is_ladder:
+        elif (
+            dx == 0
+            and dy == 1
+            and (current_feature.is_ladder or next_feature.is_ladder)
+        ):
             movements.append("down")
-        elif dx == 0 and dy == -1 and current_feature.is_ladder:
+        elif (
+            dx == 0
+            and dy == -1
+            and (current_feature.is_ladder or next_feature.is_ladder)
+        ):
             movements.append("up")
 
         # Otherwise, Nodes are connected. Need to determine connection type.
@@ -143,50 +155,28 @@ def _translate_path_into_movements(
                 current_node.connections.index(next_node)
             ]
 
+            # When there are more than 1 connection type, prioritize Teleport, if existing.
+            if (
+                current_node.connections.count(next_node) > 1
+                and in_game_minimap.grid.allow_teleport
+            ):
+                idx = [
+                    idx
+                    for idx, node in enumerate(current_node.connections)
+                    if node == next_node
+                ]
+                all_connection_types = [current_node.connections_types[i] for i in idx]
+                for conn in all_connection_types:
+                    if MinimapConnection.convert_to_string(conn).startswith("TELEPORT"):
+                        connection_type = conn
+                        break
+
             movements.append(MinimapConnection.convert_to_string(connection_type))
         else:
             breakpoint()  # TODO - Remove this after testing; irregular features will reach this point technically
             raise NotImplementedError("Not supposed to reach this point.")
 
     squeezed_movements = [(k, len(list(g))) for k, g in itertools.groupby(movements)]
-
-    # Lastly, there is a case that cannot be easily addressed through grid-making:
-    # Whenever character is using a rope as a "shortcut" for a horizontal walking movement.
-    # This case can be identified whenever there is a "JUMP_LEFT_AND_UP" immediately followed by "down" (or right).
-    # In this case, we remove both.
-    # TODO - See if this can be addressed in grid-making instead (issue now is that weights are difficult to compute)
-    # for i in range(len(squeezed_movements) - 1):
-    #     if (
-    #         squeezed_movements[i][0] == "JUMP_LEFT_AND_UP"
-    #         and squeezed_movements[i + 1][0] == "down"
-    #     ) or (
-    #         squeezed_movements[i][0] == "JUMP_RIGHT_AND_UP"
-    #         and squeezed_movements[i + 1][0] == "down"
-    #     ):
-    #         if len(squeezed_movements) > 2:
-    #             squeezed_movements.pop(i)
-    #             squeezed_movements.pop(i)
-    #
-    #         if i > 0:
-    #             if squeezed_movements[i - 1][0] == squeezed_movements[i][0]:
-    #                 nbr_to_add = squeezed_movements.pop(i)
-    #                 squeezed_movements[i - 1] = (
-    #                     squeezed_movements[i - 1][0],
-    #                     squeezed_movements[i - 1][-1] + nbr_to_add,
-    #                 )
-    #         break
-
-    # Convert horizontal movements into teleports when allowed
-    # if teleport:
-    #     for i in range(len(squeezed_movements)):
-    #         if (
-    #             squeezed_movements[i][0] in ["left", "right"]
-    #             and squeezed_movements[i][1] >= 9
-    #         ):
-    #             direction = squeezed_movements[i][0]
-    #             squeezed_movements.insert(i, (f"TELEPORT_{direction.upper()}", 1))
-    #             break
-
     return squeezed_movements
 
 

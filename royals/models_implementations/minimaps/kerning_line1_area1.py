@@ -11,7 +11,17 @@ class KerningLine1Area1Minimap(MinimapPathingMechanics):
 
     minimap_speed: float = 6.86478169800788  # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
     jump_height: int = 5
-    jump_distance: int = 4
+    jump_distance: int = 6
+
+    teleport_v_up_dist = 8
+    teleport_h_dist = 9
+    teleport_v_down_dist = 11
+
+    @property
+    def central_node(self) -> tuple[int, int]:
+        return int(self.platform_8_ladder.center[0]), int(
+            self.platform_8_ladder.center[1]
+        )
 
     @property
     def feature_cycle(self) -> list[MinimapFeature]:
@@ -129,7 +139,7 @@ class KerningLine1Area1Minimap(MinimapPathingMechanics):
         left=181, right=206, top=26, bottom=26, name="platform_5"
     )
     platform_5_ladder: MinimapFeature = MinimapFeature(
-        left=199, right=199, top=27, bottom=41, name="platform_5_ladder"
+        left=199, right=199, top=27, bottom=40, name="platform_5_ladder"
     )
     safe_spot_right: MinimapFeature = MinimapFeature(
         left=215, right=222, top=30, bottom=30, name="safe_spot_right"

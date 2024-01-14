@@ -3,13 +3,18 @@ import numpy as np
 from dataclasses import dataclass, field
 
 from botting.core import GameData
+from botting.models_abstractions import Skill
 from botting.utilities import (
     Box,
     CLIENT_HORIZONTAL_MARGIN_PX,
     CLIENT_VERTICAL_MARGIN_PX,
 )
 from royals.characters.character import Character
-from royals.models_implementations.mechanics import MinimapPathingMechanics
+from royals.models_implementations.mechanics import (
+    MinimapPathingMechanics,
+    MinimapFeature,
+)
+from royals.interface import AbilityMenu, CharacterStats
 
 
 @dataclass
@@ -23,10 +28,15 @@ class RoyalsData(GameData):
     current_minimap_area_box: Box = field(repr=False, init=False)
     current_entire_minimap_box: Box = field(repr=False, init=False)
     current_minimap_position: tuple[int, int] = field(repr=False, init=False)
-    current_minimap_feature: Box = field(repr=False, init=False)
+    current_minimap_feature: MinimapFeature = field(repr=False, init=False)
     character_in_a_ladder: bool = field(repr=False, init=False, default=False)
     currently_attacking: bool = field(repr=False, init=False, default=False)
     last_mob_detection: float = field(repr=False, init=False, default=0)
+    next_target: tuple[int, int] = field(repr=False, init=False)
+    ability_menu: AbilityMenu = field(repr=False, init=False, default=None)
+    character_stats: CharacterStats = field(repr=False, init=False, default=None)
+    last_cast: float = field(repr=False, init=False, default=0)
+    ultimate: Skill = field(repr=False, init=False, default=None)
 
     def update(self, *args, **kwargs) -> None:
         direction = kwargs.pop("current_direction", self.current_direction)
@@ -89,3 +99,6 @@ class RoyalsData(GameData):
                     hide_tv_smega_box,
                 ],  # TODO - Add Chat Box as well into hiding
             )
+
+        if "current_level" in args:
+            self.current_level = self.character_stats.get_level(self.handle)

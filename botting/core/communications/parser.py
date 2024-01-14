@@ -9,9 +9,7 @@ from botting.core.bot.action import QueueAction
 logger = logging.getLogger(__name__)
 
 
-def message_parser(
-    message: str
-) -> Optional[QueueAction]:
+def message_parser(message: str) -> Optional[QueueAction]:
     """
     Message Parsing is made inside the Main Process. This way, the returned actions are not required to be picklable (e.g. transferable between processes).
     Supported commands:
@@ -40,11 +38,11 @@ def message_parser(
             pass
         case "resume":
             return QueueAction(
-                identifier='Resuming',
+                identifier="Resuming",
                 priority=0,
                 action=partial(asyncio.sleep, 0),
                 user_message=["Resuming all bots"],
-                update_game_data={'shut_down_at': None, 'block_rotation': False}
+                update_game_data={"shut_down_at": None, "block_rotation": False},
             )
         case "stop":
             pass
@@ -52,15 +50,16 @@ def message_parser(
             pass
         case "hold":
             return QueueAction(
-                identifier='Hold',
+                identifier="Hold",
                 priority=0,
                 action=partial(asyncio.sleep, 0),
                 user_message=["All bots now on hold"],
-                update_game_data={'shut_down_at': None, 'block_rotation': True}
+                update_game_data={"shut_down_at": None, "block_rotation": True},
             )
         case _:
             return QueueAction(
-                identifier='Unknown Discord Command', priority=0,
+                identifier="Unknown Discord Command",
+                priority=0,
                 action=partial(asyncio.sleep, 0),
-                user_message=[f"Command {command} not recognized."]
+                user_message=[f"Command {command} not recognized."],
             )

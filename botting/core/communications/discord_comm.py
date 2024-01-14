@@ -157,9 +157,11 @@ class DiscordComm(discord.Client, ChildProcess):
                         msg = f'<@{self.config[self.config_section]["DISCORD_ID"]}> {signal}'
                         await self.get_channel(self.chat_id).send(msg)
                     elif isinstance(signal, np.ndarray):
-                        cv2.imwrite('temp.png', signal)
+                        cv2.imwrite("temp.png", signal)
                         with open("temp.png", "rb") as f:
-                            await self.get_channel(self.chat_id).send(file=discord.File(f))
+                            await self.get_channel(self.chat_id).send(
+                                file=discord.File(f)
+                            )
                         # Now delete the file
                         os.remove("temp.png")
 

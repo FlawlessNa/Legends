@@ -1,25 +1,25 @@
 import asyncio
 import time
+import random
 import numpy as np
+import win32gui
 
 from botting.core import controller
-from royals.interface.dynamic_components.minimap import Minimap
-from royals.models_implementations.minimaps import BuddhaMinimap
+from botting.utilities import client_handler
+from royals import royals_ign_finder
+
+from royals.interface import AbilityMenu
 
 
-
-class FakeMinimap(Minimap):
-    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        pass
-
-
-HANDLE = 0x00F90FA4
-
+HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
+import win32api
 
 if __name__ == "__main__":
-    # asyncio.run(controller.press(HANDLE, 'up', down_or_up='keydown', silenced=False))
-    minimap = BuddhaMinimap()
+    menu = AbilityMenu()
     while True:
-        # box = minimap.get_map_area_box(HANDLE)
-        print(minimap.get_character_positions(HANDLE))
-        # print(minimap.get_character_positions(HANDLE))
+        menu_pos = menu._menu_icon_position(HANDLE)
+        int_box = menu_pos + menu.stat_mapper["INT"]
+        asyncio.run(controller.mouse_move(HANDLE, int_box.center, total_duration=0))
+        asyncio.run(controller.click(HANDLE, nbr_times=2))
+        breakpoint()
+        # asyncio.run(controller.click(HANDLE, nbr_times=2))

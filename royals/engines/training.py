@@ -34,11 +34,15 @@ class TrainingEngine(DecisionEngine):
 
         self._training_skill = self.game_data.character.skills[training_skill]
         self._teleport_skill = self.game_data.character.skills.get("Teleport")
-        self.game_data.current_minimap.generate_grid_template(True if self._teleport_skill is not None else False)
+        self.game_data.current_minimap.generate_grid_template(
+            True if self._teleport_skill is not None else False
+        )
         self._mob_count_threshold = mob_count_threshold
         self._time_limit_central_node = time_limit
         if buffs:
-            self._buffs_to_use = [self.game_data.character.skills[buff] for buff in buffs]
+            self._buffs_to_use = [
+                self.game_data.character.skills[buff] for buff in buffs
+            ]
         else:
             self._buffs_to_use = []
         for skill in self.game_data.character.skills.values():
@@ -57,16 +61,21 @@ class TrainingEngine(DecisionEngine):
         generators = []
         for skill in self.game_data.character.skills.values():
             if skill.type in ["Buff", "Party Buff"] and skill in self._buffs_to_use:
-                generators.append(
-                    Rebuff(self.game_data, skill)
-                )
+                generators.append(Rebuff(self.game_data, skill))
         generators.append(PetFood(self.game_data))
         return generators
 
     def next_map_rotation(self) -> list[callable]:
         return [
-            SmartRotation(self.game_data, self.rotation_lock, teleport=self._teleport_skill, time_limit=self._time_limit_central_node),
-            MobsHitting(self.game_data, self._training_skill, self._mob_count_threshold),
+            SmartRotation(
+                self.game_data,
+                self.rotation_lock,
+                teleport=self._teleport_skill,
+                time_limit=self._time_limit_central_node,
+            ),
+            MobsHitting(
+                self.game_data, self._training_skill, self._mob_count_threshold
+            ),
         ]
 
     def anti_detection_checks(self) -> list[DecisionGenerator]:

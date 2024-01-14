@@ -1,47 +1,55 @@
 import logging
 import math
 import multiprocessing as mp
-
-from functools import partial
-from typing import Generator
+import time
 
 from botting import PARENT_LOG
-from botting.core import QueueAction
+from botting.models_abstractions import Skill
+from .base_rotation import Rotation
 from royals import RoyalsData
 from royals.models_implementations.mechanics.path_into_movements import get_to_target
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
-@QueueAction.action_generator(release_lock_on_callback=True, cancellable=True)
-def random_rotation(data: RoyalsData, rotation_lock: mp.Lock = None) -> Generator:
-    while True:
-        target_pos = data.current_minimap.random_point()
-        current_pos = data.current_minimap_position
+class RandomRotation(Rotation):
+    def __init__(
+        self, data: RoyalsData, lock: mp.Lock = None, teleport: Skill = None
+    ) -> None:
+        super().__init__(data, lock, teleport)
 
-        while math.dist(current_pos, target_pos) > 2:
-            res = None
-            data.update("current_minimap_position")
-            current_pos = data.current_minimap_position
-            actions = get_to_target(current_pos, target_pos, data.current_minimap)
-            if actions and not data.currently_attacking:
-                first_action = actions[0]
-                args = (
-                    data.handle,
-                    data.ign,
-                    first_action.keywords.get("direction", data.current_direction),
-                )
-                kwargs = first_action.keywords
-                kwargs.pop("direction", None)
+    def __call__(self):
+        self._next_target = self.data.current_minimap.random_point()
+        return iter(self)
 
-                if rotation_lock is None:
-                    res = partial(first_action.func, *args, **kwargs)
+    def _set_next_target(self):
+        if math.dist(self.data.current_minimap_position, self._next_target) > 2:
+            pass
+        else:
+            self._next_target = self.data.current_minimap.random_point()
 
-                elif rotation_lock.acquire(block=False):
-                    logger.debug(
-                        f"Rotation Lock acquired. Sending Next Random Rotation."
-                    )
-                    res = partial(first_action.func, *args, **kwargs)
-            else:
-                res = False
-            yield res
+    def _single_iteration(self):
+        res = None
+
+        if self._prev_pos != self.data.current_minimap_position:
+            self._last_pos_change = time.perf_counter()
+
+        actions = get_to_target(
+            self.data.current_minimap_position,
+            self._next_target,
+            self.data.current_minimap,
+        )
+        if actions:
+            self._deadlock_counter = 0
+            res = self._create_partial(actions[0])
+
+            if self._lock is None:
+                return res
+
+            elif self._lock.acquire(block=False):
+                logger.debug(f"Rotation Lock acquired. Sending Next Random Rotation.")
+                return res
+        else:
+            self._deadlock_counter += 1
+
+        return res

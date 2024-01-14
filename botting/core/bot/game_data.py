@@ -27,7 +27,7 @@ class GameData(ABC):
     current_inventory_equip_space: int = field(repr=False, init=False)
     current_inventory_use_space: int = field(repr=False, init=False)
     current_inventory_etc_space: int = field(repr=False, init=False)
-    current_lvl: int = field(repr=False, init=False)
+    current_level: int = field(repr=False, init=False)
     block_rotation: bool = field(default=False, init=False)
     shut_down_at: float = field(default=None, init=False)
 

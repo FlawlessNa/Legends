@@ -39,13 +39,17 @@ class MobsHitting(DecisionGenerator):
 
         if self._on_screen_pos:
             x, y = self._on_screen_pos
-            region = Box(
-                left=x - self.skill.horizontal_screen_range,
-                right=x + self.skill.horizontal_screen_range,
-                top=y - self.skill.vertical_screen_range,
-                bottom=y + self.skill.vertical_screen_range,
-            )
-            x, y = region.width / 2, region.height / 2
+            if self.skill.horizontal_screen_range and self.skill.vertical_screen_range:
+                region = Box(
+                    left=x - self.skill.horizontal_screen_range,
+                    right=x + self.skill.horizontal_screen_range,
+                    top=y - self.skill.vertical_screen_range,
+                    bottom=y + self.skill.vertical_screen_range,
+                )
+                x, y = region.width / 2, region.height / 2
+            else:
+                region = self.data.current_map.detection_box
+
             cropped_img = take_screenshot(self.data.handle, region)
             mobs_locations = self.get_mobs_positions_in_img(
                 cropped_img, self.data.current_mobs
@@ -69,7 +73,9 @@ class MobsHitting(DecisionGenerator):
         if (
             res
             and not self.data.character_in_a_ladder
-            and time.perf_counter() - self._last_cast >= self.skill.animation_time * 1.05  # Small buffer to avoid more tasks being queued up - TODO - Improve this
+            and time.perf_counter() - self._last_cast
+            >= self.skill.animation_time
+            * 1.05  # Small buffer to avoid more tasks being queued up - TODO - Improve this
         ):
             self._last_cast = time.perf_counter()
             return QueueAction(

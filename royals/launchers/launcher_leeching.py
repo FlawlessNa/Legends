@@ -1,5 +1,7 @@
 """
-Launcher used for single-bot training model.
+Launcher used for multi-bot Leeching model.
+A leecher bot is the primary process here, but "buffers" engines can be added to
+better control party buffs.
 """
 import asyncio
 import botting
@@ -12,11 +14,11 @@ import royals.maps
 
 
 CHARACTER_NAME = "FarmFest1"
-CHARACTER_CLASS = royals.characters.Priest
-TRAINING_SKILL = "Shining Ray"
-TRAINING_MAP = royals.maps.EncounterWithTheBuddha
-MOB_COUNT_THRESHOLD = 4
-TIME_LIMIT_CENTRAL_TARGET = 60
+LEECHERS_NAMES = ["FarmFest2", "FarmFest3", "FarmFest4", "FarmFest5", "LootFest"]
+CHARACTER_CLASS = royals.characters.Bishop
+LEECHERS_CLASSES = [royals.characters.Magician] * 4 + [royals.characters.Rogue]
+TRAINING_MAP = royals.maps.PathOfTime1
+MOB_COUNT_THRESHOLD = 5
 
 DETECTION_CONFIG_SECTION = "Elephant Cape"
 CLIENT_SIZE = "large"
@@ -37,13 +39,14 @@ if __name__ == "__main__":
     engine_kwargs = dict(
         character=character,
         game_map=TRAINING_MAP,
-        training_skill=TRAINING_SKILL,
         mob_count_threshold=MOB_COUNT_THRESHOLD,
-        buffs=["Invincible", "Magic Guard", "Bless"],
-        time_limit=TIME_LIMIT_CENTRAL_TARGET,
     )
 
     bot = botting.Executor(
-        engine=royals.engines.TrainingEngine, ign=CHARACTER_NAME, **engine_kwargs
+        engine=royals.engines.LeechingEngine, ign=CHARACTER_NAME, **engine_kwargs
     )
+    # leechers = [
+    #     botting.Executor(engine=royals.engines.Leecher, ign=name, **{"character": char})
+    #     for name, char in zip(LEECHERS_NAMES, LEECHERS_CLASSES)
+    # ]
     asyncio.run(main(bot))

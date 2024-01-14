@@ -1,50 +1,66 @@
 # Royals-V2
 
 ## TODO
-- [ ] Generic Generator class for the botting library + incorporated failsafe methods
--  [ ] Add failsafe on MobHitting?
--  [ ] Add failsafe on Rebuff?
-- [ ] Anti Detection Features -> Features are monitored in the child processes, but reactions and coordinations between clients done in Main
-  - [ ] Chat Parsing + Automated Responses
-  - [ ] Blue Notification detection (chat invite, other invites, etc)
+
+### Leeching Engine
+  - [ ] Rebuffing from Leechers
+  - [ ] Ultimate Cast failsafe - check if MP has changed by at least X%
+  
+### Maintenance Generators
+  - [ ] Check character still alive
+  - [ ] Check Potions Pet Food, Mount Food
+  - [ ] Cooldown buffs
+  - [ ] Inventory Management
+  - [ ] Automated AP distribution
+  
+### Generic Generator class for the botting library + incorporated failsafe methods
+  - [ ] Add failsafe on MobHitting
+  - [ ] Add failsafe on Rebuff
+  - [ ] Add failsafe on any Rotation Generators - Movement is expected if action is not cancelled
+
+### Anti Detection Features
+  - [ ] Chat Parsing (try grayscale preprocessing on "general" lines) + GPT Automated Responses
+  - [ ] Abnormal Status Detection (look for gray line types)
   - [ ] Minimap Parsing for strangers + random reaction
   - [ ] Minimap Parsing for unexpected self movements + random reaction
   - [ ] Minimap parsing to ensure still in proper map + random reaction
+  - [ ] Blue Notification detection (chat invite, other invites, etc)
   - [ ] Mob freeze (from a GM) + random reaction
   - [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs + random reaction
   - [ ] GM Logo detection
+  - [ ] For complex movements (teleport, telecast, etc), use Spy++ to find exact key combinations when done by human, and make sure to properly replicate (should be very easy)
   - [ ] Nice-to-have, for Ulu only - look into building an "unknown" object detection method, using UNKAD methodology
-- [x] Significant improvements required to Character detection - detection needs to be more stable
+  
+### Character detection
   - [ ] Standardize code and transfer detection framework into botting library
-- [ ] Implement better handling of QueueAction Priority
-- Significant improvements required to Mob detection
-  - [ ] Add pre-processing techniques such as minimal nbr of detection to be considered a mob
+  
+### QueueAction Prioritization
+  - [ ] Implement better handling of QueueAction Priority
+  
+### Mob detection
   - [ ] Clean the pre-processing to remove the additional layer of the filter function
   - [ ] Define additional generic detection functions for mobs
-  - [ ] [Optional] combine with their HP bar
-- [ ] Improvements to the QueueAction wrapping/management
-- [ ] Improvements to RoyalsData management (split into subclasses)
+  - [ ] Combine with their HP bar
+  
+### RoyalsData Management
+  - [ ] Split into several subclasses, each specific to a generator
+  - [ ] Add a PerformanceData class for monitoring (mesos/h, exp/h, etc)
+
+### Misc
 - [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
 - [ ] Skill Specs Finder
-- [ ] Major clean-up of the Royals library
-- [ ] When done, update all docstrings as some are lacking now.
-  - [ ] Botting.core
-  - [ ] Royals
-- [ ] Enable np arrays/.png files to be sent through Pipe - then send chat images towards discord
-- [ ] Generic Failsafe framework (for normal scenarios, NOT for anti-detection)
-  - [ ] Generic expression to evaluate (time-based, attempts-based, or other)
-- [ ] Emergency triggers
-  - [ ] Course of action when any error is encountered, before program exists
-- [ ] GPT Automated Responses
-- [ ] For chat lines reading, try converting to gray and applying simple thresholding (general lines at least)
-- [ ] Mouse movements and mouse clicks
+- [x] Mouse movements and mouse clicks
 - [ ] Finalize Discord communications
-- [ ] Refactor game interface more accurately
+- [ ] UnitTests on the botting library
+
+### Documentation
+  - [ ] Botting.core
+  - [ ] Royals (entire package)
+
+### Game Interface
   - [ ] Quickslots
   - [ ] Inventory
   - [ ] Level up detection
-  - [ ] Ability Points assignment
-- [ ] UnitTests on the botting library
 
 ## Nice to have
   - [ ] Chat - Try additional pre-processing: Thresholding (improved?), Denoising (application of Gaussian and/or Median Blur), Contrast Enhancement (Make text more distinguishable from background)

@@ -101,7 +101,10 @@ class DecisionEngine(ChildProcess, ABC):
                     if res:
                         self.pipe_end.send(res)
 
-                if self.game_data.shut_down_at is not None and time.perf_counter() > self.game_data.shut_down_at:
+                if (
+                    self.game_data.shut_down_at is not None
+                    and time.perf_counter() > self.game_data.shut_down_at
+                ):
                     break
 
         except Exception as e:

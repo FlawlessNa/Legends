@@ -169,7 +169,9 @@ class Executor:
 
     def _exception_handler(self, fut):
         try:
-            if fut.exception() is not None:
+            if fut.exception() is not None and not isinstance(
+                fut.exception(), TimeoutError
+            ):
                 logger.exception(f"Exception occurred in task {fut.get_name()}.")
                 self.cancel_all()
                 raise fut.exception()

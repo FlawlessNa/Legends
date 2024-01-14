@@ -3,6 +3,8 @@ from .character import Character
 
 
 class Magician(Character):
+    main_stat = "INT"
+
     @property
     def skills(self) -> dict[str, Skill]:
         return {
@@ -93,7 +95,8 @@ class Priest(Cleric):
                 animation_time=2.2,
                 unidirectional=False,
                 duration=120,
-                _use_by_default=True
+                horizontal_minimap_distance=15,
+                _use_by_default=True,
             ),
             "Shining Ray": Skill(
                 "Shining Ray",
@@ -110,4 +113,30 @@ class Priest(Cleric):
 
 
 class Bishop(Priest):
-    pass
+    main_skill = "Genesis"
+
+    @property
+    def skills(self) -> dict[str, Skill]:
+        return {
+            **super().skills,
+            "Genesis": Skill(
+                "Genesis",
+                "Attack",
+                animation_time=3,
+                unidirectional=False,
+                duration=120,
+                _use_by_default=True,
+            ),
+            "Maple Warrior": Skill(
+                "Maple Warrior",
+                "Party Buff",
+                animation_time=1.5,
+                unidirectional=False,
+                _use_by_default=True,
+                horizontal_minimap_distance=15,
+                duration=300,
+            ),
+        }
+
+    def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:
+        super().__init__(ign, detection_configs, client_size)

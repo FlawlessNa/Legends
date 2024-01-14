@@ -5,13 +5,30 @@ Contains all high-level functions necessary for interacting with the game.
 import asyncio
 import functools
 import logging
+import numpy as np
+import pytweening
+import random
+import win32api
 import win32con
+import win32gui
 from typing import Literal
 
 from botting.utilities import config_reader, randomize_params
-from .inputs import focused_input, non_focused_input
+from .inputs import focused_input, non_focused_input, focused_mouse_input
 
 logger = logging.getLogger(__name__)
+WIDTH, HEIGHT = win32api.GetSystemMetrics(0), win32api.GetSystemMetrics(1)
+
+
+def get_refresh_rate() -> int:
+    """
+    Retrieves the refresh rate of the monitor.
+    :return: Refresh rate in Hz.
+    """
+    return int(win32api.EnumDisplaySettings().DisplayFrequency)
+
+
+REFRESH_RATE = get_refresh_rate()
 
 
 @functools.lru_cache
@@ -214,7 +231,6 @@ async def move(
 
     # wait_for at most "duration" on the automatic repeat feature simulation + periodical jump (if applicable)
     try:
-        # await asyncio.wait_for(_combined_tasks(), duration)
         await asyncio.wait_for(
             focused_input(
                 handle, keys, events, enforce_delay=enforce_delay, delay=delay
@@ -238,11 +254,87 @@ async def move(
         await asyncio.sleep(cooldown)
 
 
-async def mouse_move() -> None:
-    """Requires focus because otherwise the window may not properly register mouse movements. In such a case, if mouse blocks visuals, it will keep blocking them."""
-    raise NotImplementedError
+@randomize_params("total_duration")
+async def mouse_move(
+    handle: int,
+    target: tuple[int | float, int | float],
+    total_duration: float = 0.5,
+    **kwargs,
+) -> None:
+    """
+    Calculates the mouse movement path and sends the inputs to the window.
+    A random tweening function is chosen, which dictates the shape of the trajectory.
+    :param handle: Window handle to the process.
+    :param target: Target position of the mouse.
+    :param total_duration: Duration of the movement. If 0, the mouse is moved instantly.
+    """
+    tween = random.choice(
+        [
+            pytweening.easeInQuad,
+            pytweening.easeOutQuad,
+            pytweening.easeInOutQuad,
+            pytweening.easeInCubic,
+            pytweening.easeOutCubic,
+            pytweening.easeInOutCubic,
+            pytweening.easeInQuart,
+            pytweening.easeOutQuart,
+            pytweening.easeInOutQuart,
+            pytweening.easeInQuint,
+            pytweening.easeOutQuint,
+            pytweening.easeInOutQuint,
+            pytweening.easeInSine,
+            pytweening.easeOutSine,
+            pytweening.easeInOutSine,
+            pytweening.easeInExpo,
+            pytweening.easeOutExpo,
+            pytweening.easeInOutExpo,
+            pytweening.easeInCirc,
+            pytweening.easeOutCirc,
+            pytweening.easeInOutCirc,
+            pytweening.easeInElastic,
+            pytweening.easeOutElastic,
+            pytweening.easeInOutElastic,
+            pytweening.easeInBack,
+            pytweening.easeOutBack,
+            pytweening.easeInOutBack,
+            pytweening.easeInBounce,
+            pytweening.easeOutBounce,
+            pytweening.easeInOutBounce,
+        ]
+    )
+
+    window_rect = win32gui.GetWindowRect(handle)
+    x0, y0 = win32api.GetCursorPos()
+    x1 = target[0] + window_rect[0]
+    y1 = target[1] + window_rect[1]
+
+    if total_duration == 0:
+        x, y = [int(x1 * 65536 // WIDTH)], [int(y1 * 65536 // HEIGHT)]
+
+    else:
+        step_duration = max(1 / REFRESH_RATE, 0.01)
+        num_steps = int(total_duration / step_duration)
+        rng = np.linspace(0, 1, num_steps)
+        trajectory = [pytweening.getPointOnLine(x0, y0, x1, y1, tween(t)) for t in rng]
+        x, y = zip(*trajectory)
+        x = [int(i * 65536 // WIDTH) for i in x]
+        y = [int(i * 65536 // HEIGHT) for i in y]
+
+        kwargs.update(delay=step_duration)
+
+    await focused_mouse_input(handle, x, y, None, **kwargs)
 
 
-async def click() -> None:
-    """Requires focus because otherwise the window may not properly register mouse movements. In such a case, if mouse blocks visuals, it will keep blocking them."""
-    raise NotImplementedError
+async def click(
+    handle: int,
+    down_or_up: Literal["click", "down", "up"] = "click",
+    nbr_times: int = 1,
+) -> None:
+    """
+    :param handle:
+    :param down_or_up:
+    :param nbr_times:
+    :return:
+    """
+    events = [down_or_up] * nbr_times
+    await focused_mouse_input(handle, None, None, events)

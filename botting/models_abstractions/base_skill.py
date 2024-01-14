@@ -24,4 +24,8 @@ class Skill:
 
     @property
     def use_by_default(self) -> bool:
-        return True if self.type in ["Buff", "Party Buff"] and self._use_by_default else False
+        return (
+            True
+            if self.type in ["Buff", "Party Buff"] and self._use_by_default
+            else False
+        )

@@ -20,7 +20,11 @@ class MobCheck(DecisionGenerator):
     """
 
     def __init__(
-        self, data: RoyalsData, time_threshold: int = 10, mob_threshold: int = 3, cooldown: int = 60
+        self,
+        data: RoyalsData,
+        time_threshold: int = 10,
+        mob_threshold: int = 3,
+        cooldown: int = 60,
     ) -> None:
         self.data = data
         self.time_threshold = time_threshold
@@ -35,7 +39,10 @@ class MobCheck(DecisionGenerator):
         return iter(self)
 
     def __next__(self) -> QueueAction | None:
-        if self._counter >= 2 and time.perf_counter() - self._last_trigger > self.cooldown:
+        if (
+            self._counter >= 2
+            and time.perf_counter() - self._last_trigger > self.cooldown
+        ):
             return self._failsafe()
 
         self._img = take_screenshot(self.data.handle)
@@ -81,10 +88,17 @@ class MobCheck(DecisionGenerator):
             f"No mobs detected for {self.time_threshold} seconds. Writing {reaction_text}."
         )
 
-        func = partial(write_in_chat, handle=self.data.handle, message=reaction_text, channel='general')
+        func = partial(
+            write_in_chat,
+            handle=self.data.handle,
+            message=reaction_text,
+            channel="general",
+        )
         self._last_trigger = time.perf_counter()
         self._counter = 0
-        self.data.update(block_rotation=True, shut_down_at=self._last_trigger + self.cooldown)
+        self.data.update(
+            block_rotation=True, shut_down_at=self._last_trigger + self.cooldown
+        )
         return QueueAction(
             f"{self.__class__.__name__} reaction",
             priority=1,
@@ -95,5 +109,6 @@ class MobCheck(DecisionGenerator):
                 Send Resume to continue.
                 Send Hold to pause indefinitely.
                 """,
-                self._img],
+                self._img,
+            ],
         )
