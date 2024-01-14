@@ -11,7 +11,7 @@
   - [ ] Check Potions Pet Food, Mount Food
   - [ ] Cooldown buffs
   - [ ] Inventory Management
-  - [ ] Automated AP distribution
+  - [x] Automated AP distribution
   
 ### Generic Generator class for the botting library + incorporated failsafe methods
   - [ ] Add failsafe on MobHitting
