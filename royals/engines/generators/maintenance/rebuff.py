@@ -17,6 +17,8 @@ class Rebuff(DecisionGenerator):
     """
     Generator for rebuffing.
     """
+    generator_type = "Maintenance"
+
     def __init__(self, data: MaintenanceData, skill: Skill) -> None:
         super().__init__(data)
         self._skill = skill

@@ -1,6 +1,6 @@
 import numpy as np
 import time
-from functools import partial
+from functools import cached_property, partial
 
 from botting.core import DecisionGenerator, QueueAction, controller
 from botting.utilities import config_reader, take_screenshot
@@ -8,32 +8,41 @@ from royals.game_data import MaintenanceData
 
 
 class DistributeAP(DecisionGenerator):
+
+    generator_type = "Maintenance"
+
     def __init__(self, data: MaintenanceData) -> None:
-        self.data = data
-        self.data.update("ability_menu", "character_stats")
+        super().__init__(data)
 
         self._key = eval(config_reader("keybindings", self.data.ign, "Non Skill Keys"))[
             "Ability Menu"
         ]
-        self._offset_box = self.data.ability_menu.stat_mapper[
-            self.data.character.main_stat
-        ]
         self._current_lvl_img = self._prev_lvl_img = None
-        self._next_call = None
+        self._next_call = time.perf_counter()
+
+    def __repr__(self) -> str:
+        return "DistributeAP"
+
+    @property
+    def data_requirements(self) -> tuple:
+        return "ability_menu", "character_stats"
+
+    @cached_property
+    def _offset_box(self) -> tuple[int, int]:
+        return self.data.ability_menu.stat_mapper[self.data.character.main_stat]
 
     def _failsafe(self):
         pass
 
-    def __call__(self):
-        self._prev_lvl_img = take_screenshot(
-            self.data.handle, self.data.character_stats.level_box
-        )
-        self._current_lvl_img = self._prev_lvl_img
-        self._next_call = time.perf_counter()
-        return iter(self)
-
-    def __next__(self):
+    def _next(self):
         if time.perf_counter() < self._next_call:
+            return
+
+        elif self._current_lvl_img is None:
+            self._current_lvl_img = take_screenshot(
+                self.data.handle, self.data.character_stats.level_box
+            )
+            self._prev_lvl_img = self._current_lvl_img
             return
 
         if not np.array_equal(self._current_lvl_img, self._prev_lvl_img):

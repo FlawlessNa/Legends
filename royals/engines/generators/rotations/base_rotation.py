@@ -20,7 +20,7 @@ class Rotation(DecisionGenerator, ABC):
     """
 
     def __init__(self, data: RotationData, lock, teleport: Skill = None) -> None:
-        self.data = data
+        super().__init__(data)
         self._lock = lock
         self._teleport = teleport
         self._deadlock_counter = 0
@@ -28,7 +28,10 @@ class Rotation(DecisionGenerator, ABC):
         self._last_pos_change = time.perf_counter()
         self.data.update("minimap_grid", "current_entire_minimap_box")
 
-    def __next__(self):
+    def __repr__(self):
+        return f"{self.__class__.__name__}"
+
+    def _next(self):
         self._prev_pos = self.data.current_minimap_position
         self.data.update("current_minimap_position")
         if self.data.block_rotation:
@@ -74,9 +77,9 @@ class Rotation(DecisionGenerator, ABC):
             kwargs.update(teleport_skill=self._teleport)
         return partial(action.func, *args, **kwargs)
 
-    def _failsafe(self) -> callable:
+    def _failsafe(self) -> QueueAction | None:
         # If no change in position for 5 seconds, trigger failsafe
-        if time.perf_counter() - self._last_pos_change > 15:
+        if time.perf_counter() - self._last_pos_change > 5:
             logger.warning(
                 f"{self.__class__.__name__} Failsafe Triggered Due to static position"
             )

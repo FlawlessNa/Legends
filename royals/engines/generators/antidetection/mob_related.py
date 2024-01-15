@@ -17,6 +17,7 @@ class MobCheck(DecisionGenerator):
     Generator for checking if mobs are on screen.
     Emergency action is taken if mobs are not detected for a certain amount of time.
     """
+    generator_type = "AntiDetection"
 
     def __init__(
         self,
@@ -53,7 +54,7 @@ class MobCheck(DecisionGenerator):
             self._counter >= 2
             and time.perf_counter() - self._last_trigger > self.cooldown
         ):
-            return self._failsafe()
+            return self._reaction()
 
         self.data.update("latest_client_img")
         nbr_mobs = 0
@@ -68,7 +69,13 @@ class MobCheck(DecisionGenerator):
         elif time.perf_counter() - self.data.mob_check_last_detection > self.time_threshold:
             self._counter += 1
 
-    def _failsafe(self) -> QueueAction:
+    def _failsafe(self):
+        """
+        Todo - Read chat to ensure that the bot properly reacted.
+        :return:
+        """
+
+    def _reaction(self) -> QueueAction:
         """
         Triggers emergency reaction, which is three-fold:
         1. Block bot from continuing until user calls RESUME from discord.

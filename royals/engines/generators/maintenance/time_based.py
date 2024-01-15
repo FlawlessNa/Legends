@@ -13,6 +13,7 @@ class PetFood(DecisionGenerator):
     Generator that triggers a pet food consumption every interval.
     Defaults: 10 minutes (600 seconds)
     """
+    generator_type = "Maintenance"
 
     def __init__(
         self, data: MaintenanceData, interval: int = 600, keyname: str = "Pet Food"

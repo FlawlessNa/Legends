@@ -16,6 +16,11 @@ class DecisionGenerator(ABC):
         blocked = getattr(self.data, repr(self))
         if blocked:
             return
+
+        failsafe = self._failsafe()
+        if failsafe:
+            return failsafe
+
         return self._next()
 
     @abstractmethod
@@ -24,6 +29,10 @@ class DecisionGenerator(ABC):
 
     @abstractmethod
     def _failsafe(self):
+        """
+        Method used to ensure that a given action has been properly taken.
+        :return:
+        """
         pass
 
     @property
