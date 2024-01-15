@@ -34,8 +34,9 @@
 ### Character detection
   - [ ] Standardize code and transfer detection framework into botting library
   
-### QueueAction Prioritization
+### QueueAction
   - [ ] Implement better handling of QueueAction Priority
+  - [ ] Added features to enable IPC
   
 ### Mob detection
   - [ ] Clean the pre-processing to remove the additional layer of the filter function
@@ -55,7 +56,7 @@
   - [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
   - [ ] Skill Specs Finder
   - [x] Mouse movements and mouse clicks
-  - [ ] Finalize Discord communications
+  - [ ] Finalize Discord communications - Control of which process are to respond to user commands
   - [ ] UnitTests on the botting library
 
 ### Documentation

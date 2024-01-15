@@ -58,7 +58,7 @@ class TelecastRotation(Rotation):
                 self.data.update(next_target=self.data.current_minimap.random_point())
         self._next_target = self.data.next_target
 
-    def _single_iteration(self):
+    def _rotation(self):
         img = take_screenshot(self.data.handle, self.data.current_map.detection_box)
         mob_count = self.mob_count_in_img(img, self.data.current_mobs)
 

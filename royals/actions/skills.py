@@ -24,9 +24,7 @@ async def cast_skill(
             enforce_delay=True,
             cooldown=0
         )
-    # game_data.update(
-    #     current_direction=direction
-    # )  # TODO - Add this piece into the QueueAction wrapping instead
+
     await controller.press(  # Cast skill twice to ensure it goes through
         handle, skill.key_bind(ign), silenced=True, cooldown=0.1
     )

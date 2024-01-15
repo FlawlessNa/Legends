@@ -127,7 +127,7 @@ class LocalizedRebuff(Rotation):
         for skill in skills:
             await cast_skill(*args, skill=skill)
 
-    def _single_iteration(self):
+    def _rotation(self):
         pass
 
     def _set_next_target(self):

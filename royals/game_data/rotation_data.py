@@ -1,27 +1,41 @@
+import time
 from dataclasses import dataclass, field
 from functools import partial
 
 from botting.core import GameData
 from botting.utilities import Box, CLIENT_HORIZONTAL_MARGIN_PX, CLIENT_VERTICAL_MARGIN_PX
 from botting.models_abstractions import Skill
-from royals.models_implementations.mechanics import MinimapPathingMechanics
+from royals.characters import Character
+from royals.maps import RoyalsMap
+from royals.models_implementations.mechanics import (
+    MinimapPathingMechanics,
+    MinimapFeature
+)
 
 
 @dataclass
 class RotationData(GameData):
     """ """
+    character: Character = field(default=None)
+    current_map: RoyalsMap = field(default=None)
     current_minimap: MinimapPathingMechanics = field(repr=False, default=None)
     current_minimap_area_box: Box = field(repr=False, init=False)
     current_entire_minimap_box: Box = field(repr=False, init=False)
-    allow_teleport: bool = False
     current_minimap_position: tuple[int, int] = field(repr=False, init=False)
-    last_mob_detection: float = field(repr=False, init=False, default=0)
+    current_minimap_feature: MinimapFeature = field(repr=False, init=False)
+    current_on_screen_position: tuple[int, int] = field(repr=False, init=False)
+    allow_teleport: bool = False
+    last_mob_detection: float = field(repr=False, init=False)
+    last_cast: float = field(repr=False, init=False)
     next_target: tuple[int, int] = field(repr=False, init=False)
+    next_feature: MinimapFeature = field(repr=False, init=False)
     character_in_a_ladder: bool = field(repr=False, init=False)
+    last_position_change: float = field(repr=False, init=False)
 
     def __post_init__(self):
         if hasattr(self, 'current_map'):
             self.current_minimap = self.current_map.minimap
+            self.current_mobs = self.current_map.mobs
 
     @property
     def args_dict(self) -> dict[str, callable]:
@@ -42,6 +56,9 @@ class RotationData(GameData):
                 self.handle
             ),
             "current_on_screen_position": self._get_on_screen_pos,
+            "last_mob_detection": time.perf_counter,
+            "last_cast": time.perf_counter,
+            "last_position_change": time.perf_counter,
             **super().args_dict
         }
 

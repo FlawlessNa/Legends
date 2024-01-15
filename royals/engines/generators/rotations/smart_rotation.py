@@ -4,6 +4,7 @@ import math
 import multiprocessing as mp
 import random
 import time
+from functools import partial
 
 from botting import PARENT_LOG
 
@@ -21,73 +22,81 @@ class SmartRotation(Rotation):
         self,
         data: RotationData,
         lock: mp.Lock,
+        training_skill: Skill,
+        mob_threshold: int,
         teleport: Skill = None,
         time_limit: float = 15,
     ) -> None:
-        super().__init__(data, lock, teleport)
+        super().__init__(data, lock, training_skill, mob_threshold, teleport)
         self.time_limit = time_limit
         self._target_cycle = itertools.cycle(self.data.current_minimap.feature_cycle)
 
-        self._next_feature = None  # Used for rotation
-        self._next_target = None  # Used for rotation
-        self._next_feature_covered = None  # Used for rotation
+        self._next_feature_covered = []  # Used for rotation
 
         self._on_central_target = False  # Impacts rotation behavior
         self._cancellable = True  # Impacts rotation behavior
 
-    def __call__(self):
         if len(self.data.current_minimap.feature_cycle) > 0:
-            self._next_feature = random.choice(self.data.current_minimap.feature_cycle)
-            self._next_target = self._next_feature.random()
+            self.data.update(next_feature=random.choice(self.data.current_minimap.feature_cycle))
+            self.data.update(next_target=self.data.next_feature.random())
             for _ in range(
-                self.data.current_minimap.feature_cycle.index(self._next_feature)
+                self.data.current_minimap.feature_cycle.index(self.data.next_feature)
             ):
                 next(self._target_cycle)
         else:
-            self._next_target = self.data.current_minimap.random_point()
-            self._next_feature = self.data.current_minimap.get_feature_containing(
-                self._next_target
-            )
+            self.data.update(next_target=self.data.current_minimap.random_point())
+            self.data.update(next_feature=self.data.current_minimap.get_feature_containing(
+                self.data.next_target
+            ))
 
-        self._next_feature_covered = []
-        self._last_pos_change = time.perf_counter()
-        self.data.update("current_minimap_area_box", "current_minimap_position")
-        return iter(self)
+    @property
+    def data_requirements(self) -> tuple:
+        return tuple(
+            {"current_minimap_area_box",
+             "current_entire_minimap_box",
+             "minimap_grid",
+             "current_minimap_position",
+             "current_minimap_feature",
+             "last_mob_detection",
+             "last_position_change",
+             *super().data_requirements
+             }
+        )
 
     def _set_next_target(self) -> None:
         dist = 5 if self._on_central_target else 2
         if (
-            math.dist(self.data.current_minimap_position, self._next_target) > dist
-            or self.data.current_minimap_feature != self._next_feature
+            math.dist(self.data.current_minimap_position, self.data.next_target) > dist
+            or self.data.current_minimap_feature != self.data.next_feature
         ):
             self._on_central_target = False
 
         elif len(self._next_feature_covered) == 0:
             # We have reached the target position. At this point, cover the platform.
-            self._next_target = random.choice(
-                [self._next_feature.left_edge, self._next_feature.right_edge]
-            )
-            self._next_feature_covered.append(self._next_target)
+            self.data.update(next_target=random.choice(
+                [self.data.next_feature.left_edge, self.data.next_feature.right_edge]
+            ))
+            self._next_feature_covered.append(self.data.next_target)
 
         elif len(self._next_feature_covered) == 1:
-            self._next_target = (
-                self._next_feature.left_edge
-                if self._next_target == self._next_feature.right_edge
-                else self._next_feature.right_edge
-            )
-            self._next_feature_covered.append(self._next_target)
+            self.data.update(next_target=(
+                self.data.next_feature.left_edge
+                if self.data.next_target[0] >= self.data.next_feature.center[0]
+                else self.data.next_feature.right_edge
+            ))
+            self._next_feature_covered.append(self.data.next_target)
 
         elif len(self._next_feature_covered) == 2:
             # At this point, we have covered the platform. Now, gravitate towards the center of the feature.
-            self._next_target = (
-                self._next_feature.central_node
-                if self._next_feature.central_node is not None
+            self.data.update(next_target=(
+                self.data.next_feature.central_node
+                if self.data.next_feature.central_node is not None
                 else (
-                    int(self._next_feature.center[0]),
-                    int(self._next_feature.center[1]),
+                    int(self.data.next_feature.center[0]),
+                    int(self.data.next_feature.center[1]),
                 )
-            )
-            self._next_feature_covered.append(self._next_target)
+            ))
+            self._next_feature_covered.append(self.data.next_target)
             self._cancellable = False
             self._center_targeted_at = time.perf_counter()
 
@@ -99,25 +108,25 @@ class SmartRotation(Rotation):
                 or time.perf_counter() - self._center_targeted_at > self.time_limit
             ):
                 if len(self.data.current_minimap.feature_cycle) > 0:
-                    self._next_feature = next(self._target_cycle)
-                    self._next_target = self._next_feature.random()
+                    self.data.update(next_feature=next(self._target_cycle))
+                    self.data.update(next_target=self.data.next_feature.random())
                 else:
-                    self._next_target = self.data.current_minimap.random_point()
-                    self._next_feature = self.data.current_minimap.get_feature_containing(
-                        self._next_target
-                    )
+                    self.data.update(next_target=self.data.current_minimap.random_point())
+                    self.data.update(next_feature=self.data.current_minimap.get_feature_containing(
+                        self.data.next_target
+                    ))
                 self._next_feature_covered.clear()
                 self._cancellable = True
 
-    def _single_iteration(self) -> callable:
+    def _rotation(self) -> partial:
         res = None
 
         if self._prev_pos != self.data.current_minimap_position:
-            self._last_pos_change = time.perf_counter()
+            self.data.update("last_position_change")
 
         actions = get_to_target(
             self.data.current_minimap_position,
-            self._next_target,
+            self.data.next_target,
             self.data.current_minimap,
         )
         if actions:

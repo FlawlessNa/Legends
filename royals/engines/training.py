@@ -1,11 +1,10 @@
 import multiprocessing
 
 from botting.core import DecisionEngine, Executor, DecisionGenerator
-from botting.models_abstractions import BaseMap
 
 from royals import royals_ign_finder, RoyalsData
+from royals.maps import RoyalsMap
 from .generators import (
-    MobsHitting,
     SmartRotation,
     Rebuff,
     PetFood,
@@ -21,7 +20,7 @@ class TrainingEngine(DecisionEngine):
         self,
         log_queue: multiprocessing.Queue,
         bot: Executor,
-        game_map: BaseMap,
+        game_map: RoyalsMap,
         character: callable,
         training_skill: str,
         time_limit: float = 15,
@@ -84,17 +83,14 @@ class TrainingEngine(DecisionEngine):
 
     @property
     def next_map_rotation(self) -> DecisionGenerator:
-        return [
-            SmartRotation(
+        return SmartRotation(
                 self.game_data,
                 self.rotation_lock,
+                self._training_skill,
+                self._mob_count_threshold,
                 teleport=self._teleport_skill,
                 time_limit=self._time_limit_central_node,
-            ),
-            MobsHitting(
-                self.game_data, self._training_skill, self._mob_count_threshold
-            ),
-        ]
+            )
 
     @property
     def anti_detection_checks(self) -> list[DecisionGenerator]:
