@@ -25,7 +25,19 @@ class KerningLine1Area1Minimap(MinimapPathingMechanics):
 
     @property
     def feature_cycle(self) -> list[MinimapFeature]:
-        return []
+        return [
+            self.platform_1,
+            self.platform_2,
+            self.platform_3,
+            self.platform_4,
+            self.platform_5,
+            self.platform_6,
+            self.platform_7,
+            self.platform_8,
+            self.platform_9,
+            self.platform_10,
+            self.main_platform
+        ]
 
     bottom_platform: MinimapFeature = MinimapFeature(
         left=20,
