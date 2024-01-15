@@ -28,6 +28,8 @@ class TrainingEngine(DecisionEngine):
         mob_count_threshold: int = 2,
         buffs: list[str] | None = None,
         teleport_enabled: bool = True,
+        anti_detection_mob_threshold: int = 3,
+        anti_detection_time_threshold: int = 10
     ) -> None:
         super().__init__(log_queue, bot)
 
@@ -70,6 +72,9 @@ class TrainingEngine(DecisionEngine):
             ):
                 self._buffs_to_use.append(skill)
 
+        self._anti_detection_mob_threshold = anti_detection_mob_threshold
+        self._anti_detection_time_threshold = anti_detection_time_threshold
+
     @property
     def game_data(self) -> RoyalsData:
         return self._game_data
@@ -98,5 +103,8 @@ class TrainingEngine(DecisionEngine):
 
     def anti_detection_checks(self) -> list[DecisionGenerator]:
         return [
-            MobCheck(self.game_data, time_threshold=10, mob_threshold=3),
+            MobCheck(
+                self.game_data,
+                time_threshold=self._anti_detection_time_threshold,
+                mob_threshold=self._anti_detection_mob_threshold),
         ]

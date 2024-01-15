@@ -55,30 +55,6 @@ class SmartRotation(Rotation):
         self._last_pos_change = time.perf_counter()
         return iter(self)
 
-    def __next__(self) -> QueueAction | None:
-        self._prev_pos = self.data.current_minimap_position
-        self.data.update("current_minimap_position")
-        self._set_next_target()
-        res = self._single_iteration()
-
-        if self._failsafe():
-            return QueueAction(
-                identifier=f"FAILSAFE - {self.__class__.__name__}",
-                priority=1,
-                action=partial(random_jump, self.data.handle, self.data.ign),
-                is_cancellable=False,
-                release_lock_on_callback=True,
-            )
-
-        elif res:
-            return QueueAction(
-                identifier=self.__class__.__name__,
-                priority=99,
-                action=res,
-                is_cancellable=self._cancellable,
-                release_lock_on_callback=True,
-            )
-
     def _set_next_target(self) -> None:
         dist = 5 if self._on_central_target else 2
         if (

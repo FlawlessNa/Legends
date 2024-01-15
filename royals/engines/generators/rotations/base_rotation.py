@@ -30,6 +30,8 @@ class Rotation(DecisionGenerator, ABC):
     def __next__(self):
         self._prev_pos = self.data.current_minimap_position
         self.data.update("current_minimap_position")
+        if self.data.block_rotation:
+            return
         self._set_next_target()
         res = self._single_iteration()
 
@@ -47,7 +49,7 @@ class Rotation(DecisionGenerator, ABC):
                 identifier=self.__class__.__name__,
                 priority=99,
                 action=res,
-                is_cancellable=True,
+                is_cancellable=getattr(self, '_is_cancellable', True),
                 release_lock_on_callback=True,
             )
 

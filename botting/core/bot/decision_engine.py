@@ -90,11 +90,10 @@ class DecisionEngine(ChildProcess, ABC):
                     if res:
                         self.pipe_end.send(res)
 
-                if not self.game_data.block_rotation:
-                    for rotation in map_rotation:
-                        res = next(rotation)
-                        if res:
-                            self.pipe_end.send(res)
+                for rotation in map_rotation:
+                    res = next(rotation)
+                    if res:
+                        self.pipe_end.send(res)
 
                 for check in anti_detection:
                     res = next(check)

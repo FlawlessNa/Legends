@@ -54,7 +54,4 @@ class GameData(ABC):
         Use this to map *args received by "self.update" to their updating methodology.
         :return:
         """
-        pass
-
-
-import inspect
+        return {}

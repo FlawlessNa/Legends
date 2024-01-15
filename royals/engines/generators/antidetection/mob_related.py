@@ -23,7 +23,7 @@ class MobCheck(DecisionGenerator):
         data: AntiDetectionData,
         time_threshold: int,
         mob_threshold: int,
-        cooldown: int,
+        cooldown: int = 60,
     ) -> None:
         self.data = data
         self.time_threshold = time_threshold
@@ -37,6 +37,9 @@ class MobCheck(DecisionGenerator):
         return iter(self)
 
     def __next__(self) -> QueueAction | None:
+        if self.data.shut_down_at is not None and time.perf_counter() > self.data.shut_down_at:
+            logger.critical(f"Shutting down due to {self.__class__.__name__}")
+            raise RuntimeError
         if (
             self._counter >= 2
             and time.perf_counter() - self._last_trigger > self.cooldown
