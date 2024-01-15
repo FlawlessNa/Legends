@@ -38,7 +38,6 @@ class MobCheck(DecisionGenerator):
     def data_requirements(self) -> tuple:
         return (
             "latest_client_img",
-            "current_mobs",
             "mob_check_last_detection",
         )
 

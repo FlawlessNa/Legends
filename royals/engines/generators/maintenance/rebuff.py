@@ -9,7 +9,7 @@ from functools import partial
 from botting.core import DecisionGenerator, QueueAction
 from botting.models_abstractions import Skill
 from ..rotations.base_rotation import Rotation
-from royals.game_data import MaintenanceData
+from royals.game_data import MaintenanceData, RotationData
 from royals.actions import cast_skill
 
 

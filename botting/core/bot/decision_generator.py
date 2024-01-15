@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from botting.core import QueueAction
+from .action import QueueAction
 from typing import Literal
 
 

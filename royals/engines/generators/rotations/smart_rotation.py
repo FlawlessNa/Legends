@@ -37,7 +37,9 @@ class SmartRotation(Rotation):
         self._cancellable = True  # Impacts rotation behavior
 
         if len(self.data.current_minimap.feature_cycle) > 0:
-            self.data.update(next_feature=random.choice(self.data.current_minimap.feature_cycle))
+            self.data.update(
+                next_feature=random.choice(self.data.current_minimap.feature_cycle)
+            )
             self.data.update(next_target=self.data.next_feature.random())
             for _ in range(
                 self.data.current_minimap.feature_cycle.index(self.data.next_feature)
@@ -45,23 +47,26 @@ class SmartRotation(Rotation):
                 next(self._target_cycle)
         else:
             self.data.update(next_target=self.data.current_minimap.random_point())
-            self.data.update(next_feature=self.data.current_minimap.get_feature_containing(
-                self.data.next_target
-            ))
+            self.data.update(
+                next_feature=self.data.current_minimap.get_feature_containing(
+                    self.data.next_target
+                )
+            )
 
     @property
     def data_requirements(self) -> tuple:
-        return tuple(
-            {"current_minimap_area_box",
-             "current_entire_minimap_box",
-             "minimap_grid",
-             "current_minimap_position",
-             "current_minimap_feature",
-             "last_mob_detection",
-             "last_position_change",
-             *super().data_requirements
-             }
+        all_ = tuple(
+            [
+                "current_minimap_area_box",
+                "current_entire_minimap_box",
+                "minimap_grid",
+                "current_minimap_position",
+                "last_mob_detection",
+                *super().data_requirements,
+            ]
         )
+        seen = set()
+        return tuple(x for x in all_ if not (x in seen or seen.add(x)))
 
     def _set_next_target(self) -> None:
         dist = 5 if self._on_central_target else 2
@@ -73,29 +78,38 @@ class SmartRotation(Rotation):
 
         elif len(self._next_feature_covered) == 0:
             # We have reached the target position. At this point, cover the platform.
-            self.data.update(next_target=random.choice(
-                [self.data.next_feature.left_edge, self.data.next_feature.right_edge]
-            ))
+            self.data.update(
+                next_target=random.choice(
+                    [
+                        self.data.next_feature.left_edge,
+                        self.data.next_feature.right_edge,
+                    ]
+                )
+            )
             self._next_feature_covered.append(self.data.next_target)
 
         elif len(self._next_feature_covered) == 1:
-            self.data.update(next_target=(
-                self.data.next_feature.left_edge
-                if self.data.next_target[0] >= self.data.next_feature.center[0]
-                else self.data.next_feature.right_edge
-            ))
+            self.data.update(
+                next_target=(
+                    self.data.next_feature.left_edge
+                    if self.data.next_target[0] >= self.data.next_feature.center[0]
+                    else self.data.next_feature.right_edge
+                )
+            )
             self._next_feature_covered.append(self.data.next_target)
 
         elif len(self._next_feature_covered) == 2:
             # At this point, we have covered the platform. Now, gravitate towards the center of the feature.
-            self.data.update(next_target=(
-                self.data.next_feature.central_node
-                if self.data.next_feature.central_node is not None
-                else (
-                    int(self.data.next_feature.center[0]),
-                    int(self.data.next_feature.center[1]),
+            self.data.update(
+                next_target=(
+                    self.data.next_feature.central_node
+                    if self.data.next_feature.central_node is not None
+                    else (
+                        int(self.data.next_feature.center[0]),
+                        int(self.data.next_feature.center[1]),
+                    )
                 )
-            ))
+            )
             self._next_feature_covered.append(self.data.next_target)
             self._cancellable = False
             self._center_targeted_at = time.perf_counter()
@@ -111,10 +125,14 @@ class SmartRotation(Rotation):
                     self.data.update(next_feature=next(self._target_cycle))
                     self.data.update(next_target=self.data.next_feature.random())
                 else:
-                    self.data.update(next_target=self.data.current_minimap.random_point())
-                    self.data.update(next_feature=self.data.current_minimap.get_feature_containing(
-                        self.data.next_target
-                    ))
+                    self.data.update(
+                        next_target=self.data.current_minimap.random_point()
+                    )
+                    self.data.update(
+                        next_feature=self.data.current_minimap.get_feature_containing(
+                            self.data.next_target
+                        )
+                    )
                 self._next_feature_covered.clear()
                 self._cancellable = True
 

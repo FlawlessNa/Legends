@@ -22,13 +22,14 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
     Base class for all rotations, where a few helper methods are defined.
     """
 
-    def __init__(self,
-                 data: RotationData,
-                 lock,
-                 training_skill: Skill,
-                 mob_threshold: int,
-                 teleport: Skill = None,
-                 ) -> None:
+    def __init__(
+        self,
+        data: RotationData,
+        lock,
+        training_skill: Skill,
+        mob_threshold: int,
+        teleport: Skill = None,
+    ) -> None:
         super().__init__(data)
         self._lock = lock
         self.training_skill = training_skill
@@ -37,7 +38,6 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
         self._teleport = teleport
         self._deadlock_counter = 0
         self._prev_pos = None
-        self._last_pos_change = time.perf_counter()
         self._prev_rotation_actions = []
 
         self._on_screen_pos = None
@@ -45,9 +45,11 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
     @property
     def data_requirements(self) -> tuple:
         return (
+            "current_entire_minimap_box",
             "current_on_screen_position",
             "current_minimap_position",
-            "last_cast"
+            "last_cast",
+            "last_position_change"
         )
 
     def __repr__(self):
@@ -63,22 +65,23 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
             return QueueAction(
                 identifier=f"Mobs Hitting - {self.training_skill.name}",
                 priority=10,
-                action=hit_mobs
+                action=hit_mobs,
             )
 
         res = self._rotation()
 
         if res:
-            self._prev_rotation_actions.append(res)
-            if len(self._prev_rotation_actions) > 5:
-                self._prev_rotation_actions.pop(0)
-            return QueueAction(
+            action = QueueAction(
                 identifier=self.__class__.__name__,
                 priority=99,
                 action=res,
-                is_cancellable=getattr(self, '_is_cancellable', True),
+                is_cancellable=getattr(self, "_is_cancellable", True),
                 release_lock_on_callback=True,
             )
+            self._prev_rotation_actions.append(action)
+            if len(self._prev_rotation_actions) > 10:
+                self._prev_rotation_actions.pop(0)
+            return action
 
     @abstractmethod
     def _set_next_target(self) -> None:
@@ -107,15 +110,15 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
             action=partial(random_jump, self.data.handle, self.data.ign),
             is_cancellable=False,
             release_lock_on_callback=True,
-            )
+        )
 
-        breakpoint()  # TODO - See if comparing QueueAction works.
         # If no change in position for 5 seconds, trigger failsafe
-        if time.perf_counter() - self._last_pos_change > 5:
+        now = time.perf_counter()
+        if now - self.data.last_position_change > 10:
             logger.warning(
                 f"{self.__class__.__name__} Failsafe Triggered Due to static position"
             )
-            self._last_pos_change = time.perf_counter()
+            self.data.update("last_position_change")
             return reaction
 
         elif self._deadlock_counter > 30:
@@ -125,11 +128,18 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
             self._deadlock_counter = 0
             return reaction
 
-        elif all(action == self._prev_rotation_actions[0] for action in self._prev_rotation_actions) and len(self._prev_rotation_actions) > 2:
+        elif (
+            all(
+                action == self._prev_rotation_actions[0]
+                for action in self._prev_rotation_actions
+            )
+            and len(self._prev_rotation_actions) > 9
+        ):
             logger.warning(
                 f"{self.__class__.__name__} Failsafe Triggered Due to repeated actions"
             )
             self._deadlock_counter = 0
+            self._prev_rotation_actions.clear()
             return reaction
 
     def _mobs_hitting(self) -> partial | None:
@@ -143,7 +153,10 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
 
         if self._on_screen_pos:
             x, y = self._on_screen_pos
-            if self.training_skill.horizontal_screen_range and self.training_skill.vertical_screen_range:
+            if (
+                self.training_skill.horizontal_screen_range
+                and self.training_skill.vertical_screen_range
+            ):
                 region = Box(
                     left=x - self.training_skill.horizontal_screen_range,
                     right=x + self.training_skill.horizontal_screen_range,
@@ -178,8 +191,8 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
             res
             and not self.data.character_in_a_ladder
             and time.perf_counter() - self.data.last_cast
-            >= self.training_skill.animation_time
-            * 1.05  # Small buffer to avoid more tasks being queued up - TODO - Improve this
+            >= self.training_skill.animation_time + max(0.15, self.training_skill.animation_time * 0.05)
+            # Small buffer to avoid more tasks being queued up - TODO - Improve this
         ):
             self.data.update("last_cast")
             return res
