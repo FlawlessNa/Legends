@@ -22,5 +22,4 @@ if __name__ == "__main__":
         img = take_screenshot(HANDLE, stats.level_box)
         cv2.imshow("test", img)
         cv2.waitKey(1)
-
-        print(menu.is_displayed(HANDLE))
+        print(stats.get_level(HANDLE))
