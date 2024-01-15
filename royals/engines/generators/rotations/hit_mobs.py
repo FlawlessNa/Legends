@@ -9,7 +9,7 @@ from typing import Sequence
 from botting.core import QueueAction, DecisionGenerator
 from botting.models_abstractions import BaseMob, Skill
 from botting.utilities import take_screenshot, Box
-from royals.data import RotationData
+from royals.game_data import RotationData
 from royals.actions import cast_skill
 
 

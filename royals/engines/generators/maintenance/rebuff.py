@@ -9,7 +9,7 @@ from functools import partial
 from botting.core import DecisionGenerator, QueueAction
 from botting.models_abstractions import Skill
 from ..rotations.base_rotation import Rotation
-from royals.data import RotationData, MaintenanceData
+from royals.game_data import MaintenanceData
 from royals.actions import cast_skill
 
 
@@ -17,26 +17,32 @@ class Rebuff(DecisionGenerator):
     """
     Generator for rebuffing.
     """
-
     def __init__(self, data: MaintenanceData, skill: Skill) -> None:
-        self.data = data
+        super().__init__(data)
         self._skill = skill
-        self._next_call = None
-
-    def __call__(self) -> iter:
-        assert self._skill.duration > 0, f"Skill {self._skill.name} has no duration."
+        assert skill.duration > 0, f"Skill {skill.name} has no duration."
         self._next_call = 0
-        return iter(self)
 
-    def __next__(self) -> QueueAction | None:
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self._skill.name})"
+
+    @property
+    def data_requirements(self) -> tuple[str]:
+        return tuple()
+
+    def _next(self) -> QueueAction | None:
         if time.perf_counter() >= self._next_call:
             self._next_call = time.perf_counter() + (
-                max(self._skill.duration, self._skill.cooldown) * random.uniform(0.9, 1)
+                max(self._skill.duration * random.uniform(0.9, 1),
+                    self._skill.cooldown * random.uniform(1, 1.05))
             )
             action = partial(cast_skill, self.data.handle, self.data.ign, self._skill)
             return QueueAction(self._skill.name, 5, action)
 
-    def _failsafe(self, *args, **kwargs):
+    def _failsafe(self):
+        """
+        TODO - Look for "fresh" skill icon in top-right of client screen.
+        """
         pass
 
 

@@ -5,7 +5,7 @@ from functools import partial
 
 from botting.core import DecisionGenerator, QueueAction, controller
 from botting.utilities import config_reader
-from royals.data import MaintenanceData
+from royals.game_data import MaintenanceData
 
 
 class PetFood(DecisionGenerator):
@@ -17,17 +17,21 @@ class PetFood(DecisionGenerator):
     def __init__(
         self, data: MaintenanceData, interval: int = 600, keyname: str = "Pet Food"
     ) -> None:
-        self.data = data
+        super().__init__(data)
         self._key = eval(config_reader("keybindings", self.data.ign, "Non Skill Keys"))[
             keyname
         ]
         self._interval = interval
-
-    def __call__(self):
         self._next_call = 0
-        return iter(self)
 
-    def __next__(self) -> QueueAction | None:
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self._interval})"
+
+    @property
+    def data_requirements(self) -> tuple:
+        return tuple()
+
+    def _next(self) -> QueueAction | None:
         if time.perf_counter() >= self._next_call:
             self._next_call = (
                 time.perf_counter() + random.uniform(0.9, 1.1) * self._interval

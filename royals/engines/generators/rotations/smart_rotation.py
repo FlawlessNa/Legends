@@ -9,7 +9,7 @@ from botting import PARENT_LOG
 
 from botting.models_abstractions import Skill
 from .base_rotation import Rotation
-from royals.data import RotationData
+from royals.game_data import RotationData
 from royals.models_implementations.mechanics.path_into_movements import get_to_target
 
 

@@ -28,10 +28,10 @@ class Leecher(DecisionEngine):
     def game_data(self) -> RoyalsData:
         return self._game_data
 
-    def items_to_monitor(self) -> list[callable]:
+    def items_to_monitor(self) -> list[DecisionGenerator]:
         return [DistributeAP(self.game_data)]
 
-    def next_map_rotation(self) -> list[callable]:
+    def next_map_rotation(self) -> DecisionGenerator:
         return []
 
     def anti_detection_checks(self) -> list[DecisionGenerator]:

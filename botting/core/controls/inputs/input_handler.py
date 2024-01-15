@@ -136,7 +136,7 @@ async def focused_mouse_input(
     :param y_trajectory: List of absolute Y position of the mouse.
     :param events: Type of Event to be sent. "click", "down", or "up".
     :param delay: Delay between each call of SendInput(...). Default is 0.033 seconds.
-    :param mouse_data: Mouse data to be sent with the mouse event,
+    :param mouse_data: Mouse game_data to be sent with the mouse event,
         should be 0 except for scrolling events.
     :param cooldown: Cooldown after all inputs are sent. Default is 0.1 seconds.
     :return: None

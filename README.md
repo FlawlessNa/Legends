@@ -43,9 +43,9 @@
   - [ ] Combine with their HP bar
   
 ### RoyalsData Management
-  - [ ] Split into several subclasses, each specific to a generator
+  - [x] Split into several subclasses, each specific to a generator
   - [ ] Add a PerformanceData class for monitoring (mesos/h, exp/h, etc)
-  - [ ] DecisionEngine should not have to update anything. Each Generator should deal with their own requirements.
+  - [x] DecisionEngine should not have to update anything. Each Generator should deal with their own requirements.
 
 ### Error Management
   - [ ] Ability to close all clients if error occurs

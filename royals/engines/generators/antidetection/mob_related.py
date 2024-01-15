@@ -7,7 +7,7 @@ from functools import partial
 from botting import PARENT_LOG
 from botting.core import DecisionGenerator, QueueAction
 from royals.actions import write_in_chat
-from royals.data import AntiDetectionData
+from royals.game_data import AntiDetectionData
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -25,18 +25,26 @@ class MobCheck(DecisionGenerator):
         mob_threshold: int,
         cooldown: int = 60,
     ) -> None:
-        self.data = data
+
+        super().__init__(data)
         self.time_threshold = time_threshold
         self.mob_threshold = mob_threshold
         self.cooldown = cooldown
-
-    def __call__(self):
-        self._last_mob_detection = time.perf_counter()
         self._counter = 0
         self._last_trigger = 0
-        return iter(self)
 
-    def __next__(self) -> QueueAction | None:
+    @property
+    def data_requirements(self) -> tuple:
+        return (
+            "latest_client_img",
+            "current_mobs",
+            "mob_check_last_detection",
+        )
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}"
+
+    def _next(self) -> QueueAction | None:
         if self.data.shut_down_at is not None and time.perf_counter() > self.data.shut_down_at:
             logger.critical(f"Shutting down due to {self.__class__.__name__}")
             raise RuntimeError(f"Shutting down due to {self.__class__.__name__}")
@@ -54,17 +62,17 @@ class MobCheck(DecisionGenerator):
             nbr_mobs += mob.get_mob_count(self.data.latest_client_img.copy(), debug=False)
 
         if nbr_mobs >= self.mob_threshold:
-            self._last_mob_detection = time.perf_counter()
+            self.data.update("mob_check_last_detection")
             self._counter = 0
 
-        elif time.perf_counter() - self._last_mob_detection > self.time_threshold:
+        elif time.perf_counter() - self.data.mob_check_last_detection > self.time_threshold:
             self._counter += 1
 
     def _failsafe(self) -> QueueAction:
         """
         Triggers emergency reaction, which is three-fold:
         1. Block bot from continuing until user calls RESUME from discord.
-            Note: If no RESUME within 60 seconds, the bot stops.  # TODO (but within Executor, not here)
+            Note: If no RESUME within 60 seconds, the bot stops.
         2. Random reaction in general chat
         3. Send Discord Alert
         :return:
@@ -99,8 +107,9 @@ class MobCheck(DecisionGenerator):
         self._last_trigger = time.perf_counter()
         self._counter = 0
         self.data.update(
-            block_rotation=True, shut_down_at=self._last_trigger + self.cooldown
+            shut_down_at=self._last_trigger + self.cooldown
         )
+        self.data.block("Rotation")
         return QueueAction(
             f"{self.__class__.__name__} reaction",
             priority=1,

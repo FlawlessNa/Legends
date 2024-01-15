@@ -4,7 +4,7 @@ from functools import partial
 
 from botting.core import DecisionGenerator, QueueAction, controller
 from botting.utilities import config_reader, take_screenshot
-from royals.data import MaintenanceData
+from royals.game_data import MaintenanceData
 
 
 class DistributeAP(DecisionGenerator):

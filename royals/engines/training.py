@@ -72,7 +72,8 @@ class TrainingEngine(DecisionEngine):
     def game_data(self) -> RoyalsData:
         return self._game_data
 
-    def items_to_monitor(self) -> list[callable]:
+    @property
+    def items_to_monitor(self) -> list[DecisionGenerator]:
         generators = []
         for skill in self.game_data.character.skills.values():
             if skill.type in ["Buff", "Party Buff"] and skill in self._buffs_to_use:
@@ -81,7 +82,8 @@ class TrainingEngine(DecisionEngine):
         generators.append(DistributeAP(self.game_data))
         return generators
 
-    def next_map_rotation(self) -> list[callable]:
+    @property
+    def next_map_rotation(self) -> DecisionGenerator:
         return [
             SmartRotation(
                 self.game_data,
@@ -94,6 +96,7 @@ class TrainingEngine(DecisionEngine):
             ),
         ]
 
+    @property
     def anti_detection_checks(self) -> list[DecisionGenerator]:
         return [
             MobCheck(

@@ -6,7 +6,7 @@ import keyboard  # Need to install this package to run the data_builder script
 from paths import ROOT
 from botting.utilities import take_screenshot
 
-OUTPUT_FOLDER = os.path.join(ROOT, "data/character_detection")
+OUTPUT_FOLDER = os.path.join(ROOT, "game_data/character_detection")
 HANDLE = 0x00040E52
 
 if __name__ == "__main__":

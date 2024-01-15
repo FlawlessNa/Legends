@@ -22,21 +22,21 @@ class LeechingEngine(DecisionEngine):
     ) -> None:
         super().__init__(log_queue, bot)
         self._game_data = RoyalsData(self.handle, self.ign)
-        self.game_data.update(
-            "current_minimap_area_box",
-            "current_minimap_position",
-            "current_entire_minimap_box",
-            current_map=game_map,
-            current_minimap=game_map.minimap,
-            current_mobs=game_map.mobs,
-            character=character(),
-        )
+        # self.game_data.update(
+        #     "current_minimap_area_box",
+        #     "current_minimap_position",
+        #     "current_entire_minimap_box",
+        #     current_map=game_map,
+        #     current_minimap=game_map.minimap,
+        #     current_mobs=game_map.mobs,
+        #     character=character(),
+        # )
 
         self._training_skill = self.game_data.character.skills[
             self.game_data.character.main_skill
         ]
         self._teleport_skill = self.game_data.character.skills["Teleport"]
-        self.game_data.current_minimap.generate_grid_template(allow_teleport=True)
+        # self.game_data.current_minimap.generate_grid_template(allow_teleport=True)
         self._mob_count_threshold = mob_count_threshold
         if buffs:
             self._buffs_to_use = [
@@ -61,7 +61,8 @@ class LeechingEngine(DecisionEngine):
     def game_data(self) -> RoyalsData:
         return self._game_data
 
-    def items_to_monitor(self) -> list[callable]:
+    @property
+    def items_to_monitor(self) -> list[DecisionGenerator]:
         generators = []
         for skill in self.game_data.character.skills.values():
             if skill.type in ["Buff"] and skill in self._buffs_to_use:
@@ -69,7 +70,8 @@ class LeechingEngine(DecisionEngine):
         generators.append(PetFood(self.game_data))
         return generators
 
-    def next_map_rotation(self) -> list[callable]:
+    @property
+    def next_map_rotation(self) -> DecisionGenerator:
         buffs = []
         for skill in self.game_data.character.skills.values():
             if skill.type in ["Party Buff"] and skill in self._buffs_to_use:
@@ -91,6 +93,7 @@ class LeechingEngine(DecisionEngine):
             ),
         ]
 
+    @property
     def anti_detection_checks(self) -> list[DecisionGenerator]:
         return [
             MobCheck(self.game_data, time_threshold=10, mob_threshold=3),

@@ -198,7 +198,7 @@ def shift_channel(c, amount):
     return c
 
 
-# custom data structure to hold the state of an HSV filter
+# custom game_data structure to hold the state of an HSV filter
 class HsvFilter:
     def __init__(
         self,

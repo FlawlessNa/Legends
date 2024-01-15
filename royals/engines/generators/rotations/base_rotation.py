@@ -7,7 +7,7 @@ from functools import partial
 from botting import PARENT_LOG
 from botting.core import DecisionGenerator, QueueAction
 from botting.models_abstractions import Skill
-from royals.data import RotationData
+from royals.game_data import RotationData
 from royals.actions import random_jump
 
 

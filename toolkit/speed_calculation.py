@@ -5,7 +5,7 @@ from royals.models_implementations.minimaps import PathOfTime1
 
 # Once the script starts, it continuously monitors the character's position on the minimap.
 # As soon as the character starts moving, the script logs the character's position with a timestamp.
-# As soon as the character reaches the target position, the script saves the data and stops.
+# As soon as the character reaches the target position, the script saves the game_data and stops.
 
 TARGET = (174, 73)  # Target position on the minimap
 HANDLE = 0x00F90FA4  # Handle to the game window
@@ -18,7 +18,7 @@ positions = []
 while True:
 
     current_pos = minimap.get_character_positions(HANDLE, map_area_box=map_area).pop()
-    # Start recording data along with precise timestamps
+    # Start recording game_data along with precise timestamps
     positions.append(current_pos)
     stamps.append(time.perf_counter())
     if current_pos == initial_pos:
