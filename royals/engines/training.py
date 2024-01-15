@@ -39,7 +39,6 @@ class TrainingEngine(DecisionEngine):
             character(),
             current_map=game_map,
             current_mobs=game_map.mobs,
-            current_minimap=game_map.minimap
         )
         self._training_skill = self.game_data.get_skill(training_skill)
         if teleport_enabled:
@@ -49,12 +48,6 @@ class TrainingEngine(DecisionEngine):
                 self._teleport_skill = None
         else:
             self._teleport_skill = None
-
-        self.game_data.update(current_minimap=self.game_data.current_map.minimap)
-        self.game_data.update(
-            "minimap_grid",
-            allow_teleport=True if self._teleport_skill is not None else False,
-        )
 
         self._mob_count_threshold = mob_count_threshold
         self._time_limit_central_node = time_limit

@@ -11,6 +11,7 @@ class DistributeAP(DecisionGenerator):
     def __init__(self, data: MaintenanceData) -> None:
         self.data = data
         self.data.update("ability_menu", "character_stats")
+
         self._key = eval(config_reader("keybindings", self.data.ign, "Non Skill Keys"))[
             "Ability Menu"
         ]
@@ -80,7 +81,7 @@ class DistributeAP(DecisionGenerator):
             self._current_lvl_img = take_screenshot(
                 self.data.handle, self.data.character_stats.level_box
             )
-            self._next_call = time.perf_counter() + 60
+            self._next_call = time.perf_counter() + 30
 
     @staticmethod
     async def _distribute_ap(

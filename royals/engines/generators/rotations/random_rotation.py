@@ -20,6 +20,7 @@ class RandomRotation(Rotation):
 
     def __call__(self):
         self._next_target = self.data.current_minimap.random_point()
+        self.data.update("current_minimap_position")
         return iter(self)
 
     def _set_next_target(self):

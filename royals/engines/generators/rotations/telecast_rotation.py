@@ -39,6 +39,7 @@ class TelecastRotation(Rotation):
             last_cast=time.perf_counter(),
             ultimate=self._ultimate,
         )
+        self.data.update("current_minimap_position")
         self._next_target = self.data.next_target
         self._last_pos_change = time.perf_counter()
         if len(self.data.current_minimap.feature_cycle):

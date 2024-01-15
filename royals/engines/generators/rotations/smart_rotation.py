@@ -5,15 +5,13 @@ import multiprocessing as mp
 import random
 import time
 
-from functools import partial
-
 from botting import PARENT_LOG
-from botting.core import QueueAction
+
 from botting.models_abstractions import Skill
 from .base_rotation import Rotation
-from royals import RoyalsData
+from royals.data import RotationData
 from royals.models_implementations.mechanics.path_into_movements import get_to_target
-from royals.actions import random_jump
+
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
@@ -21,7 +19,7 @@ logger = logging.getLogger(PARENT_LOG + "." + __name__)
 class SmartRotation(Rotation):
     def __init__(
         self,
-        data: RoyalsData,
+        data: RotationData,
         lock: mp.Lock,
         teleport: Skill = None,
         time_limit: float = 15,
@@ -53,6 +51,7 @@ class SmartRotation(Rotation):
 
         self._next_feature_covered = []
         self._last_pos_change = time.perf_counter()
+        self.data.update("current_minimap_area_box", "current_minimap_position")
         return iter(self)
 
     def _set_next_target(self) -> None:

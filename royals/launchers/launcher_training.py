@@ -28,6 +28,7 @@ DISABLE_TELEPORT = True
 ANTI_DETECTION_MOB_THRESHOLD = 3
 ANTI_DETECTION_TIME_THRESHOLD = 10
 
+
 async def main(*bots: botting.Executor) -> None:
     with botting.SessionManager(*bots) as session:
         await session.launch()
@@ -48,7 +49,7 @@ if __name__ == "__main__":
         buffs=BUFFS,
         time_limit=TIME_LIMIT_CENTRAL_TARGET,
         teleport_enabled=not DISABLE_TELEPORT,
-        anti_detect_mob_threshold=ANTI_DETECTION_MOB_THRESHOLD,
+        anti_detection_mob_threshold=ANTI_DETECTION_MOB_THRESHOLD,
         anti_detection_time_threshold=ANTI_DETECTION_TIME_THRESHOLD
     )
 

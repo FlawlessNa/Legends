@@ -9,7 +9,7 @@ from typing import Sequence
 from botting.core import QueueAction, DecisionGenerator
 from botting.models_abstractions import BaseMob, Skill
 from botting.utilities import take_screenshot, Box
-from royals import RoyalsData
+from royals.data import RotationData
 from royals.actions import cast_skill
 
 
@@ -17,7 +17,7 @@ class MobsHitting(DecisionGenerator):
     def _failsafe(self):
         pass
 
-    def __init__(self, data: RoyalsData, skill: Skill, mob_threshold: int = 2) -> None:
+    def __init__(self, data: RotationData, skill: Skill, mob_threshold: int = 2) -> None:
         self.data = data
         self.skill = skill
         self.mob_threshold = mob_threshold
@@ -31,6 +31,8 @@ class MobsHitting(DecisionGenerator):
         res = None
         closest_mob_direction = None
         self.data.update("current_on_screen_position")
+        if self.data.block_rotation:
+            return
         self._on_screen_pos = (
             self.data.current_on_screen_position
             if self.data.current_on_screen_position is not None

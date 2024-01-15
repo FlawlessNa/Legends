@@ -7,7 +7,7 @@ from functools import partial
 from botting import PARENT_LOG
 from botting.core import DecisionGenerator, QueueAction
 from botting.models_abstractions import Skill
-from royals import RoyalsData
+from royals.data import RotationData
 from royals.actions import random_jump
 
 
@@ -19,13 +19,14 @@ class Rotation(DecisionGenerator, ABC):
     Base class for all rotations, where a few helper methods are defined.
     """
 
-    def __init__(self, data: RoyalsData, lock, teleport: Skill = None) -> None:
+    def __init__(self, data: RotationData, lock, teleport: Skill = None) -> None:
         self.data = data
         self._lock = lock
         self._teleport = teleport
         self._deadlock_counter = 0
         self._prev_pos = None
         self._last_pos_change = time.perf_counter()
+        self.data.update("minimap_grid", "current_entire_minimap_box")
 
     def __next__(self):
         self._prev_pos = self.data.current_minimap_position
@@ -65,7 +66,7 @@ class Rotation(DecisionGenerator, ABC):
         args = (
             self.data.handle,
             self.data.ign,
-            action.keywords.get("direction", self.data.current_direction),
+            action.keywords["direction"],
         )
         kwargs = action.keywords.copy()
         kwargs.pop("direction", None)
