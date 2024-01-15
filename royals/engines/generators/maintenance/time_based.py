@@ -5,7 +5,7 @@ from functools import partial
 
 from botting.core import DecisionGenerator, QueueAction, controller
 from botting.utilities import config_reader
-from royals import RoyalsData
+from royals.data import MaintenanceData
 
 
 class PetFood(DecisionGenerator):
@@ -15,7 +15,7 @@ class PetFood(DecisionGenerator):
     """
 
     def __init__(
-        self, data: RoyalsData, interval: int = 600, keyname: str = "Pet Food"
+        self, data: MaintenanceData, interval: int = 600, keyname: str = "Pet Food"
     ) -> None:
         self.data = data
         self._key = eval(config_reader("keybindings", self.data.ign, "Non Skill Keys"))[

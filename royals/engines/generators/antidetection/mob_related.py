@@ -40,6 +40,7 @@ class MobCheck(DecisionGenerator):
         if self.data.shut_down_at is not None and time.perf_counter() > self.data.shut_down_at:
             logger.critical(f"Shutting down due to {self.__class__.__name__}")
             raise RuntimeError(f"Shutting down due to {self.__class__.__name__}")
+
         if (
             self._counter >= 2
             and time.perf_counter() - self._last_trigger > self.cooldown

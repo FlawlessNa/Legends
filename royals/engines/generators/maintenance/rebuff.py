@@ -9,9 +9,8 @@ from functools import partial
 from botting.core import DecisionGenerator, QueueAction
 from botting.models_abstractions import Skill
 from ..rotations.base_rotation import Rotation
-from royals import RoyalsData
+from royals.data import RotationData, MaintenanceData
 from royals.actions import cast_skill
-from royals.models_implementations.mechanics.path_into_movements import get_to_target
 
 
 class Rebuff(DecisionGenerator):
@@ -19,7 +18,7 @@ class Rebuff(DecisionGenerator):
     Generator for rebuffing.
     """
 
-    def __init__(self, data: RoyalsData, skill: Skill) -> None:
+    def __init__(self, data: MaintenanceData, skill: Skill) -> None:
         self.data = data
         self._skill = skill
         self._next_call = None
@@ -49,7 +48,7 @@ class LocalizedRebuff(Rotation):
 
     def __init__(
         self,
-        data: RoyalsData,
+        data: RotationData,
         lock: mp.Lock,
         teleport_skill: Skill,
         buffs: list[Skill],
@@ -72,6 +71,7 @@ class LocalizedRebuff(Rotation):
             if skill.horizontal_minimap_distance is not None
         )
         self._acquired = False
+        self.data.update("current_minimap_position")
         return iter(self)
 
     def __next__(self) -> QueueAction | None:
