@@ -6,28 +6,27 @@
   - [ ] Rebuffing from Leechers
   - [ ] Ultimate Cast failsafe - check if MP has changed by at least X%
   
-### Maintenance Generators
+### Generators
   - [ ] Check character still alive
   - [ ] Check Potions Pet Food, Mount Food
   - [ ] Cooldown buffs
   - [ ] Inventory Management
   - [x] Automated AP distribution
-  
-### Generic Generator class for the botting library + incorporated failsafe methods
-  - [ ] Add failsafe on MobHitting
-  - [ ] Add failsafe on Rebuff
+  - [x] Generic Generator class for botting library
+  - [ ] Add failsafe on MobHitting (how??)
+  - [ ] Add failsafe on Rebuff (look for fresh buff icon in top right screen)
   - [ ] Add failsafe on any Rotation Generators - Movement is expected if action is not cancelled
 
 ### Anti Detection Features
   - [ ] Chat Parsing (try grayscale preprocessing on "general" lines) + GPT Automated Responses
+  - [ ] GM Logo detection
   - [ ] Abnormal Status Detection (look for gray line types)
+  - [ ] Minimap Parsing to ensure still in proper map + random reaction
   - [ ] Minimap Parsing for strangers + random reaction
   - [ ] Minimap Parsing for unexpected self movements + random reaction
-  - [ ] Minimap parsing to ensure still in proper map + random reaction
   - [ ] Blue Notification detection (chat invite, other invites, etc)
-  - [ ] Mob freeze (from a GM) + random reaction
+  - [x] Mob freeze (from a GM) + random reaction
   - [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs + random reaction
-  - [ ] GM Logo detection
   - [ ] For complex movements (teleport, telecast, etc), use Spy++ to find exact key combinations when done by human, and make sure to properly replicate (should be very easy)
   - [ ] Nice-to-have, for Ulu only - look into building an "unknown" object detection method, using UNKAD methodology
   
@@ -36,12 +35,12 @@
   
 ### QueueAction
   - [ ] Implement better handling of QueueAction Priority
-  - [ ] Added features to enable IPC
+  - [ ] Added action attributes to enable IPC
   
 ### Mob detection
   - [ ] Clean the pre-processing to remove the additional layer of the filter function
   - [ ] Define additional generic detection functions for mobs
-  - [ ] Combine with their HP bar
+  - [ ] Combine with HP bar
   
 ### RoyalsData Management
   - [x] Split into several subclasses, each specific to a generator
@@ -66,7 +65,8 @@
 ### Game Interface
   - [ ] Quickslots
   - [ ] Inventory
-  - [ ] Level up detection
+  - [x] Level up detection
+  - [ ] HP bar detection (check if still alive)
 
 ## Nice to have
   - [ ] Chat - Try additional pre-processing: Thresholding (improved?), Denoising (application of Gaussian and/or Median Blur), Contrast Enhancement (Make text more distinguishable from background)

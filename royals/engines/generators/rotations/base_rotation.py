@@ -112,7 +112,7 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
             release_lock_on_callback=True,
         )
 
-        # If no change in position for 5 seconds, trigger failsafe
+        # If no change in position for 10 seconds, trigger failsafe
         now = time.perf_counter()
         if now - self.data.last_position_change > 10:
             logger.warning(
