@@ -35,6 +35,14 @@ class InventoryMenu(InGameDynamicVisuals):
         offset=True,
         config=f"--psm 7 -c tessedit_char_whitelist=,{string.digits}",
     )
+    extend_button: Box = Box(
+        left=119,
+        right=31,
+        top=3,
+        bottom=-3,
+        name="Extend Button",
+        offset=True,
+    )
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         return cv2.resize(image, None, fx=10, fy=10)

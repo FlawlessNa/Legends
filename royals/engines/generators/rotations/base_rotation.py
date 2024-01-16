@@ -21,6 +21,7 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
     """
     Base class for all rotations, where a few helper methods are defined.
     """
+    generator_type = "Rotation"
 
     def __init__(
         self,

@@ -20,6 +20,7 @@ logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
 class TelecastRotation(Rotation):
+    generator_type = 'Rotation'
     def __init__(
         self,
         data: RoyalsData,

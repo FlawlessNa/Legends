@@ -10,6 +10,7 @@ from .generators import (
     PetFood,
     MobCheck,
     DistributeAP,
+    InventoryManager
 )
 
 
@@ -73,12 +74,14 @@ class TrainingEngine(DecisionEngine):
 
     @property
     def items_to_monitor(self) -> list[DecisionGenerator]:
-        generators = []
+        generators = [
+            InventoryManager(self.game_data, tab_to_watch="Equip"),
+            PetFood(self.game_data),
+            DistributeAP(self.game_data),
+        ]
         for skill in self.game_data.character.skills.values():
             if skill.type in ["Buff", "Party Buff"] and skill in self._buffs_to_use:
                 generators.append(Rebuff(self.game_data, skill))
-        generators.append(PetFood(self.game_data))
-        generators.append(DistributeAP(self.game_data))
         return generators
 
     @property

@@ -8,7 +8,6 @@ from royals.game_data import MaintenanceData
 
 
 class DistributeAP(DecisionGenerator):
-
     generator_type = "Maintenance"
 
     def __init__(self, data: MaintenanceData) -> None:
@@ -52,7 +51,11 @@ class DistributeAP(DecisionGenerator):
                     identifier="Opening ability menu",
                     priority=1,
                     action=partial(
-                        controller.press, self.data.handle, self._key, silenced=True, cooldown=0
+                        controller.press,
+                        self.data.handle,
+                        self._key,
+                        silenced=True,
+                        cooldown=0,
                     ),
                 )
 
@@ -82,7 +85,11 @@ class DistributeAP(DecisionGenerator):
                         identifier="Closing ability menu",
                         priority=1,
                         action=partial(
-                            controller.press, self.data.handle, self._key, silenced=True, cooldown=0
+                            controller.press,
+                            self.data.handle,
+                            self._key,
+                            silenced=True,
+                            cooldown=0,
                         ),
                     )
         else:
