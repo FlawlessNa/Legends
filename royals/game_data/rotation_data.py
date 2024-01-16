@@ -31,6 +31,7 @@ class RotationData(GameData):
     next_feature: MinimapFeature = field(repr=False, init=False)
     character_in_a_ladder: bool = field(repr=False, init=False)
     last_position_change: float = field(repr=False, init=False)
+    is_attacking: bool = field(repr=False, init=False, default=False)
 
     def __post_init__(self):
         if hasattr(self, 'current_map'):

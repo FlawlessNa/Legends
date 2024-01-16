@@ -63,10 +63,12 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
         self._set_next_target()
         hit_mobs = self._mobs_hitting()
         if hit_mobs:
+            self.data.update(is_attacking=True)
             return QueueAction(
                 identifier=f"Mobs Hitting - {self.training_skill.name}",
                 priority=10,
                 action=hit_mobs,
+                update_game_data={"is_attacking": False},
             )
 
         res = self._rotation()
@@ -191,9 +193,7 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
         if (
             res
             and not self.data.character_in_a_ladder
-            and time.perf_counter() - self.data.last_cast
-            >= self.training_skill.animation_time + max(0.15, self.training_skill.animation_time * 0.05)
-            # Small buffer to avoid more tasks being queued up - TODO - Improve this
+            and not self.data.is_attacking
         ):
             self.data.update("last_cast")
             return res
