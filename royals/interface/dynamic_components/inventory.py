@@ -94,21 +94,22 @@ class InventoryMenu(InGameDynamicVisuals):
         contours, _ = cv2.findContours(
             processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
-        largest = max(contours, key=cv2.contourArea)
-        rect = cv2.boundingRect(largest)
-        center = (rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)
+        if len(contours) > 0:
+            largest = max(contours, key=cv2.contourArea)
+            rect = cv2.boundingRect(largest)
+            center = (rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)
 
-        horizontal_distance = center[0] - menu_pos.center[0]
-        if horizontal_distance < -35:
-            return "Equip"
-        elif -35 <= horizontal_distance < -1:
-            return "Use"
-        elif -1 <= horizontal_distance < 33:
-            return "Setup"
-        elif 33 <= horizontal_distance < 67:
-            return "Etc"
-        elif 67 <= horizontal_distance:
-            return "Cash"
+            horizontal_distance = center[0] - menu_pos.center[0]
+            if horizontal_distance < -35:
+                return "Equip"
+            elif -35 <= horizontal_distance < -1:
+                return "Use"
+            elif -1 <= horizontal_distance < 33:
+                return "Setup"
+            elif 33 <= horizontal_distance < 67:
+                return "Etc"
+            elif 67 <= horizontal_distance:
+                return "Cash"
 
     def get_tab_count(self, current: str, target: str) -> int:
         """

@@ -14,7 +14,7 @@ import royals.maps
 CHARACTER_NAME = "WrongDoor"
 CHARACTER_CLASS = royals.characters.Magician
 TRAINING_SKILL = "Magic Claw"
-TRAINING_MAP = royals.maps.Line1Area1
+TRAINING_MAP = royals.maps.Line1Area2
 MOB_COUNT_THRESHOLD = 1
 TIME_LIMIT_CENTRAL_TARGET = 5
 

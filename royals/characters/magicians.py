@@ -16,7 +16,7 @@ class Magician(Character):
                 "Attack",
                 animation_time=0.8,
                 horizontal_screen_range=310,
-                vertical_screen_range=30,
+                vertical_screen_range=60,
             ),
             "Teleport": Skill(  # Put here since shared across all 2nd job magicians
                 "Teleport",

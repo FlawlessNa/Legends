@@ -1,9 +1,13 @@
+import logging
 import time
 from functools import partial
 
+from botting import PARENT_LOG
 from botting.core import DecisionGenerator, QueueAction, controller
 from botting.utilities import config_reader, take_screenshot
 from royals.game_data import MaintenanceData
+
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
 class InventoryManager(DecisionGenerator):
@@ -62,6 +66,8 @@ class InventoryManager(DecisionGenerator):
 
         # Once it is extended, Get to the relevant tab
         curr_tab = self.data.inventory_menu.get_active_tab(self.data.handle, client_img)
+        if curr_tab is None:
+            return
         nbr_press = self.data.inventory_menu.get_tab_count(curr_tab, self.tab_to_watch)
         if nbr_press > 0:
             self._next_call = time.perf_counter() + 2
@@ -73,6 +79,7 @@ class InventoryManager(DecisionGenerator):
 
         # Once we are on the relevant tab, update the space left
         self._space_left = self.data.inventory_menu.get_space_left(self.data.handle, client_img)
+        logger.info(f"Inventory space left: {self._space_left}")
 
         # Unblock AP distribution
         setattr(self.data, "DistributeAP", False)
