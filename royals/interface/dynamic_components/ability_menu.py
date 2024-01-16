@@ -123,8 +123,8 @@ class AbilityMenu(InGameDynamicVisuals):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         return cv2.resize(cv2.bitwise_not(gray), None, fx=10, fy=10)
 
-    def is_displayed(self, handle: int) -> bool:
-        return True if self._menu_icon_position(handle) is not None else False
+    def is_displayed(self, handle: int, image: np.ndarray = None) -> bool:
+        return True if self._menu_icon_position(handle, image) is not None else False
 
     def get_available_ap(self, handle: int) -> int | None:
         img = take_screenshot(handle)
@@ -138,12 +138,6 @@ class AbilityMenu(InGameDynamicVisuals):
             return int(self.read_from_img(cropped, box.config))
         except ValueError:
             return
-
-    def get_abs_box(self, handle: int, relative_box: Box) -> Box | None:
-        img = take_screenshot(handle)
-        icon = self._menu_icon_position(handle, img)
-        return icon + relative_box
-
 
     @property
     def stat_mapper(self) -> dict[str, Box]:

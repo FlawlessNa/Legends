@@ -9,9 +9,10 @@ class KerningLine1Area1Minimap(MinimapPathingMechanics):
     map_area_width = 259
     map_area_height = 79
 
-    minimap_speed: float = 6.86478169800788  # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
+    # minimap_speed: float = 6.86478169800788  # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
+    minimap_speed: float = 7.25
     jump_height: int = 5
-    jump_distance: int = 6
+    jump_distance: int = 5
 
     teleport_v_up_dist = 8
     teleport_h_dist = 9

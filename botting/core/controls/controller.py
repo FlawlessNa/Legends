@@ -329,6 +329,7 @@ async def click(
     handle: int,
     down_or_up: Literal["click", "down", "up"] = "click",
     nbr_times: int = 1,
+    **kwargs
 ) -> None:
     """
     :param handle:
@@ -337,4 +338,4 @@ async def click(
     :return:
     """
     events = [down_or_up] * nbr_times
-    await focused_mouse_input(handle, None, None, events)
+    await focused_mouse_input(handle, None, None, events, **kwargs)

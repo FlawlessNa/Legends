@@ -59,13 +59,13 @@ class DistributeAP(DecisionGenerator):
             else:
                 # Start by looking whether we have AP to distribute
                 ap_available = self.data.ability_menu.get_available_ap(self.data.handle)
-                if ap_available > 0:
+                if ap_available is not None and ap_available > 0:
                     # If we do, distribute it
                     target_box = self.data.ability_menu.get_abs_box(
                         self.data.handle, self._offset_box
                     )
                     target = target_box.random()
-                    self._next_call = time.perf_counter() + 1
+                    self._next_call = time.perf_counter() + 2
                     return QueueAction(
                         identifier="Distributing AP",
                         priority=1,
@@ -97,4 +97,4 @@ class DistributeAP(DecisionGenerator):
         handle: int, target_stat: tuple[int, int], nbr_of_clicks: int = 5
     ):
         await controller.mouse_move(handle, target_stat)
-        await controller.click(handle, nbr_times=nbr_of_clicks)
+        await controller.click(handle, nbr_times=nbr_of_clicks, delay=0.15)
