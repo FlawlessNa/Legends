@@ -57,6 +57,7 @@ class GameData(ABC):
         """
         assert not hasattr(self, name), f"Attribute {name} already exists"
         setattr(self, name, False)
+        setattr(self, f"{name}_status", None)
         self.blockers.append(name)
         self.blockers_types.append(generator_type)
 
