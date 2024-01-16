@@ -40,7 +40,7 @@ class GameData(ABC):
         annotations = get_all_annotations(self.__class__)
         self._handler_blockers(kwargs)
         for k, v in kwargs.items():
-            assert k in annotations, f"Invalid attribute {k}"
+            assert k in annotations or hasattr(self, k), f"Invalid attribute {k}"
             setattr(self, k, v)
 
         for arg in args:
@@ -57,9 +57,12 @@ class GameData(ABC):
         """
         assert not hasattr(self, name), f"Attribute {name} already exists"
         setattr(self, name, False)
-        setattr(self, f"{name}_status", None)
         self.blockers.append(name)
         self.blockers_types.append(generator_type)
+
+    def set_status(self, name: str, status: str = "Ready") -> None:
+        assert not hasattr(self, f"{name}_status"), f"Attribute {name}_status already exists"
+        setattr(self, f"{name}_status", status)
 
     def block(self, generator_type: str) -> None:
         """

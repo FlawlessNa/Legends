@@ -111,6 +111,8 @@ class InventoryManager(DecisionGenerator):
                 )
             else:
                 self._next_call = time.perf_counter() + self.interval
+                self._set_status("Ready")
+                self._fail_count = 0
 
     def _get_status(self):
         if time.perf_counter() < self._next_call:

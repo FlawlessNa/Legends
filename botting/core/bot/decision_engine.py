@@ -77,6 +77,7 @@ class DecisionEngine(ChildProcess, ABC):
             self.game_data.create_blocker(
                 repr(decision_generator), decision_generator.generator_type
             )
+            self.game_data.set_status(repr(decision_generator))
 
         try:
             generators = [
