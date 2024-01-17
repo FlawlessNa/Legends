@@ -344,6 +344,13 @@ async def click(
 def get_mouse_pos(
     handle: int
 ) -> tuple[int, int]:
+    """
+    Returns the position of the cursor inside the window, if it is inside the window.
+    Otherwise, returns None.
+    :param handle:
+    :return:
+    """
     left, top, right, bottom = win32gui.GetWindowRect(handle)
     x, y = win32api.GetCursorPos()
-    return x - left, y - top
+    if left <= x <= right and top <= y <= bottom:
+        return x - left, y - top

@@ -50,7 +50,7 @@ class CheckStillInMap(TriggerBasedGenerator):
         else:
             mouse_pos = controller.get_mouse_pos(self.data.handle)
             center = self.data.current_minimap.get_minimap_title_box(self.data.handle).center
-            if abs(math.dist(mouse_pos, center)) < 200:
+            if mouse_pos is None or abs(math.dist(mouse_pos, center)) < 200:
                 self._set_status("Idle")
                 target = center[0] + random.randint(300, 600), center[1] + random.randint(300, 600)
                 return QueueAction(
