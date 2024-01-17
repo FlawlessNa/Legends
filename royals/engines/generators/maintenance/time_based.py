@@ -26,7 +26,7 @@ class PetFood(DecisionGenerator):
         self._next_call = 0
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self._interval})"
+        return f"{self.__class__.__name__}({self._key})"
 
     @property
     def data_requirements(self) -> tuple:
@@ -54,3 +54,4 @@ class PetFood(DecisionGenerator):
 
 
 MountFood = partial(PetFood, keyname="Mount Food")  # Alias, same mechanism
+SpeedPill = partial(PetFood, keyname="Speed Pill")

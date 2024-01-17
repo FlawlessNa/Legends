@@ -11,7 +11,8 @@ from .generators import (
     MobCheck,
     DistributeAP,
     InventoryManager,
-    CheckStillInMap
+    CheckStillInMap,
+    SpeedPill
 )
 
 
@@ -78,6 +79,7 @@ class TrainingEngine(DecisionEngine):
         generators = [
             InventoryManager(self.game_data, tab_to_watch="Equip"),
             PetFood(self.game_data),
+            SpeedPill(self.game_data),
             DistributeAP(self.game_data),
         ]
         for skill in self.game_data.character.skills.values():
