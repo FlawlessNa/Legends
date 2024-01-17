@@ -59,6 +59,11 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
     def _next(self):
         self._prev_pos = self.data.current_minimap_position
         self.data.update("current_minimap_position", "current_on_screen_position")
+        self._on_screen_pos = (
+            self.data.current_on_screen_position
+            if self.data.current_on_screen_position is not None
+            else self._on_screen_pos
+        )
 
         self._set_next_target()
         hit_mobs = self._mobs_hitting()
@@ -148,11 +153,6 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
     def _mobs_hitting(self) -> partial | None:
         res = None
         closest_mob_direction = None
-        self._on_screen_pos = (
-            self.data.current_on_screen_position
-            if self.data.current_on_screen_position is not None
-            else self._on_screen_pos
-        )
 
         if self._on_screen_pos:
             x, y = self._on_screen_pos
