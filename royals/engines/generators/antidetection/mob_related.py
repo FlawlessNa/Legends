@@ -73,6 +73,7 @@ class MobCheck(DecisionGenerator):
         Todo - Read chat to ensure that the bot properly reacted.
         :return:
         """
+        pass
 
     def _reaction(self) -> QueueAction:
         """

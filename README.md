@@ -18,6 +18,7 @@
   - [ ] Add failsafe on MobHitting (how??)
   - [ ] Add failsafe on Rebuff (look for fresh buff icon in top right screen)
   - [ ] Add failsafe on any Rotation Generators - Movement is expected if action is not cancelled
+  - [ ] Streamline reactions for AntiDetection generators
 
 ### Anti Detection Features
   - [ ] Chat Parsing (try grayscale preprocessing on "general" lines) + GPT Automated Responses
@@ -25,7 +26,7 @@
   - [ ] Abnormal Status Detection (look for gray line types)
   - [ ] Minimap Parsing to ensure still in proper map + random reaction
   - [ ] Minimap Parsing for strangers + random reaction
-  - [ ] Minimap Parsing for unexpected self movements + random reaction
+  - [ ] Minimap Parsing for unexpected self movements (stray too far from target?) + random reaction
   - [ ] Blue Notification detection (chat invite, other invites, etc)
   - [x] Mob freeze (from a GM) + random reaction
   - [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs + random reaction

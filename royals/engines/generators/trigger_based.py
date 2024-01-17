@@ -5,8 +5,7 @@ from abc import ABC, abstractmethod
 from functools import partial
 
 from botting import PARENT_LOG
-from botting.core import DecisionGenerator, QueueAction
-from royals.game_data import MaintenanceData
+from botting.core import DecisionGenerator, QueueAction, GameData
 
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
@@ -20,7 +19,7 @@ class TriggerBasedGenerator(DecisionGenerator, ABC):
 
     def __init__(
         self,
-        data: MaintenanceData,
+        data: GameData,
         interval: int,
     ) -> None:
         super().__init__(data)
@@ -53,13 +52,12 @@ class TriggerBasedGenerator(DecisionGenerator, ABC):
             return
         elif status == "Setup":
             # Once the generator is ready to be executed, block others of the same type
-            self.data.block(self.generator_type)
-            setattr(self.data, repr(self), False)  # Don't block current generator
-            return self._setup()
+            self.data.block(self.generator_type, excepted=repr(self))
+            return self._setup()  # _setup responsible for setting status to "Ready"
         elif status == "Ready":
             self._update_attributes()
             self._set_status("Idle")
-            return self._trigger()  # Trigger responsible for setting status to "Done"
+            return self._trigger()  # _trigger responsible for setting status to "Done"
         elif status == "Done":
             if not self._confirm_cleaned_up():
                 self._set_status("Idle")

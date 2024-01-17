@@ -10,7 +10,8 @@ from .generators import (
     PetFood,
     MobCheck,
     DistributeAP,
-    InventoryManager
+    InventoryManager,
+    CheckStillInMap
 )
 
 
@@ -102,4 +103,5 @@ class TrainingEngine(DecisionEngine):
                 self.game_data,
                 time_threshold=self._anti_detection_time_threshold,
                 mob_threshold=self._anti_detection_mob_threshold),
+            CheckStillInMap(self.game_data)
         ]

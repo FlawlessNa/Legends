@@ -1,4 +1,5 @@
 from .antidetection.mob_related import MobCheck
+from .antidetection.minimap_related import CheckStillInMap
 from .rotations.smart_rotation import SmartRotation
 from .rotations.telecast_rotation import TelecastRotation
 from .maintenance.ability_point_distribution import DistributeAP

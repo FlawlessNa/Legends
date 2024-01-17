@@ -339,3 +339,9 @@ async def click(
     """
     events = [down_or_up] * nbr_times
     await focused_mouse_input(handle, None, None, events, **kwargs)
+
+
+def get_mouse_pos(
+    handle: int
+) -> tuple[int, int]:
+    pass

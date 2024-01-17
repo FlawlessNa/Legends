@@ -64,13 +64,19 @@ class GameData(ABC):
         assert not hasattr(self, f"{name}_status"), f"Attribute {name}_status already exists"
         setattr(self, f"{name}_status", status)
 
-    def block(self, generator_type: str) -> None:
+    def block(self, generator_type: str, excepted: str | list = None) -> None:
         """
         Blocks all generators of the given type.
         """
+        assert generator_type in ["Rotation", "Maintenance", "AntiDetection"], f"Invalid generator type {generator_type}"
         for blocker in self.blockers:
             if generator_type == self.blockers_types[self.blockers.index(blocker)]:
                 setattr(self, blocker, True)
+        if excepted is not None:
+            if isinstance(excepted, str):
+                excepted = [excepted]
+            for exception in excepted:
+                setattr(self, exception, False)
 
     def unblock(self, generator_type: str) -> None:
         """
