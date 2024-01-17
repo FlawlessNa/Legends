@@ -60,7 +60,7 @@ class GameData(ABC):
         self.blockers.append(name)
         self.blockers_types.append(generator_type)
 
-    def set_status(self, name: str, status: str = "Ready") -> None:
+    def set_status(self, name: str, status: str = "Setup") -> None:
         assert not hasattr(self, f"{name}_status"), f"Attribute {name}_status already exists"
         setattr(self, f"{name}_status", status)
 

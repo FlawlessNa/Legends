@@ -32,7 +32,7 @@ class InventoryManager(TriggerBasedGenerator):
 
     def _setup(self) -> QueueAction | None:
         client_img = take_screenshot(self.data.handle)
-        if self.data.inventory_menu.is_displayed(self.data.handle, client_img):
+        if not self.data.inventory_menu.is_displayed(self.data.handle, client_img):
             self._set_status("Idle")
             return QueueAction(
                 identifier="Opening inventory",

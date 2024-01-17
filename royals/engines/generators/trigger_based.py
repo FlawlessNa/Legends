@@ -59,6 +59,7 @@ class TriggerBasedGenerator(DecisionGenerator, ABC):
             return self._trigger()  # Trigger responsible for setting status to "Done"
         elif status == "Done":
             if not self._confirm_cleaned_up():
+                self._set_status("Idle")
                 return QueueAction(
                     identifier=f"{self.__class__.__name__} - Cleanup",
                     priority=1,
@@ -67,7 +68,7 @@ class TriggerBasedGenerator(DecisionGenerator, ABC):
                     update_game_data={f"{repr(self)}_status": "Done"},
                 )
             else:
-                self._set_status("Ready")
+                self._set_status("Setup")
                 self._next_call = time.perf_counter() + self.interval
                 self._fail_count = 0
                 return
