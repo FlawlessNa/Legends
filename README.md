@@ -11,6 +11,8 @@
   - [ ] Check Potions Pet Food, Mount Food
   - [ ] Cooldown buffs
   - [ ] Inventory Management
+    - [x] Basic parser to check space left
+    - [ ] Advanced parser to check stats on each item
   - [x] Automated AP distribution
   - [x] Generic Generator class for botting library
   - [ ] Add failsafe on MobHitting (how??)

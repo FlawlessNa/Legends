@@ -11,7 +11,7 @@ from botting.utilities import Box, take_screenshot
 from royals.actions import cast_skill
 from royals.game_data import RotationData
 from royals.actions import random_jump
-from .hit_mobs import MobsHitting
+from royals.engines.generators.rotations.hit_mobs import MobsHitting
 
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)

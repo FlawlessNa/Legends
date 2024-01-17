@@ -2,9 +2,45 @@ import numpy as np
 import time
 from functools import cached_property, partial
 
-from botting.core import DecisionGenerator, QueueAction, controller
+from ..trigger_based import TriggerBasedGenerator
+from botting.core import QueueAction, controller, DecisionGenerator
 from botting.utilities import config_reader, take_screenshot
 from royals.game_data import MaintenanceData
+
+
+# class DistributeAP(TriggerBasedGenerator):
+#     generator_type = "Maintenance"
+#
+#     def __init__(self,
+#                  data: MaintenanceData,
+#                  interval: int = 30
+#                  ) -> None:
+#         super().__init__(data, interval)
+#         self._key = eval(config_reader("keybindings", self.data.ign, "Non Skill Keys"))[
+#             "Ability Menu"
+#         ]
+#         self._current_lvl_img = self._prev_lvl_img = None
+#
+#     def __repr__(self):
+#         return "DistributeAP"
+#
+#     @property
+#     def data_requirements(self) -> tuple:
+#         return "ability_menu", "character_stats"
+#
+#     @cached_property
+#     def _offset_box(self) -> tuple[int, int]:
+#         return self.data.ability_menu.stat_mapper[self.data.character.main_stat]
+#
+#     def _next(self) -> QueueAction | None:
+#         pass
+#
+#     @staticmethod
+#     async def _distribute_ap(
+#         handle: int, target_stat: tuple[int, int], nbr_of_clicks: int = 5
+#     ):
+#         await controller.mouse_move(handle, target_stat)
+#         await controller.click(handle, nbr_times=nbr_of_clicks, delay=0.15)
 
 
 class DistributeAP(DecisionGenerator):

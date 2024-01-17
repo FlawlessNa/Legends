@@ -11,7 +11,7 @@ from functools import partial
 from botting import PARENT_LOG
 from botting.utilities import take_screenshot
 from botting.models_abstractions import Skill, BaseMob
-from .base_rotation import Rotation
+from royals.engines.generators.base_rotation import Rotation
 from royals import RoyalsData
 from royals.actions import teleport, telecast, cast_skill
 from royals.models_implementations.mechanics.path_into_movements import get_to_target

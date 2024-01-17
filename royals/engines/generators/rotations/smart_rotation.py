@@ -9,7 +9,7 @@ from functools import partial
 from botting import PARENT_LOG
 
 from botting.models_abstractions import Skill
-from .base_rotation import Rotation
+from royals.engines.generators.base_rotation import Rotation
 from royals.game_data import RotationData
 from royals.models_implementations.mechanics.path_into_movements import get_to_target
 
