@@ -16,18 +16,20 @@ HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 import win32api
 
 if __name__ == "__main__":
-    menu = AbilityMenu()
-    stats = CharacterStats()
+
     inv = InventoryMenu()
     while True:
         img = take_screenshot(HANDLE)
-        cv2.imshow('mesos', img)
-        cv2.waitKey(1)
-        print('Extended:', inv.is_extended(HANDLE, img))
-        extend_button = inv.get_abs_box(HANDLE, inv.extend_button)
-        cv2.imshow('test', take_screenshot(HANDLE, extend_button))
-        cv2.waitKey(1)
-        asyncio.run(controller.mouse_move(HANDLE, extend_button.random()))
-        breakpoint()
+        cv2.imshow('client_img', img)
+        # extend_button = inv.get_abs_box(HANDLE, inv.extend_button)
+        boxes = inv.get_all_slots_boxes(HANDLE, img)
+
+        for box in boxes:
+            target = box.random()
+            asyncio.run(controller.mouse_move(HANDLE, target, total_duration=0.1))
+
+
+        # asyncio.run(controller.mouse_move(HANDLE, extend_button.random()))
+        # breakpoint()
         #
         # print('Space left:', inv.get_space_left(HANDLE, img))

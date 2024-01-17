@@ -24,6 +24,13 @@ class InventoryMenu(InGameDynamicVisuals):
     _empty_slot_rect_height: int = 31
     _emtpy_slot_cnt_area: int = 900
     total_slots: int = 96
+    _entire_inventory_box: Box = Box(
+        left=2,
+        right=492,
+        top=45,
+        bottom=233,
+        offset=True
+    )
     tabs: tuple = ("Equip", "Use", "Setup", "Etc", "Cash")
 
     mesos_box: Box = Box(
@@ -43,6 +50,7 @@ class InventoryMenu(InGameDynamicVisuals):
         name="Extend Button",
         offset=True,
     )
+    merge_and_sort_button: Box = ...
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         return cv2.resize(image, None, fx=10, fy=10)
@@ -158,3 +166,33 @@ class InventoryMenu(InGameDynamicVisuals):
             return cond1 and cond2 and cond3
 
         return len(list(filter(_filter, contours)))
+
+    def get_all_slots_boxes(self, handle: int, image: np.ndarray = None) -> list[Box]:
+        """
+        Returns a list of all boxes in the inventory.
+        :param handle:
+        :param image:
+        :return:
+        """
+        result = []
+        if image is None:
+            image = take_screenshot(handle)
+        if not self.is_extended(handle, image):
+            return
+
+        inventory_box = self.get_abs_box(handle, self._entire_inventory_box)
+
+        def x_offset(n: int) -> int:
+            return 1 + n * (32 + 4) + n // 4 * 5
+
+        def y_offset(n: int) -> int:
+            return 1 + n * (32 + 2)
+
+        return [
+            Box(
+                left=inventory_box.left + x_offset(x),
+                right=inventory_box.left + 30 + x_offset(x),
+                top=inventory_box.top + y_offset(y),
+                bottom=inventory_box.top + 30 + y_offset(y),
+            ) for x in range(16) for y in range(6)
+        ]
