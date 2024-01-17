@@ -126,11 +126,12 @@ class AbilityMenu(InGameDynamicVisuals):
     def is_displayed(self, handle: int, image: np.ndarray = None) -> bool:
         return True if self._menu_icon_position(handle, image) is not None else False
 
-    def get_available_ap(self, handle: int) -> int | None:
-        img = take_screenshot(handle)
-        icon = self._menu_icon_position(handle, img)
+    def get_available_ap(self, handle: int, image: np.ndarray = None) -> int | None:
+        if image is None:
+            image = take_screenshot(handle)
+        icon = self._menu_icon_position(handle, image)
         box = icon + self.ability_points_box
-        cropped = img[
+        cropped = image[
                   box.top-CLIENT_VERTICAL_MARGIN_PX:box.bottom-CLIENT_VERTICAL_MARGIN_PX,
                   box.left-CLIENT_HORIZONTAL_MARGIN_PX:box.right-CLIENT_HORIZONTAL_MARGIN_PX
                   ]
