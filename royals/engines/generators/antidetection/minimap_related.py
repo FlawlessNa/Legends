@@ -16,6 +16,9 @@ logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
 class CheckStillInMap(TriggerBasedGenerator):
+
+    generator_type = "AntiDetection"
+
     def __init__(self,
                  data: AntiDetectionData,
                  interval: int = 10
@@ -31,7 +34,7 @@ class CheckStillInMap(TriggerBasedGenerator):
 
     @property
     def data_requirements(self) -> tuple:
-        return "current_minimap",
+        return tuple()
 
     def _setup(self) -> QueueAction | None:
         if not self.data.current_minimap.get_minimap_state(self.data.handle) == "Full":

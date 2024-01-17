@@ -344,4 +344,6 @@ async def click(
 def get_mouse_pos(
     handle: int
 ) -> tuple[int, int]:
-    pass
+    left, top, right, bottom = win32gui.GetWindowRect(handle)
+    x, y = win32api.GetCursorPos()
+    return x - left, y - top
