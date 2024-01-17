@@ -27,13 +27,15 @@ class SmartRotation(Rotation):
         training_skill: Skill,
         mob_threshold: int,
         teleport: Skill = None,
-        time_limit: float = 15,
+        time_limit: float = 2,
     ) -> None:
         super().__init__(data, lock, training_skill, mob_threshold, teleport)
         self.time_limit = time_limit
         self._target_cycle = itertools.cycle(self.data.current_minimap.feature_cycle)
 
         self._next_feature_covered = []  # Used for rotation
+        self._last_target_reached_at = time.perf_counter()
+        self._first_time_on_target = True
 
         self._on_central_target = False  # Impacts rotation behavior
         self._cancellable = True  # Impacts rotation behavior
@@ -44,7 +46,8 @@ class SmartRotation(Rotation):
             )
             self.data.update(next_target=self.data.next_feature.random())
             for _ in range(
-                self.data.current_minimap.feature_cycle.index(self.data.next_feature) + 1
+                self.data.current_minimap.feature_cycle.index(self.data.next_feature)
+                + 1
             ):
                 next(self._target_cycle)
         else:
@@ -54,6 +57,7 @@ class SmartRotation(Rotation):
                     self.data.next_target
                 )
             )
+        self.data.update(allow_teleport=True if teleport is not None else False)
 
     @property
     def data_requirements(self) -> tuple:
@@ -79,46 +83,59 @@ class SmartRotation(Rotation):
         :return:
         """
         dist = 2
-        if(
+        if (
             math.dist(self.data.current_minimap_position, self.data.next_target) > dist
             or self.data.current_minimap_feature != self.data.next_feature
         ):
+            self._first_time_on_target = True
             return
 
-        elif self._on_screen_pos is not None:
+        # If we're on target, check if we've been on target for > time_limit seconds.
+        if self._first_time_on_target:
+            self._first_time_on_target = False
+            self._last_target_reached_at = time.perf_counter()
+            return
+        elif time.perf_counter() - self._last_target_reached_at < self.time_limit:
+            return
+
+        # Reach this code once you've been on target for > time_limit seconds.
+        self._first_time_on_target = True
+        if self._on_screen_pos is not None:
             x, y = self._on_screen_pos
             region = Box(
                 left=max(0, x - 500),
                 right=min(1024, x + 500),
-                top=max(y - 100),
+                top=max(0, y - 100),
                 bottom=min(768, y + 100),
             )
             cropped_img = take_screenshot(self.data.handle, region)
             mobs_locations = self.get_mobs_positions_in_img(
                 cropped_img, self.data.current_mobs
             )
-            for rect in mobs_locations:
-                cv2.rectangle(
-                    cropped_img,
-                    (rect[0], rect[1]),
-                    (rect[0] + rect[2], rect[1] + rect[3]),
-                    (0, 255, 0),
-                    2,
-                )
-            cv2.imshow('cropped', cropped_img)
-            cv2.waitKey(1)
-            if len(mobs_locations) > self.mob_threshold:
+
+            if len(mobs_locations) >= self.mob_threshold:
                 center_x = [rect[0] + rect[2] / 2 for rect in mobs_locations]
                 left_x = [rect_x for rect_x in center_x if rect_x < x]
                 right_x = [rect_x for rect_x in center_x if rect_x >= x]
                 if len(left_x) > len(right_x):
                     avg_dist = sum([abs(rect_x - x) for rect_x in left_x]) / len(left_x)
-                    minimap_dist = int(avg_dist / 150 * 9)  # TODO - Make this dynamic
-                    self.data.update(next_target=(x - minimap_dist, y))
+                    minimap_dist = min(
+                        int(avg_dist / 150 * 9), 9
+                    )  # TODO - Make this dynamic
+                    minimap_x, minimap_y = self.data.current_minimap_position
+                    minimum_x = self.data.current_minimap_feature.left
+                    target = (max(minimap_x - minimap_dist, minimum_x), minimap_y)
+                    self.data.update(next_target=target)
                 else:
-                    avg_dist = sum([abs(rect_x - x) for rect_x in right_x]) / len(right_x)
-                    minimap_dist = int(avg_dist / 150 * 9)
-                    self.data.update(next_target=(x + minimap_dist, y))
+                    avg_dist = sum([abs(rect_x - x) for rect_x in right_x]) / len(
+                        right_x
+                    )
+                    minimap_dist = min(int(avg_dist / 150 * 9), 9)
+                    minimap_x, minimap_y = self.data.current_minimap_position
+                    maximum_x = self.data.current_minimap_feature.right
+                    target = (min(minimap_x + minimap_dist, maximum_x), minimap_y)
+                    self.data.update(next_target=target)
+
                 return
 
         # If we reach this point, means there aren't enough mobs. Get to next feature.
@@ -202,7 +219,6 @@ class SmartRotation(Rotation):
     #             self._cancellable = True
 
     def _rotation(self) -> partial:
-
         if self._prev_pos != self.data.current_minimap_position:
             self.data.update("last_position_change")
 

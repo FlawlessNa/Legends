@@ -455,6 +455,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
             - Connect nodes between portals (can be one-way or two-way) # TODO
         :return: Grid object
         """
+        assert allow_teleport is not None, "Must specify whether teleport is allowed."
         width, height = self.map_area_width, self.map_area_height
         canvas = np.zeros((height, width), dtype=np.uint8)
         canvas = self._preprocess_img(canvas)

@@ -16,7 +16,7 @@ CHARACTER_CLASS = royals.characters.Cleric
 TRAINING_SKILL = "Heal"
 TRAINING_MAP = royals.maps.PathOfTime1
 MOB_COUNT_THRESHOLD = 1
-TIME_LIMIT_CENTRAL_TARGET = 5
+TIME_LIMIT_ON_TARGET = 2
 
 BUFFS = []
 
@@ -25,7 +25,7 @@ CLIENT_SIZE = "large"
 
 DISABLE_TELEPORT = True
 
-ANTI_DETECTION_MOB_THRESHOLD = 3
+ANTI_DETECTION_MOB_THRESHOLD = 1
 ANTI_DETECTION_TIME_THRESHOLD = 10
 
 
@@ -47,7 +47,7 @@ if __name__ == "__main__":
         training_skill=TRAINING_SKILL,
         mob_count_threshold=MOB_COUNT_THRESHOLD,
         buffs=BUFFS,
-        time_limit=TIME_LIMIT_CENTRAL_TARGET,
+        time_limit=TIME_LIMIT_ON_TARGET,
         teleport_enabled=not DISABLE_TELEPORT,
         anti_detection_mob_threshold=ANTI_DETECTION_MOB_THRESHOLD,
         anti_detection_time_threshold=ANTI_DETECTION_TIME_THRESHOLD

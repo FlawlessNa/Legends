@@ -24,7 +24,7 @@ class RotationData(GameData):
     current_minimap_position: tuple[int, int] = field(repr=False, init=False)
     current_minimap_feature: MinimapFeature = field(repr=False, init=False)
     current_on_screen_position: tuple[int, int] = field(repr=False, init=False)
-    allow_teleport: bool = False
+    allow_teleport: bool = field(repr=False, init=False, default=None)
     last_mob_detection: float = field(repr=False, init=False)
     last_cast: float = field(repr=False, init=False)
     next_target: tuple[int, int] = field(repr=False, init=False)
@@ -78,6 +78,8 @@ class RotationData(GameData):
         )
         if self.current_minimap_feature is not None:
             self.character_in_a_ladder = self.current_minimap_feature.width == 0
+        else:
+            self.character_in_a_ladder = False
         return new_pos
 
     def _get_on_screen_pos(self) -> tuple[int, int]:
