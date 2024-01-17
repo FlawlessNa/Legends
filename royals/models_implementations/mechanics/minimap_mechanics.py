@@ -195,8 +195,9 @@ class MinimapFeature(Box):
     name: str
     connections: list[MinimapConnection] = field(default_factory=list)
     central_node: tuple[int, int] = field(default=None)
+    avoid_edges: bool = field(default=True)
     area_coverage: float = field(default=0.9)
-    randomized_edge: int = field(default=5)
+    edge_threshold: int = field(default=5)
 
     def __post_init__(self):
         super().__post_init__()
@@ -213,9 +214,15 @@ class MinimapFeature(Box):
         return self.width == 0
 
     @property
+    def xrange(self) -> tuple[int, int]:
+        if self.avoid_edges and self.width > 2 * self.edge_threshold:
+            return self.left + self.edge_threshold, self.right - self.edge_threshold
+        return super().xrange
+
+    @property
     def left_edge(self) -> tuple[int, int]:
         if self.is_platform:
-            rand_buffer = random.randint(0, self.randomized_edge)
+            rand_buffer = random.randint(0, self.edge_threshold)
             return (
                 max(
                     int(
@@ -231,7 +238,7 @@ class MinimapFeature(Box):
     @property
     def right_edge(self) -> tuple[int, int]:
         if self.is_platform:
-            rand_buffer = random.randint(-self.randomized_edge, 0)
+            rand_buffer = random.randint(-self.edge_threshold, 0)
             return (
                 min(
                     int(
