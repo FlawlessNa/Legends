@@ -52,6 +52,9 @@ class TriggerBasedGenerator(DecisionGenerator, ABC):
         if status == "Idle":
             return
         elif status == "Setup":
+            # Once the generator is ready to be executed, block others of the same type
+            self.data.block(self.generator_type)
+            setattr(self.data, repr(self), False)  # Don't block current generator
             return self._setup()
         elif status == "Ready":
             self._update_attributes()
@@ -68,6 +71,7 @@ class TriggerBasedGenerator(DecisionGenerator, ABC):
                     update_game_data={f"{repr(self)}_status": "Done"},
                 )
             else:
+                self.data.unblock(self.generator_type)
                 self._set_status("Setup")
                 self._next_call = time.perf_counter() + self.interval
                 self._fail_count = 0

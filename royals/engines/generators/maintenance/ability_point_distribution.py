@@ -88,6 +88,12 @@ class DistributeAP(TriggerBasedGenerator):
         else:
             self._set_status("Done")
 
+    def _confirm_cleaned_up(self) -> bool:
+        return not self.data.ability_menu.is_displayed(self.data.handle)
+
+    def _cleanup_action(self) -> partial:
+        return partial(controller.press, self.data.handle, self._key, silenced=True)
+
     @staticmethod
     async def _distribute_ap(
         handle: int, target_stat: tuple[int, int], nbr_of_clicks: int = 5
