@@ -124,6 +124,8 @@ class SmartRotation(Rotation):
                     )  # TODO - Make this dynamic
                     minimap_x, minimap_y = self.data.current_minimap_position
                     minimum_x = self.data.current_minimap_feature.left
+                    if self.data.current_minimap_feature.avoid_edges:
+                        minimum_x += self.data.current_minimap_feature.edge_threshold
                     target = (max(minimap_x - minimap_dist, minimum_x), minimap_y)
                     self.data.update(next_target=target)
                 else:
@@ -133,6 +135,8 @@ class SmartRotation(Rotation):
                     minimap_dist = min(int(avg_dist / 150 * 9), 9)
                     minimap_x, minimap_y = self.data.current_minimap_position
                     maximum_x = self.data.current_minimap_feature.right
+                    if self.data.current_minimap_feature.avoid_edges:
+                        maximum_x -= self.data.current_minimap_feature.edge_threshold
                     target = (min(minimap_x + minimap_dist, maximum_x), minimap_y)
                     self.data.update(next_target=target)
 
