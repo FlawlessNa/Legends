@@ -40,21 +40,23 @@ class ChatFeed(InGameToggleableVisuals, ABC):
             "Chat feed should never be read from directly. Read from chat lines instead."
         )
 
-    def is_displayed(self, handle: int) -> bool:
+    def is_displayed(self, handle: int, image: np.ndarray = None) -> bool:
         """
         Detects whether the chat feed is displayed or not. Check sequentially to avoid a double operation when the first one is true.
         :param handle: Handle to the client window
+        :param image: If provided, use this image.
         :return: bool
         """
-        img = take_screenshot(handle, self._chat_feed_displayed_detection_box)
+        if image is None:
+            image = take_screenshot(handle, self._chat_feed_displayed_detection_box)
         if self._color_detection(
-            img,
+            image,
             color=self._chat_feed_displayed_detection_color,
             pixel_threshold=20,
         ):
             return True
         elif self._color_detection(
-            img,
+            image,
             color=self._chat_feed_displayed_detection_color_alt,
             pixel_threshold=20,
         ):
