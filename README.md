@@ -24,7 +24,10 @@
   - [ ] Chat Parsing (try grayscale preprocessing on "general" lines) + GPT Automated Responses
   - [ ] GM Logo detection
   - [ ] Abnormal Status Detection (look for gray line types)
-  - [ ] Minimap Parsing to ensure still in proper map + random reaction
+    - [ ] Stunned
+    - [ ] Seduced
+    - [ ] Cursed (reverse directions)
+  - [x] Minimap Parsing to ensure still in proper map + random reaction
   - [ ] Minimap Parsing for strangers + random reaction
   - [ ] Minimap Parsing for unexpected self movements (stray too far from target?) + random reaction
   - [ ] Blue Notification detection (chat invite, other invites, etc)
@@ -38,7 +41,7 @@
   
 ### QueueAction
   - [ ] Implement better handling of QueueAction Priority
-  - [ ] Added action attributes to enable IPC
+  - [ ] Add action attributes to enable IPC
   
 ### Mob detection
   - [ ] Clean the pre-processing to remove the additional layer of the filter function
@@ -55,6 +58,7 @@
   - [ ] Ability to send all characters to lounge if error occurs
 
 ### Misc
+  - [ ] Add variable speed/jump management
   - [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
   - [ ] Skill Specs Finder
   - [x] Mouse movements and mouse clicks

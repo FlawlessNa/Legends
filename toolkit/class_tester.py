@@ -9,6 +9,7 @@ from botting.core import controller
 from botting.utilities import client_handler, take_screenshot
 from royals import royals_ign_finder
 
+from royals.models_implementations.minimaps import PathOfTime1Minimap
 from royals.interface import AbilityMenu, CharacterStats, InventoryMenu
 
 
@@ -18,15 +19,17 @@ import win32api
 if __name__ == "__main__":
 
     inv = InventoryMenu()
+    minimap = PathOfTime1Minimap()
     while True:
-        img = take_screenshot(HANDLE)
-        cv2.imshow('client_img', img)
-        # extend_button = inv.get_abs_box(HANDLE, inv.extend_button)
-        boxes = inv.get_all_slots_boxes(HANDLE, img)
-
-        for box in boxes:
-            target = box.random()
-            asyncio.run(controller.mouse_move(HANDLE, target, total_duration=0.1))
+        print(minimap.get_character_positions(HANDLE))
+        # img = take_screenshot(HANDLE)
+        # cv2.imshow('client_img', img)
+        # # extend_button = inv.get_abs_box(HANDLE, inv.extend_button)
+        # boxes = inv.get_all_slots_boxes(HANDLE, img)
+        #
+        # for box in boxes:
+        #     target = box.random()
+        #     asyncio.run(controller.mouse_move(HANDLE, target, total_duration=0.1))
 
 
         # asyncio.run(controller.mouse_move(HANDLE, extend_button.random()))

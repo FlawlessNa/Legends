@@ -620,8 +620,6 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                         grid.node(*node).connect(
                             grid.node(*other_node), connection_type_ladder
                         )
-                        # Also add the horizontal distance as weight to the ladder
-                        grid.node(*other_node).weight = abs(other_node[0] - node[0])
                 else:
                     break
 
