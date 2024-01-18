@@ -21,7 +21,7 @@ if __name__ == "__main__":
     inv = InventoryMenu()
     minimap = PathOfTime1Minimap()
     while True:
-        print(minimap.get_character_positions(HANDLE))
+        print(inv.read_item_name(HANDLE, controller.get_mouse_pos(HANDLE)))
         # img = take_screenshot(HANDLE)
         # cv2.imshow('client_img', img)
         # # extend_button = inv.get_abs_box(HANDLE, inv.extend_button)

@@ -20,17 +20,13 @@ class InventoryMenu(InGameDynamicVisuals):
     )
     _slot_color: np.ndarray = np.array([221, 238, 238])
     _active_tab_color: np.ndarray = np.array([136, 102, 238])
+    _item_title_low_color: np.ndarray = np.array([140, 140, 140])
+    _item_title_high_color: np.ndarray = np.array([255, 255, 255])
     _empty_slot_rect_width: int = 31
     _empty_slot_rect_height: int = 31
     _emtpy_slot_cnt_area: int = 900
     total_slots: int = 96
-    _entire_inventory_box: Box = Box(
-        left=2,
-        right=492,
-        top=45,
-        bottom=233,
-        offset=True
-    )
+    _entire_inventory_box: Box = Box(left=2, right=492, top=45, bottom=233, offset=True)
     tabs: tuple = ("Equip", "Use", "Setup", "Etc", "Cash")
 
     mesos_box: Box = Box(
@@ -194,5 +190,39 @@ class InventoryMenu(InGameDynamicVisuals):
                 right=inventory_box.left + 30 + x_offset(x),
                 top=inventory_box.top + y_offset(y),
                 bottom=inventory_box.top + 30 + y_offset(y),
-            ) for x in range(16) for y in range(6)
+            )
+            for x in range(16)
+            for y in range(6)
         ]
+
+    def read_item_name(self, handle: int, mouse_pos: tuple[int, int]) -> str:
+        """
+        Given the current mouse position (and assuming it is on an item in
+        the inventory), returns the name of the item.
+        :param handle:
+        :param mouse_pos:
+        :return:
+        """
+        box = Box(
+            left=mouse_pos[0] + 14,
+            right=mouse_pos[0] + 280,
+            top=mouse_pos[1] + 30,
+            bottom=mouse_pos[1] + 50,
+        )
+        image = take_screenshot(handle, box)
+        cv2.imshow("test", image)
+        processed = cv2.inRange(
+            image, self._item_title_low_color, self._item_title_high_color
+
+        )
+        # processed = cv2.cvtColor(processed, cv2.COLOR_BGR2GRAY)
+        processed = cv2.resize(processed, None, fx=3, fy=3)
+
+        cv2.imshow("test2", processed)
+        cv2.waitKey(1)
+        breakpoint()
+
+        return self.read_from_img(
+            processed,
+            f"--psm 7 -c tessedit_char_whitelist=%.-{string.ascii_letters}{string.digits}",
+        )
