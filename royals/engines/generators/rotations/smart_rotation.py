@@ -120,7 +120,7 @@ class SmartRotation(Rotation):
                 if len(left_x) > len(right_x):
                     avg_dist = sum([abs(rect_x - x) for rect_x in left_x]) / len(left_x)
                     minimap_dist = min(
-                        int(avg_dist / 150 * 9), 9
+                        int(avg_dist / 150 * 9), 15
                     )  # TODO - Make this dynamic
                     minimap_x, minimap_y = self.data.current_minimap_position
                     minimum_x = self.data.current_minimap_feature.left
@@ -132,7 +132,7 @@ class SmartRotation(Rotation):
                     avg_dist = sum([abs(rect_x - x) for rect_x in right_x]) / len(
                         right_x
                     )
-                    minimap_dist = min(int(avg_dist / 150 * 9), 9)
+                    minimap_dist = min(int(avg_dist / 150 * 9), 15)
                     minimap_x, minimap_y = self.data.current_minimap_position
                     maximum_x = self.data.current_minimap_feature.right
                     if self.data.current_minimap_feature.avoid_edges:
