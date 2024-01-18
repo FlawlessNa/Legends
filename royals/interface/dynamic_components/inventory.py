@@ -49,7 +49,10 @@ class InventoryMenu(InGameDynamicVisuals):
     merge_and_sort_button: Box = ...
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        return cv2.resize(image, None, fx=10, fy=10)
+        processed = cv2.threshold(
+            image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+        )[1]
+        return cv2.resize(processed, None, fx=10, fy=10)
 
     def is_displayed(self, handle: int, image: np.ndarray = None) -> bool:
         return True if self._menu_icon_position(handle, image) is not None else False
@@ -205,24 +208,34 @@ class InventoryMenu(InGameDynamicVisuals):
         """
         box = Box(
             left=mouse_pos[0] + 14,
-            right=mouse_pos[0] + 280,
+            right=mouse_pos[0] + 230,
             top=mouse_pos[1] + 30,
             bottom=mouse_pos[1] + 50,
         )
         image = take_screenshot(handle, box)
         cv2.imshow("test", image)
+        import time
+
+        start = time.time()
         processed = cv2.inRange(
             image, self._item_title_low_color, self._item_title_high_color
-
         )
         # processed = cv2.cvtColor(processed, cv2.COLOR_BGR2GRAY)
-        processed = cv2.resize(processed, None, fx=3, fy=3)
 
-        cv2.imshow("test2", processed)
+        processed = cv2.threshold(
+            processed, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+        )[1]
+        cv2.imshow("test2", cv2.resize(processed, None, fx=10, fy=10))
         cv2.waitKey(1)
-        breakpoint()
-
-        return self.read_from_img(
-            processed,
-            f"--psm 7 -c tessedit_char_whitelist=%.-{string.ascii_letters}{string.digits}",
+        contours, _ = cv2.findContours(
+            processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
+        end = time.time()
+        print("Time for processing:", end - start)
+
+        res = self.read_from_img(
+            processed,
+            f"--psm 7 -c tessedit_char_whitelist=0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ ",
+        )
+        print("Time for reading", time.time() - end)
+        return res
