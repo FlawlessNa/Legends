@@ -31,7 +31,8 @@ class TrainingEngine(DecisionEngine):
         buffs: list[str] | None = None,
         teleport_enabled: bool = True,
         anti_detection_mob_threshold: int = 3,
-        anti_detection_time_threshold: int = 10
+        anti_detection_time_threshold: int = 10,
+        num_pets: int = 1
     ) -> None:
         super().__init__(log_queue, bot)
 
@@ -69,6 +70,7 @@ class TrainingEngine(DecisionEngine):
 
         self._anti_detection_mob_threshold = anti_detection_mob_threshold
         self._anti_detection_time_threshold = anti_detection_time_threshold
+        self._num_pets = num_pets
 
     @property
     def game_data(self) -> RoyalsData:
@@ -78,7 +80,7 @@ class TrainingEngine(DecisionEngine):
     def items_to_monitor(self) -> list[DecisionGenerator]:
         generators = [
             InventoryManager(self.game_data, tab_to_watch="Equip"),
-            PetFood(self.game_data),
+            PetFood(self.game_data, num_times=self._num_pets),
             SpeedPill(self.game_data),
             DistributeAP(self.game_data),
         ]

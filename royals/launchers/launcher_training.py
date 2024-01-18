@@ -19,6 +19,7 @@ MOB_COUNT_THRESHOLD = 1
 TIME_LIMIT_ON_TARGET = 1
 
 BUFFS = []
+NBR_PETS = 2
 
 DETECTION_CONFIG_SECTION = "Elephant Cape"
 CLIENT_SIZE = "large"
@@ -50,7 +51,8 @@ if __name__ == "__main__":
         time_limit=TIME_LIMIT_ON_TARGET,
         teleport_enabled=not DISABLE_TELEPORT,
         anti_detection_mob_threshold=ANTI_DETECTION_MOB_THRESHOLD,
-        anti_detection_time_threshold=ANTI_DETECTION_TIME_THRESHOLD
+        anti_detection_time_threshold=ANTI_DETECTION_TIME_THRESHOLD,
+        num_pets=NBR_PETS
     )
 
     bot = botting.Executor(
