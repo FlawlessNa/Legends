@@ -5,7 +5,7 @@ from functools import partial
 
 from botting.core import DecisionGenerator, QueueAction, controller
 from botting.utilities import config_reader
-from royals import RoyalsData
+from royals.game_data import MaintenanceData
 
 
 class PetFood(DecisionGenerator):
@@ -14,30 +14,40 @@ class PetFood(DecisionGenerator):
     Defaults: 10 minutes (600 seconds)
     """
 
+    generator_type = "Maintenance"
+
     def __init__(
-        self, data: RoyalsData, interval: int = 600, keyname: str = "Pet Food"
+        self,
+        data: MaintenanceData,
+        interval: int = 600,
+        keyname: str = "Pet Food",
+        num_times: int = 1,
     ) -> None:
-        self.data = data
+        super().__init__(data)
         self._key = eval(config_reader("keybindings", self.data.ign, "Non Skill Keys"))[
             keyname
         ]
+        self._num_times = num_times
         self._interval = interval
-
-    def __call__(self):
         self._next_call = 0
-        return iter(self)
 
-    def __next__(self) -> QueueAction | None:
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self._key})"
+
+    @property
+    def data_requirements(self) -> tuple:
+        return tuple()
+
+    def _next(self) -> QueueAction | None:
         if time.perf_counter() >= self._next_call:
             self._next_call = (
                 time.perf_counter() + random.uniform(0.9, 1.1) * self._interval
             )
             action = partial(
-                controller.press,
+                self._press_n_times,
                 handle=self.data.handle,
                 key=self._key,
-                silenced=True,
-                cooldown=0,
+                nbr_of_presses=self._num_times,
             )
             return QueueAction(self.__class__.__name__, 5, action)
 
@@ -47,5 +57,11 @@ class PetFood(DecisionGenerator):
         """
         pass
 
+    @staticmethod
+    async def _press_n_times(handle: int, key: str, nbr_of_presses: int = 1):
+        for _ in range(nbr_of_presses):
+            await controller.press(handle, key, silenced=True)
+
 
 MountFood = partial(PetFood, keyname="Mount Food")  # Alias, same mechanism
+SpeedPill = partial(PetFood, keyname="Speed Pill")

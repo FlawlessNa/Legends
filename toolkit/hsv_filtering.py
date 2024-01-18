@@ -198,7 +198,7 @@ def shift_channel(c, amount):
     return c
 
 
-# custom data structure to hold the state of an HSV filter
+# custom game_data structure to hold the state of an HSV filter
 class HsvFilter:
     def __init__(
         self,
@@ -264,7 +264,9 @@ class ColorsFilter:
 
 
 if __name__ == "__main__":
-    HANDLE = 0x008D108A
+    from botting.utilities import client_handler
+    from royals import royals_ign_finder
+    HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
     USE_HSV = False
     USE_COLORS = True
 

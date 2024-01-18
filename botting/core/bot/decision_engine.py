@@ -1,5 +1,5 @@
+import itertools
 import multiprocessing
-import time
 
 from abc import ABC, abstractmethod
 
@@ -25,11 +25,12 @@ class DecisionEngine(ChildProcess, ABC):
     @abstractmethod
     def game_data(self) -> GameData:
         """
-        Child instances should store in this property the game data that is being monitored.
-        :return: Game data.
+        Child instances should store in this property the game game_data that is being monitored.
+        :return: Game game_data.
         """
         pass
 
+    @property
     @abstractmethod
     def items_to_monitor(self) -> list[DecisionGenerator]:
         """
@@ -40,14 +41,16 @@ class DecisionEngine(ChildProcess, ABC):
         """
         pass
 
+    @property
     @abstractmethod
-    def next_map_rotation(self) -> list[DecisionGenerator]:
+    def next_map_rotation(self) -> DecisionGenerator:
         """
         Same behavior as items_to_monitor(), but the generators in this list are used to determine the next map rotation.
         :return:
         """
         pass
 
+    @property
     @abstractmethod
     def anti_detection_checks(self) -> list[DecisionGenerator]:
         pass
@@ -58,20 +61,33 @@ class DecisionEngine(ChildProcess, ABC):
         1. Generators that are used to monitor the game state (potions, pet food, inventories, chat feed, proper map, etc).
         2. Generators that are used to determine the next map rotation.
         On every iteration, we start by checking if the main process has sent anything through the pipe.
-        If so, we update the game data with the new information.
+        If so, we update the game game_data with the new information.
         Then, all generators from 1. are checked once.
         Lastly, all generators from 2. are checked once.
         :return: None
         """
+        monitors_generators = self.items_to_monitor
+        rotation_generator = self.next_map_rotation
+        anti_detection_generators = self.anti_detection_checks
+
+        for decision_generator in itertools.chain(
+            monitors_generators, anti_detection_generators, [rotation_generator]
+        ):
+            self.game_data.update(*decision_generator.data_requirements)
+            self.game_data.create_blocker(
+                repr(decision_generator), decision_generator.generator_type
+            )
+            self.game_data.set_status(repr(decision_generator))
+
         try:
             generators = [
-                gen() for gen in self.items_to_monitor()
+                iter(gen) for gen in monitors_generators
             ]  # Instantiate all checks generators
-            map_rotation = [
-                gen() for gen in self.next_map_rotation()
-            ]  # Instantiate all map rotation generators
+
+            map_rotation = iter(rotation_generator)
+
             anti_detection = [
-                gen() for gen in self.anti_detection_checks()
+                iter(gen) for gen in anti_detection_generators
             ]  # Instantiate all anti-detection checks generators
 
             while True:
@@ -80,6 +96,8 @@ class DecisionEngine(ChildProcess, ABC):
                     signal = self.pipe_end.recv()
                     if signal is None:
                         return
+
+                    # If main process sends anything else, update game data
                     elif isinstance(signal, dict):
                         self.game_data.update(**signal)
                     else:
@@ -90,22 +108,18 @@ class DecisionEngine(ChildProcess, ABC):
                     if res:
                         self.pipe_end.send(res)
 
-                if not self.game_data.block_rotation:
-                    for rotation in map_rotation:
-                        res = next(rotation)
-                        if res:
-                            self.pipe_end.send(res)
+                res = next(map_rotation)
+                if res:
+                    self.pipe_end.send(res)
 
                 for check in anti_detection:
                     res = next(check)
                     if res:
                         self.pipe_end.send(res)
 
-                if (
-                    self.game_data.shut_down_at is not None
-                    and time.perf_counter() > self.game_data.shut_down_at
-                ):
-                    break
+                res = next(map_rotation)  # Check rotation twice per loop
+                if res:
+                    self.pipe_end.send(res)
 
         except Exception as e:
             raise

@@ -9,9 +9,10 @@ class KerningLine1Area1Minimap(MinimapPathingMechanics):
     map_area_width = 259
     map_area_height = 79
 
-    minimap_speed: float = 6.86478169800788  # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
+    # minimap_speed: float = 6.86478169800788  # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
+    minimap_speed: float = 7.25
     jump_height: int = 5
-    jump_distance: int = 6
+    jump_distance: int = 5
 
     teleport_v_up_dist = 8
     teleport_h_dist = 9
@@ -25,7 +26,19 @@ class KerningLine1Area1Minimap(MinimapPathingMechanics):
 
     @property
     def feature_cycle(self) -> list[MinimapFeature]:
-        return []
+        return [
+            self.platform_1,
+            self.platform_2,
+            self.platform_3,
+            self.platform_4,
+            self.platform_5,
+            self.platform_6,
+            self.platform_7,
+            self.platform_8,
+            self.platform_9,
+            self.platform_10,
+            self.main_platform
+        ]
 
     bottom_platform: MinimapFeature = MinimapFeature(
         left=20,

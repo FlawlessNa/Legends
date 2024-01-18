@@ -8,7 +8,18 @@ from royals.models_implementations.mechanics import (
 class KerningLine1Area2Minimap(MinimapPathingMechanics):
     @property
     def feature_cycle(self) -> list[MinimapFeature]:
-        return []
+        return [
+            self.platform_1,
+            self.platform_2,
+            self.platform_3,
+            self.platform_4,
+            self.platform_5,
+            self.platform_6,
+            self.platform_7,
+            self.platform_8,
+            self.platform_9,
+            self.platform_10,
+        ]
 
     @property
     def central_node(self) -> tuple[int, int]:
@@ -17,7 +28,8 @@ class KerningLine1Area2Minimap(MinimapPathingMechanics):
     map_area_width = 259
     map_area_height = 79
 
-    minimap_speed: float = 7.466178677298277  # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
+    # minimap_speed: float = 7.466178677298277  # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
+    minimap_speed = 7.0
     jump_height: int = 5
     jump_distance: int = 5
 
@@ -25,13 +37,13 @@ class KerningLine1Area2Minimap(MinimapPathingMechanics):
     teleport_v_down_dist = 10
     teleport_v_up_dist = 8
 
-    # bottom_platform: MinimapFeature = MinimapFeature(
-    #     left=20,
-    #     right=238,
-    #     top=57,
-    #     bottom=57,
-    #     name="bottom_platform",
-    # )
+    bottom_platform: MinimapFeature = MinimapFeature(
+        left=20,
+        right=238,
+        top=57,
+        bottom=57,
+        name="bottom_platform",
+    )
     main_platform: MinimapFeature = MinimapFeature(
         left=20,
         right=238,
@@ -39,70 +51,70 @@ class KerningLine1Area2Minimap(MinimapPathingMechanics):
         bottom=49,
         name="main_platform",
     )
-    # first_wagon: MinimapFeature = MinimapFeature(
-    #     left=50,
-    #     right=62,
-    #     top=53,
-    #     bottom=53,
-    #     name="first_wagon",
-    # )
-    # second_wagon: MinimapFeature = MinimapFeature(
-    #     left=101,
-    #     right=113,
-    #     top=53,
-    #     bottom=53,
-    #     name="second_wagon",
-    # )
-    # third_wagon: MinimapFeature = MinimapFeature(
-    #     left=173,
-    #     right=185,
-    #     top=53,
-    #     bottom=53,
-    #     name="third_wagon",
-    # )
-    # fourth_wagon: MinimapFeature = MinimapFeature(
-    #     left=216,
-    #     right=228,
-    #     top=53,
-    #     bottom=53,
-    #     name="fourth_wagon",
-    # )
-    # first_ladder_bot_to_main: MinimapFeature = MinimapFeature(
-    #     left=32,
-    #     right=32,
-    #     top=49,
-    #     bottom=56,
-    #     name="first_ladder_bot_to_main",
-    # )
-    #
-    # second_ladder_bot_to_main: MinimapFeature = MinimapFeature(
-    #     left=98,
-    #     right=98,
-    #     top=50,
-    #     bottom=56,
-    #     name="second_ladder_bot_to_main",
-    # )
-    # third_ladder_bot_to_main: MinimapFeature = MinimapFeature(
-    #     left=127,
-    #     right=127,
-    #     top=50,
-    #     bottom=56,
-    #     name="third_ladder_bot_to_main",
-    # )
-    # fourth_ladder_bot_to_main: MinimapFeature = MinimapFeature(
-    #     left=162,
-    #     right=162,
-    #     top=50,
-    #     bottom=56,
-    #     name="fourth_ladder_bot_to_main",
-    # )
-    # fifth_ladder_bot_to_main: MinimapFeature = MinimapFeature(
-    #     left=199,
-    #     right=199,
-    #     top=50,
-    #     bottom=56,
-    #     name="fifth_ladder_bot_to_main",
-    # )
+    first_wagon: MinimapFeature = MinimapFeature(
+        left=50,
+        right=62,
+        top=53,
+        bottom=53,
+        name="first_wagon",
+    )
+    second_wagon: MinimapFeature = MinimapFeature(
+        left=101,
+        right=113,
+        top=53,
+        bottom=53,
+        name="second_wagon",
+    )
+    third_wagon: MinimapFeature = MinimapFeature(
+        left=173,
+        right=185,
+        top=53,
+        bottom=53,
+        name="third_wagon",
+    )
+    fourth_wagon: MinimapFeature = MinimapFeature(
+        left=216,
+        right=228,
+        top=53,
+        bottom=53,
+        name="fourth_wagon",
+    )
+    first_ladder_bot_to_main: MinimapFeature = MinimapFeature(
+        left=32,
+        right=32,
+        top=49,
+        bottom=56,
+        name="first_ladder_bot_to_main",
+    )
+
+    second_ladder_bot_to_main: MinimapFeature = MinimapFeature(
+        left=98,
+        right=98,
+        top=50,
+        bottom=56,
+        name="second_ladder_bot_to_main",
+    )
+    third_ladder_bot_to_main: MinimapFeature = MinimapFeature(
+        left=127,
+        right=127,
+        top=50,
+        bottom=56,
+        name="third_ladder_bot_to_main",
+    )
+    fourth_ladder_bot_to_main: MinimapFeature = MinimapFeature(
+        left=162,
+        right=162,
+        top=50,
+        bottom=56,
+        name="fourth_ladder_bot_to_main",
+    )
+    fifth_ladder_bot_to_main: MinimapFeature = MinimapFeature(
+        left=199,
+        right=199,
+        top=50,
+        bottom=56,
+        name="fifth_ladder_bot_to_main",
+    )
     platform_1: MinimapFeature = MinimapFeature(
         left=35,
         right=65,

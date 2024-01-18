@@ -71,6 +71,7 @@ class CharacterStats(InGameBaseVisuals):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         if gray.shape == (self.level_box.height, self.level_box.width):
             gray = cv2.inRange(gray, np.array([255]), np.array([255]))
+            gray = cv2.resize(gray, None, fx=10, fy=10)
         return gray
 
     def get_ign(self, handle: int) -> str:

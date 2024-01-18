@@ -1,8 +1,9 @@
 from dataclasses import field, dataclass
+from functools import partial
 from typing import Optional, Generator
 
 
-@dataclass(order=True)
+@dataclass
 class QueueAction:
     """
     A dataclass that represents an action to be executed in the queue. It is used to store the priority, identifier and actual task for the action to be executed.
@@ -11,7 +12,7 @@ class QueueAction:
 
     identifier: str = field(compare=False)
     priority: int = field()
-    action: callable = field(compare=False, repr=False)
+    action: partial = field(compare=True, repr=False)
     is_cancellable: bool = field(compare=False, default=False, repr=False)
     update_game_data: Optional[tuple[str] | dict] = field(
         compare=False, default=None, repr=False
@@ -19,6 +20,9 @@ class QueueAction:
     user_message: list = field(compare=False, default=None, repr=False)
     release_lock_on_callback: bool = field(compare=False, default=False, repr=False)
     callbacks: list[callable] = field(compare=False, default_factory=list, repr=False)
+
+    def __eq__(self, other):
+        return self.action.func == other.action.func and self.action.keywords == other.action.keywords and self.action.args == other.action.args
 
     @classmethod
     def action_generator(

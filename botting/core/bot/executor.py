@@ -212,7 +212,7 @@ class Executor:
 
     def _send_update_signal_callback(self, signal: tuple[str] | dict, fut):
         """
-        Callback to use on map rotation actions if they need to update game data.
+        Callback to use on map rotation actions if they need to update game game_data.
         Sends a signal back to the Child process to appropriately update Game Data. This way, CPU-intensive resources
         are not consumed within the main process.
         """

@@ -8,36 +8,43 @@ from functools import partial
 
 from botting.core import DecisionGenerator, QueueAction
 from botting.models_abstractions import Skill
-from ..rotations.base_rotation import Rotation
-from royals import RoyalsData
+from royals.engines.generators.base_rotation import Rotation
+from royals.game_data import MaintenanceData, RotationData
 from royals.actions import cast_skill
-from royals.models_implementations.mechanics.path_into_movements import get_to_target
 
 
 class Rebuff(DecisionGenerator):
     """
     Generator for rebuffing.
     """
+    generator_type = "Maintenance"
 
-    def __init__(self, data: RoyalsData, skill: Skill) -> None:
-        self.data = data
+    def __init__(self, data: MaintenanceData, skill: Skill) -> None:
+        super().__init__(data)
         self._skill = skill
-        self._next_call = None
-
-    def __call__(self) -> iter:
-        assert self._skill.duration > 0, f"Skill {self._skill.name} has no duration."
+        assert skill.duration > 0, f"Skill {skill.name} has no duration."
         self._next_call = 0
-        return iter(self)
 
-    def __next__(self) -> QueueAction | None:
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self._skill.name})"
+
+    @property
+    def data_requirements(self) -> tuple[str]:
+        return tuple()
+
+    def _next(self) -> QueueAction | None:
         if time.perf_counter() >= self._next_call:
             self._next_call = time.perf_counter() + (
-                max(self._skill.duration, self._skill.cooldown) * random.uniform(0.9, 1)
+                max(self._skill.duration * random.uniform(0.9, 1),
+                    self._skill.cooldown * random.uniform(1, 1.05))
             )
             action = partial(cast_skill, self.data.handle, self.data.ign, self._skill)
             return QueueAction(self._skill.name, 5, action)
 
-    def _failsafe(self, *args, **kwargs):
+    def _failsafe(self):
+        """
+        TODO - Look for "fresh" skill icon in top-right of client screen.
+        """
         pass
 
 
@@ -49,7 +56,7 @@ class LocalizedRebuff(Rotation):
 
     def __init__(
         self,
-        data: RoyalsData,
+        data: RotationData,
         lock: mp.Lock,
         teleport_skill: Skill,
         buffs: list[Skill],
@@ -72,6 +79,7 @@ class LocalizedRebuff(Rotation):
             if skill.horizontal_minimap_distance is not None
         )
         self._acquired = False
+        self.data.update("current_minimap_position")
         return iter(self)
 
     def __next__(self) -> QueueAction | None:
@@ -119,7 +127,7 @@ class LocalizedRebuff(Rotation):
         for skill in skills:
             await cast_skill(*args, skill=skill)
 
-    def _single_iteration(self):
+    def _rotation(self):
         pass
 
     def _set_next_target(self):

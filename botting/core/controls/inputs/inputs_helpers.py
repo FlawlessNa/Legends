@@ -32,6 +32,7 @@ KEYBOARD_MAPPING = {
     "num_lock": win32con.VK_NUMLOCK,
     "space": win32con.VK_SPACE,
     "enter": win32con.VK_RETURN,
+    "tab": win32con.VK_TAB,
 }
 
 EXTENDED_KEYS = (

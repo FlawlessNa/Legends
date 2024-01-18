@@ -1,10 +1,19 @@
 import multiprocessing
 
 from botting.core import DecisionEngine, Executor, DecisionGenerator
-from botting.models_abstractions import BaseMap
 
 from royals import royals_ign_finder, RoyalsData
-from .generators import MobsHitting, SmartRotation, Rebuff, PetFood, MobCheck, DistributeAP
+from royals.maps import RoyalsMap
+from .generators import (
+    SmartRotation,
+    Rebuff,
+    PetFood,
+    MobCheck,
+    DistributeAP,
+    InventoryManager,
+    CheckStillInMap,
+    SpeedPill
+)
 
 
 class TrainingEngine(DecisionEngine):
@@ -14,37 +23,40 @@ class TrainingEngine(DecisionEngine):
         self,
         log_queue: multiprocessing.Queue,
         bot: Executor,
-        game_map: BaseMap,
+        game_map: RoyalsMap,
         character: callable,
         training_skill: str,
         time_limit: float = 15,
         mob_count_threshold: int = 2,
         buffs: list[str] | None = None,
-        teleport_enabled: bool = True
+        teleport_enabled: bool = True,
+        anti_detection_mob_threshold: int = 3,
+        anti_detection_time_threshold: int = 10,
+        num_pets: int = 1
     ) -> None:
         super().__init__(log_queue, bot)
-        self._game_data = RoyalsData(self.handle, self.ign)
-        self.game_data.update(
-            "current_minimap_area_box",
-            "current_minimap_position",
-            "current_entire_minimap_box",
-            current_minimap=game_map.minimap,
-            current_mobs=game_map.mobs,
-            character=character(),
-        )
 
-        self._training_skill = self.game_data.character.skills[training_skill]
-        self._teleport_skill = self.game_data.character.skills.get("Teleport")
-        if not teleport_enabled:
-            self._teleport_skill = None
-        self.game_data.current_minimap.generate_grid_template(
-            True if self._teleport_skill is not None else False
+        self._game_data = RoyalsData(
+            self.handle,
+            self.ign,
+            character(),
+            current_map=game_map,
+            current_mobs=game_map.mobs,
         )
+        self._training_skill = self.game_data.get_skill(training_skill)
+        if teleport_enabled:
+            try:
+                self._teleport_skill = self.game_data.get_skill("Teleport")
+            except KeyError:
+                self._teleport_skill = None
+        else:
+            self._teleport_skill = None
+
         self._mob_count_threshold = mob_count_threshold
         self._time_limit_central_node = time_limit
         if buffs:
             self._buffs_to_use = [
-                self.game_data.character.skills[buff] for buff in buffs
+                self.game_data.get_skill(buff) for buff in buffs
             ]
         else:
             self._buffs_to_use = []
@@ -56,33 +68,44 @@ class TrainingEngine(DecisionEngine):
             ):
                 self._buffs_to_use.append(skill)
 
+        self._anti_detection_mob_threshold = anti_detection_mob_threshold
+        self._anti_detection_time_threshold = anti_detection_time_threshold
+        self._num_pets = num_pets
+
     @property
     def game_data(self) -> RoyalsData:
         return self._game_data
 
-    def items_to_monitor(self) -> list[callable]:
-        generators = []
+    @property
+    def items_to_monitor(self) -> list[DecisionGenerator]:
+        generators = [
+            InventoryManager(self.game_data, tab_to_watch="Equip"),
+            PetFood(self.game_data, num_times=self._num_pets),
+            SpeedPill(self.game_data),
+            DistributeAP(self.game_data),
+        ]
         for skill in self.game_data.character.skills.values():
             if skill.type in ["Buff", "Party Buff"] and skill in self._buffs_to_use:
                 generators.append(Rebuff(self.game_data, skill))
-        generators.append(PetFood(self.game_data))
-        generators.append(DistributeAP(self.game_data))
         return generators
 
-    def next_map_rotation(self) -> list[callable]:
-        return [
-            SmartRotation(
+    @property
+    def next_map_rotation(self) -> DecisionGenerator:
+        return SmartRotation(
                 self.game_data,
                 self.rotation_lock,
+                self._training_skill,
+                self._mob_count_threshold,
                 teleport=self._teleport_skill,
                 time_limit=self._time_limit_central_node,
-            ),
-            MobsHitting(
-                self.game_data, self._training_skill, self._mob_count_threshold
-            ),
-        ]
+            )
 
+    @property
     def anti_detection_checks(self) -> list[DecisionGenerator]:
         return [
-            MobCheck(self.game_data, time_threshold=10, mob_threshold=3),
+            MobCheck(
+                self.game_data,
+                time_threshold=self._anti_detection_time_threshold,
+                mob_threshold=self._anti_detection_mob_threshold),
+            CheckStillInMap(self.game_data)
         ]

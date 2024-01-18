@@ -5,7 +5,11 @@ from typing import Literal
 
 
 async def cast_skill(
-    handle: int, ign: str, skill: Skill, direction: str = None
+    handle: int,
+    ign: str,
+    skill: Skill,
+    direction: str = None,
+    double_cast: bool = False,
 ) -> None:
     """
     Casts a skill in a given direction. Updates game status.
@@ -13,6 +17,7 @@ async def cast_skill(
     :param ign:
     :param skill:
     :param direction:
+    :param double_cast:
     :return:
     """
     # TODO - Better handling of direction.
@@ -22,14 +27,13 @@ async def cast_skill(
             direction if direction else "left",
             silenced=False,
             enforce_delay=True,
-            cooldown=0
+            cooldown=0,
         )
-    # data.update(
-    #     current_direction=direction
-    # )  # TODO - Add this piece into the QueueAction wrapping instead
-    await controller.press(  # Cast skill twice to ensure it goes through
-        handle, skill.key_bind(ign), silenced=True, cooldown=0.1
-    )
+
+    if double_cast:
+        await controller.press(  # Cast skill twice to ensure it goes through
+            handle, skill.key_bind(ign), silenced=True, cooldown=0.1
+        )
     await controller.press(
         handle,
         skill.key_bind(ign),

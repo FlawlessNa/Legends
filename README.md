@@ -6,53 +6,64 @@
   - [ ] Rebuffing from Leechers
   - [ ] Ultimate Cast failsafe - check if MP has changed by at least X%
   
-### Maintenance Generators
+### Generators
   - [ ] Check character still alive
   - [ ] Check Potions Pet Food, Mount Food
   - [ ] Cooldown buffs
   - [ ] Inventory Management
+    - [x] Basic parser to check space left
+    - [ ] Advanced parser to check stats on each item
   - [x] Automated AP distribution
-  
-### Generic Generator class for the botting library + incorporated failsafe methods
-  - [ ] Add failsafe on MobHitting
-  - [ ] Add failsafe on Rebuff
+  - [x] Generic Generator class for botting library
+  - [ ] Add failsafe on MobHitting (how??)
+  - [ ] Add failsafe on Rebuff (look for fresh buff icon in top right screen)
   - [ ] Add failsafe on any Rotation Generators - Movement is expected if action is not cancelled
+  - [ ] Streamline reactions for AntiDetection generators
 
 ### Anti Detection Features
   - [ ] Chat Parsing (try grayscale preprocessing on "general" lines) + GPT Automated Responses
-  - [ ] Abnormal Status Detection (look for gray line types)
-  - [ ] Minimap Parsing for strangers + random reaction
-  - [ ] Minimap Parsing for unexpected self movements + random reaction
-  - [ ] Minimap parsing to ensure still in proper map + random reaction
-  - [ ] Blue Notification detection (chat invite, other invites, etc)
-  - [ ] Mob freeze (from a GM) + random reaction
-  - [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs + random reaction
   - [ ] GM Logo detection
+  - [ ] Abnormal Status Detection (look for gray line types)
+    - [ ] Stunned
+    - [ ] Seduced
+    - [ ] Cursed (reverse directions)
+  - [x] Minimap Parsing to ensure still in proper map + random reaction
+  - [ ] Minimap Parsing for strangers + random reaction
+  - [ ] Minimap Parsing for unexpected self movements (stray too far from target?) + random reaction
+  - [ ] Blue Notification detection (chat invite, other invites, etc)
+  - [x] Mob freeze (from a GM) + random reaction
+  - [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs + random reaction
   - [ ] For complex movements (teleport, telecast, etc), use Spy++ to find exact key combinations when done by human, and make sure to properly replicate (should be very easy)
-  - [ ] Nice-to-have, for Ulu only - look into building an "unknown" object detection method, using UNKAD methodology
+  - [ ] Nice-to-have, for Ulu only - look into building an "unknown" object detection method, using UNKAD methodology or anomaly detection
   
 ### Character detection
   - [ ] Standardize code and transfer detection framework into botting library
   
-### QueueAction Prioritization
+### QueueAction
   - [ ] Implement better handling of QueueAction Priority
+  - [ ] Add action attributes to enable IPC
   
 ### Mob detection
   - [ ] Clean the pre-processing to remove the additional layer of the filter function
   - [ ] Define additional generic detection functions for mobs
-  - [ ] Combine with their HP bar
+  - [ ] Combine with HP bar
   
 ### RoyalsData Management
-  - [ ] Split into several subclasses, each specific to a generator
+  - [x] Split into several subclasses, each specific to a generator
   - [ ] Add a PerformanceData class for monitoring (mesos/h, exp/h, etc)
-  - [ ] DecisionEngine should not have to update anything. Each Generator should deal with their own requirements.
+  - [x] DecisionEngine should not have to update anything. Each Generator should deal with their own requirements.
+
+### Error Management
+  - [ ] Ability to close all clients if error occurs
+  - [ ] Ability to send all characters to lounge if error occurs
 
 ### Misc
-- [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
-- [ ] Skill Specs Finder
-- [x] Mouse movements and mouse clicks
-- [ ] Finalize Discord communications
-- [ ] UnitTests on the botting library
+  - [ ] Add variable speed/jump management
+  - [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
+  - [ ] Skill Specs Finder
+  - [x] Mouse movements and mouse clicks
+  - [ ] Finalize Discord communications - Control of which process are to respond to user commands
+  - [ ] UnitTests on the botting library
 
 ### Documentation
   - [ ] Botting.core
@@ -61,7 +72,8 @@
 ### Game Interface
   - [ ] Quickslots
   - [ ] Inventory
-  - [ ] Level up detection
+  - [x] Level up detection
+  - [ ] HP bar detection (check if still alive)
 
 ## Nice to have
   - [ ] Chat - Try additional pre-processing: Thresholding (improved?), Denoising (application of Gaussian and/or Median Blur), Contrast Enhancement (Make text more distinguishable from background)

@@ -329,6 +329,7 @@ async def click(
     handle: int,
     down_or_up: Literal["click", "down", "up"] = "click",
     nbr_times: int = 1,
+    **kwargs
 ) -> None:
     """
     :param handle:
@@ -337,4 +338,19 @@ async def click(
     :return:
     """
     events = [down_or_up] * nbr_times
-    await focused_mouse_input(handle, None, None, events)
+    await focused_mouse_input(handle, None, None, events, **kwargs)
+
+
+def get_mouse_pos(
+    handle: int
+) -> tuple[int, int]:
+    """
+    Returns the position of the cursor inside the window, if it is inside the window.
+    Otherwise, returns None.
+    :param handle:
+    :return:
+    """
+    left, top, right, bottom = win32gui.GetWindowRect(handle)
+    x, y = win32api.GetCursorPos()
+    if left <= x <= right and top <= y <= bottom:
+        return x - left, y - top

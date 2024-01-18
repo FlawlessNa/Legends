@@ -116,12 +116,13 @@ class InGameToggleableVisuals(InGameBaseVisuals, ABC):
     """
 
     @abstractmethod
-    def is_displayed(self, handle: int) -> bool:
+    def is_displayed(self, handle: int, image: np.ndarray = None) -> bool:
         """
         Checks whether the visual is currently displayed on screen.
         Must be implemented for each subclass.
         This can be done through color detection, image detection, or custom methods.
         :param handle: Handle to the game client.
+        :param image: If provided, use this image.
         :return: Whether the visual is currently displayed on screen.
         Note that if the visual is obstructed (by cursor or other object),
          this method may fail.
@@ -160,3 +161,18 @@ class InGameDynamicVisuals(InGameToggleableVisuals, ABC):
             raise ValueError("More than one menu icon detected")
         elif boxes:
             return boxes.pop()
+
+    def get_abs_box(self, handle: int, relative_box: Box, image: np.ndarray = None) -> Box | None:
+        """
+        Returns the absolute box coordinates of the visual. The relative box is
+        added to the menu icon position.
+        :param handle:
+        :param relative_box:
+        :param image:
+        :return:
+        """
+        if image is None:
+            image = take_screenshot(handle)
+        if self.is_displayed(handle, image):
+            icon = self._menu_icon_position(handle, image)
+            return icon + relative_box

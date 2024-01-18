@@ -11,7 +11,7 @@ from functools import partial
 from botting import PARENT_LOG
 from botting.utilities import take_screenshot
 from botting.models_abstractions import Skill, BaseMob
-from .base_rotation import Rotation
+from royals.engines.generators.base_rotation import Rotation
 from royals import RoyalsData
 from royals.actions import teleport, telecast, cast_skill
 from royals.models_implementations.mechanics.path_into_movements import get_to_target
@@ -20,6 +20,7 @@ logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
 class TelecastRotation(Rotation):
+    generator_type = 'Rotation'
     def __init__(
         self,
         data: RoyalsData,
@@ -39,6 +40,7 @@ class TelecastRotation(Rotation):
             last_cast=time.perf_counter(),
             ultimate=self._ultimate,
         )
+        self.data.update("current_minimap_position")
         self._next_target = self.data.next_target
         self._last_pos_change = time.perf_counter()
         if len(self.data.current_minimap.feature_cycle):
@@ -57,7 +59,7 @@ class TelecastRotation(Rotation):
                 self.data.update(next_target=self.data.current_minimap.random_point())
         self._next_target = self.data.next_target
 
-    def _single_iteration(self):
+    def _rotation(self):
         img = take_screenshot(self.data.handle, self.data.current_map.detection_box)
         mob_count = self.mob_count_in_img(img, self.data.current_mobs)
 

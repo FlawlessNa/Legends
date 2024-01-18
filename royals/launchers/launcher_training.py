@@ -12,18 +12,22 @@ import royals.maps
 
 
 CHARACTER_NAME = "WrongDoor"
-CHARACTER_CLASS = royals.characters.Magician
-TRAINING_SKILL = "Magic Claw"
-TRAINING_MAP = royals.maps.Line1Area1
+CHARACTER_CLASS = royals.characters.Cleric
+TRAINING_SKILL = "Heal"
+TRAINING_MAP = royals.maps.PathOfTime1
 MOB_COUNT_THRESHOLD = 1
-TIME_LIMIT_CENTRAL_TARGET = 5
+TIME_LIMIT_ON_TARGET = 1
 
 BUFFS = []
+NBR_PETS = 2
 
 DETECTION_CONFIG_SECTION = "Elephant Cape"
 CLIENT_SIZE = "large"
 
-DISABLE_TELEPORT = True
+DISABLE_TELEPORT = False
+
+ANTI_DETECTION_MOB_THRESHOLD = 1
+ANTI_DETECTION_TIME_THRESHOLD = 10
 
 
 async def main(*bots: botting.Executor) -> None:
@@ -44,8 +48,11 @@ if __name__ == "__main__":
         training_skill=TRAINING_SKILL,
         mob_count_threshold=MOB_COUNT_THRESHOLD,
         buffs=BUFFS,
-        time_limit=TIME_LIMIT_CENTRAL_TARGET,
-        teleport_enabled=not DISABLE_TELEPORT
+        time_limit=TIME_LIMIT_ON_TARGET,
+        teleport_enabled=not DISABLE_TELEPORT,
+        anti_detection_mob_threshold=ANTI_DETECTION_MOB_THRESHOLD,
+        anti_detection_time_threshold=ANTI_DETECTION_TIME_THRESHOLD,
+        num_pets=NBR_PETS
     )
 
     bot = botting.Executor(

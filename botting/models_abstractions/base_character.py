@@ -3,6 +3,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import Sequence
 
+from .base_skill import Skill
 from botting.visuals import InGameBaseVisuals
 from botting.utilities import Box
 
@@ -28,5 +29,5 @@ class BaseCharacter(InGameBaseVisuals, ABC):
 
     @property
     @abstractmethod
-    def skills(self) -> list:
+    def skills(self) -> dict[str, Skill]:
         pass
