@@ -4,12 +4,14 @@ import logging
 from functools import partial
 from typing import Optional
 
-from botting.core.bot.action import QueueAction
+from botting.core import QueueAction
+from royals.actions import write_in_chat
+
 
 logger = logging.getLogger(__name__)
 
 
-def message_parser(message: str) -> Optional[QueueAction]:
+def single_bot_parser(message: str, bots: list) -> Optional[QueueAction]:
     """
     Message Parsing is made inside the Main Process. This way, the returned actions are not required to be picklable (e.g. transferable between processes).
     Supported commands:
@@ -23,10 +25,12 @@ def message_parser(message: str) -> Optional[QueueAction]:
                  -h: Whisper chat (responding to last whisper)
 
     :param message: The message to parse, received from Discord and written by user. The first word should always be the command to perform.
+    :param bots: The list of bots that are currently running.
     :return: If True, the loop relaying messages from Discord to the main process will be stopped.
     """
 
     supported_commands = ["kill", "pause", "resume", "stop", "write", "hold"]
+    assert len(bots) == 1, "This parser is only meant to be used with a single bot."
 
     # Command is always the first word
     command = message.lower().split(" ")[0]
@@ -47,7 +51,20 @@ def message_parser(message: str) -> Optional[QueueAction]:
         case "stop":
             pass
         case "write":
-            pass
+            chat_type = message.lower().split(" ")[1]
+            if chat_type in ['general', 'whisper']:
+                txt_to_write = message.lower().split(" ")[2:]
+            else:
+                chat_type = 'general'
+                txt_to_write = message.lower().split(" ")[1:]
+            return QueueAction(
+                identifier='Writing to chat',
+                priority=0,
+                action=partial(write_in_chat,
+                               handle=bots[0].handle,
+                               message=' '.join(txt_to_write),
+                               channel=chat_type),
+            )
         case "hold":
             return QueueAction(
                 identifier="Hold",

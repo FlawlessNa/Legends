@@ -36,12 +36,17 @@ class ChatLine(InGameBaseVisuals, ABC):
         }
     )
     chat_color: tuple[tuple, tuple]
+    threshold: int
 
-    def __init__(self, chat_line_img: np.ndarray) -> None:
+    def __init__(self, chat_line_img: np.ndarray, read: bool = False) -> None:
         self.image = chat_line_img
         self._timestamp = time.ctime()
-        self.text = self.read_text()
-        self.author = self.get_author()
+        if read:
+            self.text = self.read_text()
+            self.author = self.get_author()
+        else:
+            self.text = None
+            self.author = None
 
     def __repr__(self) -> str:
         return f"{self.name}({self.author}:{self.text})"
@@ -51,14 +56,16 @@ class ChatLine(InGameBaseVisuals, ABC):
         return self.__class__.__name__
 
     @staticmethod
-    def from_img(chat_line_img: np.ndarray) -> "ChatLine":
+    def from_img(chat_line_img: np.ndarray, read: bool = False) -> "ChatLine":
         # Skip first rows of pixels in the line, because some characters of the previous line may be present (the "@" does so).
         # Skip right-hand side of the image, as sometimes login or cc notifications can mess up line type recognition.
         img = chat_line_img[2:, 0:350]
         detected_types = set()
         for chat_type in ChatLine.all_chat_types:
             if InGameBaseVisuals._color_detection(
-                img, eval(chat_type).chat_color, pixel_threshold=10
+                img,
+                eval(chat_type).chat_color,
+                pixel_threshold=eval(chat_type).threshold
             ):
                 detected_types.add(eval(chat_type))
 
@@ -76,7 +83,7 @@ class ChatLine(InGameBaseVisuals, ABC):
 
         if len(detected_types) == 1:
             chat_class = detected_types.pop()
-            chat_instance = chat_class(chat_line_img)
+            chat_instance = chat_class(chat_line_img, read)
             return chat_instance
 
         else:
@@ -99,7 +106,7 @@ class ChatLine(InGameBaseVisuals, ABC):
     def _crop_white_rectangle(image: np.ndarray) -> np.ndarray:
         # Find the largest white rectangle in image and crop it out.
         contours, _ = cv2.findContours(
-            cv2.inRange(image, (255, 255, 255), (255, 255, 255)),
+            cv2.inRange(image, np.array((255, 255, 255)), np.array((255, 255, 255))),
             cv2.RETR_EXTERNAL,
             cv2.CHAIN_APPROX_SIMPLE,
         )
@@ -135,26 +142,39 @@ class ChatLine(InGameBaseVisuals, ABC):
 
 class General(ChatLine):
     chat_color = ((255, 255, 255), (255, 255, 255))
+    threshold: int = 10
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
-    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
+    @classmethod
+    def _preprocess_img(cls, image: np.ndarray) -> np.ndarray:
         """
         Converts into HSV image and apply filters to try and turn off background while leaving chat intact.
         HSV filter was configured using the hsv_filtering (in utilities-toolkit).
         Crop out the line once no more characters are clearly detected.
         To do so, if the horizontal between contours becomes too large, we assume those are noise and crop out.
         """
-        processed_img = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        lower = np.array([0, 0, 145])  # hMin, sMin, vMin
-        upper = np.array([179, 80, 255])  # hMax, sMax, vMax
-        processed_img = cv2.inRange(processed_img, lower, upper)
-        processed_img = self._crop_based_on_contour(processed_img)
-        processed_img = cv2.resize(
-            processed_img, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR
-        )
-        return cv2.GaussianBlur(processed_img, (7, 7), 0)
+        test = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        right_most = np.where(test == 255)[1].max()
+        test = test[:, :min(right_most+5, test.shape[1])]
+        # TODO - Try non-binary thresholding. Then, enlarge img and re-apply non-binary
+        # Thresholding. This may help splitting characters currently shown as a single cnt
+        test = cv2.threshold(test, 30, 255, cv2.THRESH_BINARY)[1]
+        return test
+        #
+        # processed_img = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        # lower = np.array([0, 0, 145])  # hMin, sMin, vMin
+        # upper = np.array([179, 80, 255])  # hMax, sMax, vMax
+        # processed_img = cv2.inRange(processed_img, lower, upper)
+        # processed_img = cls._crop_based_on_contour(processed_img)
+        # right_most = np.where(processed_img == 255)[1].max()
+        # processed_img = processed_img[:, :min(right_most+5, processed_img.shape[1])]
+        # return processed_img
+        # processed_img = cv2.resize(
+        #     processed_img, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR
+        # )
+        # return cv2.GaussianBlur(processed_img, (7, 7), 0)
 
     def get_author(self) -> str:
         pass
@@ -162,10 +182,11 @@ class General(ChatLine):
 
 class GM(ChatLine):
     chat_color = ((190, 190, 190), (200, 200, 200))
+    threshold: int = 300
     # chat_color = ((0, 0, 0), (0, 0, 0))  # Alternative - this works, but requires modifications to ChatLine.from_img
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = cv2.resize(
@@ -178,10 +199,11 @@ class GM(ChatLine):
 
 
 class Whisper(ChatLine):
+    threshold: int = 10
     chat_color = ((0, 255, 0), (0, 255, 0))
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         """
@@ -205,10 +227,11 @@ class Whisper(ChatLine):
 
 
 class Gachapon(ChatLine):
+    threshold: int = 300
     chat_color = ((51, 204, 153), (51, 204, 153))
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = cv2.inRange(image, *self.chat_color)
@@ -223,15 +246,16 @@ class Gachapon(ChatLine):
 
 
 class ItemSmega(ChatLine):
+    threshold = 300
     chat_color = ((1, 195, 225), (15, 210, 240))
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = self._crop_white_rectangle(image)
         processed_img = cv2.resize(
-            processed_img, None, fx=2, fy=2, interpolation=cv2.INTER_LINEAR
+            processed_img, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR
         )
         return processed_img
 
@@ -240,10 +264,11 @@ class ItemSmega(ChatLine):
 
 
 class TVSmega(ChatLine):
+    threshold: int = 10
     chat_color = ((238, 136, 255), (238, 136, 255))
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = self._crop_white_rectangle(image)
@@ -258,16 +283,20 @@ class TVSmega(ChatLine):
 
 
 class Smega(ChatLine):
+    threshold: int = 10
     chat_color = ((68, 0, 119), (68, 0, 119))
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = self._crop_white_rectangle(image)
-        processed_img = cv2.inRange(processed_img, (68, 0, 119), (130, 86, 170))
+        temp = cv2.inRange(image, *self.chat_color)
+        right_most = np.where(temp == 255)[1].max()
+        # processed_img = cv2.inRange(processed_img, np.array([68, 0, 119]), np.array([130, 86, 170]))
+        processed_img = processed_img[:, :right_most+5]
         processed_img = cv2.resize(
-            processed_img, None, fx=2, fy=2, interpolation=cv2.INTER_LINEAR
+            processed_img, None, fx=5, fy=5, interpolation=cv2.INTER_LINEAR
         )
         return processed_img
 
@@ -276,10 +305,11 @@ class Smega(ChatLine):
 
 
 class Alliance(ChatLine):
+    threshold: int = 10
     chat_color = ((1, 1, 1), (0, 0, 0))  # TODO
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         breakpoint()
@@ -289,10 +319,11 @@ class Alliance(ChatLine):
 
 
 class Party(ChatLine):
+    threshold: int = 10
     chat_color = ((1, 1, 1), (0, 0, 0))  # TODO
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         breakpoint()
@@ -302,10 +333,11 @@ class Party(ChatLine):
 
 
 class Guild(ChatLine):
+    threshold: int = 10
     chat_color = ((1, 1, 1), (0, 0, 0))  # TODO
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         breakpoint()
@@ -316,11 +348,11 @@ class Guild(ChatLine):
 
 class Megaphone(ChatLine):
     """Standard, single-channel megaphone lines."""
-
+    threshold = 10
     chat_color = ((119, 51, 0), (119, 51, 0))
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = cv2.resize(
@@ -333,10 +365,11 @@ class Megaphone(ChatLine):
 
 
 class Buddy(ChatLine):
+    threshold: int = 10
     chat_color = ((1, 1, 1), (0, 0, 0))  # TODO
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         breakpoint()
@@ -346,10 +379,11 @@ class Buddy(ChatLine):
 
 
 class Spouse(ChatLine):
+    threshold = 10
     chat_color = ((1, 1, 1), (0, 0, 0))  # TODO
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         breakpoint()
@@ -359,12 +393,13 @@ class Spouse(ChatLine):
 
 
 class Notice(ChatLine):
+    threshold = 10
     """Blue lines from GMs, notices, boss completions or events."""
 
     chat_color = ((255, 204, 102), (255, 204, 102))
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         """
@@ -387,12 +422,13 @@ class Notice(ChatLine):
 
 
 class MapleTip(ChatLine):
+    threshold = 30
     """Yellow lines from [RoyalTip]"""
 
     chat_color = ((0, 255, 255), (0, 255, 255))
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = cv2.inRange(image, (0, 130, 90), (40, 255, 255))
@@ -405,12 +441,13 @@ class MapleTip(ChatLine):
 
 
 class Warning(ChatLine):
+    threshold = 30
     """Red/pink-ish lines appearing when out of potions, unfinished cooldowns, etc."""
 
     chat_color = ((170, 170, 255), (170, 170, 255))
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = cv2.inRange(image, (55, 65, 105), (170, 170, 255))
@@ -425,12 +462,13 @@ class Warning(ChatLine):
 
 
 class System(ChatLine):
+    threshold = 30
     """Gray-ish lines appearing upon quest completions, some purchases, etc."""
 
     chat_color = ((187, 187, 187), (187, 187, 187))
 
-    def __init__(self, img: np.ndarray):
-        super().__init__(img)
+    def __init__(self, img: np.ndarray, read: bool = False):
+        super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         processed_img = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)

@@ -6,7 +6,6 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 from .action import QueueAction
-from botting.core.communications import message_parser
 from botting.utilities import client_handler
 
 if TYPE_CHECKING:
@@ -28,9 +27,13 @@ class Executor:
     logging_queue: multiprocessing.Queue
     discord_pipe: multiprocessing.connection.Connection
     discord_listener: asyncio.Task
+    discord_parser: callable
     all_bots: list["Executor"] = []
 
-    def __init__(self, engine: type["DecisionEngine"], ign: str, **kwargs) -> None:
+    def __init__(self,
+                 engine: type["DecisionEngine"],
+                 ign: str,
+                 **kwargs) -> None:
         self.engine = engine
         self.engine_kwargs = kwargs
         self.ign = ign
@@ -83,7 +86,7 @@ class Executor:
         while True:
             if await asyncio.to_thread(cls.discord_pipe.poll):
                 message: str = cls.discord_pipe.recv()
-                action: QueueAction = message_parser(message)
+                action: QueueAction = cls.discord_parser(message, cls.all_bots)
                 if action is None:
                     logger.info(f"Received {message} from discord process. Exiting.")
                     cls.cancel_all()
@@ -166,6 +169,11 @@ class Executor:
     def update_bot_list(cls, bot: "Executor") -> None:
         """Inserts newly created bot into the bot list."""
         cls.all_bots.append(bot)
+
+    @classmethod
+    def update_message_parser(cls, parser: callable) -> None:
+        """Updates the message parser for all bots."""
+        cls.message_parser = parser
 
     def _exception_handler(self, fut):
         try:
