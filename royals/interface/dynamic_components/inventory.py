@@ -67,7 +67,6 @@ class InventoryMenu(InGameDynamicVisuals):
 
         # 30000 is generally sufficient such that even when inventory is full, there are still
         # more than 30000 pixels that are the same color as the slots.
-        print(np.count_nonzero(processed))
         if np.count_nonzero(processed) > 20000:
             return True
         return False
