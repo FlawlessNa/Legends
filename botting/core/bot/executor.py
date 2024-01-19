@@ -171,9 +171,9 @@ class Executor:
         cls.all_bots.append(bot)
 
     @classmethod
-    def update_message_parser(cls, parser: callable) -> None:
+    def update_discord_parser(cls, parser: callable) -> None:
         """Updates the message parser for all bots."""
-        cls.message_parser = parser
+        cls.discord_parser = parser
 
     def _exception_handler(self, fut):
         try:

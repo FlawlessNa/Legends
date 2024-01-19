@@ -12,7 +12,7 @@ class SelkieJr(BaseMob):
     _minimal_rect_height = 0
     _maximal_rect_width = 1000
     _maximal_rect_height = 1000
-    _multiplier = 3
+    _multiplier = 4
 
     def __init__(self, detection_box: Box):
         super().__init__(detection_box)
