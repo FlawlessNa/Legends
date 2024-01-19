@@ -9,6 +9,7 @@ from functools import partial
 import royals.characters
 import royals.engines
 import royals.maps
+import royals.parsers
 
 
 CHARACTER_NAME = "WrongDoor"
@@ -26,11 +27,14 @@ CLIENT_SIZE = "large"
 
 DISABLE_TELEPORT = False
 
+DISCORD_PARSER = royals.parsers.single_bot_parser
+
 ANTI_DETECTION_MOB_THRESHOLD = 1
 ANTI_DETECTION_TIME_THRESHOLD = 10
 
 
 async def main(*bots: botting.Executor) -> None:
+    botting.Executor.update_message_parser(DISCORD_PARSER)
     with botting.SessionManager(*bots) as session:
         await session.launch()
 
@@ -56,6 +60,8 @@ if __name__ == "__main__":
     )
 
     bot = botting.Executor(
-        engine=royals.engines.TrainingEngine, ign=CHARACTER_NAME, **engine_kwargs
+        engine=royals.engines.TrainingEngine,
+        ign=CHARACTER_NAME,
+        **engine_kwargs
     )
     asyncio.run(main(bot))
