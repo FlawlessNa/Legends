@@ -11,6 +11,7 @@ class Slimy(BaseMob):
     _minimal_rect_height = 4
     _minimal_rect_width = 6
     _maximal_rect_width = 15
+    _multiplier = 3
 
     def __init__(self, detection_box: Box):
         super().__init__(detection_box)
