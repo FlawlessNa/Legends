@@ -64,23 +64,11 @@ class InventoryMenu(InGameDynamicVisuals):
             return False
 
         processed = cv2.inRange(image, self._slot_color, self._slot_color)
-        contours, _ = cv2.findContours(
-            processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
 
-        def _filter(cnt) -> bool:
-            x, y, w, h = cv2.boundingRect(cnt)
-            cond1 = (
-                self._empty_slot_rect_height - 1
-                <= h
-                <= self._empty_slot_rect_height + 1
-            )
-            cond2 = (
-                self._empty_slot_rect_width - 1 <= w <= self._empty_slot_rect_width + 1
-            )
-            return cond1 and cond2
-
-        if len(list(filter(_filter, contours))) > 24:
+        # 30000 is generally sufficient such that even when inventory is full, there are still
+        # more than 30000 pixels that are the same color as the slots.
+        print(np.count_nonzero(processed))
+        if np.count_nonzero(processed) > 20000:
             return True
         return False
 
