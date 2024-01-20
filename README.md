@@ -49,6 +49,7 @@
   - [ ] Combine with HP bar
   
 ### RoyalsData Management
+  - [ ] Add a Loop ID on every iteration. When data is updated, assign it a loop id. only update when loop id is different.
   - [x] Split into several subclasses, each specific to a generator
   - [ ] Add a PerformanceData class for monitoring (mesos/h, exp/h, etc)
   - [x] DecisionEngine should not have to update anything. Each Generator should deal with their own requirements.
