@@ -5,9 +5,9 @@ from abc import ABC, abstractmethod
 from functools import partial
 
 from botting import PARENT_LOG
-from botting.core import DecisionGenerator, QueueAction
+from botting.core import DecisionGenerator, QueueAction, controller
 from botting.models_abstractions import Skill
-from botting.utilities import Box, take_screenshot
+from botting.utilities import Box, take_screenshot, config_reader
 from royals.actions import cast_skill
 from royals.game_data import RotationData
 from royals.actions import random_jump
@@ -42,6 +42,10 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
         self._prev_rotation_actions = []
 
         self._on_screen_pos = None
+        self._error_counter = 0
+        self._minimap_key = eval(config_reader("keybindings", self.data.ign, "Non Skill Keys"))[
+            "Minimap Toggle"
+        ]
 
     @property
     def data_requirements(self) -> tuple:
@@ -59,6 +63,11 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
     def _next(self):
         self._prev_pos = self.data.current_minimap_position
         self.data.update("current_minimap_position", "current_on_screen_position")
+
+        if self.data.current_minimap_position is None:
+            return self._minimap_fix()
+
+        self._error_counter = 0
         self._on_screen_pos = (
             self.data.current_on_screen_position
             if self.data.current_on_screen_position is not None
@@ -197,3 +206,31 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
         ):
             self.data.update("last_cast")
             return res
+
+    def _minimap_fix(self) -> QueueAction | None:
+        setattr(self.data, repr(self), True)  # Block rotation calls
+        time.sleep(0.5)
+        self.data.update("current_minimap_area_box")
+        self._error_counter += 1
+        if self._error_counter >= 3:
+            logger.critical("Minimap Fix Failed, Minimap Position cannot be determined")
+            raise RuntimeError("Minimap Fix Failed, Minimap Position cannot be determined")
+
+        logger.info("Minimap Fix Triggered")
+        minimap = self.data.current_minimap
+        if not minimap.get_minimap_state(self.data.handle) == "Full":
+            return QueueAction(
+                identifier=f"Toggling Minimap - {self.__class__.__name__}",
+                priority=1,
+                action=partial(controller.press, self.data.handle, self._minimap_key),
+                is_cancellable=False,
+                update_game_data={repr(self): False}
+            )
+        else:
+            return QueueAction(
+                identifier=f"Moving Cursor away from Minimap - {self.__class__.__name__}",
+                priority=1,
+                action=partial(controller.mouse_move, self.data.handle, target=(600, 600)),
+                is_cancellable=False,
+                update_game_data={repr(self): False}
+            )
