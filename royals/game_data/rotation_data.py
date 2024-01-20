@@ -66,11 +66,13 @@ class RotationData(GameData):
     def get_skill(self, skill: str) -> Skill:
         return self.character.skills[skill]
 
-    def _get_self_position(self) -> tuple[int, int]:
+    def _get_self_position(self) -> tuple[int, int] | None:
         new_pos = self.current_minimap.get_character_positions(
             self.handle, map_area_box=self.current_minimap_area_box
         )
-        assert len(new_pos) == 1, f"Found {len(new_pos)} positions."
+        if not len(new_pos) == 1:
+            return
+
         new_pos = new_pos.pop()
 
         self.current_minimap_feature = self.current_minimap.get_feature_containing(

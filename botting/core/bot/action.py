@@ -14,7 +14,7 @@ class QueueAction:
     priority: int = field()
     action: partial = field(compare=True, repr=False)
     is_cancellable: bool = field(compare=False, default=False, repr=False)
-    update_game_data: Optional[tuple[str] | dict] = field(
+    update_game_data: Optional[tuple | dict] = field(
         compare=False, default=None, repr=False
     )
     user_message: list = field(compare=False, default=None, repr=False)
