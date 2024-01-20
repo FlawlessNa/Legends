@@ -210,7 +210,7 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
     def _minimap_fix(self) -> QueueAction | None:
         setattr(self.data, repr(self), True)  # Block rotation calls
         time.sleep(1)
-        self.data.update("current_minimap_area_box")
+        self.data.update("current_minimap_area_box", "current_entire_minimap_box")
         self._error_counter += 1
         if self._error_counter >= 4:
             logger.critical("Minimap Fix Failed, Minimap Position cannot be determined")
