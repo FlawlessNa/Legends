@@ -209,6 +209,7 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
 
     def _minimap_fix(self) -> QueueAction | None:
         setattr(self.data, repr(self), True)  # Block rotation calls
+        time.sleep(0.5)
         self.data.update("current_minimap_area_box")
         self._error_counter += 1
         if self._error_counter >= 3:

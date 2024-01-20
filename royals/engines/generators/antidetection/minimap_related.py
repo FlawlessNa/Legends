@@ -65,6 +65,7 @@ class CheckStillInMap(TriggerBasedGenerator):
         self._set_status("Ready")
 
     def _update_attributes(self) -> None:
+        self.data.update("current_entire_minimap_box", "current_minimap_area_box")
         if self._current_title_img is None:
             self._current_title_img = take_screenshot(self.data.handle, self.data.current_minimap.get_minimap_title_box(self.data.handle))
             self._prev_title_img = self._current_title_img.copy()

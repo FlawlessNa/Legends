@@ -70,7 +70,7 @@ class RotationData(GameData):
         new_pos = self.current_minimap.get_character_positions(
             self.handle, map_area_box=self.current_minimap_area_box
         )
-        if not len(new_pos) == 1:
+        if new_pos is None or not len(new_pos) == 1:
             return
 
         new_pos = new_pos.pop()
