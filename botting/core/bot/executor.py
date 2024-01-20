@@ -30,10 +30,7 @@ class Executor:
     discord_parser: callable
     all_bots: list["Executor"] = []
 
-    def __init__(self,
-                 engine: type["DecisionEngine"],
-                 ign: str,
-                 **kwargs) -> None:
+    def __init__(self, engine: type["DecisionEngine"], ign: str, **kwargs) -> None:
         self.engine = engine
         self.engine_kwargs = kwargs
         self.ign = ign
@@ -181,12 +178,14 @@ class Executor:
                 fut.exception(), TimeoutError
             ):
                 logger.exception(f"Exception occurred in task {fut.get_name()}.")
+                self.discord_pipe.send(f"Exception occurred in task {fut.get_name()}.")
                 self.cancel_all()
                 raise fut.exception()
         except asyncio.CancelledError:
             pass
 
         except Exception as e:
+            self.discord_pipe.send(f"Exception occurred in task {fut.get_name()}.")
             self.cancel_all()
             raise e
 
@@ -260,6 +259,13 @@ class Executor:
                     logger.debug(
                         f"Received None from {self} monitoring process. Exiting."
                     )
+                    self.cancel_all()
+                    break
+                elif isinstance(queue_item, Exception):
+                    logger.exception(
+                        f"Exception occurred in {self} monitoring process. Exiting."
+                    )
+                    self.discord_pipe.send(f"Exception occurred in monitoring  of {self}.")
                     self.cancel_all()
                     break
 

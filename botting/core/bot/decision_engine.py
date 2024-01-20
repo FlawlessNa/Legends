@@ -122,6 +122,7 @@ class DecisionEngine(ChildProcess, ABC):
                     self.pipe_end.send(res)
 
         except Exception as e:
+            self.pipe_end.send(e)
             raise
 
         finally:
