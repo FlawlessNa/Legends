@@ -1,4 +1,5 @@
 import logging
+import random
 import time
 
 from abc import ABC, abstractmethod
@@ -46,8 +47,6 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
         self._prev_rotation_actions = []  # For Failsafe
 
         self._on_screen_pos = None  # For Mobs Hitting
-
-        self._error_counter = 0  # For error-handling
 
         self._minimap_key = eval(config_reader("keybindings", self.data.ign, "Non Skill Keys"))[
             "Minimap Toggle"
@@ -224,33 +223,40 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
         ):
             return res
 
-    def _exception_handler(self, e: Exception) -> None:
-        breakpoint()
+    def _exception_handler(self, e: Exception) -> QueueAction | None:
+        logger.info(f"{self.__class__.__name__} Exception: {e}")
+        self.blocked = True
 
-    def _minimap_fix(self) -> QueueAction | None:
-        setattr(self.data, repr(self), True)  # Block rotation calls
-        time.sleep(1)
-        self.data.update("current_minimap_area_box")
-        self._error_counter += 1
         if self._error_counter >= 4:
             logger.critical("Minimap Fix Failed, Minimap Position cannot be determined")
-            raise RuntimeError("Minimap Fix Failed, Minimap Position cannot be determined")
+            raise e
 
-        logger.info("Minimap Fix Triggered")
-        minimap = self.data.current_minimap
-        if not minimap.get_minimap_state(self.data.handle) == "Full":
+        if not self.data.current_minimap.get_minimap_state(self.data.handle) == "Full":
             return QueueAction(
                 identifier=f"Toggling Minimap - {self.__class__.__name__}",
                 priority=1,
-                action=partial(controller.press, self.data.handle, self._minimap_key),
-                is_cancellable=False,
-                update_generators={repr(self): False}
+                action=partial(controller.press,
+                               self.data.handle,
+                               self._minimap_key,
+                               cooldown=1),
+                update_generators=GeneratorUpdate(
+                    generator_id=id(self),
+                    generator_kwargs={'blocked': False},
+                )
             )
         else:
+            self.data.update("current_entire_minimap_box", "current_minimap_area_box")
             return QueueAction(
-                identifier=f"Moving Cursor away from Minimap - {self.__class__.__name__}",
+                identifier=f"Move Cursor away from Minimap - {self.__class__.__name__}",
                 priority=1,
-                action=partial(controller.mouse_move, self.data.handle, target=(600, 600)),
-                is_cancellable=False,
-                update_generators={repr(self): False}
+                action=partial(controller.mouse_move,
+                               self.data.handle,
+                               target=(random.randint(300, 600),
+                                       random.randint(300, 600)
+                                       ),
+                               cooldown=1),
+                update_generators=GeneratorUpdate(
+                    generator_id=id(self),
+                    generator_kwargs={'blocked': False},
+                )
             )

@@ -10,6 +10,8 @@ class DecisionGenerator(ABC):
         self.data = data
         self.blocked = False
 
+        self._error_counter = 0  # For error-handling
+
     def __iter__(self) -> "DecisionGenerator":
         return self
 
@@ -30,9 +32,13 @@ class DecisionGenerator(ABC):
             if failsafe:
                 return failsafe
 
-            return self._next()
+            res = self._next()
         except Exception as e:
-            self._exception_handler(e)
+            self._error_counter += 1
+            return self._exception_handler(e)
+        else:
+            self._error_counter = 0
+            return res
 
     @abstractmethod
     def __repr__(self) -> str:
