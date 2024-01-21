@@ -9,7 +9,7 @@ from botting.core import QueueAction, controller
 from botting.utilities import config_reader, take_screenshot
 from royals.actions import write_in_chat
 from royals.game_data import AntiDetectionData
-from ..trigger_based import TriggerBasedGenerator
+from ..interval_based import TriggerBasedGenerator
 
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
@@ -45,7 +45,7 @@ class CheckStillInMap(TriggerBasedGenerator):
                 action=partial(
                     controller.press, self.data.handle, self._key, silenced=True
                 ),
-                update_game_data={f"{repr(self)}_status": "Setup"}
+                update_generators={f"{repr(self)}_status": "Setup"}
             )
         else:
             mouse_pos = controller.get_mouse_pos(self.data.handle)
@@ -59,7 +59,7 @@ class CheckStillInMap(TriggerBasedGenerator):
                     action=partial(
                         controller.mouse_move, self.data.handle, target
                     ),
-                    update_game_data={f"{repr(self)}_status": "Setup"}
+                    update_generators={f"{repr(self)}_status": "Setup"}
                 )
 
         self._set_status("Ready")
@@ -134,5 +134,5 @@ class CheckStillInMap(TriggerBasedGenerator):
                 """,
                 self._current_title_img,
             ],
-            update_game_data={f"{repr(self)}_status": "Done"}
+            update_generators={f"{repr(self)}_status": "Done"}
         )

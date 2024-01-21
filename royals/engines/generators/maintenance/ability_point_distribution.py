@@ -1,7 +1,7 @@
 import numpy as np
 from functools import cached_property, partial
 
-from ..trigger_based import TriggerBasedGenerator
+from ..interval_based import TriggerBasedGenerator
 from botting.core import QueueAction, controller
 from botting.utilities import config_reader, take_screenshot
 from royals.game_data import MaintenanceData
@@ -50,7 +50,7 @@ class DistributeAP(TriggerBasedGenerator):
                         self._key,
                         silenced=True,
                     ),
-                    update_game_data={f"{repr(self)}_status": "Setup"}
+                    update_generators={f"{repr(self)}_status": "Setup"}
                 )
             self._set_status("Ready")
         else:
@@ -83,7 +83,7 @@ class DistributeAP(TriggerBasedGenerator):
                 action=partial(
                     self._distribute_ap, self.data.handle, target, ap_available
                 ),
-                update_game_data={f"{repr(self)}_status": "Ready"}
+                update_generators={f"{repr(self)}_status": "Ready"}
             )
         else:
             self._set_status("Done")

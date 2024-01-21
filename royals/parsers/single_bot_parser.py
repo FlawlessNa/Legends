@@ -46,7 +46,7 @@ def single_bot_parser(message: str, bots: list) -> Optional[QueueAction]:
                 priority=0,
                 action=partial(asyncio.sleep, 0),
                 user_message=["Resuming all bots"],
-                update_game_data={"shut_down_at": None, "block_rotation": False},
+                update_generators={"shut_down_at": None, "block_rotation": False},
             )
         case "stop":
             pass
@@ -71,7 +71,7 @@ def single_bot_parser(message: str, bots: list) -> Optional[QueueAction]:
                 priority=0,
                 action=partial(asyncio.sleep, 0),
                 user_message=["All bots now on hold"],
-                update_game_data={"shut_down_at": None, "block_rotation": True},
+                update_generators={"shut_down_at": None, "block_rotation": True},
             )
         case _:
             return QueueAction(

@@ -25,13 +25,7 @@ class RotationData(GameData):
     current_minimap_feature: MinimapFeature = field(repr=False, init=False)
     current_on_screen_position: tuple[int, int] = field(repr=False, init=False)
     allow_teleport: bool = field(repr=False, init=False, default=None)
-    last_mob_detection: float = field(repr=False, init=False)
-    last_cast: float = field(repr=False, init=False)
-    next_target: tuple[int, int] = field(repr=False, init=False)
-    next_feature: MinimapFeature = field(repr=False, init=False)
-    character_in_a_ladder: bool = field(repr=False, init=False)
-    last_position_change: float = field(repr=False, init=False)
-    is_attacking: bool = field(repr=False, init=False, default=False)
+    casting_until: float = field(repr=False, init=False, default=None)
 
     def __post_init__(self):
         if hasattr(self, 'current_map'):
@@ -57,9 +51,6 @@ class RotationData(GameData):
                 self.handle
             ),
             "current_on_screen_position": self._get_on_screen_pos,
-            "last_mob_detection": time.perf_counter,
-            "last_cast": time.perf_counter,
-            "last_position_change": time.perf_counter,
             **super().args_dict
         }
 

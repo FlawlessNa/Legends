@@ -5,7 +5,7 @@ import multiprocessing.connection
 from functools import partial
 from typing import TYPE_CHECKING
 
-from .action import QueueAction
+from .pipe_signals import QueueAction
 from botting.utilities import client_handler
 
 if TYPE_CHECKING:
@@ -117,10 +117,14 @@ class Executor:
         if queue_item.release_lock_on_callback:
             new_task.add_done_callback(self._rotation_callback)
 
-        if queue_item.update_game_data is not None:
+        if queue_item.update_generators is not None:
             new_task.add_done_callback(
-                partial(self._send_update_signal_callback, queue_item.update_game_data)
+                partial(self._send_update_signal_callback, queue_item.update_generators)
             )
+
+        if queue_item.callbacks:
+            for callback in queue_item.callbacks:
+                new_task.add_done_callback(callback)
 
         # Add the original QueueAction into the task for re-queuing purposes.
         new_task.action = queue_item.action
@@ -172,21 +176,22 @@ class Executor:
         """Updates the message parser for all bots."""
         cls.discord_parser = parser
 
-    def _exception_handler(self, fut):
+    @classmethod
+    def _exception_handler(cls, fut):
         try:
             if fut.exception() is not None and not isinstance(
                 fut.exception(), TimeoutError
             ):
                 logger.exception(f"Exception occurred in task {fut.get_name()}.")
-                self.discord_pipe.send(f"Exception occurred in task {fut.get_name()}.")
-                self.cancel_all()
+                cls.discord_pipe.send(f"Exception occurred in task {fut.get_name()}.")
+                cls.cancel_all()
                 raise fut.exception()
         except asyncio.CancelledError:
             pass
 
         except Exception as e:
-            self.discord_pipe.send(f"Exception occurred in task {fut.get_name()}.")
-            self.cancel_all()
+            cls.discord_pipe.send(f"Exception occurred in task {fut.get_name()}.")
+            cls.cancel_all()
             raise e
 
     def set_monitoring_process(self) -> None:

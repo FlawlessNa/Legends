@@ -4,7 +4,7 @@ from functools import partial
 from botting import PARENT_LOG
 from botting.core import QueueAction, controller
 from botting.utilities import config_reader, take_screenshot
-from ..trigger_based import TriggerBasedGenerator
+from ..interval_based import TriggerBasedGenerator
 from royals.game_data import MaintenanceData
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -40,7 +40,7 @@ class InventoryManager(TriggerBasedGenerator):
                 action=partial(
                     controller.press, self.data.handle, self._key, silenced=True
                 ),
-                update_game_data={f"{repr(self)}_status": "Setup"}
+                update_generators={f"{repr(self)}_status": "Setup"}
             )
 
         elif not self.data.inventory_menu.is_extended(self.data.handle, client_img):
@@ -55,7 +55,7 @@ class InventoryManager(TriggerBasedGenerator):
                     self.data.handle,
                     target,
                 ),
-                update_game_data={f"{repr(self)}_status": "Setup"}
+                update_generators={f"{repr(self)}_status": "Setup"}
             )
         else:
             curr_tab = self.data.inventory_menu.get_active_tab(self.data.handle, client_img)
@@ -69,7 +69,7 @@ class InventoryManager(TriggerBasedGenerator):
                     identifier=f"Tabbing {nbr_press} from {curr_tab} to {self.tab_to_watch}",
                     priority=1,
                     action=partial(self._press_n_times, self.data.handle, 'tab', nbr_press),
-                    update_game_data={f"{repr(self)}_status": "Setup"}
+                    update_generators={f"{repr(self)}_status": "Setup"}
                 )
             self._set_status("Ready")
 
@@ -86,7 +86,7 @@ class InventoryManager(TriggerBasedGenerator):
             identifier="Closing Inventory",
             priority=1,
             action=partial(controller.press, self.data.handle, self._key, silenced=True),
-            update_game_data={f"{repr(self)}_status": "Done"},
+            update_generators={f"{repr(self)}_status": "Done"},
             user_message=msg
         )
 

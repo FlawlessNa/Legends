@@ -11,10 +11,9 @@ from botting.core import DecisionGenerator, QueueAction, GameData
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
-class TriggerBasedGenerator(DecisionGenerator, ABC):
+class IntervalBasedGenerator(DecisionGenerator, ABC):
     """
-    Base class for generators that perform a check at regular intervals and may trigger
-    actions based on that check.
+    Base class for generators that perform a check at regular intervals.
     """
 
     def __init__(
@@ -66,7 +65,7 @@ class TriggerBasedGenerator(DecisionGenerator, ABC):
                     priority=1,
                     action=self._cleanup_action(),
                     is_cancellable=False,
-                    update_game_data={f"{repr(self)}_status": "Done"},
+                    update_generators={f"{repr(self)}_status": "Done"},
                 )
             else:
                 self.data.unblock(self.generator_type)

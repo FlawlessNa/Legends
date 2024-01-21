@@ -7,6 +7,7 @@
   - [ ] Ultimate Cast failsafe - check if MP has changed by at least X%
   
 ### Generators
+  - [ ] BaseRotion - Clean the _minimap_fix handling
   - [ ] Check character still alive
   - [ ] Check Potions Pet Food, Mount Food
   - [ ] Cooldown buffs
@@ -51,6 +52,7 @@
 ### RoyalsData Management
   - [ ] Add a Loop ID on every iteration. When data is updated, assign it a loop id. only update when loop id is different.
   - [x] Split into several subclasses, each specific to a generator
+  - [ ] Re-split data further into interface/mechanics components instead of generator types (ex: MinimapData, PathingData, MobData, etc)
   - [ ] Add a PerformanceData class for monitoring (mesos/h, exp/h, etc)
   - [x] DecisionEngine should not have to update anything. Each Generator should deal with their own requirements.
 
