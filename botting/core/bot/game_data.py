@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from botting.models_abstractions import BaseMap, BaseCharacter, BaseMob
+from botting.utilities import get_object_by_id
 
 
 def get_all_annotations(class_: type) -> dict:
@@ -32,12 +33,17 @@ class GameData(ABC):
     current_map: BaseMap = field(default=None)
     current_mobs: tuple[BaseMob] = field(default=None, repr=False)
 
-
-    # blockers: list[str] = field(default_factory=list, repr=False, init=False)
-    # blockers_types: list[str] = field(default_factory=list, repr=False, init=False)
     current_client_img: np.ndarray = field(default=None, repr=False, init=False)
     current_loop_id: float = field(repr=False, init=False, default=0.0)
     attr_update_id: dict = field(repr=False, init=False, default_factory=dict)
+    generator_ids: list[int] = field(repr=False, init=False, default_factory=list)
+
+    def add_generator_id(self, generator_id: int) -> None:
+        """
+        Adds a generator id to the list of generator ids.
+        :param generator_id: ID of the generator.
+        """
+        self.generator_ids.append(generator_id)
 
     def update(self, *args, **kwargs) -> None:
         """
@@ -108,13 +114,15 @@ class GameData(ABC):
     #         for exception in excepted:
     #             setattr(self, exception, False)
 
-    # def unblock(self, generator_type: str) -> None:
-    #     """
-    #     Unblocks all generators of the given type.
-    #     """
-    #     for blocker in self.blockers:
-    #         if generator_type == self.blockers_types[self.blockers.index(blocker)]:
-    #             setattr(self, blocker, False)
+    def unblock(self, generator_type: str) -> None:
+        """
+        Unblocks all generators of the given type.
+        """
+        for idx in self.generator_ids:
+            generator = get_object_by_id(idx)
+            gen_type = getattr(generator, "generator_type")
+            if gen_type == generator_type:
+                setattr(generator, "blocked", False)
 
     # def _handler_blockers(self, kwargs: dict[str, any]) -> None:
     #     """

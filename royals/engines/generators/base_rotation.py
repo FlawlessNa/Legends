@@ -58,6 +58,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
             "current_entire_minimap_box",
             "current_map_area_box",
             "current_minimap_position",
+            "minimap_grid",
         )
 
     def _update_continuous_data(self) -> None:

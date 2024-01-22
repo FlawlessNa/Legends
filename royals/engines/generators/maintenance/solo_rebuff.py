@@ -2,12 +2,13 @@ import cv2
 import os
 import random
 import time
+import win32gui
 
 from functools import partial
 
 from botting.core import QueueAction, GeneratorUpdate
 from botting.models_abstractions import Skill
-from botting.utilities import take_screenshot, find_image
+from botting.utilities import Box, find_image
 from paths import ROOT
 
 from royals.actions import cast_skill
@@ -55,6 +56,7 @@ class Rebuff(IntervalBasedGenerator):
 
     def _next(self) -> QueueAction | None:
         if self.data.available_to_cast:
+            self.blocked = True
             self.data.update(available_to_cast=False)
             action = partial(cast_skill,
                              self.data.handle,
@@ -62,6 +64,8 @@ class Rebuff(IntervalBasedGenerator):
                              self._skill
                              )
             updater = GeneratorUpdate(
+                generator_id=id(self),
+                generator_kwargs={'blocked': False},
                 game_data_kwargs={'available_to_cast': True}
             )
             return QueueAction(self._skill.name, 5, action, update_generators=updater)
@@ -72,8 +76,13 @@ class Rebuff(IntervalBasedGenerator):
         then the buff has successfully been cast and the interval can be reset.
         :return:
         """
-        check = NotImplemented
-        if check:
+        left, top, right, bottom = win32gui.GetClientRect(self.data.handle)
+        buff_icon_box = Box(left=right-200, top=0, right=right, bottom=100)
+        haystack = buff_icon_box.extract_client_img(self.data.current_client_img)
+        check = find_image(haystack, self._buff_icon)
+        if len(check) > 1:
+            raise ValueError("Multiple buff icons found.")
+        elif check:
             # Reset timer and return
             random_duration = self.interval * random.uniform(1 - self._deviation, 1)
             random_cooldown = self._skill.cooldown * random.uniform(1, 1 + self._deviation)
@@ -81,7 +90,7 @@ class Rebuff(IntervalBasedGenerator):
 
     def _exception_handler(self, e: Exception) -> None:
         """
-        Log the exception and re-raise it.
+        No errors expected. Re-raise if an error occurs.
         :param e:
         :return:
         """

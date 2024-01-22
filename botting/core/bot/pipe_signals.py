@@ -1,8 +1,8 @@
-import ctypes
 from dataclasses import field, dataclass
 from functools import partial
 from typing import Optional
 
+from botting.utilities import get_object_by_id
 from .game_data import GameData
 
 
@@ -72,7 +72,7 @@ class GeneratorUpdate:
         Updates the game data and the generator.
         """
         if self.generator_id is not None:
-            generator = self.get_object_by_id(self.generator_id)
+            generator = get_object_by_id(self.generator_id)
             if not isinstance(self.generator_args, type(NotImplemented)):
                 raise NotImplementedError("Generator args not implemented")
 
@@ -82,10 +82,3 @@ class GeneratorUpdate:
 
     def update_game_data(self, data: GameData) -> None:
         data.update(*self.game_data_args, **self.game_data_kwargs)
-
-    @staticmethod
-    def get_object_by_id(obj_id: int) -> object:
-        """
-        Retrieves an object based on its ID.
-        """
-        return ctypes.cast(obj_id, ctypes.py_object).value

@@ -72,10 +72,6 @@ class DecisionEngine(ChildProcess, ABC):
         """
         for decision_generator in generators:
             self.game_data.update(*decision_generator.initial_data_requirements)
-            # self.game_data.create_blocker(
-            #     repr(decision_generator), decision_generator.generator_type
-            # )
-            # self.game_data.set_status(repr(decision_generator))
 
     def start(self) -> None:
         """

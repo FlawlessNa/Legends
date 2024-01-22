@@ -15,12 +15,10 @@ class AntiDetectionData(GameData):
     current_minimap_area_box: Box = field(repr=False, init=False)
     current_entire_minimap_box: Box = field(repr=False, init=False)
     minimap_title_img: np.ndarray = field(repr=False, init=False)
-    mob_check_last_detection: float = field(repr=False, init=False)
 
     @property
     def args_dict(self) -> dict[str, callable]:
         return {
-            "mob_check_last_detection": time.perf_counter,
             "current_minimap_area_box": partial(
                 self.current_minimap.get_map_area_box, self.handle
             ),

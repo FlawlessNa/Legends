@@ -62,7 +62,7 @@
 
 ### Misc
   - [ ] Add variable speed/jump management
-  - [ ] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
+  - [x] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
   - [ ] Skill Specs Finder
   - [x] Mouse movements and mouse clicks
   - [ ] Finalize Discord communications - Control of which process are to respond to user commands

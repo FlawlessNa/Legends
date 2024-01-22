@@ -48,17 +48,6 @@ class SmartRotationGenerator(RotationGenerator):
                 )
         self.data.update(allow_teleport=True if teleport is not None else False)
 
-    @property
-    def initial_data_requirements(self) -> tuple:
-        all_ = tuple(
-            [
-                *super().initial_data_requirements,
-                "minimap_grid",
-            ]
-        )
-        seen = set()
-        return tuple(x for x in all_ if not (x in seen or seen.add(x)))
-
     def _set_next_target(self) -> None:
         """
         This is the method that determines the next target to move towards.

@@ -1,3 +1,4 @@
+import time
 from abc import ABC, abstractmethod
 from .pipe_signals import QueueAction
 from typing import Literal
@@ -15,9 +16,22 @@ class DecisionGenerator(ABC):
 
     def __init__(self, data) -> None:
         self.data = data
+        self.data.add_generator_id(id(self))
         self.blocked = False
-
+        self._blocked_at = None
         self._error_counter = 0  # For error-handling
+
+    @property
+    def blocked(self) -> bool:
+        return self._blocked
+
+    @blocked.setter
+    def blocked(self, value: bool) -> None:
+        if value:
+            self._blocked_at = time.perf_counter()
+        else:
+            self._blocked_at = None
+        self._blocked = value
 
     def __iter__(self) -> "DecisionGenerator":
         return self
@@ -31,6 +45,10 @@ class DecisionGenerator(ABC):
         :return:
         """
         if self.blocked:
+            if time.perf_counter() - self._blocked_at > 300:
+                raise RuntimeError(
+                    f"{self} has been blocked for more than 5 minutes. Exiting."
+                )
             return
 
         try:
