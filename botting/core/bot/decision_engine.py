@@ -121,7 +121,6 @@ class DecisionEngine(ChildProcess, ABC):
             while True:
                 # Update loop ID and current client image shared across all generators
                 self.game_data.current_loop_id = time.perf_counter()
-                self.game_data.update(current_client_img=take_screenshot(self.handle))
 
                 # Poll the pipe for any updates sent by the main process.
                 while self.pipe_end.poll():
@@ -136,6 +135,7 @@ class DecisionEngine(ChildProcess, ABC):
                     signal.update_generator()
                     signal.update_game_data(self.game_data)
 
+                self.game_data.update(current_client_img=take_screenshot(self.handle))
                 # Run all generators once
                 for gen in itertools.chain(
                     maintenance, anti_detection, [map_rotation]

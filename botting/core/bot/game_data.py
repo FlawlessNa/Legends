@@ -56,7 +56,7 @@ class GameData(ABC):
         :param kwargs: Keyword arguments that are used to update attributes.
         """
         annotations = get_all_annotations(self.__class__)
-        # self._handler_blockers(kwargs)
+        self._handler_blockers(kwargs)
         for k, v in kwargs.items():
             assert k in annotations or hasattr(self, k), f"Invalid attribute {k}"
             setattr(self, k, v)
@@ -133,32 +133,40 @@ class GameData(ABC):
             if gen_type == generator_type:
                 setattr(generator, "blocked", False)
 
-    # def _handler_blockers(self, kwargs: dict[str, any]) -> None:
-    #     """
-    #     Checks if any of the kwargs are blocking attributes.
-    #     If so, update blockers accordingly.
-    #     """
-    #     block_rotation = kwargs.pop("block_rotation", None)
-    #     block_maintenance = kwargs.pop("block_maintenance", None)
-    #     block_anti_detection = kwargs.pop("block_anti_detection", None)
-    #
-    #     if block_rotation is not None:
-    #         if block_rotation:
-    #             self.block("Rotation")
-    #         else:
-    #             self.unblock("Rotation")
-    #
-    #     if block_maintenance is not None:
-    #         if block_maintenance:
-    #             self.block("Maintenance")
-    #         else:
-    #             self.unblock("Maintenance")
-    #
-    #     if block_anti_detection is not None:
-    #         if block_anti_detection:
-    #             self.block("AntiDetection")
-    #         else:
-    #             self.unblock("AntiDetection")
+    def _handler_blockers(self, kwargs: dict[str, any]) -> None:
+        """
+        Checks if any of the kwargs are blocking attributes.
+        If so, update blockers accordingly.
+        """
+        blocker: str = kwargs.pop('block', '')
+        unblocker = kwargs.pop('unblock', '')
+
+        if blocker:
+            self.block(blocker)
+        if unblocker:
+            self.unblock(unblocker)
+
+        # block_rotation = kwargs.pop("block_rotation", None)
+        # block_maintenance = kwargs.pop("block_maintenance", None)
+        # block_anti_detection = kwargs.pop("block_anti_detection", None)
+        #
+        # if block_rotation is not None:
+        #     if block_rotation:
+        #         self.block("Rotation")
+        #     else:
+        #         self.unblock("Rotation")
+        #
+        # if block_maintenance is not None:
+        #     if block_maintenance:
+        #         self.block("Maintenance")
+        #     else:
+        #         self.unblock("Maintenance")
+        #
+        # if block_anti_detection is not None:
+        #     if block_anti_detection:
+        #         self.block("AntiDetection")
+        #     else:
+        #         self.unblock("AntiDetection")
 
     @property
     @abstractmethod

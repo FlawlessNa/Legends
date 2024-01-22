@@ -34,6 +34,7 @@ class Rebuff(IntervalBasedGenerator):
                                  f'{skill.name}.png')
         self._buff_icon = cv2.imread(buff_path)
         assert skill.duration > 0, f"Skill {skill.name} has no duration."
+        self._skip_once = True
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._skill.name})"
@@ -54,6 +55,9 @@ class Rebuff(IntervalBasedGenerator):
         return tuple()
 
     def _next(self) -> QueueAction | None:
+        if self._skip_once:  # To avoid double-casting when unnecessary
+            self._skip_once = False
+            return
         if self.data.available_to_cast:
             self.blocked = True
             self.data.update(available_to_cast=False)
@@ -86,6 +90,7 @@ class Rebuff(IntervalBasedGenerator):
             random_duration = self.interval * random.uniform(1 - self._deviation, 1)
             random_cooldown = self._skill.cooldown * random.uniform(1, 1 + self._deviation)
             self._next_call = time.perf_counter() + max(random_duration, random_cooldown)
+            self._skip_once = True
 
     def _exception_handler(self, e: Exception) -> None:
         """

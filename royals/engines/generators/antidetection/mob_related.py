@@ -62,7 +62,6 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
             self._last_detection = time.perf_counter()
             self._fail_counter = 0
             self._reaction_counter = 0
-            self.data.unblock("Rotation")
 
         elif time.perf_counter() - self._last_detection > self.time_threshold:
             self._fail_counter += 1
