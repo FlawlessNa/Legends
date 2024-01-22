@@ -7,17 +7,16 @@ import time
 from functools import partial
 
 from botting import PARENT_LOG
-
 from botting.models_abstractions import Skill
-from botting.utilities import Box, take_screenshot
-from royals.engines.generators.base_rotation import Rotation
+from botting.utilities import Box
+from royals.engines.generators.base_rotation import RotationGenerator
 from royals.game_data import RotationData
 
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
-class SmartRotation(Rotation):
+class SmartRotationGenerator(RotationGenerator):
     def __init__(
         self,
         data: RotationData,
@@ -94,7 +93,7 @@ class SmartRotation(Rotation):
                 top=max(0, y - 100),
                 bottom=min(768, y + 100),
             )
-            cropped_img = take_screenshot(self.data.handle, region)
+            cropped_img = region.extract_client_img(self.data.current_client_img)
             mobs_locations = self.get_mobs_positions_in_img(
                 cropped_img, self.data.current_mobs
             )

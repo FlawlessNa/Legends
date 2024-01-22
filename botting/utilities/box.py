@@ -1,6 +1,8 @@
+import numpy as np
 import random
 
 from dataclasses import dataclass, field
+from .screenshots import CLIENT_HORIZONTAL_MARGIN_PX, CLIENT_VERTICAL_MARGIN_PX
 
 
 @dataclass(frozen=True)
@@ -114,8 +116,16 @@ class Box:
         """Returns a random point inside the box"""
         return random.randint(*self.xrange), random.randint(*self.yrange)
 
-    def crop_client_img(self) -> tuple[slice]:
+    def extract_client_img(self,
+                           client_img: np.ndarray,
+                           top_offset: int = 0,
+                           bottom_offset: int = 0,
+                           left_offset: int = 0,
+                           right_offset: int = 0) -> np.ndarray:
         """
         Returns the slices to be used to crop a full-client image.
         """
-        raise NotImplementedError
+        return client_img[
+               self.top-CLIENT_VERTICAL_MARGIN_PX+top_offset:self.bottom-CLIENT_VERTICAL_MARGIN_PX+bottom_offset,
+               self.left-CLIENT_HORIZONTAL_MARGIN_PX+left_offset:self.right-CLIENT_HORIZONTAL_MARGIN_PX+right_offset
+               ].copy()

@@ -32,10 +32,10 @@ class GameData(ABC):
     current_map: BaseMap = field(default=None)
     current_mobs: tuple[BaseMob] = field(default=None, repr=False)
 
-    current_client_img: np.ndarray = field(default=None, repr=False, init=False)
 
     # blockers: list[str] = field(default_factory=list, repr=False, init=False)
     # blockers_types: list[str] = field(default_factory=list, repr=False, init=False)
+    current_client_img: np.ndarray = field(default=None, repr=False, init=False)
     current_loop_id: float = field(repr=False, init=False, default=0.0)
     attr_update_id: dict = field(repr=False, init=False, default_factory=dict)
 

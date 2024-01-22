@@ -4,6 +4,13 @@ from typing import Literal
 
 
 class DecisionGenerator(ABC):
+    """
+    Base class for all Generators.
+    Each generator has its own attribute used to monitor its own status.
+    In some cases, multiple generators may need access to the same piece of information.
+    Whenever that happens, the information should instead be store in the GameData
+    instance that they are using, since GameData is shared among all generators.
+    """
     generator_type: Literal["Rotation", "AntiDetection", "Maintenance"]
 
     def __init__(self, data) -> None:

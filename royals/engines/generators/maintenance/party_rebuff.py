@@ -1,54 +1,10 @@
 import asyncio
 import math
 import multiprocessing as mp
-import random
-import time
-
-from functools import partial
-
-from botting.core import DecisionGenerator, QueueAction
-from botting.models_abstractions import Skill
-from royals.engines.generators.base_rotation import Rotation
-from royals.game_data import MaintenanceData, RotationData
-from royals.actions import cast_skill
+from royals.engines.generators.base_rotation import RotationGenerator
 
 
-class Rebuff(DecisionGenerator):
-    """
-    Generator for rebuffing.
-    """
-    generator_type = "Maintenance"
-
-    def __init__(self, data: MaintenanceData, skill: Skill) -> None:
-        super().__init__(data)
-        self._skill = skill
-        assert skill.duration > 0, f"Skill {skill.name} has no duration."
-        self._next_call = 0
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self._skill.name})"
-
-    @property
-    def data_requirements(self) -> tuple[str]:
-        return tuple()
-
-    def _next(self) -> QueueAction | None:
-        if time.perf_counter() >= self._next_call:
-            self._next_call = time.perf_counter() + (
-                max(self._skill.duration * random.uniform(0.9, 1),
-                    self._skill.cooldown * random.uniform(1, 1.05))
-            )
-            action = partial(cast_skill, self.data.handle, self.data.ign, self._skill)
-            return QueueAction(self._skill.name, 5, action)
-
-    def _failsafe(self):
-        """
-        TODO - Look for "fresh" skill icon in top-right of client screen.
-        """
-        pass
-
-
-class LocalizedRebuff(Rotation):
+class LocalizedRebuff(RotationGenerator):
     """
     Generator for rebuffing at a target location.
     All party buffs are cast when at location.

@@ -5,7 +5,7 @@ from botting.core import DecisionEngine, Executor, DecisionGenerator
 from royals import royals_ign_finder, RoyalsData
 from royals.maps import RoyalsMap
 from .generators import (
-    SmartRotation,
+    SmartRotationGenerator,
     Rebuff,
     PetFood,
     MobCheck,
@@ -91,7 +91,7 @@ class TrainingEngine(DecisionEngine):
 
     @property
     def next_map_rotation(self) -> DecisionGenerator:
-        return SmartRotation(
+        return SmartRotationGenerator(
                 self.game_data,
                 self.rotation_lock,
                 self._training_skill,

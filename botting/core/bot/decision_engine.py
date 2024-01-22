@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from .decision_generator import DecisionGenerator
 from .executor import Executor
 from botting.core import GameData, GeneratorUpdate
-from botting.utilities import ChildProcess
+from botting.utilities import ChildProcess, take_screenshot
 
 
 class DecisionEngine(ChildProcess, ABC):
@@ -122,8 +122,9 @@ class DecisionEngine(ChildProcess, ABC):
             ]  # Instantiate all anti-detection checks generators
 
             while True:
-                # Update loop ID
+                # Update loop ID and current client image shared across all generators
                 self.game_data.current_loop_id = time.perf_counter()
+                self.game_data.update(current_client_img=take_screenshot(self.handle))
 
                 # Poll the pipe for any updates sent by the main process.
                 while self.pipe_end.poll():

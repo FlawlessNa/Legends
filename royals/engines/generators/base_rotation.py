@@ -8,7 +8,7 @@ from functools import partial
 from botting import PARENT_LOG
 from botting.core import DecisionGenerator, QueueAction, GeneratorUpdate, controller
 from botting.models_abstractions import Skill
-from botting.utilities import Box, take_screenshot, config_reader
+from botting.utilities import Box, config_reader
 from royals.actions import cast_skill
 from royals.game_data import RotationData
 from royals.actions import random_jump
@@ -19,7 +19,7 @@ from royals.models_implementations.mechanics.path_into_movements import get_to_t
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
-class Rotation(DecisionGenerator, MobsHitting, ABC):
+class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
     """
     Base class for all rotations, where a few helper methods are defined.
     """
@@ -81,13 +81,9 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
         self._set_next_target()
         hit_mobs = self._mobs_hitting()
         if hit_mobs:
-            self.is_attacking = True
-            self.data.update(
-                casting_until=time.perf_counter() + self.training_skill.animation_time
-            )
+            self.data.update(available_to_cast=False)
             updater = GeneratorUpdate(
-                generator_id=id(self),
-                generator_kwargs={"is_attacking": False},
+                game_data_kwargs={"available_to_cast": True}
             )
             return QueueAction(
                 identifier=f"Mobs Hitting - {self.training_skill.name}",
@@ -196,8 +192,7 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
                 x, y = region.width / 2, region.height / 2
             else:
                 region = self.data.current_map.detection_box
-
-            cropped_img = take_screenshot(self.data.handle, region)
+            cropped_img = region.extract_client_img(self.data.current_client_img)
             mobs_locations = self.get_mobs_positions_in_img(
                 cropped_img, self.data.current_mobs
             )
@@ -219,7 +214,7 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
         if (
             res
             and not self.data.character_in_a_ladder
-            and not self.is_attacking
+            and self.data.available_to_cast
         ):
             return res
 

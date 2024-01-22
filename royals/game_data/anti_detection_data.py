@@ -11,7 +11,6 @@ from royals.models_implementations.mechanics import MinimapPathingMechanics
 @dataclass
 class AntiDetectionData(GameData):
     shut_down_at: float = field(default=None, repr=False, init=False)
-    latest_client_img: np.ndarray = field(repr=False, init=False)
     current_minimap: MinimapPathingMechanics = field(repr=False, default=None)
     current_minimap_area_box: Box = field(repr=False, init=False)
     current_entire_minimap_box: Box = field(repr=False, init=False)
@@ -21,7 +20,6 @@ class AntiDetectionData(GameData):
     @property
     def args_dict(self) -> dict[str, callable]:
         return {
-            "latest_client_img": partial(take_screenshot, self.handle),
             "mob_check_last_detection": time.perf_counter,
             "current_minimap_area_box": partial(
                 self.current_minimap.get_map_area_box, self.handle

@@ -4,7 +4,7 @@ from botting.core import DecisionEngine, Executor, DecisionGenerator
 from botting.models_abstractions import BaseMap
 
 from royals import royals_ign_finder, RoyalsData
-from .generators import TelecastRotation, Rebuff, LocalizedRebuff, PetFood, MobCheck
+from .generators import TelecastRotationGenerator, Rebuff, LocalizedRebuff, PetFood, MobCheck
 
 
 class LeechingEngine(DecisionEngine):
@@ -77,7 +77,7 @@ class LeechingEngine(DecisionEngine):
             if skill.type in ["Party Buff"] and skill in self._buffs_to_use:
                 buffs.append(skill)
         return [
-            TelecastRotation(
+            TelecastRotationGenerator(
                 self.game_data,
                 self.rotation_lock,
                 teleport_skill=self._teleport_skill,
