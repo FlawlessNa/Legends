@@ -159,6 +159,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                 f"{self.__class__.__name__} Failsafe Triggered Due to no path found"
             )
             self._deadlock_counter = 0
+            self.data.update("current_entire_minimap_box', 'current_minimap_area_box")
             return reaction
 
         elif (
@@ -220,7 +221,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
             return res
 
     def _exception_handler(self, e: Exception) -> QueueAction | None:
-        logger.info(f"{self.__class__.__name__} Exception: {e}")
+        logger.warning(f"{self.__class__.__name__} Exception: {e}")
         self.blocked = True
 
         if self._error_counter >= 4:
@@ -238,6 +239,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                 update_generators=GeneratorUpdate(
                     generator_id=id(self),
                     generator_kwargs={'blocked': False},
+                    game_data_args=('current_entire_minimap_box', 'current_minimap_area_box'),
                 )
             )
         else:

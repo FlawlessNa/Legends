@@ -7,7 +7,7 @@
   - [ ] Ultimate Cast failsafe - check if MP has changed by at least X%
   
 ### Generators
-  - [ ] BaseRotion - Clean the _minimap_fix handling
+  - [x] BaseRotion - Clean the _minimap_fix handling
   - [ ] Check character still alive
   - [ ] Check Potions Pet Food, Mount Food
   - [ ] Cooldown buffs

@@ -64,55 +64,13 @@ class GameData(ABC):
         # For positional arguments, only update if the current_loop_id is different
         for arg in args:
             if self.attr_update_id.get(arg) == self.current_loop_id:
+                print(f"Skipping {arg}")
                 continue
 
             self.attr_update_id[arg] = self.current_loop_id
             updater = self.args_dict[arg]
             setattr(self, arg, updater())
 
-    # def create_blocker(self, name: str, generator_type: str) -> None:
-    #     """
-    #     Creates a boolean attribute with the given name and sets it to False.
-    #     This attribute can be used to block generators from being executed.
-    #     :param name: Name of the Generator that may be blocked
-    #     :param generator_type: Type of generator that is being blocked.
-    #     :return:
-    #     """
-    #     assert not hasattr(self, name), f"Attribute {name} already exists"
-    #     setattr(self, name, False)
-    #     self.blockers.append(name)
-    #     self.blockers_types.append(generator_type)
-
-    # def set_status(self, name: str, status: str = "Setup") -> None:
-    #     """
-    #     Some generators may have a status attribute used to track their progress.
-    #     :param name: name of the generator.
-    #     :param status: status of the generator. Defaults to "Setup" status.
-    #     :return:
-    #     """
-    #     assert not hasattr(self, f"{name}_status"), f"Attribute {name}_status already exists"
-    #     setattr(self, f"{name}_status", status)
-
-    # def block(self, generator_type: str, excepted: str | list = None) -> None:
-    #     """
-    #     Blocks all generators of the given type.
-    #     :param generator_type: Type of generator that is being blocked.
-    #     :param excepted: Name of the generator(s) that should not be blocked.
-    #     """
-    #     assert generator_type in [
-    #         "Rotation",
-    #         "Maintenance",
-    #         "AntiDetection"
-    #     ], f"Invalid generator type {generator_type}"
-    #
-    #     for blocker in self.blockers:
-    #         if generator_type == self.blockers_types[self.blockers.index(blocker)]:
-    #             setattr(self, blocker, True)
-    #     if excepted is not None:
-    #         if isinstance(excepted, str):
-    #             excepted = [excepted]
-    #         for exception in excepted:
-    #             setattr(self, exception, False)
     def block(self, generator_type: str) -> None:
         """
         Blocks all generators of the given type.
