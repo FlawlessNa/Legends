@@ -38,7 +38,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
         self.training_skill = training_skill
         self.mob_threshold = mob_threshold
 
-        self.next_target = NotImplemented
+        self.next_target = (0, 0)
         self._teleport = teleport
 
         self._deadlock_counter = 0  # For Failsafe

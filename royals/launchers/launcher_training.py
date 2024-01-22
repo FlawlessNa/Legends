@@ -13,7 +13,7 @@ import royals.parsers
 
 
 CHARACTER_NAME = "WrongDoor"
-CHARACTER_CLASS = royals.characters.Cleric
+CHARACTER_CLASS = royals.characters.Priest
 TRAINING_SKILL = "Heal"
 TRAINING_MAP = royals.maps.MysteriousPath3
 MOB_COUNT_THRESHOLD = 1
