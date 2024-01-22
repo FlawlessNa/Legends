@@ -6,6 +6,7 @@ from royals.actions import random_chat_response
 
 
 class AntiDetectionReactions(ABC):
+
     def __init__(self) -> None:
         self._last_txt_choice = None
 
@@ -35,6 +36,6 @@ class AntiDetectionReactions(ABC):
             f"{self.__class__.__name__} reaction",
             priority=1,
             action=func,
-            user_message=[messages]
+            user_message=messages
         )
 

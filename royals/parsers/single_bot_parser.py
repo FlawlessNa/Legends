@@ -47,7 +47,7 @@ def single_bot_parser(message: str, bots: list) -> Optional[QueueAction]:
                 action=partial(asyncio.sleep, 0),
                 user_message=["Resuming all bots"],
                 update_generators=GeneratorUpdate(
-                    game_data_kwargs={"unblock": "Rotation"}
+                    game_data_kwargs={"unblock": "All"}
                 )
             )
         case "stop":

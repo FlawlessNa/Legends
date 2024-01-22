@@ -120,7 +120,7 @@ class GameData(ABC):
         for idx in self.generator_ids:
             generator = get_object_by_id(idx)
             gen_type = getattr(generator, "generator_type")
-            if gen_type == generator_type:
+            if gen_type == generator_type or generator_type == "All":
                 setattr(generator, "blocked", True)
 
     def unblock(self, generator_type: str) -> None:
@@ -130,7 +130,7 @@ class GameData(ABC):
         for idx in self.generator_ids:
             generator = get_object_by_id(idx)
             gen_type = getattr(generator, "generator_type")
-            if gen_type == generator_type:
+            if gen_type == generator_type or generator_type == "All":
                 setattr(generator, "blocked", False)
 
     def _handler_blockers(self, kwargs: dict[str, any]) -> None:

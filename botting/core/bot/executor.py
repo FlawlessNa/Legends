@@ -270,7 +270,10 @@ class Executor:
                     logger.exception(
                         f"Exception occurred in {self} monitoring process. Exiting."
                     )
-                    self.discord_pipe.send(f"Monitor of {self} - {queue_item}.")
+                    self.discord_pipe.send(f"""
+                    Source: Monitor of {self}
+                    Exception: {queue_item}
+                    """)
                     self.cancel_all()
                     break
 

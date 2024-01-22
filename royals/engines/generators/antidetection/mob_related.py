@@ -2,7 +2,7 @@ import logging
 import time
 
 from botting import PARENT_LOG
-from botting.core import QueueAction
+from botting.core import QueueAction, DecisionGenerator
 from royals.engines.generators.interval_based import IntervalBasedGenerator
 from royals.engines.generators.antidetection.reactions import AntiDetectionReactions
 from royals.game_data import AntiDetectionData
@@ -32,6 +32,8 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
     ) -> None:
 
         super().__init__(data, interval=1, deviation=0)
+        super(DecisionGenerator, self).__init__()
+
         self.time_threshold = time_threshold
         self.mob_threshold = mob_threshold
         self.cooldown = cooldown
@@ -72,7 +74,6 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
             and time.perf_counter() - self._last_trigger > self.cooldown
         ):
             if self._reaction_counter >= 2:
-                self.blocked = True
                 return
 
             self._reaction_counter += 1
