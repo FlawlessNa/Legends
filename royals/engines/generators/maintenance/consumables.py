@@ -42,7 +42,6 @@ class PetFood(IntervalBasedGenerator):
         """
         return tuple()
 
-    @property
     def _update_continuous_data(self) -> tuple:
         """
         Nothing to updated for this generator.

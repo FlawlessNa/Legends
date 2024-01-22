@@ -6,7 +6,8 @@ from abc import ABC, abstractmethod
 
 from .decision_generator import DecisionGenerator
 from .executor import Executor
-from botting.core import GameData, GeneratorUpdate
+from botting.core.bot.game_data import GameData
+from botting.core.bot.pipe_signals import GeneratorUpdate
 from botting.utilities import ChildProcess, take_screenshot
 
 

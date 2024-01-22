@@ -56,7 +56,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
     def initial_data_requirements(self) -> tuple:
         return (
             "current_entire_minimap_box",
-            "current_map_area_box",
+            "current_minimap_area_box",
             "current_minimap_position",
             "minimap_grid",
         )

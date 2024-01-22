@@ -3,7 +3,6 @@ from functools import partial
 from typing import Optional
 
 from botting.utilities import get_object_by_id
-from .game_data import GameData
 
 
 @dataclass
@@ -80,5 +79,5 @@ class GeneratorUpdate:
                 assert hasattr(generator, k), f"Invalid attribute {k}"
                 setattr(generator, k, v)
 
-    def update_game_data(self, data: GameData) -> None:
+    def update_game_data(self, data) -> None:
         data.update(*self.game_data_args, **self.game_data_kwargs)

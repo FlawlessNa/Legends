@@ -113,6 +113,15 @@ class GameData(ABC):
     #             excepted = [excepted]
     #         for exception in excepted:
     #             setattr(self, exception, False)
+    def block(self, generator_type: str) -> None:
+        """
+        Blocks all generators of the given type.
+        """
+        for idx in self.generator_ids:
+            generator = get_object_by_id(idx)
+            gen_type = getattr(generator, "generator_type")
+            if gen_type == generator_type:
+                setattr(generator, "blocked", True)
 
     def unblock(self, generator_type: str) -> None:
         """

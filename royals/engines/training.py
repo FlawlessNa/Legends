@@ -9,9 +9,9 @@ from .generators import (
     Rebuff,
     PetFood,
     MobCheck,
-    DistributeAP,
-    InventoryManager,
-    CheckStillInMap,
+    # DistributeAP,
+    # InventoryManager,
+    # CheckStillInMap,
     SpeedPill
 )
 
@@ -79,10 +79,10 @@ class TrainingEngine(DecisionEngine):
     @property
     def items_to_monitor(self) -> list[DecisionGenerator]:
         generators = [
-            InventoryManager(self.game_data, tab_to_watch="Equip"),
+            # InventoryManager(self.game_data, tab_to_watch="Equip"),
             PetFood(self.game_data, num_times=self._num_pets),
             SpeedPill(self.game_data),
-            DistributeAP(self.game_data),
+            # DistributeAP(self.game_data),
         ]
         for skill in self.game_data.character.skills.values():
             if skill.type in ["Buff", "Party Buff"] and skill in self._buffs_to_use:
@@ -107,5 +107,5 @@ class TrainingEngine(DecisionEngine):
                 self.game_data,
                 time_threshold=self._anti_detection_time_threshold,
                 mob_threshold=self._anti_detection_mob_threshold),
-            CheckStillInMap(self.game_data)
+            # CheckStillInMap(self.game_data)
         ]

@@ -2,8 +2,9 @@ import numpy as np
 import random
 
 from dataclasses import dataclass, field
-from .screenshots import CLIENT_HORIZONTAL_MARGIN_PX, CLIENT_VERTICAL_MARGIN_PX
 
+CLIENT_HORIZONTAL_MARGIN_PX = 3
+CLIENT_VERTICAL_MARGIN_PX = 29
 
 @dataclass(frozen=True)
 class Box:
@@ -125,7 +126,9 @@ class Box:
         """
         Returns the slices to be used to crop a full-client image.
         """
-        return client_img[
-               self.top-CLIENT_VERTICAL_MARGIN_PX+top_offset:self.bottom-CLIENT_VERTICAL_MARGIN_PX+bottom_offset,
-               self.left-CLIENT_HORIZONTAL_MARGIN_PX+left_offset:self.right-CLIENT_HORIZONTAL_MARGIN_PX+right_offset
-               ].copy()
+        copied = client_img.copy()
+        top = max(self.top + top_offset - CLIENT_VERTICAL_MARGIN_PX, 0)
+        bottom = min(self.bottom + bottom_offset - CLIENT_VERTICAL_MARGIN_PX, copied.shape[0])
+        left = max(self.left + left_offset - CLIENT_HORIZONTAL_MARGIN_PX, 0)
+        right = min(self.right + right_offset - CLIENT_HORIZONTAL_MARGIN_PX, copied.shape[1])
+        return copied[top:bottom, left:right]
