@@ -197,6 +197,7 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
                     self.data.ign,
                     self.training_skill,
                     closest_mob_direction,
+                    attacking_skill=True
                 )
 
         if (

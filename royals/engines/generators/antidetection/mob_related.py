@@ -17,6 +17,7 @@ class MobCheck(DecisionGenerator):
     Generator for checking if mobs are on screen.
     Emergency action is taken if mobs are not detected for a certain amount of time.
     """
+
     generator_type = "AntiDetection"
 
     def __init__(
@@ -26,7 +27,6 @@ class MobCheck(DecisionGenerator):
         mob_threshold: int,
         cooldown: int = 60,
     ) -> None:
-
         super().__init__(data)
         self.time_threshold = time_threshold
         self.mob_threshold = mob_threshold
@@ -45,7 +45,10 @@ class MobCheck(DecisionGenerator):
         return f"{self.__class__.__name__}"
 
     def _next(self) -> QueueAction | None:
-        if self.data.shut_down_at is not None and time.perf_counter() > self.data.shut_down_at:
+        if (
+            self.data.shut_down_at is not None
+            and time.perf_counter() > self.data.shut_down_at
+        ):
             logger.critical(f"Shutting down due to {self.__class__.__name__}")
             raise RuntimeError(f"Shutting down due to {self.__class__.__name__}")
 
@@ -59,13 +62,18 @@ class MobCheck(DecisionGenerator):
         nbr_mobs = 0
         mobs = self.data.current_mobs
         for mob in mobs:
-            nbr_mobs += mob.get_mob_count(self.data.latest_client_img.copy(), debug=False)
+            nbr_mobs += mob.get_mob_count(
+                self.data.latest_client_img.copy(), debug=False
+            )
 
         if nbr_mobs >= self.mob_threshold:
             self.data.update("mob_check_last_detection")
             self._counter = 0
 
-        elif time.perf_counter() - self.data.mob_check_last_detection > self.time_threshold:
+        elif (
+            time.perf_counter() - self.data.mob_check_last_detection
+            > self.time_threshold
+        ):
             self._counter += 1
 
     def _failsafe(self):
@@ -113,9 +121,7 @@ class MobCheck(DecisionGenerator):
         )
         self._last_trigger = time.perf_counter()
         self._counter = 0
-        self.data.update(
-            shut_down_at=self._last_trigger + self.cooldown
-        )
+        self.data.update(shut_down_at=self._last_trigger + self.cooldown)
         self.data.block("Rotation")
         return QueueAction(
             f"{self.__class__.__name__} reaction",

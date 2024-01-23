@@ -1,4 +1,5 @@
 import random
+import numpy as np
 
 from dataclasses import dataclass, field
 
@@ -114,7 +115,7 @@ class Box:
         """Returns a random point inside the box"""
         return random.randint(*self.xrange), random.randint(*self.yrange)
 
-    def crop_client_img(self) -> tuple[slice]:
+    def extract_from_img(self, image: np.ndarray) -> np.ndarray:
         """
         Returns the slices to be used to crop a full-client image.
         """
