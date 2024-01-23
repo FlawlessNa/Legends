@@ -2,6 +2,11 @@
 
 ## TODO
 
+### Restructuring Branch
+- [ ] Finish refactoring generators
+- [ ] Finish cleaning up all data structures
+- [ ] Thoroughly test data management system
+
 ### Leeching Engine
   - [ ] Rebuffing from Leechers
   - [ ] Ultimate Cast failsafe - check if MP has changed by at least X%
@@ -9,15 +14,15 @@
 ### Generators
   - [x] BaseRotion - Clean the _minimap_fix handling
   - [ ] Check character still alive
-  - [ ] Check Potions Pet Food, Mount Food
-  - [ ] Cooldown buffs
+  - [ ] Check Potions, Pet Food, Mount Food
+  - [x] Cooldown buffs
   - [ ] Inventory Management
     - [x] Basic parser to check space left
     - [ ] Advanced parser to check stats on each item
   - [x] Automated AP distribution
   - [x] Generic Generator class for botting library
   - [ ] Add failsafe on MobHitting (how??)
-  - [ ] Add failsafe on Rebuff (look for fresh buff icon in top right screen)
+  - [x] Add failsafe on Rebuff (look for fresh buff icon in top right screen)
   - [ ] Add failsafe on any Rotation Generators - Movement is expected if action is not cancelled
   - [ ] Streamline reactions for AntiDetection generators
 

@@ -18,6 +18,7 @@ class MinimapData(GameData):
     current_minimap: MinimapPathingMechanics = field(repr=False, default=None)
     current_minimap_area_box: Box = field(repr=False, init=False)
     current_entire_minimap_box: Box = field(repr=False, init=False)
+    current_minimap_title_box: Box = field(repr=False, init=False)
     current_minimap_position: tuple[int, int] = field(repr=False, init=False)
     current_minimap_feature: MinimapFeature = field(repr=False, init=False)
     allow_teleport: bool = field(repr=False, init=False, default=None)
@@ -36,14 +37,21 @@ class MinimapData(GameData):
             ),
             "current_minimap_area_box": partial(
                 self.current_minimap.get_map_area_box,
-                self.handle
+                self.handle,
+                client_img=self.current_client_img
             ),
             "current_minimap_position": partial(
                 self._get_self_position,
             ),
+            "current_minimap_title_box": partial(
+                self.current_minimap.get_minimap_title_box,
+                self.handle,
+                client_img=self.current_client_img
+            ),
             "current_entire_minimap_box": partial(
                 self.current_minimap.get_entire_minimap_box,
-                self.handle
+                self.handle,
+                client_img=self.current_client_img
             ),
             "current_on_screen_position": self._get_on_screen_pos,
             **super().args_dict
@@ -54,7 +62,9 @@ class MinimapData(GameData):
 
     def _get_self_position(self) -> tuple[int, int] | None:
         new_pos = self.current_minimap.get_character_positions(
-            self.handle, map_area_box=self.current_minimap_area_box
+            self.handle,
+            client_img=self.current_client_img,
+            map_area_box=self.current_minimap_area_box
         )
         if new_pos is None or not len(new_pos) == 1:
             return

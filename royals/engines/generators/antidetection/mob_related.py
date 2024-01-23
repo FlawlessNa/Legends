@@ -32,15 +32,12 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
     ) -> None:
 
         super().__init__(data, interval=1, deviation=0)
-        super(DecisionGenerator, self).__init__()
+        super(DecisionGenerator, self).__init__(cooldown)
 
         self.time_threshold = time_threshold
         self.mob_threshold = mob_threshold
-        self.cooldown = cooldown
 
         self._fail_counter = 0
-        self._reaction_counter = 0
-        self._last_trigger = 0
         self._last_detection = time.perf_counter()
 
     def __repr__(self) -> str:
@@ -69,18 +66,11 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
             self._fail_counter += 1
             self._next_call = time.perf_counter() + self.interval
 
-        if (
-            self._fail_counter >= 2
-            and time.perf_counter() - self._last_trigger > self.cooldown
-        ):
-            if self._reaction_counter >= 2:
-                return
+        if self._fail_counter >= 2:
 
-            self._reaction_counter += 1
-            self._last_trigger = time.perf_counter()
             self.data.block("Rotation")
             logger.warning(
-                f"Rotation Blocked. Sending random reaction to chat."
+                f"Rotation Blocked. Sending random reaction to chat due to {self}."
             )
             msg = f"""
             No detection in last {time.perf_counter() - self._last_detection} seconds.
@@ -94,7 +84,9 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
         TODO - Read chat to ensure that the bot properly reacted.
         :return:
         """
-        pass
+        if self._reaction_counter >= 2:
+            self.blocked = True
+            return
 
     @property
     def reaction_choices(self) -> list:
