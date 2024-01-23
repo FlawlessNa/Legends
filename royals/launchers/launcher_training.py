@@ -14,12 +14,12 @@ import royals.parsers
 
 CHARACTER_NAME = "WrongDoor"
 CHARACTER_CLASS = royals.characters.Priest
-TRAINING_SKILL = "Heal"
-TRAINING_MAP = royals.maps.MysteriousPath3
-MOB_COUNT_THRESHOLD = 1
+TRAINING_SKILL = "Shining Ray"
+TRAINING_MAP = royals.maps.EncounterWithTheBuddha
+MOB_COUNT_THRESHOLD = 2
 TIME_LIMIT_ON_TARGET = 1
 
-BUFFS = []
+BUFFS = ["Magic Guard", "Invincible", "Bless"]
 NBR_PETS = 3
 
 DETECTION_CONFIG_SECTION = "Elephant Cape"

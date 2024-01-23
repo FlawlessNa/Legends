@@ -29,10 +29,11 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
         time_threshold: int,
         mob_threshold: int,
         cooldown: int = 15,
+        max_reactions: int = 2,
     ) -> None:
 
         super().__init__(data, interval=1, deviation=0)
-        super(DecisionGenerator, self).__init__(cooldown)
+        super(DecisionGenerator, self).__init__(cooldown, max_reactions)
 
         self.time_threshold = time_threshold
         self.mob_threshold = mob_threshold
@@ -69,22 +70,25 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
         if self._fail_counter >= 2:
 
             self.data.block("Rotation")
-            logger.warning(
-                f"Rotation Blocked. Sending random reaction to chat due to {self}."
-            )
             msg = f"""
             No detection in last {time.perf_counter() - self._last_detection} seconds.
             Send Resume to continue.
             """
-            return self._reaction(self.data.handle,
+            reaction = self._reaction(self.data.handle,
                                   [msg, self.data.current_client_img])
+            if reaction is not None:
+                logger.warning(
+                    f"Rotation Blocked. Sending random reaction to chat due to {self}."
+                )
+            return reaction
 
     def _failsafe(self):
         """
         TODO - Read chat to ensure that the bot properly reacted.
         :return:
         """
-        if self._reaction_counter >= 2:
+        if self._reaction_counter >= self.max_reactions:
+            self._reaction_counter = 0
             self.blocked = True
             return
 
