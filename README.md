@@ -4,6 +4,7 @@
 
 ### Restructuring Branch
 - [ ] Finish refactoring generators
+- [ ] Fix rotation, looks like its broken...
 - [ ] Finish cleaning up all data structures
 - [ ] Thoroughly test data management system
 
