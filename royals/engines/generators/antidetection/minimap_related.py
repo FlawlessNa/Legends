@@ -56,6 +56,17 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
     def initial_data_requirements(self) -> tuple:
         return tuple()
 
+    @DecisionGenerator.blocked.setter
+    def blocked(self, value) -> None:
+        """
+        When this generator is unblocked, the images are reset.
+        :param value:
+        :return:
+        """
+        super().blocked.__setattr__("blocked", value)
+        if value:
+            self._current_title_img = self._prev_title_img = None
+
     def _update_continuous_data(self) -> None:
         self.data.update(
             "current_minimap_state",
@@ -89,6 +100,11 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
             return res
 
         elif self._fail_counter > 0:
+
+            # One additional iteration to ensure cursor not on minimap
+            if self._fail_counter == 1:
+                self._current_title_img = self._prev_title_img.copy()
+
             # Make sure cursor is not on minimap
             mouse_pos = controller.get_mouse_pos(self.data.handle)
             center = self.data.current_minimap_title_box.center
@@ -112,11 +128,7 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
         if not np.array_equal(self._current_title_img, self._prev_title_img):
             self._fail_counter += 1
             logger.warning(f"{self} Fail Counter at {self._fail_counter}.")
-            import cv2
-            cv2.imshow("prev", self._prev_title_img)
-            cv2.imshow("current", self._current_title_img)  #TODO - Fix mechanics it doesnt work right now!
-            cv2.waitKey(1)
-            # self._current_title_img = self._prev_title_img.copy()
+            self._current_title_img = self._prev_title_img.copy()
 
         else:
             if self._fail_counter > 0:
@@ -128,6 +140,7 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
         if self._fail_counter >= 2:
             self.data.block("Rotation")
             self.data.block("Maintenance")
+            self._next_call = time.perf_counter() + self.interval
             msg = f"""
                         Minimap Title Img has changed. Bot is now on hold.
                         Send Resume to continue.
