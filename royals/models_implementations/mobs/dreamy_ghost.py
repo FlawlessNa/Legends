@@ -28,4 +28,4 @@ class DreamyGhost(BaseMob):
         def cond2(cnt):
             return cls._minimal_rect_width <= cv2.boundingRect(cnt)[-2]
 
-        return filter(cond1 and cond2, contours)
+        return filter(lambda cnt: cond1(cnt) and cond2(cnt), contours)

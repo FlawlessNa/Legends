@@ -1,7 +1,11 @@
+import logging
 import time
 from abc import ABC, abstractmethod
-from .pipe_signals import QueueAction
 from typing import Literal
+
+from .pipe_signals import QueueAction
+
+logger = logging.getLogger(__name__)
 
 
 class DecisionGenerator(ABC):
@@ -28,8 +32,10 @@ class DecisionGenerator(ABC):
     @blocked.setter
     def blocked(self, value: bool) -> None:
         if value:
+            logger.info(f"{self} has been blocked.")
             self._blocked_at = time.perf_counter()
         else:
+            logger.info(f"{self} has been unblocked.")
             self._blocked_at = None
         self._blocked = value
 

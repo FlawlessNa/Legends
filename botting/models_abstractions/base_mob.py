@@ -1,4 +1,5 @@
 import cv2
+import math
 import numpy as np
 
 from abc import ABC, abstractmethod
@@ -64,12 +65,13 @@ class BaseMob(InGameBaseVisuals, ABC):
         """
         Returns the number of mobs found on-screen.
         """
-        return len(self.get_onscreen_mobs(image, **kwargs)) // self._multiplier
+        return math.ceil(len(self.get_onscreen_mobs(image, **kwargs)) / self._multiplier)
 
 
 def _debug(image: np.ndarray, contours) -> None:
     # Draw all contours
     if contours:
         cv2.drawContours(image, contours, -1, (0, 255, 255), 4)
+    print('Filtered Contours:', len(contours))
     cv2.imshow("_DEBUG_ BaseMob.get_onscreen_mobs", image)
     cv2.waitKey(1)

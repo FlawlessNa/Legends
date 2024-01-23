@@ -23,6 +23,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
     """
     Base class for all rotations, where a few helper methods are defined.
     """
+
     generator_type = "Rotation"
 
     def __init__(
@@ -48,9 +49,9 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
 
         self._on_screen_pos = None  # For Mobs Hitting
 
-        self._minimap_key = eval(config_reader("keybindings", self.data.ign, "Non Skill Keys"))[
-            "Minimap Toggle"
-        ]
+        self._minimap_key = eval(
+            config_reader("keybindings", self.data.ign, "Non Skill Keys")
+        )["Minimap Toggle"]
 
     @property
     def initial_data_requirements(self) -> tuple:
@@ -83,9 +84,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
         hit_mobs = self._mobs_hitting()
         if hit_mobs:
             self.data.update(available_to_cast=False)
-            updater = GeneratorUpdate(
-                game_data_kwargs={"available_to_cast": True}
-            )
+            updater = GeneratorUpdate(game_data_kwargs={"available_to_cast": True})
             return QueueAction(
                 identifier=f"Mobs Hitting - {self.training_skill.name}",
                 priority=10,
@@ -195,30 +194,32 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
             else:
                 region = self.data.current_map.detection_box
             cropped_img = region.extract_client_img(self.data.current_client_img)
-            mobs_locations = self.get_mobs_positions_in_img(
-                cropped_img, self.data.current_mobs
-            )
+            mobs = self.data.current_mobs
+            nbr_mobs = 0
+            for mob in mobs:
+                nbr_mobs += mob.get_mob_count(cropped_img)
+            print("Nearby mobs", nbr_mobs)
 
-            if self.training_skill.unidirectional and mobs_locations:
-                closest_mob_direction = self.get_closest_mob_direction(
-                    (x, y), mobs_locations
+            if nbr_mobs >= self.mob_threshold:
+                mobs_locations = self.get_mobs_positions_in_img(
+                    cropped_img, self.data.current_mobs
                 )
 
-            if len(mobs_locations) >= self.mob_threshold:
+                if self.training_skill.unidirectional and mobs_locations:
+                    closest_mob_direction = self.get_closest_mob_direction(
+                        (x, y), mobs_locations
+                    )
+
                 res = partial(
                     cast_skill,
                     self.data.handle,
                     self.data.ign,
                     self.training_skill,
                     closest_mob_direction,
-                    attacking_skill=True
+                    attacking_skill=True,
                 )
 
-        if (
-            res
-            and not self.data.character_in_a_ladder
-            and self.data.available_to_cast
-        ):
+        if res and not self.data.character_in_a_ladder and self.data.available_to_cast:
             return res
 
     def _exception_handler(self, e: Exception) -> QueueAction | None:
@@ -233,29 +234,31 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
             return QueueAction(
                 identifier=f"Toggling Minimap - {self.__class__.__name__}",
                 priority=1,
-                action=partial(controller.press,
-                               self.data.handle,
-                               self._minimap_key,
-                               cooldown=1),
+                action=partial(
+                    controller.press, self.data.handle, self._minimap_key, cooldown=1
+                ),
                 update_generators=GeneratorUpdate(
                     generator_id=id(self),
-                    generator_kwargs={'blocked': False},
-                    game_data_args=('current_entire_minimap_box', 'current_minimap_area_box'),
-                )
+                    generator_kwargs={"blocked": False},
+                    game_data_args=(
+                        "current_entire_minimap_box",
+                        "current_minimap_area_box",
+                    ),
+                ),
             )
         else:
             self.data.update("current_entire_minimap_box", "current_minimap_area_box")
             return QueueAction(
                 identifier=f"Move Cursor away from Minimap - {self.__class__.__name__}",
                 priority=1,
-                action=partial(controller.mouse_move,
-                               self.data.handle,
-                               target=(random.randint(300, 600),
-                                       random.randint(300, 600)
-                                       ),
-                               cooldown=1),
+                action=partial(
+                    controller.mouse_move,
+                    self.data.handle,
+                    target=(random.randint(300, 600), random.randint(300, 600)),
+                    cooldown=1,
+                ),
                 update_generators=GeneratorUpdate(
                     generator_id=id(self),
-                    generator_kwargs={'blocked': False},
-                )
+                    generator_kwargs={"blocked": False},
+                ),
             )

@@ -38,4 +38,4 @@ class SelkieJr(BaseMob):
                 <= cls._maximal_rect_width
             )
 
-        return filter(cond1 and cond2, contours)
+        return filter(lambda cnt: cond1(cnt) and cond2(cnt), contours)
