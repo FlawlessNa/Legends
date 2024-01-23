@@ -63,7 +63,7 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
         :param value:
         :return:
         """
-        super().blocked.__setattr__("blocked", value)
+        super(CheckStillInMap, CheckStillInMap).blocked.fset(self, value)
         if value:
             self._current_title_img = self._prev_title_img = None
 
@@ -165,6 +165,7 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
 
         if not self.data.current_minimap_state == "Full":
             self.blocked = True
+            self.data.block("Rotation")
             return QueueAction(
                 identifier="Opening minimap to Fully Displayed",
                 priority=1,
@@ -174,5 +175,6 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
                 update_generators=GeneratorUpdate(
                     generator_id=id(self),
                     generator_kwargs={"blocked": False},
+                    game_data_kwargs={"unblock": "Rotation"}
                 ),
             )

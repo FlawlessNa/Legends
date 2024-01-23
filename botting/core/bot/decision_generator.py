@@ -17,7 +17,7 @@ class DecisionGenerator(ABC):
     def __init__(self, data) -> None:
         self.data = data
         self.data.add_generator_id(id(self))
-        self.blocked = False
+        self._blocked = False
         self._blocked_at = None
         self._error_counter = 0  # For error-handling
 
