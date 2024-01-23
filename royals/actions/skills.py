@@ -1,7 +1,8 @@
+import asyncio
+import random
+
 from botting.core import controller
 from botting.models_abstractions import Skill
-
-from typing import Literal
 
 
 async def cast_skill(
@@ -9,7 +10,7 @@ async def cast_skill(
     ign: str,
     skill: Skill,
     direction: str = None,
-    attacking_skill: bool = False
+    attacking_skill: bool = False,
 ) -> None:
     """
     Casts a skill in a given direction. Updates game status.
@@ -17,7 +18,6 @@ async def cast_skill(
     :param ign:
     :param skill:
     :param direction:
-    :param double_cast:
     :param attacking_skill:
     :return:
     """
@@ -36,21 +36,26 @@ async def cast_skill(
         # at the same time
         # Also, no silencing on attacking skills.
         try:
-            await controller.press(
-                handle,
-                skill.key_bind(ign),
-                silenced=False,
-                cooldown=0.1,
-                down_or_up="keydown"
-            )
+            nbr_times = random.randint(3, 6)
+            for _ in range(nbr_times):
+                await controller.press(
+                    handle,
+                    skill.key_bind(ign),
+                    silenced=False,
+                    cooldown=0,
+                    enforce_delay=True,
+                    down_or_up="keydown",
+                    delay=0.05
+                )
+            await asyncio.sleep(max(skill.animation_time - nbr_times * 0.05, 0.0))
         finally:
             # Ensures the key is released
             await controller.press(
                 handle,
                 skill.key_bind(ign),
                 silenced=False,
-                cooldown=skill.animation_time - 0.1,
-                down_or_up="keyup"
+                cooldown=0,
+                down_or_up="keyup",
             )
     else:
         await controller.press(
