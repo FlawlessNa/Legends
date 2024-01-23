@@ -69,15 +69,17 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
         if self._fail_counter >= 2:
 
             self.data.block("Rotation")
-            logger.warning(
-                f"Rotation Blocked. Sending random reaction to chat due to {self}."
-            )
             msg = f"""
             No detection in last {time.perf_counter() - self._last_detection} seconds.
             Send Resume to continue.
             """
-            return self._reaction(self.data.handle,
+            reaction = self._reaction(self.data.handle,
                                   [msg, self.data.current_client_img])
+            if reaction is not None:
+                logger.warning(
+                    f"Rotation Blocked. Sending random reaction to chat due to {self}."
+                )
+            return reaction
 
     def _failsafe(self):
         """
@@ -85,6 +87,7 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
         :return:
         """
         if self._reaction_counter >= 2:
+            self._reaction_counter = 0
             self.blocked = True
             return
 

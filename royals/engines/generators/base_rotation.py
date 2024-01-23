@@ -159,7 +159,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                 f"{self.__class__.__name__} Failsafe Triggered Due to no path found"
             )
             self._deadlock_counter = 0
-            self.data.update("current_entire_minimap_box', 'current_minimap_area_box")
+            self.data.update("current_entire_minimap_box", "current_minimap_area_box")
             return reaction
 
         elif (
