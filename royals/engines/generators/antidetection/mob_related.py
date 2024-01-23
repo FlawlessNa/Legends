@@ -55,7 +55,8 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
         nbr_mobs = 0
         mobs = self.data.current_mobs
         for mob in mobs:
-            nbr_mobs += mob.get_mob_count(self.data.current_client_img.copy(),
+            img = mob.detection_box.extract_from_img(self.data.current_client_img)
+            nbr_mobs += mob.get_mob_count(img,
                                           debug=False)
 
         if nbr_mobs >= self.mob_threshold:

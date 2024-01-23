@@ -12,7 +12,7 @@ from royals.game_data import MaintenanceData
 class PetFood(IntervalBasedGenerator):
     """
     Generator that triggers a pet food consumption every interval.
-    Defaults: 10 minutes (600 seconds)
+    Defaults: 15 minutes (900 seconds)
     """
 
     generator_type = "Maintenance"
