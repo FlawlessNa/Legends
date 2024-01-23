@@ -9,7 +9,7 @@ async def cast_skill(
     ign: str,
     skill: Skill,
     direction: str = None,
-    double_cast: bool = False,
+    attacking_skill: bool = False
 ) -> None:
     """
     Casts a skill in a given direction. Updates game status.
@@ -18,6 +18,7 @@ async def cast_skill(
     :param skill:
     :param direction:
     :param double_cast:
+    :param attacking_skill:
     :return:
     """
     # TODO - Better handling of direction.
@@ -30,16 +31,34 @@ async def cast_skill(
             cooldown=0,
         )
 
-    if double_cast:
-        await controller.press(  # Cast skill twice to ensure it goes through
-            handle, skill.key_bind(ign), silenced=True, cooldown=0.1
+    if attacking_skill:
+        # Hold the key for about 0.1s to ensure skill goes through even if char gets hit
+        # at the same time
+        # Also, no silencing on attacking skills.
+        try:
+            await controller.press(
+                handle,
+                skill.key_bind(ign),
+                silenced=False,
+                cooldown=0.1,
+                down_or_up="keydown"
+            )
+        finally:
+            # Ensures the key is released
+            await controller.press(
+                handle,
+                skill.key_bind(ign),
+                silenced=False,
+                cooldown=skill.animation_time - 0.1,
+                down_or_up="keyup"
+            )
+    else:
+        await controller.press(
+            handle,
+            skill.key_bind(ign),
+            silenced=True,
+            cooldown=skill.animation_time,
         )
-    await controller.press(
-        handle,
-        skill.key_bind(ign),
-        silenced=True,
-        cooldown=skill.animation_time,
-    )
 
 
 async def teleport(

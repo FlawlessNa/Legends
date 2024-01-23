@@ -30,7 +30,7 @@ DISABLE_TELEPORT = False
 DISCORD_PARSER = royals.parsers.single_bot_parser
 
 ANTI_DETECTION_MOB_THRESHOLD = 2
-ANTI_DETECTION_TIME_THRESHOLD = 15
+ANTI_DETECTION_TIME_THRESHOLD = 10
 
 
 async def main(*bots: botting.Executor) -> None:
