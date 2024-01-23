@@ -34,4 +34,4 @@ class Slimy(BaseMob):
                 <= cls._maximal_rect_width
             )
 
-        return filter(lambda cnt: cond1(cnt) and cond2(cnt), contours)
+        return tuple(filter(lambda cnt: cond1(cnt) and cond2(cnt), contours))
