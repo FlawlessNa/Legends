@@ -72,6 +72,5 @@ def _debug(image: np.ndarray, contours) -> None:
     # Draw all contours
     if contours:
         cv2.drawContours(image, contours, -1, (0, 255, 255), 4)
-    print('Filtered Contours:', len(contours))
     cv2.imshow("_DEBUG_ BaseMob.get_onscreen_mobs", image)
     cv2.waitKey(1)

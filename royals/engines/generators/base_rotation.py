@@ -198,7 +198,6 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
             nbr_mobs = 0
             for mob in mobs:
                 nbr_mobs += mob.get_mob_count(cropped_img)
-            print("Nearby mobs", nbr_mobs)
 
             if nbr_mobs >= self.mob_threshold:
                 mobs_locations = self.get_mobs_positions_in_img(
@@ -218,7 +217,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                     closest_mob_direction,
                     attacking_skill=True,
                 )
-
+        print(self.data.available_to_cast)
         if res and not self.data.character_in_a_ladder and self.data.available_to_cast:
             return res
 
