@@ -29,10 +29,11 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
         time_threshold: int,
         mob_threshold: int,
         cooldown: int = 15,
+        max_reactions: int = 2,
     ) -> None:
 
         super().__init__(data, interval=1, deviation=0)
-        super(DecisionGenerator, self).__init__(cooldown)
+        super(DecisionGenerator, self).__init__(cooldown, max_reactions)
 
         self.time_threshold = time_threshold
         self.mob_threshold = mob_threshold
@@ -86,7 +87,7 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
         TODO - Read chat to ensure that the bot properly reacted.
         :return:
         """
-        if self._reaction_counter >= 2:
+        if self._reaction_counter >= self.max_reactions:
             self._reaction_counter = 0
             self.blocked = True
             return

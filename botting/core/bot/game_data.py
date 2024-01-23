@@ -71,6 +71,7 @@ class GameData(ABC):
             updater = self.args_dict[arg]
             setattr(self, arg, updater())
 
+
     def block(self, generator_type: str) -> None:
         """
         Blocks all generators of the given type.

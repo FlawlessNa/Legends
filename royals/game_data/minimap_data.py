@@ -16,6 +16,7 @@ class MinimapData(GameData):
     """ """
     current_map: RoyalsMap = field(default=None)
     current_minimap: MinimapPathingMechanics = field(repr=False, default=None)
+    current_minimap_state: str = field(repr=False, init=False)
     current_minimap_area_box: Box = field(repr=False, init=False)
     current_entire_minimap_box: Box = field(repr=False, init=False)
     current_minimap_title_box: Box = field(repr=False, init=False)
@@ -34,6 +35,11 @@ class MinimapData(GameData):
             "minimap_grid": partial(
                 self.current_minimap.generate_grid_template,
                 allow_teleport=self.allow_teleport,
+            ),
+            "current_minimap_state": partial(
+                self.current_minimap.get_minimap_state,
+                self.handle,
+                client_img=self.current_client_img
             ),
             "current_minimap_area_box": partial(
                 self.current_minimap.get_map_area_box,

@@ -11,7 +11,7 @@ from .generators import (
     MobCheck,
     # DistributeAP,
     # InventoryManager,
-    # CheckStillInMap,
+    CheckStillInMap,
     SpeedPill
 )
 
@@ -107,5 +107,5 @@ class TrainingEngine(DecisionEngine):
                 self.game_data,
                 time_threshold=self._anti_detection_time_threshold,
                 mob_threshold=self._anti_detection_mob_threshold),
-            # CheckStillInMap(self.game_data)
+            CheckStillInMap(self.game_data)
         ]

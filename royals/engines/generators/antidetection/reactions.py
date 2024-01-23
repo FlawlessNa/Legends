@@ -9,8 +9,9 @@ from royals.actions import random_chat_response
 
 class AntiDetectionReactions(ABC):
 
-    def __init__(self, cooldown: int) -> None:
+    def __init__(self, cooldown: int, max_reactions: int) -> None:
         self.cooldown = cooldown
+        self.max_reactions = max_reactions
         self._last_txt_choice = None
         self._reaction_counter = 0
         self._last_trigger = 0

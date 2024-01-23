@@ -18,16 +18,19 @@
   - [x] Cooldown buffs
   - [ ] Inventory Management
     - [x] Basic parser to check space left
+    - [ ] Basic actions to clear inventory at town
     - [ ] Advanced parser to check stats on each item
+    - [ ] Advanced actions to store godlies
   - [x] Automated AP distribution
   - [x] Generic Generator class for botting library
   - [ ] Add failsafe on MobHitting (how??)
   - [x] Add failsafe on Rebuff (look for fresh buff icon in top right screen)
   - [ ] Add failsafe on any Rotation Generators - Movement is expected if action is not cancelled
-  - [ ] Streamline reactions for AntiDetection generators
+  - [x] Streamline reactions for AntiDetection generators
 
 ### Anti Detection Features
   - [ ] Chat Parsing (try grayscale preprocessing on "general" lines) + GPT Automated Responses
+    - Idea: When detecting relevant lines, minimize chat and scroll up, then read that line without background noise!!!
   - [ ] GM Logo detection
   - [ ] Abnormal Status Detection (look for gray line types)
     - [ ] Stunned
@@ -43,7 +46,8 @@
   - [ ] Nice-to-have, for Ulu only - look into building an "unknown" object detection method, using UNKAD methodology or anomaly detection
 
 ### Discord
-    - [ ] Add a callback on user-messages to confirm action (such as writing to chat) properly made
+   - [ ] Add a callback on user-messages to confirm action (such as writing to chat) properly made
+
 ### Character detection
   - [ ] Standardize code and transfer detection framework into botting library
   
