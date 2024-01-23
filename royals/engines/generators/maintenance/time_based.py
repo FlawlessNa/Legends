@@ -19,7 +19,7 @@ class PetFood(DecisionGenerator):
     def __init__(
         self,
         data: MaintenanceData,
-        interval: int = 600,
+        interval: int = 900,
         keyname: str = "Pet Food",
         num_times: int = 1,
     ) -> None:
