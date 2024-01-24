@@ -60,7 +60,7 @@ class Rebuff(IntervalBasedGenerator):
             return
 
         self.blocked = True
-        # self.data.update(available_to_cast=False)
+        self.data.update(available_to_cast=False)
         action = partial(cast_skill,
                          self.data.handle,
                          self.data.ign,
@@ -69,7 +69,7 @@ class Rebuff(IntervalBasedGenerator):
         updater = GeneratorUpdate(
             generator_id=id(self),
             generator_kwargs={'blocked': False},
-            # game_data_kwargs={'available_to_cast': True}
+            game_data_kwargs={'available_to_cast': True}
         )
         return QueueAction(self._skill.name, 5, action, update_generators=updater)
 

@@ -63,7 +63,7 @@ class PetFood(IntervalBasedGenerator):
 
     def _failsafe(self):
         """
-        Nothing needed here.
+        TODO - Read from Quickslots and check if consumable amt has decreased by n_times
         """
         pass
 

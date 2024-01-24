@@ -76,6 +76,7 @@
   - [ ] Ability to send all characters to lounge if error occurs
 
 ### Misc
+  - [ ] Add Macros + cast_macros which is cancellable in between each cast
   - [ ] Add variable speed/jump management
   - [x] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
   - [ ] Skill Specs Finder

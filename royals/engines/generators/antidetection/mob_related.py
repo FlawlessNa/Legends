@@ -44,6 +44,18 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}"
 
+    @DecisionGenerator.blocked.setter
+    def blocked(self, value) -> None:
+        """
+        When this generator is unblocked, the images are reset.
+        :param value:
+        """
+        super(MobCheck, MobCheck).blocked.fset(self, value)
+        if value:
+            self._last_detection = time.perf_counter()
+            self._fail_counter = 0
+            self._reaction_counter = 0
+
     @property
     def initial_data_requirements(self) -> tuple:
         return tuple()
@@ -61,7 +73,6 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
         if nbr_mobs >= self.mob_threshold:
             self._last_detection = time.perf_counter()
             self._fail_counter = 0
-            self._reaction_counter = 0
 
         elif time.perf_counter() - self._last_detection > self.time_threshold:
             self._fail_counter += 1
@@ -88,7 +99,6 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
         :return:
         """
         if self._reaction_counter >= self.max_reactions:
-            self._reaction_counter = 0
             self.blocked = True
             return
 

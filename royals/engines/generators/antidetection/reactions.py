@@ -8,6 +8,10 @@ from royals.actions import random_chat_response
 
 
 class AntiDetectionReactions(ABC):
+    """
+    Manages reactions triggered by an Anti-Detection generator.
+    There is a cooldown between reactions, and a maximum number of reactions.
+    """
 
     def __init__(self, cooldown: int, max_reactions: int) -> None:
         self.cooldown = cooldown
