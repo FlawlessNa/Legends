@@ -52,7 +52,7 @@ async def cast_skill(
                 handle,
                 skill.key_bind(ign),
                 silenced=False,
-                cooldown=0,
+                cooldown=0.1,
                 down_or_up="keyup",
             )
     else:
