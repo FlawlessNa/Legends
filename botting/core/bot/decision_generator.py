@@ -21,24 +21,28 @@ class DecisionGenerator(ABC):
     def __init__(self, data) -> None:
         self.data = data
         self.data.add_generator_id(id(self))
-        self._blocked = 0
+        self._blocked = False
         self._blocked_at = None
         self._error_counter = 0  # For error-handling
 
     @property
     def blocked(self) -> bool:
-        return True if self._blocked > 0 else False
+        # return True if self._blocked > 0 else False
+        return self._blocked
 
     @blocked.setter
     def blocked(self, value: bool) -> None:
-        if value and not self.blocked:
+        # if value and not self.blocked:
+        if value and not self._blocked:
             logger.info(f"{self} has been blocked.")
             self._blocked_at = time.perf_counter()
-        elif not value and self._blocked == 1:
+        # elif not value and self._blocked == 1:
+        elif not value and self._blocked:
             logger.info(f"{self} has been unblocked.")
             self._blocked_at = None
-        self._blocked += 1 if value else -1
-        self._blocked = max(0, self._blocked)
+        # self._blocked += 1 if value else -1
+        # self._blocked = max(0, self._blocked)
+        self._blocked = value
 
     def __iter__(self) -> "DecisionGenerator":
         return self

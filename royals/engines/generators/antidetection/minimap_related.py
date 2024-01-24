@@ -104,6 +104,9 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
         if self._reaction_counter >= self.max_reactions:
             # Want a complete reset, so reset prev img as well.
             self._prev_title_img = None
+            self._current_title_img = None
+            self._reaction_counter = 0
+            self._fail_counter = 0
             self.blocked = True
             return
 
