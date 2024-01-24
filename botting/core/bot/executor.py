@@ -278,6 +278,9 @@ class Executor:
                     break
 
                 logger.debug(f"Received {queue_item} from {self} monitoring process.")
+                if queue_item.identifier in [task.get_name() for task in asyncio.all_tasks()]:
+                    logger.warning(f"Task {queue_item.identifier} already exists. Skipping.")
+                    continue
 
                 new_task = self.create_task(queue_item)
                 logger.debug(f"Created task {new_task.get_name()}.")

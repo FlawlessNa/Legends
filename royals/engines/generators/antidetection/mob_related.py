@@ -51,7 +51,7 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
         :param value:
         """
         super(MobCheck, MobCheck).blocked.fset(self, value)
-        if value:
+        if not value:
             self._last_detection = time.perf_counter()
             self._fail_counter = 0
             self._reaction_counter = 0
