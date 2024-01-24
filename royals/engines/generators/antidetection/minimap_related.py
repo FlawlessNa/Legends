@@ -122,15 +122,16 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
             self._fail_counter += 1
             logger.warning(f"{self} Fail Counter at {self._fail_counter}.")
             self._current_title_img = None
+            self.data.block("Rotation")
 
         else:
+            self.data.unblock("Rotation")
             if self._fail_counter > 0:
                 logger.info(f"{self} fail counter reset at 0.")
             self._fail_counter = 0
             self._reaction_counter = 0
 
         if self._fail_counter >= 2:
-            self.data.block("Rotation")
             self.data.block("Maintenance")
             msg = f"""
                         Minimap Title Img has changed. Bot is now on hold.
@@ -199,6 +200,5 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
                 update_generators=GeneratorUpdate(
                     generator_id=id(self),
                     generator_kwargs={"blocked": False},
-                    game_data_kwargs={"unblock": "Rotation"}
                 ),
             )
