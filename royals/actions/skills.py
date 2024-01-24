@@ -32,9 +32,7 @@ async def cast_skill(
         )
 
     if attacking_skill:
-        # Hold the key for about 0.1s to ensure skill goes through even if char gets hit
-        # at the same time
-        # Also, no silencing on attacking skills.
+        # no silencing on attacking skills.
         try:
             nbr_times = random.randint(3, 6)
             for _ in range(nbr_times):

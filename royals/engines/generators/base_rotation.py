@@ -87,7 +87,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
             updater = GeneratorUpdate(game_data_kwargs={"available_to_cast": True})
             return QueueAction(
                 identifier=f"Mobs Hitting - {self.training_skill.name}",
-                priority=10,
+                priority=98,
                 action=hit_mobs,
                 update_generators=updater,
             )
@@ -139,7 +139,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
 
         reaction = QueueAction(
             identifier=f"FAILSAFE - {self.__class__.__name__}",
-            priority=1,
+            priority=97,
             action=partial(random_jump, self.data.handle, self.data.ign),
             is_cancellable=False,
             release_lock_on_callback=True,
@@ -200,11 +200,10 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                 nbr_mobs += mob.get_mob_count(cropped_img)
 
             if nbr_mobs >= self.mob_threshold:
-                mobs_locations = self.get_mobs_positions_in_img(
-                    cropped_img, self.data.current_mobs
-                )
-
-                if self.training_skill.unidirectional and mobs_locations:
+                if self.training_skill.unidirectional:
+                    mobs_locations = self.get_mobs_positions_in_img(
+                        cropped_img, self.data.current_mobs
+                    )
                     closest_mob_direction = self.get_closest_mob_direction(
                         (x, y), mobs_locations
                     )
@@ -217,7 +216,6 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                     closest_mob_direction,
                     attacking_skill=True,
                 )
-        print(self.data.available_to_cast)
         if res and not self.data.character_in_a_ladder and self.data.available_to_cast:
             return res
 

@@ -240,11 +240,11 @@ class Executor:
         async def _wrapper():
             await self.action_lock.acquire()
             try:
-                logger.debug(f"Action Lock acquired for {self} for {action}")
+                # logger.debug(f"Action Lock acquired for {self} for {action}")
                 await action()
             finally:
                 self.action_lock.release()
-                logger.debug(f"Action Lock released for {self} for {action}")
+                # logger.debug(f"Action Lock released for {self} for {action}")
 
         return _wrapper
 

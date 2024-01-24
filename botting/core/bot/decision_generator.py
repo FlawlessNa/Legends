@@ -31,10 +31,10 @@ class DecisionGenerator(ABC):
 
     @blocked.setter
     def blocked(self, value: bool) -> None:
-        if value:
+        if value and not self._blocked:
             logger.info(f"{self} has been blocked.")
             self._blocked_at = time.perf_counter()
-        else:
+        elif not value and self._blocked:
             logger.info(f"{self} has been unblocked.")
             self._blocked_at = None
         self._blocked = value
