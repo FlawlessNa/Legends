@@ -37,7 +37,7 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
     def __init__(
         self,
         data: AntiDetectionData,
-        interval: int = 5,
+        interval: int = 2,
         cooldown: int = 5,
         max_reactions: int = 2,
     ):
@@ -64,8 +64,8 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
         :return:
         """
         super(CheckStillInMap, CheckStillInMap).blocked.fset(self, value)
-        if value:
-            self._current_title_img = self._prev_title_img = None
+        if not value:
+            self._current_title_img = None
 
     def _update_continuous_data(self) -> None:
         self.data.update(
@@ -74,13 +74,23 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
             "current_minimap_area_box",
             "current_minimap_title_box",
         )
-        if self._current_title_img is None:
+        if self._current_title_img is None and self._prev_title_img is None:
             self._current_title_img = (
                 self.data.current_minimap_title_box.extract_client_img(
                     self.data.current_client_img
                 )
             )
             self._prev_title_img = self._current_title_img.copy()
+
+        elif self._current_title_img is None:
+            self._current_title_img = (
+                self.data.current_minimap_title_box.extract_client_img(
+                    self.data.current_client_img
+                )
+            )
+        elif self._prev_title_img is None:
+            raise NotImplementedError("Should never reach this point.")
+
         else:
             self._prev_title_img = self._current_title_img.copy()
             self._current_title_img = (
@@ -90,57 +100,38 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
             )
 
     def _failsafe(self) -> QueueAction | None:
+
         if self._reaction_counter >= self.max_reactions:
-            self._reaction_counter = 0
+            # Want a complete reset, so reset prev img as well.
+            self._prev_title_img = None
             self.blocked = True
             return
 
-        res = self._ensure_fully_displayed()
-        if res:
-            return res
+        elif self._fail_counter == 0:
+            return
 
-        elif self._fail_counter > 0:
-
-            # One additional iteration to ensure cursor not on minimap
-            if self._fail_counter == 1:
-                self._current_title_img = self._prev_title_img.copy()
-
-            # Make sure cursor is not on minimap
-            mouse_pos = controller.get_mouse_pos(self.data.handle)
-            center = self.data.current_minimap_title_box.center
-            if mouse_pos is None or abs(math.dist(mouse_pos, center)) < 200:
-                self.blocked = True
-                target = (
-                    center[0] + random.randint(300, 600),
-                    center[1] + random.randint(300, 600),
-                )
-                return QueueAction(
-                    identifier="Moving Mouse away from Minimap",
-                    priority=1,
-                    action=partial(controller.mouse_move, self.data.handle, target),
-                    update_generators=GeneratorUpdate(
-                        generator_id=id(self),
-                        generator_kwargs={"blocked": False},
-                    ),
-                )
+        # If we reach this point, there's been a failure (but not necessarily an error).
+        action = self._move_cursor_away(from_error=False)
+        if action is not None:
+            return action
+        return self._ensure_fully_displayed()
 
     def _next(self) -> QueueAction | None:
+        self._next_call = time.perf_counter() + self.interval
         if not np.array_equal(self._current_title_img, self._prev_title_img):
             self._fail_counter += 1
             logger.warning(f"{self} Fail Counter at {self._fail_counter}.")
-            self._current_title_img = self._prev_title_img.copy()
+            self._current_title_img = None
 
         else:
             if self._fail_counter > 0:
                 logger.info(f"{self} fail counter reset at 0.")
             self._fail_counter = 0
             self._reaction_counter = 0
-            self._next_call = time.perf_counter() + self.interval
 
         if self._fail_counter >= 2:
             self.data.block("Rotation")
             self.data.block("Maintenance")
-            self._next_call = time.perf_counter() + self.interval
             msg = f"""
                         Minimap Title Img has changed. Bot is now on hold.
                         Send Resume to continue.
@@ -155,17 +146,50 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
             return reaction
 
     def _exception_handler(self, e: Exception) -> None:
+        if isinstance(e, NotImplementedError):
+            raise e
+
         if self._error_counter >= 4:
             logger.critical(f"Too many errors in {self}. Exiting.")
             raise e
 
-        return self._ensure_fully_displayed()
+        if self._error_counter == 1:
+            # First error, try to move cursor away from minimap
+            return self._move_cursor_away(from_error=True)
+        else:
+            # Second error, try to open minimap to fully displayed
+            return self._ensure_fully_displayed()
+
+    def _move_cursor_away(self, from_error: bool) -> QueueAction | None:
+        # Block self and return actions that will unblock upon callback.
+        target = (
+            random.randint(500, 600),
+            random.randint(500, 600),
+        )
+        res = QueueAction(
+                identifier="Moving Mouse away from Minimap",
+                priority=1,
+                action=partial(controller.mouse_move, self.data.handle, target),
+                update_generators=GeneratorUpdate(
+                    generator_id=id(self),
+                    generator_kwargs={"blocked": False},
+                ),
+            )
+        if from_error:
+            self.blocked = True
+            return res
+        else:
+            mouse_pos = controller.get_mouse_pos(self.data.handle)
+            center = self.data.current_minimap_title_box.center
+            if mouse_pos is None or abs(math.dist(mouse_pos, center)) < 200:
+                self.blocked = True
+                return res
 
     def _ensure_fully_displayed(self) -> QueueAction | None:
 
         if not self.data.current_minimap_state == "Full":
-            self.blocked = True
             self.data.block("Rotation")
+            self.blocked = True
             return QueueAction(
                 identifier="Opening minimap to Fully Displayed",
                 priority=1,

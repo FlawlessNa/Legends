@@ -4,9 +4,9 @@
 
 ### Restructuring Branch
 - [ ] Finish refactoring generators
-- [ ] Fix rotation, looks like its broken...
+- [x] Fix rotation, looks like its broken...
 - [ ] Fix rebuff - figure out the available_to_cast mistery
-- [ ] Fix MobCheck - When resuming, reset last detections
+- [x] Fix MobCheck - When resuming, reset last detections
 - [ ] Fix CheckStillinMap
 - [ ] Finish cleaning up all data structures
 - [ ] Thoroughly test data management system
@@ -16,7 +16,6 @@
   - [ ] Ultimate Cast failsafe - check if MP has changed by at least X%
   
 ### Generators
-  - [x] BaseRotion - Clean the _minimap_fix handling
   - [ ] Check character still alive
   - [ ] Check Potions, Pet Food, Mount Food
   - [x] Cooldown buffs

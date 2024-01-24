@@ -47,7 +47,7 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
     @DecisionGenerator.blocked.setter
     def blocked(self, value) -> None:
         """
-        When this generator is unblocked, the images are reset.
+        When this generator is unblocked, reset relevant data.
         :param value:
         """
         super(MobCheck, MobCheck).blocked.fset(self, value)
