@@ -158,7 +158,7 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
             raise e
 
         elif isinstance(e, SkipCurrentIteration):
-            self._error_counter = 0
+            self._error_counter -= 1
             return
 
         if self._error_counter >= 4:

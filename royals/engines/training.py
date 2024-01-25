@@ -9,7 +9,7 @@ from .generators import (
     Rebuff,
     PetFood,
     MobCheck,
-    # DistributeAP,
+    DistributeAP,
     # InventoryManager,
     CheckStillInMap,
     SpeedPill
@@ -82,7 +82,7 @@ class TrainingEngine(DecisionEngine):
             # InventoryManager(self.game_data, tab_to_watch="Equip"),
             PetFood(self.game_data, num_times=self._num_pets),
             SpeedPill(self.game_data),
-            # DistributeAP(self.game_data),
+            DistributeAP(self.game_data),
         ]
         for skill in self.game_data.character.skills.values():
             if skill.type in ["Buff", "Party Buff"] and skill in self._buffs_to_use:
