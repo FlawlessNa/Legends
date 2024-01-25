@@ -1,4 +1,5 @@
 import cv2
+import logging
 import os
 import random
 import time
@@ -6,6 +7,7 @@ import win32gui
 
 from functools import partial
 
+from botting import PARENT_LOG
 from botting.core import QueueAction, GeneratorUpdate
 from botting.models_abstractions import Skill
 from botting.utilities import Box
@@ -14,6 +16,8 @@ from paths import ROOT
 from royals.actions import cast_skill
 from royals.engines.generators.interval_based import IntervalBasedGenerator
 from royals.game_data import MaintenanceData
+
+logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
 class Rebuff(IntervalBasedGenerator):
@@ -29,7 +33,7 @@ class Rebuff(IntervalBasedGenerator):
         data: MaintenanceData,
         skill: Skill,
         deviation: float = 0.1,
-        match_threshold: float = 0.999,
+        match_threshold: float = 0.997,
     ) -> None:
         super().__init__(data, skill.duration, deviation)
         self.match_threshold = match_threshold
@@ -85,10 +89,10 @@ class Rebuff(IntervalBasedGenerator):
         haystack = buff_icon_box.extract_client_img(self.data.current_client_img)
         results = cv2.matchTemplate(haystack, self._buff_icon, cv2.TM_CCOEFF_NORMED)
         min_val, max_val, _, _ = cv2.minMaxLoc(results)
-        print(repr(self), max_val)
         if max_val > self.match_threshold:
+            logger.info(f"{self._skill.name} has been cast with confidence {max_val}.")
             # Reset timer and return
-            random_duration = self.interval * random.uniform(1 - self._deviation, 0.99)
+            random_duration = self.interval * random.uniform(1 - self._deviation, 1 - self._deviation / 2)
             random_cooldown = self._skill.cooldown * random.uniform(
                 1, 1 + self._deviation
             )
