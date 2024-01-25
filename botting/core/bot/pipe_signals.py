@@ -66,18 +66,22 @@ class GeneratorUpdate:
     generator_args: tuple = NotImplemented
     generator_kwargs: dict = field(default_factory=dict)
 
-    def update_generator(self) -> None:
+    def update_when_done(self, data) -> None:
         """
-        Updates the game data and the generator.
+        Updates the game data and the generator when the queue action is completed.
         """
+        data.update(*self.game_data_args, **self.game_data_kwargs)
+
         if self.generator_id is not None:
             generator = get_object_by_id(self.generator_id)
-            if not isinstance(self.generator_args, type(NotImplemented)):
-                raise NotImplementedError("Generator args not implemented")
+
+            # TODO - Test if this works?
+            for arg in self.generator_args:
+                assert hasattr(generator, arg), f"Invalid attribute {arg}"
+                assert callable(getattr(generator, arg)), f"Invalid attribute {arg}"
+                func = getattr(generator, arg)
+                func()
 
             for k, v in self.generator_kwargs.items():
                 assert hasattr(generator, k), f"Invalid attribute {k}"
                 setattr(generator, k, v)
-
-    def update_game_data(self, data) -> None:
-        data.update(*self.game_data_args, **self.game_data_kwargs)

@@ -125,17 +125,17 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
             self._fail_counter += 1
             logger.warning(f"{self} Fail Counter at {self._fail_counter}.")
             self._current_title_img = None
-            self.data.block("Rotation")
+            self.block_generators("Rotation", id(self))
 
         else:
-            self.data.unblock("Rotation")
+            self.unblock_generators("Rotation", id(self))
             if self._fail_counter > 0:
                 logger.info(f"{self} fail counter reset at 0.")
             self._fail_counter = 0
             self._reaction_counter = 0
 
         if self._fail_counter >= 2:
-            self.data.block("Maintenance")
+            self.block_generators("Maintenance", id(self))
             msg = f"""
                         Minimap Title Img has changed. Bot is now on hold.
                         Send Resume to continue.
@@ -192,7 +192,7 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
     def _ensure_fully_displayed(self) -> QueueAction | None:
 
         if not self.data.current_minimap_state == "Full":
-            self.data.block("Rotation")
+            self.block_generators("Rotation", id(self))
             self.blocked = True
             return QueueAction(
                 identifier="Opening minimap to Fully Displayed",

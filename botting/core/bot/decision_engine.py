@@ -132,8 +132,7 @@ class DecisionEngine(ChildProcess, ABC):
 
                     # Otherwise, it needs to be a GeneratorUpdate instance
                     assert isinstance(signal, GeneratorUpdate), "Invalid signal type"
-                    signal.update_generator()
-                    signal.update_game_data(self.game_data)
+                    signal.update_when_done(self.game_data)
 
                 self.game_data.update(current_client_img=take_screenshot(self.handle))
                 # Run all generators once
