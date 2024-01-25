@@ -83,6 +83,11 @@ class InventoryManager(IntervalBasedGenerator):
             logger.info(f"Inventory space left: {self._space_left}")
 
     def _failsafe(self) -> QueueAction | None:
+        """
+        TODO - If Using Mystic Door, check chat to see if out of Magic Rocks,
+        in which case trigger error + discord alert
+        :return:
+        """
         pass
 
     def _exception_handler(self, e: Exception) -> None:

@@ -9,14 +9,11 @@ from royals.game_data import MaintenanceData
 
 
 class DistributeAP(IntervalBasedGenerator):
-
     generator_type = "Maintenance"
 
-    def __init__(self,
-                 data: MaintenanceData,
-                 interval: int = 30,
-                 deviation: int = 0
-                 ) -> None:
+    def __init__(
+        self, data: MaintenanceData, interval: int = 30, deviation: int = 0
+    ) -> None:
         super().__init__(data, interval, deviation)
         self._key = eval(config_reader("keybindings", self.data.ign, "Non Skill Keys"))[
             "Ability Menu"
@@ -32,20 +29,26 @@ class DistributeAP(IntervalBasedGenerator):
 
     def _update_continuous_data(self) -> None:
         if self._current_lvl_img is None and self._prev_lvl_img is None:
-            self._current_lvl_img = self.data.character_stats.level_box.extract_client_img(
-                self.data.current_client_img
+            self._current_lvl_img = (
+                self.data.character_stats.level_box.extract_client_img(
+                    self.data.current_client_img
+                )
             )
             self._prev_lvl_img = self._current_lvl_img.copy()
         elif self._current_lvl_img is None:
-            self._current_lvl_img = self.data.character_stats.level_box.extract_client_img(
-                self.data.current_client_img
+            self._current_lvl_img = (
+                self.data.character_stats.level_box.extract_client_img(
+                    self.data.current_client_img
+                )
             )
         elif self._prev_lvl_img is None:
             raise NotImplementedError
         else:
             self._prev_lvl_img = self._current_lvl_img.copy()
-            self._current_lvl_img = self.data.character_stats.level_box.extract_client_img(
-                self.data.current_client_img
+            self._current_lvl_img = (
+                self.data.character_stats.level_box.extract_client_img(
+                    self.data.current_client_img
+                )
             )
 
     def _failsafe(self) -> QueueAction | None:
@@ -55,7 +58,7 @@ class DistributeAP(IntervalBasedGenerator):
         """
         if np.array_equal(self._current_lvl_img, self._prev_lvl_img):
             if self.data.ability_menu.is_displayed(
-                    self.data.handle, self.data.current_client_img
+                self.data.handle, self.data.current_client_img
             ):
                 return self._toggle_ability_menu()
 
@@ -70,7 +73,7 @@ class DistributeAP(IntervalBasedGenerator):
         """
         if not np.array_equal(self._current_lvl_img, self._prev_lvl_img):
             if not self.data.ability_menu.is_displayed(
-                    self.data.handle, self.data.current_client_img
+                self.data.handle, self.data.current_client_img
             ):
                 self._current_lvl_img = None
                 return self._toggle_ability_menu()
@@ -105,16 +108,10 @@ class DistributeAP(IntervalBasedGenerator):
             update_generators=GeneratorUpdate(
                 generator_id=id(self),
                 generator_kwargs={"blocked": False},
-            )
+            ),
         )
 
-    def _distribute_ap(
-        self, nbr_of_clicks: int = 5
-    ):
-        async def _move_and_click(handle, location, num_times):
-            await controller.mouse_move(handle, location)
-            await controller.click(handle, nbr_times=num_times, delay=0.15)
-
+    def _distribute_ap(self, nbr_of_clicks: int = 5):
         target_box = self.data.ability_menu.get_abs_box(
             self.data.handle, self._offset_box
         )
@@ -123,11 +120,14 @@ class DistributeAP(IntervalBasedGenerator):
         return QueueAction(
             identifier="Distributing AP",
             priority=1,
-            action=partial(
-                _move_and_click, self.data.handle, target, nbr_of_clicks
-            ),
+            action=partial(self._move_and_click, self.data.handle, target, nbr_of_clicks),
             update_generators=GeneratorUpdate(
                 generator_id=id(self),
                 generator_kwargs={"blocked": False},
-            )
+            ),
         )
+
+    @staticmethod
+    async def _move_and_click(handle, location, num_times):
+        await controller.mouse_move(handle, location)
+        await controller.click(handle, nbr_times=num_times, delay=0.15)

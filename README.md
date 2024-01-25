@@ -17,7 +17,7 @@
   
 ### Generators
   - [ ] Check character still alive
-  - [ ] Check Potions, Pet Food, Mount Food
+  - [ ] Check Potions, Pet Food, Mount Food, Magic Rocks left
   - [x] Cooldown buffs
   - [ ] Inventory Management
     - [x] Basic parser to check space left
