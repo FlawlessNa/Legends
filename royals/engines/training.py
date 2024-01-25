@@ -10,7 +10,7 @@ from .generators import (
     PetFood,
     MobCheck,
     DistributeAP,
-    # InventoryManager,
+    InventoryManager,
     CheckStillInMap,
     SpeedPill
 )
@@ -79,7 +79,9 @@ class TrainingEngine(DecisionEngine):
     @property
     def items_to_monitor(self) -> list[DecisionGenerator]:
         generators = [
-            # InventoryManager(self.game_data, tab_to_watch="Equip"),
+            InventoryManager(self.game_data,
+                             tab_to_watch="Equip",
+                             procedure=InventoryManager.PROC_DISCORD_ALERT),
             PetFood(self.game_data, num_times=self._num_pets),
             SpeedPill(self.game_data),
             DistributeAP(self.game_data),

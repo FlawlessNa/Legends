@@ -30,7 +30,7 @@ class QueueAction:
 
     identifier: str = field(compare=False)
     priority: int = field()
-    action: partial = field(compare=True, repr=False)
+    action: partial = field(compare=True, repr=False, default=None)
     is_cancellable: bool = field(compare=False, default=False, repr=False)
     user_message: list = field(compare=False, default=None, repr=False)
 

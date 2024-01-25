@@ -106,6 +106,8 @@ class Executor:
         :param queue_item: The QueueAction object to be converted into a task and run asynchronously.
         :return: None
         """
+        if queue_item.action is None:
+            queue_item.action = partial(asyncio.sleep, 0)
 
         # Wrap the action to ensure it is not interfering with other actions from the same bot.
         queue_item.action = self._wrap_action(queue_item.action)
