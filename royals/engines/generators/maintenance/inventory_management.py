@@ -49,6 +49,7 @@ class InventoryManager(IntervalBasedGenerator):
         self._fail_count = 0
         self._is_displayed = self._is_extended = False
         self._current_tab = None
+        self._check_completed = False
 
         if self.procedure == self.PROC_USE_MYSTIC_DOOR:
             self._door_key = eval(config_reader("keybindings", self.data.ign, "Skill Keys"))[
@@ -88,7 +89,15 @@ class InventoryManager(IntervalBasedGenerator):
         in which case trigger error + discord alert
         :return:
         """
-        pass
+        # If the check is done, double-check that menu has been closed
+        if self._check_completed:
+            still_displayed = self.data.inventory_menu.is_displayed(
+                self.data.handle, self.data.current_client_img
+            )
+            if still_displayed:
+                return self._toggle_inventory_menu()
+            else:
+                self._check_completed = False  # Reset for next iteration
 
     def _exception_handler(self, e: Exception) -> None:
         raise e
@@ -104,6 +113,7 @@ class InventoryManager(IntervalBasedGenerator):
         elif self._current_tab != self.tab_to_watch:
             return self._toggle_tab()
         elif self._space_left <= self.space_left_alert:
+            self._check_completed = True
             return self._cleanup_handler()
 
         else:
@@ -176,6 +186,9 @@ class InventoryManager(IntervalBasedGenerator):
             return QueueAction(
                 identifier="Inventory Full - Discord Alert",
                 priority=1,
+                action=partial(
+                    controller.press, self.data.handle, self._key, silenced=True
+                ),
                 user_message=[f"{self._space_left} slots left in inventory."]
             )
         elif self.procedure == self.PROC_USE_MYSTIC_DOOR:
