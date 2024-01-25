@@ -16,6 +16,10 @@ from royals.engines.generators.antidetection.reactions import AntiDetectionReact
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
+class SkipCurrentIteration(Exception):
+    pass
+
+
 class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
     generator_type = "AntiDetection"
 
@@ -108,7 +112,7 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
             self._reaction_counter = 0
             self._fail_counter = 0
             self.blocked = True
-            return
+            raise SkipCurrentIteration
 
         elif self._fail_counter == 0:
             return
@@ -152,6 +156,10 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
     def _exception_handler(self, e: Exception) -> None:
         if isinstance(e, NotImplementedError):
             raise e
+
+        elif isinstance(e, SkipCurrentIteration):
+            self._error_counter = 0
+            return
 
         if self._error_counter >= 4:
             logger.critical(f"Too many errors in {self}. Exiting.")

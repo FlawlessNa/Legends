@@ -36,14 +36,17 @@ class DecisionGenerator(ABC):
         """
          TODO - Used by generators to block themselves. Figure the blocked_at as well.
         """
-        if value and not self.blocked:
-            logger.info(f"{self} has blocked itself.")
+        if value:
+            if not self.blocked:
+                logger.info(f"{self} has blocked itself.")
+
             DecisionGenerator.generators_blockers[id(self)].add(id(self))
             self.blocked_at = time.perf_counter()
-        # elif not value and self._blocked == 1:
-        elif not value and self.blocked:
-            logger.info(f"{self} has unblocked itself.")
+        else:
+            was_blocked = self.blocked
             DecisionGenerator.generators_blockers[id(self)].discard(id(self))
+            if was_blocked and not self.blocked:
+                logger.info(f"{self} has unblocked itself.")
             self.blocked_at = None
 
     @property
@@ -52,11 +55,14 @@ class DecisionGenerator(ABC):
 
     @blocked_at.setter
     def blocked_at(self, value: float | None) -> None:
-        if value is None:
-            assert self.blocked is False
-        elif self.blocked:
-            return
-        self._blocked_at = value
+        if value is not None:
+            # Only assign a value if one doesn't exist already and we are blocked
+            if self.blocked and self._blocked_at is None:
+                self._blocked_at = value
+        else:
+            # Only remove the value if we are not blocked
+            if not self.blocked:
+                self._blocked_at = None
 
     @staticmethod
     def block_generators(generator_type: str, by_whom: int) -> None:
@@ -78,8 +84,8 @@ class DecisionGenerator(ABC):
             if condition1 or condition2:
                 if not getattr(generator, 'blocked'):
                     logger.info(f'{generator} has been blocked by {self}')
-                    setattr(generator, 'blocked_at', time.perf_counter())
                 DecisionGenerator.generators_blockers[idx].add(by_whom)
+                setattr(generator, 'blocked_at', time.perf_counter())
 
     @staticmethod
     def unblock_generators(generator_type: str, by_whom: int) -> None:
@@ -103,7 +109,7 @@ class DecisionGenerator(ABC):
                 DecisionGenerator.generators_blockers[idx].discard(by_whom)
                 if was_blocked and not getattr(generator, 'blocked'):
                     logger.info(f'{generator} has been unblocked by {self}')
-                    setattr(generator, 'blocked_at', None)
+                setattr(generator, 'blocked_at', None)
 
     def __iter__(self) -> "DecisionGenerator":
         return self

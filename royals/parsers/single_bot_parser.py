@@ -47,8 +47,8 @@ def single_bot_parser(message: str, bots: list) -> Optional[QueueAction]:
                 action=partial(asyncio.sleep, 0),
                 user_message=["Resuming all bots"],
                 update_generators=GeneratorUpdate(
-                    generator_args=(partial(DecisionGenerator.unblock_generators,
-                                            'All', 0), ),
+                    generator_id=0,
+                    generator_kwargs={"unblock_generators": "All"},
                 )
             )
         case "stop":
@@ -75,8 +75,8 @@ def single_bot_parser(message: str, bots: list) -> Optional[QueueAction]:
                 action=partial(asyncio.sleep, 0),
                 user_message=["All bots now on hold"],
                 update_generators=GeneratorUpdate(
-                    generator_args=(partial(DecisionGenerator.block_generators,
-                                            "Rotation", 0), )
+                    generator_id=0,
+                    generator_kwargs={"block_generators": "All"},
                 )
             )
 

@@ -3,7 +3,7 @@ from functools import partial
 from typing import Optional
 
 from botting.utilities import get_object_by_id
-
+from botting.core import DecisionGenerator
 
 @dataclass
 class QueueAction:
@@ -63,16 +63,20 @@ class GeneratorUpdate:
     game_data_kwargs: dict = field(default_factory=dict)
 
     generator_id: int = field(default=None)
-    generator_args: tuple = NotImplemented
+    generator_args: tuple = field(default_factory=tuple)
     generator_kwargs: dict = field(default_factory=dict)
 
     def update_when_done(self, data) -> None:
         """
         Updates the game data and the generator when the queue action is completed.
+        if Generator_id = 0, this is a special case from a discord user-request that affects all generators.
         """
         data.update(*self.game_data_args, **self.game_data_kwargs)
 
-        if self.generator_id is not None:
+        if self.generator_id == 0:
+            breakpoint()
+
+        elif self.generator_id is not None:
             generator = get_object_by_id(self.generator_id)
 
             # TODO - Test if this works?
