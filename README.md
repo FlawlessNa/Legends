@@ -71,6 +71,7 @@
   - [x] DecisionEngine should not have to update anything. Each Generator should deal with their own requirements.
 
 ### Error Management
+  - [ ] Deal with KeyboardInterrupt to ensure all keys are released from all clients
   - [ ] Ability to close all clients if error occurs
   - [ ] Ability to send all characters to lounge if error occurs
 

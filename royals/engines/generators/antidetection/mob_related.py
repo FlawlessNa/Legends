@@ -80,7 +80,7 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
 
         if self._fail_counter >= 2:
 
-            self.data.block("Rotation")
+            self.block_generators("Rotation", id(self))
             msg = f"""
             No detection in last {time.perf_counter() - self._last_detection} seconds.
             Send Resume to continue.

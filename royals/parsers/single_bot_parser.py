@@ -4,7 +4,7 @@ import logging
 from functools import partial
 from typing import Optional
 
-from botting.core import QueueAction, GeneratorUpdate
+from botting.core import QueueAction, GeneratorUpdate, DecisionGenerator
 from royals.actions import write_in_chat
 
 
@@ -47,7 +47,8 @@ def single_bot_parser(message: str, bots: list) -> Optional[QueueAction]:
                 action=partial(asyncio.sleep, 0),
                 user_message=["Resuming all bots"],
                 update_generators=GeneratorUpdate(
-                    game_data_kwargs={"unblock": "All"}
+                    generator_args=(partial(DecisionGenerator.unblock_generators,
+                                            'All', 0), ),
                 )
             )
         case "stop":
@@ -74,7 +75,8 @@ def single_bot_parser(message: str, bots: list) -> Optional[QueueAction]:
                 action=partial(asyncio.sleep, 0),
                 user_message=["All bots now on hold"],
                 update_generators=GeneratorUpdate(
-                    game_data_kwargs={'block': 'Rotation'}
+                    generator_args=(partial(DecisionGenerator.block_generators,
+                                            "Rotation", 0), )
                 )
             )
 

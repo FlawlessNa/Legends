@@ -3,6 +3,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Literal
 
+from botting.utilities import get_object_by_id
 from .pipe_signals import QueueAction
 
 logger = logging.getLogger(__name__)
@@ -17,32 +18,92 @@ class DecisionGenerator(ABC):
     instance that they are using, since GameData is shared among all generators.
     """
     generator_type: Literal["Rotation", "AntiDetection", "Maintenance"]
+    generators_blockers: dict[int, set[int]] = {}
 
     def __init__(self, data) -> None:
         self.data = data
-        self.data.add_generator_id(id(self))
-        self._blocked = False
-        self._blocked_at = None
         self._error_counter = 0  # For error-handling
+        self._blocked_at = self._blocked = None
+
+        self.__class__.generators_blockers[id(self)] = set()
 
     @property
     def blocked(self) -> bool:
-        # return True if self._blocked > 0 else False
-        return self._blocked
+        return len(self.generators_blockers[id(self)]) > 0
 
     @blocked.setter
     def blocked(self, value: bool) -> None:
-        # if value and not self.blocked:
-        if value and not self._blocked:
-            logger.info(f"{self} has been blocked.")
-            self._blocked_at = time.perf_counter()
+        """
+         TODO - Used by generators to block themselves. Figure the blocked_at as well.
+        """
+        if value and not self.blocked:
+            logger.info(f"{self} has blocked itself.")
+            DecisionGenerator.generators_blockers[id(self)].add(id(self))
+            self.blocked_at = time.perf_counter()
         # elif not value and self._blocked == 1:
-        elif not value and self._blocked:
-            logger.info(f"{self} has been unblocked.")
-            self._blocked_at = None
-        # self._blocked += 1 if value else -1
-        # self._blocked = max(0, self._blocked)
-        self._blocked = value
+        elif not value and self.blocked:
+            logger.info(f"{self} has unblocked itself.")
+            DecisionGenerator.generators_blockers[id(self)].discard(id(self))
+            self.blocked_at = None
+
+    @property
+    def blocked_at(self) -> float | None:
+        return self._blocked_at
+
+    @blocked_at.setter
+    def blocked_at(self, value: float | None) -> None:
+        if value is None:
+            assert self.blocked is False
+        elif self.blocked:
+            return
+        self._blocked_at = value
+
+    @staticmethod
+    def block_generators(generator_type: str, by_whom: int) -> None:
+        """
+        Used by generators to block OTHER generators.
+        If by_whom = 0, the request was made through discord by the user.
+        In such case, all generators of the generator_type are blocked by all others.
+        """
+        if by_whom == 0:
+            breakpoint()
+            return
+
+        self = get_object_by_id(by_whom)
+        for idx in DecisionGenerator.generators_blockers:
+            generator = get_object_by_id(idx)
+            gen_type = getattr(generator, "generator_type")
+            condition1 = gen_type == generator_type and generator is not self
+            condition2 = generator_type == 'All'
+            if condition1 or condition2:
+                if not getattr(generator, 'blocked'):
+                    logger.info(f'{generator} has been blocked by {self}')
+                    setattr(generator, 'blocked_at', time.perf_counter())
+                DecisionGenerator.generators_blockers[idx].add(by_whom)
+
+    @staticmethod
+    def unblock_generators(generator_type: str, by_whom: int) -> None:
+        """
+        Used by generators to unblock OTHER generators.
+        If by_whom = 0, the request was made through discord by the user.
+        In such case, all generators of the generator_type are unblocked by all others.
+        """
+        if by_whom == 0:
+            breakpoint()
+            return
+
+        self = get_object_by_id(by_whom)
+        for idx in DecisionGenerator.generators_blockers:
+            generator = get_object_by_id(idx)
+            gen_type = getattr(generator, "generator_type")
+            condition1 = gen_type == generator_type and generator is not self
+            condition2 = generator_type == 'All'
+            if condition1 or condition2:
+                was_blocked = getattr(generator, 'blocked')
+                DecisionGenerator.generators_blockers[idx].discard(by_whom)
+                if was_blocked and not getattr(generator, 'blocked'):
+                    logger.info(f'{generator} has been unblocked by {self}')
+                    setattr(generator, 'blocked_at', None)
 
     def __iter__(self) -> "DecisionGenerator":
         return self
