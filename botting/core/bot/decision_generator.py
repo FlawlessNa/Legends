@@ -72,7 +72,8 @@ class DecisionGenerator(ABC):
         In such case, all generators of the generator_type are blocked by all others.
         """
         if by_whom == 0:
-            breakpoint()
+            for idx in DecisionGenerator.generators_blockers:
+                DecisionGenerator.generators_blockers[idx].add(0)
             return
 
         self = get_object_by_id(by_whom)
@@ -95,7 +96,8 @@ class DecisionGenerator(ABC):
         In such case, all generators of the generator_type are unblocked by all others.
         """
         if by_whom == 0:
-            breakpoint()
+            for idx in DecisionGenerator.generators_blockers:
+                DecisionGenerator.generators_blockers[idx].clear()
             return
 
         self = get_object_by_id(by_whom)
@@ -123,7 +125,9 @@ class DecisionGenerator(ABC):
         :return:
         """
         if self.blocked:
-            if time.perf_counter() - self._blocked_at > 300:
+            if 0 in self.generators_blockers[id(self)]:
+                pass
+            elif time.perf_counter() - self._blocked_at > 300:
                 raise RuntimeError(
                     f"{self} has been blocked for more than 5 minutes. Exiting."
                 )

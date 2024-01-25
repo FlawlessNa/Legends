@@ -3,7 +3,7 @@ from functools import partial
 from typing import Optional
 
 from botting.utilities import get_object_by_id
-from botting.core import DecisionGenerator
+
 
 @dataclass
 class QueueAction:
@@ -73,10 +73,7 @@ class GeneratorUpdate:
         """
         data.update(*self.game_data_args, **self.game_data_kwargs)
 
-        if self.generator_id == 0:
-            breakpoint()
-
-        elif self.generator_id is not None:
+        if self.generator_id is not None:
             generator = get_object_by_id(self.generator_id)
 
             # TODO - Test if this works?

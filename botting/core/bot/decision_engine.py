@@ -132,7 +132,17 @@ class DecisionEngine(ChildProcess, ABC):
 
                     # Otherwise, it needs to be a GeneratorUpdate instance
                     assert isinstance(signal, GeneratorUpdate), "Invalid signal type"
-                    signal.update_when_done(self.game_data)
+                    if signal.generator_id == 0:
+                        # Special case for when the signal is from a user message in Discord
+                        block_status = signal.generator_kwargs.pop('blocked')
+                        if block_status:
+                            # Automatically blocks all generators
+                            DecisionGenerator.block_generators('All', 0)
+                        else:
+                            # Completely resets all generators
+                            DecisionGenerator.unblock_generators('All', 0)
+                    else:
+                        signal.update_when_done(self.game_data)
 
                 self.game_data.update(current_client_img=take_screenshot(self.handle))
                 # Run all generators once
