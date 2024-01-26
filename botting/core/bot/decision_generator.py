@@ -71,6 +71,9 @@ class DecisionGenerator(ABC):
         If by_whom = 0, the request was made through discord by the user.
         In such case, all generators of the generator_type are blocked by all others.
         """
+        assert generator_type in [
+            'Rotation', 'AntiDetection', 'Maintenance', 'All'
+        ], f'Invalid generator_type: {generator_type}'
         if by_whom == 0:
             for idx in DecisionGenerator.generators_blockers:
                 DecisionGenerator.generators_blockers[idx].add(0)
@@ -95,6 +98,9 @@ class DecisionGenerator(ABC):
         If by_whom = 0, the request was made through discord by the user.
         In such case, all generators of the generator_type are unblocked by all others.
         """
+        assert generator_type in [
+            'Rotation', 'AntiDetection', 'Maintenance', 'All'
+        ], f'Invalid generator_type: {generator_type}'
         if by_whom == 0:
             for idx in DecisionGenerator.generators_blockers:
                 DecisionGenerator.generators_blockers[idx].clear()
