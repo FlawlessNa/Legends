@@ -11,6 +11,10 @@ from royals.game_data import MaintenanceData
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
+class SkipCurrentIteration(Exception):
+    pass
+
+
 class InventoryManager(IntervalBasedGenerator):
     """
     Interval-based generator that regularly checks the inventory space left.
@@ -29,14 +33,15 @@ class InventoryManager(IntervalBasedGenerator):
     PROC_USE_MYSTIC_DOOR = 3
     PROC_REQUEST_MYSTIC_DOOR = 4
 
-    def __init__(self,
-                 data: MaintenanceData,
-                 tab_to_watch: str = 'Equip',
-                 interval: int = 600,
-                 deviation: float = 0.0,
-                 space_left_alert: int = 10,
-                 procedure: int = PROC_USE_MYSTIC_DOOR
-                 ) -> None:
+    def __init__(
+        self,
+        data: MaintenanceData,
+        tab_to_watch: str = "Equip",
+        interval: int = 600,
+        deviation: float = 0.0,
+        space_left_alert: int = 10,
+        procedure: int = PROC_USE_MYSTIC_DOOR,
+    ) -> None:
         super().__init__(data, interval, deviation)
         self.tab_to_watch = tab_to_watch
         self.space_left_alert = space_left_alert
@@ -54,9 +59,9 @@ class InventoryManager(IntervalBasedGenerator):
         self._current_map_door_position = None
         self._town_map_door_position = None
         if self.procedure == self.PROC_USE_MYSTIC_DOOR:
-            self._door_key = eval(config_reader("keybindings", self.data.ign, "Skill Keys"))[
-                'Mystic Door'
-            ]
+            self._door_key = eval(
+                config_reader("keybindings", self.data.ign, "Skill Keys")
+            )["Mystic Door"]
         else:
             self._door_key = None
 
@@ -65,9 +70,10 @@ class InventoryManager(IntervalBasedGenerator):
 
     @property
     def initial_data_requirements(self) -> tuple:
-        return "inventory_menu",
+        return ("inventory_menu",)
 
     def _update_continuous_data(self) -> None:
+        self._is_displayed = self._is_extended = self._current_tab = None
         self._is_displayed = self.data.inventory_menu.is_displayed(
             self.data.handle, self.data.current_client_img
         )
@@ -100,33 +106,37 @@ class InventoryManager(IntervalBasedGenerator):
                 return self._toggle_inventory_menu()
             else:
                 self._check_completed = False  # Reset for next iteration
+                self._next_call = time.perf_counter() + self.interval
+                raise SkipCurrentIteration
 
     def _exception_handler(self, e: Exception) -> None:
+        if isinstance(e, SkipCurrentIteration):
+            self._error_counter -= 1
+            return
+
         raise e
 
     def _next(self) -> QueueAction | None:
-        if not self._is_displayed:
-            return self._toggle_inventory_menu()
-        elif not self._is_extended:
-            return self._expand_inventory_menu()
-        elif self._current_tab is None:
-            self._fail_count += 1
-            return
-        elif self._current_tab != self.tab_to_watch:
-            return self._toggle_tab()
-        elif self._space_left <= self.space_left_alert:
-            self._check_completed = True
-            return self._cleanup_handler()
-
-        else:
-            self._next_call = time.perf_counter() + self.interval
+        if not self._check_completed:
+            if not self._is_displayed:
+                return self._toggle_inventory_menu()
+            elif not self._is_extended:
+                return self._expand_inventory_menu()
+            elif self._current_tab is None:
+                self._fail_count += 1
+                return
+            elif self._current_tab != self.tab_to_watch:
+                return self._toggle_tab()
+            else:
+                self._check_completed = True
+                if self._space_left <= self.space_left_alert:
+                    return self._cleanup_handler()
 
     @staticmethod
-    async def _expand_inv(
-        handle: int, target: tuple[int, int]
-    ):
+    async def _expand_inv(handle: int, target: tuple[int, int]):
         await controller.mouse_move(handle, target)
         await controller.click(handle)
+        await controller.mouse_move(handle, (-1000, 1000))  # Move mouse away
 
     @staticmethod
     async def _press_n_times(handle: int, key: str, nbr_of_presses: int = 1):
@@ -144,10 +154,11 @@ class InventoryManager(IntervalBasedGenerator):
             update_generators=GeneratorUpdate(
                 generator_id=id(self),
                 generator_kwargs={"blocked": False},
-            )
+            ),
         )
 
     def _expand_inventory_menu(self) -> QueueAction:
+        self.blocked = True
         box = self.data.inventory_menu.get_abs_box(
             self.data.handle, self.data.inventory_menu.extend_button
         )
@@ -163,11 +174,10 @@ class InventoryManager(IntervalBasedGenerator):
             update_generators=GeneratorUpdate(
                 generator_id=id(self),
                 generator_kwargs={"blocked": False},
-            )
+            ),
         )
 
     def _toggle_tab(self) -> QueueAction | None:
-
         nbr_press = self.data.inventory_menu.get_tab_count(
             self._current_tab, self.tab_to_watch
         )
@@ -176,11 +186,11 @@ class InventoryManager(IntervalBasedGenerator):
             return QueueAction(
                 identifier=f"Tabbing {nbr_press} from {self._current_tab} to {self.tab_to_watch}",
                 priority=1,
-                action=partial(self._press_n_times, self.data.handle, 'tab', nbr_press),
+                action=partial(self._press_n_times, self.data.handle, "tab", nbr_press),
                 update_generators=GeneratorUpdate(
                     generator_id=id(self),
                     generator_kwargs={"blocked": False},
-                )
+                ),
             )
 
     def _cleanup_handler(self) -> QueueAction | None:
@@ -191,7 +201,7 @@ class InventoryManager(IntervalBasedGenerator):
                 action=partial(
                     controller.press, self.data.handle, self._key, silenced=True
                 ),
-                user_message=[f"{self._space_left} slots left in inventory."]
+                user_message=[f"{self._space_left} slots left in inventory."],
             )
         elif self.procedure == self.PROC_USE_MYSTIC_DOOR:
             # Turn off all other generators while this complex procedure completes
@@ -201,6 +211,7 @@ class InventoryManager(IntervalBasedGenerator):
             breakpoint()
 
         elif self.procedure in [
-            self.PROC_USE_TOWN_SCROLL, self.PROC_REQUEST_MYSTIC_DOOR
+            self.PROC_USE_TOWN_SCROLL,
+            self.PROC_REQUEST_MYSTIC_DOOR,
         ]:
             raise NotImplementedError
