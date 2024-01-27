@@ -70,7 +70,8 @@ class GeneratorUpdate:
     def update_when_done(self, data) -> None:
         """
         Updates the game data and the generator when the queue action is completed.
-        if Generator_id = 0, this is a special case from a discord user-request that affects all generators.
+        if Generator_id = 0, this is a special case from a discord user-request that
+        affects all generators.
         """
         data.update(*self.game_data_args, **self.game_data_kwargs)
 

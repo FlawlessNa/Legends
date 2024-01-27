@@ -9,10 +9,14 @@ logger = logging.getLogger(__name__)
 class BotLauncher:
     """
     Launcher class for all Bots.
-    A single, shared asynchronous queue (class attribute) is used to schedule all Bots.
-    This ensures that no two Bots are running in parallel, which would be suspicious.
+    For each bot, a multiprocessing.Process is created, which runs the decision-making.
+    A single, shared asynchronous queue is used to schedule all Bot actions within the
+    Main Process. CPU-intensive resources are therefore spread across multiple
+    processes, whereas in-game actions are executed in a single process.
+    This ensures that no two Bots are running in-game actions in "true" parallel,
+    which would be suspicious.
     Instead of true parallelism, this fully leverages cooperative multitasking.
-    Additionally, it defines synchronization primitives that can be used by all bots as well.
+    Additionally, it defines synchronization primitives that can be used by all bots.
     """
 
     def __init__(self, logging_queue: multiprocessing.Queue) -> None:

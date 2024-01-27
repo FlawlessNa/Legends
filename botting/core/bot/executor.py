@@ -17,17 +17,18 @@ logger = logging.getLogger(__name__)
 class Executor:
     """
     The Bot class is the main entry point for the botting framework.
-    It is responsible for packaging all actions received from Bot Monitors (child processes) into a shared queue.
-    It is also responsible for creating and cancelling tasks in the shared queue.
-    Each Bot instance furthers has a listening loop that listens for actions from the Bot Monitor, which they then put
-    into the shared queue (across all Bots).
+    It is responsible for monitoring and packaging all actions received from
+    DecisionEngines (child processes) and schedule into a shared asynchronous queue.
+    It is also responsible for managing tasks scheduled into the queue after creation.
+    It is also responsible for listening to the discord process and see if any actions
+    are requested by user.
     """
 
     blocker: asyncio.Event = asyncio.Event()
-    logging_queue: multiprocessing.Queue
+    logging_queue: multiprocessing.Queue  # Log records sent from child processes
     discord_pipe: multiprocessing.connection.Connection
-    discord_listener: asyncio.Task
-    discord_parser: callable
+    discord_listener: asyncio.Task  # Class attribute to keep track of discord messages
+    discord_parser: callable  # Defines how to interpret discord messages
     all_bots: list["Executor"] = []
 
     def __init__(self, engine: type["DecisionEngine"], ign: str, **kwargs) -> None:
@@ -39,10 +40,14 @@ class Executor:
         )
 
         self.bot_side, self.monitoring_side = multiprocessing.Pipe()
-        self.rotation_lock = multiprocessing.Lock()  # Used for enqueueing of rotation
-        self.action_lock = (
-            asyncio.Lock()
-        )  # Used to manage multiple tasks being enqueued at the same time for a single bot
+
+        # Single Rotation Lock by Bot - Prevents simultaneous rotation actions
+        self.rotation_lock = multiprocessing.Lock()
+
+        # Single Action Lock by Bot - Prevents conflicting actions from being executed
+        # simultaneously
+        self.action_lock = asyncio.Lock()
+
         self.update_bot_list(self)
 
         self.monitoring_process: multiprocessing.Process | None = None
@@ -73,10 +78,11 @@ class Executor:
     @classmethod
     async def relay_disc_to_main(cls) -> None:
         """
-        TODO - Refactor to make it work with multiple executors simultaneously. Requires improved parsing.
+        TODO - Refactor to make it work with multiple executors simultaneously.
+        TODO - Requires improved parsing.
         Main Process task.
         Responsible for listening to the discord process and see if any actions
-         are requested by discord user.
+        are requested by discord user.
         It then performs those actions.
         :return: None
         """
@@ -97,25 +103,29 @@ class Executor:
 
     def create_task(self, queue_item: QueueAction) -> asyncio.Task:
         """
-        Wrapper around asyncio.create_task which also handles task priority and cancellations.
-        It defines how QueueAction objects are converted into asyncio.Task objects and interact with each other.
+        Wrapper around asyncio.create_task which also handles task priority and
+        cancellations. It defines how QueueAction objects are converted into
+        asyncio.Task objects and interact with each other.
 
-        Explanations: Tasks are created from QueueAction objects. They also contain a reference
-        to the QueueAction object that created them. This is done so that when a task is cancelled,
-        the QueueAction object can be re-queued into the shared queue.
-        :param queue_item: The QueueAction object to be converted into a task and run asynchronously.
-        :return: None
+        :param queue_item: The QueueAction object to be converted into a task and ran
+        asynchronously.
+        :return:
         """
         if queue_item.action is None:
             queue_item.action = partial(asyncio.sleep, 0)
 
-        # Wrap the action to ensure it is not interfering with other actions from the same bot.
+        # Ensures action is not interfering with other actions from the same bot.
         queue_item.action = self._wrap_action(queue_item.action)
 
+        # Callbacks are triggered upon completion OR cancellation of the task.
         new_task = asyncio.create_task(queue_item.action(), name=queue_item.identifier)
         new_task.add_done_callback(self._exception_handler)
 
+        # Custom attributes used to manage cancellations properly.
         new_task.is_in_queue = True
+        new_task.priority = queue_item.priority
+        new_task.is_cancellable = queue_item.is_cancellable
+
         if queue_item.release_lock_on_callback:
             new_task.add_done_callback(self._rotation_callback)
 
@@ -124,14 +134,13 @@ class Executor:
                 partial(self._send_update_signal_callback, queue_item.update_generators)
             )
 
+        # TODO - Implement if every needed. Those callbacks would execute in Main
         if queue_item.callbacks:
             for callback in queue_item.callbacks:
                 new_task.add_done_callback(callback)
 
-        # Add the original QueueAction into the task for re-queuing purposes.
+        # Add the original QueueAction object into the task for logging purposes.
         new_task.action = queue_item.action
-        new_task.priority = queue_item.priority
-        new_task.is_cancellable = queue_item.is_cancellable
 
         # Keep track of when the task was originally created.
         new_task.creation_time = asyncio.get_running_loop().time()
@@ -144,8 +153,10 @@ class Executor:
                     and getattr(task, "is_cancellable")
                     and not task.done()
                 ):
+                    id_ = queue_item.identifier
+                    name = task.get_name()
                     logger.debug(
-                        f"{queue_item.identifier} has priority over task {task.get_name()}. Cancelling task {task.get_name()}."
+                        f"{id_} has priority over task {name}. Cancelling {name}."
                     )
                     task.cancel()
 
@@ -209,26 +220,29 @@ class Executor:
 
     def _rotation_callback(self, fut):
         """
-        Callback to use on map rotation actions if they need to acquire lock before executing.
-        In some cases, such as failsafe responses, the lock has not been acquired yet.
+        Callback to use on map rotation actions if they need to acquire lock before
+        executing. In some cases, such as failsafe responses, the lock has not been
+        acquired yet.
         For this reason, try to acquire the lock before releasing it.
         """
         self.rotation_lock.acquire(block=False)
         self.rotation_lock.release()
         if fut.cancelled():
-            logger.debug(
-                f"Rotation Lock released on {self} through callback. {fut.get_name()} is Cancelled."
-            )
+            pass
+            # logger.debug(
+            #     f"Rotation Lock released on {self} through callback. {fut.get_name()} is Cancelled."
+            # )
         else:
-            logger.debug(
-                f"Rotation Lock released on {self} through callback. {fut.get_name()} is Done."
-            )
+            pass
+            # logger.debug(
+            #     f"Rotation Lock released on {self} through callback. {fut.get_name()} is Done."
+            # )
 
     def _send_update_signal_callback(self, signal: tuple[str] | dict, fut):
         """
         Callback to use on map rotation actions if they need to update game game_data.
-        Sends a signal back to the Child process to appropriately update Game Data. This way, CPU-intensive resources
-        are not consumed within the main process.
+        Sends a signal back to the Child process to appropriately update Game Data.
+        This way, CPU-intensive resources are not consumed within the main process.
         """
         self.bot_side.send(signal)
 
@@ -253,11 +267,13 @@ class Executor:
     async def engine_listener(self) -> None:
         """
         Main Process task.
-        Retrieves queue items from the monitoring loop (child process) and adds the item into the shared asynchronous queue.
+        Retrieves queue items from the monitoring loop (child process) and adds the item
+        into the shared asynchronous queue.
         :return: None
         """
         while True:
-            await self.blocker.wait()  # Blocks all Bots until a task clears the blocker. Used for Stopping/Pausing all bots through user-request from discord.
+            # Blocks all Bots until a task clears the blocker. CURRENTLY NOT USED.
+            await self.blocker.wait()
 
             if await asyncio.to_thread(self.bot_side.poll):
                 queue_item: QueueAction = self.bot_side.recv()
@@ -297,5 +313,5 @@ class Executor:
                     for t in asyncio.all_tasks():
                         print(t)
                     logger.warning(
-                        f"Number of tasks in the event loop is {len(asyncio.all_tasks())}."
+                        f"Nbr of tasks in the event loop is {len(asyncio.all_tasks())}."
                     )

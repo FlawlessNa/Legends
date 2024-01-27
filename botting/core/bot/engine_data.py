@@ -20,10 +20,10 @@ class EngineData(ABC):
     Generators can use this class to store and retrieve data, as well as update it.
     Engines should update the current_loop_id upon every loop iteration. This is used
     as a mechanism to prevent attributes from being updated multiple times in the same
-    iteration. Note that this only works with the update method, and for positional
-    arguments only (NOT for keywords-arguments).
+    iteration. Note that this mechanism only works with the update method, and for
+    positional arguments only (NOT for keywords-arguments).
 
-    Sample data attributes are defined below.
+    Sample data attributes are defined below. Child instances should define their own.
     """
 
     handle: int = field(repr=False)

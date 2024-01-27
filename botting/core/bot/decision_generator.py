@@ -14,11 +14,12 @@ class DecisionGenerator(ABC):
     Base class for all Generators.
     Each generator has its own attribute used to monitor its own status.
     In some cases, multiple generators may need access to the same piece of information.
-    Whenever that happens, the information should instead be store in the GameData
-    instance that they are using, since GameData is shared among all generators.
+    Whenever that happens, the information should instead be store in the EngineData
+    instance that is shared among all generators.
     """
 
     generator_type: Literal["Rotation", "AntiDetection", "Maintenance"]
+    # Specifies which generators are blocked by which other generators
     generators_blockers: dict[int, set[int]] = {}
 
     def __init__(self, data) -> None:
@@ -26,16 +27,24 @@ class DecisionGenerator(ABC):
         self._error_counter = 0  # For error-handling
         self._blocked_at = self._blocked = None
 
-        self.__class__.generators_blockers[id(self)] = set()
+        self.__class__.generators_blockers[
+            id(self)
+        ] = set()  # Create a new set for the generator being created
 
     @property
     def blocked(self) -> bool:
+        """
+        :return: True if the generator is blocked by any generator, including self.
+        False otherwise.
+        """
         return len(self.generators_blockers[id(self)]) > 0
 
     @blocked.setter
     def blocked(self, value: bool) -> None:
         """
-        TODO - Used by generators to block themselves. Figure the blocked_at as well.
+        Used by generators to block/unblock themselves.
+        If True, adds the generator's id to its own set of blockers.
+        If False, removes the generator's id from its own set of blockers.
         """
         if value:
             if not self.blocked:
@@ -52,10 +61,24 @@ class DecisionGenerator(ABC):
 
     @property
     def blocked_at(self) -> float | None:
+        """
+        :return: The time at which the generator was blocked. None if not blocked.
+        """
         return self._blocked_at
 
     @blocked_at.setter
     def blocked_at(self, value: float | None) -> None:
+        """
+        Used by generators to set the time at which they were blocked.
+        If value is None, it means the generator is being unblocked.
+        Generators can block themselves or be blocked by others.
+        When a new blocked_at value is given, we first check if the generator is newly
+        blocked, or if it was already blocked. In the latter case, we do not update the
+        blocked_at value.
+        The opposite is true when unblocking: we only remove the blocked_at value if
+        the generator is being truly unblocked, meaning its own blocker set is now empty
+        :return:
+        """
         if value is not None:
             # Only assign a value if one doesn't exist already and we are blocked
             if self.blocked and self._blocked_at is None:
@@ -69,8 +92,11 @@ class DecisionGenerator(ABC):
     def block_generators(generator_type: str, by_whom: int) -> None:
         """
         Used by generators to block OTHER generators.
+        Those are defined as static method because they are often used as callbacks sent
+        through a multiprocessing.Pipe back-and-forth. It is much more efficient to use
+        static methods in such cases.
         If by_whom = 0, the request was made through discord by the user.
-        In such case, all generators of the generator_type are blocked by all others.
+        In such case, all generators of the generator_type are blocked.
         """
         assert generator_type in [
             "Rotation",
@@ -99,8 +125,11 @@ class DecisionGenerator(ABC):
     def unblock_generators(generator_type: str, by_whom: int) -> None:
         """
         Used by generators to unblock OTHER generators.
+        Those are defined as static method because they are often used as callbacks sent
+        through a multiprocessing.Pipe back-and-forth. It is much more efficient to use
+        static methods in such cases.
         If by_whom = 0, the request was made through discord by the user.
-        In such case, all generators of the generator_type are unblocked by all others.
+        In such case, all generators of the generator_type are blocked.
         """
         assert generator_type in [
             "Rotation",
@@ -132,7 +161,12 @@ class DecisionGenerator(ABC):
     def __next__(self) -> QueueAction | None:
         """
         Template method for generators.
-        If the generator is blocked, return None and skip.
+        If the generator is blocked, see if it was blocked by a user-request from
+        Discord, in which case we skip. If it is blocked by other generators, there is a
+        hard limit at 300s after which the generator will raise an error.
+        This is because we never expect generators to block others for such a long time,
+        therefore if that ever happens, it means something is wrong and we should exit.
+
         If the failsafe is triggered, return the defined failsafe action.
         Otherwise, return the next action from the generator.
         :return:
@@ -171,7 +205,8 @@ class DecisionGenerator(ABC):
         at its task. Generally used to prevent the bot being stuck, or to ensure that
         an action has correctly been completed before moving on.
 
-        Note: The definition remains vague, so each Generator can implement any logic.
+        Note: The definition remains vague, so each Generator can implement a vastly
+        different logic.
         :return:
         """
         pass
@@ -201,7 +236,8 @@ class DecisionGenerator(ABC):
     def _update_continuous_data(self) -> None:
         """
         Update current Generator attributes and game data attributes before performing
-        checks.
+        checks. This is called at the beginning of each iteration, provided that the
+        generator is unblocked.
         """
         pass
 

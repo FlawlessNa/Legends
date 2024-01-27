@@ -12,6 +12,17 @@ from botting.utilities import ChildProcess, take_screenshot
 
 
 class DecisionEngine(ChildProcess, ABC):
+    """
+    The DecisionEngine is the core of the bot. It is responsible for monitoring the
+    status of an individual client and making decisions based on the current game state.
+    Each DecisionEngine lives in its own process (aka CPU core).
+    This achieves true parallelism for CPU-intensive operations. When decisions are
+    made, they are sent to the Main Process through a pipe. The Main Process schedules
+    those actions into a single asyncio loop, which is then executed in a single thread.
+    In-game actions are therefore executed asynchronously, which is more alike to how
+    a human would play the game.
+    """
+
     ign_finder: callable  # Returns the handle of a client given its IGN.
 
     def __init__(
@@ -27,9 +38,9 @@ class DecisionEngine(ChildProcess, ABC):
     @abstractmethod
     def game_data(self) -> EngineData:
         """
-        Child instances should store in this property the game game_data to share
+        Child instances should store in this property the data to share
         across its generators.
-        :return: Game game_data.
+        :return: EngineData child instance.
         """
         pass
 
@@ -66,8 +77,6 @@ class DecisionEngine(ChildProcess, ABC):
         """
         This method is called before the main loop starts.
         It is used to update the game data based on the requirements of each generator.
-        It also creates a blocking attribute for each generator, along with a status
-        attribute.
         :param generators:
         :return:
         """
@@ -78,22 +87,22 @@ class DecisionEngine(ChildProcess, ABC):
         """
         There are three types of generators that are monitored:
         1. Generators that are used to monitor the game state, aka "Maintenance"
-        (potions, pet food, inventories, chat feed, proper map, etc.).
+        (potions, pet food, inventories, etc.).
         2. Generators that are used to determine the next map rotation.
         3. Generators that are used to prevent detection (anti-detection).
 
-        Before the main loop starts, generators are chained together and game data
+        Before the main loop starts, generators are chained together and the game data
         is updated based on the requirements of each generator.
-        A blocking attributed is created for each generator, along with a status
-        attribute.
 
         On every iteration,
         - The iteration ID (loop ID) is updated.
-        - If the Main Process sent data through the pipe during a callback,
-         we retrieve it and update the game data accordingly.
-        - All Maintenance generators are checked once.
-        - The map rotation generator is checked once.
+        - If the Main Process sends data through the pipe during a callback (e.g. once
+          an action has terminated), the data is retrieved and used to update the
+          game data for all generators.
+        - Then, all Maintenance generators are checked once.
         - All Anti-Detection generators are checked once.
+        - The map rotation generator is checked once.
+        - End of loop iteration
 
         If any error occurs and is not handled by a generator, it is sent through
         the pipe and subsequently towards Discord. The program then exits.
@@ -112,16 +121,16 @@ class DecisionEngine(ChildProcess, ABC):
         try:
             maintenance = [
                 iter(gen) for gen in monitors_generators
-            ]  # Instantiate all checks generators
-
-            map_rotation = iter(rotation_generator)
+            ]  # Instantiate all checks iterables
 
             anti_detection = [
                 iter(gen) for gen in anti_detection_generators
-            ]  # Instantiate all anti-detection checks generators
+            ]  # Instantiate all anti-detection checks iterables
+
+            map_rotation = iter(rotation_generator)
 
             while True:
-                # Update loop ID and current client image shared across all generators
+                # Update loop ID, data from Main (if any)
                 self.game_data.current_loop_id = time.perf_counter()
 
                 # Poll the pipe for any updates sent by the main process.
@@ -134,8 +143,9 @@ class DecisionEngine(ChildProcess, ABC):
 
                     # Otherwise, it needs to be a GeneratorUpdate instance
                     assert isinstance(signal, GeneratorUpdate), "Invalid signal type"
+
                     if signal.generator_id == 0:
-                        # Special case for when the signal is from a user message in Discord
+                        # Special case: signal from user received from Discord process.
                         block_status = signal.generator_kwargs.pop("blocked")
                         if block_status:
                             # Automatically blocks all generators
@@ -144,15 +154,19 @@ class DecisionEngine(ChildProcess, ABC):
                             # Completely resets all generators
                             DecisionGenerator.unblock_generators("All", 0)
                     else:
+                        # Otherwise, signal is a callback from a specific generator.
                         signal.update_when_done(self.game_data)
 
+                # Update client img at every iteration, since used by most generators
                 self.game_data.update(current_client_img=take_screenshot(self.handle))
-                # Run all generators once
+
+                # Run all generators once. If they return an action, send it to Main.
                 for gen in itertools.chain(maintenance, anti_detection, [map_rotation]):
                     res = next(gen)
                     if res:
                         self.pipe_end.send(res)
 
+        # If any error is un-handled by a generator, send it towards Main and exit.
         except Exception as e:
             self.pipe_end.send(e)
             raise
