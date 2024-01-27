@@ -86,3 +86,20 @@ class GeneratorUpdate:
             for k, v in self.generator_kwargs.items():
                 assert hasattr(generator, k), f"Invalid attribute {k}"
                 setattr(generator, k, v)
+
+
+@dataclass
+class CompoundAction(QueueAction):
+    """
+    A complex QueueAction that could usually be broken down into several QueueActions.
+    The difference is that CompoundAction may require CPU-intensive operations that
+    will be performed WITHIN the main process.
+    When a Generator submits a CompoundAction to the main process, the engine containing
+    that generator is expected to be blocked while the entire CompoundAction executes.
+    The CompoundAction must therefore send a GeneratorUpdate signal to the appropriate
+    engine when it is done.
+
+    Since CompoundAction live in the main process, they must manually define everything
+    they need to properly perform the operations (UI-related objects, for example).
+    """
+    pass

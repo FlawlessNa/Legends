@@ -3,7 +3,7 @@ from .bot import (
     DecisionEngine,
     DecisionGenerator,
     Executor,
-    GameData,
+    EngineData,
     GeneratorUpdate,
     QueueAction,
 )

@@ -4,7 +4,7 @@ import time
 from abc import ABC
 
 from botting import PARENT_LOG
-from botting.core import DecisionGenerator, GameData
+from botting.core import DecisionGenerator, EngineData
 
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
@@ -17,7 +17,7 @@ class IntervalBasedGenerator(DecisionGenerator, ABC):
 
     def __init__(
         self,
-        data: GameData,
+        data: EngineData,
         interval: int,
         deviation: float,
     ) -> None:
