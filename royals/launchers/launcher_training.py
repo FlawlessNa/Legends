@@ -16,7 +16,7 @@ CHARACTER_NAME = "WrongDoor"
 CHARACTER_CLASS = royals.characters.Priest
 TRAINING_SKILL = "Shining Ray"
 TRAINING_MAP = royals.maps.EncounterWithTheBuddha
-MOB_COUNT_THRESHOLD = 2
+MOB_COUNT_THRESHOLD = 1
 TIME_LIMIT_ON_TARGET = 1
 
 BUFFS = ["Magic Guard", "Invincible", "Bless"]

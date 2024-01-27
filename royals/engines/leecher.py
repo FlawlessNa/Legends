@@ -4,7 +4,7 @@ from botting.core import DecisionEngine, Executor, DecisionGenerator
 
 from royals import royals_ign_finder, RoyalsData
 from royals.interface import AbilityMenu, CharacterStats
-from .generators import DistributeAP
+# from .generators import DistributeAP
 
 
 class Leecher(DecisionEngine):

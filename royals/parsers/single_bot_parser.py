@@ -4,7 +4,7 @@ import logging
 from functools import partial
 from typing import Optional
 
-from botting.core import QueueAction
+from botting.core import QueueAction, GeneratorUpdate, DecisionGenerator
 from royals.actions import write_in_chat
 
 
@@ -46,7 +46,10 @@ def single_bot_parser(message: str, bots: list) -> Optional[QueueAction]:
                 priority=0,
                 action=partial(asyncio.sleep, 0),
                 user_message=["Resuming all bots"],
-                update_game_data={"shut_down_at": None, "block_rotation": False},
+                update_generators=GeneratorUpdate(
+                    generator_id=0,
+                    generator_kwargs={"blocked": False},
+                )
             )
         case "stop":
             pass
@@ -63,7 +66,7 @@ def single_bot_parser(message: str, bots: list) -> Optional[QueueAction]:
                 action=partial(write_in_chat,
                                handle=bots[0].handle,
                                message=' '.join(txt_to_write),
-                               channel=chat_type),
+                               channel=chat_type),  # TODO - Add callback to validate message was written
             )
         case "hold":
             return QueueAction(
@@ -71,8 +74,12 @@ def single_bot_parser(message: str, bots: list) -> Optional[QueueAction]:
                 priority=0,
                 action=partial(asyncio.sleep, 0),
                 user_message=["All bots now on hold"],
-                update_game_data={"shut_down_at": None, "block_rotation": True},
+                update_generators=GeneratorUpdate(
+                    generator_id=0,
+                    generator_kwargs={"blocked": True},
+                )
             )
+
         case _:
             return QueueAction(
                 identifier="Unknown Discord Command",

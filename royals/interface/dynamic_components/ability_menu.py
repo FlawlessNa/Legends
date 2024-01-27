@@ -7,8 +7,6 @@ from botting.visuals import InGameDynamicVisuals
 from botting.utilities import (
     Box,
     take_screenshot,
-    CLIENT_VERTICAL_MARGIN_PX,
-    CLIENT_HORIZONTAL_MARGIN_PX,
 )
 
 
@@ -131,10 +129,7 @@ class AbilityMenu(InGameDynamicVisuals):
             image = take_screenshot(handle)
         icon = self._menu_icon_position(handle, image)
         box = icon + self.ability_points_box
-        cropped = image[
-                  box.top-CLIENT_VERTICAL_MARGIN_PX:box.bottom-CLIENT_VERTICAL_MARGIN_PX,
-                  box.left-CLIENT_HORIZONTAL_MARGIN_PX:box.right-CLIENT_HORIZONTAL_MARGIN_PX
-                  ]
+        cropped = box.extract_client_img(image)
         try:
             return int(self.read_from_img(cropped, box.config))
         except ValueError:

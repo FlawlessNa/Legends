@@ -1,26 +1,29 @@
 import logging
+import random
 import time
 
 from abc import ABC, abstractmethod
 from functools import partial
 
 from botting import PARENT_LOG
-from botting.core import DecisionGenerator, QueueAction, controller
+from botting.core import DecisionGenerator, QueueAction, GeneratorUpdate, controller
 from botting.models_abstractions import Skill
-from botting.utilities import Box, take_screenshot, config_reader
+from botting.utilities import Box, config_reader
 from royals.actions import cast_skill
 from royals.game_data import RotationData
 from royals.actions import random_jump
 from royals.engines.generators.rotations.hit_mobs import MobsHitting
+from royals.models_implementations.mechanics.path_into_movements import get_to_target
 
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
-class Rotation(DecisionGenerator, MobsHitting, ABC):
+class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
     """
     Base class for all rotations, where a few helper methods are defined.
     """
+
     generator_type = "Rotation"
 
     def __init__(
@@ -36,53 +39,57 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
         self.training_skill = training_skill
         self.mob_threshold = mob_threshold
 
+        self.next_target = (0, 0)
         self._teleport = teleport
-        self._deadlock_counter = 0
-        self._prev_pos = None
-        self._prev_rotation_actions = []
 
-        self._on_screen_pos = None
-        self._error_counter = 0
-        self._minimap_key = eval(config_reader("keybindings", self.data.ign, "Non Skill Keys"))[
-            "Minimap Toggle"
-        ]
+        self._deadlock_counter = 0  # For Failsafe
+        self._last_pos_change = time.perf_counter()  # For Failsafe
+        self._prev_pos = None  # For Failsafe
+        self._prev_rotation_actions = []  # For Failsafe
+
+        self._on_screen_pos = None  # For Mobs Hitting
+
+        self._minimap_key = eval(
+            config_reader("keybindings", self.data.ign, "Non Skill Keys")
+        )["Minimap Toggle"]
 
     @property
-    def data_requirements(self) -> tuple:
+    def initial_data_requirements(self) -> tuple:
         return (
             "current_entire_minimap_box",
-            "current_on_screen_position",
+            "current_minimap_area_box",
             "current_minimap_position",
-            "last_cast",
-            "last_position_change"
+            "minimap_grid",
+        )
+
+    def _update_continuous_data(self) -> None:
+        self._prev_pos = self.data.current_minimap_position
+        self.data.update("current_minimap_position", "current_on_screen_position")
+        self._on_screen_pos = (
+            self.data.current_on_screen_position
+            if self.data.current_on_screen_position is not None
+            else self._on_screen_pos
+        )
+        self.actions = get_to_target(
+            self.data.current_minimap_position,
+            self.next_target,
+            self.data.current_minimap,
         )
 
     def __repr__(self):
         return f"{self.__class__.__name__}"
 
     def _next(self):
-        self._prev_pos = self.data.current_minimap_position
-        self.data.update("current_minimap_position", "current_on_screen_position")
-
-        if self.data.current_minimap_position is None:
-            return self._minimap_fix()
-
-        self._error_counter = 0
-        self._on_screen_pos = (
-            self.data.current_on_screen_position
-            if self.data.current_on_screen_position is not None
-            else self._on_screen_pos
-        )
-
         self._set_next_target()
         hit_mobs = self._mobs_hitting()
         if hit_mobs:
-            self.data.update(is_attacking=True)
+            self.data.update(available_to_cast=False)
+            updater = GeneratorUpdate(game_data_kwargs={"available_to_cast": True})
             return QueueAction(
                 identifier=f"Mobs Hitting - {self.training_skill.name}",
-                priority=10,
+                priority=98,
                 action=hit_mobs,
-                update_game_data={"is_attacking": False},
+                update_generators=updater,
             )
 
         res = self._rotation()
@@ -121,21 +128,29 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
         return partial(action.func, *args, **kwargs)
 
     def _failsafe(self) -> QueueAction | None:
+        now = time.perf_counter()
+        if self._prev_pos != self.data.current_minimap_position:
+            self._last_pos_change = now
+
+        if not self.actions:
+            self._deadlock_counter += 1
+        else:
+            self._deadlock_counter = 0
+
         reaction = QueueAction(
             identifier=f"FAILSAFE - {self.__class__.__name__}",
-            priority=1,
+            priority=97,
             action=partial(random_jump, self.data.handle, self.data.ign),
             is_cancellable=False,
             release_lock_on_callback=True,
         )
 
         # If no change in position for 10 seconds, trigger failsafe
-        now = time.perf_counter()
-        if now - self.data.last_position_change > 10:
+        if now - self._last_pos_change > 10:
             logger.warning(
                 f"{self.__class__.__name__} Failsafe Triggered Due to static position"
             )
-            self.data.update("last_position_change")
+            self._last_pos_change = now
             return reaction
 
         elif self._deadlock_counter > 30:
@@ -143,6 +158,7 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
                 f"{self.__class__.__name__} Failsafe Triggered Due to no path found"
             )
             self._deadlock_counter = 0
+            self.data.update("current_entire_minimap_box", "current_minimap_area_box")
             return reaction
 
         elif (
@@ -155,7 +171,6 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
             logger.warning(
                 f"{self.__class__.__name__} Failsafe Triggered Due to repeated actions"
             )
-            self._deadlock_counter = 0
             self._prev_rotation_actions.clear()
             return reaction
 
@@ -178,60 +193,69 @@ class Rotation(DecisionGenerator, MobsHitting, ABC):
                 x, y = region.width / 2, region.height / 2
             else:
                 region = self.data.current_map.detection_box
+            cropped_img = region.extract_client_img(self.data.current_client_img)
+            mobs = self.data.current_mobs
+            nbr_mobs = 0
+            for mob in mobs:
+                nbr_mobs += mob.get_mob_count(cropped_img)
 
-            cropped_img = take_screenshot(self.data.handle, region)
-            mobs_locations = self.get_mobs_positions_in_img(
-                cropped_img, self.data.current_mobs
-            )
+            if nbr_mobs >= self.mob_threshold:
+                if self.training_skill.unidirectional:
+                    mobs_locations = self.get_mobs_positions_in_img(
+                        cropped_img, self.data.current_mobs
+                    )
+                    closest_mob_direction = self.get_closest_mob_direction(
+                        (x, y), mobs_locations
+                    )
 
-            if self.training_skill.unidirectional and mobs_locations:
-                closest_mob_direction = self.get_closest_mob_direction(
-                    (x, y), mobs_locations
-                )
-
-            if len(mobs_locations) >= self.mob_threshold:
-                self.data.update("last_mob_detection")
                 res = partial(
                     cast_skill,
                     self.data.handle,
                     self.data.ign,
                     self.training_skill,
                     closest_mob_direction,
-                    attacking_skill=True
+                    attacking_skill=True,
                 )
-
-        if (
-            res
-            and not self.data.character_in_a_ladder
-            and not self.data.is_attacking
-        ):
-            self.data.update("last_cast")
+        if res and not self.data.character_in_a_ladder and self.data.available_to_cast:
             return res
 
-    def _minimap_fix(self) -> QueueAction | None:
-        setattr(self.data, repr(self), True)  # Block rotation calls
-        time.sleep(1)
-        self.data.update("current_minimap_area_box", "current_entire_minimap_box")
-        self._error_counter += 1
+    def _exception_handler(self, e: Exception) -> QueueAction | None:
+        logger.warning(f"{self.__class__.__name__} Exception: {e}")
+        self.blocked = True
+
         if self._error_counter >= 4:
             logger.critical("Minimap Fix Failed, Minimap Position cannot be determined")
-            raise RuntimeError("Minimap Fix Failed, Minimap Position cannot be determined")
+            raise e
 
-        logger.info("Minimap Fix Triggered")
-        minimap = self.data.current_minimap
-        if not minimap.get_minimap_state(self.data.handle) == "Full":
+        if not self.data.current_minimap.get_minimap_state(self.data.handle) == "Full":
             return QueueAction(
                 identifier=f"Toggling Minimap - {self.__class__.__name__}",
                 priority=1,
-                action=partial(controller.press, self.data.handle, self._minimap_key),
-                is_cancellable=False,
-                update_game_data={repr(self): False}
+                action=partial(
+                    controller.press, self.data.handle, self._minimap_key, cooldown=1
+                ),
+                update_generators=GeneratorUpdate(
+                    generator_id=id(self),
+                    generator_kwargs={"blocked": False},
+                    game_data_args=(
+                        "current_entire_minimap_box",
+                        "current_minimap_area_box",
+                    ),
+                ),
             )
         else:
+            self.data.update("current_entire_minimap_box", "current_minimap_area_box")
             return QueueAction(
-                identifier=f"Moving Cursor away from Minimap - {self.__class__.__name__}",
+                identifier=f"Move Cursor away from Minimap - {self.__class__.__name__}",
                 priority=1,
-                action=partial(controller.mouse_move, self.data.handle, target=(600, 600)),
-                is_cancellable=False,
-                update_game_data={repr(self): False}
+                action=partial(
+                    controller.mouse_move,
+                    self.data.handle,
+                    target=(random.randint(300, 600), random.randint(300, 600)),
+                    cooldown=1,
+                ),
+                update_generators=GeneratorUpdate(
+                    generator_id=id(self),
+                    generator_kwargs={"blocked": False},
+                ),
             )

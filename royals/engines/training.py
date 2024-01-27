@@ -5,7 +5,7 @@ from botting.core import DecisionEngine, Executor, DecisionGenerator
 from royals import royals_ign_finder, RoyalsData
 from royals.maps import RoyalsMap
 from .generators import (
-    SmartRotation,
+    SmartRotationGenerator,
     Rebuff,
     PetFood,
     MobCheck,
@@ -79,7 +79,9 @@ class TrainingEngine(DecisionEngine):
     @property
     def items_to_monitor(self) -> list[DecisionGenerator]:
         generators = [
-            InventoryManager(self.game_data, tab_to_watch="Equip"),
+            InventoryManager(self.game_data,
+                             tab_to_watch="Equip",
+                             procedure=InventoryManager.PROC_DISCORD_ALERT),
             PetFood(self.game_data, num_times=self._num_pets),
             SpeedPill(self.game_data),
             DistributeAP(self.game_data),
@@ -91,7 +93,7 @@ class TrainingEngine(DecisionEngine):
 
     @property
     def next_map_rotation(self) -> DecisionGenerator:
-        return SmartRotation(
+        return SmartRotationGenerator(
                 self.game_data,
                 self.rotation_lock,
                 self._training_skill,

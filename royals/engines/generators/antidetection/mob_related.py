@@ -1,21 +1,24 @@
 import logging
-import random
 import time
 
-from functools import partial
-
 from botting import PARENT_LOG
-from botting.core import DecisionGenerator, QueueAction
-from royals.actions import write_in_chat
+from botting.core import QueueAction, DecisionGenerator
+from royals.engines.generators.interval_based import IntervalBasedGenerator
+from royals.engines.generators.antidetection.reactions import AntiDetectionReactions
 from royals.game_data import AntiDetectionData
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
-class MobCheck(DecisionGenerator):
+class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
     """
     Generator for checking if mobs are on screen.
     Emergency action is taken if mobs are not detected for a certain amount of time.
+    There is a double check failsafe with a 1 sec delay to confirm there are indeed no
+    mobs detected.
+    When triggered, a random reaction is sent to general chat.
+    After a small cooldown, a second reaction is sent if there are still no mobs.
+    The bot is on hold indefinitely until the user sends RESUME from discord.
     """
 
     generator_type = "AntiDetection"
@@ -25,75 +28,83 @@ class MobCheck(DecisionGenerator):
         data: AntiDetectionData,
         time_threshold: int,
         mob_threshold: int,
-        cooldown: int = 60,
+        cooldown: int = 15,
+        max_reactions: int = 2,
     ) -> None:
-        super().__init__(data)
+
+        super().__init__(data, interval=1, deviation=0)
+        super(DecisionGenerator, self).__init__(cooldown, max_reactions)
+
         self.time_threshold = time_threshold
         self.mob_threshold = mob_threshold
-        self.cooldown = cooldown
-        self._counter = 0
-        self._last_trigger = 0
 
-    @property
-    def data_requirements(self) -> tuple:
-        return (
-            "latest_client_img",
-            "mob_check_last_detection",
-        )
+        self._fail_counter = 0
+        self._last_detection = time.perf_counter()
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}"
 
+    @DecisionGenerator.blocked.setter
+    def blocked(self, value) -> None:
+        """
+        When this generator is unblocked, reset relevant data.
+        :param value:
+        """
+        super(MobCheck, MobCheck).blocked.fset(self, value)
+        if not value:
+            self._last_detection = time.perf_counter()
+            self._fail_counter = 0
+            self._reaction_counter = 0
+
+    @property
+    def initial_data_requirements(self) -> tuple:
+        return tuple()
+
+    def _update_continuous_data(self) -> None:
+        pass
+
     def _next(self) -> QueueAction | None:
-        if (
-            self.data.shut_down_at is not None
-            and time.perf_counter() > self.data.shut_down_at
-        ):
-            logger.critical(f"Shutting down due to {self.__class__.__name__}")
-            raise RuntimeError(f"Shutting down due to {self.__class__.__name__}")
-
-        if (
-            self._counter >= 2
-            and time.perf_counter() - self._last_trigger > self.cooldown
-        ):
-            return self._reaction()
-
-        self.data.update("latest_client_img")
         nbr_mobs = 0
         mobs = self.data.current_mobs
         for mob in mobs:
-            nbr_mobs += mob.get_mob_count(
-                self.data.latest_client_img.copy(), debug=False
-            )
+            img = mob.detection_box.extract_client_img(self.data.current_client_img)
+            nbr_mobs += mob.get_mob_count(img, debug=False)
 
         if nbr_mobs >= self.mob_threshold:
-            self.data.update("mob_check_last_detection")
-            self._counter = 0
+            self._last_detection = time.perf_counter()
+            self._fail_counter = 0
 
-        elif (
-            time.perf_counter() - self.data.mob_check_last_detection
-            > self.time_threshold
-        ):
-            self._counter += 1
+        elif time.perf_counter() - self._last_detection > self.time_threshold:
+            self._fail_counter += 1
+            self._next_call = time.perf_counter() + self.interval
+
+        if self._fail_counter >= 2:
+
+            self.block_generators("Rotation", id(self))
+            msg = f"""
+            No detection in last {time.perf_counter() - self._last_detection} seconds.
+            Send Resume to continue.
+            """
+            reaction = self._reaction(self.data.handle,
+                                  [msg, self.data.current_client_img])
+            if reaction is not None:
+                logger.warning(
+                    f"Rotation Blocked. Sending random reaction to chat due to {self}."
+                )
+            return reaction
 
     def _failsafe(self):
         """
-        Todo - Read chat to ensure that the bot properly reacted.
+        TODO - Read chat to ensure that the bot properly reacted.
         :return:
         """
-        pass
+        if self._reaction_counter >= self.max_reactions:
+            self.blocked = True
+            return
 
-    def _reaction(self) -> QueueAction:
-        """
-        Triggers emergency reaction, which is three-fold:
-        1. Block bot from continuing until user calls RESUME from discord.
-            Note: If no RESUME within 60 seconds, the bot stops.
-        2. Random reaction in general chat
-        3. Send Discord Alert
-        :return:
-        """
-        reaction_text = random.choice(
-            [
+    @property
+    def reaction_choices(self) -> list:
+        return [
                 "wtf",
                 "wut",
                 "wtf?",
@@ -108,31 +119,6 @@ class MobCheck(DecisionGenerator):
                 "wtf!",
                 "wtf!?",
             ]
-        )
-        logger.warning(
-            f"No mobs detected for {self.time_threshold} seconds. Writing {reaction_text}."
-        )
 
-        func = partial(
-            write_in_chat,
-            handle=self.data.handle,
-            message=reaction_text,
-            channel="general",
-        )
-        self._last_trigger = time.perf_counter()
-        self._counter = 0
-        self.data.update(shut_down_at=self._last_trigger + self.cooldown)
-        self.data.block("Rotation")
-        return QueueAction(
-            f"{self.__class__.__name__} reaction",
-            priority=1,
-            action=func,
-            user_message=[
-                f"""
-                No mobs detected for {self.time_threshold} seconds. Shutting Down in {self.cooldown} seconds.
-                Send Resume to continue.
-                Send Hold to pause indefinitely.
-                """,
-                self.data.latest_client_img,
-            ],
-        )
+    def _exception_handler(self, e: Exception) -> None:
+        raise e

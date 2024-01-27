@@ -31,3 +31,18 @@ async def write_in_chat(
     await controller.write(handle, message, silenced=silenced)
     await controller.press(handle, "enter", silenced=silenced)
     await controller.press(handle, "enter", silenced=silenced)
+
+
+async def random_chat_response(
+    handle: int,
+    msg: str,
+    silenced: bool = True
+):
+    """
+    Selects a random response from a list and writes it in general chat.
+    :param handle:
+    :param msg:
+    :param silenced:
+    :return:
+    """
+    await write_in_chat(handle, msg, silenced=silenced)

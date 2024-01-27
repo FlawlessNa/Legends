@@ -5,7 +5,7 @@ import multiprocessing.connection
 from functools import partial
 from typing import TYPE_CHECKING
 
-from .action import QueueAction
+from .pipe_signals import QueueAction
 from botting.utilities import client_handler
 
 if TYPE_CHECKING:
@@ -106,6 +106,8 @@ class Executor:
         :param queue_item: The QueueAction object to be converted into a task and run asynchronously.
         :return: None
         """
+        if queue_item.action is None:
+            queue_item.action = partial(asyncio.sleep, 0)
 
         # Wrap the action to ensure it is not interfering with other actions from the same bot.
         queue_item.action = self._wrap_action(queue_item.action)
@@ -117,10 +119,14 @@ class Executor:
         if queue_item.release_lock_on_callback:
             new_task.add_done_callback(self._rotation_callback)
 
-        if queue_item.update_game_data is not None:
+        if queue_item.update_generators is not None:
             new_task.add_done_callback(
-                partial(self._send_update_signal_callback, queue_item.update_game_data)
+                partial(self._send_update_signal_callback, queue_item.update_generators)
             )
+
+        if queue_item.callbacks:
+            for callback in queue_item.callbacks:
+                new_task.add_done_callback(callback)
 
         # Add the original QueueAction into the task for re-queuing purposes.
         new_task.action = queue_item.action
@@ -172,21 +178,22 @@ class Executor:
         """Updates the message parser for all bots."""
         cls.discord_parser = parser
 
-    def _exception_handler(self, fut):
+    @classmethod
+    def _exception_handler(cls, fut):
         try:
             if fut.exception() is not None and not isinstance(
                 fut.exception(), TimeoutError
             ):
                 logger.exception(f"Exception occurred in task {fut.get_name()}.")
-                self.discord_pipe.send(f"Exception occurred in task {fut.get_name()}.")
-                self.cancel_all()
+                cls.discord_pipe.send(f"Exception occurred in task {fut.get_name()}.")
+                cls.cancel_all()
                 raise fut.exception()
         except asyncio.CancelledError:
             pass
 
         except Exception as e:
-            self.discord_pipe.send(f"Exception occurred in task {fut.get_name()}.")
-            self.cancel_all()
+            cls.discord_pipe.send(f"Exception occurred in task {fut.get_name()}.")
+            cls.cancel_all()
             raise e
 
     def set_monitoring_process(self) -> None:
@@ -235,11 +242,11 @@ class Executor:
         async def _wrapper():
             await self.action_lock.acquire()
             try:
-                logger.debug(f"Action Lock acquired for {self} for {action}")
+                # logger.debug(f"Action Lock acquired for {self} for {action}")
                 await action()
             finally:
                 self.action_lock.release()
-                logger.debug(f"Action Lock released for {self} for {action}")
+                # logger.debug(f"Action Lock released for {self} for {action}")
 
         return _wrapper
 
@@ -265,11 +272,17 @@ class Executor:
                     logger.exception(
                         f"Exception occurred in {self} monitoring process. Exiting."
                     )
-                    self.discord_pipe.send(f"Exception occurred in monitoring  of {self}.")
+                    self.discord_pipe.send(f"""
+                    Source: Monitor of {self}
+                    Exception: {queue_item}
+                    """)
                     self.cancel_all()
                     break
 
                 logger.debug(f"Received {queue_item} from {self} monitoring process.")
+                if queue_item.identifier in [task.get_name() for task in asyncio.all_tasks()]:
+                    logger.warning(f"Task {queue_item.identifier} already exists. Skipping.")
+                    continue
 
                 new_task = self.create_task(queue_item)
                 logger.debug(f"Created task {new_task.get_name()}.")

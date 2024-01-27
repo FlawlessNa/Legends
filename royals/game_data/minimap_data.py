@@ -4,7 +4,6 @@ from functools import partial
 from botting.core import EngineData
 from botting.utilities import Box, CLIENT_HORIZONTAL_MARGIN_PX, CLIENT_VERTICAL_MARGIN_PX
 from botting.models_abstractions import Skill
-from royals.characters import Character
 from royals.maps import RoyalsMap
 from royals.models_implementations.mechanics import (
     MinimapPathingMechanics,
@@ -13,18 +12,17 @@ from royals.models_implementations.mechanics import (
 
 
 @dataclass
-class RotationData(EngineData):
+class MinimapData(EngineData):
     """ """
-    character: Character = field(default=None)
     current_map: RoyalsMap = field(default=None)
     current_minimap: MinimapPathingMechanics = field(repr=False, default=None)
+    current_minimap_state: str = field(repr=False, init=False)
     current_minimap_area_box: Box = field(repr=False, init=False)
     current_entire_minimap_box: Box = field(repr=False, init=False)
+    current_minimap_title_box: Box = field(repr=False, init=False)
     current_minimap_position: tuple[int, int] = field(repr=False, init=False)
     current_minimap_feature: MinimapFeature = field(repr=False, init=False)
-    current_on_screen_position: tuple[int, int] = field(repr=False, init=False)
     allow_teleport: bool = field(repr=False, init=False, default=None)
-    available_to_cast: bool = field(repr=False, init=False, default=True)
 
     def __post_init__(self):
         if hasattr(self, 'current_map'):
@@ -38,16 +36,28 @@ class RotationData(EngineData):
                 self.current_minimap.generate_grid_template,
                 allow_teleport=self.allow_teleport,
             ),
+            "current_minimap_state": partial(
+                self.current_minimap.get_minimap_state,
+                self.handle,
+                client_img=self.current_client_img
+            ),
             "current_minimap_area_box": partial(
                 self.current_minimap.get_map_area_box,
-                self.handle
+                self.handle,
+                client_img=self.current_client_img
             ),
             "current_minimap_position": partial(
                 self._get_self_position,
             ),
+            "current_minimap_title_box": partial(
+                self.current_minimap.get_minimap_title_box,
+                self.handle,
+                client_img=self.current_client_img
+            ),
             "current_entire_minimap_box": partial(
                 self.current_minimap.get_entire_minimap_box,
-                self.handle
+                self.handle,
+                client_img=self.current_client_img
             ),
             "current_on_screen_position": self._get_on_screen_pos,
             **super().args_dict
@@ -58,7 +68,9 @@ class RotationData(EngineData):
 
     def _get_self_position(self) -> tuple[int, int] | None:
         new_pos = self.current_minimap.get_character_positions(
-            self.handle, map_area_box=self.current_minimap_area_box
+            self.handle,
+            client_img=self.current_client_img,
+            map_area_box=self.current_minimap_area_box
         )
         if new_pos is None or not len(new_pos) == 1:
             return

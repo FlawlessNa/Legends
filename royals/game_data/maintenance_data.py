@@ -1,12 +1,12 @@
 from dataclasses import dataclass, field
 
-from botting.core import GameData
+from botting.core import EngineData
 from royals.characters import Character
 from royals.interface import AbilityMenu, CharacterStats, InventoryMenu
 
 
 @dataclass
-class MaintenanceData(GameData):
+class MaintenanceData(EngineData):
     character: Character = field(default=None)
     maintenance_checks_enabled: bool = field(init=False, default=True)
     ability_menu: AbilityMenu = field(init=False, repr=False)

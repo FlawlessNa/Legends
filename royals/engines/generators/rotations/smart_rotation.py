@@ -1,4 +1,3 @@
-import cv2
 import itertools
 import logging
 import math
@@ -8,18 +7,16 @@ import time
 from functools import partial
 
 from botting import PARENT_LOG
-
 from botting.models_abstractions import Skill
-from botting.utilities import Box, take_screenshot
-from royals.engines.generators.base_rotation import Rotation
+from botting.utilities import Box
+from royals.engines.generators.base_rotation import RotationGenerator
 from royals.game_data import RotationData
-from royals.models_implementations.mechanics.path_into_movements import get_to_target
 
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
-class SmartRotation(Rotation):
+class SmartRotationGenerator(RotationGenerator):
     def __init__(
         self,
         data: RotationData,
@@ -33,46 +30,23 @@ class SmartRotation(Rotation):
         self.time_limit = time_limit
         self._target_cycle = itertools.cycle(self.data.current_minimap.feature_cycle)
 
-        self._next_feature_covered = []  # Used for rotation
         self._last_target_reached_at = time.perf_counter()
         self._first_time_on_target = True
 
-        self._on_central_target = False  # Impacts rotation behavior
-        self._cancellable = True  # Impacts rotation behavior
-
         if len(self.data.current_minimap.feature_cycle) > 0:
-            self.data.update(
-                next_feature=random.choice(self.data.current_minimap.feature_cycle)
-            )
-            self.data.update(next_target=self.data.next_feature.random())
+            self.next_feature = random.choice(self.data.current_minimap.feature_cycle)
+            self.next_target = self.next_feature.random()
             for _ in range(
-                self.data.current_minimap.feature_cycle.index(self.data.next_feature)
+                self.data.current_minimap.feature_cycle.index(self.next_feature)
                 + 1
             ):
                 next(self._target_cycle)
         else:
-            self.data.update(next_target=self.data.current_minimap.random_point())
-            self.data.update(
-                next_feature=self.data.current_minimap.get_feature_containing(
-                    self.data.next_target
+            self.next_target = self.data.current_minimap.random_point()
+            self.next_feature = self.data.current_minimap.get_feature_containing(
+                    self.next_target
                 )
-            )
         self.data.update(allow_teleport=True if teleport is not None else False)
-
-    @property
-    def data_requirements(self) -> tuple:
-        all_ = tuple(
-            [
-                "current_minimap_area_box",
-                "current_entire_minimap_box",
-                "minimap_grid",
-                "current_minimap_position",
-                "last_mob_detection",
-                *super().data_requirements,
-            ]
-        )
-        seen = set()
-        return tuple(x for x in all_ if not (x in seen or seen.add(x)))
 
     def _set_next_target(self) -> None:
         """
@@ -84,8 +58,8 @@ class SmartRotation(Rotation):
         """
         dist = 2
         if (
-            math.dist(self.data.current_minimap_position, self.data.next_target) > dist
-            or self.data.current_minimap_feature != self.data.next_feature
+            math.dist(self.data.current_minimap_position, self.next_target) > dist
+            or self.data.current_minimap_feature != self.next_feature
         ):
             self._first_time_on_target = True
             return
@@ -108,7 +82,7 @@ class SmartRotation(Rotation):
                 top=max(0, y - 100),
                 bottom=min(768, y + 100),
             )
-            cropped_img = take_screenshot(self.data.handle, region)
+            cropped_img = region.extract_client_img(self.data.current_client_img)
             mobs_locations = self.get_mobs_positions_in_img(
                 cropped_img, self.data.current_mobs
             )
@@ -127,7 +101,7 @@ class SmartRotation(Rotation):
                     if self.data.current_minimap_feature.avoid_edges:
                         minimum_x += self.data.current_minimap_feature.edge_threshold
                     target = (max(minimap_x - minimap_dist, minimum_x), minimap_y)
-                    self.data.update(next_target=target)
+                    self.next_target = target
                 else:
                     avg_dist = sum([abs(rect_x - x) for rect_x in right_x]) / len(
                         right_x
@@ -138,34 +112,23 @@ class SmartRotation(Rotation):
                     if self.data.current_minimap_feature.avoid_edges:
                         maximum_x -= self.data.current_minimap_feature.edge_threshold
                     target = (min(minimap_x + minimap_dist, maximum_x), minimap_y)
-                    self.data.update(next_target=target)
+                    self.next_target = target
 
                 return
 
         # If we reach this point, means there aren't enough mobs. Get to next feature.
         if len(self.data.current_minimap.feature_cycle) > 0:
-            self.data.update(next_feature=next(self._target_cycle))
-            self.data.update(next_target=self.data.next_feature.random())
+            self.next_feature = next(self._target_cycle)
+            self.next_target = self.next_feature.random()
         else:
-            self.data.update(next_target=self.data.current_minimap.random_point())
-            self.data.update(
-                next_feature=self.data.current_minimap.get_feature_containing(
-                    self.data.next_target
+            self.next_target = self.data.current_minimap.random_point()
+            self.next_feature = self.data.current_minimap.get_feature_containing(
+                    self.next_target
                 )
-            )
 
     def _rotation(self) -> partial:
-        if self._prev_pos != self.data.current_minimap_position:
-            self.data.update("last_position_change")
-
-        actions = get_to_target(
-            self.data.current_minimap_position,
-            self.data.next_target,
-            self.data.current_minimap,
-        )
-        if actions:
-            self._deadlock_counter = 0
-            first_action = actions[0]
+        if self.actions:
+            first_action = self.actions[0]
             res = self._create_partial(first_action)
 
             if self._lock is None:
@@ -174,7 +137,3 @@ class SmartRotation(Rotation):
             elif self._lock.acquire(block=False):
                 logger.debug(f"Rotation Lock acquired. Sending Next Random Rotation.")
                 return res
-        elif self._on_central_target:
-            self._deadlock_counter = 0
-        else:
-            self._deadlock_counter += 1

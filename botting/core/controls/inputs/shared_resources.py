@@ -28,11 +28,11 @@ class SharedResources:
             """
             await cls.focus_lock.acquire()
             try:
-                logger.debug(f"Focus Lock acquired by {func.__name__}")
+                # logger.debug(f"Focus Lock acquired by {func.__name__}")
                 res = await func(*args, **kwargs)
             finally:
                 cls.focus_lock.release()
-                logger.debug(f"Focus Lock released by {func.__name__}")
+                # logger.debug(f"Focus Lock released by {func.__name__}")
             return res
 
         return inner

@@ -100,14 +100,7 @@ class Minimap(InGameDynamicVisuals, ABC):
                 bottom=0,
             )
             if client_img is not None:
-                detection_img = client_img[
-                    detection_box.top
-                    - CLIENT_VERTICAL_MARGIN_PX : detection_box.bottom
-                    - CLIENT_VERTICAL_MARGIN_PX,
-                    detection_box.left
-                    - CLIENT_HORIZONTAL_MARGIN_PX : detection_box.right
-                    - CLIENT_HORIZONTAL_MARGIN_PX,
-                ]
+                detection_img = detection_box.extract_client_img(client_img)
             else:
                 detection_img = take_screenshot(handle, detection_box)
             detection_color = cv2.inRange(
@@ -144,14 +137,7 @@ class Minimap(InGameDynamicVisuals, ABC):
             map_area_box = self.get_map_area_box(handle, client_img, world_icon_box)
         if map_area_box:
             if client_img is not None:
-                map_area_img = client_img[
-                    map_area_box.top
-                    - CLIENT_VERTICAL_MARGIN_PX : map_area_box.bottom
-                    - CLIENT_VERTICAL_MARGIN_PX,
-                    map_area_box.left
-                    - CLIENT_HORIZONTAL_MARGIN_PX : map_area_box.right
-                    - CLIENT_HORIZONTAL_MARGIN_PX,
-                ]
+                map_area_img = map_area_box.extract_client_img(client_img)
             else:
                 map_area_img = take_screenshot(handle, map_area_box)
             colors = {
@@ -214,15 +200,7 @@ class Minimap(InGameDynamicVisuals, ABC):
                 # If width is not defined, manually try to crop the extra "vertical bands" outside the actual map area.
                 if isinstance(self.map_area_width, type(NotImplemented)):
                     # temp_img in this case is the actual map area box + the extra bands we try to get rid of
-                    temp_img = client_img[
-                        entire_minimap_box.top
-                        - CLIENT_VERTICAL_MARGIN_PX
-                        + top_offset : entire_minimap_box.bottom
-                        - CLIENT_VERTICAL_MARGIN_PX,
-                        entire_minimap_box.left
-                        - CLIENT_HORIZONTAL_MARGIN_PX : entire_minimap_box.right
-                        - CLIENT_HORIZONTAL_MARGIN_PX,
-                    ]
+                    temp_img = entire_minimap_box.extract_client_img(client_img, top_offset=top_offset)
                     gray = cv2.cvtColor(temp_img, cv2.COLOR_BGR2GRAY)
                     mean_vertical_intensity = np.mean(gray, axis=0)
                     differences = np.abs(np.diff(mean_vertical_intensity))

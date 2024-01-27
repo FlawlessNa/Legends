@@ -15,5 +15,6 @@ class RoyalsMap(BaseMap, ABC):
     detection_box: Box
     mobs: tuple[BaseMob]
     minimap: MinimapPathingMechanics
+    nearest_town: "RoyalsMap"
 
 
