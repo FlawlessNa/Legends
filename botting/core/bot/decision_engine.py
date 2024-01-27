@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 
 from .decision_generator import DecisionGenerator
 from .executor import Executor
-from botting.core.bot.game_data import GameData
+from botting.core.bot.engine_data import EngineData
 from botting.core.bot.pipe_signals import GeneratorUpdate
 from botting.utilities import ChildProcess, take_screenshot
 
@@ -25,7 +25,7 @@ class DecisionEngine(ChildProcess, ABC):
 
     @property
     @abstractmethod
-    def game_data(self) -> GameData:
+    def game_data(self) -> EngineData:
         """
         Child instances should store in this property the game game_data to share
         across its generators.

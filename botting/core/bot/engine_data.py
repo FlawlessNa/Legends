@@ -15,7 +15,7 @@ def get_all_annotations(class_: type) -> dict:
 
 
 @dataclass
-class GameData(ABC):
+class EngineData(ABC):
     """
     Base class used as a data container that is shared among all generators.
     Generators can use this class to store and retrieve data, as well as update it.

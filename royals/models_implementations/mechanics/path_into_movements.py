@@ -213,12 +213,12 @@ def _convert_movements_to_actions(
                 # Otherwise, we instead remove some nodes such that the character stops before the ladder.
                 try:
                     next_move = moves[moves.index(movement) + 1]
-                    if next_move[0] in ["up", "down"]:
+                    if next_move[0] in ["up", "down", 'PORTAL']:
                         if movement[1] < 5:
-                            secondary_direction = next_move[0]
-                            duration += 3 / speed  # Make sure we reach the ladder
+                            secondary_direction = 'up' if next_move[0] in ['up', 'PORTAL'] else 'down'
+                            duration += 3 / speed  # Make sure we reach the ladder/portal
                         else:
-                            # Otherwise, make sure we stop before the ladder and re-calculate on next iteration
+                            # Otherwise, make sure we stop before the ladder/portal and re-calculate on next iteration
                             duration -= 3 / speed
                 except IndexError:
                     pass
@@ -228,6 +228,7 @@ def _convert_movements_to_actions(
                 direction=direction,
                 duration=duration,
                 secondary_direction=secondary_direction,
+                cooldown=0.1
             )
 
         elif movement[0] in ["JUMP_LEFT", "JUMP_RIGHT", "JUMP_DOWN", "JUMP_UP"]:
@@ -254,15 +255,25 @@ def _convert_movements_to_actions(
             raise NotImplementedError("Not supposed to reach this point.")
 
         elif movement[0] == "PORTAL":
-            # Primary direction should be defined through InGameData, outside scope of this function.
-            act = [
-                partial(
+            try:
+                previous_act = actions[-1]
+                previous_direction = previous_act.keywords["direction"]
+                act = partial(
                     controller.move,
-                    secondary_direction="up",
-                    duration=0.03,
+                    direction=previous_direction,
+                    duration=0.5,  # TODO - Does that work well?
+                    secondary_direction='up',
                     enforce_delay=False,
+                    cooldown=0.1,
                 )
-            ] * movement[1]
+            except IndexError:
+                # If no previous movement, just press up.
+                act = partial(
+                    controller.move,
+                    direction="up",
+                    duration=0.1,
+                    cooldown=0.1,
+                )
 
         elif movement[0] in [
             "TELEPORT_LEFT",

@@ -2,14 +2,14 @@
 
 ## TODO
 
-### Restructuring Branch
-- [ ] Finish refactoring generators
-- [x] Fix rotation, looks like its broken...
-- [ ] Fix rebuff - figure out the available_to_cast mistery
-- [x] Fix MobCheck - When resuming, reset last detections
-- [ ] Fix CheckStillinMap
-- [ ] Finish cleaning up all data structures
-- [ ] Thoroughly test data management system
+### Inventory Cleanup
+- [ ] I've added 0.1 cooldowns on actions within path_into_movements.py (line 231). Reverse if it doesn't work well once you started leeching
+- [ ] Ability to add custom connections (mystic door) from/to current minimap and nearest town
+- [ ] Basic (incomplete) coding of relevant nearest towns - just enough to get to npc
+- [ ] NPC selling mechanics
+- [ ] CompoundAction implementation
+- [ ] Inventory parsing for godlies?
+- [ ] Storage mechanics
 
 ### Leeching Engine
   - [ ] Rebuffing from Leechers

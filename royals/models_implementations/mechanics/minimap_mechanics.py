@@ -302,7 +302,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                     for conn in feature.connections
                     if conn.other_feature_name is not None
                 ), "Invalid connection names."
-        self.grid = None
+        self.grid: MinimapGrid | None = None
 
     def jump_parabola_y(self, x):
         h, k = self.jump_distance / 2, self.jump_height

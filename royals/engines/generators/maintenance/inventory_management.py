@@ -56,6 +56,8 @@ class InventoryManager(IntervalBasedGenerator):
         self._current_tab = None
         self._check_completed = False
 
+        self._current_map_door_position = None
+        self._town_map_door_position = None
         if self.procedure == self.PROC_USE_MYSTIC_DOOR:
             self._door_key = eval(
                 config_reader("keybindings", self.data.ign, "Skill Keys")
@@ -202,7 +204,11 @@ class InventoryManager(IntervalBasedGenerator):
                 user_message=[f"{self._space_left} slots left in inventory."],
             )
         elif self.procedure == self.PROC_USE_MYSTIC_DOOR:
-            pass
+            # Turn off all other generators while this complex procedure completes
+            # TODO - Idea: Create "CompoundAction" used in some very specific cases
+            # These actions AND computations are all made in the MainProcess
+            self.block_generators('All', id(self))
+            breakpoint()
 
         elif self.procedure in [
             self.PROC_USE_TOWN_SCROLL,

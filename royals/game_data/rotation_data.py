@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from functools import partial
 
-from botting.core import GameData
+from botting.core import EngineData
 from botting.utilities import Box, CLIENT_HORIZONTAL_MARGIN_PX, CLIENT_VERTICAL_MARGIN_PX
 from botting.models_abstractions import Skill
 from royals.characters import Character
@@ -13,7 +13,7 @@ from royals.models_implementations.mechanics import (
 
 
 @dataclass
-class RotationData(GameData):
+class RotationData(EngineData):
     """ """
     character: Character = field(default=None)
     current_map: RoyalsMap = field(default=None)
