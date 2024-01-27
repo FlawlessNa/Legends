@@ -87,6 +87,9 @@
 
 ### Documentation
   - [ ] Botting.core
+    - [x] .bot
+    - [ ] .communications
+    - [ ] .controls
   - [ ] Royals (entire package)
 
 ### Game Interface
