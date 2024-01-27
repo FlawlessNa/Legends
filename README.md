@@ -16,6 +16,7 @@
   - [ ] Ultimate Cast failsafe - check if MP has changed by at least X%
   
 ### Generators
+  - [ ] MobCheck : 2nd reaction - add full sentences (more elaborate choices)
   - [ ] Check character still alive
   - [ ] Check Potions, Pet Food, Mount Food, Magic Rocks left
   - [x] Cooldown buffs
