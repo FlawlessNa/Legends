@@ -56,12 +56,10 @@ if __name__ == "__main__":
         teleport_enabled=not DISABLE_TELEPORT,
         anti_detection_mob_threshold=ANTI_DETECTION_MOB_THRESHOLD,
         anti_detection_time_threshold=ANTI_DETECTION_TIME_THRESHOLD,
-        num_pets=NBR_PETS
+        num_pets=NBR_PETS,
     )
 
     bot = botting.Executor(
-        engine=royals.engines.TrainingEngine,
-        ign=CHARACTER_NAME,
-        **engine_kwargs
+        engine=royals.engines.TrainingEngine, ign=CHARACTER_NAME, **engine_kwargs
     )
     asyncio.run(main(bot))

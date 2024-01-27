@@ -12,7 +12,7 @@ from .generators import (
     DistributeAP,
     InventoryManager,
     CheckStillInMap,
-    SpeedPill
+    SpeedPill,
 )
 
 
@@ -32,7 +32,7 @@ class TrainingEngine(DecisionEngine):
         teleport_enabled: bool = True,
         anti_detection_mob_threshold: int = 3,
         anti_detection_time_threshold: int = 10,
-        num_pets: int = 1
+        num_pets: int = 1,
     ) -> None:
         super().__init__(log_queue, bot)
 
@@ -55,9 +55,7 @@ class TrainingEngine(DecisionEngine):
         self._mob_count_threshold = mob_count_threshold
         self._time_limit_central_node = time_limit
         if buffs:
-            self._buffs_to_use = [
-                self.game_data.get_skill(buff) for buff in buffs
-            ]
+            self._buffs_to_use = [self.game_data.get_skill(buff) for buff in buffs]
         else:
             self._buffs_to_use = []
         for skill in self.game_data.character.skills.values():
@@ -79,9 +77,11 @@ class TrainingEngine(DecisionEngine):
     @property
     def items_to_monitor(self) -> list[DecisionGenerator]:
         generators = [
-            InventoryManager(self.game_data,
-                             tab_to_watch="Equip",
-                             procedure=InventoryManager.PROC_DISCORD_ALERT),
+            InventoryManager(
+                self.game_data,
+                tab_to_watch="Equip",
+                procedure=InventoryManager.PROC_DISCORD_ALERT,
+            ),
             PetFood(self.game_data, num_times=self._num_pets),
             SpeedPill(self.game_data),
             DistributeAP(self.game_data),
@@ -94,13 +94,13 @@ class TrainingEngine(DecisionEngine):
     @property
     def next_map_rotation(self) -> DecisionGenerator:
         return SmartRotationGenerator(
-                self.game_data,
-                self.rotation_lock,
-                self._training_skill,
-                self._mob_count_threshold,
-                teleport=self._teleport_skill,
-                time_limit=self._time_limit_central_node,
-            )
+            self.game_data,
+            self.rotation_lock,
+            self._training_skill,
+            self._mob_count_threshold,
+            teleport=self._teleport_skill,
+            time_limit=self._time_limit_central_node,
+        )
 
     @property
     def anti_detection_checks(self) -> list[DecisionGenerator]:
@@ -108,6 +108,7 @@ class TrainingEngine(DecisionEngine):
             MobCheck(
                 self.game_data,
                 time_threshold=self._anti_detection_time_threshold,
-                mob_threshold=self._anti_detection_mob_threshold),
-            CheckStillInMap(self.game_data)
+                mob_threshold=self._anti_detection_mob_threshold,
+            ),
+            CheckStillInMap(self.game_data),
         ]

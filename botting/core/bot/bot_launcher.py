@@ -9,7 +9,8 @@ logger = logging.getLogger(__name__)
 class BotLauncher:
     """
     Launcher class for all Bots.
-    A single, shared asynchronous queue (class attribute) is used to schedule all Bots. This ensures that no two Bots are running in parallel, which would be suspicious.
+    A single, shared asynchronous queue (class attribute) is used to schedule all Bots.
+    This ensures that no two Bots are running in parallel, which would be suspicious.
     Instead of true parallelism, this fully leverages cooperative multitasking.
     Additionally, it defines synchronization primitives that can be used by all bots as well.
     """

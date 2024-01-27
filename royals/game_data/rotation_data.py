@@ -2,19 +2,24 @@ from dataclasses import dataclass, field
 from functools import partial
 
 from botting.core import EngineData
-from botting.utilities import Box, CLIENT_HORIZONTAL_MARGIN_PX, CLIENT_VERTICAL_MARGIN_PX
+from botting.utilities import (
+    Box,
+    CLIENT_HORIZONTAL_MARGIN_PX,
+    CLIENT_VERTICAL_MARGIN_PX,
+)
 from botting.models_abstractions import Skill
 from royals.characters import Character
 from royals.maps import RoyalsMap
 from royals.models_implementations.mechanics import (
     MinimapPathingMechanics,
-    MinimapFeature
+    MinimapFeature,
 )
 
 
 @dataclass
 class RotationData(EngineData):
     """ """
+
     character: Character = field(default=None)
     current_map: RoyalsMap = field(default=None)
     current_minimap: MinimapPathingMechanics = field(repr=False, default=None)
@@ -27,7 +32,7 @@ class RotationData(EngineData):
     available_to_cast: bool = field(repr=False, init=False, default=True)
 
     def __post_init__(self):
-        if hasattr(self, 'current_map'):
+        if hasattr(self, "current_map"):
             self.current_minimap = self.current_map.minimap
             self.current_mobs = self.current_map.mobs
 
@@ -39,18 +44,16 @@ class RotationData(EngineData):
                 allow_teleport=self.allow_teleport,
             ),
             "current_minimap_area_box": partial(
-                self.current_minimap.get_map_area_box,
-                self.handle
+                self.current_minimap.get_map_area_box, self.handle
             ),
             "current_minimap_position": partial(
                 self._get_self_position,
             ),
             "current_entire_minimap_box": partial(
-                self.current_minimap.get_entire_minimap_box,
-                self.handle
+                self.current_minimap.get_entire_minimap_box, self.handle
             ),
             "current_on_screen_position": self._get_on_screen_pos,
-            **super().args_dict
+            **super().args_dict,
         }
 
     def get_skill(self, skill: str) -> Skill:
@@ -78,16 +81,12 @@ class RotationData(EngineData):
         hide_minimap_box = Box(
             max(
                 0,
-                self.current_entire_minimap_box.left
-                - CLIENT_HORIZONTAL_MARGIN_PX
-                - 5,
+                self.current_entire_minimap_box.left - CLIENT_HORIZONTAL_MARGIN_PX - 5,
             ),
             self.current_entire_minimap_box.right + CLIENT_HORIZONTAL_MARGIN_PX + 5,
             max(
                 0,
-                self.current_entire_minimap_box.top
-                - CLIENT_VERTICAL_MARGIN_PX
-                - 10,
+                self.current_entire_minimap_box.top - CLIENT_VERTICAL_MARGIN_PX - 10,
             ),
             self.current_entire_minimap_box.bottom + CLIENT_VERTICAL_MARGIN_PX + 5,
         )

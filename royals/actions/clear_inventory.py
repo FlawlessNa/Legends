@@ -11,11 +11,7 @@ from royals.models_implementations.mechanics.path_into_movements import get_to_t
 
 
 async def cast_door_and_enter(
-    handle: int,
-    ign: str,
-    door_key: str,
-    current_map: RoyalsMap,
-    allow_teleport: bool
+    handle: int, ign: str, door_key: str, current_map: RoyalsMap, allow_teleport: bool
 ):
     """
     Use door and enter it.
@@ -53,7 +49,7 @@ async def cast_door_and_enter(
         actions = get_to_target(
             current_location,
             (0, 0),  # TODO - Figure out how to connect to another grid
-            current_map.minimap
+            current_map.minimap,
         )
 
 
@@ -61,7 +57,7 @@ async def go_to_town(
     handle: int,
     use_mystic_door: bool = True,
     mystic_door_key: str = None,
-    inventory_toggle_key: str = None
+    inventory_toggle_key: str = None,
 ) -> None:
     """
     Go to town by either using a mystic door and entering it, or by toggling the

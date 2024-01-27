@@ -37,15 +37,14 @@ class SmartRotationGenerator(RotationGenerator):
             self.next_feature = random.choice(self.data.current_minimap.feature_cycle)
             self.next_target = self.next_feature.random()
             for _ in range(
-                self.data.current_minimap.feature_cycle.index(self.next_feature)
-                + 1
+                self.data.current_minimap.feature_cycle.index(self.next_feature) + 1
             ):
                 next(self._target_cycle)
         else:
             self.next_target = self.data.current_minimap.random_point()
             self.next_feature = self.data.current_minimap.get_feature_containing(
-                    self.next_target
-                )
+                self.next_target
+            )
         self.data.update(allow_teleport=True if teleport is not None else False)
 
     def _set_next_target(self) -> None:
@@ -123,8 +122,8 @@ class SmartRotationGenerator(RotationGenerator):
         else:
             self.next_target = self.data.current_minimap.random_point()
             self.next_feature = self.data.current_minimap.get_feature_containing(
-                    self.next_target
-                )
+                self.next_target
+            )
 
     def _rotation(self) -> partial:
         if self.actions:

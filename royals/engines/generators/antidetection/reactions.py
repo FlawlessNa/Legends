@@ -53,6 +53,5 @@ class AntiDetectionReactions(ABC):
             f"{self.__class__.__name__} reaction",
             priority=1,
             action=func,
-            user_message=messages
+            user_message=messages,
         )
-

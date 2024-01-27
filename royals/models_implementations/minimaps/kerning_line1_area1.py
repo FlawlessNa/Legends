@@ -37,7 +37,7 @@ class KerningLine1Area1Minimap(MinimapPathingMechanics):
             self.platform_8,
             self.platform_9,
             self.platform_10,
-            self.main_platform
+            self.main_platform,
         ]
 
     bottom_platform: MinimapFeature = MinimapFeature(

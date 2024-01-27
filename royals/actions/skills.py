@@ -43,7 +43,7 @@ async def cast_skill(
                     cooldown=0,
                     enforce_delay=True,
                     down_or_up="keydown",
-                    delay=0.1
+                    delay=0.1,
                 )
             await asyncio.sleep(max(skill.animation_time - nbr_times * 0.1, 0.0))
         finally:

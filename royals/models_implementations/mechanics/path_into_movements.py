@@ -213,10 +213,14 @@ def _convert_movements_to_actions(
                 # Otherwise, we instead remove some nodes such that the character stops before the ladder.
                 try:
                     next_move = moves[moves.index(movement) + 1]
-                    if next_move[0] in ["up", "down", 'PORTAL']:
+                    if next_move[0] in ["up", "down", "PORTAL"]:
                         if movement[1] < 5:
-                            secondary_direction = 'up' if next_move[0] in ['up', 'PORTAL'] else 'down'
-                            duration += 3 / speed  # Make sure we reach the ladder/portal
+                            secondary_direction = (
+                                "up" if next_move[0] in ["up", "PORTAL"] else "down"
+                            )
+                            duration += (
+                                3 / speed
+                            )  # Make sure we reach the ladder/portal
                         else:
                             # Otherwise, make sure we stop before the ladder/portal and re-calculate on next iteration
                             duration -= 3 / speed
@@ -228,7 +232,7 @@ def _convert_movements_to_actions(
                 direction=direction,
                 duration=duration,
                 secondary_direction=secondary_direction,
-                cooldown=0.1
+                cooldown=0.1,
             )
 
         elif movement[0] in ["JUMP_LEFT", "JUMP_RIGHT", "JUMP_DOWN", "JUMP_UP"]:
@@ -262,7 +266,7 @@ def _convert_movements_to_actions(
                     controller.move,
                     direction=previous_direction,
                     duration=0.5,  # TODO - Does that work well?
-                    secondary_direction='up',
+                    secondary_direction="up",
                     enforce_delay=False,
                     cooldown=0.1,
                 )

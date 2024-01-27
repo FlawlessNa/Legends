@@ -6,7 +6,6 @@ from botting.models_abstractions import BaseMob
 
 
 class MobsHitting:
-
     @staticmethod
     def mob_count_in_img(img: np.ndarray, mobs: list[BaseMob]) -> int:
         """

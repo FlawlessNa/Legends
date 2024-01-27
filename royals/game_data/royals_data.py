@@ -5,11 +5,7 @@ from royals.game_data import AntiDetectionData, MaintenanceData, RotationData
 
 
 @dataclass
-class RoyalsData(
-    MaintenanceData,
-    RotationData,
-    AntiDetectionData
-):
+class RoyalsData(MaintenanceData, RotationData, AntiDetectionData):
     character: Character = field(repr=False, default=None)
 
     # minimap_is_displayed: bool = field(repr=False, init=False)
@@ -22,6 +18,4 @@ class RoyalsData(
 
     @property
     def args_dict(self) -> dict[str, callable]:
-        return {
-            **super().args_dict
-        }
+        return {**super().args_dict}

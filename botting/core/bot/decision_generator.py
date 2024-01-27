@@ -17,6 +17,7 @@ class DecisionGenerator(ABC):
     Whenever that happens, the information should instead be store in the GameData
     instance that they are using, since GameData is shared among all generators.
     """
+
     generator_type: Literal["Rotation", "AntiDetection", "Maintenance"]
     generators_blockers: dict[int, set[int]] = {}
 
@@ -34,7 +35,7 @@ class DecisionGenerator(ABC):
     @blocked.setter
     def blocked(self, value: bool) -> None:
         """
-         TODO - Used by generators to block themselves. Figure the blocked_at as well.
+        TODO - Used by generators to block themselves. Figure the blocked_at as well.
         """
         if value:
             if not self.blocked:
@@ -72,8 +73,11 @@ class DecisionGenerator(ABC):
         In such case, all generators of the generator_type are blocked by all others.
         """
         assert generator_type in [
-            'Rotation', 'AntiDetection', 'Maintenance', 'All'
-        ], f'Invalid generator_type: {generator_type}'
+            "Rotation",
+            "AntiDetection",
+            "Maintenance",
+            "All",
+        ], f"Invalid generator_type: {generator_type}"
         if by_whom == 0:
             for idx in DecisionGenerator.generators_blockers:
                 DecisionGenerator.generators_blockers[idx].add(0)
@@ -84,12 +88,12 @@ class DecisionGenerator(ABC):
             generator = get_object_by_id(idx)
             gen_type = getattr(generator, "generator_type")
             condition1 = gen_type == generator_type and generator is not self
-            condition2 = generator_type == 'All'
+            condition2 = generator_type == "All"
             if condition1 or condition2:
-                if not getattr(generator, 'blocked'):
-                    logger.info(f'{generator} has been blocked by {self}')
+                if not getattr(generator, "blocked"):
+                    logger.info(f"{generator} has been blocked by {self}")
                 DecisionGenerator.generators_blockers[idx].add(by_whom)
-                setattr(generator, 'blocked_at', time.perf_counter())
+                setattr(generator, "blocked_at", time.perf_counter())
 
     @staticmethod
     def unblock_generators(generator_type: str, by_whom: int) -> None:
@@ -99,8 +103,11 @@ class DecisionGenerator(ABC):
         In such case, all generators of the generator_type are unblocked by all others.
         """
         assert generator_type in [
-            'Rotation', 'AntiDetection', 'Maintenance', 'All'
-        ], f'Invalid generator_type: {generator_type}'
+            "Rotation",
+            "AntiDetection",
+            "Maintenance",
+            "All",
+        ], f"Invalid generator_type: {generator_type}"
         if by_whom == 0:
             for idx in DecisionGenerator.generators_blockers:
                 DecisionGenerator.generators_blockers[idx].clear()
@@ -111,13 +118,13 @@ class DecisionGenerator(ABC):
             generator = get_object_by_id(idx)
             gen_type = getattr(generator, "generator_type")
             condition1 = gen_type == generator_type and generator is not self
-            condition2 = generator_type == 'All'
+            condition2 = generator_type == "All"
             if condition1 or condition2:
-                was_blocked = getattr(generator, 'blocked')
+                was_blocked = getattr(generator, "blocked")
                 DecisionGenerator.generators_blockers[idx].discard(by_whom)
-                if was_blocked and not getattr(generator, 'blocked'):
-                    logger.info(f'{generator} has been unblocked by {self}')
-                setattr(generator, 'blocked_at', None)
+                if was_blocked and not getattr(generator, "blocked"):
+                    logger.info(f"{generator} has been unblocked by {self}")
+                setattr(generator, "blocked_at", None)
 
     def __iter__(self) -> "DecisionGenerator":
         return self

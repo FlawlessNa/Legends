@@ -44,9 +44,9 @@ class QueueAction:
 
     def __eq__(self, other):
         return (
-                self.action.func == other.action.func and
-                self.action.keywords == other.action.keywords and
-                self.action.args == other.action.args
+            self.action.func == other.action.func
+            and self.action.keywords == other.action.keywords
+            and self.action.args == other.action.args
         )
 
 
@@ -59,6 +59,7 @@ class GeneratorUpdate:
     GeneratorUpdate attribute (if provided) is sent back to the appropriate
     DecisionEngine.
     """
+
     game_data_args: tuple = field(default_factory=tuple)
     game_data_kwargs: dict = field(default_factory=dict)
 
@@ -102,4 +103,5 @@ class CompoundAction(QueueAction):
     Since CompoundAction live in the main process, they must manually define everything
     they need to properly perform the operations (UI-related objects, for example).
     """
+
     pass

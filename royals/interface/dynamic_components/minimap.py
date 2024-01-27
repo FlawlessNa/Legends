@@ -200,7 +200,9 @@ class Minimap(InGameDynamicVisuals, ABC):
                 # If width is not defined, manually try to crop the extra "vertical bands" outside the actual map area.
                 if isinstance(self.map_area_width, type(NotImplemented)):
                     # temp_img in this case is the actual map area box + the extra bands we try to get rid of
-                    temp_img = entire_minimap_box.extract_client_img(client_img, top_offset=top_offset)
+                    temp_img = entire_minimap_box.extract_client_img(
+                        client_img, top_offset=top_offset
+                    )
                     gray = cv2.cvtColor(temp_img, cv2.COLOR_BGR2GRAY)
                     mean_vertical_intensity = np.mean(gray, axis=0)
                     differences = np.abs(np.diff(mean_vertical_intensity))

@@ -49,9 +49,7 @@ class InventoryMenu(InGameDynamicVisuals):
     merge_and_sort_button: Box = ...
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        processed = cv2.threshold(
-            image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
-        )[1]
+        processed = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
         return cv2.resize(processed, None, fx=10, fy=10)
 
     def is_displayed(self, handle: int, image: np.ndarray = None) -> bool:

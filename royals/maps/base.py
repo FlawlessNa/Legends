@@ -16,5 +16,3 @@ class RoyalsMap(BaseMap, ABC):
     mobs: tuple[BaseMob]
     minimap: MinimapPathingMechanics
     nearest_town: "RoyalsMap"
-
-

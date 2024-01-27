@@ -272,16 +272,22 @@ class Executor:
                     logger.exception(
                         f"Exception occurred in {self} monitoring process. Exiting."
                     )
-                    self.discord_pipe.send(f"""
+                    self.discord_pipe.send(
+                        f"""
                     Source: Monitor of {self}
                     Exception: {queue_item}
-                    """)
+                    """
+                    )
                     self.cancel_all()
                     break
 
                 logger.debug(f"Received {queue_item} from {self} monitoring process.")
-                if queue_item.identifier in [task.get_name() for task in asyncio.all_tasks()]:
-                    logger.warning(f"Task {queue_item.identifier} already exists. Skipping.")
+                if queue_item.identifier in [
+                    task.get_name() for task in asyncio.all_tasks()
+                ]:
+                    logger.warning(
+                        f"Task {queue_item.identifier} already exists. Skipping."
+                    )
                     continue
 
                 new_task = self.create_task(queue_item)

@@ -207,7 +207,7 @@ class InventoryManager(IntervalBasedGenerator):
             # Turn off all other generators while this complex procedure completes
             # TODO - Idea: Create "CompoundAction" used in some very specific cases
             # These actions AND computations are all made in the MainProcess
-            self.block_generators('All', id(self))
+            self.block_generators("All", id(self))
             breakpoint()
 
         elif self.procedure in [

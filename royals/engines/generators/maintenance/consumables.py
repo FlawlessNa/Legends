@@ -51,7 +51,9 @@ class PetFood(IntervalBasedGenerator):
 
     def _next(self) -> QueueAction | None:
         self._next_call = (
-            time.perf_counter() + random.uniform((1-self._deviation), (1+self._deviation)) * self.interval
+            time.perf_counter()
+            + random.uniform((1 - self._deviation), (1 + self._deviation))
+            * self.interval
         )
         action = partial(
             self._press_n_times,
@@ -82,18 +84,22 @@ class PetFood(IntervalBasedGenerator):
 
 
 class MountFood(PetFood):
-    def __init__(self,
-                 data: MaintenanceData,
-                 interval: int = 900,
-                 keyname="Mount Food",
-                 deviation: float = 0.1) -> None:
+    def __init__(
+        self,
+        data: MaintenanceData,
+        interval: int = 900,
+        keyname="Mount Food",
+        deviation: float = 0.1,
+    ) -> None:
         super().__init__(data, interval, keyname, deviation=deviation)
 
 
 class SpeedPill(PetFood):
-    def __init__(self,
-                 data: MaintenanceData,
-                 interval: int = 600,
-                 keyname="Speed Pill",
-                 deviation: float = 0.01) -> None:
+    def __init__(
+        self,
+        data: MaintenanceData,
+        interval: int = 600,
+        keyname="Speed Pill",
+        deviation: float = 0.01,
+    ) -> None:
         super().__init__(data, interval, keyname, deviation=deviation)

@@ -226,7 +226,9 @@ class MinimapFeature(Box):
             return (
                 max(
                     int(
-                        rand_buffer + self.left + self.width * (1 - self.area_coverage) / 2
+                        rand_buffer
+                        + self.left
+                        + self.width * (1 - self.area_coverage) / 2
                     ),
                     self.left,
                 ),
@@ -242,7 +244,9 @@ class MinimapFeature(Box):
             return (
                 min(
                     int(
-                        rand_buffer + self.right - self.width * (1 - self.area_coverage) / 2
+                        rand_buffer
+                        + self.right
+                        - self.width * (1 - self.area_coverage) / 2
                     ),
                     self.right,
                 ),

@@ -2,18 +2,23 @@ from dataclasses import dataclass, field
 from functools import partial
 
 from botting.core import EngineData
-from botting.utilities import Box, CLIENT_HORIZONTAL_MARGIN_PX, CLIENT_VERTICAL_MARGIN_PX
+from botting.utilities import (
+    Box,
+    CLIENT_HORIZONTAL_MARGIN_PX,
+    CLIENT_VERTICAL_MARGIN_PX,
+)
 from botting.models_abstractions import Skill
 from royals.maps import RoyalsMap
 from royals.models_implementations.mechanics import (
     MinimapPathingMechanics,
-    MinimapFeature
+    MinimapFeature,
 )
 
 
 @dataclass
 class MinimapData(EngineData):
     """ """
+
     current_map: RoyalsMap = field(default=None)
     current_minimap: MinimapPathingMechanics = field(repr=False, default=None)
     current_minimap_state: str = field(repr=False, init=False)
@@ -25,7 +30,7 @@ class MinimapData(EngineData):
     allow_teleport: bool = field(repr=False, init=False, default=None)
 
     def __post_init__(self):
-        if hasattr(self, 'current_map'):
+        if hasattr(self, "current_map"):
             self.current_minimap = self.current_map.minimap
             self.current_mobs = self.current_map.mobs
 
@@ -39,12 +44,12 @@ class MinimapData(EngineData):
             "current_minimap_state": partial(
                 self.current_minimap.get_minimap_state,
                 self.handle,
-                client_img=self.current_client_img
+                client_img=self.current_client_img,
             ),
             "current_minimap_area_box": partial(
                 self.current_minimap.get_map_area_box,
                 self.handle,
-                client_img=self.current_client_img
+                client_img=self.current_client_img,
             ),
             "current_minimap_position": partial(
                 self._get_self_position,
@@ -52,15 +57,15 @@ class MinimapData(EngineData):
             "current_minimap_title_box": partial(
                 self.current_minimap.get_minimap_title_box,
                 self.handle,
-                client_img=self.current_client_img
+                client_img=self.current_client_img,
             ),
             "current_entire_minimap_box": partial(
                 self.current_minimap.get_entire_minimap_box,
                 self.handle,
-                client_img=self.current_client_img
+                client_img=self.current_client_img,
             ),
             "current_on_screen_position": self._get_on_screen_pos,
-            **super().args_dict
+            **super().args_dict,
         }
 
     def get_skill(self, skill: str) -> Skill:
@@ -70,7 +75,7 @@ class MinimapData(EngineData):
         new_pos = self.current_minimap.get_character_positions(
             self.handle,
             client_img=self.current_client_img,
-            map_area_box=self.current_minimap_area_box
+            map_area_box=self.current_minimap_area_box,
         )
         if new_pos is None or not len(new_pos) == 1:
             return
@@ -90,16 +95,12 @@ class MinimapData(EngineData):
         hide_minimap_box = Box(
             max(
                 0,
-                self.current_entire_minimap_box.left
-                - CLIENT_HORIZONTAL_MARGIN_PX
-                - 5,
+                self.current_entire_minimap_box.left - CLIENT_HORIZONTAL_MARGIN_PX - 5,
             ),
             self.current_entire_minimap_box.right + CLIENT_HORIZONTAL_MARGIN_PX + 5,
             max(
                 0,
-                self.current_entire_minimap_box.top
-                - CLIENT_VERTICAL_MARGIN_PX
-                - 10,
+                self.current_entire_minimap_box.top - CLIENT_VERTICAL_MARGIN_PX - 10,
             ),
             self.current_entire_minimap_box.bottom + CLIENT_VERTICAL_MARGIN_PX + 5,
         )

@@ -329,7 +329,7 @@ async def click(
     handle: int,
     down_or_up: Literal["click", "down", "up"] = "click",
     nbr_times: int = 1,
-    **kwargs
+    **kwargs,
 ) -> None:
     """
     :param handle:
@@ -341,9 +341,7 @@ async def click(
     await focused_mouse_input(handle, None, None, events, **kwargs)
 
 
-def get_mouse_pos(
-    handle: int
-) -> tuple[int, int]:
+def get_mouse_pos(handle: int) -> tuple[int, int]:
     """
     Returns the position of the cursor inside the window, if it is inside the window.
     Otherwise, returns None.

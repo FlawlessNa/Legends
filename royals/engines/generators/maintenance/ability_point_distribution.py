@@ -120,7 +120,9 @@ class DistributeAP(IntervalBasedGenerator):
         return QueueAction(
             identifier="Distributing AP",
             priority=1,
-            action=partial(self._move_and_click, self.data.handle, target, nbr_of_clicks),
+            action=partial(
+                self._move_and_click, self.data.handle, target, nbr_of_clicks
+            ),
             update_generators=GeneratorUpdate(
                 generator_id=id(self),
                 generator_kwargs={"blocked": False},

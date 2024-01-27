@@ -104,7 +104,6 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
             )
 
     def _failsafe(self) -> QueueAction | None:
-
         if self._reaction_counter >= self.max_reactions:
             # Want a complete reset, so reset prev img as well.
             self._prev_title_img = None
@@ -179,14 +178,14 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
             random.randint(500, 600),
         )
         res = QueueAction(
-                identifier="Moving Mouse away from Minimap",
-                priority=1,
-                action=partial(controller.mouse_move, self.data.handle, target),
-                update_generators=GeneratorUpdate(
-                    generator_id=id(self),
-                    generator_kwargs={"blocked": False},
-                ),
-            )
+            identifier="Moving Mouse away from Minimap",
+            priority=1,
+            action=partial(controller.mouse_move, self.data.handle, target),
+            update_generators=GeneratorUpdate(
+                generator_id=id(self),
+                generator_kwargs={"blocked": False},
+            ),
+        )
         if from_error:
             self.blocked = True
             return res
@@ -198,7 +197,6 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
                 return res
 
     def _ensure_fully_displayed(self) -> QueueAction | None:
-
         if not self.data.current_minimap_state == "Full":
             self.block_generators("Rotation", id(self))
             self.blocked = True

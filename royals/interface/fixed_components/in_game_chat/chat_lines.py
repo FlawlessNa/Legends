@@ -65,7 +65,7 @@ class ChatLine(InGameBaseVisuals, ABC):
             if InGameBaseVisuals._color_detection(
                 img,
                 eval(chat_type).chat_color,
-                pixel_threshold=eval(chat_type).threshold
+                pixel_threshold=eval(chat_type).threshold,
             ):
                 detected_types.add(eval(chat_type))
 
@@ -157,7 +157,7 @@ class General(ChatLine):
         """
         test = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         right_most = np.where(test == 255)[1].max()
-        test = test[:, :min(right_most+5, test.shape[1])]
+        test = test[:, : min(right_most + 5, test.shape[1])]
         # TODO - Try non-binary thresholding. Then, enlarge img and re-apply non-binary
         # Thresholding. This may help splitting characters currently shown as a single cnt
         test = cv2.threshold(test, 30, 255, cv2.THRESH_BINARY)[1]
@@ -294,7 +294,7 @@ class Smega(ChatLine):
         temp = cv2.inRange(image, *self.chat_color)
         right_most = np.where(temp == 255)[1].max()
         # processed_img = cv2.inRange(processed_img, np.array([68, 0, 119]), np.array([130, 86, 170]))
-        processed_img = processed_img[:, :right_most+5]
+        processed_img = processed_img[:, : right_most + 5]
         processed_img = cv2.resize(
             processed_img, None, fx=5, fy=5, interpolation=cv2.INTER_LINEAR
         )
@@ -348,6 +348,7 @@ class Guild(ChatLine):
 
 class Megaphone(ChatLine):
     """Standard, single-channel megaphone lines."""
+
     threshold = 10
     chat_color = ((119, 51, 0), (119, 51, 0))
 

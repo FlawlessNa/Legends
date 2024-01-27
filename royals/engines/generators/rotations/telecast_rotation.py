@@ -19,7 +19,8 @@ logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
 class TelecastRotationGenerator(RotationGenerator):
-    generator_type = 'Rotation'
+    generator_type = "Rotation"
+
     def __init__(
         self,
         data: RoyalsData,
@@ -59,7 +60,9 @@ class TelecastRotationGenerator(RotationGenerator):
         self._next_target = self.data.next_target
 
     def _rotation(self):
-        img = self.data.current_map.detection_box.extract_client_img(self.data.current_client_img)
+        img = self.data.current_map.detection_box.extract_client_img(
+            self.data.current_client_img
+        )
         mob_count = self.mob_count_in_img(img, self.data.current_mobs)
 
         if self._prev_pos != self.data.current_minimap_position:

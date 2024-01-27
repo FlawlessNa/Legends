@@ -85,14 +85,16 @@ class Rebuff(IntervalBasedGenerator):
         :return:
         """
         left, top, right, bottom = win32gui.GetClientRect(self.data.handle)
-        buff_icon_box = Box(left=right - 150, top=top+45, right=right, bottom=85)
+        buff_icon_box = Box(left=right - 150, top=top + 45, right=right, bottom=85)
         haystack = buff_icon_box.extract_client_img(self.data.current_client_img)
         results = cv2.matchTemplate(haystack, self._buff_icon, cv2.TM_CCOEFF_NORMED)
         min_val, max_val, _, _ = cv2.minMaxLoc(results)
         if max_val > self.match_threshold:
             logger.info(f"{self._skill.name} has been cast with confidence {max_val}.")
             # Reset timer and return
-            random_duration = self.interval * random.uniform(1 - self._deviation, 1 - self._deviation / 2)
+            random_duration = self.interval * random.uniform(
+                1 - self._deviation, 1 - self._deviation / 2
+            )
             random_cooldown = self._skill.cooldown * random.uniform(
                 1, 1 + self._deviation
             )

@@ -65,7 +65,9 @@ class BaseMob(InGameBaseVisuals, ABC):
         """
         Returns the number of mobs found on-screen.
         """
-        return math.ceil(len(self.get_onscreen_mobs(image, **kwargs)) / self._multiplier)
+        return math.ceil(
+            len(self.get_onscreen_mobs(image, **kwargs)) / self._multiplier
+        )
 
 
 def _debug(image: np.ndarray, contours) -> None:

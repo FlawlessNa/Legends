@@ -162,7 +162,9 @@ class InGameDynamicVisuals(InGameToggleableVisuals, ABC):
         elif boxes:
             return boxes.pop()
 
-    def get_abs_box(self, handle: int, relative_box: Box, image: np.ndarray = None) -> Box | None:
+    def get_abs_box(
+        self, handle: int, relative_box: Box, image: np.ndarray = None
+    ) -> Box | None:
         """
         Returns the absolute box coordinates of the visual. The relative box is
         added to the menu icon position.

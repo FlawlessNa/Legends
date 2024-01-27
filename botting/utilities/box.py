@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 CLIENT_HORIZONTAL_MARGIN_PX = 3
 CLIENT_VERTICAL_MARGIN_PX = 29
 
+
 @dataclass(frozen=True)
 class Box:
     """
@@ -118,18 +119,24 @@ class Box:
         """Returns a random point inside the box"""
         return random.randint(*self.xrange), random.randint(*self.yrange)
 
-    def extract_client_img(self,
-                           client_img: np.ndarray,
-                           top_offset: int = 0,
-                           bottom_offset: int = 0,
-                           left_offset: int = 0,
-                           right_offset: int = 0) -> np.ndarray:
+    def extract_client_img(
+        self,
+        client_img: np.ndarray,
+        top_offset: int = 0,
+        bottom_offset: int = 0,
+        left_offset: int = 0,
+        right_offset: int = 0,
+    ) -> np.ndarray:
         """
         Returns the slices to be used to crop a full-client image.
         """
         copied = client_img.copy()
         top = max(self.top + top_offset - CLIENT_VERTICAL_MARGIN_PX, 0)
-        bottom = min(self.bottom + bottom_offset - CLIENT_VERTICAL_MARGIN_PX, copied.shape[0])
+        bottom = min(
+            self.bottom + bottom_offset - CLIENT_VERTICAL_MARGIN_PX, copied.shape[0]
+        )
         left = max(self.left + left_offset - CLIENT_HORIZONTAL_MARGIN_PX, 0)
-        right = min(self.right + right_offset - CLIENT_HORIZONTAL_MARGIN_PX, copied.shape[1])
+        right = min(
+            self.right + right_offset - CLIENT_HORIZONTAL_MARGIN_PX, copied.shape[1]
+        )
         return copied[top:bottom, left:right]

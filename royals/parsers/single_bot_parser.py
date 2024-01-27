@@ -49,24 +49,26 @@ def single_bot_parser(message: str, bots: list) -> Optional[QueueAction]:
                 update_generators=GeneratorUpdate(
                     generator_id=0,
                     generator_kwargs={"blocked": False},
-                )
+                ),
             )
         case "stop":
             pass
         case "write":
             chat_type = message.lower().split(" ")[1]
-            if chat_type in ['general', 'whisper']:
+            if chat_type in ["general", "whisper"]:
                 txt_to_write = message.lower().split(" ")[2:]
             else:
-                chat_type = 'general'
+                chat_type = "general"
                 txt_to_write = message.lower().split(" ")[1:]
             return QueueAction(
-                identifier='Writing to chat',
+                identifier="Writing to chat",
                 priority=0,
-                action=partial(write_in_chat,
-                               handle=bots[0].handle,
-                               message=' '.join(txt_to_write),
-                               channel=chat_type),  # TODO - Add callback to validate message was written
+                action=partial(
+                    write_in_chat,
+                    handle=bots[0].handle,
+                    message=" ".join(txt_to_write),
+                    channel=chat_type,
+                ),  # TODO - Add callback to validate message was written
             )
         case "hold":
             return QueueAction(
@@ -77,7 +79,7 @@ def single_bot_parser(message: str, bots: list) -> Optional[QueueAction]:
                 update_generators=GeneratorUpdate(
                     generator_id=0,
                     generator_kwargs={"blocked": True},
-                )
+                ),
             )
 
         case _:

@@ -31,7 +31,6 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
         cooldown: int = 15,
         max_reactions: int = 2,
     ) -> None:
-
         super().__init__(data, interval=1, deviation=0)
         super(DecisionGenerator, self).__init__(cooldown, max_reactions)
 
@@ -79,14 +78,14 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
             self._next_call = time.perf_counter() + self.interval
 
         if self._fail_counter >= 2:
-
             self.block_generators("Rotation", id(self))
             msg = f"""
             No detection in last {time.perf_counter() - self._last_detection} seconds.
             Send Resume to continue.
             """
-            reaction = self._reaction(self.data.handle,
-                                  [msg, self.data.current_client_img])
+            reaction = self._reaction(
+                self.data.handle, [msg, self.data.current_client_img]
+            )
             if reaction is not None:
                 logger.warning(
                     f"Rotation Blocked. Sending random reaction to chat due to {self}."
@@ -105,20 +104,20 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
     @property
     def reaction_choices(self) -> list:
         return [
-                "wtf",
-                "wut",
-                "wtf?",
-                "hmmm?",
-                "?",
-                "???",
-                "uh",
-                "huh",
-                "tha hell",
-                "wth",
-                "wth?",
-                "wtf!",
-                "wtf!?",
-            ]
+            "wtf",
+            "wut",
+            "wtf?",
+            "hmmm?",
+            "?",
+            "???",
+            "uh",
+            "huh",
+            "tha hell",
+            "wth",
+            "wth?",
+            "wtf!",
+            "wtf!?",
+        ]
 
     def _exception_handler(self, e: Exception) -> None:
         raise e
