@@ -1,7 +1,7 @@
 """
 Launcher used for multi-bot Leeching model.
-A leecher bot is the primary process here, but "buffers" engines can be added to
-better control party buffs.
+A leecher bot is the primary process here, but "Mule Buffers" engines can be added to
+better control party buffs as well as automatically distribute AP upon level up.
 """
 import asyncio
 import botting
@@ -11,42 +11,72 @@ from functools import partial
 import royals.characters
 import royals.engines
 import royals.maps
+import royals.parsers
 
 
-CHARACTER_NAME = "FarmFest1"
-LEECHERS_NAMES = ["FarmFest2", "FarmFest3", "FarmFest4", "FarmFest5", "LootFest"]
-CHARACTER_CLASS = royals.characters.Bishop
-LEECHERS_CLASSES = [royals.characters.Magician] * 4 + [royals.characters.Rogue]
-TRAINING_MAP = royals.maps.PathOfTime1
-MOB_COUNT_THRESHOLD = 5
+LEECHER_IGN = "WrongDoor"
+LEECHER_CLASS = royals.characters.Bishop
+LEECHER_BUFFS_TO_USE = []
+
+BUFF_MULES_IGN = ["UluLoot", "BCoinFarm", "iYieldMoney", "MoneyEngine", "FinancialWiz"]
+BUFF_MULES_CLASSES = [royals.characters.Rogue] + [royals.characters.Magician] * 4
+
+NUM_BOTS = 6
+TRAINING_MAP = royals.maps.Line1Area1
+MOB_COUNT_THRESHOLD = 7
 
 DETECTION_CONFIG_SECTION = "Elephant Cape"
 CLIENT_SIZE = "large"
 
+ANTI_DETECTION_MOB_THRESHOLD = 2
+ANTI_DETECTION_TIME_THRESHOLD = 10
+
+DISCORD_PARSER = royals.parsers.single_bot_parser  # TODO - Change to multi_bot_parser
+
 
 async def main(*bots: botting.Executor) -> None:
+    botting.Executor.update_discord_parser(DISCORD_PARSER)
     with botting.SessionManager(*bots) as session:
         await session.launch()
 
 
 if __name__ == "__main__":
-    character = partial(
-        CHARACTER_CLASS,
-        CHARACTER_NAME,
+    leecher_char = partial(
+        LEECHER_CLASS,
+        LEECHER_IGN,
         detection_configs=DETECTION_CONFIG_SECTION,
         client_size=CLIENT_SIZE,
     )
-    engine_kwargs = dict(
-        character=character,
+    leecher_engine_kwargs = dict(
         game_map=TRAINING_MAP,
+        character=leecher_char,
         mob_count_threshold=MOB_COUNT_THRESHOLD,
+        notifier=...,
+        barrier=...,
+        buffs=LEECHER_BUFFS_TO_USE,
+        anti_detection_mob_threshold=ANTI_DETECTION_MOB_THRESHOLD,
+        anti_detection_time_threshold=ANTI_DETECTION_TIME_THRESHOLD,
+    )
+    leecher = botting.Executor(
+        engine=royals.engines.LeechingEngine, ign=LEECHER_IGN, **leecher_engine_kwargs
     )
 
-    bot = botting.Executor(
-        engine=royals.engines.LeechingEngine, ign=CHARACTER_NAME, **engine_kwargs
-    )
-    # leechers = [
-    #     botting.Executor(engine=royals.engines.Leecher, ign=name, **{"character": char})
-    #     for name, char in zip(LEECHERS_NAMES, LEECHERS_CLASSES)
-    # ]
-    asyncio.run(main(bot))
+    mules_char = [
+        partial(class_, ign, DETECTION_CONFIG_SECTION, CLIENT_SIZE)
+        for class_, ign in zip(BUFF_MULES_CLASSES, BUFF_MULES_IGN)
+    ]
+    mules_engine_kwargs = [
+        dict(
+            character=char,
+            notifier=...,
+            barrier=...,
+        ) for char in mules_char
+    ]
+    mules = [
+        botting.Executor(
+            engine=royals.engines.BuffMule, ign=name, **kwargs
+        )
+        for name, kwargs in zip(BUFF_MULES_IGN, mules_engine_kwargs)
+    ]
+
+    asyncio.run(main(leecher, *mules))

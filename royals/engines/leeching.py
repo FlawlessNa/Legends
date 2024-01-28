@@ -1,11 +1,20 @@
 import multiprocessing
 
 from botting.core import DecisionEngine, Executor, DecisionGenerator
-from botting.models_abstractions import BaseMap
+from royals.maps import RoyalsMap
 
 from royals import royals_ign_finder, RoyalsData
 
-# from .generators import TelecastRotationGenerator, Rebuff, LocalizedRebuff, PetFood, MobCheck
+from .generators import (
+    TelecastRotationGenerator,
+    Rebuff,
+    PartyRebuff,
+    PetFood,
+    MobCheck,
+    CheckStillInMap,
+    DistributeAP,
+    InventoryManager,
+)
 
 
 class LeechingEngine(DecisionEngine):
@@ -15,30 +24,39 @@ class LeechingEngine(DecisionEngine):
         self,
         log_queue: multiprocessing.Queue,
         bot: Executor,
-        game_map: BaseMap,
+        game_map: RoyalsMap,
         character: callable,
+        mob_count_threshold: int,
+        notifier: multiprocessing.Event,
+        barrier: multiprocessing.Barrier,
         rebuff_location: tuple[int, int] = None,
-        mob_count_threshold: int = 5,
         buffs: list[str] | None = None,
+        anti_detection_mob_threshold: int = 3,
+        anti_detection_time_threshold: int = 10,
+        num_pets: int = 1,
     ) -> None:
         super().__init__(log_queue, bot)
-        self._game_data = RoyalsData(self.handle, self.ign)
-        # self.game_data.update(
-        #     "current_minimap_area_box",
-        #     "current_minimap_position",
-        #     "current_entire_minimap_box",
-        #     current_map=game_map,
-        #     current_minimap=game_map.minimap,
-        #     current_mobs=game_map.mobs,
-        #     character=character(),
-        # )
+        self._game_data = RoyalsData(
+            self.handle,
+            self.ign,
+            character(),
+            current_map=game_map,
+            current_mobs=game_map.mobs,
+        )
 
         self._training_skill = self.game_data.character.skills[
             self.game_data.character.main_skill
         ]
         self._teleport_skill = self.game_data.character.skills["Teleport"]
-        # self.game_data.current_minimap.generate_grid_template(allow_teleport=True)
         self._mob_count_threshold = mob_count_threshold
+
+        self._notifier = notifier
+        self._barrier = barrier
+
+        self._anti_detection_mob_threshold = anti_detection_mob_threshold
+        self._anti_detection_time_threshold = anti_detection_time_threshold
+        self._num_pets = num_pets
+
         if buffs:
             self._buffs_to_use = [
                 self.game_data.character.skills[buff] for buff in buffs
@@ -64,38 +82,51 @@ class LeechingEngine(DecisionEngine):
 
     @property
     def items_to_monitor(self) -> list[DecisionGenerator]:
-        generators = []
+        generators = [
+            InventoryManager(
+                self.game_data,
+                tab_to_watch="Equip",
+                procedure=InventoryManager.PROC_DISCORD_ALERT,
+            ),
+            PetFood(self.game_data, num_times=self._num_pets),
+            DistributeAP(self.game_data),
+        ]
+        party_buffs = []
         for skill in self.game_data.character.skills.values():
-            if skill.type in ["Buff"] and skill in self._buffs_to_use:
+            if skill.type == "Buff" and skill in self._buffs_to_use:
                 generators.append(Rebuff(self.game_data, skill))
-        generators.append(PetFood(self.game_data))
+            elif skill.type == "Party Buff" and skill in self._buffs_to_use:
+                party_buffs.append(skill)
+        if party_buffs:
+            generators.append(
+                PartyRebuff(
+                    self.game_data,
+                    self._notifier,
+                    self._barrier,
+                    party_buffs,
+                    self._rebuff_location,
+                )
+            )
         return generators
 
     @property
     def next_map_rotation(self) -> DecisionGenerator:
-        buffs = []
-        for skill in self.game_data.character.skills.values():
-            if skill.type in ["Party Buff"] and skill in self._buffs_to_use:
-                buffs.append(skill)
-        return [
-            TelecastRotationGenerator(
+        return TelecastRotationGenerator(
                 self.game_data,
                 self.rotation_lock,
                 teleport_skill=self._teleport_skill,
                 ultimate=self._training_skill,
                 mob_threshold=self._mob_count_threshold,
-            ),
-            LocalizedRebuff(
-                self.game_data,
-                self.rotation_lock,
-                self._teleport_skill,
-                buffs,
-                self._rebuff_location,
-            ),
-        ]
+            )
+
 
     @property
     def anti_detection_checks(self) -> list[DecisionGenerator]:
         return [
-            MobCheck(self.game_data, time_threshold=10, mob_threshold=3),
+            MobCheck(
+                self.game_data,
+                time_threshold=self._anti_detection_time_threshold,
+                mob_threshold=self._anti_detection_mob_threshold,
+            ),
+            CheckStillInMap(self.game_data),
         ]

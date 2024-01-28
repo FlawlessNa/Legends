@@ -51,6 +51,7 @@
 
 ### Discord
    - [ ] Add a callback on user-messages to confirm action (such as writing to chat) properly made
+   - [ ] Implement multi-bot parser
 
 ### Character detection
   - [ ] Standardize code and transfer detection framework into botting library

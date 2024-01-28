@@ -80,7 +80,10 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
         return f"{self.__class__.__name__}"
 
     def _next(self):
-        self._set_next_target()
+        if getattr(self.data, 'next_target', None) is not None:
+            self.next_target = self.data.next_target
+        else:
+            self._set_next_target()
         hit_mobs = self._mobs_hitting()
         if hit_mobs:
             self.data.update(available_to_cast=False)

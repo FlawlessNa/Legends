@@ -30,6 +30,6 @@ def get_client_handle(ign: str, ign_finder: callable) -> int:
     :return: Integer representing the handle of the client.
     """
     for handle in get_open_clients():
-        if ign_finder(handle) == ign:
+        if ign_finder(handle).lower() == ign.lower():
             return handle
     raise ValueError(f"Client with IGN {ign} not found.")

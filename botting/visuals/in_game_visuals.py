@@ -70,7 +70,7 @@ class InGameBaseVisuals(ABC):
         filtered_res = [
             result["text"][i]
             for i in range(len(result["text"]))
-            if int(result["conf"][i]) > confidence_level
+            if int(result["conf"][i]) >= confidence_level
         ]
         return " ".join(filtered_res)
 

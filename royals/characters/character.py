@@ -7,13 +7,14 @@ from typing import Any, Sequence
 
 from numpy import dtype, generic, ndarray
 
-from botting.models_abstractions import BaseCharacter, Skill
+from botting.models_abstractions import BaseCharacter
 from botting.utilities import (
     Box,
     take_screenshot,
     config_reader,
 )
 from paths import ROOT
+from royals.models_implementations.mechanics import RoyalsSkill
 
 DEBUG = True
 
@@ -193,7 +194,7 @@ class Character(BaseCharacter, ABC):
 
     @property
     @abstractmethod
-    def skills(self) -> dict[str, Skill]:
+    def skills(self) -> dict[str, RoyalsSkill]:
         raise NotImplementedError
 
     @property
