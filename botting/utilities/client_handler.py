@@ -1,3 +1,4 @@
+import fuzzywuzzy.fuzz as fuzz
 import win32gui
 
 from .config_reader import config_reader
@@ -30,6 +31,7 @@ def get_client_handle(ign: str, ign_finder: callable) -> int:
     :return: Integer representing the handle of the client.
     """
     for handle in get_open_clients():
-        if ign_finder(handle).lower() == ign.lower():
+
+        if fuzz.ratio(ign_finder(handle).lower(), ign.lower()) > 90:
             return handle
     raise ValueError(f"Client with IGN {ign} not found.")

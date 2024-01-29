@@ -213,7 +213,7 @@ class Executor:
         ), "Logging queue must be set before setting monitoring process."
         self.monitoring_process = multiprocessing.Process(
             target=self.engine.start_monitoring,
-            name=f"{self} Monitoring",
+            name=f"Monitoring[{self.ign}]",
             args=(self, Executor.logging_queue),
             kwargs=self.engine_kwargs,
         )
@@ -301,10 +301,16 @@ class Executor:
                 if queue_item.identifier in [
                     task.get_name() for task in asyncio.all_tasks()
                 ]:
-                    logger.warning(
-                        f"Task {queue_item.identifier} already exists. Skipping."
-                    )
-                    continue
+                    task = asyncio.all_tasks()[
+                        [task.get_name() for task in asyncio.all_tasks()].index(
+                            queue_item.identifier
+                        )
+                    ]
+                    if getattr(task, 'process_id', None) == queue_item.process_id:
+                        logger.debug(
+                            f"Task {queue_item.identifier} already exists. Skipping."
+                        )
+                        continue
 
                 new_task = self.create_task(queue_item)
                 logger.debug(f"Created task {new_task.get_name()}.")

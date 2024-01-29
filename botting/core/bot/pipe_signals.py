@@ -1,3 +1,4 @@
+import os
 from dataclasses import field, dataclass
 from functools import partial
 from typing import Optional
@@ -41,6 +42,7 @@ class QueueAction:
 
     # Not yet implemented
     callbacks: list[callable] = field(compare=False, default_factory=list, repr=False)
+    process_id: int = field(compare=False, default=os.getpid(), repr=False, init=False)
 
     def __eq__(self, other):
         return (

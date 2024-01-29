@@ -49,6 +49,7 @@ async def main(*bots: botting.Executor) -> None:
 if __name__ == "__main__":
     notifier = multiprocessing.Event()
     barrier = multiprocessing.Barrier(NUM_BOTS, timeout=5)
+    counter = multiprocessing.BoundedSemaphore(NUM_BOTS)
     leecher_char = partial(
         LEECHER_CLASS,
         LEECHER_IGN,
@@ -61,6 +62,7 @@ if __name__ == "__main__":
         mob_count_threshold=MOB_COUNT_THRESHOLD,
         notifier=notifier,
         barrier=barrier,
+        counter=counter,
         buffs=LEECHER_BUFFS_TO_USE,
         synchronized_buffs=BUFFS_TO_SYNCHRONIZE,
         anti_detection_mob_threshold=ANTI_DETECTION_MOB_THRESHOLD,
@@ -80,6 +82,7 @@ if __name__ == "__main__":
             character=char,
             notifier=notifier,
             barrier=barrier,
+            counter=counter,
             synchronized_buffs=BUFFS_TO_SYNCHRONIZE,
         ) for char in mules_char
     ]

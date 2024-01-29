@@ -46,10 +46,7 @@ class EngineData(ABC):
             from the last time they were updated.
         :param kwargs: Keyword arguments that are used to update attributes.
         """
-        if 'available_to_cast' in kwargs:
-            print("available_to_cast", kwargs['available_to_cast'])
         annotations = get_all_annotations(self.__class__)
-        # self._handler_blockers(kwargs)
         for k, v in kwargs.items():
             assert k in annotations or hasattr(self, k), f"Invalid attribute {k}"
             setattr(self, k, v)
@@ -57,7 +54,6 @@ class EngineData(ABC):
         # For positional arguments, only update if the current_loop_id is different
         for arg in args:
             if self.attr_update_id.get(arg) == self.current_loop_id:
-                print(f"Skipping {arg}")
                 continue
 
             self.attr_update_id[arg] = self.current_loop_id

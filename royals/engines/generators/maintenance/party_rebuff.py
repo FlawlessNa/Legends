@@ -11,7 +11,7 @@ from functools import partial
 from threading import BrokenBarrierError
 
 from botting import PARENT_LOG, ROOT
-from botting.core import QueueAction, GeneratorUpdate
+from botting.core import QueueAction, GeneratorUpdate, DecisionGenerator
 from botting.utilities import Box
 from royals.actions import cast_skill
 from royals.engines.generators.interval_based import IntervalBasedGenerator
@@ -40,6 +40,19 @@ class PartyRebuff(IntervalBasedGenerator):
 
     generator_type = "Maintenance"
 
+    @DecisionGenerator.blocked.setter
+    def blocked(self, value) -> None:
+        """
+        When this generator is unblocked, the ready_counter is incremented
+        :return:
+        """
+        super(PartyRebuff, PartyRebuff).blocked.fset(self, value)
+        if value:
+            if not self.ready_counter.acquire(block=False):
+                raise RuntimeError(f"{self} tried to acquire a locked counter.")
+        else:
+            self.ready_counter.release()
+
     def __repr__(self) -> str:
         buff_str = ", ".join([buff.name for buff in self.buffs])
         return f"{self.__class__.__name__}({self.data.ign}: {buff_str})"
@@ -47,8 +60,9 @@ class PartyRebuff(IntervalBasedGenerator):
     def __init__(
         self,
         data: MaintenanceData | MinimapData,
-        notifier: mp.Event,
-        barrier: mp.Barrier,
+        notifier: mp.Event,  # Notifies it is time to rebuff
+        barrier: mp.Barrier,  # Blocks until all bots ready to rebuff
+        counter: mp.BoundedSemaphore,  # Used to count how many bots are done rebuffing
         buffs: list[str],
         target: tuple[int, int],
         deviation: float = 0.1,
@@ -65,13 +79,16 @@ class PartyRebuff(IntervalBasedGenerator):
             )
         else:
             interval = 1000
-            self._minimap_range = 1000
+            self._minimap_range = 5
 
         super().__init__(data, interval, deviation)
 
         self.notifier = notifier
         self.barrier = barrier
+        self.ready_counter = counter
+
         self.target = target
+
         self._full_buff_list = buffs
         self._buff_icons = [
             cv2.imread(os.path.join(ICONS_PATH, f"{buff}.png"))
@@ -108,9 +125,12 @@ class PartyRebuff(IntervalBasedGenerator):
         """
         self.data.update("current_minimap_position")
         self.data.update(next_target=self.target)
-        if not self.notifier.is_set():
+        if (
+            not self.notifier.is_set()
+            and self.ready_counter.get_value() == self.barrier.parties
+        ):
             logger.info(f"{self} has set the rebuff Notifier.")
-        self.notifier.set()
+            self.notifier.set()
 
     def _next(self) -> QueueAction | None:
         if (
@@ -126,24 +146,36 @@ class PartyRebuff(IntervalBasedGenerator):
                 self.barrier.wait()  # Returns true only when barrier passes
                 return self._rebuff()
             except BrokenBarrierError:
-                pass
-            # else:
-            #     # Occurs if timeout is reached
-            #     return
+                self.barrier.reset()
 
     def _failsafe(self):
-        if self._confirm_rebuffed():
-            # If successful, reset for timer + notifier as well as target.
-            self.notifier.clear()
-            self._next_call = time.perf_counter() + self.interval * (
-                random.uniform(1 - self._deviation, 1 - self._deviation / 2)
-            )
-            self.data.update(next_target=None)
-            self.unblock_generators("Rotation", id(self))
-            raise SkipIteration  # skip call to _next()
-        else:
-            # Re-trigger the notifier for every generators
-            self.notifier.set()
+        """
+        Only check for failsafe once all bots have rebuffed, in which case the counter
+        will be at max value.
+        :return:
+        """
+        if self.ready_counter.get_value() != self.barrier.parties:
+            raise SkipIteration
+
+        elif self._confirm_rebuffed():
+            try:
+                i = self.barrier.wait()
+                if i == 0:
+                    logger.info(f"{self} has reset the rebuff Notifier.")
+                    self.notifier.clear()
+
+                # If successful, reset for timer + notifier as well as target.
+                self.notifier.clear()
+                self._next_call = time.perf_counter() + self.interval * (
+                    random.uniform(1 - self._deviation, 1 - self._deviation / 2)
+                )
+                self.data.update(next_target=None)
+                self.unblock_generators("Rotation", id(self))
+                raise SkipIteration  # skip call to _next()
+
+            except BrokenBarrierError:
+                self.barrier.reset()
+                raise SkipIteration
 
     def _confirm_rebuffed(self) -> bool:
         left, top, right, bottom = win32gui.GetClientRect(self.data.handle)
@@ -152,7 +184,6 @@ class PartyRebuff(IntervalBasedGenerator):
         for idx, icon in enumerate(self._buff_icons):
             results = cv2.matchTemplate(haystack, icon, cv2.TM_CCOEFF_NORMED)
             min_val, max_val, _, _ = cv2.minMaxLoc(results)
-            print(self._full_buff_list[idx], max_val)
             if max_val > 0.99:
                 continue
             else:
@@ -168,6 +199,7 @@ class PartyRebuff(IntervalBasedGenerator):
         raise e
 
     def _rebuff(self) -> QueueAction:
+        # Decrement the ready counter, and re-increment when rebuffing action completes
         self.block_generators("Rotation", id(self))
         self.blocked = True
         return QueueAction(
@@ -181,6 +213,7 @@ class PartyRebuff(IntervalBasedGenerator):
                 generator_kwargs={"blocked": False},
             ),
         )
+
     #
     # @staticmethod
     # async def _run_all_actions(partials, timeout: int = 5):

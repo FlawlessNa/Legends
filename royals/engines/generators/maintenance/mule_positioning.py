@@ -1,3 +1,4 @@
+import time
 from botting.core import QueueAction
 from royals.engines.generators.interval_based import IntervalBasedGenerator
 from royals.game_data import MinimapData
@@ -45,6 +46,7 @@ class EnsureSafeSpot(IntervalBasedGenerator):
         :return:
         """
         if self._character_location != self.data.current_minimap_position:
+            self._next_call = time.perf_counter() + 60
             return QueueAction(
                 identifier="Mule has moved",
                 priority=0,

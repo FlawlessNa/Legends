@@ -29,6 +29,7 @@ class LeechingEngine(DecisionEngine):
         mob_count_threshold: int,
         notifier: multiprocessing.Event,
         barrier: multiprocessing.Barrier,
+        counter: multiprocessing.BoundedSemaphore,
         synchronized_buffs: list[str],
         rebuff_location: tuple[int, int] = None,
         buffs: list[str] | None = None,
@@ -53,6 +54,7 @@ class LeechingEngine(DecisionEngine):
 
         self._notifier = notifier
         self._barrier = barrier
+        self._counter = counter
 
         self._anti_detection_mob_threshold = anti_detection_mob_threshold
         self._anti_detection_time_threshold = anti_detection_time_threshold
@@ -105,6 +107,7 @@ class LeechingEngine(DecisionEngine):
                 self.game_data,
                 self._notifier,
                 self._barrier,
+                self._counter,
                 self._synchronized_buffs,
                 self._rebuff_location,
             )

@@ -1,4 +1,5 @@
 import asyncio
+import os
 import ctypes
 import functools
 import logging
@@ -6,7 +7,6 @@ import logging
 from win32gui import GetForegroundWindow, SetForegroundWindow
 
 logger = logging.getLogger(__name__)
-
 
 class SharedResources:
     focus_lock = asyncio.Lock()  # All instances of this class will share the same lock.
@@ -28,11 +28,11 @@ class SharedResources:
             """
             await cls.focus_lock.acquire()
             try:
-                # logger.debug(f"Focus Lock acquired by {func.__name__}")
+                logger.debug(f"Focus Lock {id(cls.focus_lock)} acquired by {os.getpid()}")
                 res = await func(*args, **kwargs)
             finally:
                 cls.focus_lock.release()
-                # logger.debug(f"Focus Lock released by {func.__name__}")
+                logger.debug(f"Focus Lock {id(cls.focus_lock)} released by {os.getpid()}")
             return res
 
         return inner

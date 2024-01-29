@@ -28,6 +28,7 @@ class BuffMule(DecisionEngine):
         character: callable,
         notifier: multiprocessing.Event,
         barrier: multiprocessing.Barrier,
+        counter: multiprocessing.BoundedSemaphore,
         synchronized_buffs: list[str],
         rebuff_location: tuple[int, int] = None,
     ) -> None:
@@ -50,6 +51,7 @@ class BuffMule(DecisionEngine):
 
         self._notifier = notifier
         self._barrier = barrier
+        self._counter = counter
         self._synchronized_buffs = synchronized_buffs
 
         if rebuff_location:
@@ -70,6 +72,7 @@ class BuffMule(DecisionEngine):
                 self.game_data,
                 self._notifier,
                 self._barrier,
+                self._counter,
                 self._synchronized_buffs,
                 self._rebuff_location,
             ),
