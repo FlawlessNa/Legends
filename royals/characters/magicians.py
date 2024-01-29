@@ -124,8 +124,9 @@ class Bishop(Priest):
                 "Attack",
                 animation_time=3,
                 unidirectional=False,
-                duration=120,
                 _use_by_default=True,
+                horizontal_screen_range=400,
+                vertical_screen_range=350,
             ),
             "Maple Warrior": Skill(
                 "Maple Warrior",

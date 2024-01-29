@@ -16,11 +16,7 @@ class EventBasedGenerator(DecisionGenerator, ABC):
     Base class for generators that perform an action upon an event being triggered.
     """
 
-    def __init__(
-        self,
-        data: EngineData,
-        notifier: mp.Event
-    ) -> None:
+    def __init__(self, data: EngineData, notifier: mp.Event) -> None:
         super().__init__(data)
         self.notifier = notifier
         self.notifier.set()

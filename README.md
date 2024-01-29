@@ -12,8 +12,11 @@
 - [ ] Storage mechanics
 
 ### Leeching Engine
-  - [ ] Rebuffing from Leechers
+  - [x] Rebuffing from Leechers
   - [ ] Ultimate Cast failsafe - check if MP has changed by at least X%
+  - [ ] Enhanced telecasting
+  - [ ] Rework on focus lock in a multi-client context
+  - [ ] Multi-client blockers/parsers
   
 ### Generators
   - [ ] MobCheck : 2nd reaction - add full sentences (more elaborate choices)

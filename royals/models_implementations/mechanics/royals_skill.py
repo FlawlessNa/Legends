@@ -13,14 +13,13 @@ class RoyalsSkill(Skill):
     Adds an icon property to the Skill class, which is used to detect if skill cast
     was successful. Only applies for Buff-type skills.
     """
+
     icon_path: str = field(
         init=False,
         repr=False,
-        default=os.path.join(ROOT, f"royals/assets/detection_images")
+        default=os.path.join(ROOT, f"royals/assets/detection_images"),
     )
 
     @property
     def icon(self) -> np.ndarray:
-        return cv2.imread(
-            os.path.join(self.icon_path, f"{self.name}.png")
-        )
+        return cv2.imread(os.path.join(self.icon_path, f"{self.name}.png"))

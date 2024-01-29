@@ -299,8 +299,10 @@ class Executor:
                     break
 
                 logger.debug(f"Received {queue_item} from {self} monitoring process.")
-                task_ids = [(task.get_name(), getattr(task, 'process_id', None))
-                            for task in asyncio.all_tasks()]
+                task_ids = [
+                    (task.get_name(), getattr(task, "process_id", None))
+                    for task in asyncio.all_tasks()
+                ]
                 if (queue_item.identifier, queue_item.process_id) in task_ids:
                     logger.info(
                         f"Task {queue_item.identifier} already exists. Skipping."

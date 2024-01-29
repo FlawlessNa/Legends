@@ -1,11 +1,15 @@
+import logging
 import numpy as np
 import time
 from functools import cached_property, partial
 
+from botting import PARENT_LOG
 from botting.core import GeneratorUpdate, QueueAction, controller
 from botting.utilities import config_reader
 from royals.engines.generators.interval_based import IntervalBasedGenerator
 from royals.game_data import MaintenanceData
+
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
 class DistributeAP(IntervalBasedGenerator):
@@ -21,7 +25,7 @@ class DistributeAP(IntervalBasedGenerator):
         self._current_lvl_img = self._prev_lvl_img = None
 
     def __repr__(self):
-        return "AP Distributor"
+        return f"{self.__class__.__name__}({self.data.ign})"
 
     @property
     def initial_data_requirements(self) -> tuple:
@@ -86,6 +90,7 @@ class DistributeAP(IntervalBasedGenerator):
                     self._current_lvl_img = None
                     return self._distribute_ap(ap_available)
                 else:
+                    logger.info(f"No more AP to distribute for {self}.")
                     return self._toggle_ability_menu()
         else:
             self._next_call = time.perf_counter() + self.interval

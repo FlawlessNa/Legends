@@ -33,28 +33,28 @@ async def cast_skill(
 
     if attacking_skill:
         # no silencing on attacking skills.
-        try:
-            nbr_times = random.randint(2, 4)
-            for _ in range(nbr_times):
-                await controller.press(
-                    handle,
-                    skill.key_bind(ign),
-                    silenced=False,
-                    cooldown=0,
-                    enforce_delay=True,
-                    down_or_up="keydown",
-                    delay=0.1,
-                )
-            await asyncio.sleep(max(skill.animation_time - nbr_times * 0.1, 0.0))
-        finally:
-            # Ensures the key is released
+        # try:
+        nbr_times = random.randint(2, 4)
+        for _ in range(nbr_times):
             await controller.press(
                 handle,
                 skill.key_bind(ign),
                 silenced=False,
-                cooldown=0.1,
-                down_or_up="keyup",
+                cooldown=0,
+                enforce_delay=True,
+                # down_or_up="keydown",
+                delay=0.1,
             )
+        await asyncio.sleep(max(skill.animation_time - nbr_times * 0.1, 0.0))
+        # finally:
+        #     # Ensures the key is released
+        #     await controller.press(
+        #         handle,
+        #         skill.key_bind(ign),
+        #         silenced=False,
+        #         cooldown=0.1,
+        #         down_or_up="keyup",
+        #     )
     else:
         await controller.press(
             handle,

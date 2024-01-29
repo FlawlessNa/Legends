@@ -10,6 +10,7 @@ class EnsureSafeSpot(IntervalBasedGenerator):
     Useful for leeching mules in case they get hit.
     It only triggers a discord notification whenever the character has moved.
     """
+
     generator_type = "Maintenance"
 
     def __init__(
@@ -23,7 +24,7 @@ class EnsureSafeSpot(IntervalBasedGenerator):
 
     @property
     def initial_data_requirements(self) -> tuple:
-        return "current_minimap_area_box",
+        return ("current_minimap_area_box",)
 
     def _update_continuous_data(self) -> None:
         self.data.update("current_minimap_position")
@@ -50,5 +51,5 @@ class EnsureSafeSpot(IntervalBasedGenerator):
             return QueueAction(
                 identifier="Mule has moved",
                 priority=0,
-                user_message=[f"{self.data.ign} has been moved"]
+                user_message=[f"{self.data.ign} has been moved"],
             )

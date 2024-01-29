@@ -77,9 +77,7 @@ class TelecastRotationGenerator(RotationGenerator):
                 directions = []
                 while self.actions and self.actions[0].func.__name__ == "teleport":
                     next_action = self.actions.pop(0)
-                    directions.append(
-                        next_action.keywords["direction"]
-                    )
+                    directions.append(next_action.keywords["direction"])
                 res = partial(
                     self._full_telecast,
                     self.data.handle,
@@ -88,14 +86,16 @@ class TelecastRotationGenerator(RotationGenerator):
                     self._ultimate,
                     directions,
                 )
+                print("Telecasting")
                 return QueueAction(
-                    identifier='Telecasting',
+                    identifier="Telecasting",
                     priority=99,
                     action=res,
                     is_cancellable=getattr(self, "_is_cancellable", True),
                     release_lock_on_callback=True,
                     update_generators=GeneratorUpdate(
-                        game_data_kwargs={'available_to_cast': True})
+                        game_data_kwargs={"available_to_cast": True}
+                    ),
                 )
         else:
             return self._rotation()

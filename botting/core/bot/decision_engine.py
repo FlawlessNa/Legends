@@ -112,9 +112,11 @@ class DecisionEngine(ChildProcess, ABC):
         rotation_generator = self.next_map_rotation
         anti_detection_generators = self.anti_detection_checks
 
-        all_gens = list(itertools.chain(
-            monitors_generators, anti_detection_generators, [rotation_generator]
-        ))
+        all_gens = list(
+            itertools.chain(
+                monitors_generators, anti_detection_generators, [rotation_generator]
+            )
+        )
         while None in all_gens:
             all_gens.remove(None)
 
@@ -166,7 +168,9 @@ class DecisionEngine(ChildProcess, ABC):
 
                 # Run all generators once. If they return an action, send it to Main.
                 if map_rotation is not None:
-                    all_iters = itertools.chain(maintenance, anti_detection, [map_rotation])
+                    all_iters = itertools.chain(
+                        maintenance, anti_detection, [map_rotation]
+                    )
                 else:
                     all_iters = itertools.chain(maintenance, anti_detection)
                 for gen in all_iters:

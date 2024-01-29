@@ -84,12 +84,11 @@ if __name__ == "__main__":
             barrier=barrier,
             counter=counter,
             synchronized_buffs=BUFFS_TO_SYNCHRONIZE,
-        ) for char in mules_char
+        )
+        for char in mules_char
     ]
     mules = [
-        botting.Executor(
-            engine=royals.engines.BuffMule, ign=name, **kwargs
-        )
+        botting.Executor(engine=royals.engines.BuffMule, ign=name, **kwargs)
         for name, kwargs in zip(BUFF_MULES_IGN, mules_engine_kwargs)
     ]
 
