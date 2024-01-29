@@ -30,9 +30,10 @@ class RotationData(EngineData):
     current_on_screen_position: tuple[int, int] = field(repr=False, init=False)
     allow_teleport: bool = field(repr=False, init=False, default=None)
     available_to_cast: bool = field(repr=False, init=False, default=True)
+    next_target: tuple[int, int] = field(repr=False, init=False)
 
     def __post_init__(self):
-        if hasattr(self, "current_map"):
+        if hasattr(self, "current_map") and self.current_map is not None:
             self.current_minimap = self.current_map.minimap
             self.current_mobs = self.current_map.mobs
 

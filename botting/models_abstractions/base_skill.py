@@ -7,7 +7,7 @@ from botting.utilities import config_reader
 @dataclass(frozen=True)
 class Skill:
     name: str
-    type: str
+    type: str = field(repr=False)
     duration: int = field(default=0, repr=False)
     unidirectional: bool = field(default=True, repr=False)
     horizontal_minimap_distance: float = field(default=0, repr=False)

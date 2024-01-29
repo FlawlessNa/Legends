@@ -13,9 +13,9 @@ import royals.parsers
 
 
 CHARACTER_NAME = "WrongDoor"
-CHARACTER_CLASS = royals.characters.Priest
-TRAINING_SKILL = "Shining Ray"
-TRAINING_MAP = royals.maps.EncounterWithTheBuddha
+CHARACTER_CLASS = royals.characters.Bishop
+TRAINING_SKILL = "Genesis"
+TRAINING_MAP = royals.maps.Line1Area1
 MOB_COUNT_THRESHOLD = 1
 TIME_LIMIT_ON_TARGET = 1
 

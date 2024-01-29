@@ -2,7 +2,7 @@ import multiprocessing
 
 from botting.core import DecisionEngine, Executor, DecisionGenerator
 from royals import royals_ign_finder, RoyalsData
-from royals.interface import AbilityMenu, CharacterStats
+from royals.maps import RoyalsMap
 from .generators import DistributeAP, EnsureSafeSpot, PartyRebuff
 
 
@@ -24,23 +24,28 @@ class BuffMule(DecisionEngine):
         self,
         log_queue: multiprocessing.Queue,
         bot: Executor,
+        game_map: RoyalsMap,
         character: callable,
         notifier: multiprocessing.Event,
         barrier: multiprocessing.Barrier,
         rebuff_location: tuple[int, int] = None,
     ) -> None:
         super().__init__(log_queue, bot)
-        self._game_data = RoyalsData(self.handle, self.ign)
-        self.game_data.update(
-            ability_menu=AbilityMenu(),
-            character=character(),
-            character_stats=CharacterStats(),
+        self._game_data = RoyalsData(
+            self.handle,
+            self.ign,
+            character(),
+            current_map=game_map,
         )
+        # self.game_data.update(
+        #     ability_menu=AbilityMenu(),
+        #     character=character(),
+        #     character_stats=CharacterStats(),
+        # )
         self._buffs = []
         for buff in self.included_buffs:
             if self.game_data.character.skills.get(buff) is not None:
                 self._buffs.append(self.game_data.character.skills[buff])
-        print(self.ign, self._buffs)
 
         self._notifier = notifier
         self._barrier = barrier
@@ -58,12 +63,13 @@ class BuffMule(DecisionEngine):
         return [
             DistributeAP(self.game_data),
             EnsureSafeSpot(self.game_data),
-            PartyRebuff(self.game_data,
-                        self._notifier,
-                        self._barrier,
-                        self._buffs,
-                        self._rebuff_location
-                        ),
+            PartyRebuff(
+                self.game_data,
+                self._notifier,
+                self._barrier,
+                self._buffs,
+                self._rebuff_location,
+            ),
         ]
 
     def next_map_rotation(self) -> DecisionGenerator:

@@ -1,14 +1,18 @@
 import asyncio
+import logging
 import math
 import multiprocessing as mp
 import random
 import time
 
+from botting import PARENT_LOG
 from botting.core import QueueAction, GeneratorUpdate
 from royals.actions import cast_skill
 from royals.engines.generators.interval_based import IntervalBasedGenerator
 from royals.game_data import MaintenanceData, MinimapData
 from royals.models_implementations.mechanics import RoyalsSkill
+
+logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
 class SkipIteration(Exception):
@@ -25,6 +29,7 @@ class PartyRebuff(IntervalBasedGenerator):
     a given Engine waits on a Barrier, and when all are waiting, the barrier is broken
     and all characters cast their buffs.
     """
+    generator_type = "Maintenance"
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.data.ign}, {self.buffs})"
@@ -69,6 +74,7 @@ class PartyRebuff(IntervalBasedGenerator):
             self._next_call = time.perf_counter()
         return super().__next__()
 
+    @property
     def initial_data_requirements(self) -> tuple:
         return tuple()
 
@@ -80,6 +86,8 @@ class PartyRebuff(IntervalBasedGenerator):
         """
         self.data.update("current_minimap_position")
         self.data.update(next_target=self.target)
+        if not self.notifier.is_set():
+            logger.info(f"{self} has set the rebuff Notifier.")
         self.notifier.set()
 
     def _next(self) -> QueueAction | None:
@@ -92,12 +100,14 @@ class PartyRebuff(IntervalBasedGenerator):
         else:
             # Generator is now ready for rebuff, a barrier blocks it until all others
             # are ready as well. This call is blocking; the entire process is on hold
-            # Maximum wait time is 5 seconds
-            if self.barrier.wait(timeout=5):  # Returns true only when barrier passes
-                return self._rebuff()
-            else:
-                # Occurs if timeout is reached
-                return
+            logger.info(f"{self} is waiting on the barrier of {self.barrier.parties}.")
+            test = self.barrier.wait()  # Returns true only when barrier passes
+            print('test', test)
+
+            return self._rebuff()
+            # else:
+            #     # Occurs if timeout is reached
+            #     return
 
     def _failsafe(self):
         # Check if re-buff was successful, in which case the notifier is cleared and
@@ -108,17 +118,18 @@ class PartyRebuff(IntervalBasedGenerator):
             self._next_call = time.perf_counter() + self.interval * (
                 random.uniform(1 - self._deviation, 1 - self._deviation / 2)
             )
+            self.data.update(next_target=None)
             self.unblock_generators("Rotation", id(self))
             raise SkipIteration  # skip call to _next()
         else:
             # Re-trigger the notifier for every generators
             self.notifier.set()
-            self._next_call = time.perf_counter()
         # Unblock rotation generator
 
     def _exception_handler(self, e: Exception) -> None:
         if isinstance(e, SkipIteration):
             # Occurs when failsafe is successful
+            self._error_counter -= 1
             return
 
         raise e

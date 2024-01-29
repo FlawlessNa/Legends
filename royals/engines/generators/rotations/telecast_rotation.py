@@ -3,17 +3,16 @@ import itertools
 import logging
 import math
 import multiprocessing as mp
-import numpy as np
-import time
+import random
 
 from functools import partial
 
 from botting import PARENT_LOG
-from botting.models_abstractions import Skill, BaseMob
+from botting.core import QueueAction, GeneratorUpdate
 from royals.engines.generators.base_rotation import RotationGenerator
 from royals import RoyalsData
-from royals.actions import teleport, telecast, cast_skill
-from royals.models_implementations.mechanics.path_into_movements import get_to_target
+from royals.actions import teleport, telecast
+from royals.models_implementations.mechanics import RoyalsSkill
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
@@ -25,103 +24,88 @@ class TelecastRotationGenerator(RotationGenerator):
         self,
         data: RoyalsData,
         lock: mp.Lock,
-        teleport_skill: Skill,
-        ultimate: Skill,
+        teleport_skill: RoyalsSkill,
+        ultimate: RoyalsSkill,
         mob_threshold: int = 5,
     ) -> None:
-        super().__init__(data, lock, teleport_skill)
+        super().__init__(data, lock, ultimate, mob_threshold, teleport_skill)
         self._ultimate = ultimate
-        self._mob_threshold = mob_threshold
-        self._feature_generator = None
-
-    def __call__(self):
-        self.data.update(
-            next_target=self.data.current_minimap.random_point(),
-            last_cast=time.perf_counter(),
-            ultimate=self._ultimate,
-        )
-        self.data.update("current_minimap_position")
-        self._next_target = self.data.next_target
-        self._last_pos_change = time.perf_counter()
-        if len(self.data.current_minimap.feature_cycle):
-            self._feature_generator = itertools.cycle(
-                self.data.current_minimap.feature_cycle
+        self._target_cycle = itertools.cycle(self.data.current_minimap.feature_cycle)
+        if len(self.data.current_minimap.feature_cycle) > 0:
+            self.next_feature = random.choice(self.data.current_minimap.feature_cycle)
+            self.next_target = self.next_feature.random()
+            for _ in range(
+                self.data.current_minimap.feature_cycle.index(self.next_feature) + 1
+            ):
+                next(self._target_cycle)
+        else:
+            self.next_target = self.data.current_minimap.random_point()
+            self.next_feature = self.data.current_minimap.get_feature_containing(
+                self.next_target
             )
-        return iter(self)
 
     def _set_next_target(self):
-        if math.dist(self.data.current_minimap_position, self._next_target) > 2:
+        if math.dist(self.data.current_minimap_position, self.next_target) > 2:
             pass
         else:
-            if len(self.data.current_minimap.feature_cycle):
-                self.data.update(next_target=next(self._feature_generator).random())
+            if len(self.data.current_minimap.feature_cycle) > 0:
+                self.next_feature = next(self._target_cycle)
+                self.next_target = self.next_feature.random()
             else:
-                self.data.update(next_target=self.data.current_minimap.random_point())
-        self._next_target = self.data.next_target
+                self.next_target = self.data.current_minimap.random_point()
+                self.next_feature = self.data.current_minimap.get_feature_containing(
+                    self.next_target
+                )
 
-    def _rotation(self):
-        img = self.data.current_map.detection_box.extract_client_img(
-            self.data.current_client_img
-        )
-        mob_count = self.mob_count_in_img(img, self.data.current_mobs)
-
-        if self._prev_pos != self.data.current_minimap_position:
-            self._last_pos_change = time.perf_counter()
-
-        actions = get_to_target(
-            self.data.current_minimap_position,
-            self._next_target,
-            self.data.current_minimap,
-        )
-        if not actions:
-            self._deadlock_counter += 1
+    def _next(self) -> QueueAction | None:
+        """
+        Overwrites base rotation to combine mob hitting with telecasting, if appropriate
+        """
+        if getattr(self.data, "next_target", None) is not None:
+            self.next_target = self.data.next_target
         else:
-            self._deadlock_counter = 0
+            self._set_next_target()
 
-            if mob_count < self._mob_threshold or self.data.character_in_a_ladder:
-                res = self._create_partial(actions[0])
-
+        hit_mobs = self._mobs_hitting()
+        if hit_mobs is not None:
+            # Check for telecast
+            if len(self.actions) == 0 or self.actions[0].func.__name__ != "teleport":
+                # If first move isn't a teleport, simply cast skill instead
+                return hit_mobs
             else:
-                self.data.update(last_cast=time.perf_counter())
-                # Sufficient mobs and not currently on a ladder
-                if not actions[0].func.__name__ == "teleport":
-                    # If first movement isn't a teleport, simply cast skill instead
-
-                    res = partial(
-                        cast_skill, self.data.handle, self.data.ign, self._ultimate
+                # If first move is teleport, replace by telecast and keep teleporting
+                directions = []
+                while self.actions and self.actions[0].func.__name__ == "teleport":
+                    next_action = self.actions.pop(0)
+                    directions.append(
+                        next_action.keywords["direction"]
                     )
-                else:
-                    # If first movement is a teleport, replace by telecast and keep teleporting
-
-                    directions = []
-                    while actions and actions[0].func.__name__ == "teleport":
-                        next_action = actions.pop(0)
-                        directions.append(
-                            next_action.keywords.get(
-                                "direction", self.data.current_direction
-                            )
-                        )
-                    res = partial(
-                        self._full_telecast,
-                        self.data.handle,
-                        self.data.ign,
-                        self._teleport,
-                        self._ultimate,
-                        directions,
-                    )
-
-            if self._lock is None:
-                return res
-            elif self._lock.acquire(block=False):
-                logger.debug(f"Rotation Lock acquired. Sending Next Random Rotation.")
-                return res
+                res = partial(
+                    self._full_telecast,
+                    self.data.handle,
+                    self.data.ign,
+                    self._teleport,
+                    self._ultimate,
+                    directions,
+                )
+                return QueueAction(
+                    identifier=self.__class__.__name__,
+                    priority=99,
+                    action=res,
+                    is_cancellable=getattr(self, "_is_cancellable", True),
+                    release_lock_on_callback=True,
+                    update_generators=GeneratorUpdate(
+                        game_data_kwargs={'available_to_cast': True})
+                )
+        else:
+            return self._rotation()
 
     @staticmethod
     async def _full_telecast(
         handle: int,
         ign: str,
-        teleport_skill: Skill,
-        ultimate_skill: Skill,
+        teleport_skill: RoyalsSkill,
+        ultimate_skill: RoyalsSkill,
         directions: list[str],
     ) -> None:
         async def _coro():
@@ -137,13 +121,3 @@ class TelecastRotationGenerator(RotationGenerator):
                 )
 
         await asyncio.wait_for(_coro(), timeout=ultimate_skill.animation_time)
-
-    @staticmethod
-    def mob_count_in_img(img: np.ndarray, mobs: list[BaseMob]) -> int:
-        """
-        Given an image of arbitrary size, return the mob count of a specific mob found within that image.
-        :param img: Potentially cropped image based on current character position and skill range.
-        :param mobs: The mobs to look for.
-        :return: Total number of mobs detected in the image
-        """
-        return sum([mob.get_mob_count(img) for mob in mobs])

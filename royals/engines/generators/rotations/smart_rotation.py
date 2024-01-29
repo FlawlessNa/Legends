@@ -4,12 +4,11 @@ import math
 import multiprocessing as mp
 import random
 import time
-from functools import partial
 
 from botting import PARENT_LOG
-from botting.models_abstractions import Skill
 from botting.utilities import Box
 from royals.engines.generators.base_rotation import RotationGenerator
+from royals.models_implementations.mechanics import RoyalsSkill
 from royals.game_data import RotationData
 
 
@@ -21,9 +20,9 @@ class SmartRotationGenerator(RotationGenerator):
         self,
         data: RotationData,
         lock: mp.Lock,
-        training_skill: Skill,
+        training_skill: RoyalsSkill,
         mob_threshold: int,
-        teleport: Skill = None,
+        teleport: RoyalsSkill = None,
         time_limit: float = 2,
     ) -> None:
         super().__init__(data, lock, training_skill, mob_threshold, teleport)
@@ -45,7 +44,6 @@ class SmartRotationGenerator(RotationGenerator):
             self.next_feature = self.data.current_minimap.get_feature_containing(
                 self.next_target
             )
-        self.data.update(allow_teleport=True if teleport is not None else False)
 
     def _set_next_target(self) -> None:
         """
@@ -124,15 +122,3 @@ class SmartRotationGenerator(RotationGenerator):
             self.next_feature = self.data.current_minimap.get_feature_containing(
                 self.next_target
             )
-
-    def _rotation(self) -> partial:
-        if self.actions:
-            first_action = self.actions[0]
-            res = self._create_partial(first_action)
-
-            if self._lock is None:
-                return res
-
-            elif self._lock.acquire(block=False):
-                logger.debug(f"Rotation Lock acquired. Sending Next Random Rotation.")
-                return res

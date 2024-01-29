@@ -4,10 +4,11 @@ A leecher bot is the primary process here, but "Mule Buffers" engines can be add
 better control party buffs as well as automatically distribute AP upon level up.
 """
 import asyncio
-import botting
+import multiprocessing
 
 from functools import partial
 
+import botting
 import royals.characters
 import royals.engines
 import royals.maps
@@ -19,9 +20,9 @@ LEECHER_CLASS = royals.characters.Bishop
 LEECHER_BUFFS_TO_USE = []
 
 BUFF_MULES_IGN = ["UluLoot", "BCoinFarm", "iYieldMoney", "MoneyEngine", "FinancialWiz"]
-BUFF_MULES_CLASSES = [royals.characters.Rogue] + [royals.characters.Magician] * 4
+BUFF_MULES_CLASSES = [royals.characters.Assassin] + [royals.characters.Magician] * 4
 
-NUM_BOTS = 6
+NUM_BOTS = 1
 TRAINING_MAP = royals.maps.Line1Area1
 MOB_COUNT_THRESHOLD = 7
 
@@ -41,6 +42,8 @@ async def main(*bots: botting.Executor) -> None:
 
 
 if __name__ == "__main__":
+    notifier = multiprocessing.Event()
+    barrier = multiprocessing.Barrier(NUM_BOTS, timeout=5)
     leecher_char = partial(
         LEECHER_CLASS,
         LEECHER_IGN,
@@ -51,8 +54,8 @@ if __name__ == "__main__":
         game_map=TRAINING_MAP,
         character=leecher_char,
         mob_count_threshold=MOB_COUNT_THRESHOLD,
-        notifier=...,
-        barrier=...,
+        notifier=notifier,
+        barrier=barrier,
         buffs=LEECHER_BUFFS_TO_USE,
         anti_detection_mob_threshold=ANTI_DETECTION_MOB_THRESHOLD,
         anti_detection_time_threshold=ANTI_DETECTION_TIME_THRESHOLD,
@@ -61,22 +64,24 @@ if __name__ == "__main__":
         engine=royals.engines.LeechingEngine, ign=LEECHER_IGN, **leecher_engine_kwargs
     )
 
-    mules_char = [
-        partial(class_, ign, DETECTION_CONFIG_SECTION, CLIENT_SIZE)
-        for class_, ign in zip(BUFF_MULES_CLASSES, BUFF_MULES_IGN)
-    ]
-    mules_engine_kwargs = [
-        dict(
-            character=char,
-            notifier=...,
-            barrier=...,
-        ) for char in mules_char
-    ]
-    mules = [
-        botting.Executor(
-            engine=royals.engines.BuffMule, ign=name, **kwargs
-        )
-        for name, kwargs in zip(BUFF_MULES_IGN, mules_engine_kwargs)
-    ]
+    # mules_char = [
+    #     partial(class_, ign, DETECTION_CONFIG_SECTION, CLIENT_SIZE)
+    #     for class_, ign in zip(BUFF_MULES_CLASSES, BUFF_MULES_IGN)
+    # ]
+    # mules_engine_kwargs = [
+    #     dict(
+    #         game_map=TRAINING_MAP,
+    #         character=char,
+    #         notifier=notifier,
+    #         barrier=barrier,
+    #     ) for char in mules_char
+    # ]
+    # mules = [
+    #     botting.Executor(
+    #         engine=royals.engines.BuffMule, ign=name, **kwargs
+    #     )
+    #     for name, kwargs in zip(BUFF_MULES_IGN, mules_engine_kwargs)
+    # ]
 
-    asyncio.run(main(leecher, *mules))
+    # asyncio.run(main(leecher, *mules))
+    asyncio.run(main(leecher))

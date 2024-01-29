@@ -7,13 +7,13 @@ from functools import partial
 
 from botting import PARENT_LOG
 from botting.core import DecisionGenerator, QueueAction, GeneratorUpdate, controller
-from botting.models_abstractions import Skill
 from botting.utilities import Box, config_reader
 from royals.actions import cast_skill
 from royals.game_data import RotationData
 from royals.actions import random_jump
 from royals.engines.generators.rotations.hit_mobs import MobsHitting
 from royals.models_implementations.mechanics.path_into_movements import get_to_target
+from royals.models_implementations.mechanics import RoyalsSkill
 
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
@@ -30,9 +30,9 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
         self,
         data: RotationData,
         lock,
-        training_skill: Skill,
+        training_skill: RoyalsSkill,
         mob_threshold: int,
-        teleport: Skill = None,
+        teleport: RoyalsSkill = None,
     ) -> None:
         super().__init__(data)
         self._lock = lock
@@ -52,6 +52,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
         self._minimap_key = eval(
             config_reader("keybindings", self.data.ign, "Non Skill Keys")
         )["Minimap Toggle"]
+        self.data.update(allow_teleport=True if teleport is not None else False)
 
     @property
     def initial_data_requirements(self) -> tuple:
@@ -80,24 +81,24 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
         return f"{self.__class__.__name__}"
 
     def _next(self):
-        if getattr(self.data, 'next_target', None) is not None:
+        if getattr(self.data, "next_target", None) is not None:
             self.next_target = self.data.next_target
         else:
             self._set_next_target()
         hit_mobs = self._mobs_hitting()
         if hit_mobs:
-            self.data.update(available_to_cast=False)
-            updater = GeneratorUpdate(game_data_kwargs={"available_to_cast": True})
-            return QueueAction(
-                identifier=f"Mobs Hitting - {self.training_skill.name}",
-                priority=98,
-                action=hit_mobs,
-                update_generators=updater,
-            )
+            return hit_mobs
 
-        res = self._rotation()
+        return self._rotation()
 
-        if res:
+    @abstractmethod
+    def _set_next_target(self) -> None:
+        pass
+
+    def _rotation(self) -> QueueAction | None:
+        if self.actions:
+            first_action = self.actions[0]
+            res = self._create_partial(first_action)
             action = QueueAction(
                 identifier=self.__class__.__name__,
                 priority=99,
@@ -105,18 +106,19 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                 is_cancellable=getattr(self, "_is_cancellable", True),
                 release_lock_on_callback=True,
             )
-            self._prev_rotation_actions.append(action)
-            if len(self._prev_rotation_actions) > 10:
-                self._prev_rotation_actions.pop(0)
-            return action
 
-    @abstractmethod
-    def _set_next_target(self) -> None:
-        pass
+            if self._lock is None:
+                self._prev_rotation_actions.append(res)
+                if len(self._prev_rotation_actions) > 10:
+                    self._prev_rotation_actions.pop(0)
+                return action
 
-    @abstractmethod
-    def _rotation(self) -> partial | None:
-        pass
+            elif self._lock.acquire(block=False):
+                self._prev_rotation_actions.append(res)
+                if len(self._prev_rotation_actions) > 10:
+                    self._prev_rotation_actions.pop(0)
+                logger.debug(f"Rotation Lock acquired. Sending Next Random Rotation.")
+                return action
 
     def _create_partial(self, action: callable) -> partial:
         args = (
@@ -177,7 +179,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
             self._prev_rotation_actions.clear()
             return reaction
 
-    def _mobs_hitting(self) -> partial | None:
+    def _mobs_hitting(self) -> QueueAction | None:
         res = None
         closest_mob_direction = None
 
@@ -220,7 +222,14 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                     attacking_skill=True,
                 )
         if res and not self.data.character_in_a_ladder and self.data.available_to_cast:
-            return res
+            self.data.update(available_to_cast=False)
+            updater = GeneratorUpdate(game_data_kwargs={"available_to_cast": True})
+            return QueueAction(
+                identifier=f"Mobs Hitting - {self.training_skill.name}",
+                priority=98,
+                action=res,
+                update_generators=updater,
+            )
 
     def _exception_handler(self, e: Exception) -> QueueAction | None:
         logger.warning(f"{self.__class__.__name__} Exception: {e}")
