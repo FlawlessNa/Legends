@@ -309,7 +309,7 @@ class Executor:
                 new_task = self.create_task(queue_item)
                 logger.debug(f"Created task {new_task.get_name()}.")
 
-                if len(asyncio.all_tasks()) > 15:
+                if len(asyncio.all_tasks()) > 30:
                     for t in asyncio.all_tasks():
                         print(t)
                     logger.warning(

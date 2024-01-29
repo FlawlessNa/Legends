@@ -89,7 +89,7 @@ class TelecastRotationGenerator(RotationGenerator):
                     directions,
                 )
                 return QueueAction(
-                    identifier=self.__class__.__name__,
+                    identifier='Telecasting',
                     priority=99,
                     action=res,
                     is_cancellable=getattr(self, "_is_cancellable", True),

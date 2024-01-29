@@ -28,6 +28,7 @@ class BuffMule(DecisionEngine):
         character: callable,
         notifier: multiprocessing.Event,
         barrier: multiprocessing.Barrier,
+        synchronized_buffs: list[str],
         rebuff_location: tuple[int, int] = None,
     ) -> None:
         super().__init__(log_queue, bot)
@@ -49,6 +50,7 @@ class BuffMule(DecisionEngine):
 
         self._notifier = notifier
         self._barrier = barrier
+        self._synchronized_buffs = synchronized_buffs
 
         if rebuff_location:
             self._rebuff_location = rebuff_location
@@ -59,6 +61,7 @@ class BuffMule(DecisionEngine):
     def game_data(self) -> RoyalsData:
         return self._game_data
 
+    @property
     def items_to_monitor(self) -> list[DecisionGenerator]:
         return [
             DistributeAP(self.game_data),
@@ -67,13 +70,15 @@ class BuffMule(DecisionEngine):
                 self.game_data,
                 self._notifier,
                 self._barrier,
-                self._buffs,
+                self._synchronized_buffs,
                 self._rebuff_location,
             ),
         ]
 
+    @property
     def next_map_rotation(self) -> DecisionGenerator:
         pass
 
+    @property
     def anti_detection_checks(self) -> list[DecisionGenerator]:
         return []

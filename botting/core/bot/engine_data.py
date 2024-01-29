@@ -46,6 +46,8 @@ class EngineData(ABC):
             from the last time they were updated.
         :param kwargs: Keyword arguments that are used to update attributes.
         """
+        if 'available_to_cast' in kwargs:
+            print("available_to_cast", kwargs['available_to_cast'])
         annotations = get_all_annotations(self.__class__)
         # self._handler_blockers(kwargs)
         for k, v in kwargs.items():

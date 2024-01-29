@@ -1,18 +1,26 @@
 import asyncio
+import cv2
 import logging
 import math
 import multiprocessing as mp
+import os
 import random
 import time
+import win32gui
+from functools import partial
+from threading import BrokenBarrierError
 
-from botting import PARENT_LOG
+from botting import PARENT_LOG, ROOT
 from botting.core import QueueAction, GeneratorUpdate
+from botting.utilities import Box
 from royals.actions import cast_skill
 from royals.engines.generators.interval_based import IntervalBasedGenerator
 from royals.game_data import MaintenanceData, MinimapData
 from royals.models_implementations.mechanics import RoyalsSkill
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
+
+ICONS_PATH = os.path.join(ROOT, f"royals/assets/detection_images")
 
 
 class SkipIteration(Exception):
@@ -29,39 +37,53 @@ class PartyRebuff(IntervalBasedGenerator):
     a given Engine waits on a Barrier, and when all are waiting, the barrier is broken
     and all characters cast their buffs.
     """
+
     generator_type = "Maintenance"
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.data.ign}, {self.buffs})"
+        buff_str = ", ".join([buff.name for buff in self.buffs])
+        return f"{self.__class__.__name__}({self.data.ign}: {buff_str})"
 
     def __init__(
         self,
         data: MaintenanceData | MinimapData,
         notifier: mp.Event,
         barrier: mp.Barrier,
-        buffs: list[RoyalsSkill],
+        buffs: list[str],
         target: tuple[int, int],
         deviation: float = 0.1,
     ):
-        assert all(
-            skill.cooldown == 0 for skill in buffs
-        ), f"Cooldowns should not be included in {self}"
-        assert all(
-            skill.duration > 0 for skill in buffs
-        ), f"One of the skills has no duration."
+        self.buffs = [data.character.skills.get(buff) for buff in buffs]
+        while None in self.buffs:
+            self.buffs.remove(None)
+        if self.buffs:
+            interval = min(skill.duration for skill in self.buffs)
+            self._minimap_range = min(
+                skill.horizontal_minimap_distance
+                for skill in self.buffs
+                if skill.horizontal_minimap_distance is not None
+            )
+        else:
+            interval = 1000
+            self._minimap_range = 1000
 
-        interval = min(skill.duration for skill in buffs)
         super().__init__(data, interval, deviation)
+
         self.notifier = notifier
         self.barrier = barrier
-        self.buffs = buffs
         self.target = target
+        self._full_buff_list = buffs
+        self._buff_icons = [
+            cv2.imread(os.path.join(ICONS_PATH, f"{buff}.png"))
+            for buff in self._full_buff_list
+        ]
 
-        self._minimap_range = min(
-            skill.horizontal_minimap_distance
-            for skill in self.buffs
-            if skill.horizontal_minimap_distance is not None
-        )
+        assert all(
+            skill.duration > 0 for skill in self.buffs
+        ), f"One of the skills has no duration."
+        assert all(
+            skill.cooldown == 0 for skill in self.buffs
+        ), f"Cooldowns should not be included in {self}"
 
     def __next__(self) -> QueueAction | None:
         """
@@ -100,20 +122,18 @@ class PartyRebuff(IntervalBasedGenerator):
         else:
             # Generator is now ready for rebuff, a barrier blocks it until all others
             # are ready as well. This call is blocking; the entire process is on hold
-            logger.info(f"{self} is waiting on the barrier of {self.barrier.parties}.")
-            test = self.barrier.wait()  # Returns true only when barrier passes
-            print('test', test)
-
-            return self._rebuff()
+            try:
+                self.barrier.wait()  # Returns true only when barrier passes
+                return self._rebuff()
+            except BrokenBarrierError:
+                pass
             # else:
             #     # Occurs if timeout is reached
             #     return
 
     def _failsafe(self):
-        # Check if re-buff was successful, in which case the notifier is cleared and
-        # next_call is updated.
-        # Otherwise, set it once more.
-        if ...:  # Successful rebuff
+        if self._confirm_rebuffed():
+            # If successful, reset for timer + notifier as well as target.
             self.notifier.clear()
             self._next_call = time.perf_counter() + self.interval * (
                 random.uniform(1 - self._deviation, 1 - self._deviation / 2)
@@ -124,14 +144,27 @@ class PartyRebuff(IntervalBasedGenerator):
         else:
             # Re-trigger the notifier for every generators
             self.notifier.set()
-        # Unblock rotation generator
+
+    def _confirm_rebuffed(self) -> bool:
+        left, top, right, bottom = win32gui.GetClientRect(self.data.handle)
+        buff_icon_box = Box(left=right - 350, top=top + 45, right=right, bottom=85)
+        haystack = buff_icon_box.extract_client_img(self.data.current_client_img)
+        for idx, icon in enumerate(self._buff_icons):
+            results = cv2.matchTemplate(haystack, icon, cv2.TM_CCOEFF_NORMED)
+            min_val, max_val, _, _ = cv2.minMaxLoc(results)
+            print(self._full_buff_list[idx], max_val)
+            if max_val > 0.99:
+                continue
+            else:
+                return False
+        logger.info(f"{self} has confirmed all rebuffs.")
+        return True
 
     def _exception_handler(self, e: Exception) -> None:
         if isinstance(e, SkipIteration):
             # Occurs when failsafe is successful
             self._error_counter -= 1
             return
-
         raise e
 
     def _rebuff(self) -> QueueAction:
@@ -140,24 +173,28 @@ class PartyRebuff(IntervalBasedGenerator):
         return QueueAction(
             identifier=f"{self}",
             priority=1,
-            action=...,
+            action=partial(
+                self.cast_all, 0, self.data.handle, self.data.ign, self.buffs
+            ),
             update_generators=GeneratorUpdate(
                 generator_id=id(self),
                 generator_kwargs={"blocked": False},
             ),
         )
+    #
+    # @staticmethod
+    # async def _run_all_actions(partials, timeout: int = 5):
+    #     async def _coro():
+    #         await asyncio.sleep(0.25)
+    #         for action in partials:
+    #             await action()
+    #
+    #     await asyncio.wait_for(_coro(), timeout=timeout)
 
     @staticmethod
-    async def _run_all_actions(partials, timeout: int = 5):
-        async def _coro():
-            await asyncio.sleep(0.25)
-            for action in partials:
-                await action()
-
-        await asyncio.wait_for(_coro(), timeout=timeout)
-
-    @staticmethod
-    async def cast_all(wait_time: float, skills: list[RoyalsSkill], *args):
+    async def cast_all(
+        wait_time: float, handle: int, ign: str, skills: list[RoyalsSkill], *args
+    ):
         await asyncio.sleep(wait_time)
         for skill in skills:
-            await cast_skill(*args, skill=skill)
+            await cast_skill(handle, ign, *args, skill=skill)

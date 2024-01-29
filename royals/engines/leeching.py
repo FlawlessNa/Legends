@@ -29,6 +29,7 @@ class LeechingEngine(DecisionEngine):
         mob_count_threshold: int,
         notifier: multiprocessing.Event,
         barrier: multiprocessing.Barrier,
+        synchronized_buffs: list[str],
         rebuff_location: tuple[int, int] = None,
         buffs: list[str] | None = None,
         anti_detection_mob_threshold: int = 3,
@@ -57,6 +58,8 @@ class LeechingEngine(DecisionEngine):
         self._anti_detection_time_threshold = anti_detection_time_threshold
         self._num_pets = num_pets
 
+        self._synchronized_buffs = synchronized_buffs
+
         if buffs:
             self._buffs_to_use = [
                 self.game_data.character.skills[buff] for buff in buffs
@@ -68,6 +71,7 @@ class LeechingEngine(DecisionEngine):
                 skill.type in ["Buff", "Party Buff"]
                 and skill.use_by_default
                 and skill not in self._buffs_to_use
+                and skill not in self._synchronized_buffs
             ):
                 self._buffs_to_use.append(skill)
 
@@ -91,22 +95,20 @@ class LeechingEngine(DecisionEngine):
             PetFood(self.game_data, num_times=self._num_pets),
             DistributeAP(self.game_data),
         ]
-        party_buffs = []
+
         for skill in self.game_data.character.skills.values():
             if skill.type == "Buff" and skill in self._buffs_to_use:
                 generators.append(Rebuff(self.game_data, skill))
-            elif skill.type == "Party Buff" and skill in self._buffs_to_use:
-                party_buffs.append(skill)
-        if party_buffs:
-            generators.append(
-                PartyRebuff(
-                    self.game_data,
-                    self._notifier,
-                    self._barrier,
-                    party_buffs,
-                    self._rebuff_location,
-                )
+
+        generators.append(
+            PartyRebuff(
+                self.game_data,
+                self._notifier,
+                self._barrier,
+                self._synchronized_buffs,
+                self._rebuff_location,
             )
+        )
         return generators
 
     @property
@@ -118,7 +120,6 @@ class LeechingEngine(DecisionEngine):
                 ultimate=self._training_skill,
                 mob_threshold=self._mob_count_threshold,
             )
-
 
     @property
     def anti_detection_checks(self) -> list[DecisionGenerator]:
