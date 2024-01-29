@@ -118,7 +118,10 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                 if len(self._prev_rotation_actions) > 10:
                     self._prev_rotation_actions.pop(0)
                 logger.debug(f"Rotation Lock acquired. Sending Next Random Rotation.")
-                return action
+                if self.data.available_to_cast:
+                    return action
+                else:
+                    self._lock.release()
 
     def _create_partial(self, action: callable) -> partial:
         args = (

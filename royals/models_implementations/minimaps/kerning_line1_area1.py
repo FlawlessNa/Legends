@@ -15,7 +15,7 @@ class KerningLine1Area1Minimap(MinimapPathingMechanics):
     jump_distance: int = 5
 
     teleport_v_up_dist = 8
-    teleport_h_dist = 9
+    teleport_h_dist = 10
     teleport_v_down_dist = 11
 
     @property

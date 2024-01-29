@@ -145,6 +145,13 @@ async def _send_inputs(hwnd: int, inputs: list[list[tuple, float]]) -> None:
     for item in inputs:
         input_structure, delay = item
         failure_count = 0
+        input_array_class = Input * input_structure[0].value
+        input_pointer = ctypes.POINTER(input_array_class)
+        _EXPORTED_FUNCTIONS["SendInput"].argtypes = [
+            wintypes.UINT,
+            input_pointer,
+            wintypes.INT,
+        ]
         while (
             _EXPORTED_FUNCTIONS["SendInput"](*input_structure)
             != input_structure[0].value
@@ -206,11 +213,6 @@ def _input_array_constructor(
     nbr_inputs = 1 if enforce_delay else len(keys)
     input_array_class = Input * nbr_inputs
     input_pointer = ctypes.POINTER(input_array_class)
-    _EXPORTED_FUNCTIONS["SendInput"].argtypes = [
-        wintypes.UINT,
-        input_pointer,
-        wintypes.INT,
-    ]
 
     input_list = []
     for item in zip(keys, events):

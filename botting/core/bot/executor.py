@@ -125,6 +125,7 @@ class Executor:
         new_task.is_in_queue = True
         new_task.priority = queue_item.priority
         new_task.is_cancellable = queue_item.is_cancellable
+        new_task.process_id = queue_item.process_id
 
         if queue_item.release_lock_on_callback:
             new_task.add_done_callback(self._rotation_callback)
@@ -298,19 +299,13 @@ class Executor:
                     break
 
                 logger.debug(f"Received {queue_item} from {self} monitoring process.")
-                if queue_item.identifier in [
-                    task.get_name() for task in asyncio.all_tasks()
-                ]:
-                    task = asyncio.all_tasks()[
-                        [task.get_name() for task in asyncio.all_tasks()].index(
-                            queue_item.identifier
-                        )
-                    ]
-                    if getattr(task, 'process_id', None) == queue_item.process_id:
-                        logger.debug(
-                            f"Task {queue_item.identifier} already exists. Skipping."
-                        )
-                        continue
+                task_ids = [(task.get_name(), getattr(task, 'process_id', None))
+                            for task in asyncio.all_tasks()]
+                if (queue_item.identifier, queue_item.process_id) in task_ids:
+                    logger.info(
+                        f"Task {queue_item.identifier} already exists. Skipping."
+                    )
+                    continue
 
                 new_task = self.create_task(queue_item)
                 logger.debug(f"Created task {new_task.get_name()}.")
