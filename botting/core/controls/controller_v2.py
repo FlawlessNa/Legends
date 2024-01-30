@@ -157,18 +157,37 @@ async def move(
             num_repeats = int(
                 (duration - sum(delays)) // jump_interval
             )  # or secondary_key_interval
-            repeat_events = ["keydown", "keyup"]
 
-            if tertiary_key_press:
-                repeat_keys = [secondary_key_press, tertiary_key_press]
-            elif secondary_key_press and jump:
-                repeat_keys = [[key_binds(ign)["jump"]], [secondary_key_press]]
-            elif secondary_key_press:
-                repeat_keys = [secondary_key_press]
-            elif jump:
-                repeat_keys = [key_binds(ign)["jump"]]
-            else:
-                raise ValueError("Invalid combination of inputs.")
+            for _ in range(num_repeats):
+                if tertiary_key_press:
+                    keys.append([secondary_key_press, tertiary_key_press])
+                    events.append(["keydown", "keydown"])
+                    # Longer delay between keydown and keyup
+                    delays.append(next(delay_gen) * 2)
+                    keys.append([secondary_key_press, tertiary_key_press])
+                    events.append(["keyup", "keyup"])
+                    delays.append(secondary_key_interval)
+
+                elif secondary_key_press and jump:
+                    keys.extend([[key_binds(ign)["jump"]], [key_binds(ign)["jump"]]])
+                    events.extend([["keydown"], ["keyup"]])
+                    delays.extend([next(delay_gen) * 2, next(delay_gen)])
+                    keys.extend([[secondary_key_press], [secondary_key_press]])
+                    events.extend([["keydown"], ["keyup"]])
+                    delays.extend([next(delay_gen) * 2, jump_interval])
+
+                elif secondary_key_press:
+                    keys.extend([[secondary_key_press], [secondary_key_press]])
+                    events.extend([["keydown"], ["keyup"]])
+                    delays.extend([next(delay_gen) * 2, secondary_key_interval])
+                elif jump:
+                    keys.extend([[key_binds(ign)["jump"]], [key_binds(ign)["jump"]]])
+                    events.extend([["keydown"], ["keyup"]])
+                    delays.extend([next(delay_gen) * 2, jump_interval])
+
+                else:
+                    raise ValueError("Invalid combination of inputs.")
+
     except Exception as e:
         print('direction', direction)
         print('secondary_direction', secondary_direction)
@@ -212,7 +231,7 @@ async def move(
     # Single + Second Key interval + Third Key interval (No ARF - 2nd/3rd simultaneous) (Strictly for telecasting)
     # TODO - test by telecasting
 
-    inputs = _input_constructor()
+    inputs = _input_constructor(handle, keys, events)
     keys_to_release = _get_failsafe_keys(inputs)
     await _move(inputs, keys_to_release)
 
