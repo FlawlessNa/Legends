@@ -6,6 +6,8 @@ import asyncio
 import ctypes
 import functools
 import logging
+import time
+
 import numpy as np
 import pytweening
 import random
@@ -17,7 +19,12 @@ from typing import Literal
 
 from botting.utilities import config_reader, randomize_params
 from .inputs import focused_input, non_focused_input, focused_mouse_input
-from .inputs.focused_inputs_v2 import activate, _full_input_constructor, Input, _EXPORTED_FUNCTIONS
+from .inputs.focused_inputs_v2 import (
+    activate,
+    _full_input_constructor,
+    Input,
+    _EXPORTED_FUNCTIONS,
+)
 from .inputs.shared_resources import SharedResources
 
 logger = logging.getLogger(__name__)
@@ -62,7 +69,7 @@ async def move(
     secondary_key_press: str = None,
     secondary_key_interval: float = 0.0,
     tertiary_key_press: str = None,
-    central_delay: float = 0.033,
+    central_delay: float = 0.033 - time.get_clock_info("monotonic").resolution,
     **kwargs,
 ) -> None:
     """
@@ -84,6 +91,9 @@ async def move(
         Strictly used for telecasting. Cannot be held down, and will always be sent
         simultaneously with secondary press(es).
     :param central_delay: Delay between standard automatic repeat feature.
+        The actual delay from real human input, as observed with Spy++, is ~0.033s.
+        Using asyncio.sleep(), there is uncertainty based on clock resolution, so we
+        adjust for that.
 
     Notes:
     If jump + secondary_key_press are present, both must have same interval
@@ -131,40 +141,67 @@ async def move(
             delays: list[float] = [next(delay_gen)]
         release_keys: list[str] = [direction]
 
+        # Primary + Secondary direction always sent simultaneously
+        # Jump + Secondary key always sent simultaneously
+        # Secondary + Tertiary key always sent simultaneously
+
         if secondary_direction:
-            # Both keys pressed simultaneously in this case, so contained in same structure
+            # Both keys pressed simultaneously, so contain in same structure
             keys[0].append(secondary_direction)
             events[0].append("keydown")
             release_keys.append(secondary_direction)
 
-        if jump:
+        if jump and secondary_key_press:
+            keys.append([key_binds(ign)["jump"], secondary_key_press])
+            events.append(["keydown", "keydown"])
+            release_keys.extend([key_binds(ign)["jump"], secondary_key_press])
+            delays.insert(0, next(delay_gen))
+        elif jump:
             # Jump has a delay after primary+optional secondary direction
             keys.append([key_binds(ign)["jump"]])
             events.append(["keydown"])
-            delays.append(next(delay_gen))
             release_keys.append(key_binds(ign)["jump"])
+            delays.insert(0, next(delay_gen))
 
-        if secondary_key_press:
+        elif secondary_key_press:
             # Secondary key has a delay after primary+optional jump
             if tertiary_key_press:
                 # Tertiary key is always sent simultaneously with secondary key
-                keys.append([secondary_key_press, tertiary_key_press])
-                events.append(["keydown", "keydown"])
+                keys[0].extend([secondary_key_press, tertiary_key_press])
+                events[0].extend(["keydown", "keydown"])
                 release_keys.extend([secondary_key_press, tertiary_key_press])
             else:
-                keys.append([secondary_key_press])
-                events.append(["keydown"])
+                # Both keys pressed simultaneously, so contain in same structure
+                keys[0].append(secondary_key_press)
+                events[0].append("keydown")
                 release_keys.append(secondary_key_press)
-            delays.append(next(delay_gen))
 
         release_events = [["keyup"] * len(release_keys)]
-        release_keys = [release_keys]
+        release_keys: list[list[str | Literal]] = [release_keys]
         if automatic_repeat:
             _repeat_inputs(keys, events, delays, duration, central_delay, delay_gen)
         else:
+            if secondary_key_press and jump:
+                keys.append([key_binds(ign)["jump"], secondary_key_press])
+                events.append(["keyup", "keyup"])
+                delays[-1] = delays[-1] * 2  # Longer delay between keydown and keyup
+                delays.append(jump_interval)
+            elif secondary_key_press:
+                keys.append([secondary_key_press])
+                events.append(["keyup"])
+                delays[-1] = delays[-1] * 2  # Longer delay between keydown and keyup
+                delays.append(jump_interval)
+            elif jump:
+                keys.append([key_binds(ign)["jump"]])
+                events.append(["keyup"])
+                delays[-1] = delays[-1] * 2  # Longer delay between keydown and keyup
+                delays.append(jump_interval)
+            else:
+                raise ValueError("Invalid combination of inputs.")
+
             # Here delay between a keydown and keyup is twice the central (approx)
             num_repeats = int(
-                (duration - sum(delays)) // jump_interval
+                (duration - sum(delays)) // max(jump_interval, secondary_key_interval)
             )  # or secondary_key_interval
 
             for _ in range(num_repeats):
@@ -198,15 +235,15 @@ async def move(
                     raise ValueError("Invalid combination of inputs.")
 
     except Exception as e:
-        print('direction', direction)
-        print('secondary_direction', secondary_direction)
-        print('duration', duration)
-        print('jump', jump)
-        print('jump_interval', jump_interval)
-        print('secondary_key_press', secondary_key_press)
-        print('secondary_key_interval', secondary_key_interval)
-        print('tertiary_key_press', tertiary_key_press)
-        print('central_delay', central_delay)
+        print("direction", direction)
+        print("secondary_direction", secondary_direction)
+        print("duration", duration)
+        print("jump", jump)
+        print("jump_interval", jump_interval)
+        print("secondary_key_press", secondary_key_press)
+        print("secondary_key_interval", secondary_key_interval)
+        print("tertiary_key_press", tertiary_key_press)
+        print("central_delay", central_delay)
         raise e
 
     # Single direction (ARF - direction)
@@ -226,10 +263,9 @@ async def move(
     # Single + Second Key interval (No ARF - as soon as Second key pressed)
 
     # Single + Jump Hold + Second Key Hold (ARF - Second Key)
-    # TODO - Test this with FJ once available, or with attack + heal
+    # TODO - Test this with FJ once available
 
     # Single + Jump interval + Second interval (No ARF, delay between jump & second)
-    # TODO - Test this with FJ once available, or with attack + heal
 
     # Single + Secondary direction + Jump Hold + Second Key Hold (ARF - Second Key, delay between jump keydown and second keydown)
     # TODO - Test this with FJ once available
@@ -244,7 +280,12 @@ async def move(
     inputs = _full_input_constructor(handle, keys, events)
     release_inputs = _full_input_constructor(handle, release_keys, release_events)
     assert len(release_inputs) == 1
-    await _move(inputs, release_inputs[0])
+    try:
+        await asyncio.wait_for(
+            _move(handle, inputs, delays, release_inputs[0]), duration
+        )
+    except asyncio.TimeoutError:
+        pass
 
 
 def _repeat_inputs(keys, events, delays, duration, central_delay, delay_gen):
@@ -267,12 +308,16 @@ async def _move(
     delays: list[float],
     keys_to_release: tuple,
 ) -> None:
+    i = len(delays) - 1  # Just to make sure i always defined when finally is reached
     try:
         activate(hwnd)
         for i in range(len(inputs)):
             _send_inputs(inputs[i])
             await asyncio.sleep(delays[i])
+    except Exception as e:
+        raise e
     finally:
+        time.sleep(min(delays))
         _send_inputs(keys_to_release)
 
 
@@ -280,18 +325,10 @@ def _send_inputs(structure: tuple) -> None:
     failure_count = 0
     array_class = Input * structure[0].value
     pointer = ctypes.POINTER(array_class)
-    _EXPORTED_FUNCTIONS["SendInput"].argtypes = [
-        wintypes.UINT,
-        pointer,
-        wintypes.INT
-    ]
+    _EXPORTED_FUNCTIONS["SendInput"].argtypes = [wintypes.UINT, pointer, wintypes.INT]
     while _EXPORTED_FUNCTIONS["SendInput"](*structure) != structure[0].value:
         logger.error(f"Failed to send input {structure}")
         failure_count += 1
         if failure_count > 10:
-            logger.critical(
-                f"Unable to send structure {structure} to active window"
-            )
-            raise RuntimeError(
-                f"Unable to send structure {structure} to active window"
-            )
+            logger.critical(f"Unable to send structure {structure} to active window")
+            raise RuntimeError(f"Unable to send structure {structure} to active window")
