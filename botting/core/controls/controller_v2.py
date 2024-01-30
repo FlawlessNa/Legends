@@ -3,6 +3,7 @@ Controller module for the game.
 Contains all high-level functions necessary for interacting with the game.
 """
 import asyncio
+import ctypes
 import functools
 import logging
 import numpy as np
@@ -11,10 +12,12 @@ import random
 import win32api
 import win32con
 import win32gui
+from ctypes import wintypes
 from typing import Literal
 
 from botting.utilities import config_reader, randomize_params
 from .inputs import focused_input, non_focused_input, focused_mouse_input
+from .inputs.focused_inputs_v2 import activate, _full_input_constructor, Input, _EXPORTED_FUNCTIONS
 from .inputs.shared_resources import SharedResources
 
 logger = logging.getLogger(__name__)
@@ -115,13 +118,17 @@ async def move(
 
         def _random_delay(delay: float):
             while True:
-                yield random.uniform(0.95, 1.05) * delay
+                new_val = random.uniform(0.95, 1.05)
+                yield new_val * delay
 
         delay_gen = _random_delay(central_delay)
 
         keys: list[list[str]] = [[direction]]
         events: list[list[Literal["keydown", "keyup"]]] = [["keydown"]]
-        delays: list[float] = [next(delay_gen)]
+        if automatic_repeat:
+            delays: list[float] = [0.5]  # First delay before automatic repeat
+        else:
+            delays: list[float] = [next(delay_gen)]
         release_keys: list[str] = [direction]
 
         if secondary_direction:
@@ -150,6 +157,8 @@ async def move(
                 release_keys.append(secondary_key_press)
             delays.append(next(delay_gen))
 
+        release_events = [["keyup"] * len(release_keys)]
+        release_keys = [release_keys]
         if automatic_repeat:
             _repeat_inputs(keys, events, delays, duration, central_delay, delay_gen)
         else:
@@ -231,30 +240,58 @@ async def move(
     # Single + Second Key interval + Third Key interval (No ARF - 2nd/3rd simultaneous) (Strictly for telecasting)
     # TODO - test by telecasting
 
-    inputs = _input_constructor(handle, keys, events)
-    keys_to_release = _get_failsafe_keys(inputs)
-    await _move(inputs, keys_to_release)
+    assert len(keys) == len(events) == len(delays)
+    inputs = _full_input_constructor(handle, keys, events)
+    release_inputs = _full_input_constructor(handle, release_keys, release_events)
+    assert len(release_inputs) == 1
+    await _move(inputs, release_inputs[0])
 
 
 def _repeat_inputs(keys, events, delays, duration, central_delay, delay_gen):
     """
     Repeats the inputs for the given duration.
     """
-    delays.append(0.5)  # The first automatic repeat is always about 0.5 s later
     upper_bound = int((duration - sum(delays)) // central_delay)
     assert upper_bound > 0
     repeated_key = keys[-1][-1]
     keys.extend([[repeated_key]] * upper_bound)
     events.extend([["keydown"]] * upper_bound)
-    delays.extend([next(delay_gen)] * (upper_bound - 1))
+    delays_to_add = len(events) - len(delays)
+    delays.extend([next(delay_gen) for _ in range(delays_to_add)])
 
 
 @SharedResources.requires_focus
 async def _move(
-    inputs,
-    keys_to_release,
+    hwnd: int,
+    inputs: list[tuple],
+    delays: list[float],
+    keys_to_release: tuple,
 ) -> None:
     try:
-        await _send_inputs(inputs)
+        activate(hwnd)
+        for i in range(len(inputs)):
+            _send_inputs(inputs[i])
+            await asyncio.sleep(delays[i])
     finally:
-        _release(keys_to_release)
+        _send_inputs(keys_to_release)
+
+
+def _send_inputs(structure: tuple) -> None:
+    failure_count = 0
+    array_class = Input * structure[0].value
+    pointer = ctypes.POINTER(array_class)
+    _EXPORTED_FUNCTIONS["SendInput"].argtypes = [
+        wintypes.UINT,
+        pointer,
+        wintypes.INT
+    ]
+    while _EXPORTED_FUNCTIONS["SendInput"](*structure) != structure[0].value:
+        logger.error(f"Failed to send input {structure}")
+        failure_count += 1
+        if failure_count > 10:
+            logger.critical(
+                f"Unable to send structure {structure} to active window"
+            )
+            raise RuntimeError(
+                f"Unable to send structure {structure} to active window"
+            )

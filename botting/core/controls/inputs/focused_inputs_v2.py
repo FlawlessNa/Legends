@@ -293,3 +293,67 @@ def _input_structure_constructor(
     )
     input_struct = Input(type=KEYBOARD, structure=CombinedInput(ki=keybd_input))
     return input_struct
+
+
+def _full_input_constructor(
+    hwnd: int,
+    keys: list[list[str]],
+    events: list[list[Literal["keydown", "keyup"]]],
+) -> list[tuple]:
+
+    structures = []
+    for lst_key, lst_event in zip(keys, events):
+        assert len(lst_key) == len(lst_event)
+        inputs = []
+        num_inputs = len(lst_key)
+        array_class = Input * num_inputs
+        array_pointer = ctypes.POINTER(array_class)
+        for key, event in zip(lst_key, lst_event):
+            inputs.append(_single_input_constructor(hwnd, key, event))
+        input_array = array_class(*inputs)
+        structures.append(
+            (
+                wintypes.UINT(num_inputs),
+                array_pointer(input_array),
+                wintypes.INT(ctypes.sizeof(input_array[0]))
+            )
+        )
+    return structures
+
+
+def _single_input_constructor(
+    hwnd: int,
+    key: str | list[str],
+    event: Literal["keydown", "keyup"] | list[Literal["keydown", "keyup"]],
+    as_unicode: bool = False,
+) -> Input:
+    if isinstance(key, list) and isinstance(event, list):
+        assert len(key) == len(event), "Keys and events must have the same length."
+
+    assert event in ["keyup", "keydown"], f"Event type {event} is not supported"
+    flags = KEYEVENTF_EXTENDEDKEY if key in EXTENDED_KEYS else 0
+    vk_key = _get_virtual_key(key, False, _keyboard_layout_handle(hwnd))
+    if as_unicode:
+        assert (
+                len(key) == 1
+        ), f"Key {key} must be a single character when as_unicode=True"
+        scan_code = _get_virtual_key(key, True, _keyboard_layout_handle(hwnd))
+        vk_key = 0
+        flags |= KEYEVENTF_UNICODE
+    else:
+        scan_code = _EXPORTED_FUNCTIONS["MapVirtualKeyExW"](
+            vk_key,
+            MAPVK_VK_TO_VSC_EX,
+            _keyboard_layout_handle(hwnd),
+        )
+    flags = flags | KEYEVENTF_KEYUP if event == "keyup" else flags
+
+    keybd_input = KeyBdInputStruct(
+        wintypes.WORD(vk_key),
+        wintypes.WORD(scan_code),
+        wintypes.DWORD(flags),
+        wintypes.DWORD(0),
+        None,
+    )
+    input_struct = Input(type=KEYBOARD, structure=CombinedInput(ki=keybd_input))
+    return input_struct

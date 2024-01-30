@@ -13,15 +13,19 @@ from royals.models_implementations.minimaps import PathOfTime1Minimap
 from royals.interface import AbilityMenu, CharacterStats, InventoryMenu
 
 
-HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
+# HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
+HANDLE = 0
 import win32api
-
+from botting.core.controls.controller_v2 import move
 if __name__ == "__main__":
+    now = time.perf_counter()
+    asyncio.run(move(HANDLE, "WrongDoor", "right", 10))
+    print('total duration', time.perf_counter() - now)
 
-    inv = InventoryMenu()
-    minimap = PathOfTime1Minimap()
-    while True:
-        inv.is_extended(HANDLE)
+    # inv = InventoryMenu()
+    # minimap = PathOfTime1Minimap()
+    # while True:
+    #     inv.is_extended(HANDLE)
         # print(inv.read_item_name(HANDLE, controller.get_mouse_pos(HANDLE)))
         # img = take_screenshot(HANDLE)
         # cv2.imshow('client_img', img)
