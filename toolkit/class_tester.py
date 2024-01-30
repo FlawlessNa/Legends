@@ -15,7 +15,7 @@ from royals.interface import AbilityMenu, CharacterStats, InventoryMenu
 
 HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 import win32api
-from botting.core.controls.controller_v2 import move
+
 if __name__ == "__main__":
     now = time.perf_counter()
     asyncio.run(move(HANDLE,

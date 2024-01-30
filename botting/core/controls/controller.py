@@ -5,6 +5,7 @@ Contains all high-level functions necessary for interacting with the game.
 import asyncio
 import functools
 import logging
+import time
 import numpy as np
 import pytweening
 import random
@@ -14,7 +15,14 @@ import win32gui
 from typing import Literal
 
 from botting.utilities import config_reader, randomize_params
-from .inputs import focused_input, non_focused_input, focused_mouse_input
+from .inputs import (
+    focused_inputs,
+    non_focused_input,
+    full_input_constructor,
+    message_constructor,
+    repeat_inputs,
+    move_params_validator
+)
 
 logger = logging.getLogger(__name__)
 WIDTH, HEIGHT = win32api.GetSystemMetrics(0), win32api.GetSystemMetrics(1)
@@ -39,7 +47,9 @@ def key_binds(ign: str) -> dict[str, str]:
     The configs cannot be changed while the bot is running.
     In-game key binds should therefore not be changed either.
     """
-    temp = {k: eval(v) for k, v in dict(config_reader("keybindings", f"{ign}")).items()}
+    temp = {k: eval(v) for k, v in dict(
+        config_reader("keybindings", f"{ign}")).items()
+            }
     final = {}
     for val in temp.values():
         final.update(val)
@@ -47,66 +57,17 @@ def key_binds(ign: str) -> dict[str, str]:
     return final
 
 
-async def press(
-    handle: int,
-    key: str,
-    silenced: bool = False,
-    cooldown: float = 0.1,
-    enforce_delay: bool = False,
-    down_or_up: Literal["keydown", "keyup"] | None = None,
-    **kwargs,
-) -> None:
-    """
-    :param handle: Window handle to the process.
-    :param key: String representation of the key to be pressed.
-    :param silenced: Whether to activate the window before pressing the key.
-     If True, the key is sent through PostMessage(...) instead of SendInput(...).
-    :param cooldown: Delay between each call to this function.
-     Several keys/inputs may be sent at once, and cooldown is only applied at the end.
-     Note: To control delay between each key/input on a single call,
-     pass in 'delay' as a keyword argument. Each delay will be slightly randomized.
-    :param enforce_delay: Only applicable when silenced = False.
-     If several inputs are sent at once, this will enforce a delay between each input.
-     Otherwise, they are all simultaneous.
-    :param down_or_up: Whether to send a keydown-only or keyup-only event.
-     If None, both are sent.
-    :return: None
-    """
-    if down_or_up is not None:
-        assert down_or_up in ["keydown", "keyup"]
-        assert (
-            not silenced
-        ), "Cannot send a keydown or keyup (as stand-alone) event when silenced=True."
-
-    if silenced:
-        await non_focused_input(
-            handle,
-            key,
-            [win32con.WM_KEYDOWN, win32con.WM_KEYUP],
-            cooldown=cooldown,
-            **kwargs,
-        )
-    else:
-        await focused_input(
-            handle,
-            key,
-            ["keydown", "keyup"] if down_or_up is None else [down_or_up],
-            cooldown=cooldown,
-            enforce_delay=enforce_delay,
-            **kwargs,
-        )
-
-
 async def write(
     handle: int,
     message: str,
     silenced: bool = True,
-    cooldown: float = 0.1,
-    enforce_delay: bool = True,
+    delay: float = 0.033 - time.get_clock_info("monotonic").resolution,
     **kwargs,
 ) -> None:
     """
     Write a message in the specified window.
+
+    Notes:
     When silenced=True, We use the WM_CHAR command to allow for differentiation
      of lower and upper case letters. This by-passes the KEYDOWN/KEYUP commands.
     Therefore, this creates "non-human" inputs sent to the window and as such,
@@ -114,241 +75,361 @@ async def write(
      (anti-detection prevention).
     When silenced=False, the SendInput function creates VK_PACKETS with are sent to
      the window to replicate any custom chars. This also creates "non-human" behavior.
+
     :param handle: Window handle to the process.
     :param message: Actual message to be typed.
     :param silenced: Whether to write input to the active window or not.
      If True, the key is sent through PostMessage(...) instead of SendInput(...).
-    :param cooldown: Delay between each call to this function.
-    :param enforce_delay: Only used when silenced=False.
-     If false, the entire message is written instantly (looks like a copy/paste).
-     If True, a delay is enforced between each char.
+    :param delay: Delay between each character.
+        If 0, the entire message is sent at once.
     :return: None
+    Note:
+        When silenced=False, the focused_inputs is shielded from cancellation, such
+        that the entire message is written before the lock releases.
     """
     if silenced:
         logger.info(f"Writing message {message} in window {handle} silently.")
+        inputs = message_constructor(handle,
+                                     list(message),
+                                     [win32con.WM_CHAR] * len(message),
+                                     )
+        delays = [
+            random.uniform(0.95, 1.05) * delay for _ in range(len(message))
+        ]
         await non_focused_input(
-            handle,
-            list(message),
-            [win32con.WM_CHAR] * len(message),
-            cooldown=cooldown,
-            **kwargs,
+            inputs,
+            delays
         )
 
     else:
         logger.info(f"Writing message {message} in window {handle} LOUDLY.")
-        message = [char for char in list(message) for _ in range(2)]
-        events: list[Literal] = ["keydown", "keyup"] * (len(message) // 2)
-        await focused_input(
-            handle,
-            list(message),
-            events,
-            cooldown=cooldown,
-            as_unicode=True,
-            enforce_delay=enforce_delay,
-            **kwargs,
-        )
+
+        if delay == 0:
+            message = [[char for char in list(message) for _ in range(2)]]
+            events: list[
+                list[Literal["keyup", "keydown"] | str]
+            ] = [["keydown", "keyup"] * len(message[0])]
+            delays = [0]
+        else:
+            message = [[char] for char in list(message) for _ in range(2)]
+            events = [["keydown"], ["keyup"]] * (len(message) // 2)
+            delays = [
+                random.uniform(0.95, 1.05) * delay for _ in range(len(message))
+            ]
+
+        inputs = full_input_constructor(handle, message, events, as_unicode=True)
+        await asyncio.shield(focused_inputs(handle, inputs, delays, None))
 
 
-@randomize_params("duration", "jump_interval")
 async def move(
     handle: int,
     ign: str,
-    direction: Literal["left", "right", "up", "down"],
+    direction: Literal["up", "down", "left", "right"],
     duration: float,
+    secondary_direction: Literal["up", "down", "left", "right"] = None,
     jump: bool = False,
-    jump_interval: float = 0,
-    secondary_direction: Literal["up", "down"] | None = None,
-    delay: float = 0.033,
-    enforce_delay: bool = True,
-    cooldown: float = 0,
+    jump_interval: float = 0.0,
+    secondary_key_press: str = None,
+    secondary_key_interval: float = 0.0,
+    combine_jump_secondary: bool = None,
+    tertiary_key_press: str = None,
+    central_delay: float = 0.033 - time.get_clock_info("monotonic").resolution,
 ) -> None:
     """
-    Requires focus (Note: the lock is only used once all the inputs have been
-     constructed, so it is not necessary to keep the lock for the entire duration).
-    Moves the player in a given direction, for a given duration.
-    If jump=True, the player will also jump periodically.
-    Specifying a secondary direction can be used to enter portals, move up ladders,
-     or jump down platforms.
-    This function attempts to replicate human-like input as accurately as possible.
-    It triggers the keyboard automatic repeat feature, which repeats the keydown event
-     until the key is released.
-    :param handle: Window handle to the process.
-    :param ign: IGN of the character. Used to retrieve key bindings.
-    :param direction: Direction in which to move.
+    :param handle: Handle to the game window.
+    :param ign: In-game character name.
+    :param direction: Direction to move in.
     :param duration: Duration of the movement.
-    :param jump: bool. Whether to jump periodically or not.
-    :param jump_interval: Interval between each jump. Only used if jump=True.
-    :param secondary_direction: Secondary direction to press. Only used if direction
-     is 'left' or 'right'. May be used to jump up ladders, jump down platforms,
-     or enter portals.
-    :param delay: (In between each input) Default 0.033, which is somewhat equal to the
-     keyboard automatic repeat feature as observed in Spy++ (on my PC setup).
-    :param enforce_delay: Whether to enforce a delay between each key press.
-     If False, all inputs are sent simultaneously.
-     Useful for quick jump + direction, or telecast.
-    :param cooldown: Cooldown after all messages have been sent. Default 0.1 seconds.
-    :return: None
+    :param secondary_direction: Optional. Secondary direction to move in.
+        Use to climb up/down ladders and enter portals, or jump down platforms.
+    :param jump: Optional. Whether to jump.
+        Use in combination with secondary_direction to jump into ropes or jump
+        down a platform.
+    :param jump_interval: Optional. Interval between each jump. If 0, hold the jump key.
+    :param secondary_key_press: Optional. Secondary key to press.
+        Use for certain movement skills (Teleport, Flash Jump, Rush, etc.).
+    :param secondary_key_interval: Optional. Interval between each press of the secondary
+        key. If 0, hold the secondary key.
+    :param combine_jump_secondary: Optional. Whether to combine the jump and secondary
+        key into a single structure (can be used to jump attack).
+    :param tertiary_key_press: Optional. Tertiary key to press.
+        Strictly used for telecasting. Cannot be held down, and will always be sent
+        simultaneously with secondary press(es).
+    :param central_delay: Delay between standard automatic repeat feature.
+        The actual delay from real human input, as observed with Spy++, is ~0.033s.
+        Using asyncio.sleep(), there is uncertainty based on clock resolution, so we
+        adjust for that.
+
+    Notes:
+    If jump + secondary_key_press are present, both must have same interval > 0.
+    If tertiary_key_press is provided, then secondary_direction and jump must be blank.
+    In this case, secondary_key_press must be provided with secondary_key_interval
+
+    Constructs the input structures outside the Focus Lock.
+    Once determined, sends the input into the function that requires the Lock and which
+    is solely responsible for sending the inputs to the appropriate game window.
     """
-    assert direction in ("left", "right", "up", "down")
-    assert secondary_direction in ("up", "down", None)
-    if direction in ("up", "down"):
-        assert secondary_direction is None
-
-    keys = [direction]
-    events: list[Literal] = ["keydown"]
-    if secondary_direction:
-        keys.append(secondary_direction)
-        events.append("keydown")
-    if jump:
-        keys.append(key_binds(ign)["jump"])
-        events.append("keydown")
-
-    # Case 1 -> All keys are continuously held down. The automatic repeat feature is used to simulate this.
-    if (jump and jump_interval == 0) or (not jump):
-        repeated_key = (
-            key_binds(ign)["jump"]
-            if jump
-            else secondary_direction
-            if secondary_direction
-            else direction
+    try:
+        move_params_validator(
+            direction,
+            secondary_direction,
+            duration,
+            central_delay,
+            jump,
+            jump_interval,
+            secondary_key_press,
+            secondary_key_interval,
+            tertiary_key_press,
+            combine_jump_secondary
         )
-        upper_bounds = int(duration // delay) - len(events)
-        keys.extend([repeated_key] * upper_bounds)
-        events.extend(["keydown"] * upper_bounds)
 
-    # Case 2 -> Jump key is not held down. This disables the automatic repeat feature as soon as a jump is triggered.
-    # Best case would be to have different delays for fist few keys vs. the rest, but I doubt this case will be triggered very often.
-    elif jump and jump_interval > 0:
-        nbr_jumps = int(duration // jump_interval)
-        jump_events = ["keydown", "keyup"]
-        keys.extend([key_binds(ign)["jump"]] * (nbr_jumps * 2))
-        events.extend(jump_events * nbr_jumps)
-        delay = jump_interval / 2
+        automatic_repeat = True
+        if jump and jump_interval > 0:
+            automatic_repeat = False
+        if secondary_key_press and secondary_key_interval > 0:
+            automatic_repeat = False
+        if tertiary_key_press:
+            automatic_repeat = False
 
-    logger.debug(
-        f"{ign} now moving {direction} for {duration} seconds. Jump={jump} and secondary direction={secondary_direction}."
-    )
+        def _random_delay(delay: float):
+            while True:
+                new_val = random.uniform(0.95, 1.05)
+                yield new_val * delay
+        delay_gen = _random_delay(central_delay)
 
-    # wait_for at most "duration" on the automatic repeat feature simulation + periodical jump (if applicable)
+        keys: list[list[Literal["up", "down", "left", "right"] | str]] = [[direction]]
+        release_keys = [direction]
+        events: list[list[Literal["keydown", "keyup"]]] = [["keydown"]]
+        if automatic_repeat:
+            delays: list[float] = [0.5]  # First delay before automatic repeat
+        elif combine_jump_secondary and jump and secondary_key_press:
+            # The only case where we have to combine jump and secondary key
+            delays: list[float] = [0.25, next(delay_gen) * 2]
+        else:
+            delays: list[float] = [next(delay_gen) * 2]  # Delay b/w keyup and keydown
+
+        if automatic_repeat:
+            if secondary_direction is not None and jump:
+                keys[0].extend([secondary_direction, key_binds(ign)["jump"]])
+                events[0].extend(["keydown", "keydown"])
+                release_keys.extend([secondary_direction, key_binds(ign)["jump"]])
+            elif jump:
+                keys[0].append(key_binds(ign)["jump"])
+                events[0].append("keydown")
+                release_keys.append(key_binds(ign)["jump"])
+            elif secondary_direction:
+                keys[0].append(secondary_direction)
+                events[0].append("keydown")
+                release_keys.append(secondary_direction)
+            elif secondary_key_press:
+                keys[0].append(secondary_key_press)
+                events[0].append("keydown")
+                release_keys.append(secondary_key_press)
+            elif not secondary_key_press and not secondary_direction and not jump:
+                pass
+            else:
+                raise ValueError("Invalid combination of inputs.")
+
+            repeat_inputs(keys, events, delays, duration, central_delay, delay_gen)
+
+        else:
+            num_triggers = int(
+                (duration - sum(delays)) // max(jump_interval, secondary_key_interval)
+            )
+
+            if secondary_direction is not None and jump and secondary_key_press:
+                breakpoint()
+
+            elif secondary_direction is not None and jump:
+                keys[0].extend([secondary_direction, key_binds(ign)["jump"]])
+                events[0].extend(["keydown", "keydown"])
+                release_keys.extend([secondary_direction, key_binds(ign)["jump"]])
+                keys.append([key_binds(ign)["jump"]])
+                events.append(["keyup"])
+                delays.append(jump_interval)
+
+                for _ in range(num_triggers):
+                    keys.extend([[key_binds(ign)["jump"]], [key_binds(ign)["jump"]]])
+                    events.extend([["keydown"], ["keyup"]])
+                    delays.extend([2 * next(delay_gen), jump_interval])
+
+            elif jump and secondary_key_press and combine_jump_secondary:
+                keys.append([key_binds(ign)["jump"], secondary_key_press])
+                events.append(["keydown", "keydown"])
+                release_keys.extend([key_binds(ign)["jump"], secondary_key_press])
+                keys.append([key_binds(ign)["jump"], secondary_key_press])
+                events.append(["keyup", "keyup"])
+                delays.append(jump_interval)
+
+                for _ in range(num_triggers):
+                    keys.extend([[key_binds(ign)["jump"], secondary_key_press],
+                                 [key_binds(ign)["jump"], secondary_key_press]])
+                    events.extend([["keydown", "keydown"], ["keyup", "keyup"]])
+                    delays.extend([2 * next(delay_gen), jump_interval])
+
+            elif jump and secondary_key_press:
+                keys[0].append(key_binds(ign)["jump"])
+                events[0].append("keydown")
+                release_keys.extend([key_binds(ign)["jump"], secondary_key_press])
+                keys.append([key_binds(ign)["jump"]])
+                events.append(["keyup"])
+                delays.append(jump_interval / 2)
+                keys.extend([[secondary_key_press], [secondary_key_press]])
+                events.extend([["keydown"], ["keyup"]])
+                delays.extend([2 * next(delay_gen), secondary_key_interval / 2])
+
+                for _ in range(num_triggers):
+                    keys.extend([[key_binds(ign)["jump"]], [key_binds(ign)["jump"]]])
+                    events.extend([["keydown"], ["keyup"]])
+                    delays.extend([2 * next(delay_gen), jump_interval / 2])
+                    keys.extend([[secondary_key_press], [secondary_key_press]])
+                    events.extend([["keydown"], ["keyup"]])
+                    delays.extend([2 * next(delay_gen), secondary_key_interval / 2])
+
+            elif jump:
+                keys[0].append(key_binds(ign)["jump"])
+                events[0].append("keydown")
+                release_keys.append(key_binds(ign)["jump"])
+                keys.append([key_binds(ign)["jump"]])
+                events.append(["keyup"])
+                delays.append(jump_interval)
+
+                for _ in range(num_triggers):
+                    keys.extend([[key_binds(ign)["jump"]], [key_binds(ign)["jump"]]])
+                    events.extend([["keydown"], ["keyup"]])
+                    delays.extend([2 * next(delay_gen), jump_interval])
+
+            elif tertiary_key_press:
+                keys[0].extend([secondary_key_press, tertiary_key_press])
+                events[0].extend(["keydown", "keydown"])
+                release_keys.extend([secondary_key_press, tertiary_key_press])
+                keys.append([secondary_key_press, tertiary_key_press])
+                events.append(["keyup", "keyup"])
+                delays.append(secondary_key_interval)
+
+                for _ in range(num_triggers):
+                    keys.extend([[secondary_key_press, tertiary_key_press],
+                                 [secondary_key_press, tertiary_key_press]])
+                    events.extend([["keydown", "keydown"], ["keyup", "keyup"]])
+                    delays.extend([2 * next(delay_gen), secondary_key_interval])
+
+            elif secondary_key_press:
+                keys[0].append(secondary_key_press)
+                events[0].append("keydown")
+                release_keys.append(secondary_key_press)
+                keys.append([secondary_key_press])
+                events.append(["keyup"])
+                delays.append(secondary_key_interval)
+
+                for _ in range(num_triggers):
+                    keys.extend([[secondary_key_press], [secondary_key_press]])
+                    events.extend([["keydown"], ["keyup"]])
+                    delays.extend([2 * next(delay_gen), secondary_key_interval])
+            else:
+                raise ValueError("Invalid combination of inputs.")
+
+        release_events: list[
+            list[Literal["keyup", "keydown"] | str]
+        ] = [["keyup"] * len(release_keys)]
+        release_keys = [release_keys]
+
+    except Exception as e:
+        print("direction", direction)
+        print("secondary_direction", secondary_direction)
+        print("duration", duration)
+        print("jump", jump)
+        print("jump_interval", jump_interval)
+        print("secondary_key_press", secondary_key_press)
+        print("secondary_key_interval", secondary_key_interval)
+        print("tertiary_key_press", tertiary_key_press)
+        print("central_delay", central_delay)
+        raise e
+
+    # Single direction (ARF - direction)
+    # keys : [direction] * N repeat
+    # events : [keydown] * N repeat
+    # delays : [0.5] + [D] * (N-1) repeat
+    # DONE
+
+    # Single + Secondary direction (ARF - secondary)
+    # keys : [direction, secondary_direction] + [secondary_direction] * N repeat
+    # events : [keydown, keydown] + [keydown] * N repeat
+    # delays : [0.5] + [D] * (N-1) repeat
+    # DONE
+
+    # Single + Jump Hold (ARF - jump)
+    # keys : [direction, jump] + [jump] * N repeat
+    # events : [keydown, keydown] + [keydown] * N repeat
+    # delays : [0.5] + [D] * (N-1) repeat
+    # DONE
+
+    # Single + Secondary + Jump Hold (ARF - jump)
+    # keys : [direction, secondary_direction, jump] + [jump] * N repeat
+    # events : [keydown, keydown, keydown] + [keydown] * N repeat
+    # delays : [0.5] + [D] * (N-1) repeat
+    # DONE
+
+    # Single + Second Key Hold (ARF - Second key)
+    # TODO - Test with Teleporting!
+    # keys : [direction, secondary_key_press] + [secondary_key_press] * N repeat
+    # events : [keydown, keydown] + [keydown] * N repeat
+    # delays : [0.5] + [D] * (N-1) repeat
+    # DONE
+
+    # Single + Jump interval (No ARF)
+    # keys : [direction, jump] + [jump] + [jump] + [jump] + ...
+    # events : [keydown, keydown] + [keyup] + [keydown] + [keyup] + ...
+    # delays : [2D] + [I] + [2D] + [I] + ...
+    # DONE
+
+    # Single + Secondary + interval jump (No ARF)
+    # keys : [direction, secondary_direction, jump] + [jump] + [jump] + [jump] + ...
+    # events : [keydown, keydown, keydown] + [keyup] + [keydown] + [keyup] + ...
+    # delays : [2D] + [I] + [2D] + [I] + ...
+    # DONE
+
+    # Single + (Jump interval + Second Key interval) (combined) (No ARF)
+    # TODO - Test this with jump+attack
+    # keys : [direction] + [jump, secondary_key_press] + [jump, secondary_key_press] + ...
+    # events : [keydown] + [keydown, keydown] + [keyup, keyup] + ...
+    # delays : [0.25] + [2D] + [I] + [2D] + [I] + ...
+    # DONE
+
+    # Single + Jump interval + Second Key interval (not combined) (No ARF)
+    # TODO - Test this with FJ once available, or with jump + heal
+    # keys : [direction, jump] + [jump] + [secondary_key_press] + [secondary_key_press]
+    # + [jump] + [jump] + [secondary_key_press] + [secondary_key_press] + ...
+    # events : [keydown, keydown] + [keyup] + [keydown] + [keyup] + [keydown] + [keyup] + ...
+    # delays : [2D] + [I/2] + [2D] + [I/2] + [2D] + [I/2] + ...
+
+    # Single + Secondary direction + Jump interval + Second Key interval (not combined) (No ARF)
+    # TODO - Test this with FJ once available (FJ into rope)
+    # keys : [direction, secondary_direction, jump] + [jump] + [secondary_key_press] + [secondary_key_press]
+    # + [jump] + [jump] + [secondary_key_press] + [secondary_key_press] + ...
+    # events : [keydown, keydown, keydown] + [keyup] + [keydown] + [keyup] + [keydown] + [keyup] + ...
+    # delays : [2D] + [I] + [2D] + [I] + [2D] + [I] + ...
+
+    # Single + Second Key interval (No ARF)
+    # TODO - Test with teleporting!
+    # keys : [direction, secondary_key_press] + [secondary_key_press] + [secondary_key_press] + ...
+    # events : [keydown, keydown] + [keyup] + [keydown] + [keyup] + ...
+    # delays : [2D] + [I] + [2D] + [I] + ...
+    # DONE
+
+    # Single + Second Key interval + Third Key interval (No ARF)
+    # TODO - test by telecasting
+    # keys : [direction, secondary_key_press, tertiary_key_press] + [secondary_key_press, tertiary_key_press] + ...
+    # events : [keydown, keydown, keydown] + [keyup, keyup] + ...
+    # delays : [2D] + [I] + [2D] + [I] + ...
+    # DONE
+
+    assert len(keys) == len(events) == len(delays)
+    inputs = full_input_constructor(handle, keys, events)
+    release_inputs = full_input_constructor(handle, release_keys, release_events)
+    assert len(release_inputs) == 1
     try:
         await asyncio.wait_for(
-            focused_input(
-                handle, keys, events, enforce_delay=enforce_delay, delay=delay
-            ),
-            duration,
+            focused_inputs(handle, inputs, delays, release_inputs[0]), duration
         )
     except asyncio.TimeoutError:
-        pass  # Simply stop the movement. This code is nearly always reached because the "real" delays are usually longer than the specified delays. This is because other tasks may be running.
-    except Exception as e:
-        raise
-    finally:
-        release_keys = [direction]
-        if secondary_direction:
-            release_keys.append(secondary_direction)
-        if jump:
-            release_keys.append(key_binds(ign)["jump"])
-        release_events: list[Literal] = ["keyup"] * len(release_keys)
-        await focused_input(handle, release_keys, release_events, enforce_delay=False)
-        logger.debug(f"{ign} has successfully released movement keys.")
-    if cooldown:
-        await asyncio.sleep(cooldown)
-
-
-@randomize_params("total_duration")
-async def mouse_move(
-    handle: int,
-    target: tuple[int | float, int | float],
-    total_duration: float = 0.5,
-    **kwargs,
-) -> None:
-    """
-    Calculates the mouse movement path and sends the inputs to the window.
-    A random tweening function is chosen, which dictates the shape of the trajectory.
-    :param handle: Window handle to the process.
-    :param target: Target position of the mouse.
-    :param total_duration: Duration of the movement. If 0, the mouse is moved instantly.
-    """
-    tween = random.choice(
-        [
-            pytweening.easeInQuad,
-            pytweening.easeOutQuad,
-            pytweening.easeInOutQuad,
-            pytweening.easeInCubic,
-            pytweening.easeOutCubic,
-            pytweening.easeInOutCubic,
-            pytweening.easeInQuart,
-            pytweening.easeOutQuart,
-            pytweening.easeInOutQuart,
-            pytweening.easeInQuint,
-            pytweening.easeOutQuint,
-            pytweening.easeInOutQuint,
-            pytweening.easeInSine,
-            pytweening.easeOutSine,
-            pytweening.easeInOutSine,
-            pytweening.easeInExpo,
-            pytweening.easeOutExpo,
-            pytweening.easeInOutExpo,
-            pytweening.easeInCirc,
-            pytweening.easeOutCirc,
-            pytweening.easeInOutCirc,
-            pytweening.easeInElastic,
-            pytweening.easeOutElastic,
-            pytweening.easeInOutElastic,
-            pytweening.easeInBack,
-            pytweening.easeOutBack,
-            pytweening.easeInOutBack,
-            pytweening.easeInBounce,
-            pytweening.easeOutBounce,
-            pytweening.easeInOutBounce,
-        ]
-    )
-
-    window_rect = win32gui.GetWindowRect(handle)
-    x0, y0 = win32api.GetCursorPos()
-    x1 = target[0] + window_rect[0]
-    y1 = target[1] + window_rect[1]
-
-    if total_duration == 0:
-        x, y = [int(x1 * 65536 // WIDTH)], [int(y1 * 65536 // HEIGHT)]
-
-    else:
-        step_duration = max(1 / REFRESH_RATE, 0.01)
-        num_steps = int(total_duration / step_duration)
-        rng = np.linspace(0, 1, num_steps)
-        trajectory = [pytweening.getPointOnLine(x0, y0, x1, y1, tween(t)) for t in rng]
-        x, y = zip(*trajectory)
-        x = [int(i * 65536 // WIDTH) for i in x]
-        y = [int(i * 65536 // HEIGHT) for i in y]
-
-        kwargs.update(delay=step_duration)
-
-    await focused_mouse_input(handle, x, y, None, **kwargs)
-
-
-async def click(
-    handle: int,
-    down_or_up: Literal["click", "down", "up"] = "click",
-    nbr_times: int = 1,
-    **kwargs,
-) -> None:
-    """
-    :param handle:
-    :param down_or_up:
-    :param nbr_times:
-    :return:
-    """
-    events = [down_or_up] * nbr_times
-    await focused_mouse_input(handle, None, None, events, **kwargs)
-
-
-def get_mouse_pos(handle: int) -> tuple[int, int]:
-    """
-    Returns the position of the cursor inside the window, if it is inside the window.
-    Otherwise, returns None.
-    :param handle:
-    :return:
-    """
-    left, top, right, bottom = win32gui.GetWindowRect(handle)
-    x, y = win32api.GetCursorPos()
-    if left <= x <= right and top <= y <= bottom:
-        return x - left, y - top
+        pass

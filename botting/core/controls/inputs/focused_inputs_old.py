@@ -125,6 +125,7 @@ def activate(hwnd: int) -> None:
         SetForegroundWindow(hwnd)
 
 
+@SharedResources.requires_focus
 async def _send_inputs(hwnd: int, inputs: list[list[tuple, float]]) -> None:
     """
     Activates the window associated with the handle and sends the required inputs.
@@ -295,65 +296,78 @@ def _input_structure_constructor(
     return input_struct
 
 
-def _full_input_constructor(
-    hwnd: int,
-    keys: list[list[str]],
-    events: list[list[Literal["keydown", "keyup"]]],
-) -> list[tuple]:
+def _mouse_input_array_constructor(
+    x_trajectory: list[int | None],
+    y_trajectory: list[int | None],
+    events: list[Literal["click", "down", "up"] | None],
+    mouse_data: list[int | None],
+    delay: float,
+) -> list[list[tuple, float]]:
+    return_val = []
+    input_array_class = Input * 1
+    input_pointer = ctypes.POINTER(input_array_class)
+    _EXPORTED_FUNCTIONS["SendInput"].argtypes = [
+        wintypes.UINT,
+        input_pointer,
+        wintypes.INT,
+    ]
 
-    structures = []
-    for lst_key, lst_event in zip(keys, events):
-        assert len(lst_key) == len(lst_event)
-        inputs = []
-        num_inputs = len(lst_key)
-        array_class = Input * num_inputs
-        array_pointer = ctypes.POINTER(array_class)
-        for key, event in zip(lst_key, lst_event):
-            inputs.append(_single_input_constructor(hwnd, key, event))
-        input_array = array_class(*inputs)
-        structures.append(
-            (
-                wintypes.UINT(num_inputs),
-                array_pointer(input_array),
-                wintypes.INT(ctypes.sizeof(input_array[0]))
-            )
+    for x, y, event, mouse in itertools.zip_longest(
+        x_trajectory, y_trajectory, events, mouse_data
+    ):
+        input_structure = _mouse_input_structure_constructor(x, y, event, mouse)
+        input_array = input_array_class(input_structure)
+        return_val.append(
+            [
+                (
+                    wintypes.UINT(1),
+                    input_pointer(input_array),
+                    wintypes.INT(ctypes.sizeof(input_structure)),
+                ),
+                random.uniform(delay * 0.95, delay * 1.05),
+            ]
         )
-    return structures
+    return return_val
 
 
-def _single_input_constructor(
-    hwnd: int,
-    key: str | list[str],
-    event: Literal["keydown", "keyup"] | list[Literal["keydown", "keyup"]],
-    as_unicode: bool = False,
+def _mouse_input_structure_constructor(
+    x: int | None,
+    y: int | None,
+    event: Literal["click", "down", "up"] | None,
+    mouse_data: int | None,
 ) -> Input:
-    if isinstance(key, list) and isinstance(event, list):
-        assert len(key) == len(event), "Keys and events must have the same length."
-
-    assert event in ["keyup", "keydown"], f"Event type {event} is not supported"
-    flags = KEYEVENTF_EXTENDEDKEY if key in EXTENDED_KEYS else 0
-    vk_key = _get_virtual_key(key, False, _keyboard_layout_handle(hwnd))
-    if as_unicode:
-        assert (
-                len(key) == 1
-        ), f"Key {key} must be a single character when as_unicode=True"
-        scan_code = _get_virtual_key(key, True, _keyboard_layout_handle(hwnd))
-        vk_key = 0
-        flags |= KEYEVENTF_UNICODE
+    """
+    :param x: Absolute X target mouse cursor position.
+    :param y: Absolute Y target mouse cursor position.
+    :param event: Whether the event is a click, down or up, or nothing.
+    :param mouse_data: Set to 0 unless mouse scroll is used.
+    :return:
+    """
+    flags = 0
+    if x is not None and y is not None:
+        flags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE
     else:
-        scan_code = _EXPORTED_FUNCTIONS["MapVirtualKeyExW"](
-            vk_key,
-            MAPVK_VK_TO_VSC_EX,
-            _keyboard_layout_handle(hwnd),
-        )
-    flags = flags | KEYEVENTF_KEYUP if event == "keyup" else flags
+        x = 0
+        y = 0
 
-    keybd_input = KeyBdInputStruct(
-        wintypes.WORD(vk_key),
-        wintypes.WORD(scan_code),
+    if event is not None:
+        if event == "click":
+            flags |= MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_LEFTUP
+        elif event == "down":
+            flags |= MOUSEEVENTF_LEFTDOWN
+        elif event == "up":
+            flags |= MOUSEEVENTF_LEFTUP
+        else:
+            raise ValueError(f"Event {event} is not supported.")
+
+    assert flags != 0, f"Either x, y or event must be provided."
+    mouse_input = MouseInputStruct(
+        wintypes.LONG(x),
+        wintypes.LONG(y),
+        wintypes.DWORD(mouse_data),
         wintypes.DWORD(flags),
         wintypes.DWORD(0),
         None,
     )
-    input_struct = Input(type=KEYBOARD, structure=CombinedInput(ki=keybd_input))
+    input_struct = Input(type=MOUSE, structure=CombinedInput(mi=mouse_input))
     return input_struct

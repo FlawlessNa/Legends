@@ -20,54 +20,38 @@ SYS_KEYS = ["alt", "alt_right", "F10"]
 logger = logging.getLogger(__name__)
 
 
-async def _post_messages(
-    items: list[list[tuple, float]], cooldown: float = 0.1
+async def non_focused_input(
+    messages: list[tuple],
+    delays: list[float],
 ) -> None:
-    """
-    Sends the provided items through PostMessage(...) and waits the required delay.
-    Note: Delays are the waiting time between each call of PostMessage(...).
-     These are usually very short, especially between and KEYDOWN and KEYUP messages.
-     Cooldown, on the other end, is only waited after all messages were sent.
-    :param items: full messages and delays to be sent.
-     Returned by the _post_message_constructor method.
-    :param cooldown: Cooldown after all messages have been sent. Default is 0.1 seconds.
-    :return: None
-    """
-    for item in items:
-        msg, delay = item
-
-        # PostMessageW will return 0 only if the message queue is full.
-        # In that case, we wait until it's not full anymore.
-        # This shouldn't really ever happen but still a precaution.
-        failure_count = 0
-        while not _EXPORTED_FUNCTIONS["PostMessageW"](*msg):
-            logger.error(f"Failed to post message {msg}")
-            failure_count += 1
-
-            # This will only be called if the message is not posted successfully.
-            await asyncio.sleep(0.01)
-            if failure_count > 10:
-                logger.critical(
-                    f"Unable to post the message {msg} to the window {msg[0]}"
-                )
-                raise RuntimeError(f"Failed to post message {msg} after 10 attempts.")
-
-        # Allows for smaller delays between consecutive keys, such as when writing
-        # a message in-game, or between KEYUP/KEYDOWN commands.
-        if delay > 0:
-            await asyncio.sleep(delay)
-    await asyncio.sleep(cooldown)
+    try:
+        for i in range(len(messages)):
+            _post_message(messages[i])
+            await asyncio.sleep(delays[i])
+    except Exception as e:
+        raise e
 
 
-def _message_constructor(
+def _post_message(
+    msg: tuple[wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+) -> None:
+    failure_count = 0
+    while not _EXPORTED_FUNCTIONS["PostMessageW"](*msg):
+        logger.error(f"Failed to post message {msg}")
+        failure_count += 1
+        if failure_count > 10:
+            logger.critical(
+                f"Unable to post the message {msg} to the window {msg[0]}"
+            )
+            raise RuntimeError(f"Failed to post message {msg} after 10 attempts.")
+
+
+def message_constructor(
     hwnd: int,
     keys: list[str],
     messages: list[wintypes.UINT],
-    delay: float = 0.033,  # Somewhat similar to keyboard automatic repeat feature.
     **kwargs,
-) -> list[
-    list[tuple[wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM], float]
-]:
+) -> list[tuple]:
     """
     Constructs the input array that will be sent to the window through PostMessage().
     :param hwnd: Handle to the window to send the message to.
@@ -75,11 +59,9 @@ def _message_constructor(
     :param messages: Type of message to be sent.
      Currently supported: WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_CHAR.
      If it is a list, it must be the same length as the keys list.
-    :param delay: Cooldown between each PostMessage() call. Default is 0.033 seconds.
     :param kwargs: Additional arguments to be passed to _low_param_constructor method.
-    :return: list of list[tuples, float].
+    :return: list[tuples].
      Each tuple contains all necessary argument to be passed to PostMessage.
-     Each float is the delay between each call of PostMessage.
     """
     return_val = list()
     assert isinstance(keys, list) and isinstance(
@@ -90,7 +72,7 @@ def _message_constructor(
     ), f"Msg and keys must have the same length when they are provided as lists."
     for key, msg in zip(keys, messages):
         return_val.append(
-            _single_message_constructor(hwnd, key, msg, delay=delay, **kwargs)
+            _single_message_constructor(hwnd, key, msg, **kwargs)
         )
     return return_val
 
@@ -100,9 +82,8 @@ def _single_message_constructor(
     hwnd: int,
     key: str,
     message: wintypes.UINT,
-    delay: float,
     **kwargs,
-) -> list[tuple[wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM], float]:
+) -> tuple[wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]:
     """
     Constructs the appropriate inputs that will be sent to the window associated with the
      provided handle through PostMessage(...).
@@ -131,15 +112,12 @@ def _single_message_constructor(
     l_params = _low_param_constructor(
         hwnd, key=vk_key, command=message, extended_key=extended_key, **kwargs
     )
-    return [
-        (
+    return (
             wintypes.HWND(hwnd),
             wintypes.UINT(message),
             wintypes.WPARAM(vk_key),
             l_params,
-        ),
-        delay,
-    ]
+    )
 
 
 def _low_param_constructor(
