@@ -146,19 +146,19 @@ async def move(
                 yield new_val * delay
         delay_gen = _random_delay(central_delay)
 
-        keys: list[list[str]] = [[direction]]
-        release_keys: list[str] = [direction]
+        keys: list[list[Literal["up", "down", "left", "right"] | str]] = [[direction]]
+        release_keys = [direction]
         events: list[list[Literal["keydown", "keyup"]]] = [["keydown"]]
         if automatic_repeat:
             delays: list[float] = [0.5]  # First delay before automatic repeat
         elif combine_jump_secondary and jump and secondary_key_press:
             # The only case where we have to combine jump and secondary key
-            delays: list[float] = [next(delay_gen), next(delay_gen) * 2]
+            delays: list[float] = [0.25, next(delay_gen) * 2]
         else:
             delays: list[float] = [next(delay_gen) * 2]  # Delay b/w keyup and keydown
 
         if automatic_repeat:
-            if secondary_direction and jump:
+            if secondary_direction is not None and jump:
                 keys[0].extend([secondary_direction, key_binds(ign)["jump"]])
                 events[0].extend(["keydown", "keydown"])
                 release_keys.extend([secondary_direction, key_binds(ign)["jump"]])
@@ -186,129 +186,97 @@ async def move(
                 (duration - sum(delays)) // max(jump_interval, secondary_key_interval)
             )
 
-            if secondary_direction and jump and secondary_key_press:
-                assert combine_jump_secondary is False
+            if secondary_direction is not None and jump and secondary_key_press:
+                breakpoint()
+
+            elif secondary_direction is not None and jump:
                 keys[0].extend([secondary_direction, key_binds(ign)["jump"]])
                 events[0].extend(["keydown", "keydown"])
                 release_keys.extend([secondary_direction, key_binds(ign)["jump"]])
-                breakpoint()
+                keys.append([key_binds(ign)["jump"]])
+                events.append(["keyup"])
+                delays.append(jump_interval)
 
-            elif secondary_direction and jump:
-                breakpoint()
+                for _ in range(num_triggers):
+                    keys.extend([[key_binds(ign)["jump"]], [key_binds(ign)["jump"]]])
+                    events.extend([["keydown"], ["keyup"]])
+                    delays.extend([2 * next(delay_gen), jump_interval])
+
             elif jump and secondary_key_press and combine_jump_secondary:
-                breakpoint()
+                keys.append([key_binds(ign)["jump"], secondary_key_press])
+                events.append(["keydown", "keydown"])
+                release_keys.extend([key_binds(ign)["jump"], secondary_key_press])
+                keys.append([key_binds(ign)["jump"], secondary_key_press])
+                events.append(["keyup", "keyup"])
+                delays.append(jump_interval)
+
+                for _ in range(num_triggers):
+                    keys.extend([[key_binds(ign)["jump"], secondary_key_press], [key_binds(ign)["jump"], secondary_key_press]])
+                    events.extend([["keydown", "keydown"], ["keyup", "keyup"]])
+                    delays.extend([2 * next(delay_gen), jump_interval])
+
             elif jump and secondary_key_press:
-                breakpoint()
+                keys[0].append(key_binds(ign)["jump"])
+                events[0].append("keydown")
+                release_keys.extend([key_binds(ign)["jump"], secondary_key_press])
+                keys.append([key_binds(ign)["jump"]])
+                events.append(["keyup"])
+                delays.append(jump_interval / 2)
+                keys.extend([[secondary_key_press], [secondary_key_press]])
+                events.extend([["keydown"], ["keyup"]])
+                delays.extend([2 * next(delay_gen), secondary_key_interval / 2])
+
+                for _ in range(num_triggers):
+                    keys.extend([[key_binds(ign)["jump"]], [key_binds(ign)["jump"]]])
+                    events.extend([["keydown"], ["keyup"]])
+                    delays.extend([2 * next(delay_gen), jump_interval / 2])
+                    keys.extend([[secondary_key_press], [secondary_key_press]])
+                    events.extend([["keydown"], ["keyup"]])
+                    delays.extend([2 * next(delay_gen), secondary_key_interval / 2])
+
             elif jump:
-                breakpoint()
+                keys[0].append(key_binds(ign)["jump"])
+                events[0].append("keydown")
+                release_keys.append(key_binds(ign)["jump"])
+                keys.append([key_binds(ign)["jump"]])
+                events.append(["keyup"])
+                delays.append(jump_interval)
+
+                for _ in range(num_triggers):
+                    keys.extend([[key_binds(ign)["jump"]], [key_binds(ign)["jump"]]])
+                    events.extend([["keydown"], ["keyup"]])
+                    delays.extend([2 * next(delay_gen), jump_interval])
+
             elif tertiary_key_press:
                 keys[0].extend([secondary_key_press, tertiary_key_press])
                 events[0].extend(["keydown", "keydown"])
+                release_keys.extend([secondary_key_press, tertiary_key_press])
+                keys.append([secondary_key_press, tertiary_key_press])
+                events.append(["keyup", "keyup"])
+                delays.append(secondary_key_interval)
+
+                for _ in range(num_triggers):
+                    keys.extend([[secondary_key_press, tertiary_key_press], [secondary_key_press, tertiary_key_press]])
+                    events.extend([["keydown", "keydown"], ["keyup", "keyup"]])
+                    delays.extend([2 * next(delay_gen), secondary_key_interval])
+
             elif secondary_key_press:
-                breakpoint()
+                keys[0].append(secondary_key_press)
+                events[0].append("keydown")
+                release_keys.append(secondary_key_press)
+                keys.append([secondary_key_press])
+                events.append(["keyup"])
+                delays.append(secondary_key_interval)
+
+                for _ in range(num_triggers):
+                    keys.extend([[secondary_key_press], [secondary_key_press]])
+                    events.extend([["keydown"], ["keyup"]])
+                    delays.extend([2 * next(delay_gen), secondary_key_interval])
             else:
                 raise ValueError("Invalid combination of inputs.")
 
-
-
-
-
-
-
-
-
-
-
-
-
-        # if secondary_direction:
-        #     # Both keys pressed simultaneously, so contain in same structure
-        #     keys[0].append(secondary_direction)
-        #     events[0].append("keydown")
-        #     release_keys.append(secondary_direction)
-        #
-        # if jump and secondary_key_press:
-        #     keys.append([key_binds(ign)["jump"], secondary_key_press])
-        #     events.append(["keydown", "keydown"])
-        #     release_keys.extend([key_binds(ign)["jump"], secondary_key_press])
-        #     delays.insert(0, next(delay_gen))
-        # elif jump:
-        #     # Jump has a delay after primary+optional secondary direction
-        #     keys.append([key_binds(ign)["jump"]])
-        #     events.append(["keydown"])
-        #     release_keys.append(key_binds(ign)["jump"])
-        #     delays.insert(0, next(delay_gen))
-        #
-        # elif secondary_key_press:
-        #     # Secondary key has a delay after primary+optional jump
-        #     if tertiary_key_press:
-        #         # Tertiary key is always sent simultaneously with secondary key
-        #         keys[0].extend([secondary_key_press, tertiary_key_press])
-        #         events[0].extend(["keydown", "keydown"])
-        #         release_keys.extend([secondary_key_press, tertiary_key_press])
-        #     else:
-        #         # Both keys pressed simultaneously, so contain in same structure
-        #         keys[0].append(secondary_key_press)
-        #         events[0].append("keydown")
-        #         release_keys.append(secondary_key_press)
-        #
         release_events = [["keyup"] * len(release_keys)]
-        release_keys: list[list[str | Literal]] = [release_keys]
-        # if automatic_repeat:
-        #     _repeat_inputs(keys, events, delays, duration, central_delay, delay_gen)
-        # else:
-        #     if secondary_key_press and jump:
-        #         keys.append([key_binds(ign)["jump"], secondary_key_press])
-        #         events.append(["keyup", "keyup"])
-        #         delays[-1] = delays[-1] * 2  # Longer delay between keydown and keyup
-        #         delays.append(jump_interval)
-        #     elif secondary_key_press:
-        #         keys.append([secondary_key_press])
-        #         events.append(["keyup"])
-        #         delays[-1] = delays[-1] * 2  # Longer delay between keydown and keyup
-        #         delays.append(jump_interval)
-        #     elif jump:
-        #         keys.append([key_binds(ign)["jump"]])
-        #         events.append(["keyup"])
-        #         delays[-1] = delays[-1] * 2  # Longer delay between keydown and keyup
-        #         delays.append(jump_interval)
-        #     else:
-        #         raise ValueError("Invalid combination of inputs.")
-        #
-        #     # Here delay between a keydown and keyup is twice the central (approx)
-        #     num_repeats = int(
-        #         (duration - sum(delays)) // max(jump_interval, secondary_key_interval)
-        #     )  # or secondary_key_interval
-        #
-        #     for _ in range(num_repeats):
-        #         if tertiary_key_press:
-        #             keys.append([secondary_key_press, tertiary_key_press])
-        #             events.append(["keydown", "keydown"])
-        #             # Longer delay between keydown and keyup
-        #             delays.append(next(delay_gen) * 2)
-        #             keys.append([secondary_key_press, tertiary_key_press])
-        #             events.append(["keyup", "keyup"])
-        #             delays.append(secondary_key_interval)
-        #
-        #         elif secondary_key_press and jump:
-        #             keys.extend([[key_binds(ign)["jump"]], [key_binds(ign)["jump"]]])
-        #             events.extend([["keydown"], ["keyup"]])
-        #             delays.extend([next(delay_gen) * 2, next(delay_gen)])
-        #             keys.extend([[secondary_key_press], [secondary_key_press]])
-        #             events.extend([["keydown"], ["keyup"]])
-        #             delays.extend([next(delay_gen) * 2, jump_interval])
-        #
-        #         elif secondary_key_press:
-        #             keys.extend([[secondary_key_press], [secondary_key_press]])
-        #             events.extend([["keydown"], ["keyup"]])
-        #             delays.extend([next(delay_gen) * 2, secondary_key_interval])
-        #         elif jump:
-        #             keys.extend([[key_binds(ign)["jump"]], [key_binds(ign)["jump"]]])
-        #             events.extend([["keydown"], ["keyup"]])
-        #             delays.extend([next(delay_gen) * 2, jump_interval])
-        #
-        #         else:
-        #             raise ValueError("Invalid combination of inputs.")
+        release_keys = [release_keys]
 
     except Exception as e:
         print("direction", direction)
@@ -326,50 +294,58 @@ async def move(
     # keys : [direction] * N repeat
     # events : [keydown] * N repeat
     # delays : [0.5] + [D] * (N-1) repeat
+    # DONE
 
     # Single + Secondary direction (ARF - secondary)
     # keys : [direction, secondary_direction] + [secondary_direction] * N repeat
     # events : [keydown, keydown] + [keydown] * N repeat
     # delays : [0.5] + [D] * (N-1) repeat
+    # DONE
 
     # Single + Jump Hold (ARF - jump)
     # keys : [direction, jump] + [jump] * N repeat
     # events : [keydown, keydown] + [keydown] * N repeat
     # delays : [0.5] + [D] * (N-1) repeat
+    # DONE
 
     # Single + Secondary + Jump Hold (ARF - jump)
     # keys : [direction, secondary_direction, jump] + [jump] * N repeat
     # events : [keydown, keydown, keydown] + [keydown] * N repeat
     # delays : [0.5] + [D] * (N-1) repeat
+    # DONE
 
     # Single + Second Key Hold (ARF - Second key)
     # TODO - Test with Teleporting!
     # keys : [direction, secondary_key_press] + [secondary_key_press] * N repeat
     # events : [keydown, keydown] + [keydown] * N repeat
     # delays : [0.5] + [D] * (N-1) repeat
+    # DONE
 
     # Single + Jump interval (No ARF)
     # keys : [direction, jump] + [jump] + [jump] + [jump] + ...
     # events : [keydown, keydown] + [keyup] + [keydown] + [keyup] + ...
     # delays : [2D] + [I] + [2D] + [I] + ...
+    # DONE
 
     # Single + Secondary + interval jump (No ARF)
     # keys : [direction, secondary_direction, jump] + [jump] + [jump] + [jump] + ...
     # events : [keydown, keydown, keydown] + [keyup] + [keydown] + [keyup] + ...
     # delays : [2D] + [I] + [2D] + [I] + ...
+    # DONE
 
     # Single + (Jump interval + Second Key interval) (combined) (No ARF)
     # TODO - Test this with jump+attack
     # keys : [direction] + [jump, secondary_key_press] + [jump, secondary_key_press] + ...
     # events : [keydown] + [keydown, keydown] + [keyup, keyup] + ...
-    # delays : [D] + [2D] + [I] + [2D] + [I] + ...
+    # delays : [0.25] + [2D] + [I] + [2D] + [I] + ...
+    # DONE
 
     # Single + Jump interval + Second Key interval (not combined) (No ARF)
     # TODO - Test this with FJ once available, or with jump + heal
     # keys : [direction, jump] + [jump] + [secondary_key_press] + [secondary_key_press]
     # + [jump] + [jump] + [secondary_key_press] + [secondary_key_press] + ...
     # events : [keydown, keydown] + [keyup] + [keydown] + [keyup] + [keydown] + [keyup] + ...
-    # delays : [2D] + [I] + [2D] + [I] + [2D] + [I] + ...
+    # delays : [2D] + [I/2] + [2D] + [I/2] + [2D] + [I/2] + ...
 
     # Single + Secondary direction + Jump interval + Second Key interval (not combined) (No ARF)
     # TODO - Test this with FJ once available (FJ into rope)
@@ -383,12 +359,14 @@ async def move(
     # keys : [direction, secondary_key_press] + [secondary_key_press] + [secondary_key_press] + ...
     # events : [keydown, keydown] + [keyup] + [keydown] + [keyup] + ...
     # delays : [2D] + [I] + [2D] + [I] + ...
+    # DONE
 
     # Single + Second Key interval + Third Key interval (No ARF)
     # TODO - test by telecasting
     # keys : [direction, secondary_key_press, tertiary_key_press] + [secondary_key_press, tertiary_key_press] + ...
     # events : [keydown, keydown, keydown] + [keyup, keyup] + ...
     # delays : [2D] + [I] + [2D] + [I] + ...
+    # DONE
 
     assert len(keys) == len(events) == len(delays)
     inputs = _full_input_constructor(handle, keys, events)

@@ -21,7 +21,10 @@ if __name__ == "__main__":
     asyncio.run(move(HANDLE,
                      "WrongDoor",
                      "left",
-                     5,
+                     1,
+                     secondary_key_press='c',
+                     secondary_key_interval=0.8,
+                     tertiary_key_press='v'
                      )
                 )
     print('total duration', time.perf_counter() - now)
