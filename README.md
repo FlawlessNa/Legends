@@ -1,6 +1,9 @@
 # Royals-V2
 
 ## TODO
+  - [ ] controller revamp for better focus-lock handling
+  - [ ] royals.actions to revisit - jump_on_rope, teleport/telecast
+  - [ ] Task cancellation - Refactor how callbacks are triggered, such that if necessary, a callback coroutine is used to await for some time before updating data
 
 ### Inventory Cleanup
 - [ ] I've added 0.1 cooldowns on actions within path_into_movements.py (line 231). Reverse if it doesn't work well once you started leeching
@@ -15,7 +18,6 @@
   - [x] Rebuffing from Leechers
   - [ ] Ultimate Cast failsafe - check if MP has changed by at least X%
   - [ ] Enhanced telecasting
-  - [ ] Rework on focus lock in a multi-client context
   - [ ] Multi-client blockers/parsers
   
 ### Generators
