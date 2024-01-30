@@ -108,7 +108,7 @@ async def write(
             message = [[char for char in list(message) for _ in range(2)]]
             events: list[
                 list[Literal["keyup", "keydown"] | str]
-            ] = [["keydown", "keyup"] * len(message[0])]
+            ] = [["keydown", "keyup"] * (len(message[0]) // 2)]
             delays = [0]
         else:
             message = [[char] for char in list(message) for _ in range(2)]

@@ -77,7 +77,6 @@ def message_constructor(
     return return_val
 
 
-@randomize_params("delay")
 def _single_message_constructor(
     hwnd: int,
     key: str,

@@ -17,17 +17,22 @@ HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 import win32api
 
 if __name__ == "__main__":
-    now = time.perf_counter()
-    asyncio.run(move(HANDLE,
-                     "WrongDoor",
-                     "left",
-                     1,
-                     secondary_key_press='c',
-                     secondary_key_interval=0.8,
-                     tertiary_key_press='v'
-                     )
-                )
-    print('total duration', time.perf_counter() - now)
+    asyncio.run(controller.write(HANDLE,
+                                 "abcABC123!@#",
+                                 silenced=False,
+
+                                 ))
+    # now = time.perf_counter()
+    # asyncio.run(controller.move(HANDLE,
+    #                  "WrongDoor",
+    #                  "left",
+    #                  5,
+    #                  secondary_key_press='c',
+    #                  secondary_key_interval=0.8,
+    #                  tertiary_key_press='v'
+    #                  )
+    #             )
+    # print('total duration', time.perf_counter() - now)
 
     # inv = InventoryMenu()
     # minimap = PathOfTime1Minimap()
