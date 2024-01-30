@@ -18,7 +18,12 @@ import win32api
 from botting.core.controls.controller_v2 import move
 if __name__ == "__main__":
     now = time.perf_counter()
-    asyncio.run(move(HANDLE, "WrongDoor", "left",  secondary_key_press="a", secondary_key_interval=1, jump_interval=1, jump=True, duration=5))
+    asyncio.run(move(HANDLE,
+                     "WrongDoor",
+                     "left",
+                     5,
+                     )
+                )
     print('total duration', time.perf_counter() - now)
 
     # inv = InventoryMenu()
