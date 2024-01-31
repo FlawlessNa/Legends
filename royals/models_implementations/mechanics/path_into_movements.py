@@ -232,7 +232,6 @@ def _convert_movements_to_actions(
                 direction=direction,
                 duration=duration,
                 secondary_direction=secondary_direction,
-                cooldown=0.1,
             )
 
         elif movement[0] in ["JUMP_LEFT", "JUMP_RIGHT", "JUMP_DOWN", "JUMP_UP"]:
@@ -241,10 +240,8 @@ def _convert_movements_to_actions(
                 partial(
                     controller.move,
                     direction=direction,
-                    duration=0.05,
+                    duration=0.1,
                     jump=True,
-                    enforce_delay=False,
-                    cooldown=0.5,  # Leaves extra time to actually land before next action
                 )
             ] * movement[1]
 
@@ -267,8 +264,6 @@ def _convert_movements_to_actions(
                     direction=previous_direction,
                     duration=0.5,  # TODO - Does that work well?
                     secondary_direction="up",
-                    enforce_delay=False,
-                    cooldown=0.1,
                 )
             except IndexError:
                 # If no previous movement, just press up.
@@ -276,7 +271,6 @@ def _convert_movements_to_actions(
                     controller.move,
                     direction="up",
                     duration=0.1,
-                    cooldown=0.1,
                 )
 
         elif movement[0] in [
