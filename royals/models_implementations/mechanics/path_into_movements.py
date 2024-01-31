@@ -8,7 +8,7 @@ from pathfinding.finder.a_star import AStarFinder
 
 from botting import PARENT_LOG
 from botting.core.controls import controller
-from royals.actions import jump_on_rope, teleport
+from royals.actions import jump_on_rope, teleport_once
 from royals.models_implementations.mechanics import (
     MinimapPathingMechanics,
     MinimapNode,
@@ -280,7 +280,7 @@ def _convert_movements_to_actions(
             "TELEPORT_DOWN",
         ]:
             direction = movement[0].split("_")[-1].lower()
-            act = [partial(teleport, direction=direction)] * movement[1]
+            act = [partial(teleport_once, direction=direction)] * movement[1]
 
         elif movement[0] in [
             "FLASH_JUMP_LEFT",

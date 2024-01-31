@@ -57,12 +57,11 @@ async def cast_skill(
         await asyncio.sleep(skill.animation_time)
 
 
-async def teleport(
+async def teleport_once(
     handle: int,
     ign: str,
     direction: Literal["left", "right"],
     teleport_skill: Skill,
-    duration: float = 0.1,
 ):
     """
     Casts teleport in a given direction.
@@ -70,15 +69,15 @@ async def teleport(
     :param ign:
     :param teleport_skill:
     :param direction:
-    :param duration:
     :return:
     """
     await controller.move(
         handle,
         ign,
         direction,
-        teleport_skill.animation_time,
+        duration=0.25,
         secondary_key_press=teleport_skill.key_bind(ign),
+        secondary_key_interval=teleport_skill.animation_time,
     )
 
 
