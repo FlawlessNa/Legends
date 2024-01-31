@@ -143,6 +143,9 @@ class PartyRebuff(IntervalBasedGenerator):
             # Generator is now ready for rebuff, a barrier blocks it until all others
             # are ready as well. This call is blocking; the entire process is on hold
             try:
+                logger.info(
+                    f"{self} will wait on Barrier with {self.barrier.n_waiting} others."
+                )
                 self.barrier.wait()  # Returns true only when barrier passes
                 return self._rebuff()
             except BrokenBarrierError:
@@ -188,7 +191,7 @@ class PartyRebuff(IntervalBasedGenerator):
                 continue
             else:
                 return False
-        logger.info(f"{self} has confirmed all rebuffs.")
+        logger.debug(f"{self} has confirmed all rebuffs.")
         return True
 
     def _exception_handler(self, e: Exception) -> None:
@@ -213,16 +216,6 @@ class PartyRebuff(IntervalBasedGenerator):
                 generator_kwargs={"blocked": False},
             ),
         )
-
-    #
-    # @staticmethod
-    # async def _run_all_actions(partials, timeout: int = 5):
-    #     async def _coro():
-    #         await asyncio.sleep(0.25)
-    #         for action in partials:
-    #             await action()
-    #
-    #     await asyncio.wait_for(_coro(), timeout=timeout)
 
     @staticmethod
     async def cast_all(
