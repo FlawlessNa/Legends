@@ -1,5 +1,4 @@
 import asyncio
-import os
 import ctypes
 import functools
 import logging

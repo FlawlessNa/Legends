@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import numpy as np
 import time
@@ -67,6 +68,13 @@ class DistributeAP(IntervalBasedGenerator):
                 return self._toggle_ability_menu()
 
     def _exception_handler(self, e: Exception) -> None:
+        if isinstance(e, TypeError):
+            if self._error_counter < 5:
+                logger.error(
+                    f"TypeError in {self}: {e}, attempt {self._error_counter}."
+                )
+                self._current_lvl_img = None
+                return
         raise e
 
     def _next(self) -> QueueAction | None:
@@ -82,12 +90,13 @@ class DistributeAP(IntervalBasedGenerator):
                 self._current_lvl_img = None
                 return self._toggle_ability_menu()
             else:
-                # Menu is displayed, check if there are AP to distribute
+                # Menu is displayed, check if there are AP to distribute, 5 attempts
                 ap_available = self.data.ability_menu.get_available_ap(
                     self.data.handle, self.data.current_client_img
                 )
                 if ap_available > 0:
                     self._current_lvl_img = None
+                    logger.info(f"{self} will distribute {ap_available} AP.")
                     return self._distribute_ap(ap_available)
                 else:
                     logger.info(f"No more AP to distribute for {self}.")
@@ -138,3 +147,8 @@ class DistributeAP(IntervalBasedGenerator):
     async def _move_and_click(handle, location, num_times):
         await controller.mouse_move(handle, location)
         await controller.click(handle, nbr_times=num_times, delay=0.15)
+
+    @staticmethod
+    async def _toggle_menu(handle: int, key: str):
+        await controller.press(handle, key, silenced=True)
+        await asyncio.sleep(0.25)

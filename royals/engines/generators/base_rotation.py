@@ -117,7 +117,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                 self._prev_rotation_actions.append(res)
                 if len(self._prev_rotation_actions) > 10:
                     self._prev_rotation_actions.pop(0)
-                logger.debug(f"Rotation Lock acquired. Sending Next Random Rotation.")
+
                 if self.data.available_to_cast:
                     return action
                 else:
@@ -131,7 +131,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
         )
         kwargs = action.keywords.copy()
         kwargs.pop("direction", None)
-        if action.func.__name__ == "teleport":
+        if action.func.__name__ == "teleport_once":
             kwargs.update(teleport_skill=self._teleport)
         return partial(action.func, *args, **kwargs)
 
@@ -247,7 +247,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                 identifier=f"Toggling Minimap - {self.__class__.__name__}",
                 priority=1,
                 action=partial(
-                    controller.press, self.data.handle, self._minimap_key, cooldown=1
+                    controller.press, self.data.handle, self._minimap_key, True
                 ),
                 update_generators=GeneratorUpdate(
                     generator_id=id(self),
@@ -267,7 +267,6 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                     controller.mouse_move,
                     self.data.handle,
                     target=(random.randint(300, 600), random.randint(300, 600)),
-                    cooldown=1,
                 ),
                 update_generators=GeneratorUpdate(
                     generator_id=id(self),

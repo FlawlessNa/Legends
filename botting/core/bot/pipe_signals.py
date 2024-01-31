@@ -31,7 +31,8 @@ class QueueAction:
 
     identifier: str = field(compare=False)
     priority: int = field()
-    action: partial = field(compare=True, repr=False, default=None)
+    action: partial = field(compare=True, default=None)
+    process_id: int = field(compare=False, init=False)
     is_cancellable: bool = field(compare=False, default=False, repr=False)
     user_message: list = field(compare=False, default=None, repr=False)
 
@@ -42,7 +43,6 @@ class QueueAction:
 
     # Not yet implemented
     callbacks: list[callable] = field(compare=False, default_factory=list, repr=False)
-    process_id: int = field(compare=False, default=os.getpid(), repr=False, init=False)
 
     def __eq__(self, other):
         return (
@@ -89,7 +89,11 @@ class GeneratorUpdate:
 
             for k, v in self.generator_kwargs.items():
                 assert hasattr(generator, k), f"Invalid attribute {k}"
-                setattr(generator, k, v)
+                if callable(getattr(generator, k)):
+                    func = getattr(generator, k)
+                    func(*v)
+                else:
+                    setattr(generator, k, v)
 
 
 @dataclass

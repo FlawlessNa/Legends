@@ -37,7 +37,7 @@ class InventoryManager(IntervalBasedGenerator):
         self,
         data: MaintenanceData,
         tab_to_watch: str = "Equip",
-        interval: int = 600,
+        interval: int = 180,
         deviation: float = 0.0,
         space_left_alert: int = 10,
         procedure: int = PROC_USE_MYSTIC_DOOR,
