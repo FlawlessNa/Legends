@@ -45,7 +45,7 @@ class TelecastRotationGenerator(RotationGenerator):
             )
 
     def _set_next_target(self):
-        if math.dist(self.data.current_minimap_position, self.next_target) > 2:
+        if math.dist(self.data.current_minimap_position, self.next_target) > 10:
             pass
         else:
             if len(self.data.current_minimap.feature_cycle) > 0:

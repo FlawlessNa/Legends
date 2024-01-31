@@ -22,7 +22,7 @@ class AntiDetectionReactions(ABC):
 
     @property
     @abstractmethod
-    def reaction_choices(self) -> list:
+    def reaction_choices(self) -> dict:
         pass
 
     def _reaction(self, handle: int, messages: list) -> QueueAction | None:
@@ -40,7 +40,7 @@ class AntiDetectionReactions(ABC):
         self._reaction_counter += 1
         self._last_trigger = time.perf_counter()
 
-        all_choices = self.reaction_choices.copy()
+        all_choices = self.reaction_choices[self._reaction_counter].copy()
         if self._last_txt_choice in all_choices:
             all_choices.remove(self._last_txt_choice)
         self._last_txt_choice = random.choice(all_choices)

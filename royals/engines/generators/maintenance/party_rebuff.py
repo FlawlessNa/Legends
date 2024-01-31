@@ -173,7 +173,6 @@ class PartyRebuff(IntervalBasedGenerator):
                     random.uniform(1 - self._deviation, 1 - self._deviation / 2)
                 )
                 self.data.update(next_target=None)
-                self.unblock_generators("Rotation", id(self))
                 raise SkipIteration  # skip call to _next()
 
             except BrokenBarrierError:
@@ -213,7 +212,8 @@ class PartyRebuff(IntervalBasedGenerator):
             ),
             update_generators=GeneratorUpdate(
                 generator_id=id(self),
-                generator_kwargs={"blocked": False},
+                generator_kwargs={"blocked": False,
+                                  'unblock_generators': ("Rotation", id(self))},
             ),
         )
 

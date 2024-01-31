@@ -53,7 +53,7 @@ async def cast_skill(
         await controller.press(
             handle,
             skill.key_bind(ign),
-            silenced=True,
+            silenced=False,
         )
         await asyncio.sleep(skill.animation_time)
 
