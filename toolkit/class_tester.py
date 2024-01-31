@@ -11,18 +11,17 @@ from royals import royals_ign_finder
 
 from royals.models_implementations.minimaps import PathOfTime1Minimap
 from royals.interface import AbilityMenu, CharacterStats, InventoryMenu
+from royals.actions import write_in_chat
 
 
 HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 import win32api
 
 if __name__ == "__main__":
-    asyncio.run(controller.write(HANDLE,
-                                 "abcABC123!@#",
-                                 silenced=False,
+    now = time.perf_counter()
+    # asyncio.run(controller.press(HANDLE, 'a', silenced=False, delay=0, down_or_up="keyup"))
+    asyncio.run(write_in_chat(HANDLE, "sup!", silenced=False, channel='whisper', whisper_to="WrongDoor2"))
 
-                                 ))
-    # now = time.perf_counter()
     # asyncio.run(controller.move(HANDLE,
     #                  "WrongDoor",
     #                  "left",
@@ -32,7 +31,7 @@ if __name__ == "__main__":
     #                  tertiary_key_press='v'
     #                  )
     #             )
-    # print('total duration', time.perf_counter() - now)
+    print('total duration', time.perf_counter() - now)
 
     # inv = InventoryMenu()
     # minimap = PathOfTime1Minimap()

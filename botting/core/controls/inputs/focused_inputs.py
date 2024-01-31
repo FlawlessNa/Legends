@@ -3,6 +3,7 @@ Low-level module that handles sending inputs to the focused window through SendI
 """
 import asyncio
 import ctypes
+import itertools
 import logging
 import time
 import win32con
@@ -114,6 +115,10 @@ HARDWARE = wintypes.DWORD(2)
 
 
 def _remove_num_lock() -> None:
+    """
+    Removes the num lock if it is on.
+    :return:
+    """
     if GetKeyState(win32con.VK_NUMLOCK) != 0:
         logger.info("NumLock is on. Turning it off.")
         array_class = Input * 2
@@ -154,21 +159,41 @@ async def focused_inputs(
     delays: list[float],
     keys_to_release: tuple | None,
 ) -> None:
-
+    """
+    Sends the inputs to the active window.
+    A small delay is added between each input.
+    :param hwnd: handle to the window to send the inputs to.
+    :param inputs: input structures to send.
+    :param delays: delays between each input.
+    :param keys_to_release: Ensures that the keys are released after the inputs are sent
+    :return: None
+    """
+    cleanup = False
     try:
         activate(hwnd)
+
         for i in range(len(inputs)):
             _send_input(inputs[i])
             await asyncio.sleep(delays[i])
+
+        if keys_to_release:
+            _send_input(keys_to_release)
+            cleanup = True
+
     except Exception as e:
         raise e
     finally:
-        if keys_to_release:
+        if keys_to_release and not cleanup:
             time.sleep(min(delays))
             _send_input(keys_to_release)
 
 
 def _send_input(structure: tuple) -> None:
+    """
+    Sends the input structure to the active window.
+    :param structure: A single input structure.
+    :return:
+    """
     failure_count = 0
     array_class = Input * structure[0].value
     pointer = ctypes.POINTER(array_class)
@@ -184,9 +209,17 @@ def _send_input(structure: tuple) -> None:
 def full_input_constructor(
     hwnd: int,
     keys: list[list[str]],
-    events: list[list[Literal["keydown", "keyup"]]],
+    events: list[list[Literal["keydown", "keyup"] | str]],
     as_unicode: bool = False,
 ) -> list[tuple]:
+    """
+    Constructs the input structures for the given keys and events.
+    :param hwnd: Handle to the window to send the inputs to.
+    :param keys: Keystrokes to send.
+    :param events: Keydown or Keyup events.
+    :param as_unicode: Used for typewriting only.
+    :return:
+    """
 
     structures = []
     for lst_key, lst_event in zip(keys, events):
@@ -208,12 +241,53 @@ def full_input_constructor(
     return structures
 
 
+def full_input_mouse_constructor(
+    x_trajectory: list[int | None],
+    y_trajectory: list[int | None],
+    events: list[Literal["click", "down", "up"] | None],
+    mouse_data: list[int | None],
+) -> list[tuple]:
+    """
+    Constructs the input structures for the given mouse events.
+    :param x_trajectory: X coordinates of mouse trajectory.
+    :param y_trajectory: Y coordinates of mouse trajectory.
+    :param events: Any click events.
+    :param mouse_data: Only Used for mouse scroll. Set to 0 otherwise.
+    :return:
+    """
+    return_val = []
+    input_array_class = Input * 1
+    input_pointer = ctypes.POINTER(input_array_class)
+
+    for x, y, event, mouse in itertools.zip_longest(
+        x_trajectory, y_trajectory, events, mouse_data
+    ):
+        input_structure = _single_input_mouse_constructor(x, y, event, mouse)
+        input_array = input_array_class(input_structure)
+        return_val.append(
+            (
+                    wintypes.UINT(1),
+                    input_pointer(input_array),
+                    wintypes.INT(ctypes.sizeof(input_structure)),
+                ),
+        )
+    return return_val
+
+
 def _single_input_constructor(
     hwnd: int,
     key: str,
     event: Literal["keydown", "keyup"],
     as_unicode: bool = False,
 ) -> Input:
+    """
+    Constructs a single input structure for the given key and event.
+    :param hwnd:
+    :param key:
+    :param event:
+    :param as_unicode:
+    :return:
+    """
     assert isinstance(key, str) and isinstance(event, str)
     assert event in ["keyup", "keydown"], f"Event type {event} is not supported"
     flags = KEYEVENTF_EXTENDEDKEY if key in EXTENDED_KEYS else 0
@@ -244,9 +318,55 @@ def _single_input_constructor(
     return input_struct
 
 
+def _single_input_mouse_constructor(
+    x: int | None,
+    y: int | None,
+    event: Literal["click", "down", "up"] | None,
+    mouse_data: int | None,
+) -> Input:
+    """
+    :param x: Absolute X target mouse cursor position.
+    :param y: Absolute Y target mouse cursor position.
+    :param event: Whether the event is a click, down or up, or nothing.
+    :param mouse_data: Set to 0 unless mouse scroll is used.
+    :return:
+    """
+    if mouse_data is None:
+        mouse_data = 0
+    flags = 0
+    if x is not None and y is not None:
+        flags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE
+    else:
+        x = 0
+        y = 0
+
+    if event is not None:
+        if event == "click":
+            flags |= MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_LEFTUP
+        elif event == "down":
+            flags |= MOUSEEVENTF_LEFTDOWN
+        elif event == "up":
+            flags |= MOUSEEVENTF_LEFTUP
+        else:
+            raise ValueError(f"Event {event} is not supported.")
+
+    assert flags != 0, f"Either x, y or event must be provided."
+    mouse_input = MouseInputStruct(
+        wintypes.LONG(x),
+        wintypes.LONG(y),
+        wintypes.DWORD(mouse_data),
+        wintypes.DWORD(flags),
+        wintypes.DWORD(0),
+        None,
+    )
+    input_struct = Input(type=MOUSE, structure=CombinedInput(mi=mouse_input))
+    return input_struct
+
+
 def repeat_inputs(keys, events, delays, duration, central_delay, delay_gen) -> None:
     """
-    Repeats the inputs for the given duration.
+    Repeats the inputs for the given duration. Used for automatic repeat feature of
+    the keyboard.
     """
     upper_bound = int((duration - sum(delays)) // central_delay)
     assert upper_bound > 0
@@ -268,8 +388,10 @@ def move_params_validator(
     secondary_key_interval: float,
     tertiary_key_press: str | None,
     combine_jump_secondary: bool | None,
-
 ) -> None:
+    """
+    Validates the parameters for the move function, since it is a complex function.
+    """
     assert direction in ["up", "down", "left", "right"]
     assert secondary_direction in [None, "up", "down", "left", "right"]
     assert duration > 0 and central_delay > 0

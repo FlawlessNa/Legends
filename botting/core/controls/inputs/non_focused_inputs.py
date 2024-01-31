@@ -21,7 +21,9 @@ logger = logging.getLogger(__name__)
 
 
 async def non_focused_input(
-    messages: list[tuple],
+    messages: list[
+        tuple[wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    ],
     delays: list[float],
 ) -> None:
     try:
@@ -40,9 +42,7 @@ def _post_message(
         logger.error(f"Failed to post message {msg}")
         failure_count += 1
         if failure_count > 10:
-            logger.critical(
-                f"Unable to post the message {msg} to the window {msg[0]}"
-            )
+            logger.critical(f"Unable to post the message {msg} to the window {msg[0]}")
             raise RuntimeError(f"Failed to post message {msg} after 10 attempts.")
 
 
@@ -51,7 +51,7 @@ def message_constructor(
     keys: list[str],
     messages: list[wintypes.UINT],
     **kwargs,
-) -> list[tuple]:
+) -> list[tuple[wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]]:
     """
     Constructs the input array that will be sent to the window through PostMessage().
     :param hwnd: Handle to the window to send the message to.
@@ -71,9 +71,7 @@ def message_constructor(
         messages
     ), f"Msg and keys must have the same length when they are provided as lists."
     for key, msg in zip(keys, messages):
-        return_val.append(
-            _single_message_constructor(hwnd, key, msg, **kwargs)
-        )
+        return_val.append(_single_message_constructor(hwnd, key, msg, **kwargs))
     return return_val
 
 
@@ -112,10 +110,10 @@ def _single_message_constructor(
         hwnd, key=vk_key, command=message, extended_key=extended_key, **kwargs
     )
     return (
-            wintypes.HWND(hwnd),
-            wintypes.UINT(message),
-            wintypes.WPARAM(vk_key),
-            l_params,
+        wintypes.HWND(hwnd),
+        wintypes.UINT(message),
+        wintypes.WPARAM(vk_key),
+        l_params,
     )
 
 
