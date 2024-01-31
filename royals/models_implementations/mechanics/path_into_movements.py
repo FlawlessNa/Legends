@@ -206,7 +206,7 @@ def _convert_movements_to_actions(
                 # In this case, check if this is the last movement, which means the target is on the same platform.
                 # If not, add extra nodes to make sure character goes beyond the ladder.
                 if not movement == moves[-1]:
-                    duration += 5 / speed
+                    duration += 3 / speed
             elif movement[0] in ["left", "right"]:
                 # In this case, check if the next movement is a simple "up" or "down" movement.
                 # If so, we add it as secondary direction, but only once we are close enough to the ladder.

@@ -1,4 +1,5 @@
 import asyncio
+import time
 from typing import Literal
 
 from botting.core import controller
@@ -71,14 +72,20 @@ async def teleport_once(
     :param direction:
     :return:
     """
-    await controller.move(
-        handle,
-        ign,
-        direction,
-        duration=0.25,
-        secondary_key_press=teleport_skill.key_bind(ign),
-        secondary_key_interval=teleport_skill.animation_time,
-    )
+    start = time.perf_counter()
+    try:
+        await controller.move(
+            handle,
+            ign,
+            direction,
+            duration=0.5,
+            secondary_key_press=teleport_skill.key_bind(ign),
+            secondary_key_interval=teleport_skill.animation_time,
+        )
+    finally:
+        await asyncio.sleep(
+            max(0.0, teleport_skill.animation_time - (time.perf_counter() - start))
+        )
 
 
 async def telecast(

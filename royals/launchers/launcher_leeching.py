@@ -29,12 +29,12 @@ BUFF_MULES_CLASSES = [royals.characters.Assassin] + [royals.characters.Magician]
 
 NUM_BOTS = 6
 TRAINING_MAP = royals.maps.Line1Area1
-MOB_COUNT_THRESHOLD = 7
+MOB_COUNT_THRESHOLD = 6
 
 DETECTION_CONFIG_SECTION = "Elephant Cape"
 CLIENT_SIZE = "large"
 
-ANTI_DETECTION_MOB_THRESHOLD = 2
+ANTI_DETECTION_MOB_THRESHOLD = 4
 ANTI_DETECTION_TIME_THRESHOLD = 10
 
 DISCORD_PARSER = royals.parsers.single_bot_parser  # TODO - Change to multi_bot_parser

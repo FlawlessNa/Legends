@@ -11,7 +11,7 @@ from botting import PARENT_LOG
 from botting.core import QueueAction, GeneratorUpdate
 from royals.engines.generators.base_rotation import RotationGenerator
 from royals import RoyalsData
-from royals.actions import teleport_once, telecast
+from royals.actions import telecast
 from royals.models_implementations.mechanics import RoyalsSkill
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
@@ -69,13 +69,13 @@ class TelecastRotationGenerator(RotationGenerator):
         hit_mobs = self._mobs_hitting()
         if hit_mobs is not None:
             # Check for telecast
-            if len(self.actions) == 0 or self.actions[0].func.__name__ != "teleport":
+            if len(self.actions) == 0 or self.actions[0].func.__name__ != "teleport_once":
                 # If first move isn't a teleport, simply cast skill instead
                 return hit_mobs
             else:
                 # If first move is teleport, replace by telecast and keep teleporting
                 directions = []
-                while self.actions and self.actions[0].func.__name__ == "teleport":
+                while self.actions and self.actions[0].func.__name__ == "teleport_once":
                     next_action = self.actions.pop(0)
                     directions.append(next_action.keywords["direction"])
                 res = partial(
@@ -88,9 +88,8 @@ class TelecastRotationGenerator(RotationGenerator):
                 )
                 return QueueAction(
                     identifier="Telecasting",
-                    priority=99,
+                    priority=98,
                     action=res,
-                    is_cancellable=getattr(self, "_is_cancellable", True),
                     release_lock_on_callback=True,
                     update_generators=GeneratorUpdate(
                         game_data_kwargs={"available_to_cast": True}
@@ -98,25 +97,3 @@ class TelecastRotationGenerator(RotationGenerator):
                 )
         else:
             return self._rotation()
-
-    # @staticmethod
-    # async def _full_telecast(
-    #     handle: int,
-    #     ign: str,
-    #     teleport_skill: RoyalsSkill,
-    #     ultimate_skill: RoyalsSkill,
-    #     directions: list[str],
-    # ) -> None:
-    #     async def _coro():
-    #         direction = directions.pop(0)
-    #         await telecast(handle, ign, direction, teleport_skill, ultimate_skill)
-    #         while directions:
-    #             direction = directions.pop(0)
-    #             await teleport(
-    #                 handle,
-    #                 ign,
-    #                 direction,
-    #                 teleport_skill,
-    #             )
-    #
-    #     await asyncio.wait_for(_coro(), timeout=ultimate_skill.animation_time)

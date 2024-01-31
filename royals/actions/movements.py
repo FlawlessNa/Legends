@@ -1,3 +1,4 @@
+import asyncio
 import random
 from botting.core import controller
 from typing import Literal
@@ -13,7 +14,7 @@ async def jump_on_rope(
     :param direction: Direction to jump in.
     :return:
     """
-    print(f"Jumping on rope in {direction}")
+    await asyncio.sleep(0.25)  # Buffer to avoid previous movements to interfere
     await controller.move(
         handle,
         ign,
