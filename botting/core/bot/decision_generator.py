@@ -184,14 +184,20 @@ class DecisionGenerator(ABC):
             self._update_continuous_data()
             failsafe = self._failsafe()
             if failsafe:
+                failsafe.process_id = id(self)
                 return failsafe
 
             res = self._next()
         except Exception as e:
             self._error_counter += 1
-            return self._exception_handler(e)
+            handler = self._exception_handler(e)
+            if handler:
+                handler.process_id = id(self)
+                return handler
         else:
             self._error_counter = 0
+            if res:
+                res.process_id = id(self)
             return res
 
     @abstractmethod

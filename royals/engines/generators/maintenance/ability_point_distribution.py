@@ -96,6 +96,7 @@ class DistributeAP(IntervalBasedGenerator):
                 )
                 if ap_available > 0:
                     self._current_lvl_img = None
+                    logger.info(f"{self} will distribute {ap_available} AP.")
                     return self._distribute_ap(ap_available)
                 else:
                     logger.info(f"No more AP to distribute for {self}.")
