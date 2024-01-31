@@ -91,6 +91,7 @@ class DistributeAP(IntervalBasedGenerator):
                     )
                     if ap_available is not None:
                         break
+                    attempt += 1
                 if ap_available > 0:
                     self._current_lvl_img = None
                     return self._distribute_ap(ap_available)

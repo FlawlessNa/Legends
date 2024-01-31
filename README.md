@@ -4,8 +4,9 @@
   - [x] controller revamp for better focus-lock handling
   - [x] Delays - test actuals with Spy++ and adjust. If longer, it could be due to SendInput exec time, so test this
   - [x] royals.actions to revisit - jump_on_rope, teleport/telecast
+  - [ ] Improve relevance of logs
   - [ ] Task cancellation - Refactor how callbacks are triggered, such that if necessary, a callback coroutine is used to await for some time before updating data
-  - [ ] Task Cancellation for movements - make "controller.move" cancellable, but other functions (tp, telecast, jump rope, etc.) non-cancellable.
+  - [x] Task Cancellation for movements - make "controller.move" cancellable, but other functions (tp, telecast, jump rope, etc.) non-cancellable.
 
 ### Inventory Cleanup
 - [ ] I've added 0.1 cooldowns on actions within path_into_movements.py (line 231). Reverse if it doesn't work well once you started leeching

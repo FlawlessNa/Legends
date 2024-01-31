@@ -165,7 +165,7 @@ class PartyRebuff(IntervalBasedGenerator):
                     self.notifier.clear()
 
                 # If successful, reset for timer + notifier as well as target.
-                self.notifier.clear()
+                # self.notifier.clear()
                 self._next_call = time.perf_counter() + self.interval * (
                     random.uniform(1 - self._deviation, 1 - self._deviation / 2)
                 )
