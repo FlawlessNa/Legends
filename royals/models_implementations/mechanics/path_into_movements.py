@@ -8,7 +8,7 @@ from pathfinding.finder.a_star import AStarFinder
 
 from botting import PARENT_LOG
 from botting.core.controls import controller
-from royals.actions import jump_on_rope, teleport
+from royals.actions import jump_on_rope, teleport_once
 from royals.models_implementations.mechanics import (
     MinimapPathingMechanics,
     MinimapNode,
@@ -206,7 +206,7 @@ def _convert_movements_to_actions(
                 # In this case, check if this is the last movement, which means the target is on the same platform.
                 # If not, add extra nodes to make sure character goes beyond the ladder.
                 if not movement == moves[-1]:
-                    duration += 5 / speed
+                    duration += 3 / speed
             elif movement[0] in ["left", "right"]:
                 # In this case, check if the next movement is a simple "up" or "down" movement.
                 # If so, we add it as secondary direction, but only once we are close enough to the ladder.
@@ -232,7 +232,6 @@ def _convert_movements_to_actions(
                 direction=direction,
                 duration=duration,
                 secondary_direction=secondary_direction,
-                cooldown=0.1,
             )
 
         elif movement[0] in ["JUMP_LEFT", "JUMP_RIGHT", "JUMP_DOWN", "JUMP_UP"]:
@@ -241,10 +240,8 @@ def _convert_movements_to_actions(
                 partial(
                     controller.move,
                     direction=direction,
-                    duration=0.05,
+                    duration=0.1,
                     jump=True,
-                    enforce_delay=False,
-                    cooldown=0.5,  # Leaves extra time to actually land before next action
                 )
             ] * movement[1]
 
@@ -267,8 +264,6 @@ def _convert_movements_to_actions(
                     direction=previous_direction,
                     duration=0.5,  # TODO - Does that work well?
                     secondary_direction="up",
-                    enforce_delay=False,
-                    cooldown=0.1,
                 )
             except IndexError:
                 # If no previous movement, just press up.
@@ -276,7 +271,6 @@ def _convert_movements_to_actions(
                     controller.move,
                     direction="up",
                     duration=0.1,
-                    cooldown=0.1,
                 )
 
         elif movement[0] in [
@@ -286,7 +280,7 @@ def _convert_movements_to_actions(
             "TELEPORT_DOWN",
         ]:
             direction = movement[0].split("_")[-1].lower()
-            act = [partial(teleport, direction=direction)] * movement[1]
+            act = [partial(teleport_once, direction=direction)] * movement[1]
 
         elif movement[0] in [
             "FLASH_JUMP_LEFT",

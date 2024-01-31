@@ -11,17 +11,40 @@ from royals import royals_ign_finder
 
 from royals.models_implementations.minimaps import PathOfTime1Minimap
 from royals.interface import AbilityMenu, CharacterStats, InventoryMenu
-
+from royals.actions import write_in_chat, cast_skill, telecast, teleport_once
+from royals.characters import Bishop
 
 HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 import win32api
 
 if __name__ == "__main__":
+    char = Bishop("WrongDoor", "Elephant Cape", "large")
+    now = time.perf_counter()
 
-    inv = InventoryMenu()
-    minimap = PathOfTime1Minimap()
-    while True:
-        inv.is_extended(HANDLE)
+    for _ in range(1):
+        asyncio.run(teleport_once(
+            HANDLE,
+            "WrongDoor",
+            "left",
+            char.skills['Teleport'],
+        ))
+
+
+    # asyncio.run(controller.move(HANDLE,
+    #                  "WrongDoor",
+    #                  "left",
+    #                  5,
+    #                  secondary_key_press='c',
+    #                  secondary_key_interval=0.8,
+    #                  tertiary_key_press='v'
+    #                  )
+    #             )
+    print('total duration', time.perf_counter() - now)
+
+    # inv = InventoryMenu()
+    # minimap = PathOfTime1Minimap()
+    # while True:
+    #     inv.is_extended(HANDLE)
         # print(inv.read_item_name(HANDLE, controller.get_mouse_pos(HANDLE)))
         # img = take_screenshot(HANDLE)
         # cv2.imshow('client_img', img)

@@ -35,6 +35,15 @@ if current_process.name == "MainProcess":
             for attr, value in record.__dict__.items():
                 if attr == "name":
                     record.__dict__[attr] = record.__dict__[attr].ljust(50)
+                    record.__dict__[attr] = record.__dict__[attr].removeprefix(
+                        "botting."
+                    )
+                    record.__dict__[attr] = record.__dict__[attr].removeprefix(
+                        "core."
+                    )
+                    record.__dict__[attr] = record.__dict__[attr].removeprefix(
+                        "royals."
+                    )
                 elif attr == "processName":
                     record.__dict__[attr] = record.__dict__[attr].ljust(30)
                 elif attr == "levelname":

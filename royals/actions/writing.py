@@ -1,3 +1,4 @@
+import asyncio
 from botting.core import controller
 
 
@@ -7,6 +8,7 @@ async def write_in_chat(
     channel: str = "general",
     whisper_to: str | None = None,
     silenced: bool = True,
+    **kwargs,
 ) -> None:
     mapping = {
         "general": "1",
@@ -22,14 +24,19 @@ async def write_in_chat(
     key = mapping[channel]
 
     await controller.press(handle, key, silenced=silenced)
+    await asyncio.sleep(0.5)
 
     if channel == "whisper":
-        assert whisper_to is not None, "Whisper channel requires a target."
-        await controller.write(handle, whisper_to, silenced=silenced)
+        if whisper_to is not None:
+            await controller.write(handle, whisper_to, silenced=silenced, **kwargs)
+            await asyncio.sleep(0.25)
         await controller.press(handle, "enter", silenced=silenced)
+        await asyncio.sleep(0.25)
 
-    await controller.write(handle, message, silenced=silenced)
+    await controller.write(handle, message, silenced=silenced, **kwargs)
+    await asyncio.sleep(0.25)
     await controller.press(handle, "enter", silenced=silenced)
+    await asyncio.sleep(0.25)
     await controller.press(handle, "enter", silenced=silenced)
 
 

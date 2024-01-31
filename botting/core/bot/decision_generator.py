@@ -48,7 +48,7 @@ class DecisionGenerator(ABC):
         """
         if value:
             if not self.blocked:
-                logger.info(f"{self} has blocked itself.")
+                logger.debug(f"{self} has blocked itself.")
 
             DecisionGenerator.generators_blockers[id(self)].add(id(self))
             self.blocked_at = time.perf_counter()
@@ -56,7 +56,7 @@ class DecisionGenerator(ABC):
             was_blocked = self.blocked
             DecisionGenerator.generators_blockers[id(self)].discard(id(self))
             if was_blocked and not self.blocked:
-                logger.info(f"{self} has unblocked itself.")
+                logger.debug(f"{self} has unblocked itself.")
             self.blocked_at = None
 
     @property
@@ -117,7 +117,7 @@ class DecisionGenerator(ABC):
             condition2 = generator_type == "All"
             if condition1 or condition2:
                 if not getattr(generator, "blocked"):
-                    logger.info(f"{generator} has been blocked by {self}")
+                    logger.debug(f"{generator} has been blocked by {self}")
                 DecisionGenerator.generators_blockers[idx].add(by_whom)
                 setattr(generator, "blocked_at", time.perf_counter())
 
@@ -152,7 +152,7 @@ class DecisionGenerator(ABC):
                 was_blocked = getattr(generator, "blocked")
                 DecisionGenerator.generators_blockers[idx].discard(by_whom)
                 if was_blocked and not getattr(generator, "blocked"):
-                    logger.info(f"{generator} has been unblocked by {self}")
+                    logger.debug(f"{generator} has been unblocked by {self}")
                 setattr(generator, "blocked_at", None)
 
     def __iter__(self) -> "DecisionGenerator":
@@ -184,14 +184,20 @@ class DecisionGenerator(ABC):
             self._update_continuous_data()
             failsafe = self._failsafe()
             if failsafe:
+                failsafe.process_id = id(self)
                 return failsafe
 
             res = self._next()
         except Exception as e:
             self._error_counter += 1
-            return self._exception_handler(e)
+            handler = self._exception_handler(e)
+            if handler:
+                handler.process_id = id(self)
+                return handler
         else:
             self._error_counter = 0
+            if res:
+                res.process_id = id(self)
             return res
 
     @abstractmethod

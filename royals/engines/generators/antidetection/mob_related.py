@@ -70,6 +70,9 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
             nbr_mobs += mob.get_mob_count(img, debug=False)
 
         if nbr_mobs >= self.mob_threshold:
+            if self._reaction_counter == 1:
+                self._reaction_counter = 0
+                self.unblock_generators("Rotation", id(self))
             self._last_detection = time.perf_counter()
             self._fail_counter = 0
 
@@ -102,22 +105,35 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
             return
 
     @property
-    def reaction_choices(self) -> list:
-        return [
-            "wtf",
-            "wut",
-            "wtf?",
-            "hmmm?",
-            "?",
-            "???",
-            "uh",
-            "huh",
-            "tha hell",
-            "wth",
-            "wth?",
-            "wtf!",
-            "wtf!?",
-        ]
+    def reaction_choices(self) -> dict:
+        return {
+            1: [
+                "wtf",
+                "wut",
+                "wtf?",
+                "hmmm?",
+                "?",
+                "???",
+                "uh",
+                "huh",
+                "tha hell",
+                "wth",
+                "wth?",
+                "wtf!",
+                "wtf!?",
+            ],
+            2: [
+                'Hello?',
+                "What's going on?",
+                "Can I help you?",
+                "What's up?",
+                "Anyone here?",
+                "Hi??",
+                "Hello??",
+                "Whats happening",
+                "Uh wth is going on",
+            ]
+        }
 
     def _exception_handler(self, e: Exception) -> None:
         raise e
