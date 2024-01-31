@@ -184,7 +184,8 @@ async def focused_inputs(
         raise e
     finally:
         if keys_to_release and not cleanup:
-            time.sleep(min(delays))
+            if len(delays) > 1 or delays[0] != 0.5:
+                time.sleep(min(delays))
             _send_input(keys_to_release)
 
 
@@ -369,12 +370,12 @@ def repeat_inputs(keys, events, delays, duration, central_delay, delay_gen) -> N
     the keyboard.
     """
     upper_bound = int((duration - sum(delays)) // central_delay)
-    assert upper_bound > 0
-    repeated_key = keys[-1][-1]
-    keys.extend([[repeated_key]] * upper_bound)
-    events.extend([["keydown"]] * upper_bound)
-    delays_to_add = len(events) - len(delays)
-    delays.extend([next(delay_gen) for _ in range(delays_to_add)])
+    if upper_bound > 0:
+        repeated_key = keys[-1][-1]
+        keys.extend([[repeated_key]] * upper_bound)
+        events.extend([["keydown"]] * upper_bound)
+        delays_to_add = len(events) - len(delays)
+        delays.extend([next(delay_gen) for _ in range(delays_to_add)])
 
 
 def move_params_validator(

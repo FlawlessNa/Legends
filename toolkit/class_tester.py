@@ -11,16 +11,23 @@ from royals import royals_ign_finder
 
 from royals.models_implementations.minimaps import PathOfTime1Minimap
 from royals.interface import AbilityMenu, CharacterStats, InventoryMenu
-from royals.actions import write_in_chat
-
+from royals.actions import write_in_chat, cast_skill, telecast
+from royals.characters import Bishop
 
 HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 import win32api
 
 if __name__ == "__main__":
+    char = Bishop("WrongDoor", "Elephant Cape", "large")
     now = time.perf_counter()
-    # asyncio.run(controller.press(HANDLE, 'a', silenced=False, delay=0, down_or_up="keyup"))
-    asyncio.run(write_in_chat(HANDLE, "sup!", silenced=False, channel='whisper', whisper_to="WrongDoor2"))
+    asyncio.run(telecast(
+        HANDLE,
+        "WrongDoor",
+        ["right", "left", "up", "left", "down", "left"],
+        char.skills['Teleport'],
+        char.skills['Genesis']
+    ))
+
 
     # asyncio.run(controller.move(HANDLE,
     #                  "WrongDoor",
