@@ -9,7 +9,6 @@
   - [x] Task Cancellation for movements - make "controller.move" cancellable, but other functions (tp, telecast, jump rope, etc.) non-cancellable.
 
 ### Inventory Cleanup
-- [ ] I've added 0.1 cooldowns on actions within path_into_movements.py (line 231). Reverse if it doesn't work well once you started leeching
 - [ ] Ability to add custom connections (mystic door) from/to current minimap and nearest town
 - [ ] Basic (incomplete) coding of relevant nearest towns - just enough to get to npc
 - [ ] NPC selling mechanics
@@ -20,11 +19,12 @@
 ### Leeching Engine
   - [x] Rebuffing from Leechers
   - [ ] Ultimate Cast failsafe - check if MP has changed by at least X%
-  - [ ] Enhanced telecasting
+  - [x] Enhanced telecasting
   - [ ] Multi-client blockers/parsers
   
 ### Generators
   - [ ] MobCheck : 2nd reaction - add full sentences (more elaborate choices)
+  - [ ] MobCheck : Unblock on 2nd reaction IF mobs are detected again
   - [ ] Check character still alive
   - [ ] Check Potions, Pet Food, Mount Food, Magic Rocks left
   - [x] Cooldown buffs
@@ -86,6 +86,7 @@
   - [ ] Ability to send all characters to lounge if error occurs
 
 ### Misc
+  - [ ] Ability to combine multiple Engines into a single process (ex: all buff mules together, or mages in same ch together)
   - [ ] Add Macros + cast_macros which is cancellable in between each cast
   - [ ] streamline keybindings configs
   - [ ] Add variable speed/jump management
