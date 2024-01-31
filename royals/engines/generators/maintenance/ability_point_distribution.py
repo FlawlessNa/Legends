@@ -82,10 +82,15 @@ class DistributeAP(IntervalBasedGenerator):
                 self._current_lvl_img = None
                 return self._toggle_ability_menu()
             else:
-                # Menu is displayed, check if there are AP to distribute
-                ap_available = self.data.ability_menu.get_available_ap(
-                    self.data.handle, self.data.current_client_img
-                )
+                # Menu is displayed, check if there are AP to distribute, 5 attempts
+                attempt = 0
+                ap_available = None
+                while attempt < 5:
+                    ap_available = self.data.ability_menu.get_available_ap(
+                        self.data.handle, self.data.current_client_img
+                    )
+                    if ap_available is not None:
+                        break
                 if ap_available > 0:
                     self._current_lvl_img = None
                     return self._distribute_ap(ap_available)

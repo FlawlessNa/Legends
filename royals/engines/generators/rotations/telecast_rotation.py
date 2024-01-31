@@ -79,14 +79,13 @@ class TelecastRotationGenerator(RotationGenerator):
                     next_action = self.actions.pop(0)
                     directions.append(next_action.keywords["direction"])
                 res = partial(
-                    self._full_telecast,
+                    telecast,
                     self.data.handle,
                     self.data.ign,
+                    directions,
                     self._teleport,
                     self._ultimate,
-                    directions,
                 )
-                print("Telecasting")
                 return QueueAction(
                     identifier="Telecasting",
                     priority=99,
@@ -100,24 +99,24 @@ class TelecastRotationGenerator(RotationGenerator):
         else:
             return self._rotation()
 
-    @staticmethod
-    async def _full_telecast(
-        handle: int,
-        ign: str,
-        teleport_skill: RoyalsSkill,
-        ultimate_skill: RoyalsSkill,
-        directions: list[str],
-    ) -> None:
-        async def _coro():
-            direction = directions.pop(0)
-            await telecast(handle, ign, direction, teleport_skill, ultimate_skill)
-            while directions:
-                direction = directions.pop(0)
-                await teleport(
-                    handle,
-                    ign,
-                    direction,
-                    teleport_skill,
-                )
-
-        await asyncio.wait_for(_coro(), timeout=ultimate_skill.animation_time)
+    # @staticmethod
+    # async def _full_telecast(
+    #     handle: int,
+    #     ign: str,
+    #     teleport_skill: RoyalsSkill,
+    #     ultimate_skill: RoyalsSkill,
+    #     directions: list[str],
+    # ) -> None:
+    #     async def _coro():
+    #         direction = directions.pop(0)
+    #         await telecast(handle, ign, direction, teleport_skill, ultimate_skill)
+    #         while directions:
+    #             direction = directions.pop(0)
+    #             await teleport(
+    #                 handle,
+    #                 ign,
+    #                 direction,
+    #                 teleport_skill,
+    #             )
+    #
+    #     await asyncio.wait_for(_coro(), timeout=ultimate_skill.animation_time)

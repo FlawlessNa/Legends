@@ -77,7 +77,7 @@ async def teleport(
         handle,
         ign,
         direction,
-        duration,
+        teleport_skill.animation_time,
         secondary_key_press=teleport_skill.key_bind(ign),
     )
 

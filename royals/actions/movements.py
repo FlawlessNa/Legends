@@ -13,14 +13,15 @@ async def jump_on_rope(
     :param direction: Direction to jump in.
     :return:
     """
+    print(f"Jumping on rope in {direction}")
     await controller.move(
         handle,
         ign,
         direction,
-        0.1,
+        0.5,
         "up",
         True,
-        jump_interval=0.1
+        jump_interval=0.5
     )
 
 
