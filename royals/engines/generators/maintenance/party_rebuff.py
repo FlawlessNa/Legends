@@ -177,7 +177,8 @@ class PartyRebuff(IntervalBasedGenerator):
 
             except BrokenBarrierError:
                 self.barrier.reset()
-                raise SkipIteration
+                return self._rebuff()
+                # raise SkipIteration
 
     def _confirm_rebuffed(self) -> bool:
         left, top, right, bottom = win32gui.GetClientRect(self.data.handle)
