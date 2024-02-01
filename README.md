@@ -16,6 +16,10 @@
 - [ ] Inventory parsing for godlies?
 - [ ] Storage mechanics
 
+### Controller-revamp
+- [ ] Cleanup the creation of inputs and enable better control of the focus lock on complex actions
+  - Ex: can call controller.move with a list of directions+durations, and it will only acquire/release once.
+
 ### Leeching Engine
   - [x] Rebuffing from Leechers
   - [ ] Ultimate Cast failsafe - check if MP has changed by at least X%

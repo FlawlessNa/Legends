@@ -3,7 +3,7 @@ import multiprocessing
 from botting.core import DecisionEngine, Executor, DecisionGenerator
 from royals import royals_ign_finder, RoyalsData
 from royals.maps import RoyalsMap
-from .generators import DistributeAP, EnsureSafeSpot, PartyRebuff
+from .generators import DistributeAP, EnsureSafeSpot, PartyRebuff, ResetIdleSafeguard
 
 
 class BuffMule(DecisionEngine):
@@ -39,11 +39,6 @@ class BuffMule(DecisionEngine):
             character(),
             current_map=game_map,
         )
-        # self.game_data.update(
-        #     ability_menu=AbilityMenu(),
-        #     character=character(),
-        #     character_stats=CharacterStats(),
-        # )
         self._buffs = []
         for buff in self.included_buffs:
             if self.game_data.character.skills.get(buff) is not None:
@@ -65,9 +60,8 @@ class BuffMule(DecisionEngine):
 
     @property
     def items_to_monitor(self) -> list[DecisionGenerator]:
-        return [
+        basic = [
             DistributeAP(self.game_data),
-            EnsureSafeSpot(self.game_data),
             PartyRebuff(
                 self.game_data,
                 self._notifier,
@@ -77,10 +71,14 @@ class BuffMule(DecisionEngine):
                 self._rebuff_location,
             ),
         ]
+        if not self._buffs:
+            basic.append(EnsureSafeSpot(self.game_data))
+        return basic
 
     @property
     def next_map_rotation(self) -> DecisionGenerator:
-        pass
+        if self._buffs:
+            return ResetIdleSafeguard(self.game_data, True if self._buffs else False)
 
     @property
     def anti_detection_checks(self) -> list[DecisionGenerator]:

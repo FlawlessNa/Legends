@@ -95,4 +95,3 @@ if __name__ == "__main__":
     ]
 
     asyncio.run(main(leecher, *mules))
-    # asyncio.run(main(leecher))

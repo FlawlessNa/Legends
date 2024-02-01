@@ -90,7 +90,6 @@ class TelecastRotationGenerator(RotationGenerator):
                     identifier="Telecasting",
                     priority=98,
                     action=res,
-                    # release_lock_on_callback=True,
                     update_generators=GeneratorUpdate(
                         game_data_kwargs={"available_to_cast": True}
                     ),
