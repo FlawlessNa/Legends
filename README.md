@@ -30,7 +30,7 @@
   - [ ] MobCheck : 2nd reaction - add full sentences (more elaborate choices)
   - [ ] MobCheck : Unblock on 2nd reaction IF mobs are detected again
   - [ ] Check character still alive
-  - [ ] Check Potions, Pet Food, Mount Food, Magic Rocks left
+  - [ ] Check Potions, Pet Food (_failsafe to PetFood), Mount Food, Magic Rocks left
   - [x] Cooldown buffs
   - [ ] Inventory Management
     - [x] Basic parser to check space left

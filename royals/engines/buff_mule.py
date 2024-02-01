@@ -3,7 +3,13 @@ import multiprocessing
 from botting.core import DecisionEngine, Executor, DecisionGenerator
 from royals import royals_ign_finder, RoyalsData
 from royals.maps import RoyalsMap
-from .generators import DistributeAP, EnsureSafeSpot, PartyRebuff, ResetIdleSafeguard
+from .generators import (
+    DistributeAP,
+    EnsureSafeSpot,
+    PartyRebuff,
+    ResetIdleSafeguard,
+    PetFood,
+)
 
 
 class BuffMule(DecisionEngine):
@@ -71,8 +77,12 @@ class BuffMule(DecisionEngine):
                 self._rebuff_location,
             ),
         ]
+        # If no buff, then ensure character doesn't move
         if not self._buffs:
             basic.append(EnsureSafeSpot(self.game_data))
+        # Otherwise, character will sometimes move and might get hit. Ensure pet stays.
+        else:
+            basic.append(PetFood(self.game_data))
         return basic
 
     @property
