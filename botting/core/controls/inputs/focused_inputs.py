@@ -114,31 +114,6 @@ KEYBOARD = wintypes.DWORD(1)
 HARDWARE = wintypes.DWORD(2)
 
 
-def _remove_num_lock() -> None:
-    """
-    Removes the num lock if it is on.
-    :return:
-    """
-    if GetKeyState(win32con.VK_NUMLOCK) != 0:
-        logger.info("NumLock is on. Turning it off.")
-        array_class = Input * 2
-        array_pointer = ctypes.POINTER(array_class)
-        _input = [
-            _single_input_constructor(GetForegroundWindow(), "num_lock", "keydown"),
-            _single_input_constructor(GetForegroundWindow(), "num_lock", "keyup"),
-        ]
-
-        input_array = array_class(*_input)
-        _send_input((
-            wintypes.UINT(2),
-            array_pointer(input_array),
-            wintypes.INT(ctypes.sizeof(input_array[0]))
-        ))
-
-
-_remove_num_lock()
-
-
 def activate(hwnd: int) -> None:
     """
     Activates the window associated with the handle.
@@ -414,3 +389,28 @@ def move_params_validator(
     # Strictly used for Flash Jumping into a rope (combine is false)
     if secondary_direction and jump and secondary_key_press:
         assert combine_jump_secondary is False
+
+
+def _remove_num_lock() -> None:
+    """
+    Removes the num lock if it is on.
+    :return:
+    """
+    if GetKeyState(win32con.VK_NUMLOCK) != 0:
+        logger.info("NumLock is on. Turning it off.")
+        array_class = Input * 2
+        array_pointer = ctypes.POINTER(array_class)
+        _input = [
+            _single_input_constructor(GetForegroundWindow(), "num_lock", "keydown"),
+            _single_input_constructor(GetForegroundWindow(), "num_lock", "keyup"),
+        ]
+
+        input_array = array_class(*_input)
+        _send_input((
+            wintypes.UINT(2),
+            array_pointer(input_array),
+            wintypes.INT(ctypes.sizeof(input_array[0]))
+        ))
+
+
+_remove_num_lock()

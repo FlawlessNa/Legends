@@ -22,14 +22,14 @@ LEECHER_NUM_PETS = 3
 BUFFS_TO_SYNCHRONIZE = [
     "Holy Symbol",
     "Maple Warrior",
-    # "Haste"
+    "Haste"
 ]
 
 BUFF_MULES_IGN = ["UluLoot", "BCoinFarm", "iYieldMoney", "MoneyEngine", "FinancialWiz"]
 BUFF_MULES_CLASSES = [royals.characters.Assassin] + [royals.characters.Magician] * 4
 
 NUM_BOTS = 6
-TRAINING_MAP = royals.maps.Line1Area2
+TRAINING_MAP = royals.maps.PathOfTime1
 MOB_COUNT_THRESHOLD = 6
 
 DETECTION_CONFIG_SECTION = "Elephant Cape"

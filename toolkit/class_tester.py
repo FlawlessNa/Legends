@@ -12,12 +12,23 @@ from royals import royals_ign_finder
 from royals.models_implementations.minimaps import PathOfTime1Minimap
 from royals.interface import AbilityMenu, CharacterStats, InventoryMenu
 from royals.actions import write_in_chat, cast_skill, telecast, teleport_once
-from royals.characters import Bishop
+from royals.characters import Bishop, Assassin
 
 HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 import win32api
 
 if __name__ == "__main__":
+    bish = Bishop("WrongDoor", "Elephant Cape", "large")
+    assa = Assassin("UluLoot", "Elephant Cape", "large")
+    now = time.perf_counter()
+
+    for _ in range(1):
+        asyncio.run(teleport_once(
+            HANDLE,
+            "WrongDoor",
+            "left",
+            char.skills['Teleport'],
+        ))
 
     asyncio.run(controller.move(HANDLE, "WrongDoor", "right", 2, secondary_direction="up"))
 #     inv = InventoryMenu()
@@ -40,16 +51,6 @@ if __name__ == "__main__":
 #         #
 #         # print('Space left:', inv.get_space_left(HANDLE, img))
 
-    char = Bishop("WrongDoor", "Elephant Cape", "large")
-    now = time.perf_counter()
-
-    for _ in range(1):
-        asyncio.run(teleport_once(
-            HANDLE,
-            "WrongDoor",
-            "left",
-            char.skills['Teleport'],
-        ))
 
 
     # asyncio.run(controller.move(HANDLE,
