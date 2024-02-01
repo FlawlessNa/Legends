@@ -78,8 +78,8 @@ class ResetIdleSafeguard(IntervalBasedGenerator):
     ) -> None:
         super().__init__(data, interval, deviation)
         self.data.update(allow_teleport=False)
-        self._next_call += interval  # No need to trigger immediately
-        self._stage = self._jumps_done = 0
+        self._next_call = time.perf_counter() + interval  # don't trigger immediately
+        self._stage = self._jumps_done = self._deadlock_counter = 0
         self._target = self._feature = None
 
     def __repr__(self):
@@ -111,7 +111,8 @@ class ResetIdleSafeguard(IntervalBasedGenerator):
         No failsafe required
         :return:
         """
-        pass
+        if self._deadlock_counter >= 30:
+            raise Exception(f"{self} has been deadlocked for too long")
 
     def _exception_handler(self, e: Exception) -> None:
         raise e
@@ -128,13 +129,11 @@ class ResetIdleSafeguard(IntervalBasedGenerator):
                 return QueueAction(
                     identifier=f"{self} Random Jump {self._jumps_done}",
                     priority=1,
-                    action=partial(random_jump,
-                                   self.data.handle,
-                                   self.data.ign),
+                    action=partial(random_jump, self.data.handle, self.data.ign),
                     update_generators=GeneratorUpdate(
                         generator_id=id(self),
                         generator_kwargs={"blocked": False},
-                    )
+                    ),
                 )
 
             else:
@@ -142,30 +141,39 @@ class ResetIdleSafeguard(IntervalBasedGenerator):
                 self._stage += 1
 
         elif self._stage == 2:
-            if (math.dist(self.data.current_minimap_position, self._target) > 2 or self.data.current_minimap.get_feature_containing(self._target) != self._feature):
+            if (
+                math.dist(self.data.current_minimap_position, self._target) > 2
+                or self.data.current_minimap.get_feature_containing(self._target)
+                != self._feature
+            ):
                 actions = get_to_target(
                     self.data.current_minimap_position,
                     self._target,
                     self.data.current_minimap,
                 )
-                args = (
-                    self.data.handle,
-                    self.data.ign,
-                    actions[0].keywords["direction"],
-                )
-                kwargs = actions[0].keywords.copy()
-                kwargs.pop("direction", None)
-                action = partial(actions[0].func, *args, **kwargs)
-                self.blocked = True
-                return QueueAction(
-                    identifier=f"{self} Returning to Initial Location",
-                    priority=1,
-                    action=action,
-                    update_generators=GeneratorUpdate(
-                        generator_id=id(self),
-                        generator_kwargs={"blocked": False},
+                if actions:
+                    self._deadlock_counter = 0
+                    args = (
+                        self.data.handle,
+                        self.data.ign,
+                        actions[0].keywords["direction"],
                     )
-                )
+                    kwargs = actions[0].keywords.copy()
+                    kwargs.pop("direction", None)
+                    action = partial(actions[0].func, *args, **kwargs)
+                    self.blocked = True
+                    return QueueAction(
+                        identifier=f"{self} Returning to Initial Location",
+                        priority=1,
+                        action=action,
+                        update_generators=GeneratorUpdate(
+                            generator_id=id(self),
+                            generator_kwargs={"blocked": False},
+                        ),
+                    )
+                else:
+                    self._deadlock_counter += 1
+
             else:
                 self._stage = 0
                 self._next_call = time.perf_counter() + self.interval
