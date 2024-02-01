@@ -1,4 +1,4 @@
-from botting.models_abstractions import Skill
+from royals.models_implementations.mechanics import RoyalsSkill
 from .character import Character
 
 
@@ -6,7 +6,7 @@ class Rogue(Character):
     main_stat = "LUK"
 
     @property
-    def skills(self) -> dict[str, Skill]:
+    def skills(self) -> dict[str, RoyalsSkill]:
         return {}
 
     def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:
@@ -15,10 +15,10 @@ class Rogue(Character):
 
 class Assassin(Rogue):
     @property
-    def skills(self) -> dict[str, Skill]:
+    def skills(self) -> dict[str, RoyalsSkill]:
         return {
             **super().skills,
-            "Haste": Skill(
+            "Haste": RoyalsSkill(
                 "Haste",
                 "Party Buff",
                 animation_time=0.6,  # TODO - Figure this out

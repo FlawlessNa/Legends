@@ -46,7 +46,10 @@ class EnsureSafeSpot(IntervalBasedGenerator):
         Check if position has changed, and trigger discord notification if so.
         :return:
         """
-        if self._character_location != self.data.current_minimap_position:
+        if (
+            self._character_location != self.data.current_minimap_position
+            and self.data.current_minimap_position is not None
+        ):
             self._next_call = time.perf_counter() + 60
             return QueueAction(
                 identifier="Mule has moved",

@@ -185,11 +185,19 @@ class PartyRebuff(IntervalBasedGenerator):
         haystack = buff_icon_box.extract_client_img(self.data.current_client_img)
         for idx, icon in enumerate(self._buff_icons):
             results = cv2.matchTemplate(haystack, icon, cv2.TM_CCOEFF_NORMED)
-            min_val, max_val, _, _ = cv2.minMaxLoc(results)
-            if max_val > 0.99:
-                continue
-            else:
-                return False
+            min_val, max_val, _, max_loc = cv2.minMaxLoc(results)
+            if max_val > 0.95:
+                # Double check by extracting icon to gray and count bright pixels
+                rect = max_loc + (icon.shape[1], icon.shape[0])
+                rect_img = haystack[
+                    rect[1]: rect[1] + rect[3], rect[0]: rect[0] + rect[2]
+                ]
+                gray = cv2.cvtColor(rect_img, cv2.COLOR_BGR2GRAY)
+                _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+                bright_pixels = cv2.countNonZero(thresh)
+                if bright_pixels > 350:
+                    continue
+            return False
         logger.debug(f"{self} has confirmed all rebuffs.")
         return True
 
@@ -212,8 +220,10 @@ class PartyRebuff(IntervalBasedGenerator):
             ),
             update_generators=GeneratorUpdate(
                 generator_id=id(self),
-                generator_kwargs={"blocked": False,
-                                  'unblock_generators': ("Rotation", id(self))},
+                generator_kwargs={
+                    "blocked": False,
+                    "unblock_generators": ("Rotation", id(self)),
+                },
             ),
         )
 

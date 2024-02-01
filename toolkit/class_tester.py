@@ -21,66 +21,29 @@ if __name__ == "__main__":
     bish = Bishop("WrongDoor", "Elephant Cape", "large")
     assa = Assassin("UluLoot", "Elephant Cape", "large")
     now = time.perf_counter()
+    hs_img = bish.skills["Holy Symbol"].icon
+    haste_img = assa.skills["Haste"].icon
+    hs_gray = cv2.cvtColor(hs_img, cv2.COLOR_BGR2GRAY)
+    haste_gray = cv2.cvtColor(haste_img, cv2.COLOR_BGR2GRAY)
 
-    for _ in range(1):
-        asyncio.run(teleport_once(
-            HANDLE,
-            "WrongDoor",
-            "left",
-            char.skills['Teleport'],
-        ))
+    def _match_buff_icon(icon_name: str, client_img, buff_img):
+        results = cv2.matchTemplate(client_img, buff_img, cv2.TM_CCOEFF_NORMED)
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(results)
+        rect = max_loc + (buff_img.shape[1], buff_img.shape[0])
+        rect_img = client_img[rect[1] : rect[1] + rect[3], rect[0] : rect[0] + rect[2]]
+        gray = cv2.cvtColor(rect_img, cv2.COLOR_BGR2GRAY)
+        _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+        bright_pixels = cv2.countNonZero(thresh)
+        cv2.imshow(f"{icon_name}", cv2.resize(rect_img, None, fx=10, fy=10))
+        cv2.waitKey(1)
+        print(f"{icon_name} - {max_val} - {bright_pixels}")
 
-    asyncio.run(controller.move(HANDLE, "WrongDoor", "right", 2, secondary_direction="up"))
-#     inv = InventoryMenu()
-#     # minimap = PathOfTime1Minimap()
-#     # while True:
-#         # inv.is_extended(HANDLE)
-#         # print(inv.read_item_name(HANDLE, controller.get_mouse_pos(HANDLE)))
-#         # img = take_screenshot(HANDLE)
-#         # cv2.imshow('client_img', img)
-#         # # extend_button = inv.get_abs_box(HANDLE, inv.extend_button)
-#         # boxes = inv.get_all_slots_boxes(HANDLE, img)
-#         #
-#         # for box in boxes:
-#         #     target = box.random()
-#         #     asyncio.run(controller.mouse_move(HANDLE, target, total_duration=0.1))
-#
-#
-#         # asyncio.run(controller.mouse_move(HANDLE, extend_button.random()))
-#         # breakpoint()
-#         #
-#         # print('Space left:', inv.get_space_left(HANDLE, img))
+    while True:
+        client_img = take_screenshot(HANDLE)
+        gray = cv2.cvtColor(client_img, cv2.COLOR_BGR2GRAY)
+        _match_buff_icon("HS", client_img, hs_img)
+        _match_buff_icon("Haste", client_img, haste_img)
 
+        breakpoint()
 
-
-    # asyncio.run(controller.move(HANDLE,
-    #                  "WrongDoor",
-    #                  "left",
-    #                  5,
-    #                  secondary_key_press='c',
-    #                  secondary_key_interval=0.8,
-    #                  tertiary_key_press='v'
-    #                  )
-    #             )
-    print('total duration', time.perf_counter() - now)
-
-    # inv = InventoryMenu()
-    # minimap = PathOfTime1Minimap()
-    # while True:
-    #     inv.is_extended(HANDLE)
-        # print(inv.read_item_name(HANDLE, controller.get_mouse_pos(HANDLE)))
-        # img = take_screenshot(HANDLE)
-        # cv2.imshow('client_img', img)
-        # # extend_button = inv.get_abs_box(HANDLE, inv.extend_button)
-        # boxes = inv.get_all_slots_boxes(HANDLE, img)
-        #
-        # for box in boxes:
-        #     target = box.random()
-        #     asyncio.run(controller.mouse_move(HANDLE, target, total_duration=0.1))
-
-
-        # asyncio.run(controller.mouse_move(HANDLE, extend_button.random()))
-        # breakpoint()
-        #
-        # print('Space left:', inv.get_space_left(HANDLE, img))
-
+    print("total duration", time.perf_counter() - now)

@@ -1,4 +1,4 @@
-from botting.models_abstractions import Skill
+from royals.models_implementations.mechanics import RoyalsSkill
 from .character import Character
 
 
@@ -6,19 +6,19 @@ class Magician(Character):
     main_stat = "INT"
 
     @property
-    def skills(self) -> dict[str, Skill]:
+    def skills(self) -> dict[str, RoyalsSkill]:
         return {
-            "Magic Guard": Skill(
+            "Magic Guard": RoyalsSkill(
                 "Magic Guard", "Buff", duration=600, animation_time=0.6
             ),
-            "Magic Claw": Skill(
+            "Magic Claw": RoyalsSkill(
                 "Magic Claw",
                 "Attack",
                 animation_time=0.8,
                 horizontal_screen_range=310,
                 vertical_screen_range=30,
             ),
-            "Teleport": Skill(  # Put here since shared across all 2nd job magicians
+            "Teleport": RoyalsSkill(  # Put here since shared across all 2nd job magicians
                 "Teleport",
                 "Movement",
                 animation_time=0.6,
@@ -59,10 +59,10 @@ class FPArchMage(FPMage):
 
 class Cleric(Magician):
     @property
-    def skills(self) -> dict[str, Skill]:
+    def skills(self) -> dict[str, RoyalsSkill]:
         return {
             **super().skills,
-            "Heal": Skill(
+            "Heal": RoyalsSkill(
                 "Heal",
                 "Attack",
                 animation_time=0.6,
@@ -70,14 +70,14 @@ class Cleric(Magician):
                 vertical_screen_range=125,
                 unidirectional=False,
             ),
-            "Bless": Skill(
+            "Bless": RoyalsSkill(
                 "Bless",
                 "Party Buff",
                 animation_time=0.6,
                 unidirectional=False,
                 duration=200,
             ),
-            "Invincible": Skill("Invincible", "Buff", animation_time=0.6, duration=300),
+            "Invincible": RoyalsSkill("Invincible", "Buff", animation_time=0.6, duration=300),
         }
 
     def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:
@@ -86,10 +86,10 @@ class Cleric(Magician):
 
 class Priest(Cleric):
     @property
-    def skills(self) -> dict[str, Skill]:
+    def skills(self) -> dict[str, RoyalsSkill]:
         return {
             **super().skills,
-            "Holy Symbol": Skill(
+            "Holy Symbol": RoyalsSkill(
                 "Holy Symbol",
                 "Party Buff",
                 animation_time=2.2,
@@ -98,7 +98,7 @@ class Priest(Cleric):
                 horizontal_minimap_distance=15,
                 _use_by_default=True,
             ),
-            "Shining Ray": Skill(
+            "Shining Ray": RoyalsSkill(
                 "Shining Ray",
                 "Attack",
                 animation_time=1.1,
@@ -116,10 +116,10 @@ class Bishop(Priest):
     main_skill = "Genesis"
 
     @property
-    def skills(self) -> dict[str, Skill]:
+    def skills(self) -> dict[str, RoyalsSkill]:
         return {
             **super().skills,
-            "Genesis": Skill(
+            "Genesis": RoyalsSkill(
                 "Genesis",
                 "Attack",
                 animation_time=3,
@@ -128,7 +128,7 @@ class Bishop(Priest):
                 horizontal_screen_range=400,
                 vertical_screen_range=350,
             ),
-            "Maple Warrior": Skill(
+            "Maple Warrior": RoyalsSkill(
                 "Maple Warrior",
                 "Party Buff",
                 animation_time=1.5,
