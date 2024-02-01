@@ -30,7 +30,7 @@ BUFF_MULES_CLASSES = [royals.characters.Assassin] + [royals.characters.Magician]
 
 NUM_BOTS = 6
 TRAINING_MAP = royals.maps.PathOfTime1
-MOB_COUNT_THRESHOLD = 6
+MOB_COUNT_THRESHOLD = 5
 
 DETECTION_CONFIG_SECTION = "Elephant Cape"
 CLIENT_SIZE = "large"
