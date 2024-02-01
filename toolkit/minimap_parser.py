@@ -8,13 +8,14 @@ import os
 import numpy as np
 
 from paths import ROOT
-
+from royals import royals_ign_finder
 from royals.interface.dynamic_components.minimap import Minimap
+from botting.utilities import client_handler
 from botting.utilities import Box
 
-HANDLE = 0x00F90FA4
+HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 OUTPUT_LOCATION = os.path.join(ROOT, "royals/models_implementations/minimaps/")
-OUTPUT_NAME = "mysterious_path3.py"
+OUTPUT_NAME = "ludibrium.py"
 
 container = []
 
@@ -59,6 +60,7 @@ def write_feature(cont: list) -> None:
 if __name__ == "__main__":
     minimap = FakeMinimap()
     map_area_box = minimap.get_map_area_box(HANDLE)
+    print(map_area_box.width, map_area_box.height)
     minimap.map_area_width = map_area_box.width
     minimap.map_area_height = map_area_box.height
 

@@ -1,4 +1,5 @@
 from .budhha_minimap import BuddhaMinimap
+from .ludibrium import LudibriumMinimap
 from .ludi_free_market_template import LudiFreeMarketTemplateMinimap
 from .kerning_line1_area1 import KerningLine1Area1Minimap
 from .kerning_line1_area2 import KerningLine1Area2Minimap
