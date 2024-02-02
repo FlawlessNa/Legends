@@ -22,6 +22,7 @@
 
 ### Leeching Engine
   - [x] Rebuffing from Leechers
+    - Refactor buff mule safeguard into an actual rotation generator instead of interval-based
   - [ ] Ultimate Cast failsafe - check if MP has changed by at least X%
   - [x] Enhanced telecasting
   - [ ] Multi-client blockers/parsers

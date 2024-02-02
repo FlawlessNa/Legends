@@ -61,7 +61,7 @@ async def cast_skill(
 async def teleport_once(
     handle: int,
     ign: str,
-    direction: Literal["left", "right"],
+    direction: Literal["left", "right", "up", "down"],
     teleport_skill: Skill,
 ):
     """
@@ -106,6 +106,7 @@ async def telecast(
     :param duration:
     :return:
     """
+    start = time.perf_counter()
     if duration is None:
         duration = ultimate_skill.animation_time
     else:
@@ -129,3 +130,8 @@ async def telecast(
         await asyncio.wait_for(_coro(), timeout=duration)
     except asyncio.TimeoutError:
         pass
+    finally:
+        await asyncio.sleep(
+            max(0.0, ultimate_skill.animation_time - (time.perf_counter() - start))
+        )
+        print(time.perf_counter() - start)

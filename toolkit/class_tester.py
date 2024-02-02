@@ -35,9 +35,7 @@ if __name__ == "__main__":
     #
     # finder = AStarFinder()
     # path, runs = finder.find_path(start, end, world)
-    asyncio.run(controller.press(HANDLE, 'v'))
-    asyncio.run(asyncio.sleep(3))
-    asyncio.run(controller.press(HANDLE, 'pagedown'))
+    asyncio.run(controller.move(HANDLE, "WrongDoor", "left", 0.11764705882352941))
     breakpoint()
 
 

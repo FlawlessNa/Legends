@@ -221,7 +221,8 @@ class Minimap(InGameDynamicVisuals, ABC):
                 else:
                     extra_width = entire_minimap_box.width - self.map_area_width
                     if extra_width % 2 == 0:
-                        left_offset = right_offset = extra_width // 2
+                        left_offset = extra_width // 2
+                        right_offset = -left_offset
                     else:
                         left_offset = self.full_map_area_left_offset
                         right_offset = -self.full_map_area_right_offset
