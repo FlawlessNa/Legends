@@ -217,7 +217,7 @@ class PartyRebuff(IntervalBasedGenerator):
             identifier=f"{self}",
             priority=1,
             action=partial(
-                self.cast_all, 0, self.data.handle, self.data.ign, self.buffs
+                self.cast_all, 0.5, self.data.handle, self.data.ign, self.buffs
             ),
             update_generators=GeneratorUpdate(
                 generator_id=id(self),

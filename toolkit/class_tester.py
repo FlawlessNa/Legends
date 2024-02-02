@@ -20,22 +20,24 @@ HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 import win32api
 
 if __name__ == "__main__":
-    from pathfinding.finder.a_star import AStarFinder
-    now = time.perf_counter()
-    test_door = (73, 39)
-    start = (61, 39)
-    end = (50, 82)
-    entire_map = PathOfTime1()
-    minimap = entire_map.minimap
-    town = entire_map.nearest_town
-    minimap.generate_grid_template(True)
-    town.generate_grid_template(True)
-
-    minimap.grid.node(*test_door).connect(town.grid.node(*town.door_spot), MinimapConnection.PORTAL)
-
-    finder = AStarFinder()
+    # from pathfinding.finder.a_star import AStarFinder
+    # now = time.perf_counter()
+    # test_door = (73, 39)
+    # start = (61, 39)
+    # end = (50, 82)
+    # entire_map = PathOfTime1()
+    # minimap = entire_map.minimap
+    # town = entire_map.nearest_town
+    # minimap.generate_grid_template(True)
+    # town.generate_grid_template(True)
+    #
+    # minimap.grid.node(*test_door).connect(town.grid.node(*town.door_spot), MinimapConnection.PORTAL)
+    #
+    # finder = AStarFinder()
     # path, runs = finder.find_path(start, end, world)
-
+    asyncio.run(controller.press(HANDLE, 'v'))
+    asyncio.run(asyncio.sleep(3))
+    asyncio.run(controller.press(HANDLE, 'pagedown'))
     breakpoint()
 
 
