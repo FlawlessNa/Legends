@@ -5,6 +5,7 @@ from functools import partial
 
 from botting.core import QueueAction, GeneratorUpdate
 from royals.engines.generators.interval_based import IntervalBasedGenerator
+from royals.engines.generators.base_rotation import RotationGenerator
 from royals.actions import random_jump
 from royals.game_data import MinimapData
 from royals.models_implementations.mechanics.path_into_movements import get_to_target
@@ -65,9 +66,9 @@ class EnsureSafeSpot(IntervalBasedGenerator):
             )
 
 
-class ResetIdleSafeguard(IntervalBasedGenerator):
+class ResetIdleSafeguard(RotationGenerator):
     """
-    Basic Generator that moves character at every interval.
+    Basic Rotation Generator that moves character at every interval.
     Used to ensure that actions such as rebuffing still go through after some time.
     """
 

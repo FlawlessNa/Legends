@@ -172,9 +172,9 @@ class DecisionGenerator(ABC):
         :return:
         """
         if self.blocked:
-            if 0 in self.generators_blockers[id(self)]:
-                pass
-            elif time.perf_counter() - self._blocked_at > 300:
+            # if 0 in self.generators_blockers[id(self)]:
+            #     pass
+            if time.perf_counter() - self._blocked_at > 300:
                 raise RuntimeError(
                     f"{self} has been blocked for more than 5 minutes. Exiting."
                 )

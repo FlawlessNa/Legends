@@ -37,5 +37,5 @@ async def random_jump(handle: int, ign: str, **kwargs):
     """
     direction = random.choice(["left", "right"])
     await controller.move(
-        handle, ign, direction, duration=0.05, jump=True, jump_interval=0.05
+        handle, ign, direction, duration=0.5, jump=True, jump_interval=0.5
     )

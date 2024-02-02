@@ -6,7 +6,12 @@ from botting import PARENT_LOG
 from botting.core import GeneratorUpdate, QueueAction, controller
 from botting.utilities import config_reader
 from royals.engines.generators.interval_based import IntervalBasedGenerator
+from royals.engines.generators.step_based import StepBasedGenerator
 from royals.game_data import MaintenanceData
+from royals.models_implementations.mechanics.inventory import (
+    InventoryActions,
+    InventoryChecks,
+)
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -15,7 +20,12 @@ class SkipCurrentIteration(Exception):
     pass
 
 
-class InventoryManager(IntervalBasedGenerator):
+class InventoryManager(
+    IntervalBasedGenerator,
+    StepBasedGenerator,
+    InventoryChecks,
+    InventoryActions
+):
     """
     Interval-based generator that regularly checks the inventory space left.
     If the space left is below a certain threshold, it will call the cleanup procedure.
@@ -67,6 +77,17 @@ class InventoryManager(IntervalBasedGenerator):
 
     def __repr__(self) -> str:
         return f"InventoryManager({self.tab_to_watch})"
+
+    @property
+    def steps(self) -> list[callable]:
+        common_steps = [
+            self._ensure_is_displayed,
+            self._ensure_is_extended,
+            self._ensure_proper_tab,
+            self._get_space_left,
+        ]
+        procedure_specific_steps = []
+        return common_steps + procedure_specific_steps
 
     @property
     def initial_data_requirements(self) -> tuple:
