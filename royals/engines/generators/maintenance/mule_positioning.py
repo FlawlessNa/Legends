@@ -3,7 +3,7 @@ import random
 import time
 from functools import partial
 
-from botting.core import QueueAction, GeneratorUpdate
+from botting.core import QueueAction, GeneratorUpdate, DecisionGenerator
 from royals.engines.generators.interval_based import IntervalBasedGenerator
 from royals.engines.generators.base_rotation import RotationGenerator
 from royals.actions import random_jump
@@ -66,7 +66,7 @@ class EnsureSafeSpot(IntervalBasedGenerator):
             )
 
 
-class ResetIdleSafeguard(RotationGenerator):
+class ResetIdleSafeguard(DecisionGenerator):
     """
     Basic Rotation Generator that moves character at every interval.
     Used to ensure that actions such as rebuffing still go through after some time.
@@ -74,14 +74,13 @@ class ResetIdleSafeguard(RotationGenerator):
 
     generator_type = "Maintenance"
 
-    def __init__(
-        self, data: MinimapData, interval: int = 300, deviation: int = 0.1
-    ) -> None:
-        super().__init__(data, interval, deviation)
+    def __init__(self, data: MinimapData) -> None:
+        super().__init__(data)
         self.data.update(allow_teleport=False)
-        self._next_call = time.perf_counter() + interval  # don't trigger immediately
+        self._next_idle_trigger = time.perf_counter() + 300
         self._stage = self._jumps_done = self._deadlock_counter = 0
-        self._target = self._feature = None
+        self._failsafe_count = 0
+        self._target = self._feature = self._num_jumps = None
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.data.ign})"
@@ -103,17 +102,32 @@ class ResetIdleSafeguard(RotationGenerator):
                 self._target
             )
 
-        if self._stage == 0:
+        if time.perf_counter() > self._next_idle_trigger and self._num_jumps is None:
+            self._stage = 1
             self._num_jumps = random.randint(1, 3)
-            self._stage += 1
 
     def _failsafe(self) -> QueueAction | None:
         """
         No failsafe required
         :return:
         """
+        if self._failsafe_count >= 3:
+            raise RuntimeError(
+                f"{self} has been deadlocked for too many iterations. Exiting."
+            )
         if self._deadlock_counter >= 30:
-            raise Exception(f"{self} has been deadlocked for too long")
+            self._failsafe_count += 1
+            self._deadlock_counter = 0
+            self.blocked = True
+            return QueueAction(
+                identifier=f"{self} Deadlock failsafe",
+                priority=0,
+                action=partial(random_jump, self.data.handle, self.data.ign),
+                update_generators=GeneratorUpdate(
+                    generator_id=id(self),
+                    generator_kwargs={"blocked": False},
+                ),
+            )
 
     def _exception_handler(self, e: Exception) -> None:
         raise e
@@ -139,9 +153,11 @@ class ResetIdleSafeguard(RotationGenerator):
 
             else:
                 self._jumps_done = 0
+                self._num_jumps = None
+                self._next_idle_trigger = time.perf_counter() + 300
                 self._stage += 1
 
-        elif self._stage == 2:
+        else:
             if (
                 math.dist(self.data.current_minimap_position, self._target) > 2
                 or self.data.current_minimap.get_feature_containing(self._target)
@@ -154,6 +170,7 @@ class ResetIdleSafeguard(RotationGenerator):
                 )
                 if actions:
                     self._deadlock_counter = 0
+                    self._failsafe_count = 0
                     args = (
                         self.data.handle,
                         self.data.ign,
@@ -174,7 +191,3 @@ class ResetIdleSafeguard(RotationGenerator):
                     )
                 else:
                     self._deadlock_counter += 1
-
-            else:
-                self._stage = 0
-                self._next_call = time.perf_counter() + self.interval

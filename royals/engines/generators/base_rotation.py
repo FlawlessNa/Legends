@@ -99,26 +99,30 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
         if self.actions:
             first_action = self.actions[0]
             res = self._create_partial(first_action)
+            if first_action.func.__name__ == "jump_on_rope":
+                cancellable = False
+            else:
+                cancellable = True
             action = QueueAction(
                 identifier=self.__class__.__name__,
                 priority=99,
                 action=res,
-                is_cancellable=getattr(self, "_is_cancellable", True),
+                is_cancellable=cancellable,
                 release_lock_on_callback=True,
             )
 
-            if self._lock is None:
+            if self._lock is None:  # TODO - Fix prev_rotations appending
                 self._prev_rotation_actions.append(res)
-                if len(self._prev_rotation_actions) > 10:
+                if len(self._prev_rotation_actions) > 5:
                     self._prev_rotation_actions.pop(0)
                 return action
 
             elif self._lock.acquire(block=False):
-                self._prev_rotation_actions.append(res)
-                if len(self._prev_rotation_actions) > 10:
-                    self._prev_rotation_actions.pop(0)
 
                 if self.data.available_to_cast:
+                    self._prev_rotation_actions.append(res)
+                    if len(self._prev_rotation_actions) > 5:
+                        self._prev_rotation_actions.pop(0)
                     return action
                 else:
                     self._lock.release()
@@ -150,7 +154,6 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
             priority=97,
             action=partial(random_jump, self.data.handle, self.data.ign),
             is_cancellable=False,
-            release_lock_on_callback=True,
         )
 
         # If no change in position for 10 seconds, trigger failsafe
@@ -171,10 +174,12 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
 
         elif (
             all(
-                action == self._prev_rotation_actions[0]
+                action.func == self._prev_rotation_actions[0].func
+                and action.args == self._prev_rotation_actions[0].args
+                and action.keywords == self._prev_rotation_actions[0].keywords
                 for action in self._prev_rotation_actions
             )
-            and len(self._prev_rotation_actions) > 9
+            and len(self._prev_rotation_actions) > 4
         ):
             logger.warning(
                 f"{self.__class__.__name__} Failsafe Triggered Due to repeated actions"
