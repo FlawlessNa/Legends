@@ -3,7 +3,7 @@ import random
 import time
 from functools import partial
 
-from botting.core import QueueAction, GeneratorUpdate, DecisionGenerator
+from botting.core import QueueAction, GeneratorUpdate, DecisionGenerator, controller
 from royals.engines.generators.interval_based import IntervalBasedGenerator
 from royals.actions import random_jump
 from royals.game_data import MinimapData
@@ -73,13 +73,14 @@ class ResetIdleSafeguard(DecisionGenerator):
 
     generator_type = "Maintenance"
 
-    def __init__(self, data: MinimapData) -> None:
+    def __init__(self, data: MinimapData, key: str) -> None:
         super().__init__(data)
         self.data.update(allow_teleport=False)
         self._next_idle_trigger = time.perf_counter() + 300
         self._stage = self._jumps_done = self._deadlock_counter = 0
         self._failsafe_count = 0
         self._target = self._feature = self._num_jumps = None
+        self._key = key  # Random skill to use whenever unlocking the safeguard
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.data.ign})"
@@ -155,6 +156,21 @@ class ResetIdleSafeguard(DecisionGenerator):
                 self._num_jumps = None
                 self._next_idle_trigger = time.perf_counter() + 300
                 self._stage += 1
+                self.blocked = True
+                return QueueAction(
+                    identifier=f"{self} re-casting to remove game safeguard",
+                    priority=1,
+                    action=partial(
+                        controller.press,
+                        self.data.handle,
+                        self._key,
+                        silenced=False
+                    ),
+                    update_generators=GeneratorUpdate(
+                        generator_id=id(self),
+                        generator_kwargs={"blocked": False},
+                    ),
+                )
 
         else:
             if (

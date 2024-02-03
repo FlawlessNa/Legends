@@ -1,4 +1,5 @@
 import multiprocessing
+import random
 
 from botting.core import DecisionEngine, Executor, DecisionGenerator
 from royals import royals_ign_finder, RoyalsData
@@ -88,7 +89,8 @@ class BuffMule(DecisionEngine):
     @property
     def next_map_rotation(self) -> DecisionGenerator:
         if self._buffs:
-            return ResetIdleSafeguard(self.game_data)
+            key = random.choice([buff.key_bind(self.ign) for buff in self._buffs])
+            return ResetIdleSafeguard(self.game_data, key)
 
     @property
     def anti_detection_checks(self) -> list[DecisionGenerator]:
