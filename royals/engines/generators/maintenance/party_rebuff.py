@@ -48,6 +48,11 @@ class PartyRebuff(IntervalBasedGenerator):
         """
         super(PartyRebuff, PartyRebuff).blocked.fset(self, value)
         if value:
+            # If self has an actual buff to cast, log the time at which it is cast
+            if len(self.buffs) > 0:
+                self._blocked_at_logs.append(time.perf_counter())
+                while time.perf_counter() - self._blocked_at_logs[0] > 60:
+                    self._blocked_at_logs.pop(0)
             if not self.ready_counter.acquire(block=False):
                 raise RuntimeError(f"{self} tried to acquire a locked counter.")
         else:
@@ -94,6 +99,8 @@ class PartyRebuff(IntervalBasedGenerator):
             cv2.imread(os.path.join(ICONS_PATH, f"{buff}.png"))
             for buff in self._full_buff_list
         ]
+
+        self._blocked_at_logs = []
 
         assert all(
             skill.duration > 0 for skill in self.buffs
@@ -179,6 +186,16 @@ class PartyRebuff(IntervalBasedGenerator):
                 self.barrier.reset()
                 return self._rebuff()
                 # raise SkipIteration
+        else:
+            # Count the number of times we've been blocked in last minute.
+            # If > 5, then we're unable to cast unless we move. # TODO - move
+            if len(
+                    [i for i in self._blocked_at_logs if time.perf_counter() - i < 60]
+            ) > 5:
+                self._blocked_at_logs.clear()
+                raise RuntimeError(
+                    f"{self} has rebuffed more than 5 times in last minute. Exiting."
+                )
 
     def _confirm_rebuffed(self) -> bool:
         left, top, right, bottom = win32gui.GetClientRect(self.data.handle)
