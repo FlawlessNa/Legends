@@ -8,10 +8,7 @@ from botting.utilities import config_reader
 from royals.engines.generators.interval_based import IntervalBasedGenerator
 from royals.engines.generators.step_based import StepBasedGenerator
 from royals.game_data import MaintenanceData
-from royals.models_implementations.mechanics.inventory import (
-    InventoryActions,
-    InventoryChecks,
-)
+from royals.models_implementations.mechanics.inventory import InventoryChecks
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -23,8 +20,6 @@ class SkipCurrentIteration(Exception):
 class InventoryManager(
     IntervalBasedGenerator,
     StepBasedGenerator,
-    InventoryChecks,
-    InventoryActions
 ):
     """
     Interval-based generator that regularly checks the inventory space left.
@@ -60,6 +55,7 @@ class InventoryManager(
         self._key = eval(config_reader("keybindings", self.data.ign, "Non Skill Keys"))[
             "Inventory Menu"
         ]
+        self._manager = InventoryChecks(self, self._key)
         self._space_left = 96
         self._fail_count = 0
         self._is_displayed = self._is_extended = False
@@ -81,10 +77,7 @@ class InventoryManager(
     @property
     def steps(self) -> list[callable]:
         common_steps = [
-            self._ensure_is_displayed,
-            self._ensure_is_extended,
-            self._ensure_proper_tab,
-            self._get_space_left,
+            partial(self._manager.get_space_left, self.tab_to_watch),
         ]
         procedure_specific_steps = []
         return common_steps + procedure_specific_steps

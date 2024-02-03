@@ -75,11 +75,12 @@ class StepBasedGenerator(DecisionGenerator, ABC):
             self._update_continuous_data()
 
             res = self.steps[self._current_step]()
+            self._error_counter = 0
             if res:
                 res.process_id = id(self)
-                self._error_counter = 0
-                self.current_step += 1
                 return res
+            else:
+                self.current_step += 1
 
             failsafe = self._failsafe()
             if failsafe:
