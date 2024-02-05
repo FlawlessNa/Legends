@@ -79,7 +79,7 @@
   - [ ] Combine with HP bar
   
 ### RoyalsData Management
-  - [ ] Add a Loop ID on every iteration. When data is updated, assign it a loop id. only update when loop id is different.
+  - [x] Add a Loop ID on every iteration. When data is updated, assign it a loop id. only update when loop id is different.
   - [x] Split into several subclasses, each specific to a generator
   - [ ] Re-split data further into interface/mechanics components instead of generator types (ex: MinimapData, PathingData, MobData, etc)
   - [ ] Add a PerformanceData class for monitoring (mesos/h, exp/h, etc)

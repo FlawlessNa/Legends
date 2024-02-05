@@ -3,26 +3,22 @@ import time
 from functools import partial
 
 from botting import PARENT_LOG
-from botting.core import GeneratorUpdate, QueueAction, controller
+from botting.core import QueueAction, DecisionGenerator
 from botting.utilities import config_reader
 from royals.engines.generators.interval_based import IntervalBasedGenerator
 from royals.engines.generators.step_based import StepBasedGenerator
 from royals.game_data import MaintenanceData
-from royals.models_implementations.mechanics.inventory import InventoryChecks
+from royals.models_implementations.mechanics.inventory import (
+    InventoryChecks,
+    InventoryActions,
+)
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
-class SkipCurrentIteration(Exception):
-    pass
-
-
-class InventoryManager(
-    IntervalBasedGenerator,
-    StepBasedGenerator,
-):
+class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChecks):
     """
-    Interval-based generator that regularly checks the inventory space left.
+    Interval-based AND Step-based generator that checks the inventory space left.
     If the space left is below a certain threshold, it will call the cleanup procedure.
     There are 4 procedures available:
     - Discord Alert to the user
@@ -45,8 +41,24 @@ class InventoryManager(
         interval: int = 180,
         deviation: float = 0.0,
         space_left_alert: int = 10,
-        procedure: int = PROC_USE_MYSTIC_DOOR,
+        procedure: int = PROC_REQUEST_MYSTIC_DOOR,
+        nodes_for_door: list[tuple] = None
     ) -> None:
+        """
+        :param data: Engine data object
+        :param tab_to_watch: The inventory tab to watch for space left. # TODO - check multiple?
+        :param interval: Interval at which this generator is triggered
+        :param deviation: Random deviation to be added to the interval
+        :param space_left_alert: Number of slots left to trigger the procedure
+        :param procedure: Procedure to be executed if space left is below the threshold
+        :param nodes_for_door: If procedure involves mystic door and this parameter is
+            not None, the generator will use one node at random to get to the door spot.
+            Otherwise, the door spot will be extracted from current minimap,
+            if specified. If not, the current character's position is used.
+            (Note: This may cause issue if too close to a ladder or another portal. This
+            is because once the entire procedure is completed, the character may
+            inadvertently go back into the door solely due to regular Rotation)
+        """
         super().__init__(data, interval, deviation)
         self.tab_to_watch = tab_to_watch
         self.space_left_alert = space_left_alert
@@ -55,177 +67,60 @@ class InventoryManager(
         self._key = eval(config_reader("keybindings", self.data.ign, "Non Skill Keys"))[
             "Inventory Menu"
         ]
-        self._manager = InventoryChecks(self, self._key)
+        super(DecisionGenerator, self).__init__(self, data, self._key)
         self._space_left = 96
-        self._fail_count = 0
-        self._is_displayed = self._is_extended = False
-        self._current_tab = None
-        self._check_completed = False
 
-        self._current_map_door_position = None
-        self._town_map_door_position = None
         if self.procedure == self.PROC_USE_MYSTIC_DOOR:
             self._door_key = eval(
                 config_reader("keybindings", self.data.ign, "Skill Keys")
             )["Mystic Door"]
         else:
             self._door_key = None
+        self.nodes_for_door = nodes_for_door
+        self.door_target = None
 
     def __repr__(self) -> str:
         return f"InventoryManager({self.tab_to_watch})"
 
     @property
     def steps(self) -> list[callable]:
-        common_steps = [
-            partial(self._manager.get_space_left, self.tab_to_watch),
-        ]
+        common = [partial(self._get_space_left, self.tab_to_watch)]
         procedure_specific_steps = []
-        return common_steps + procedure_specific_steps
+
+        if self.procedure == self.PROC_DISCORD_ALERT:
+            procedure_specific_steps = [self._trigger_discord_alert]
+
+        elif self.procedure == self.PROC_USE_TOWN_SCROLL:
+            raise NotImplementedError
+
+        elif self.procedure == self.PROC_USE_MYSTIC_DOOR:
+            procedure_specific_steps = [
+                partial(self._get_to_door_spot, self.nodes_for_door),
+                self._use_mystic_door,
+                self._enter_door,
+                self._ensure_in_town,
+                self._move_to_shop_portal,
+                self._cleanup_inventory,
+            ]
+
+        return common + procedure_specific_steps
 
     @property
     def initial_data_requirements(self) -> tuple:
         return ("inventory_menu",)
 
     def _update_continuous_data(self) -> None:
-        self._is_displayed = self._is_extended = self._current_tab = None
-        self._is_displayed = self.data.inventory_menu.is_displayed(
-            self.data.handle, self.data.current_client_img
-        )
-        if self._is_displayed:
-            self._is_extended = self.data.inventory_menu.is_extended(
-                self.data.handle, self.data.current_client_img
-            )
-        if self._is_extended:
-            self._current_tab = self.data.inventory_menu.get_active_tab(
-                self.data.handle, self.data.current_client_img
-            )
-        if self._current_tab == self.tab_to_watch:
-            self._space_left = self.data.inventory_menu.get_space_left(
-                self.data.handle, self.data.current_client_img
-            )
-            logger.info(f"Inventory space left: {self._space_left}")
+        if self.current_step > 0:
+            self.data.update('current_minimap_position')
 
-    def _failsafe(self) -> QueueAction | None:
-        """
-        TODO - If Using Mystic Door, check chat to see if out of Magic Rocks,
-        in which case trigger error + discord alert
-        :return:
-        """
-        # If the check is done, double-check that menu has been closed
-        if self._check_completed:
-            still_displayed = self.data.inventory_menu.is_displayed(
-                self.data.handle, self.data.current_client_img
-            )
-            if still_displayed:
-                return self._toggle_inventory_menu()
-            else:
-                self._check_completed = False  # Reset for next iteration
-                self._next_call = time.perf_counter() + self.interval
-                raise SkipCurrentIteration
+    def _step_based_failsafe(self) -> QueueAction | None:
+        if self.data.inventory_menu.is_displayed(
+            self.data.handle, self.data.current_client_img
+        ):
+            return InventoryActions.toggle(self.generator, self._key)
+        self.current_step = 0
+        self._next_call = time.perf_counter() + self.interval
+        raise self.skip_iteration
 
     def _exception_handler(self, e: Exception) -> None:
-        if isinstance(e, SkipCurrentIteration):
-            self._error_counter -= 1
-            return
-
         raise e
-
-    def _next(self) -> QueueAction | None:
-        if not self._check_completed:
-            if not self._is_displayed:
-                return self._toggle_inventory_menu()
-            elif not self._is_extended:
-                return self._expand_inventory_menu()
-            elif self._current_tab is None:
-                self._fail_count += 1
-                return
-            elif self._current_tab != self.tab_to_watch:
-                return self._toggle_tab()
-            else:
-                self._check_completed = True
-                if self._space_left <= self.space_left_alert:
-                    return self._cleanup_handler()
-
-    @staticmethod
-    async def _expand_inv(handle: int, target: tuple[int, int]):
-        await controller.mouse_move(handle, target)
-        await controller.click(handle)
-        await controller.mouse_move(handle, (-1000, 1000))  # Move mouse away
-
-    @staticmethod
-    async def _press_n_times(handle: int, key: str, nbr_of_presses: int = 1):
-        for _ in range(nbr_of_presses):
-            await controller.press(handle, key, silenced=True)
-
-    def _toggle_inventory_menu(self) -> QueueAction:
-        self.blocked = True
-        return QueueAction(
-            identifier="Toggling inventory menu",
-            priority=1,
-            action=partial(
-                controller.press, self.data.handle, self._key, silenced=True
-            ),
-            update_generators=GeneratorUpdate(
-                generator_id=id(self),
-                generator_kwargs={"blocked": False},
-            ),
-        )
-
-    def _expand_inventory_menu(self) -> QueueAction:
-        self.blocked = True
-        box = self.data.inventory_menu.get_abs_box(
-            self.data.handle, self.data.inventory_menu.extend_button
-        )
-        target = box.random()
-        return QueueAction(
-            identifier="Extending inventory",
-            priority=1,
-            action=partial(
-                self._expand_inv,
-                self.data.handle,
-                target,
-            ),
-            update_generators=GeneratorUpdate(
-                generator_id=id(self),
-                generator_kwargs={"blocked": False},
-            ),
-        )
-
-    def _toggle_tab(self) -> QueueAction | None:
-        nbr_press = self.data.inventory_menu.get_tab_count(
-            self._current_tab, self.tab_to_watch
-        )
-        if nbr_press > 0:
-            self.blocked = True
-            return QueueAction(
-                identifier=f"Tabbing {nbr_press} from {self._current_tab} to {self.tab_to_watch}",
-                priority=1,
-                action=partial(self._press_n_times, self.data.handle, "tab", nbr_press),
-                update_generators=GeneratorUpdate(
-                    generator_id=id(self),
-                    generator_kwargs={"blocked": False},
-                ),
-            )
-
-    def _cleanup_handler(self) -> QueueAction | None:
-        if self.procedure == self.PROC_DISCORD_ALERT:
-            return QueueAction(
-                identifier="Inventory Full - Discord Alert",
-                priority=1,
-                action=partial(
-                    controller.press, self.data.handle, self._key, silenced=True
-                ),
-                user_message=[f"{self._space_left} slots left in inventory."],
-            )
-        elif self.procedure == self.PROC_USE_MYSTIC_DOOR:
-            # Turn off all other generators while this complex procedure completes
-            # TODO - Idea: Create "CompoundAction" used in some very specific cases
-            # These actions AND computations are all made in the MainProcess
-            self.block_generators("All", id(self))
-            breakpoint()
-
-        elif self.procedure in [
-            self.PROC_USE_TOWN_SCROLL,
-            self.PROC_REQUEST_MYSTIC_DOOR,
-        ]:
-            raise NotImplementedError

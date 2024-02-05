@@ -1,7 +1,16 @@
+import logging
+import random
+import time
 from functools import partial
+from typing import Union
+
+from botting import PARENT_LOG
 from botting.core import DecisionGenerator, GeneratorUpdate, QueueAction, controller
-from royals.game_data import MaintenanceData
+from royals.game_data import MaintenanceData, MinimapData
+from royals.models_implementations.mechanics import MinimapConnection
 from royals.models_implementations.mechanics.path_into_movements import get_to_target
+
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
 class InventoryChecks:
@@ -9,20 +18,24 @@ class InventoryChecks:
     Utility class for InventoryManager.
     Defines all methods used for inventory management.
     """
-    def __init__(self,
-                 generator: DecisionGenerator,
-                 toggle_key: str) -> None:
-        self.generator = generator
-        self.data: MaintenanceData = generator.data
+
+    def __init__(
+        self,
+        generator: DecisionGenerator,
+        data: Union[MaintenanceData, MinimapData],
+        toggle_key: str,
+    ) -> None:
+        self.generator: DecisionGenerator = generator
+        self.data: Union[MaintenanceData, MinimapData] = data
         self._key = toggle_key
 
-    def ensure_is_displayed(self) -> QueueAction | None:
+    def _ensure_is_displayed(self) -> QueueAction | None:
         if not self.data.inventory_menu.is_displayed(
-                self.data.handle, self.data.current_client_img
+            self.data.handle, self.data.current_client_img
         ):
             return InventoryActions.toggle(self.generator, self._key)
 
-    def ensure_is_extended(self) -> QueueAction | None:
+    def _ensure_is_extended(self) -> QueueAction | None:
         if self.data.inventory_menu.is_displayed(
             self.data.handle, self.data.current_client_img
         ):
@@ -31,28 +44,44 @@ class InventoryChecks:
             ):
                 return InventoryActions.expand_inventory_menu(self.generator)
         else:
-            return self.ensure_is_displayed()
+            return self._ensure_is_displayed()
 
-    def ensure_proper_tab(self, tab_to_watch: str) -> QueueAction | None:
+    def _ensure_proper_tab(self, tab_to_watch: str) -> QueueAction | None:
         if self.data.inventory_menu.is_extended(
             self.data.handle, self.data.current_client_img
         ):
-            active_tab = self.data.inventory_menu.get_active_tab(
-                self.data.handle, self.data.current_client_img
-            )
-            if active_tab is None:
-                self.generator._fail_count += 1  # TODO - clean this up, should not return None
-                return
-            elif active_tab != tab_to_watch:
-                nbr_presses = self.data.inventory_menu.get_tab_count(
-                    active_tab, tab_to_watch
+            attempt = 0
+            while attempt < 5:
+                active_tab = self.data.inventory_menu.get_active_tab(
+                    self.data.handle, self.data.current_client_img
                 )
-                return InventoryActions.switch_tab(self.generator, nbr_presses)
+                if active_tab is None:
+                    attempt += 1
+                    time.sleep(0.5)
+                    if attempt == 10:
+                        logger.warning(
+                            f"Failed to find active tab after {attempt} attempts"
+                        )
+                        raise ValueError("Failed to find active tab")
+                    continue
+
+                elif active_tab != tab_to_watch:
+                    nbr_presses = self.data.inventory_menu.get_tab_count(
+                        active_tab, tab_to_watch
+                    )
+                    return InventoryActions.switch_tab(self.generator, nbr_presses)
 
         else:
-            return self.ensure_is_extended()
+            return self._ensure_is_extended()
 
-    def get_space_left(self, tab_to_watch: str) -> int:
+    def _get_space_left(self, tab_to_watch: str) -> QueueAction | None:
+        """
+        Counts the number of space left in the Inventory.
+        Triggers next steps if inventory left is smaller than threshold, otherwise
+        resets until next interval.
+        :param tab_to_watch:
+        :return:
+        """
         active_tab = self.data.inventory_menu.get_active_tab(
             self.data.handle, self.data.current_client_img
         )
@@ -61,7 +90,50 @@ class InventoryChecks:
                 self.data.handle, self.data.current_client_img
             )
             logger.info(f"Inventory space left: {space_left}")
-            return space_left
+            setattr(self, "_space_left", space_left)
+
+        else:
+            return self._ensure_proper_tab(tab_to_watch)
+
+    def _get_to_door_spot(
+        self, nodes: list[tuple[int, int]] | None
+    ) -> QueueAction | None:
+        """
+        Moves to the door spot.
+        Afterwards, we expect to change map. It's easier to block all other generators
+        to avoid interference, although it may not be the best solution. # TODO - review
+        :param nodes: "Safe" nodes where it's safe to cast a door.
+        :return:
+        """
+        if getattr(self, 'door_target', None) is None:
+            if nodes is None:
+                # if not specified for generator, check if specified by minimap obj
+                nodes = self.data.current_minimap.door_spot
+            if nodes is None:
+                # Otherwise, use current position
+                nodes = [self.data.current_minimap_position]
+            target = random.choice(nodes)
+            setattr(self, "door_target", target)
+
+            # Create a connection to (0, 0), which is a void node used to represent town
+            minimap = self.data.current_minimap
+            minimap.grid.node(*target).connect(
+                minimap.grid.node(0, 0), MinimapConnection.PORTAL
+            )  # TODO - Don't forget to remove connection afterwards once done
+
+        self.data.update(next_target=getattr(self, "door_target"))
+        self.generator.block_generators("Maintenance", id(self.generator))
+        self.generator.block_generators("AntiDetection", id(self.generator))
+
+    def _trigger_discord_alert(self) -> QueueAction:
+        space_left = getattr(self, "_space_left")
+        if space_left <= getattr(self, "space_left_alert"):
+            setattr(self, "current_step", getattr(self, "current_step") + 1)
+            return QueueAction(
+                identifier="Inventory Full - Discord Alert",
+                priority=1,
+                user_message=[f"{space_left} slots left in inventory."],
+            )
 
     def _use_nearest_town_scroll(self) -> QueueAction | None:
         raise NotImplementedError
@@ -95,13 +167,10 @@ class InventoryActions:
         return QueueAction(
             identifier=f"Toggling {generator.data.ign} Inventory Menu",
             priority=5,
-            action=partial(
-                controller.press, generator.data.handle, key, silenced=True
-            ),
+            action=partial(controller.press, generator.data.handle, key, silenced=True),
             update_generators=GeneratorUpdate(
-                generator_id=id(generator),
-                generator_kwargs={"blocked": False}
-            )
+                generator_id=id(generator), generator_kwargs={"blocked": False}
+            ),
         )
 
     @staticmethod
@@ -112,57 +181,59 @@ class InventoryActions:
         )
         target = box.random()
 
-        async def _mouse_move_and_click(handle: int, point: tuple[int, int]):
-            await controller.mouse_move(handle, point)
-            await controller.click(handle)
-            await controller.mouse_move(handle, (-1000, 1000))
-
         return QueueAction(
             identifier=f"Expanding {generator.data.ign} Inventory Menu",
             priority=5,
             action=partial(
-                _mouse_move_and_click, generator.data.handle, target
+                InventoryActions._mouse_move_and_click, generator.data.handle, target
             ),
             update_generators=GeneratorUpdate(
-                generator_id=id(generator),
-                generator_kwargs={"blocked": False}
-            )
+                generator_id=id(generator), generator_kwargs={"blocked": False}
+            ),
         )
 
     @staticmethod
     def switch_tab(generator: DecisionGenerator, nbr_presses: int) -> QueueAction:
         generator.blocked = True
 
-        async def _press_n_times(handle: int, key: str, nbr_of_presses: int = 1):
-            for _ in range(nbr_of_presses):
-                await controller.press(handle, key, silenced=True)
-
         return QueueAction(
             identifier=f"Tabbing {generator.data.ign} Inventory {nbr_presses} times",
             priority=5,
             action=partial(
-                _press_n_times, generator.data.handle, "tab", nbr_presses
+                InventoryActions._press_n_times,
+                generator.data.handle,
+                "tab",
+                nbr_presses,
             ),
             update_generators=GeneratorUpdate(
-                generator_id=id(generator),
-                generator_kwargs={"blocked": False}
-            )
+                generator_id=id(generator), generator_kwargs={"blocked": False}
+            ),
         )
 
     @staticmethod
+    async def _press_n_times(handle: int, key: str, nbr_of_presses: int = 1):
+        for _ in range(nbr_of_presses):
+            await controller.press(handle, key, silenced=True)
+
+    @staticmethod
+    async def _mouse_move_and_click(handle: int, point: tuple[int, int]):
+        await controller.mouse_move(handle, point)
+        await controller.click(handle)
+        await controller.mouse_move(handle, (-1000, 1000))
+
+    @staticmethod
     def _move_to_door(
-            generator: DecisionGenerator,
-            target: tuple[int, int]
+        generator: DecisionGenerator, target: tuple[int, int]
     ) -> QueueAction | None:
         """Use this to go in door vicinity, if not already there"""
         while ...:
-            actions = get_to_target(self.data.current_minimap_position,
-                                    target,
-                                    self.data.current_minimap)
+            actions = get_to_target(
+                self.data.current_minimap_position, target, self.data.current_minimap
+            )
 
     @staticmethod
     def _enter_door(
-            generator: DecisionGenerator, target: tuple[int, int]
+        generator: DecisionGenerator, target: tuple[int, int]
     ) -> QueueAction | None:
         """Use this once already in door vicinity, to try and enter"""
         pass

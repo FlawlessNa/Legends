@@ -33,6 +33,7 @@ class TrainingEngine(DecisionEngine):
         anti_detection_mob_threshold: int = 3,
         anti_detection_time_threshold: int = 10,
         num_pets: int = 1,
+        inventory_management_procedure: int = InventoryManager.PROC_DISCORD_ALERT,
     ) -> None:
         super().__init__(log_queue, bot)
 
@@ -69,6 +70,7 @@ class TrainingEngine(DecisionEngine):
         self._anti_detection_mob_threshold = anti_detection_mob_threshold
         self._anti_detection_time_threshold = anti_detection_time_threshold
         self._num_pets = num_pets
+        self.inventory_management_procedure = inventory_management_procedure
 
     @property
     def game_data(self) -> RoyalsData:
@@ -80,7 +82,7 @@ class TrainingEngine(DecisionEngine):
             InventoryManager(
                 self.game_data,
                 tab_to_watch="Equip",
-                procedure=InventoryManager.PROC_DISCORD_ALERT,
+                procedure=self.inventory_management_procedure,
             ),
             PetFood(self.game_data, num_times=self._num_pets),
             SpeedPill(self.game_data),

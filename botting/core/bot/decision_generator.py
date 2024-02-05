@@ -9,6 +9,10 @@ from .pipe_signals import QueueAction
 logger = logging.getLogger(__name__)
 
 
+class SkipCurrentIteration(Exception):
+    pass
+
+
 class DecisionGenerator(ABC):
     """
     Base class for all Generators.
@@ -21,6 +25,7 @@ class DecisionGenerator(ABC):
     generator_type: Literal["Rotation", "AntiDetection", "Maintenance"]
     # Specifies which generators are blocked by which other generators
     generators_blockers: dict[int, set[int]] = {}
+    skip_iteration = SkipCurrentIteration
 
     def __init__(self, data) -> None:
         self.data = data
@@ -189,6 +194,9 @@ class DecisionGenerator(ABC):
 
             res = self._next()
         except Exception as e:
+            if isinstance(e, self.skip_iteration):
+                logger.debug(f"{self} has skipped the current iteration.")
+                return
             self._error_counter += 1
             handler = self._exception_handler(e)
             if handler:

@@ -52,45 +52,27 @@ class StepBasedGenerator(DecisionGenerator, ABC):
         Sets the current step being executed. Resets to 0 after all steps have been
         executed.
         """
-        if value > self.num_steps:
-            self._current_step = 0
+        if value > self.num_steps + 1:
+            raise ValueError(f"{self} has incremented current_step too much.")
         else:
             self._current_step = value
 
-    def __next__(self) -> QueueAction | None:
+    def _next(self) -> QueueAction | None:
+        res = None
+        if self.current_step < self.num_steps:
+            res = self.steps[self.current_step]()
+
+        if res is None:
+            self.current_step += 1
+        return res
+
+    def _failsafe(self) -> QueueAction | None:
+        # Only trigger failsafe after the last step has been executed.
+        if self.current_step > self.num_steps:
+            return self._step_based_failsafe()
+
+    @abstractmethod
+    def _step_based_failsafe(self) -> QueueAction | None:
         """
-        # TODO - Currently overwriting DecisionGenerator such that failsafe is called last.
-        # TODO - See if that makes sense for all generators, in which case correct DecisionGenerator instead.
-
-        :return:
+        Failsafe to be triggered after all steps have been executed.
         """
-        if self.blocked:
-            if time.perf_counter() - self._blocked_at > 300:
-                raise RuntimeError(
-                    f"{self} has been blocked for more than 5 minutes. Exiting."
-                )
-            return
-
-        try:
-            self._update_continuous_data()
-
-            res = self.steps[self._current_step]()
-            self._error_counter = 0
-            if res:
-                res.process_id = id(self)
-                return res
-            else:
-                self.current_step += 1
-
-            failsafe = self._failsafe()
-            if failsafe:
-                failsafe.process_id = id(self)
-                self._error_counter = 0
-                return failsafe
-
-        except Exception as e:
-            self._error_counter += 1
-            handler = self._exception_handler(e)
-            if handler:
-                handler.process_id = id(self)
-                return handler

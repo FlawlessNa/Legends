@@ -36,6 +36,7 @@ class LeechingEngine(DecisionEngine):
         anti_detection_mob_threshold: int = 3,
         anti_detection_time_threshold: int = 10,
         num_pets: int = 1,
+        inventory_management_procedure: int = InventoryManager.PROC_USE_MYSTIC_DOOR,
     ) -> None:
         super().__init__(log_queue, bot)
         self._game_data = RoyalsData(
@@ -59,6 +60,7 @@ class LeechingEngine(DecisionEngine):
         self._anti_detection_mob_threshold = anti_detection_mob_threshold
         self._anti_detection_time_threshold = anti_detection_time_threshold
         self._num_pets = num_pets
+        self._inventory_management_procedure = inventory_management_procedure
 
         self._synchronized_buffs = synchronized_buffs
 
@@ -92,7 +94,7 @@ class LeechingEngine(DecisionEngine):
             InventoryManager(
                 self.game_data,
                 tab_to_watch="Equip",
-                procedure=InventoryManager.PROC_DISCORD_ALERT,
+                procedure=self._inventory_management_procedure,
             ),
             PetFood(self.game_data, num_times=self._num_pets),
             DistributeAP(self.game_data),
