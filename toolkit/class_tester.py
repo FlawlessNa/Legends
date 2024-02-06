@@ -22,7 +22,7 @@ HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 import win32api
 
 if __name__ == "__main__":
-    minimap = PathOfTime1Minimap()
+    minimap = LudibriumMinimap()
     character = Bishop("WrongDoor", "Elephant Cape", "large")
     map_area_box = minimap.get_map_area_box(HANDLE)
     # initial_position = minimap.get_character_positions(
@@ -34,6 +34,8 @@ if __name__ == "__main__":
         minimap.grid.node(0, 0), MinimapConnection.PORTAL
     )
     while minimap.is_displayed(HANDLE):
+        while True:
+            print(minimap.get_character_positions(HANDLE))
         current = minimap.get_character_positions(HANDLE, map_area_box=map_area_box).pop()
         time.sleep(0.5)
         current_with_break = minimap.get_character_positions(HANDLE, map_area_box=map_area_box).pop()

@@ -5,6 +5,7 @@ from botting import EngineData, Executor, SessionManager
 from botting.core import DecisionEngine, DecisionGenerator
 from botting.utilities import client_handler
 from royals.engines.generators import InventoryManager
+from royals.characters import Bishop
 from royals import RoyalsData, royals_ign_finder
 from royals.maps import RoyalsMap, PathOfTime1
 
@@ -17,9 +18,10 @@ DATA_INSTANCE = RoyalsData(
     handle=client_handler.get_client_handle(IGN, royals_ign_finder),
     ign=IGN,
     current_map=PathOfTime1(),
+    character=Bishop(IGN, "Elephant Cape", "large")
 )
 ENGINE_KWARGS = {}
-
+GENERATOR_KWARGS = {'procedure': InventoryManager.PROC_USE_MYSTIC_DOOR}
 
 class MockEngine(DecisionEngine):
     ign_finder = royals_ign_finder
@@ -35,18 +37,18 @@ class MockEngine(DecisionEngine):
     @property
     def anti_detection_checks(self) -> list[DecisionGenerator]:
         if GENERATOR.generator_type == "AntiDetection":
-            return [GENERATOR(self.game_data)]
+            return [GENERATOR(self.game_data, **GENERATOR_KWARGS)]
         return []
 
     @property
     def next_map_rotation(self) -> DecisionGenerator:
         if GENERATOR.generator_type == "Rotation":
-            return GENERATOR(self.game_data)
+            return GENERATOR(self.game_data, **GENERATOR_KWARGS)
 
     @property
     def items_to_monitor(self) -> list[DecisionGenerator]:
         if GENERATOR.generator_type == "Maintenance":
-            return [GENERATOR(self.game_data)]
+            return [GENERATOR(self.game_data, **GENERATOR_KWARGS)]
         return []
 
     @property

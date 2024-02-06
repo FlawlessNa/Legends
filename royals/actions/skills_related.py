@@ -88,6 +88,32 @@ async def teleport_once(
         )
 
 
+async def continuous_teleport(
+    handle: int,
+    ign: str,
+    direction: Literal["left", "right", "up", "down"],
+    teleport_skill: Skill,
+    num_times: int,
+):
+    """
+    Continuously casts teleport in a given direction.
+    :param handle:
+    :param ign:
+    :param direction:
+    :param teleport_skill:
+    :param num_times:
+    :return:
+    """
+    duration = teleport_skill.animation_time * num_times
+    await controller.move(
+        handle,
+        ign,
+        direction,
+        duration=duration,
+        secondary_key_press=teleport_skill.key_bind(ign),
+    )
+
+
 async def telecast(
     handle: int,
     ign: str,

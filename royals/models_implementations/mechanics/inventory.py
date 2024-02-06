@@ -1,4 +1,5 @@
 import logging
+import math
 import random
 import time
 from functools import partial
@@ -6,6 +7,7 @@ from typing import Union
 
 from botting import PARENT_LOG
 from botting.core import DecisionGenerator, GeneratorUpdate, QueueAction, controller
+from royals.actions import cast_skill, continuous_teleport
 from royals.game_data import MaintenanceData, MinimapData
 from royals.models_implementations.mechanics import MinimapConnection
 from royals.models_implementations.mechanics.path_into_movements import get_to_target
@@ -100,30 +102,76 @@ class InventoryChecks:
     ) -> QueueAction | None:
         """
         Moves to the door spot.
-        Afterwards, we expect to change map. It's easier to block all other generators
-        to avoid interference, although it may not be the best solution. # TODO - review
-        :param nodes: "Safe" nodes where it's safe to cast a door.
+        # TODO - Might make more sense to take advantage of Rotation generator due to all
+        the failsafes already in place. CONFIRM
+        Takes full control of character movement during this time, so the Rotation
+        and Maintenance generators are disabled.
+        :param nodes: "Safe" nodes where it's reliable to cast a door.
         :return:
         """
-        if getattr(self, 'door_target', None) is None:
+        if getattr(self, "door_target", None) is None:
             if nodes is None:
                 # if not specified for generator, check if specified by minimap obj
-                nodes = self.data.current_minimap.door_spot
+                nodes = getattr(self.data.current_minimap, "door_spot", None)
             if nodes is None:
                 # Otherwise, use current position
                 nodes = [self.data.current_minimap_position]
             target = random.choice(nodes)
             setattr(self, "door_target", target)
+            self.generator.block_generators("All", id(self.generator))
 
-            # Create a connection to (0, 0), which is a void node used to represent town
-            minimap = self.data.current_minimap
-            minimap.grid.node(*target).connect(
-                minimap.grid.node(0, 0), MinimapConnection.PORTAL
-            )  # TODO - Don't forget to remove connection afterwards once done
+        if (
+            math.dist(self.data.current_minimap_position, getattr(self, "door_target"))
+            > 2
+        ):
+            return InventoryActions.move_to_target(
+                self.generator, getattr(self, "door_target"), "Moving to Door Spot"
+            )
 
-        self.data.update(next_target=getattr(self, "door_target"))
-        self.generator.block_generators("Maintenance", id(self.generator))
-        self.generator.block_generators("AntiDetection", id(self.generator))
+    def _use_mystic_door(self) -> QueueAction | None:
+        """
+        Uses Mystic Door skill.
+        # TODO - Implement a failsafe to confirm door is indeed casted
+        (Pre-read nbr of mystic rocks and ensure one has been used).
+        :return:
+        """
+        setattr(self, "door_target", self.data.current_minimap_position)
+        setattr(self, "current_step", getattr(self, "current_step") + 1)
+        # Create a connection to (0, 0), which is a void node used to represent town
+        minimap = self.data.current_minimap
+        minimap.grid.node(*self.data.current_minimap_position).connect(
+            minimap.grid.node(0, 0), MinimapConnection.PORTAL
+        )  # TODO - Don't forget to remove connection afterwards once done
+
+        return InventoryActions.use_mystic_door(self.generator)
+
+    def _enter_door(self) -> QueueAction | None:
+        if self.data.current_minimap_position is not None:
+            return InventoryActions.move_to_target(
+                self.generator, (0, 0), "Entering Door"
+            )
+
+    def _move_to_shop(self) -> QueueAction | None:
+        # breakpoint()
+        if self.data.current_map.path_to_shop is not None:
+            # We need to actually go into a shop from town
+            raise NotImplementedError("TODO")
+
+        # Manually update for new minimap
+        self.data.update("current_minimap_area_box", "minimap_grid")
+        self.data.update(
+            current_minimap_position=self.data.current_minimap.get_character_positions(
+                self.data.handle,
+                client_img=self.data.current_client_img,
+                map_area_box=self.data.current_minimap_area_box,
+            ).pop()
+        )
+        target = self.data.current_minimap.npc_shop
+
+        if math.dist(self.data.current_minimap_position, target) > 10:
+            return InventoryActions.move_to_target(
+                self.generator, target, "Moving to Shop", enable_multi=True
+            )
 
     def _trigger_discord_alert(self) -> QueueAction:
         space_left = getattr(self, "_space_left")
@@ -162,14 +210,18 @@ class InventoryChecks:
 
 class InventoryActions:
     @staticmethod
-    def toggle(generator: DecisionGenerator, key: str) -> QueueAction:
+    def toggle(
+        generator: DecisionGenerator, key: str, game_data_args=tuple()
+    ) -> QueueAction:
         generator.blocked = True
         return QueueAction(
-            identifier=f"Toggling {generator.data.ign} Inventory Menu",
+            identifier=f"Toggling {generator.data.ign} Menu",
             priority=5,
             action=partial(controller.press, generator.data.handle, key, silenced=True),
             update_generators=GeneratorUpdate(
-                generator_id=id(generator), generator_kwargs={"blocked": False}
+                generator_id=id(generator),
+                generator_kwargs={"blocked": False},
+                game_data_args=game_data_args,
             ),
         )
 
@@ -222,18 +274,70 @@ class InventoryActions:
         await controller.mouse_move(handle, (-1000, 1000))
 
     @staticmethod
-    def _move_to_door(
-        generator: DecisionGenerator, target: tuple[int, int]
-    ) -> QueueAction | None:
-        """Use this to go in door vicinity, if not already there"""
-        while ...:
-            actions = get_to_target(
-                self.data.current_minimap_position, target, self.data.current_minimap
-            )
+    def use_mystic_door(
+        generator: DecisionGenerator,
+    ) -> QueueAction:
+        generator.blocked = True
+        return QueueAction(
+            identifier=f"Using Mystic Door",
+            priority=5,
+            action=partial(
+                cast_skill,
+                generator.data.handle,
+                generator.data.ign,
+                generator.data.character.skills["Mystic Door"],
+            ),
+            update_generators=GeneratorUpdate(
+                generator_id=id(generator), generator_kwargs={"blocked": False}
+            ),
+        )
 
     @staticmethod
-    def _enter_door(
-        generator: DecisionGenerator, target: tuple[int, int]
-    ) -> QueueAction | None:
-        """Use this once already in door vicinity, to try and enter"""
-        pass
+    def move_to_target(
+        generator: DecisionGenerator,
+        target: tuple[int, int],
+        identifier: str,
+        enable_multi: bool = False,
+    ) -> QueueAction:
+        actions = get_to_target(
+            generator.data.current_minimap_position,
+            target,
+            generator.data.current_minimap,
+        )
+        res = None
+        if actions and enable_multi and actions[0].func.__name__ == "teleport_once":
+            num_actions = 0
+            for action in actions:
+                if action == actions[0]:
+                    num_actions += 1
+                else:
+                    break
+            res = partial(
+                continuous_teleport,
+                generator.data.handle,
+                generator.data.ign,
+                actions[0].keywords["direction"],
+                generator.data.character.skills["Teleport"],
+                num_actions,
+            )
+
+        elif actions:
+            first_action = actions[0]
+            args = (
+                generator.data.handle,
+                generator.data.ign,
+                first_action.keywords["direction"],
+            )
+            kwargs = first_action.keywords.copy()
+            kwargs.pop("direction", None)
+            if first_action.func.__name__ == "teleport_once":
+                kwargs.update(
+                    teleport_skill=generator.data.character.skills["Teleport"]
+                )
+            res = partial(first_action.func, *args, **kwargs)
+
+        return QueueAction(
+            identifier=identifier,
+            priority=5,
+            action=res,
+        )

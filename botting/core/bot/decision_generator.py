@@ -119,7 +119,7 @@ class DecisionGenerator(ABC):
             generator = get_object_by_id(idx)
             gen_type = getattr(generator, "generator_type")
             condition1 = gen_type == generator_type and generator is not self
-            condition2 = generator_type == "All"
+            condition2 = generator_type == "All" and generator is not self
             if condition1 or condition2:
                 if not getattr(generator, "blocked"):
                     logger.debug(f"{generator} has been blocked by {self}")
@@ -152,7 +152,7 @@ class DecisionGenerator(ABC):
             generator = get_object_by_id(idx)
             gen_type = getattr(generator, "generator_type")
             condition1 = gen_type == generator_type and generator is not self
-            condition2 = generator_type == "All"
+            condition2 = generator_type == "All" and generator is not self
             if condition1 or condition2:
                 was_blocked = getattr(generator, "blocked")
                 DecisionGenerator.generators_blockers[idx].discard(by_whom)

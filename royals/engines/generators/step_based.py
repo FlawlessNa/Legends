@@ -1,5 +1,4 @@
 import logging
-import time
 
 from abc import ABC, abstractmethod
 
@@ -24,6 +23,7 @@ class StepBasedGenerator(DecisionGenerator, ABC):
     ) -> None:
         super().__init__(data)
         self._current_step = 0
+        self._failsafe_enabled = True
 
     @property
     def num_steps(self) -> int:
@@ -64,15 +64,5 @@ class StepBasedGenerator(DecisionGenerator, ABC):
 
         if res is None:
             self.current_step += 1
+            self._failsafe_enabled = True
         return res
-
-    def _failsafe(self) -> QueueAction | None:
-        # Only trigger failsafe after the last step has been executed.
-        if self.current_step > self.num_steps:
-            return self._step_based_failsafe()
-
-    @abstractmethod
-    def _step_based_failsafe(self) -> QueueAction | None:
-        """
-        Failsafe to be triggered after all steps have been executed.
-        """

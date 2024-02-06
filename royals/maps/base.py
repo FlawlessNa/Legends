@@ -1,5 +1,5 @@
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from botting.models_abstractions import BaseMap, BaseMob
 from botting.utilities import Box
@@ -15,4 +15,4 @@ class RoyalsMap(BaseMap, ABC):
     detection_box: Box
     mobs: tuple[BaseMob]
     minimap: MinimapPathingMechanics
-    nearest_town: "RoyalsMap"
+    path_to_shop: "RoyalsMap" = field(default=None)
