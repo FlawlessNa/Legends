@@ -45,6 +45,7 @@ class LeechingEngine(DecisionEngine):
             character(),
             current_map=game_map,
             current_mobs=game_map.mobs,
+            current_minimap=game_map.minimap,
         )
 
         self._training_skill = self.game_data.character.skills[

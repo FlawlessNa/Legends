@@ -58,7 +58,7 @@ if __name__ == "__main__":
         client_size=CLIENT_SIZE,
     )
     leecher_engine_kwargs = dict(
-        game_map=TRAINING_MAP,
+        game_map=TRAINING_MAP(),
         character=leecher_char,
         mob_count_threshold=MOB_COUNT_THRESHOLD,
         notifier=notifier,

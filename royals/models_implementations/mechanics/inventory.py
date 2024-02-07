@@ -1,3 +1,4 @@
+import asyncio
 import cv2
 import logging
 import os
@@ -37,6 +38,7 @@ class InventoryChecks:
     first_shop_slot_offset: Box = Box(
         left=135, right=160, top=124, bottom=80, offset=True
     )
+    sell_button_offset: Box = Box(left=268, right=227, top=34, bottom=-30, offset=True)
 
     def __init__(
         self,
@@ -112,6 +114,8 @@ class InventoryChecks:
             )
             logger.info(f"Inventory space left: {space_left}")
             setattr(self, "_space_left", space_left)
+            if space_left > getattr(self, "space_left_alert"):
+                setattr(self, "current_step", getattr(self, "num_steps"))
 
         else:
             return self._ensure_proper_tab(tab_to_watch)
@@ -238,7 +242,10 @@ class InventoryChecks:
         if getattr(self, "_space_left") < 96:
             box = self.first_shop_slot_offset + getattr(self, "_shop_open_box")
             num_clicks = 96 - getattr(self, "_space_left")
-            return InventoryActions.sell_items(self.generator, box.random(), num_clicks)
+            button = self.sell_button_offset + getattr(self, "_shop_open_box")
+            return InventoryActions.sell_items(
+                self.generator, box.random(), button.random(), num_clicks
+            )
 
     def _close_npc_shop(self) -> QueueAction | None:
         shop_img_needle = cv2.imread(
@@ -447,7 +454,10 @@ class InventoryActions:
 
     @staticmethod
     def sell_items(
-        generator: DecisionGenerator, target: tuple[int, int], num_clicks: int
+        generator: DecisionGenerator,
+        target: tuple[int, int],
+        sell_button: tuple[int, int],
+        num_clicks: int,
     ) -> QueueAction:
         generator.blocked = True
         return QueueAction(
@@ -458,6 +468,7 @@ class InventoryActions:
                 InventoryActions._clear_inventory,
                 generator.data.handle,
                 target,
+                sell_button,
                 num_clicks,
             ),
             update_generators=GeneratorUpdate(
@@ -469,16 +480,24 @@ class InventoryActions:
 
     @staticmethod
     async def _clear_inventory(
-        handle: int, target: tuple[int, int], num_clicks: int
+        handle: int,
+        target_tab: tuple[int, int],
+        sell_button: tuple[int, int],
+        num_clicks: int,
     ) -> int:
-        try:
-            await InventoryActions._mouse_move_and_click(
-                handle, target, move_away=False
-            )
-            await controller.press(handle, "y", silenced=False, down_or_up="keydown")
-            return await controller.click(handle, nbr_times=num_clicks)
-        finally:
-            await controller.press(handle, "y", silenced=False, down_or_up="keyup")
+        res = 0
+        # TODO - Deal with cancellations?
+        await InventoryActions._mouse_move_and_click(
+            handle, target_tab, move_away=False
+        )
+        await controller.mouse_move(handle, sell_button, total_duration=0.2)
+        await asyncio.sleep(0.1)
+        for _ in range(num_clicks):
+            res += await controller.click(handle, nbr_times=1)
+            await asyncio.sleep(0.1)
+            await controller.press(handle, "y", silenced=False)
+            await asyncio.sleep(0.1)
+        return res
 
     @staticmethod
     def move_to_target(

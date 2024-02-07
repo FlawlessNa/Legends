@@ -160,4 +160,3 @@ async def telecast(
         await asyncio.sleep(
             max(0.0, ultimate_skill.animation_time - (time.perf_counter() - start))
         )
-        print(time.perf_counter() - start)

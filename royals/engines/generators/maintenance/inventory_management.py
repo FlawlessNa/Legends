@@ -41,7 +41,7 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
         tab_to_watch: str = "Equip",
         interval: int = 180,
         deviation: float = 0.0,
-        space_left_alert: int = 100,
+        space_left_alert: int = 10,
         procedure: int = PROC_REQUEST_MYSTIC_DOOR,
         nodes_for_door: list[tuple] = None,
     ) -> None:
@@ -162,10 +162,14 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
         self._next_call = time.perf_counter() + self.interval
         self._failsafe_enabled = True
         self.door_target = None
-        delattr(self, "return_door_target")
-        delattr(self, "npcs_positions")
-        delattr(self, "_direction")
+        if hasattr(self, "return_door_target"):
+            delattr(self, "return_door_target")
+        if hasattr(self, "npcs_positions"):
+            delattr(self, "npcs_positions")
+        if hasattr(self, "_direction"):
+            delattr(self, "_direction")
         logger.info(f"{self} has completed the inventory cleanup procedure.")
+        self.generator.unblock_generators("All", id(self.generator))
         raise self.skip_iteration
 
     def _confirm_door(self) -> QueueAction | None:
@@ -234,3 +238,11 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
             self.data.update(current_map=self._original_map)
             self.data.update(current_minimap=self._original_minimap)
             self.data.update(current_client_img=take_screenshot(self.data.handle))
+            self.data.update("current_minimap_area_box", "minimap_grid")
+            self.data.update(
+                current_minimap_position=self.data.current_minimap.get_character_positions(
+                    self.data.handle,
+                    client_img=self.data.current_client_img,
+                    map_area_box=self.data.current_minimap_area_box,
+                ).pop()
+            )
