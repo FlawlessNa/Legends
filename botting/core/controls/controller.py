@@ -61,6 +61,7 @@ async def press(
     key: str,
     silenced: bool = False,
     down_or_up: Literal["keydown", "keyup"] | None = None,
+    nbr_times: int = 1,
     delay: float = 0.033 - time.get_clock_info("monotonic").resolution,
     **kwargs,
 ) -> None:
@@ -89,17 +90,20 @@ async def press(
 
     if silenced:
         inputs = message_constructor(
-            handle, [key] * 2, [win32con.WM_KEYDOWN, win32con.WM_KEYUP], **kwargs
+            handle,
+            [key] * 2 * nbr_times,
+            [win32con.WM_KEYDOWN, win32con.WM_KEYUP] * nbr_times,
+            **kwargs,
         )
-        delays = [random.uniform(0.95, 1.05) * delay for _ in range(2)]
+        delays = [random.uniform(0.95, 1.05) * delay for _ in range(2 * nbr_times)]
         await non_focused_input(inputs, delays)
 
     else:
         inputs = []
         keys_to_release = None
         if down_or_up in ["keydown", None]:
-            keys = [[key]]
-            events = [["keydown"]]
+            keys = [[key]] * nbr_times
+            events = [["keydown"]] * nbr_times
             inputs = full_input_constructor(handle, keys, events)
         if down_or_up in ["keyup", None]:
             keys_to_release = full_input_constructor(handle, [[key]], [["keyup"]])[0]

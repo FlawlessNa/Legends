@@ -250,7 +250,6 @@ def full_input_mouse_constructor(
             inputs.append(_single_input_mouse_constructor(x, y, event, mouse))
 
         input_pointer = ctypes.POINTER(input_array_class)
-        # input_structure = _single_input_mouse_constructor(x, y, event, mouse)
         input_array = input_array_class(*inputs)
         return_val.append(
             (

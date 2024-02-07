@@ -135,6 +135,10 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
             delattr(self, "_slots_cleaned")
 
     def _failsafe(self) -> QueueAction | None:
+        started_at = getattr(self, 'cleanup_procedure_started_at', time.perf_counter())
+        if time.perf_counter() - started_at > 180:
+            raise ValueError(f"{self} has been running for too long.")
+
         if not self._failsafe_enabled:
             return
 
@@ -151,6 +155,12 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
             return self._confirm_in_original_map()
 
     def _exception_handler(self, e: Exception) -> None:
+        if self.steps[self.current_step] == self._enter_door:
+            logger.info(f"{self} has failed to enter the door. Retrying.")
+            self.current_step -= 2
+            self._current_step_executed = 0
+            self.blocked = False
+            return
         raise e
 
     def _cleanup_completed(self) -> QueueAction | None:
@@ -168,6 +178,8 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
             delattr(self, "npcs_positions")
         if hasattr(self, "_direction"):
             delattr(self, "_direction")
+        if hasattr(self, 'cleanup_procedure_started_at'):
+            delattr(self, 'cleanup_procedure_started_at')
         logger.info(f"{self} has completed the inventory cleanup procedure.")
         self.generator.unblock_generators("All", id(self.generator))
         raise self.skip_iteration

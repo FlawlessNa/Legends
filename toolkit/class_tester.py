@@ -20,7 +20,7 @@ from royals.models_implementations.mechanics.path_into_movements import get_to_t
 
 HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 import win32api
-
+from royals.models_implementations.mechanics.inventory import InventoryActions
 
 def calc_centroid(pts):
     n = len(pts)
@@ -30,44 +30,5 @@ def calc_centroid(pts):
 
 
 if __name__ == "__main__":
-    target = (627, 382)
-    # res = asyncio.run(asyncio.wait_for(_test(), timeout=10))
-    print('out', res)
-    # asyncio.run(controller.press(HANDLE, 'y', down_or_up='keydown'))
-    # asyncio.run(controller.click(HANDLE, "doubleclick"))
-    # minimap = LudibriumMinimap()
-    # character = Bishop("WrongDoor", "Elephant Cape", "large")
-    # map_area_box = minimap.get_map_area_box(HANDLE)
-    #
-    # while True:
-    #     client_img = take_screenshot(HANDLE)
-    #     minimap_img = map_area_box.extract_client_img(client_img)
-    #     npcs = minimap.get_character_positions(HANDLE, 'NPC', client_img, map_area_box=map_area_box)
-    #     cv2.circle(minimap_img, calc_centroid(npcs), 4, (0, 0, 255), -1)
-    #     for npc in npcs:
-    #         cv2.circle(minimap_img, npc, 4, (0, 255, 0), -1)
-    #     cv2.imshow("minimap", cv2.resize(minimap_img, None, fx=4, fy=4))
-    #     cv2.waitKey(1)
-    #     print(npcs)
-
-    # current = minimap.get_character_positions(HANDLE, map_area_box=map_area_box).pop()
-    # time.sleep(0.5)
-    # current_with_break = minimap.get_character_positions(HANDLE, map_area_box=map_area_box).pop()
-    # actions = get_to_target(
-    #     minimap.get_character_positions(HANDLE, map_area_box=map_area_box).pop(),
-    #     (0, 0),
-    #     minimap,
-    # )
-    # # breakpoint()
-    # if actions:
-    #     first_action = actions[0]
-    #     args = (
-    #         HANDLE,
-    #         "WrongDoor",
-    #         first_action.keywords["direction"],
-    #     )
-    #     kwargs = first_action.keywords.copy()
-    #     kwargs.pop("direction", None)
-    #     if first_action.func.__name__ == "teleport_once":
-    #         kwargs.update(teleport_skill=character.skills["Teleport"])
-    #     asyncio.run(partial(first_action.func, *args, **kwargs)())
+    for _ in range(5):
+        asyncio.run(teleport_once(HANDLE, "WrongDoor", "left", Bishop("WrongDoor", "Elephant Cape", "large").skills["Teleport"]))

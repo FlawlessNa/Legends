@@ -11,6 +11,14 @@ class LudiFreeMarketTemplateMinimap(MinimapPathingMechanics):
     jump_height = 4
     jump_distance = 4
     minimap_speed: float = 7.891176807337812  # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
+    teleport_v_up_dist = 8
+    teleport_h_dist = 9
+    teleport_v_down_dist = 10
+
+    @property
+    def feature_cycle(self) -> list[MinimapFeature]:
+        return []
+
     bottom_platform: MinimapFeature = MinimapFeature(
         left=4,
         right=111,

@@ -35,6 +35,7 @@ class InventoryChecks:
         "Cash": Box(left=306, right=231, top=90, bottom=35, offset=True),
     }
     active_color = np.array([136, 102, 238])
+    selected_item_color = np.array([34, 153, 238])
     first_shop_slot_offset: Box = Box(
         left=135, right=160, top=124, bottom=80, offset=True
     )
@@ -112,10 +113,17 @@ class InventoryChecks:
             space_left = self.data.inventory_menu.get_space_left(
                 self.data.handle, self.data.current_client_img
             )
-            logger.info(f"Inventory space left: {space_left}")
-            setattr(self, "_space_left", space_left)
-            if space_left > getattr(self, "space_left_alert"):
-                setattr(self, "current_step", getattr(self, "num_steps"))
+            if space_left is not None:
+                logger.info(f"Inventory space left: {space_left}")
+                setattr(self, "_space_left", space_left)
+                if space_left > getattr(self, "space_left_alert"):
+                    setattr(self, "current_step", getattr(self, "num_steps"))
+                else:
+                    now = time.perf_counter()
+                    setattr(self, 'cleanup_procedure_started_at', now)
+                    logger.info(f"Starting full cleanup procedure at {time.asctime()}")
+            else:
+                return self._ensure_is_extended()
 
         else:
             return self._ensure_proper_tab(tab_to_watch)
@@ -486,17 +494,14 @@ class InventoryActions:
         num_clicks: int,
     ) -> int:
         res = 0
-        # TODO - Deal with cancellations?
         await InventoryActions._mouse_move_and_click(
             handle, target_tab, move_away=False
         )
         await controller.mouse_move(handle, sell_button, total_duration=0.2)
-        await asyncio.sleep(0.1)
         for _ in range(num_clicks):
-            res += await controller.click(handle, nbr_times=1)
-            await asyncio.sleep(0.1)
-            await controller.press(handle, "y", silenced=False)
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.25)
+            res += await controller.click(handle)
+            await controller.press(handle, "y", silenced=True)
         return res
 
     @staticmethod

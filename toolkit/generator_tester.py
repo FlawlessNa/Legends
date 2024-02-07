@@ -4,24 +4,24 @@ import multiprocessing
 from botting import EngineData, Executor, SessionManager
 from botting.core import DecisionEngine, DecisionGenerator
 from botting.utilities import client_handler
-from royals.engines.generators import InventoryManager
+from royals.engines.generators import TelecastRotationGenerator
 from royals.characters import Bishop
 from royals import RoyalsData, royals_ign_finder
-from royals.maps import RoyalsMap, PathOfTime1
+from royals.maps import LudiFreeMarket
 
 
 IGN = "WrongDoor"
-GENERATOR = InventoryManager
-CURRENT_MAP = PathOfTime1
+GENERATOR = TelecastRotationGenerator
+CURRENT_MAP = LudiFreeMarket
 
 DATA_INSTANCE = RoyalsData(
     handle=client_handler.get_client_handle(IGN, royals_ign_finder),
     ign=IGN,
-    current_map=PathOfTime1(),
+    current_map=CURRENT_MAP(),
     character=Bishop(IGN, "Elephant Cape", "large")
 )
 ENGINE_KWARGS = {}
-GENERATOR_KWARGS = {'procedure': InventoryManager.PROC_USE_MYSTIC_DOOR}
+GENERATOR_KWARGS = dict(teleport_skill=DATA_INSTANCE.character.skills["Teleport"], ultimate=DATA_INSTANCE.character.skills["Genesis"])
 
 
 class MockEngine(DecisionEngine):
@@ -44,7 +44,7 @@ class MockEngine(DecisionEngine):
     @property
     def next_map_rotation(self) -> DecisionGenerator:
         if GENERATOR.generator_type == "Rotation":
-            return GENERATOR(self.game_data, **GENERATOR_KWARGS)
+            return GENERATOR(self.game_data, lock=self.rotation_lock, **GENERATOR_KWARGS)
 
     @property
     def items_to_monitor(self) -> list[DecisionGenerator]:
