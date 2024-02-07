@@ -1,6 +1,6 @@
 import logging
 import time
-from functools import partial
+from functools import partial, cached_property
 
 from botting import PARENT_LOG
 from botting.core import QueueAction, DecisionGenerator
@@ -73,7 +73,12 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
         self._minimap_key = eval(
             config_reader("keybindings", self.data.ign, "Non Skill Keys")
         )["Minimap Toggle"]
-        super(DecisionGenerator, self).__init__(self, data, self._key)
+        self._npc_chat_key = eval(
+            config_reader("keybindings", self.data.ign, "Non Skill Keys")
+        )["NPC Chat"]
+        super(DecisionGenerator, self).__init__(
+            self, data, self._key, self._npc_chat_key
+        )
         self._space_left = 96
 
         if self.procedure == self.PROC_USE_MYSTIC_DOOR:
@@ -90,7 +95,7 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
     def __repr__(self) -> str:
         return f"InventoryManager({self.tab_to_watch})"
 
-    @property
+    @cached_property
     def steps(self) -> list[callable]:
         common = [partial(self._get_space_left, self.tab_to_watch)]
         procedure_specific_steps = []
@@ -107,8 +112,12 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
                 self._use_mystic_door,
                 self._enter_door,
                 self._move_to_shop,
-                # self._move_to_shop_portal,
-                # self._cleanup_inventory,
+                self._open_npc_shop,
+                partial(self._activate_tab, self.tab_to_watch),
+                self._cleanup_inventory,
+                self._close_npc_shop,
+                self._return_to_door,
+                self._reenter_door,
             ]
 
         return common + procedure_specific_steps
@@ -121,61 +130,81 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
         if self.current_step > 0:
             self.data.update("current_minimap_position")
 
+        if hasattr(self, "_slots_cleaned"):
+            self._space_left += self._slots_cleaned
+            delattr(self, "_slots_cleaned")
+
     def _failsafe(self) -> QueueAction | None:
         if not self._failsafe_enabled:
             return
 
         if self.current_step > self.num_steps:
-            if self.data.inventory_menu.is_displayed(
-                self.data.handle, self.data.current_client_img
-            ):
-                return InventoryActions.toggle(self.generator, self._key)
-            self.current_step = 0
-            self._next_call = time.perf_counter() + self.interval
-            print("Done!")
-            self._failsafe_enabled = True
-            raise self.skip_iteration
+            return self._cleanup_completed()
 
         elif self.steps[max(1, self.current_step) - 1] == self._use_mystic_door:
-            # TODO - Add failsafe that confirms mystic door is indeed active.
-            pass
+            return self._confirm_door()
 
         elif self.steps[max(1, self.current_step) - 1] == self._enter_door:
-            # Confirm if character is indeed in town.
-            time.sleep(1.5)
-            if (
-                not self.data.current_minimap.get_minimap_state(self.data.handle)
-                == "Partial"
-            ):
-                return InventoryActions.toggle(
-                    self.generator, self._minimap_key, ("current_minimap_area_box",)
-                )
-            box = self.data.current_minimap.get_map_area_box(self.data.handle)
-            if (box.width, box.height) == (
-                self._original_minimap.map_area_width,
-                self._original_minimap.map_area_height,
-            ):
-                self.current_step -= 1
-                return
-            elif (box.width, box.height) == (
-                self.data.current_map.path_to_shop.minimap.map_area_width,
-                self.data.current_map.path_to_shop.minimap.map_area_height,
-            ):
-                self.data.update(current_map=self.data.current_map.path_to_shop)
-                self.data.update(current_minimap=self.data.current_map.minimap)
-                self.data.update(current_client_img=take_screenshot(self.data.handle))
-                door_node = self._original_minimap.grid.node(
-                    *getattr(self, "door_target")
-                )
-                if MinimapConnection.PORTAL in door_node.connections_types:
-                    idx = door_node.connections_types.index(MinimapConnection.PORTAL)
-                    door_node.connections.pop(idx)
-                    door_node.connections_types.pop(idx)
-                    print("popped")
-                setattr(self, "door_target", None)
-                self._failsafe_enabled = False
-            else:
-                breakpoint()
+            return self._confirm_in_town()
 
     def _exception_handler(self, e: Exception) -> None:
         raise e
+
+    def _cleanup_completed(self) -> QueueAction | None:
+        if self.data.inventory_menu.is_displayed(
+            self.data.handle, self.data.current_client_img
+        ):
+            return InventoryActions.toggle(self.generator, self._key)
+        self.current_step = 0
+        self._next_call = time.perf_counter() + self.interval
+        print("Done!")
+        self._failsafe_enabled = True
+        raise self.skip_iteration
+
+    def _confirm_door(self) -> QueueAction | None:
+        # TODO - Add failsafe that confirms mystic door is indeed active.
+        pass
+
+    def _confirm_in_town(self) -> QueueAction | None:
+        """
+        Start by ensuring minimap is partially opened.
+        Then look at its dimensions and see if it matches the town's minimap.
+        :return:
+        """
+        if (
+            not self.data.current_minimap.get_minimap_state(self.data.handle)
+            == "Partial"
+        ):
+            return InventoryActions.toggle(
+                self.generator, self._minimap_key, ("current_minimap_area_box",)
+            )
+
+        # Check dimensions
+        box = self.data.current_minimap.get_map_area_box(self.data.handle)
+        if (box.width, box.height) == (
+            self._original_minimap.map_area_width,
+            self._original_minimap.map_area_height,
+        ):
+            self.current_step -= 1  # Go back to the previous step
+            return
+
+        elif (box.width, box.height) == (
+            self.data.current_map.path_to_shop.minimap.map_area_width,
+            self.data.current_map.path_to_shop.minimap.map_area_height,
+        ):
+            # We are in the town, update data appropriately and proceed to next step
+            self.data.update(current_map=self.data.current_map.path_to_shop)
+            self.data.update(current_minimap=self.data.current_map.minimap)
+            self.data.update(current_client_img=take_screenshot(self.data.handle))
+
+            # Remove the PORTAL connection from the door in original grid
+            door_node = self._original_minimap.grid.node(*getattr(self, "door_target"))
+            if MinimapConnection.PORTAL in door_node.connections_types:
+                idx = door_node.connections_types.index(MinimapConnection.PORTAL)
+                door_node.connections.pop(idx)
+                door_node.connections_types.pop(idx)
+
+            setattr(self, "door_target", None)
+            self._failsafe_enabled = False  # No more failsafe-ing until next step
+        else:
+            breakpoint()

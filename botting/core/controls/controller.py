@@ -74,12 +74,13 @@ async def press(
     :param delay: Delay between the keydown and keyup events.
     :return: None
     """
-    assert key not in [
-        "up",
-        "down",
-        "left",
-        "right",
-    ], "Use the move function to move the character."
+    if down_or_up != "keyup":
+        assert key not in [
+            "up",
+            "down",
+            "left",
+            "right",
+        ], "Use the move function to move the character."
     if down_or_up is not None:
         assert down_or_up in ["keydown", "keyup"]
         assert (
@@ -488,18 +489,18 @@ async def click(
     down_or_up: Literal["click", "down", "up"] = "click",
     nbr_times: int = 1,
     delay: float = 0.1,
-) -> None:
+) -> int:
     """
     :param handle: Window handle to the process.
     :param down_or_up: Whether to click, press down or release the mouse button.
     :param nbr_times: Number of times to click.
     :param delay: Delay between each click.
-    :return:
+    :return: Nbr of times the click was successful.
     """
     events = [down_or_up] * nbr_times
     delays = [random.uniform(0.95, 1.05) * delay for _ in range(nbr_times)]
     inputs = full_input_mouse_constructor([None], [None], events, [None])
-    await focused_inputs(handle, inputs, delays, None)
+    return await focused_inputs(handle, inputs, delays, None)
 
 
 def get_mouse_pos(handle: int) -> tuple[int, int]:

@@ -181,7 +181,7 @@ class DecisionEngine(ChildProcess, ABC):
         # If any error is un-handled by a generator, send it towards Main and exit.
         except Exception as e:
             self.pipe_end.send(e)
-            raise
+            raise e
 
         finally:
             if not self.pipe_end.closed:

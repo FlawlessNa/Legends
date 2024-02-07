@@ -133,7 +133,7 @@ async def focused_inputs(
     inputs: list[tuple],
     delays: list[float],
     keys_to_release: tuple | None,
-) -> None:
+) -> int:
     """
     Sends the inputs to the active window.
     A small delay is added between each input.
@@ -141,14 +141,16 @@ async def focused_inputs(
     :param inputs: input structures to send.
     :param delays: delays between each input.
     :param keys_to_release: Ensures that the keys are released after the inputs are sent
-    :return: None
+    :return: Nbr of inputs successfully sent.
     """
     cleanup = False
+    res = 0
     try:
         activate(hwnd)
 
         for i in range(len(inputs)):
             _send_input(inputs[i])
+            res += 1
             await asyncio.sleep(delays[i])
 
         if keys_to_release:
@@ -162,6 +164,7 @@ async def focused_inputs(
             if len(delays) > 1 or delays[0] != 0.5:
                 time.sleep(min(delays))
             _send_input(keys_to_release)
+        return res
 
 
 def _send_input(structure: tuple) -> None:

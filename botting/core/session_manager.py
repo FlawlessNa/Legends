@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import logging.handlers
 import multiprocessing.connection
@@ -7,6 +8,7 @@ from typing import Self
 from botting.screen_recorder import RecorderLauncher
 from .communications import DiscordLauncher
 from .bot import Executor, BotLauncher
+from .controls import controller
 
 
 logger = logging.getLogger(__name__)
@@ -78,18 +80,24 @@ class SessionManager(BotLauncher, DiscordLauncher, RecorderLauncher):
         self.log_listener.stop()
         logger.info("SessionManager exited.")
 
+        for bot in self.bots:
+            for key in ["up", "down", "left", "right"]:
+                asyncio.run(
+                    controller.press(
+                        bot.handle, key, silenced=False, down_or_up="keyup"
+                    )
+                )
         if exc_type is not None:
-            # TODO - Perform "Bots" cleanup since an error occur. (e.g. close all open windows)
+            # TODO - Cleanup procedure, such as Lounge or Terminating all clients
             pass
 
     async def launch(self) -> None:
+        bots = f"{' '.join(repr(bot) for bot in self.bots)}"
         logger.info(
-            f'Launching {len(self.bots)} bots. The following bots will be launched: {" ".join(repr(bot) for bot in self.bots)}'
+            f'Launching {len(self.bots)} bots: {bots}'
         )
         try:
             await Executor.run_all()
-        # except Exception as e:
-        #     raise
         finally:
             logger.info(
                 "All bots have been stopped. calling __exit__ on all launchers."

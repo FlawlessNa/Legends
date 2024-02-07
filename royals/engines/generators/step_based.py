@@ -22,7 +22,7 @@ class StepBasedGenerator(DecisionGenerator, ABC):
         data: EngineData,
     ) -> None:
         super().__init__(data)
-        self._current_step = 0
+        self._current_step = self._current_step_executed = 0
         self._failsafe_enabled = True
 
     @property
@@ -61,8 +61,12 @@ class StepBasedGenerator(DecisionGenerator, ABC):
         res = None
         if self.current_step < self.num_steps:
             res = self.steps[self.current_step]()
+            self._current_step_executed += 1
+            if self._current_step_executed >= 30:
+                raise ValueError(f"{self} has executed the same step too many times.")
 
         if res is None:
             self.current_step += 1
             self._failsafe_enabled = True
+            self._current_step_executed = 0
         return res

@@ -23,6 +23,7 @@ DATA_INSTANCE = RoyalsData(
 ENGINE_KWARGS = {}
 GENERATOR_KWARGS = {'procedure': InventoryManager.PROC_USE_MYSTIC_DOOR}
 
+
 class MockEngine(DecisionEngine):
     ign_finder = royals_ign_finder
 

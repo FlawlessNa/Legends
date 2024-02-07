@@ -1,5 +1,8 @@
+import cv2
 import logging
+import os
 import math
+import numpy as np
 import random
 import time
 from functools import partial
@@ -7,6 +10,8 @@ from typing import Union
 
 from botting import PARENT_LOG
 from botting.core import DecisionGenerator, GeneratorUpdate, QueueAction, controller
+from botting.utilities import Box, find_image
+from paths import ROOT
 from royals.actions import cast_skill, continuous_teleport
 from royals.game_data import MaintenanceData, MinimapData
 from royals.models_implementations.mechanics import MinimapConnection
@@ -21,15 +26,29 @@ class InventoryChecks:
     Defines all methods used for inventory management.
     """
 
+    tabs_offsets = {
+        "Equip": Box(left=130, right=55, top=90, bottom=35, offset=True),
+        "Use": Box(left=174, right=99, top=90, bottom=35, offset=True),
+        "Set-up": Box(left=218, right=143, top=90, bottom=35, offset=True),
+        "Etc": Box(left=262, right=187, top=90, bottom=35, offset=True),
+        "Cash": Box(left=306, right=231, top=90, bottom=35, offset=True),
+    }
+    active_color = np.array([136, 102, 238])
+    first_shop_slot_offset: Box = Box(
+        left=135, right=160, top=124, bottom=80, offset=True
+    )
+
     def __init__(
         self,
         generator: DecisionGenerator,
         data: Union[MaintenanceData, MinimapData],
         toggle_key: str,
+        npc_shop_key: str,
     ) -> None:
         self.generator: DecisionGenerator = generator
         self.data: Union[MaintenanceData, MinimapData] = data
         self._key = toggle_key
+        self._npc_shop_key = npc_shop_key
 
     def _ensure_is_displayed(self) -> QueueAction | None:
         if not self.data.inventory_menu.is_displayed(
@@ -150,28 +169,152 @@ class InventoryChecks:
             return InventoryActions.move_to_target(
                 self.generator, (0, 0), "Entering Door"
             )
+        time.sleep(1.5)
 
     def _move_to_shop(self) -> QueueAction | None:
-        # breakpoint()
         if self.data.current_map.path_to_shop is not None:
             # We need to actually go into a shop from town
             raise NotImplementedError("TODO")
 
-        # Manually update for new minimap
-        self.data.update("current_minimap_area_box", "minimap_grid")
-        self.data.update(
-            current_minimap_position=self.data.current_minimap.get_character_positions(
+        if not hasattr(self, "return_door_target"):
+            # Manually update all data new minimap
+            self.data.update("current_minimap_area_box", "minimap_grid")
+            self.data.update(
+                current_minimap_position=self.data.current_minimap.get_character_positions(
+                    self.data.handle,
+                    client_img=self.data.current_client_img,
+                    map_area_box=self.data.current_minimap_area_box,
+                ).pop()
+            )
+            # Update door position as well as all npcs seen at initial position.
+            # This is used to counteract fact that minimap is not "fixed" in most towns
+            setattr(self, "return_door_target", self.data.current_minimap_position)
+            npcs_positions = self.data.current_minimap.get_character_positions(
                 self.data.handle,
-                client_img=self.data.current_client_img,
+                "NPC",
+                self.data.current_client_img,
                 map_area_box=self.data.current_minimap_area_box,
-            ).pop()
-        )
+            )
+            setattr(self, "npcs_positions", npcs_positions)
+
         target = self.data.current_minimap.npc_shop
 
-        if math.dist(self.data.current_minimap_position, target) > 10:
+        if math.dist(self.data.current_minimap_position, target) > 7:
             return InventoryActions.move_to_target(
                 self.generator, target, "Moving to Shop", enable_multi=True
             )
+
+    def _open_npc_shop(self) -> QueueAction | None:
+        shop_img_needle = cv2.imread(
+            os.path.join(ROOT, "royals/assets/detection_images/Open NPC Shop.png")
+        )
+        match = find_image(self.data.current_client_img, shop_img_needle)
+        if len(match) == 0:
+            self.blocked = True
+            return QueueAction(
+                identifier="Opening Shop",
+                priority=5,
+                action=partial(
+                    controller.press,
+                    self.data.handle,
+                    self._npc_shop_key,
+                    silenced=True,
+                ),
+                update_generators=GeneratorUpdate(
+                    generator_id=id(self.generator), generator_kwargs={"blocked": False}
+                ),
+            )
+        else:
+            setattr(self, "_shop_open_box", match[0])
+
+    def _activate_tab(self, tab_name: str) -> QueueAction | None:
+        box: Box = self.tabs_offsets[tab_name] + getattr(self, "_shop_open_box")
+        box_img = box.extract_client_img(self.data.current_client_img)
+        binary_img = cv2.inRange(box_img, self.active_color, self.active_color)
+        if np.count_nonzero(binary_img) < 10:
+            return InventoryActions.switch_shop_tab(self.generator, box.random())
+
+    def _cleanup_inventory(self) -> QueueAction | None:
+        if getattr(self, "_space_left") < 96:
+            box = self.first_shop_slot_offset + getattr(self, "_shop_open_box")
+            num_clicks = 96 - getattr(self, "_space_left")
+            return InventoryActions.sell_items(self.generator, box.random(), num_clicks)
+
+    def _close_npc_shop(self) -> QueueAction | None:
+        shop_img_needle = cv2.imread(
+            os.path.join(ROOT, "royals/assets/detection_images/Open NPC Shop.png")
+        )
+        match = find_image(self.data.current_client_img, shop_img_needle)
+        if len(match) > 0:
+            self.blocked = True
+            return QueueAction(
+                identifier="Closing Shop",
+                priority=5,
+                action=partial(
+                    controller.press,
+                    self.data.handle,
+                    "escape",
+                    silenced=True,
+                ),
+                update_generators=GeneratorUpdate(
+                    generator_id=id(self.generator), generator_kwargs={"blocked": False}
+                ),
+            )
+        else:
+            delattr(self, "_shop_open_box")
+
+    def _return_to_door(self) -> QueueAction | None:
+        curr_pos = self.data.current_minimap_position
+        target = getattr(self, "return_door_target")
+        if math.dist(curr_pos, target) > 2:
+            setattr(
+                self, "_direction", "right" if curr_pos[0] < target[0] else "left",
+            )
+            return InventoryActions.move_to_target(
+                self.generator, getattr(self, "return_door_target"), "Returning to Door"
+            )
+
+        # If we reached the "central node" in minimap but are not yet at door, we need
+        # to compare the initial positions of the NPCs with current and move based on
+        # that.
+        current_npcs = self.data.current_minimap.get_character_positions(
+            self.data.handle,
+            "NPC",
+            self.data.current_client_img,
+            map_area_box=self.data.current_minimap_area_box,
+        )
+        initial_npcs = getattr(self, "npcs_positions")
+        if len(current_npcs) != len(initial_npcs):
+            direction = getattr(self, "_direction")
+            target = (curr_pos[0] + 10, curr_pos[1]) if direction == "right" else (
+                curr_pos[0] - 10,
+                curr_pos[1],
+            )
+            return InventoryActions.move_to_target(
+                self.generator,
+                target,
+                "Returning to Door",
+            )
+        else:
+            self.blocked = True
+            return QueueAction(
+                identifier="Re-entering in Door",
+                priority=5,
+                action=partial(
+                    controller.move,
+                    self.data.handle,
+                    self.data.ign,
+                    getattr(self, "_direction"),
+                    5.0,
+                    "up",
+                ),
+                update_generators=GeneratorUpdate(
+                    generator_id=id(self.generator), generator_kwargs={"blocked": False}
+                ),
+            )
+
+    def _reenter_door(self) -> QueueAction | None:
+        breakpoint()
 
     def _trigger_discord_alert(self) -> QueueAction:
         space_left = getattr(self, "_space_left")
@@ -185,27 +328,6 @@ class InventoryChecks:
 
     def _use_nearest_town_scroll(self) -> QueueAction | None:
         raise NotImplementedError
-
-    def _ensure_in_town(self) -> QueueAction | None:
-        pass
-
-    def _move_to_shop_portal(self, target: tuple[int, int]):
-        return self._move_to_door(target)
-
-    def _enter_shop_portal(self, target: tuple[int, int]):
-        return self._enter_door(target)
-
-    def _find_npc(self, npc_name: str) -> QueueAction | None:
-        pass
-
-    def _click_npc(self, npc_name: str) -> QueueAction | None:
-        pass
-
-    def _ensure_in_tab(self, tab_name: str) -> QueueAction | None:
-        pass
-
-    def _sell_items(self) -> QueueAction | None:
-        pass
 
 
 class InventoryActions:
@@ -268,10 +390,27 @@ class InventoryActions:
             await controller.press(handle, key, silenced=True)
 
     @staticmethod
-    async def _mouse_move_and_click(handle: int, point: tuple[int, int]):
+    async def _mouse_move_and_click(
+        handle: int, point: tuple[int, int], move_away: bool = True
+    ):
         await controller.mouse_move(handle, point)
         await controller.click(handle)
-        await controller.mouse_move(handle, (-1000, 1000))
+        if move_away:
+            await controller.mouse_move(handle, (-1000, 1000))
+
+    @staticmethod
+    def switch_shop_tab(generator: DecisionGenerator, target: tuple[int, int]):
+        generator.blocked = True
+        return QueueAction(
+            identifier=f"Switching Shop Tab",
+            priority=5,
+            action=partial(
+                InventoryActions._mouse_move_and_click, generator.data.handle, target
+            ),
+            update_generators=GeneratorUpdate(
+                generator_id=id(generator), generator_kwargs={"blocked": False}
+            ),
+        )
 
     @staticmethod
     def use_mystic_door(
@@ -291,6 +430,41 @@ class InventoryActions:
                 generator_id=id(generator), generator_kwargs={"blocked": False}
             ),
         )
+
+    @staticmethod
+    def sell_items(
+        generator: DecisionGenerator, target: tuple[int, int], num_clicks: int
+    ) -> QueueAction:
+        generator.blocked = True
+        return QueueAction(
+            identifier=f"Selling Items",
+            priority=90,
+            is_cancellable=True,
+            action=partial(
+                InventoryActions._clear_inventory,
+                generator.data.handle,
+                target,
+                num_clicks,
+            ),
+            update_generators=GeneratorUpdate(
+                generator_id=id(generator),
+                generator_kwargs={"blocked": False},
+                generator_attribute="_slots_cleaned",
+            ),
+        )
+
+    @staticmethod
+    async def _clear_inventory(
+        handle: int, target: tuple[int, int], num_clicks: int
+    ) -> int:
+        try:
+            await InventoryActions._mouse_move_and_click(
+                handle, target, move_away=False
+            )
+            await controller.press(handle, "y", silenced=False, down_or_up="keydown")
+            return await controller.click(handle, nbr_times=num_clicks)
+        finally:
+            await controller.press(handle, "y", silenced=False, down_or_up="keyup")
 
     @staticmethod
     def move_to_target(
@@ -336,8 +510,12 @@ class InventoryActions:
                 )
             res = partial(first_action.func, *args, **kwargs)
 
+        generator.blocked = True
         return QueueAction(
             identifier=identifier,
             priority=5,
             action=res,
+            update_generators=GeneratorUpdate(
+                generator_id=id(generator), generator_kwargs={"blocked": False}
+            ),
         )
