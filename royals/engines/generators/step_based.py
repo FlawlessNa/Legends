@@ -62,8 +62,10 @@ class StepBasedGenerator(DecisionGenerator, ABC):
         if self.current_step < self.num_steps:
             res = self.steps[self.current_step]()
             self._current_step_executed += 1
-            if self._current_step_executed >= 30:
-                raise ValueError(f"{self} has executed the same step too many times.")
+            if self._current_step_executed >= 50:
+                raise ValueError(
+                    f"{self} executed {self.steps[self.current_step]} too many times."
+                )
 
         if res is None:
             self.current_step += 1

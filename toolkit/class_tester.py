@@ -43,6 +43,7 @@ if __name__ == "__main__":
             cv2.circle(minimap_img, npc, 4, (0, 255, 0), -1)
         cv2.imshow("minimap", cv2.resize(minimap_img, None, fx=4, fy=4))
         cv2.waitKey(1)
+        print(npcs)
 
         # current = minimap.get_character_positions(HANDLE, map_area_box=map_area_box).pop()
         # time.sleep(0.5)

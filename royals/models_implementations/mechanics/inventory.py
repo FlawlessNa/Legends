@@ -265,13 +265,21 @@ class InventoryChecks:
 
     def _return_to_door(self) -> QueueAction | None:
         curr_pos = self.data.current_minimap_position
+        if curr_pos is None:
+            time.sleep(1.5)
+            return
         target = getattr(self, "return_door_target")
         if math.dist(curr_pos, target) > 2:
             setattr(
-                self, "_direction", "right" if curr_pos[0] < target[0] else "left",
+                self,
+                "_direction",
+                "right" if curr_pos[0] < target[0] else "left",
             )
             return InventoryActions.move_to_target(
-                self.generator, getattr(self, "return_door_target"), "Returning to Door"
+                self.generator,
+                getattr(self, "return_door_target"),
+                "Returning to Door",
+                enable_multi=True,
             )
 
         # If we reached the "central node" in minimap but are not yet at door, we need
@@ -286,9 +294,13 @@ class InventoryChecks:
         initial_npcs = getattr(self, "npcs_positions")
         if len(current_npcs) != len(initial_npcs):
             direction = getattr(self, "_direction")
-            target = (curr_pos[0] + 10, curr_pos[1]) if direction == "right" else (
-                curr_pos[0] - 10,
-                curr_pos[1],
+            target = (
+                (curr_pos[0] + 10, curr_pos[1])
+                if direction == "right"
+                else (
+                    curr_pos[0] - 10,
+                    curr_pos[1],
+                )
             )
             return InventoryActions.move_to_target(
                 self.generator,
@@ -296,6 +308,11 @@ class InventoryChecks:
                 "Returning to Door",
             )
         else:
+            horiz_dist = sum(
+                (current_npcs[i][0] - initial_npcs[i][0])
+                for i in range(len(current_npcs))
+            ) / len(current_npcs)
+
             self.blocked = True
             return QueueAction(
                 identifier="Re-entering in Door",
@@ -304,17 +321,14 @@ class InventoryChecks:
                     controller.move,
                     self.data.handle,
                     self.data.ign,
-                    getattr(self, "_direction"),
-                    5.0,
+                    "right" if horiz_dist > 0 else "left",
+                    horiz_dist / self.data.current_minimap.minimap_speed,
                     "up",
                 ),
                 update_generators=GeneratorUpdate(
                     generator_id=id(self.generator), generator_kwargs={"blocked": False}
                 ),
             )
-
-    def _reenter_door(self) -> QueueAction | None:
-        breakpoint()
 
     def _trigger_discord_alert(self) -> QueueAction:
         space_left = getattr(self, "_space_left")

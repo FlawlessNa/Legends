@@ -91,6 +91,7 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
         self.door_target = None
 
         self._original_minimap = self.data.current_minimap  # For failsafe purposes
+        self._original_map = self.data.current_map  # For failsafe purposes
 
     def __repr__(self) -> str:
         return f"InventoryManager({self.tab_to_watch})"
@@ -117,7 +118,6 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
                 self._cleanup_inventory,
                 self._close_npc_shop,
                 self._return_to_door,
-                self._reenter_door,
             ]
 
         return common + procedure_specific_steps
@@ -147,6 +147,9 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
         elif self.steps[max(1, self.current_step) - 1] == self._enter_door:
             return self._confirm_in_town()
 
+        elif self.steps[max(1, self.current_step) - 1] == self._return_to_door:
+            return self._confirm_in_original_map()
+
     def _exception_handler(self, e: Exception) -> None:
         raise e
 
@@ -157,8 +160,12 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
             return InventoryActions.toggle(self.generator, self._key)
         self.current_step = 0
         self._next_call = time.perf_counter() + self.interval
-        print("Done!")
         self._failsafe_enabled = True
+        self.door_target = None
+        delattr(self, "return_door_target")
+        delattr(self, "npcs_positions")
+        delattr(self, "_direction")
+        logger.info(f"{self} has completed the inventory cleanup procedure.")
         raise self.skip_iteration
 
     def _confirm_door(self) -> QueueAction | None:
@@ -208,3 +215,22 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
             self._failsafe_enabled = False  # No more failsafe-ing until next step
         else:
             breakpoint()
+
+    def _confirm_in_original_map(self) -> QueueAction | None:
+        # Check dimensions
+        box = self.data.current_minimap.get_map_area_box(self.data.handle)
+        if (box.width, box.height) == (
+            self.data.current_minimap.map_area_width,
+            self.data.current_minimap.map_area_height,
+        ):
+            self.current_step -= 1  # Go back to the previous step
+            return
+
+        elif (box.width, box.height) == (
+            self._original_minimap.map_area_width,
+            self._original_minimap.map_area_height,
+        ):
+            # We are back in original, update data and proceed
+            self.data.update(current_map=self._original_map)
+            self.data.update(current_minimap=self._original_minimap)
+            self.data.update(current_client_img=take_screenshot(self.data.handle))
