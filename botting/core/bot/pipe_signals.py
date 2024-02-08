@@ -1,7 +1,6 @@
-import os
 from dataclasses import field, dataclass
 from functools import partial
-from typing import Optional
+from typing import Any, Optional
 
 from botting.utilities import get_object_by_id
 
@@ -62,6 +61,10 @@ class GeneratorUpdate:
     DecisionEngine.
     """
 
+    action_result: Any = field(default=None)
+    game_data_attribute: str = field(default=None)  # Update game_data with action_res
+    generator_attribute: str = field(default=None)  # Update generator with action_res
+
     game_data_args: tuple = field(default_factory=tuple)
     game_data_kwargs: dict = field(default_factory=dict)
 
@@ -76,9 +79,13 @@ class GeneratorUpdate:
         affects all generators.
         """
         data.update(*self.game_data_args, **self.game_data_kwargs)
+        if self.action_result is not None and self.game_data_attribute is not None:
+            setattr(data, self.game_data_attribute, self.action_result)
 
         if self.generator_id is not None:
             generator = get_object_by_id(self.generator_id)
+            if self.action_result is not None and self.generator_attribute is not None:
+                setattr(generator, self.generator_attribute, self.action_result)
 
             # TODO - Test if this works?
             for arg in self.generator_args:

@@ -5,7 +5,7 @@ import multiprocessing.connection
 from functools import partial
 from typing import TYPE_CHECKING
 
-from .pipe_signals import QueueAction
+from .pipe_signals import QueueAction, GeneratorUpdate
 from botting.utilities import client_handler
 
 if TYPE_CHECKING:
@@ -239,12 +239,14 @@ class Executor:
             #     f"Rotation Lock released on {self} through callback. {fut.get_name()} is Done."
             # )
 
-    def _send_update_signal_callback(self, signal: tuple[str] | dict, fut):
+    def _send_update_signal_callback(self, signal: GeneratorUpdate, fut):
         """
         Callback to use on map rotation actions if they need to update game game_data.
         Sends a signal back to the Child process to appropriately update Game Data.
         This way, CPU-intensive resources are not consumed within the main process.
         """
+        if fut.result() is not None:
+            signal.action_result = fut.result()
         self.bot_side.send(signal)
 
     def _wrap_action(self, action: callable) -> callable:
@@ -258,7 +260,7 @@ class Executor:
             await self.action_lock.acquire()
             try:
                 # logger.debug(f"Action Lock acquired for {self} for {action}")
-                await action()
+                return await action()
             finally:
                 self.action_lock.release()
                 # logger.debug(f"Action Lock released for {self} for {action}")
@@ -296,7 +298,7 @@ class Executor:
                     """
                     )
                     self.cancel_all()
-                    break
+                    raise queue_item
 
                 logger.debug(f"Received {queue_item} from {self} monitoring process.")
                 task_ids = [

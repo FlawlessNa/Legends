@@ -287,6 +287,8 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
     teleport_h_dist: int  # Horizontal distance of teleport
     teleport_v_up_dist: int  # Vertical distance of teleport (upwards)
     teleport_v_down_dist: int  # Vertical distance of teleport (downwards)
+    door_spot: list[tuple]  # Places where it is safe to cast a mystic door
+    npc_shop: tuple[int, int]  # Coordinates of the NPC shop
 
     @property
     @abstractmethod

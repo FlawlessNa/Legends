@@ -20,6 +20,8 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
     teleport_v_up_dist = 8
     teleport_v_down_dist = 15
 
+    door_spot = [(65, 54), (66, 54), (67, 54), (68, 54), (69, 54), (70, 54)]
+
     @property
     def central_node(self) -> tuple[int, int]:
         return int(self.third_platform_right_ladder.center[0]), int(

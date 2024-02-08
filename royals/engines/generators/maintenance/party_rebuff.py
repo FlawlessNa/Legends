@@ -224,7 +224,9 @@ class PartyRebuff(IntervalBasedGenerator):
             # Occurs when failsafe is successful
             self._error_counter -= 1
             return
-        raise e
+        if self._error_counter > 3:
+            # If failsafe fails 3 times, raise the exception
+            raise e
 
     def _rebuff(self) -> QueueAction:
         # Decrement the ready counter, and re-increment when rebuffing action completes

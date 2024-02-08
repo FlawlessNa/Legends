@@ -2,13 +2,18 @@
 
 ## TODO
   - [x] controller revamp for better focus-lock handling
-  - [x] Delays - test actuals with Spy++ and adjust. If longer, it could be due to SendInput exec time, so test this
-  - [x] royals.actions to revisit - jump_on_rope, teleport/telecast
-  - [ ] Improve relevance of logs
+  - [ ] Another pass at controller revamp - better focus handling is already achieved, but now add "pattern" constructor to handle complex actions and properly deal with cancellations
+    - [ ] Things such has repeated key feature + clicks
+    - [ ] Release keys on cancellations only when necessary?
+    - [ ] Refactor into an "input constructor" and use that constructor to implement actions/movements specific to royals later on
+    - [ ] Rotations - More fluidity?
+    - [ ] Ultimate Casting - Cancellable if cast not confirmed?
+  - [ ] Improve data management - especially when minimap is being toggled.
   - [ ] Task cancellation - Refactor how callbacks are triggered, such that if necessary, a callback coroutine is used to await for some time before updating data
   - [x] Task Cancellation for movements - make "controller.move" cancellable, but other functions (tp, telecast, jump rope, etc.) non-cancellable.
 
 ### Inventory Cleanup
+- [ ] Big code clean-up required.
 - [ ] Ability to add custom connections (mystic door) from/to current minimap and nearest town
 - [ ] Basic (incomplete) coding of relevant nearest towns - just enough to get to npc
 - [ ] NPC selling mechanics
@@ -79,7 +84,7 @@
   - [ ] Combine with HP bar
   
 ### RoyalsData Management
-  - [ ] Add a Loop ID on every iteration. When data is updated, assign it a loop id. only update when loop id is different.
+  - [x] Add a Loop ID on every iteration. When data is updated, assign it a loop id. only update when loop id is different.
   - [x] Split into several subclasses, each specific to a generator
   - [ ] Re-split data further into interface/mechanics components instead of generator types (ex: MinimapData, PathingData, MobData, etc)
   - [ ] Add a PerformanceData class for monitoring (mesos/h, exp/h, etc)

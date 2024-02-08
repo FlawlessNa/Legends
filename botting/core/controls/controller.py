@@ -61,6 +61,7 @@ async def press(
     key: str,
     silenced: bool = False,
     down_or_up: Literal["keydown", "keyup"] | None = None,
+    nbr_times: int = 1,
     delay: float = 0.033 - time.get_clock_info("monotonic").resolution,
     **kwargs,
 ) -> None:
@@ -74,12 +75,13 @@ async def press(
     :param delay: Delay between the keydown and keyup events.
     :return: None
     """
-    assert key not in [
-        "up",
-        "down",
-        "left",
-        "right",
-    ], "Use the move function to move the character."
+    if down_or_up != "keyup":
+        assert key not in [
+            "up",
+            "down",
+            "left",
+            "right",
+        ], "Use the move function to move the character."
     if down_or_up is not None:
         assert down_or_up in ["keydown", "keyup"]
         assert (
@@ -88,17 +90,20 @@ async def press(
 
     if silenced:
         inputs = message_constructor(
-            handle, [key] * 2, [win32con.WM_KEYDOWN, win32con.WM_KEYUP], **kwargs
+            handle,
+            [key] * 2 * nbr_times,
+            [win32con.WM_KEYDOWN, win32con.WM_KEYUP] * nbr_times,
+            **kwargs,
         )
-        delays = [random.uniform(0.95, 1.05) * delay for _ in range(2)]
+        delays = [random.uniform(0.95, 1.05) * delay for _ in range(2 * nbr_times)]
         await non_focused_input(inputs, delays)
 
     else:
         inputs = []
         keys_to_release = None
         if down_or_up in ["keydown", None]:
-            keys = [[key]]
-            events = [["keydown"]]
+            keys = [[key]] * nbr_times
+            events = [["keydown"]] * nbr_times
             inputs = full_input_constructor(handle, keys, events)
         if down_or_up in ["keyup", None]:
             keys_to_release = full_input_constructor(handle, [[key]], [["keyup"]])[0]
@@ -485,21 +490,24 @@ async def mouse_move(
 
 async def click(
     handle: int,
-    down_or_up: Literal["click", "down", "up"] = "click",
+    down_or_up: Literal["click", "down", "up", "doubleclick"] = "click",
     nbr_times: int = 1,
     delay: float = 0.1,
-) -> None:
+) -> int:
     """
     :param handle: Window handle to the process.
     :param down_or_up: Whether to click, press down or release the mouse button.
     :param nbr_times: Number of times to click.
     :param delay: Delay between each click.
-    :return:
+    :return: Nbr of times the click was successful.
     """
-    events = [down_or_up] * nbr_times
+    if down_or_up == "doubleclick":
+        events = [["click", "click"]] * nbr_times
+    else:
+        events = [down_or_up] * nbr_times
     delays = [random.uniform(0.95, 1.05) * delay for _ in range(nbr_times)]
     inputs = full_input_mouse_constructor([None], [None], events, [None])
-    await focused_inputs(handle, inputs, delays, None)
+    return await focused_inputs(handle, inputs, delays, None)
 
 
 def get_mouse_pos(handle: int) -> tuple[int, int]:

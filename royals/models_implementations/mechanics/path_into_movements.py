@@ -52,7 +52,7 @@ def get_to_target(
 ) -> list[partial]:
     """
     Computes the path from current to target using map features.
-    Translates this path into movements, and converts those movements into in-game actions.
+    Translates this path into movements, converts those movements into in-game actions.
     Returns a list of incomplete partial objects.
     :param current: Current minimap position.
     :param target: Target minimap position.

@@ -106,6 +106,13 @@ class Priest(Cleric):
                 vertical_screen_range=125,
                 unidirectional=False,
             ),
+            "Mystic Door": RoyalsSkill(
+                "Mystic Door",
+                "Utility",
+                animation_time=1,  # TODO - Confirm
+                unidirectional=False,
+                duration=180,
+            ),
         }
 
     def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:

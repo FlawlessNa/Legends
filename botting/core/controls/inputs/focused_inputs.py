@@ -133,7 +133,7 @@ async def focused_inputs(
     inputs: list[tuple],
     delays: list[float],
     keys_to_release: tuple | None,
-) -> None:
+) -> int:
     """
     Sends the inputs to the active window.
     A small delay is added between each input.
@@ -141,14 +141,16 @@ async def focused_inputs(
     :param inputs: input structures to send.
     :param delays: delays between each input.
     :param keys_to_release: Ensures that the keys are released after the inputs are sent
-    :return: None
+    :return: Nbr of inputs successfully sent.
     """
     cleanup = False
+    res = 0
     try:
         activate(hwnd)
 
         for i in range(len(inputs)):
             _send_input(inputs[i])
+            res += 1
             await asyncio.sleep(delays[i])
 
         if keys_to_release:
@@ -162,6 +164,7 @@ async def focused_inputs(
             if len(delays) > 1 or delays[0] != 0.5:
                 time.sleep(min(delays))
             _send_input(keys_to_release)
+        return res
 
 
 def _send_input(structure: tuple) -> None:
@@ -211,7 +214,7 @@ def full_input_constructor(
             (
                 wintypes.UINT(num_inputs),
                 array_pointer(input_array),
-                wintypes.INT(ctypes.sizeof(input_array[0]))
+                wintypes.INT(ctypes.sizeof(input_array[0])),
             )
         )
     return structures
@@ -232,20 +235,28 @@ def full_input_mouse_constructor(
     :return:
     """
     return_val = []
-    input_array_class = Input * 1
-    input_pointer = ctypes.POINTER(input_array_class)
 
     for x, y, event, mouse in itertools.zip_longest(
         x_trajectory, y_trajectory, events, mouse_data
     ):
-        input_structure = _single_input_mouse_constructor(x, y, event, mouse)
-        input_array = input_array_class(input_structure)
+        inputs = []
+        if isinstance(event, list):
+            num_inputs = len(event)
+            input_array_class = Input * num_inputs
+            for ev in event:
+                inputs.append(_single_input_mouse_constructor(x, y, ev, mouse))
+        else:
+            input_array_class = Input * 1
+            inputs.append(_single_input_mouse_constructor(x, y, event, mouse))
+
+        input_pointer = ctypes.POINTER(input_array_class)
+        input_array = input_array_class(*inputs)
         return_val.append(
             (
-                    wintypes.UINT(1),
-                    input_pointer(input_array),
-                    wintypes.INT(ctypes.sizeof(input_structure)),
-                ),
+                wintypes.UINT(len(inputs)),
+                input_pointer(input_array),
+                wintypes.INT(ctypes.sizeof(inputs[0])),
+            ),
         )
     return return_val
 
@@ -270,7 +281,7 @@ def _single_input_constructor(
     vk_key = _get_virtual_key(key, False, _keyboard_layout_handle(hwnd))
     if as_unicode:
         assert (
-                len(key) == 1
+            len(key) == 1
         ), f"Key {key} must be a single character when as_unicode=True"
         scan_code = _get_virtual_key(key, True, _keyboard_layout_handle(hwnd))
         vk_key = 0
@@ -297,7 +308,7 @@ def _single_input_constructor(
 def _single_input_mouse_constructor(
     x: int | None,
     y: int | None,
-    event: Literal["click", "down", "up"] | None,
+    event: Literal["click", "down", "up", "doubleclick"] | None | list,
     mouse_data: int | None,
 ) -> Input:
     """
@@ -406,11 +417,13 @@ def _remove_num_lock() -> None:
         ]
 
         input_array = array_class(*_input)
-        _send_input((
-            wintypes.UINT(2),
-            array_pointer(input_array),
-            wintypes.INT(ctypes.sizeof(input_array[0]))
-        ))
+        _send_input(
+            (
+                wintypes.UINT(2),
+                array_pointer(input_array),
+                wintypes.INT(ctypes.sizeof(input_array[0])),
+            )
+        )
 
 
 _remove_num_lock()
