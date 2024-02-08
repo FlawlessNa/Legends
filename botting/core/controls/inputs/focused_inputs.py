@@ -118,6 +118,7 @@ def activate(hwnd: int) -> None:
     """
     Activates the window associated with the handle.
     Any key press or mouse click will be sent to the active window.
+    # TODO - Check KeyState on left, right, up, down of current hwnd and release if pressed before switching window.
     :return: None
     """
     if GetForegroundWindow() != hwnd:
