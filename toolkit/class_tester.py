@@ -30,5 +30,4 @@ def calc_centroid(pts):
 
 
 if __name__ == "__main__":
-    for _ in range(5):
-        asyncio.run(teleport_once(HANDLE, "WrongDoor", "left", Bishop("WrongDoor", "Elephant Cape", "large").skills["Teleport"]))
+    pass

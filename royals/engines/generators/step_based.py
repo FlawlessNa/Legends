@@ -60,6 +60,7 @@ class StepBasedGenerator(DecisionGenerator, ABC):
     def _next(self) -> QueueAction | None:
         res = None
         if self.current_step < self.num_steps:
+            logger.debug(f"{self} executing step {self.steps[self.current_step]}")
             res = self.steps[self.current_step]()
             self._current_step_executed += 1
             if self._current_step_executed >= 30:
@@ -68,6 +69,7 @@ class StepBasedGenerator(DecisionGenerator, ABC):
                 )
 
         if res is None:
+            logger.debug(f"{self} finished step {self.current_step}/{self.num_steps}")
             self.current_step += 1
             self._failsafe_enabled = True
             self._current_step_executed = 0

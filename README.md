@@ -11,6 +11,9 @@
   - [ ] Improve data management - especially when minimap is being toggled.
   - [ ] Task cancellation - Refactor how callbacks are triggered, such that if necessary, a callback coroutine is used to await for some time before updating data
   - [x] Task Cancellation for movements - make "controller.move" cancellable, but other functions (tp, telecast, jump rope, etc.) non-cancellable.
+  - [ ] Ability to group multiple characters (aka engines) into single process. This means every generators for that engine needs to be created N times. There will also be N instances of game data.
+    - A big advantage is that blocking generators will automatically block generators from other characters on the same engine
+  - [ ] Ability to "reset" generator data? - goes with better data management
 
 ### Inventory Cleanup
 - [ ] Big code clean-up required.
@@ -30,7 +33,7 @@
     - Refactor buff mule safeguard into an actual rotation generator instead of interval-based
   - [ ] Ultimate Cast failsafe - check if MP has changed by at least X%
   - [x] Enhanced telecasting
-  - [ ] Multi-client blockers/parsers
+  - [ ] Multi-client blockers/parsers3`
   
 ### Generators
   - [ ] MobCheck : 2nd reaction - add full sentences (more elaborate choices)
