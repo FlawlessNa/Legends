@@ -8,7 +8,7 @@
     - [ ] Refactor into an "input constructor" and use that constructor to implement actions/movements specific to royals later on
     - [ ] Rotations - More fluidity?
     - [ ] Ultimate Casting - Cancellable if cast not confirmed?
-  - [ ] Improve relevance of logs
+  - [ ] Improve data management - especially when minimap is being toggled.
   - [ ] Task cancellation - Refactor how callbacks are triggered, such that if necessary, a callback coroutine is used to await for some time before updating data
   - [x] Task Cancellation for movements - make "controller.move" cancellable, but other functions (tp, telecast, jump rope, etc.) non-cancellable.
 
