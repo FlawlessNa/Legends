@@ -227,7 +227,6 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                     self.data.ign,
                     self.training_skill,
                     closest_mob_direction,
-                    attacking_skill=True,
                 )
         if res and not self.data.character_in_a_ladder and self.data.available_to_cast:
             self.data.update(available_to_cast=False)

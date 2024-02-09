@@ -30,4 +30,10 @@ def calc_centroid(pts):
 
 
 if __name__ == "__main__":
-    pass
+    bishop = Bishop("WrongDoor", "Elephant Cape", "large")
+    start = time.time()
+    # for _ in range(10):
+    #     asyncio.run(controller.press(HANDLE, 'a', delay=0))
+    #     time.sleep(1.075)
+    asyncio.run(cast_skill(HANDLE, "WrongDoor", bishop.skills['Genesis']))
+    print(time.time() - start)

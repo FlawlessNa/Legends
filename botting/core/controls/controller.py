@@ -103,16 +103,20 @@ async def press(
 
     else:
         inputs = []
-        keys_to_release = None
+        keys = []
+        events = []
+        enforce_release = 0
         if down_or_up in ["keydown", None]:
             keys = [[key]] * nbr_times
             events = [["keydown"]] * nbr_times
             inputs = full_input_constructor(handle, keys, events)
         if down_or_up in ["keyup", None]:
-            keys_to_release = full_input_constructor(handle, [[key]], [["keyup"]])[0]
+            enforce_release = 1
+            keys.append([key])
+            events.append(["keyup"])
 
         delays = [random.uniform(0.95, 1.05) * delay for _ in range(len(inputs))]
-        await focused_inputs(handle, inputs, delays, keys_to_release=keys_to_release)
+        await focused_inputs(handle, inputs, delays, enforce_release)
 
 
 async def write(
@@ -169,7 +173,7 @@ async def write(
             delays = [random.uniform(0.95, 1.05) * delay for _ in range(len(message))]
 
         inputs = full_input_constructor(handle, message, events, as_unicode=True)
-        await asyncio.shield(focused_inputs(handle, inputs, delays, None))
+        await asyncio.shield(focused_inputs(handle, inputs, delays, 0))
 
 
 async def move(
@@ -410,10 +414,10 @@ async def move(
     assert len(keys) == len(events) == len(delays)
     inputs = full_input_constructor(handle, keys, events)
     release_inputs = full_input_constructor(handle, release_keys, release_events)
-    assert len(release_inputs) == 1
+    inputs.extend(release_inputs)
     try:
         await asyncio.wait_for(
-            focused_inputs(handle, inputs, delays, release_inputs[0]), duration
+            focused_inputs(handle, inputs, delays, len(release_inputs)), duration
         )
     except asyncio.TimeoutError:
         pass
@@ -488,7 +492,7 @@ async def mouse_move(
 
     inputs = full_input_mouse_constructor(x, y, [None], [None])
 
-    await focused_inputs(handle, inputs, delays, None)
+    await focused_inputs(handle, inputs, delays, 0)
 
 
 async def click(
@@ -510,7 +514,7 @@ async def click(
         events = [down_or_up] * nbr_times
     delays = [random.uniform(0.95, 1.05) * delay for _ in range(nbr_times)]
     inputs = full_input_mouse_constructor([None], [None], events, [None])
-    return await focused_inputs(handle, inputs, delays, None)
+    return await focused_inputs(handle, inputs, delays, 0)
 
 
 def get_mouse_pos(handle: int) -> tuple[int, int]:

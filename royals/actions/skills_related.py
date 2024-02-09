@@ -43,7 +43,10 @@ async def cast_skill(
         delays.append(next(controller.random_delay))
 
     structure = controller.input_constructor(handle, keys, events)
-    await controller.focused_inputs(handle, structure, delays)  # TODO - Change the release mechanism such that its an integer corresponding to the latest keys/events.
+    await asyncio.wait_for(
+        controller.focused_inputs(handle, structure, delays, 1),
+        timeout=min(skill.animation_time * 0.95, skill.animation_time - 0.05)
+    )
 
 #
 # async def cast_skill(

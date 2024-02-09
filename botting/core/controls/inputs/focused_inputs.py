@@ -178,7 +178,7 @@ def input_constructor(
                 structures.append(
                     (
                         wintypes.UINT(1),
-                        ctypes.POINTER(Input)(  # TODO - See if Input needs to be Input * 1
+                        ctypes.POINTER(Input * 1)(
                             _single_input_constructor(hwnd, lst_inputs, lst_events, as_unicode)
                         ),
                         wintypes.INT(ctypes.sizeof(Input)),
@@ -188,7 +188,7 @@ def input_constructor(
                 structures.append(
                     (
                         wintypes.UINT(1),
-                        ctypes.POINTER(Input)(  # TODO - See if Input needs to be Input * 1
+                        ctypes.POINTER(Input * 1)(
                             _single_input_mouse_constructor(
                                 *lst_inputs, lst_events, mouse_data
                             )
@@ -204,7 +204,7 @@ async def focused_inputs(
     hwnd: int,
     inputs: list[tuple],
     delays: list[float],
-    keys_to_release: tuple | None,
+    enforce_last_inputs: int = 0,
 ) -> int:
     """
     Sends the inputs to the active window.
@@ -212,11 +212,15 @@ async def focused_inputs(
     :param hwnd: handle to the window to send the inputs to.
     :param inputs: input structures to send.
     :param delays: delays between each input.
-    :param keys_to_release: Ensures that the keys are released after the inputs are sent
+    :param enforce_last_inputs: Nbr of inputs at the end of input structure to enforce
+    through a "finally" clause.
     :return: Nbr of inputs successfully sent.
     """
-    cleanup = False
     res = 0
+    keys_to_release: list[tuple] = []
+    if enforce_last_inputs > 0:
+        keys_to_release: list[tuple] = inputs[-enforce_last_inputs:]
+        inputs = inputs[:-enforce_last_inputs]
     try:
         activate(hwnd)
 
@@ -225,17 +229,14 @@ async def focused_inputs(
             res += 1
             await asyncio.sleep(delays[i])
 
-        if keys_to_release:
-            _send_input(keys_to_release)
-            cleanup = True
-
     except Exception as e:
         raise e
+
     finally:
-        if keys_to_release and not cleanup:
-            if len(delays) > 1 or delays[0] != 0.5:
-                time.sleep(min(delays))
-            _send_input(keys_to_release)
+        if keys_to_release:
+            for i in range(len(keys_to_release)):
+                _send_input(keys_to_release[i])
+                time.sleep(delays[-enforce_last_inputs + i])
         return res
 
 
