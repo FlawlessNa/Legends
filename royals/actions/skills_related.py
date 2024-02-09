@@ -11,51 +11,91 @@ async def cast_skill(
     ign: str,
     skill: Skill,
     direction: str = None,
-    attacking_skill: bool = False,
 ) -> None:
     """
-    Casts a skill and optionally change direction beforehand.
+    Casts a skill and triggers the keyboard repeat feature for the duration.
+    If skill is unidirectional, then first turn into the provided direction.
     :param handle:
     :param ign:
     :param skill:
     :param direction:
-    :param attacking_skill:
     :return:
     """
-    # TODO - Better handling of direction.
-    if skill.unidirectional:
-        await controller.move(
-            handle,
-            ign,
-            direction if direction else "left",
-            duration=0.05,
-        )
+    delays = []
+    while sum(delays) < skill.animation_time:
+        delays.append(next(controller.random_delay))
+    # The last delay is between keydown and keyup, which is doubled
+    # TODO - See if a delay or two should be removed to avoid a double-cast
+    delays[-1] *= 2
 
-    if attacking_skill:
-        # Failsafe to ensure properly cast
-        await controller.press(
-            handle,
-            skill.key_bind(ign),
-            silenced=False,
-            delay=0,
-        )
-        first_sleep = min(0.3, skill.animation_time)
-        await asyncio.sleep(first_sleep)
-        await controller.press(
-            handle,
-            skill.key_bind(ign),
-            silenced=True,
-            delay=0,
-        )
-        await asyncio.sleep(max(skill.animation_time - first_sleep, 0.0))
+    keys = [skill.key_bind(ign)] * len(delays)
+    events: list[Literal["keydown", "keyup"]] = ["keydown"]
+    [events.append("keydown") for _ in range(len(delays) - 2)]  # TODO - see if better way (this is to avoid "invalid type" from IDE)
+    events.append("keyup")
 
-    else:
-        await controller.press(
-            handle,
-            skill.key_bind(ign),
-            silenced=False,
-        )
-        await asyncio.sleep(skill.animation_time)
+    if direction is not None and skill.unidirectional:
+        # TODO - Generic function to release other directions based on their status
+        events.insert(0, "keydown")
+        events.insert(0, "keyup")
+        keys.insert(0, direction)
+        keys.insert(0, direction)
+        delays.append(2 * next(controller.random_delay))
+        delays.append(next(controller.random_delay))
+
+    structure = controller.input_constructor(handle, keys, events)
+    await controller.focused_inputs(handle, structure, delays)  # TODO - Change the release mechanism such that its an integer corresponding to the latest keys/events.
+
+#
+# async def cast_skill(
+#     handle: int,
+#     ign: str,
+#     skill: Skill,
+#     direction: str = None,
+#     attacking_skill: bool = False,
+# ) -> None:
+#     """
+#     Casts a skill and optionally change direction beforehand.
+#     :param handle:
+#     :param ign:
+#     :param skill:
+#     :param direction:
+#     :param attacking_skill:
+#     :return:
+#     """
+#     # TODO - Better handling of direction.
+#     if skill.unidirectional:
+#         await controller.move(
+#             handle,
+#             ign,
+#             direction if direction else "left",
+#             duration=0.05,
+#         )
+#
+#     if attacking_skill:
+#         # Failsafe to ensure properly cast
+#         await controller.press(
+#             handle,
+#             skill.key_bind(ign),
+#             silenced=False,
+#             delay=0,
+#         )
+#         first_sleep = min(0.3, skill.animation_time)
+#         await asyncio.sleep(first_sleep)
+#         await controller.press(
+#             handle,
+#             skill.key_bind(ign),
+#             silenced=True,
+#             delay=0,
+#         )
+#         await asyncio.sleep(max(skill.animation_time - first_sleep, 0.0))
+#
+#     else:
+#         await controller.press(
+#             handle,
+#             skill.key_bind(ign),
+#             silenced=False,
+#         )
+#         await asyncio.sleep(skill.animation_time)
 
 
 async def teleport_once(

@@ -47,6 +47,8 @@ ULONG_PTR = ctypes.POINTER(ctypes.c_ulong)
 
 logger = logging.getLogger(__name__)
 
+EVENTS = Literal["keydown", "keyup", "click", "mousedown", "mouseup"]
+
 
 class MouseInputStruct(ctypes.Structure):
     """Contains information about a simulated mouse event."""
@@ -126,6 +128,75 @@ def activate(hwnd: int) -> None:
         shell = Dispatch("WScript.Shell")
         shell.SendKeys("%")
         SetForegroundWindow(hwnd)
+
+
+def input_constructor(
+    hwnd: int,
+    inputs: list[str | None | tuple[int, int] | list[str | None | tuple[int, int]]],
+    events: list[EVENTS | list[EVENTS] | None],
+    as_unicode: bool | list[bool] = False,
+    mouse_data: list[int | None] | None = None,
+) -> list[tuple]:
+    """
+    Constructs the input structures for the given inputs and events.
+    These must be of the same length. When an item in inputs is a list, the
+    corresponding item in events must also be a list. Those are considered as a single
+    input array for the purpose of SendInput, so they are sent simultaneously.
+    # TODO - Validate if mouse/keyboard can be mixed into a same input (depends on ctypes.sizeof for each? needs to be the same?)
+    :param hwnd: Handle to the window that will receive the inputs.
+    :param inputs: keystrokes (str), mouse coordinates (tuple), None, or a list of those
+    :param events: "keydown", "keyup", "click", "mousedown", "mouseup",
+        or a list of those
+    :param as_unicode: TODO
+    :param mouse_data: TODO
+    :return: Series of input structures to be sent to the active window with SendInput.
+    """
+    structures = []
+    for lst_inputs, lst_events in zip(inputs, events):
+        if isinstance(lst_inputs, list):
+            assert isinstance(lst_events, list)
+            assert len(lst_inputs) == len(lst_events)
+            num_inputs = len(lst_inputs)
+            array_class = Input * num_inputs
+            array_pointer = ctypes.POINTER(array_class)
+            inputs = []
+            for inp, event in zip(lst_inputs, lst_events):
+                if isinstance(inp, str):
+                    inputs.append(_single_input_constructor(hwnd, inp, event, as_unicode))
+                else:
+                    inputs.append(_single_input_mouse_constructor(*inp, event, mouse_data))
+            input_array = array_class(*inputs)
+            structures.append(
+                (
+                    wintypes.UINT(num_inputs),
+                    array_pointer(input_array),
+                    wintypes.INT(ctypes.sizeof(input_array[0])),
+                )
+            )
+        else:
+            if isinstance(lst_inputs, str):
+                structures.append(
+                    (
+                        wintypes.UINT(1),
+                        ctypes.POINTER(Input)(  # TODO - See if Input needs to be Input * 1
+                            _single_input_constructor(hwnd, lst_inputs, lst_events, as_unicode)
+                        ),
+                        wintypes.INT(ctypes.sizeof(Input)),
+                    )
+                )
+            else:
+                structures.append(
+                    (
+                        wintypes.UINT(1),
+                        ctypes.POINTER(Input)(  # TODO - See if Input needs to be Input * 1
+                            _single_input_mouse_constructor(
+                                *lst_inputs, lst_events, mouse_data
+                            )
+                        ),
+                        wintypes.INT(ctypes.sizeof(Input)),
+                    )
+                )
+    return structures
 
 
 @SharedResources.requires_focus

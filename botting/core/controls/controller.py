@@ -23,6 +23,9 @@ from .inputs import (
     message_constructor,
     repeat_inputs,
     move_params_validator,
+    DELAY,
+    random_delay,
+    input_constructor,
 )
 
 logger = logging.getLogger(__name__)
@@ -75,13 +78,13 @@ async def press(
     :param delay: Delay between the keydown and keyup events.
     :return: None
     """
-    if down_or_up != "keyup":
-        assert key not in [
-            "up",
-            "down",
-            "left",
-            "right",
-        ], "Use the move function to move the character."
+    # if down_or_up != "keyup":
+    #     assert key not in [
+    #         "up",
+    #         "down",
+    #         "left",
+    #         "right",
+    #     ], "Use the move function to move the character."
     if down_or_up is not None:
         assert down_or_up in ["keydown", "keyup"]
         assert (

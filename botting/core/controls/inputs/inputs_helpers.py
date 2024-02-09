@@ -3,6 +3,8 @@ Exports the necessary functions from windll.user32 to be used by the input modul
 Retrieves appropriate virtual key code given keyboard layout and key name.
 """
 import ctypes
+import random
+import time
 import win32api
 import win32con
 
@@ -11,6 +13,17 @@ from functools import lru_cache
 
 # http://www.kbdedit.com/manual/low_level_vk_list.html
 # https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+
+DELAY: float = 0.033 - time.get_clock_info("monotonic").resolution
+
+
+def _random_delay():
+    while True:
+        new_val = random.uniform(0.95, 1.05)
+        yield new_val * DELAY
+
+
+random_delay = _random_delay()
 
 
 KEYBOARD_MAPPING = {
