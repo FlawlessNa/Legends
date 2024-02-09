@@ -117,18 +117,24 @@ KEYBOARD = wintypes.DWORD(1)
 HARDWARE = wintypes.DWORD(2)
 
 
-def activate(hwnd: int) -> None:
+async def activate(hwnd: int) -> bool:
     """
     Activates the window associated with the handle.
     Any key press or mouse click will be sent to the active window.
     # TODO - Check KeyState on left, right, up, down of current hwnd and release if pressed before switching window.
     :return: None
     """
+    acquired = False
     if GetForegroundWindow() != hwnd:
+        acquired = await FOCUS_LOCK.acquire()
         logger.debug(f"Activating window {hwnd}")
         shell = Dispatch("WScript.Shell")
         shell.SendKeys("%")
         SetForegroundWindow(hwnd)
+
+    elif not acquired and not FOCUS_LOCK.locked():
+        acquired = await FOCUS_LOCK.acquire()
+    return acquired
 
 
 def input_constructor(
@@ -163,9 +169,13 @@ def input_constructor(
             inputs = []
             for inp, event in zip(lst_inputs, lst_events):
                 if isinstance(inp, str):
-                    inputs.append(_single_input_constructor(hwnd, inp, event, as_unicode))
+                    inputs.append(
+                        _single_input_constructor(hwnd, inp, event, as_unicode)
+                    )
                 else:
-                    inputs.append(_single_input_mouse_constructor(*inp, event, mouse_data))
+                    inputs.append(
+                        _single_input_mouse_constructor(*inp, event, mouse_data)
+                    )
             input_array = array_class(*inputs)
             structures.append(
                 (
@@ -180,7 +190,9 @@ def input_constructor(
                     (
                         wintypes.UINT(1),
                         ctypes.POINTER(Input * 1)(
-                            _single_input_constructor(hwnd, lst_inputs, lst_events, as_unicode)
+                            _single_input_constructor(
+                                hwnd, lst_inputs, lst_events, as_unicode
+                            )
                         ),
                         wintypes.INT(ctypes.sizeof(Input)),
                     )
@@ -223,9 +235,8 @@ async def focused_inputs(
         keys_to_release: list[tuple] = inputs[-enforce_last_inputs:]
         inputs = inputs[:-enforce_last_inputs]
 
-    await FOCUS_LOCK.acquire()
     try:
-        activate(hwnd)
+        acquired = await activate(hwnd)
 
         for i in range(len(inputs)):
             _send_input(inputs[i])
@@ -243,7 +254,8 @@ async def focused_inputs(
             for i in range(len(keys_to_release)):
                 _send_input(keys_to_release[i])
                 time.sleep(delays[-enforce_last_inputs + i])
-        FOCUS_LOCK.release()
+        if acquired:
+            FOCUS_LOCK.release()
         return res
 
 

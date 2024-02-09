@@ -1,3 +1,7 @@
+"""
+Skill related actions.
+These should always ensure skill keys are released at the end.
+"""
 import asyncio
 import time
 from typing import Literal
@@ -53,6 +57,7 @@ async def cast_skill(
 
     except asyncio.CancelledError:
         print(f'cast_skill Cancelled {ign} {skill.name}')
+
 
 async def teleport_once(
     handle: int,

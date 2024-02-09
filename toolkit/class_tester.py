@@ -32,10 +32,11 @@ def calc_centroid(pts):
 
 async def test():
     async with asyncio.TaskGroup() as tg:
-        t1 = tg.create_task(cast_skill(HANDLE, "WrongDoor", bishop.skills['Genesis']))
-        t2 = tg.create_task(controller.move(HANDLE, "WrongDoor", 'right', 5))
+        t2 = tg.create_task(controller.move(HANDLE, "WrongDoor", 'left', 5))
         await asyncio.sleep(1)
-        t1.cancel()
+        # tg.create_task(controller.press(HANDLE, 'v', silenced=True))
+        t1 = tg.create_task(cast_skill(HANDLE, "WrongDoor", bishop.skills['Genesis']))
+        # t1.cancel()
 
 
 if __name__ == "__main__":
