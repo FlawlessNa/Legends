@@ -80,6 +80,7 @@ class InventoryChecks:
                     self.data.handle, self.data.current_client_img
                 )
                 if active_tab is None:
+                    logger.debug(f"Failed to find active tab. Attempt {attempt}")
                     attempt += 1
                     time.sleep(0.5)
                     if attempt == 10:
@@ -90,12 +91,19 @@ class InventoryChecks:
                     continue
 
                 elif active_tab != tab_to_watch:
+                    logger.debug(f"Tab {active_tab} is not {tab_to_watch}. Tabbing")
                     nbr_presses = self.data.inventory_menu.get_tab_count(
                         active_tab, tab_to_watch
                     )
                     return InventoryActions.switch_tab(self.generator, nbr_presses)
+                else:
+                    logger.debug(f"Active Tab {active_tab} is {tab_to_watch}.")
+                    curr_step = getattr(self, "current_step")
+                    setattr(self, curr_step,  curr_step - 1)  # Since we return None
+                    break
 
         else:
+            logger.debug("Looks like inventory menu is not extended. Extending.")
             return self._ensure_is_extended()
 
     def _get_space_left(self, tab_to_watch: str) -> QueueAction | None:
@@ -123,6 +131,7 @@ class InventoryChecks:
                     setattr(self, 'cleanup_procedure_started_at', now)
                     logger.info(f"Starting full cleanup procedure at {time.asctime()}")
             else:
+                logger.debug(f"Failed to get space left. Extending inv menu.")
                 return self._ensure_is_extended()
 
         else:

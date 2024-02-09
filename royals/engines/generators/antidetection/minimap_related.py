@@ -169,7 +169,7 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
             self._error_counter -= 1
             return
 
-        if self._error_counter >= 4:
+        if self._error_counter >= 6:
             logger.critical(f"Too many errors in {self}. Exiting.")
             raise e
 

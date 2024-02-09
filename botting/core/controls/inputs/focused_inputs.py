@@ -48,6 +48,7 @@ ULONG_PTR = ctypes.POINTER(ctypes.c_ulong)
 logger = logging.getLogger(__name__)
 
 EVENTS = Literal["keydown", "keyup", "click", "mousedown", "mouseup"]
+FOCUS_LOCK = asyncio.Lock()
 
 
 class MouseInputStruct(ctypes.Structure):
@@ -199,7 +200,7 @@ def input_constructor(
     return structures
 
 
-@SharedResources.requires_focus
+# @SharedResources.requires_focus
 async def focused_inputs(
     hwnd: int,
     inputs: list[tuple],
@@ -221,6 +222,8 @@ async def focused_inputs(
     if enforce_last_inputs > 0:
         keys_to_release: list[tuple] = inputs[-enforce_last_inputs:]
         inputs = inputs[:-enforce_last_inputs]
+
+    await FOCUS_LOCK.acquire()
     try:
         activate(hwnd)
 
@@ -228,6 +231,9 @@ async def focused_inputs(
             _send_input(inputs[i])
             res += 1
             await asyncio.sleep(delays[i])
+
+    except asyncio.CancelledError:
+        raise
 
     except Exception as e:
         raise e
@@ -237,6 +243,7 @@ async def focused_inputs(
             for i in range(len(keys_to_release)):
                 _send_input(keys_to_release[i])
                 time.sleep(delays[-enforce_last_inputs + i])
+        FOCUS_LOCK.release()
         return res
 
 

@@ -21,7 +21,7 @@ async def cast_skill(
     :param direction:
     :return:
     """
-    delays = []
+    delays = [0.5]
     while sum(delays) < skill.animation_time:
         delays.append(next(controller.random_delay))
     # The last delay is between keydown and keyup, which is doubled
@@ -43,63 +43,16 @@ async def cast_skill(
         delays.append(next(controller.random_delay))
 
     structure = controller.input_constructor(handle, keys, events)
-    await asyncio.wait_for(
-        controller.focused_inputs(handle, structure, delays, 1),
-        timeout=min(skill.animation_time * 0.95, skill.animation_time - 0.05)
-    )
+    try:
+        await asyncio.wait_for(
+            controller.focused_inputs(handle, structure, delays, 1),
+            timeout=min(skill.animation_time * 0.95, skill.animation_time - 0.05)
+        )
+    except TimeoutError:
+        print(f'Timeout from cast_skill {ign} {skill.name}')
 
-#
-# async def cast_skill(
-#     handle: int,
-#     ign: str,
-#     skill: Skill,
-#     direction: str = None,
-#     attacking_skill: bool = False,
-# ) -> None:
-#     """
-#     Casts a skill and optionally change direction beforehand.
-#     :param handle:
-#     :param ign:
-#     :param skill:
-#     :param direction:
-#     :param attacking_skill:
-#     :return:
-#     """
-#     # TODO - Better handling of direction.
-#     if skill.unidirectional:
-#         await controller.move(
-#             handle,
-#             ign,
-#             direction if direction else "left",
-#             duration=0.05,
-#         )
-#
-#     if attacking_skill:
-#         # Failsafe to ensure properly cast
-#         await controller.press(
-#             handle,
-#             skill.key_bind(ign),
-#             silenced=False,
-#             delay=0,
-#         )
-#         first_sleep = min(0.3, skill.animation_time)
-#         await asyncio.sleep(first_sleep)
-#         await controller.press(
-#             handle,
-#             skill.key_bind(ign),
-#             silenced=True,
-#             delay=0,
-#         )
-#         await asyncio.sleep(max(skill.animation_time - first_sleep, 0.0))
-#
-#     else:
-#         await controller.press(
-#             handle,
-#             skill.key_bind(ign),
-#             silenced=False,
-#         )
-#         await asyncio.sleep(skill.animation_time)
-
+    except asyncio.CancelledError:
+        print(f'cast_skill Cancelled {ign} {skill.name}')
 
 async def teleport_once(
     handle: int,
