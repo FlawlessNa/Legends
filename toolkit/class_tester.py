@@ -30,4 +30,8 @@ def calc_centroid(pts):
 
 
 if __name__ == "__main__":
-    pass
+    asyncio.run(controller.click(HANDLE, "down"))
+    time.sleep(0.05)
+    asyncio.run(controller.click(HANDLE, "up"))
+    # asyncio.run(controller.press(HANDLE, 'left', down_or_up='keydown'))
+    # asyncio.run(controller.press(HANDLE, 'a', down_or_up='keydown'))

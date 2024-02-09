@@ -245,8 +245,15 @@ class Executor:
         Sends a signal back to the Child process to appropriately update Game Data.
         This way, CPU-intensive resources are not consumed within the main process.
         """
-        if fut.result() is not None:
-            signal.action_result = fut.result()
+        try:
+            if fut.result() is not None:
+                signal.action_result = fut.result()
+        except asyncio.exceptions.CancelledError:
+            # TODO - Investigate how to deal with such case - happens when NPC'ing is cancelled by ResetIdlePosition
+            breakpoint()
+        except Exception as e:
+            breakpoint()
+
         self.bot_side.send(signal)
 
     def _wrap_action(self, action: callable) -> callable:
