@@ -21,7 +21,6 @@ from .inputs_helpers import (
     EXTENDED_KEYS,
     MAPVK_VK_TO_VSC_EX,
 )
-from .shared_resources import SharedResources
 
 KEYEVENTF_EXTENDEDKEY = 0x0001
 KEYEVENTF_KEYUP = 0x0002
