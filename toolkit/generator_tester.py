@@ -4,14 +4,14 @@ import multiprocessing
 from botting import EngineData, Executor, SessionManager
 from botting.core import DecisionEngine, DecisionGenerator
 from botting.utilities import client_handler
-from royals.engines.generators import TelecastRotationGenerator
+from royals.engines.generators import TelecastRotationGenerator, SmartRotationGenerator
 from royals.characters import Bishop
 from royals import RoyalsData, royals_ign_finder
 from royals.maps import LudiFreeMarket
 
 
 IGN = "WrongDoor"
-GENERATOR = TelecastRotationGenerator
+GENERATOR = SmartRotationGenerator
 CURRENT_MAP = LudiFreeMarket
 
 DATA_INSTANCE = RoyalsData(
@@ -21,7 +21,7 @@ DATA_INSTANCE = RoyalsData(
     character=Bishop(IGN, "Elephant Cape", "large")
 )
 ENGINE_KWARGS = {}
-GENERATOR_KWARGS = dict(teleport_skill=DATA_INSTANCE.character.skills["Teleport"], ultimate=DATA_INSTANCE.character.skills["Genesis"])
+GENERATOR_KWARGS = dict(training_skill=DATA_INSTANCE.character.skills["Heal"], teleport=DATA_INSTANCE.character.skills["Teleport"], mob_threshold=5)
 
 
 class MockEngine(DecisionEngine):

@@ -14,13 +14,14 @@ from royals.models_implementations.mechanics import MinimapConnection
 from royals.models_implementations.minimaps import PathOfTime1Minimap, LudibriumMinimap
 from royals.maps import PathOfTime1
 from royals.interface import AbilityMenu, CharacterStats, InventoryMenu
-from royals.actions import write_in_chat, cast_skill, telecast, teleport_once
+from royals.actions import write_in_chat, cast_skill, telecast, teleport
 from royals.characters import Bishop, Assassin
 from royals.models_implementations.mechanics.path_into_movements import get_to_target
 
 HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 import win32api
 from royals.models_implementations.mechanics.inventory import InventoryActions
+import royals.actions as act
 
 
 def calc_centroid(pts):
@@ -32,10 +33,10 @@ def calc_centroid(pts):
 
 async def test():
     async with asyncio.TaskGroup() as tg:
-        t2 = tg.create_task(controller.move(HANDLE, "WrongDoor", 'left', 5))
+        t2 = tg.create_task(controller.move(HANDLE, "WrongDoor", "left", 5))
         await asyncio.sleep(1)
         # tg.create_task(controller.press(HANDLE, 'v', silenced=True))
-        t1 = tg.create_task(cast_skill(HANDLE, "WrongDoor", bishop.skills['Genesis']))
+        t1 = tg.create_task(cast_skill(HANDLE, "WrongDoor", bishop.skills["Genesis"]))
         # t1.cancel()
 
 
@@ -46,5 +47,39 @@ if __name__ == "__main__":
     #     asyncio.run(controller.press(HANDLE, 'a', delay=0))
     #     time.sleep(1.075)
     # asyncio.run(cast_skill(HANDLE, "WrongDoor", bishop.skills['Genesis']))
-    asyncio.run(test())
+    # asyncio.run(test())
+    # from botting.core.controls.inputs.focused_inputs import activate, FOCUS_LOCK
+    #
+    # asyncio.run(activate(HANDLE))
+    # FOCUS_LOCK.release()
+    # asyncio.run(activate(0x01460776))
+    # FOCUS_LOCK.release()
+    # asyncio.run(activate(HANDLE))
+    # FOCUS_LOCK.release()
+    for _ in range(2):
+        # asyncio.run(act.move(HANDLE, "left", 1, ))
+        # asyncio.run(act.move(HANDLE, "right", 1, secondary_direction="up"))
+        asyncio.run(act.jump_on_rope(HANDLE, "right", "alt"))
+        # asyncio.run(act.single_jump(HANDLE, "right", 'alt',))
+        # asyncio.run(act.single_jump(HANDLE, "left", 'alt', ))
+        # asyncio.run(
+        #     act.teleport(
+        #         HANDLE,
+        #         "WrongDoor",
+        #         "right",
+        #         bishop.skills["Teleport"],
+        #         3,
+        #     )
+        # )
+        # asyncio.run(
+        #     act.teleport(
+        #         HANDLE,
+        #         "WrongDoor",
+        #         "left",
+        #         bishop.skills["Teleport"],
+        #         3
+        #     )
+        # )
+    # asyncio.run(act.teleport(HANDLE, "WrongDoor", "left", bishop.skills['Teleport'], 3))
+    # asyncio.run(act.move(0x01460776, "up", 1))
     print(time.time() - start)

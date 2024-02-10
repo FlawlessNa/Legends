@@ -5,16 +5,22 @@ import logging
 import numpy as np
 from functools import partial
 from pathfinding.finder.a_star import AStarFinder
-from typing import Literal
 
 from botting import PARENT_LOG
 from botting.core.controls import controller
-from royals.actions import jump_on_rope, teleport_once
+from royals.actions import (
+    move,
+    jump_on_rope,
+    teleport,
+    single_jump,
+    continuous_jump,
+)
 from royals.models_implementations.mechanics import (
     MinimapPathingMechanics,
     MinimapNode,
     MinimapConnection,
 )
+from .royals_skill import RoyalsSkill
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -51,8 +57,10 @@ def get_to_target(
     target: tuple[int, int],
     in_game_minimap: MinimapPathingMechanics,
     handle: int,
-    jump_key: str
-) -> list[list[tuple]]:
+    jump_key: str,
+    teleport_skill: RoyalsSkill = None,
+    ign: str = None,
+) -> list[partial]:
     """
     Computes the path from current to target using map features.
     Translates this path into movements,  and finally converts those movements
@@ -64,8 +72,9 @@ def get_to_target(
     :param in_game_minimap: The current minimap in-game.
     :param handle: Handle of the game window.
     :param jump_key: Key to use for jumping for the character on the provided window.
-    :return: List of list[tuple] where each list[tuple] is a series of input for a
-        particular type movement.
+    :param teleport_skill: Skill to use for teleporting.
+    :param ign: In-game name of the character.
+    :return: List of partial where each partial represents a given movement.
     """
     path = _get_path_to_target(current, target, in_game_minimap)
     movements = _translate_path_into_movements(path, in_game_minimap)
@@ -81,7 +90,7 @@ def get_to_target(
             if feature is not None and feature.is_platform:
                 movements.pop(0)
     return _convert_movements_to_actions(
-        movements, in_game_minimap.minimap_speed, handle, jump_key
+        movements, in_game_minimap.minimap_speed, handle, jump_key, teleport_skill, ign
     )
 
 
@@ -193,12 +202,21 @@ def _translate_path_into_movements(
 
 
 def _convert_movements_to_actions(
-    moves: list[tuple[str, int]], speed: float, handle: int, jump_key: str,
+    moves: list[tuple[str, int]],
+    speed: float,
+    handle: int,
+    jump_key: str,
+    teleport_skill: RoyalsSkill = None,
+    ign: str = None,
 ) -> list[partial]:
     """
     Converts a series of movements into a series of actions.
     :param moves:
     :param speed:
+    :param handle:
+    :param jump_key:
+    :param teleport_skill:
+    :param ign:
     :return:
     """
     actions = []
@@ -231,9 +249,7 @@ def _convert_movements_to_actions(
                             secondary_direction = (
                                 "up" if next_move[0] in ["up", "PORTAL"] else "down"
                             )
-                            duration += (
-                                3 / speed
-                            )
+                            duration += 3 / speed
                         else:
                             # Otherwise, make sure we stop before the ladder/portal
                             # Will be re-calculated at next iteration
@@ -241,81 +257,36 @@ def _convert_movements_to_actions(
                 except IndexError:
                     pass
 
-            delays = []
-            while sum(delays) < duration:
-                delays.append(next(controller.random_delay))
-            if secondary_direction is not None:
-                keys = [[direction, secondary_direction]]
-                keys.extend([secondary_direction] * (len(delays) - 1))
-                events = [["keydown", "keydown"]]
-                events.extend(["keydown"] * (len(delays) - 1))
-            else:
-                keys = [direction] * len(delays)
-                events: list[Literal] = ["keydown"] * len(delays)
-
-            structure = controller.input_constructor(handle, keys, events)
-            actions.append(partial(
-                controller.focused_inputs,
-                hwnd=handle,
-                inputs=structure,
-                delays=delays
-                )
+            actions.append(
+                partial(move, handle, direction, duration, secondary_direction)
             )
 
         elif movement[0] in ["JUMP_LEFT", "JUMP_RIGHT", "JUMP_DOWN", "JUMP_UP"]:
-            num_jumps = movement[1]
-            if num_jumps > 1:
-                # TODO - Figure out delay between jumps!
-                breakpoint()
             direction = movement[0].split("_")[-1].lower()
-            keys = [direction, jump_key, jump_key, direction]
-            events = ["keydown", "keydown", "keyup", "keyup"]
+            num_jumps = movement[1]
 
-            # twice delay between direction & jump, and twice delay between keydown/up
-            delays = [next(controller.random_delay) * 2 for _ in range(2)] + [
-                next(controller.random_delay) for _ in range(2)
-            ]
-
-            for _ in range(num_jumps):
-                pass
-
-            structure = controller.input_constructor(handle, keys, events)
-            actions.append(partial(
-                controller.focused_inputs,
-                hwnd=handle,
-                inputs=structure,
-                delays=delays,
-                enforce_last_inputs=2
+            if num_jumps == 1:
+                actions.append(partial(single_jump, handle, direction, jump_key))
+            elif num_jumps > 1:
+                actions.append(
+                    partial(continuous_jump, handle, direction, jump_key, num_jumps)
                 )
-            )
 
         elif movement[0] == "FALL_ANY":
             raise NotImplementedError("Not supposed to reach this point.")
 
         elif movement[0] in ["JUMP_LEFT_AND_UP", "JUMP_RIGHT_AND_UP"]:
             direction = movement[0].split("_")[1].lower()
-            act = [partial(jump_on_rope, direction=direction)] * movement[1]
+            if movement[1] > 1:
+                breakpoint()
+                raise NotImplementedError("Not supposed to reach this point.")
+            actions.append(partial(jump_on_rope, handle, direction))
 
         elif movement[0] == "JUMP_ANY_AND_UP":
             raise NotImplementedError("Not supposed to reach this point.")
 
         elif movement[0] == "PORTAL":
-            try:
-                previous_act = actions[-1]
-                previous_direction = previous_act.keywords["direction"]
-                act = partial(
-                    controller.move,
-                    direction=previous_direction,
-                    duration=0.5,  # TODO - Does that work well?
-                    secondary_direction="up",
-                )
-            except IndexError:
-                # If no previous movement, just press up.
-                act = partial(
-                    controller.move,
-                    direction="up",
-                    duration=0.1,
-                )
+            actions.append(partial(controller.press, handle, "up"))
 
         elif movement[0] in [
             "TELEPORT_LEFT",
@@ -323,8 +294,12 @@ def _convert_movements_to_actions(
             "TELEPORT_UP",
             "TELEPORT_DOWN",
         ]:
-            direction = movement[0].split("_")[-1].lower()
-            act = [partial(teleport_once, direction=direction)] * movement[1]
+            assert teleport_skill is not None
+            direction = [movement[0].split("_")[-1].lower()] * movement[1]
+            num_teleports = movement[1]
+            actions.append(
+                partial(teleport, handle, ign, direction, teleport_skill, num_teleports)
+            )
 
         elif movement[0] in [
             "FLASH_JUMP_LEFT",

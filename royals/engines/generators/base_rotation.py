@@ -75,6 +75,10 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
             self.data.current_minimap_position,
             self.next_target,
             self.data.current_minimap,
+            self.data.handle,
+            controller.key_binds(self.data.ign)["jump"],
+            self._teleport,
+            self.data.ign
         )
 
     def __repr__(self):
@@ -135,7 +139,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
         )
         kwargs = action.keywords.copy()
         kwargs.pop("direction", None)
-        if action.func.__name__ == "teleport_once":
+        if action.func.__name__ == "teleport":
             kwargs.update(teleport_skill=self._teleport)
         return partial(action.func, *args, **kwargs)
 

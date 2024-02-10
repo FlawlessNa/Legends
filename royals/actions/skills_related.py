@@ -20,6 +20,8 @@ async def cast_skill(
     """
     Casts a skill and triggers the keyboard repeat feature for the duration.
     If skill is unidirectional, then first turn into the provided direction.
+    The 0.5 standard first delay is automatically added, since event for consecutive
+    casts of the same skill the key is always released at the end.
     :param handle:
     :param ign:
     :param skill:
@@ -35,13 +37,15 @@ async def cast_skill(
 
     keys = [skill.key_bind(ign)] * len(delays)
     events: list[Literal["keydown", "keyup"]] = ["keydown"]
-    [events.append("keydown") for _ in range(len(delays) - 2)]  # TODO - see if better way (this is to avoid "invalid type" from IDE)
+    [
+        events.append("keydown") for _ in range(len(delays) - 2)
+    ]  # TODO - see if better way (this is to avoid "invalid type" from IDE)
     events.append("keyup")
 
     if direction is not None and skill.unidirectional:
         # TODO - Generic function to release other directions based on their status
         events.insert(0, "keydown")
-        events.insert(0, "keyup")
+        events.insert(1, "keyup")
         keys.insert(0, direction)
         keys.insert(0, direction)
         delays.append(2 * next(controller.random_delay))
@@ -55,13 +59,11 @@ async def cast_skill(
 
     await asyncio.wait_for(
         controller.focused_inputs(handle, structure, delays, 1),
-        timeout=min(skill.animation_time * 0.95, skill.animation_time - 0.05)
+        timeout=min(skill.animation_time * 0.95, skill.animation_time - 0.05),
     )
 
 
-async def ultimate_cast(
-
-):
+async def ultimate_cast():
     """
     TODO.
     Use this in the context of farming.
@@ -74,11 +76,12 @@ async def ultimate_cast(
     pass
 
 
-async def teleport_once(
+async def teleport(
     handle: int,
     ign: str,
     direction: Literal["left", "right", "up", "down"],
     teleport_skill: Skill,
+    num_times: int = 1,
 ):
     """
     Casts teleport in a given direction.
@@ -86,48 +89,23 @@ async def teleport_once(
     :param ign:
     :param teleport_skill:
     :param direction:
-    :return:
-    """
-    start = time.perf_counter()
-    try:
-        await controller.move(
-            handle,
-            ign,
-            direction,
-            duration=0.5,
-            secondary_key_press=teleport_skill.key_bind(ign),
-            secondary_key_interval=teleport_skill.animation_time,
-        )
-    finally:
-        await asyncio.sleep(
-            max(0.0, teleport_skill.animation_time - (time.perf_counter() - start))
-        )
-
-
-async def continuous_teleport(
-    handle: int,
-    ign: str,
-    direction: Literal["left", "right", "up", "down"],
-    teleport_skill: Skill,
-    num_times: int,
-):
-    """
-    Continuously casts teleport in a given direction.
-    :param handle:
-    :param ign:
-    :param direction:
-    :param teleport_skill:
     :param num_times:
     :return:
     """
-    duration = teleport_skill.animation_time * num_times
-    await controller.move(
-        handle,
-        ign,
-        direction,
-        duration=duration,
-        secondary_key_press=teleport_skill.key_bind(ign),
-    )
+    keys = [direction, teleport_skill.key_bind(ign), teleport_skill.key_bind(ign)]
+    events: list[Literal] = ["keydown", "keydown", "keyup"]
+    delays = [next(controller.random_delay) * 2 for _ in range(2)] + [
+        teleport_skill.animation_time
+    ]
+    for _ in range(num_times - 1):
+        keys.extend([teleport_skill.key_bind(ign), teleport_skill.key_bind(ign)])
+        events.extend(["keydown", "keyup"])
+        delays.extend(
+            [next(controller.random_delay) * 2, teleport_skill.animation_time]
+        )
+
+    structure = controller.input_constructor(handle, keys, events)
+    await controller.focused_inputs(handle, structure, delays, 1)
 
 
 async def telecast(

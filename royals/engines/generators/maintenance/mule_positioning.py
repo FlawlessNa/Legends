@@ -183,6 +183,9 @@ class ResetIdleSafeguard(DecisionGenerator):
                     self.data.current_minimap_position,
                     self._target,
                     self.data.current_minimap,
+                    self.data.handle,
+                    controller.key_binds(self.data.ign)["jump"],
+                    ign=self.data.ign
                 )
                 if actions:
                     self._deadlock_counter = 0

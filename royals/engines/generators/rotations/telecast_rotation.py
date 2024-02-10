@@ -69,13 +69,13 @@ class TelecastRotationGenerator(RotationGenerator):
         hit_mobs = self._mobs_hitting()
         if hit_mobs is not None:
             # Check for telecast
-            if len(self.actions) == 0 or self.actions[0].func.__name__ != "teleport_once":
+            if len(self.actions) == 0 or self.actions[0].func.__name__ != "teleport":
                 # If first move isn't a teleport, simply cast skill instead
                 return hit_mobs
             else:
                 # If first move is teleport, replace by telecast and keep teleporting
                 directions = []
-                while self.actions and self.actions[0].func.__name__ == "teleport_once":
+                while self.actions and self.actions[0].func.__name__ == "teleport":
                     next_action = self.actions.pop(0)
                     directions.append(next_action.keywords["direction"])
                 res = partial(

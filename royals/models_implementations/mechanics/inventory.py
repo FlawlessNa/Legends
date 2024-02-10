@@ -13,7 +13,7 @@ from botting import PARENT_LOG
 from botting.core import DecisionGenerator, GeneratorUpdate, QueueAction, controller
 from botting.utilities import Box, find_image
 from paths import ROOT
-from royals.actions import cast_skill, continuous_teleport
+from royals.actions import cast_skill, teleport
 from royals.game_data import MaintenanceData, MinimapData
 from royals.models_implementations.mechanics import MinimapConnection
 from royals.models_implementations.mechanics.path_into_movements import get_to_target
@@ -524,9 +524,13 @@ class InventoryActions:
             generator.data.current_minimap_position,
             target,
             generator.data.current_minimap,
+            generator.data.handle,
+            controller.key_binds(generator.data.ign)["jump"],
+            getattr(generator, '_teleport', None),
+            generator.data.ign
         )
         res = None
-        if actions and enable_multi and actions[0].func.__name__ == "teleport_once":
+        if actions and enable_multi and actions[0].func.__name__ == "teleport":
             num_actions = 0
             for action in actions:
                 if action == actions[0]:
@@ -551,7 +555,7 @@ class InventoryActions:
             )
             kwargs = first_action.keywords.copy()
             kwargs.pop("direction", None)
-            if first_action.func.__name__ == "teleport_once":
+            if first_action.func.__name__ == "teleport":
                 kwargs.update(
                     teleport_skill=generator.data.character.skills["Teleport"]
                 )
