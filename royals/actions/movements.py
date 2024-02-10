@@ -1,7 +1,21 @@
-import asyncio
 import random
 from botting.core import controller
 from typing import Literal
+
+
+async def single_jump(
+    handle: int, direction: Literal["left", "right", "up", "down"], jump_key: str
+) -> None:
+
+
+
+async def continuous_jump(
+    handle: int,
+    direction: Literal["left", "right", "up", "down"],
+    jump_key: str,
+    num_jumps: int
+) -> None:
+    raise NotImplementedError
 
 
 async def jump_on_rope(

@@ -6,7 +6,7 @@
 - [ ] Cancellation of NPC Selling seems to be problematic because it has a return value
 
 ## Input-Constructor Branch - TODOs
-- Idea #1: For casting (especially attacking skills), always trigger repeated feature for skill.animation_time
+- [x] Idea #1: For casting (especially attacking skills), always trigger repeated feature for skill.animation_time
 - [ ] Streamline input construction and allow mouse + keyboard inputs tangled
   - Allows repeated key feature on anything, keys + mouse inputs combined as well
 - [ ] Refactor using this "input constructor" to implement actions/movements specific to royals
@@ -14,6 +14,10 @@
   - [ ] Same is true between keydown/keyups
 - [ ] Casting - Use with the new Repeated key feature
   - Casting should ensure keys are released at the end for human-like behavior, but it won't cause problems in terms of activity
+- [ ] Task Cancellation: 
+  - Tasks with lower priority number still cancel other tasks. 
+  - Rotation tasks are cancelled by any other tasks.
+  - Rotation tasks CANNOT be scheduled if a higher priority task is still in queue
 - [ ] Rotation Fluidity
   - Rotation Generators should continuously fire rotation actions
   - Each new rotation action cancels the previous to take its place. Cancellations do not release keys.
@@ -21,6 +25,7 @@
   - Each action mostly consists of keydowns inputs
   - When a new action overwrites the previous and keys change, then keyups are triggered
   - When Focus Lock changes, keyups are also triggered
+- [ ] Refactor the controller top-level functions
 
 ## Leeching Branch - TODOs
 - [ ] Multi-client blockers
@@ -37,6 +42,7 @@
 
 ### Performance Improvement
 - [ ] Ability to group multiple characters (aka engines) into single process. This means every generators for that engine needs to be created N times. There will also be N instances of game data.
+- [ ] Ability to only retrieve first action in pathfinding parser instead of entire actions
 
 
 ### Inventory Cleanup

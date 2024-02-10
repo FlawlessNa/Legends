@@ -5,6 +5,7 @@ import logging
 import numpy as np
 from functools import partial
 from pathfinding.finder.a_star import AStarFinder
+from typing import Literal
 
 from botting import PARENT_LOG
 from botting.core.controls import controller
@@ -49,15 +50,22 @@ def get_to_target(
     current: tuple[int, int],
     target: tuple[int, int],
     in_game_minimap: MinimapPathingMechanics,
-) -> list[partial]:
+    handle: int,
+    jump_key: str
+) -> list[list[tuple]]:
     """
     Computes the path from current to target using map features.
-    Translates this path into movements, converts those movements into in-game actions.
-    Returns a list of incomplete partial objects.
+    Translates this path into movements,  and finally converts those movements
+    into in-game actions.
+    Returns a nested list where each inner list is a set of inputs to represent a given
+    movement.
     :param current: Current minimap position.
     :param target: Target minimap position.
     :param in_game_minimap: The current minimap in-game.
-    :return: List of incomplete partial objects that require further args/kwargs.
+    :param handle: Handle of the game window.
+    :param jump_key: Key to use for jumping for the character on the provided window.
+    :return: List of list[tuple] where each list[tuple] is a series of input for a
+        particular type movement.
     """
     path = _get_path_to_target(current, target, in_game_minimap)
     movements = _translate_path_into_movements(path, in_game_minimap)
@@ -72,7 +80,9 @@ def get_to_target(
             feature = in_game_minimap.get_feature_containing(current)
             if feature is not None and feature.is_platform:
                 movements.pop(0)
-    return _convert_movements_to_actions(movements, in_game_minimap.minimap_speed)
+    return _convert_movements_to_actions(
+        movements, in_game_minimap.minimap_speed, handle, jump_key
+    )
 
 
 def _get_path_to_target(
@@ -85,7 +95,8 @@ def _get_path_to_target(
 
     :param current: Character position on minimap.
     :param target: Target position on minimap.
-    :param in_game_minimap: Minimap implementation which contains minimap coordinates for all existing features.
+    :param in_game_minimap: Minimap implementation which contains minimap coordinates
+     for all existing features.
     :return: A series of MinimapNodes that consist of the path to take to reach target.
     """
     grid = in_game_minimap.grid
@@ -104,14 +115,16 @@ def _translate_path_into_movements(
     path: list[MinimapNode], in_game_minimap: MinimapPathingMechanics
 ) -> list[tuple[str, int]]:
     """
-    Translates a path into a series of movements. Each movement is represented by a tuple of two items.
+    Translates a path into a series of movements.
+    Each movement is represented by a tuple of two items.
     The first item is a str representing the actual movement.
-    The second item is an int unit representing the number of nodes/times to do the movement.
+    The second item is an int unit representing the number of nodes/time to move.
     :param path: List of MinimapNodes representing the path to take.
     :return: List of ("movement to do", "number of nodes/times to go through") tuples.
     """
 
-    # We start by translating the path into a series of "movements" (up, down, left, right, jump, teleport, etc.).
+    # We start by translating the path into a series of "movements"
+    # (up, down, left, right, jump, teleport, etc.).
     movements = []
     for i in range(len(path) - 1):
         current_node = path[i]
@@ -155,7 +168,7 @@ def _translate_path_into_movements(
                 current_node.connections.index(next_node)
             ]
 
-            # When there are more than 1 connection type, prioritize Teleport, if existing.
+            # if more than 1 connection type, prioritize Teleport, if existing.
             if (
                 current_node.connections.count(next_node) > 1
                 and in_game_minimap.grid.allow_teleport
@@ -173,7 +186,6 @@ def _translate_path_into_movements(
 
             movements.append(MinimapConnection.convert_to_string(connection_type))
         else:
-            breakpoint()  # TODO - Remove this after testing; irregular features will reach this point technically
             raise NotImplementedError("Not supposed to reach this point.")
 
     squeezed_movements = [(k, len(list(g))) for k, g in itertools.groupby(movements)]
@@ -181,7 +193,7 @@ def _translate_path_into_movements(
 
 
 def _convert_movements_to_actions(
-    moves: list[tuple[str, int]], speed: float
+    moves: list[tuple[str, int]], speed: float, handle: int, jump_key: str,
 ) -> list[partial]:
     """
     Converts a series of movements into a series of actions.
@@ -189,61 +201,93 @@ def _convert_movements_to_actions(
     :param speed:
     :return:
     """
-    # We now have a list of movements to perform. When movement is 'left' or 'right', the second
-    # element of the tuple is the number of nodes to walk through.
-    # This needs to be translated into a duration for the movement.
     actions = []
     for movement in moves:
         if movement[0] in ["left", "right", "up", "down", "FALL_LEFT", "FALL_RIGHT"]:
-            secondary_direction = None
+            # In this case, second element of tuple is number of nodes.
+            duration = movement[1] / speed  # Translate nodes into a duration
             direction = movement[0].split("_")[-1].lower()
-            duration = movement[1] / speed
+            secondary_direction = None
+
             if movement[0] in ["FALL_LEFT", "FALL_RIGHT"]:
                 duration += (
                     3 / speed
                 )  # Add extra nodes to make sure character goes beyond platform
+
             elif direction in ["up", "down"]:
-                # In this case, check if this is the last movement, which means the target is on the same platform.
+                # Check if last movement, meaning target is on the same platform.
                 # If not, add extra nodes to make sure character goes beyond the ladder.
                 if not movement == moves[-1]:
                     duration += 3 / speed
+
             elif movement[0] in ["left", "right"]:
-                # In this case, check if the next movement is a simple "up" or "down" movement.
-                # If so, we add it as secondary direction, but only once we are close enough to the ladder.
-                # Otherwise, we instead remove some nodes such that the character stops before the ladder.
+                # Check if the next movement is a simple "up" or "down". If so, add it
+                # as secondary direction, but only if close enough to the ladder.
                 try:
                     next_move = moves[moves.index(movement) + 1]
                     if next_move[0] in ["up", "down", "PORTAL"]:
                         if movement[1] < 5:
+                            # Make sure we reach the ladder/portal
                             secondary_direction = (
                                 "up" if next_move[0] in ["up", "PORTAL"] else "down"
                             )
                             duration += (
                                 3 / speed
-                            )  # Make sure we reach the ladder/portal
+                            )
                         else:
-                            # Otherwise, make sure we stop before the ladder/portal and re-calculate on next iteration
+                            # Otherwise, make sure we stop before the ladder/portal
+                            # Will be re-calculated at next iteration
                             duration -= 3 / speed
                 except IndexError:
                     pass
 
-            act = partial(
-                controller.move,
-                direction=direction,
-                duration=duration,
-                secondary_direction=secondary_direction,
+            delays = []
+            while sum(delays) < duration:
+                delays.append(next(controller.random_delay))
+            if secondary_direction is not None:
+                keys = [[direction, secondary_direction]]
+                keys.extend([secondary_direction] * (len(delays) - 1))
+                events = [["keydown", "keydown"]]
+                events.extend(["keydown"] * (len(delays) - 1))
+            else:
+                keys = [direction] * len(delays)
+                events: list[Literal] = ["keydown"] * len(delays)
+
+            structure = controller.input_constructor(handle, keys, events)
+            actions.append(partial(
+                controller.focused_inputs,
+                hwnd=handle,
+                inputs=structure,
+                delays=delays
+                )
             )
 
         elif movement[0] in ["JUMP_LEFT", "JUMP_RIGHT", "JUMP_DOWN", "JUMP_UP"]:
+            num_jumps = movement[1]
+            if num_jumps > 1:
+                # TODO - Figure out delay between jumps!
+                breakpoint()
             direction = movement[0].split("_")[-1].lower()
-            act = [
-                partial(
-                    controller.move,
-                    direction=direction,
-                    duration=0.1,
-                    jump=True,
+            keys = [direction, jump_key, jump_key, direction]
+            events = ["keydown", "keydown", "keyup", "keyup"]
+
+            # twice delay between direction & jump, and twice delay between keydown/up
+            delays = [next(controller.random_delay) * 2 for _ in range(2)] + [
+                next(controller.random_delay) for _ in range(2)
+            ]
+
+            for _ in range(num_jumps):
+                pass
+
+            structure = controller.input_constructor(handle, keys, events)
+            actions.append(partial(
+                controller.focused_inputs,
+                hwnd=handle,
+                inputs=structure,
+                delays=delays,
+                enforce_last_inputs=2
                 )
-            ] * movement[1]
+            )
 
         elif movement[0] == "FALL_ANY":
             raise NotImplementedError("Not supposed to reach this point.")
@@ -291,10 +335,5 @@ def _convert_movements_to_actions(
         else:
             breakpoint()
             raise NotImplementedError("Not supposed to reach this point.")
-
-        if isinstance(act, list):
-            actions.extend(act)
-        else:
-            actions.append(act)
 
     return actions

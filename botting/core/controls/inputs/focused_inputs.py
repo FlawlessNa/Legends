@@ -221,6 +221,7 @@ async def focused_inputs(
     """
     Sends the inputs to the active window.
     A small delay is added between each input.
+    TODO - This function should be responsible for releasing keys and appending 0.5 delay at beginning on new keys.
     :param hwnd: handle to the window to send the inputs to.
     :param inputs: input structures to send.
     :param delays: delays between each input.

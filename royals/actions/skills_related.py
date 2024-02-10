@@ -14,6 +14,7 @@ async def cast_skill(
     handle: int,
     ign: str,
     skill: Skill,
+    ready_at: float,
     direction: str = None,
 ) -> None:
     """
@@ -23,13 +24,13 @@ async def cast_skill(
     :param ign:
     :param skill:
     :param direction:
+    :param ready_at:
     :return:
     """
     delays = [0.5]
     while sum(delays) < skill.animation_time:
         delays.append(next(controller.random_delay))
     # The last delay is between keydown and keyup, which is doubled
-    # TODO - See if a delay or two should be removed to avoid a double-cast
     delays[-1] *= 2
 
     keys = [skill.key_bind(ign)] * len(delays)
@@ -47,16 +48,30 @@ async def cast_skill(
         delays.append(next(controller.random_delay))
 
     structure = controller.input_constructor(handle, keys, events)
-    try:
-        await asyncio.wait_for(
-            controller.focused_inputs(handle, structure, delays, 1),
-            timeout=min(skill.animation_time * 0.95, skill.animation_time - 0.05)
-        )
-    except TimeoutError:
-        print(f'Timeout from cast_skill {ign} {skill.name}')
 
-    except asyncio.CancelledError:
-        print(f'cast_skill Cancelled {ign} {skill.name}')
+    wait_time = max(ready_at - time.perf_counter(), 0.0)
+    if wait_time > 0:
+        await asyncio.sleep(wait_time)
+
+    await asyncio.wait_for(
+        controller.focused_inputs(handle, structure, delays, 1),
+        timeout=min(skill.animation_time * 0.95, skill.animation_time - 0.05)
+    )
+
+
+async def ultimate_cast(
+
+):
+    """
+    TODO.
+    Use this in the context of farming.
+    In this context, fire focus_inputs with a single structure at a time, such that
+    lock is always released. This enables mage to cast nearly simultaneously without
+    cancelling each other such that they may still press more than once to ensure proper
+    cast.
+    :return:
+    """
+    pass
 
 
 async def teleport_once(
