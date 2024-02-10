@@ -75,7 +75,7 @@ class InventoryChecks:
             self.data.handle, self.data.current_client_img
         ):
             attempt = 0
-            while attempt < 5:
+            while True:
                 active_tab = self.data.inventory_menu.get_active_tab(
                     self.data.handle, self.data.current_client_img
                 )
@@ -346,7 +346,7 @@ class InventoryChecks:
                     self.data.handle,
                     self.data.ign,
                     "right" if horiz_dist > 0 else "left",
-                    horiz_dist / self.data.current_minimap.minimap_speed,
+                    max(horiz_dist / self.data.current_minimap.minimap_speed, 0.01),
                     "up",
                 ),
                 update_generators=GeneratorUpdate(
@@ -503,15 +503,21 @@ class InventoryActions:
         num_clicks: int,
     ) -> int:
         res = 0
-        await InventoryActions._mouse_move_and_click(
-            handle, target_tab, move_away=False
-        )
-        await controller.mouse_move(handle, sell_button, total_duration=0.2)
-        for _ in range(num_clicks):
-            await asyncio.sleep(0.25)
-            res += await controller.click(handle)
-            await controller.press(handle, "y", silenced=True)
-        return res
+        try:
+            await InventoryActions._mouse_move_and_click(
+                handle, target_tab, move_away=False
+            )
+            await controller.mouse_move(handle, sell_button, total_duration=0.2)
+            for _ in range(num_clicks):
+                await asyncio.sleep(0.25)
+                res += await controller.click(handle)
+                await controller.press(handle, "y", silenced=True)
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            raise
+        finally:
+            return res
 
     @staticmethod
     def move_to_target(
