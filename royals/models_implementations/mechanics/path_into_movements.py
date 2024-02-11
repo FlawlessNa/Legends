@@ -86,8 +86,13 @@ def get_to_target(
             movements.pop(0)
 
         elif movements[0][0] in ["up", "down"]:
+            displacement = (
+                movements[0][1] if movements[0][0] == "down" else -movements[0][1]
+            )
+            target = current[0], current[1] + displacement
             feature = in_game_minimap.get_feature_containing(current)
-            if feature is not None and feature.is_platform:
+            next_feature = in_game_minimap.get_feature_containing(target)
+            if feature is not None and feature.is_platform and next_feature.is_platform:
                 movements.pop(0)
     return _convert_movements_to_actions(
         movements, in_game_minimap.minimap_speed, handle, jump_key, teleport_skill, ign
@@ -255,10 +260,18 @@ def _convert_movements_to_actions(
                             # Will be re-calculated at next iteration
                             duration -= 3 / speed
                 except IndexError:
-                    pass
+                    # If this is last movement and there's only 1 node, cap duration
+                    if movement[1] == 1:
+                        duration = 0.05
 
             actions.append(
-                partial(move, handle, direction, duration, secondary_direction)
+                partial(
+                    move,
+                    handle,
+                    direction,
+                    secondary_direction=secondary_direction,
+                    duration=duration,
+                )
             )
 
         elif movement[0] in ["JUMP_LEFT", "JUMP_RIGHT", "JUMP_DOWN", "JUMP_UP"]:
@@ -268,8 +281,15 @@ def _convert_movements_to_actions(
             if num_jumps == 1:
                 actions.append(partial(single_jump, handle, direction, jump_key))
             elif num_jumps > 1:
-                actions.append(
-                    partial(continuous_jump, handle, direction, jump_key, num_jumps)
+                actions.extend(
+                    [
+                        partial(
+                            single_jump,
+                            handle,
+                            direction,
+                            jump_key,
+                        )
+                    ] * num_jumps
                 )
 
         elif movement[0] == "FALL_ANY":
@@ -296,9 +316,54 @@ def _convert_movements_to_actions(
         ]:
             assert teleport_skill is not None
             direction = movement[0].split("_")[-1].lower()
-            actions.append(
-                partial(teleport, handle, ign, direction, teleport_skill, movement[1])
-            )
+            if movement[1] > 1:
+                actions.append(
+                    partial(
+                        teleport,
+                        handle,
+                        ign,
+                        direction,
+                        teleport_skill,
+                        num_times=movement[1],
+                    )
+                )
+            else:
+                # In this case, check if next movement is in opposite direction. If so,
+                # cancel the teleport and move instead.
+                try:
+                    next_move = moves[moves.index(movement) + 1]
+                    if next_move[0] in ["left", "right"] and next_move[0] != direction:
+                        actions.append(
+                            partial(
+                                move,
+                                handle,
+                                direction,
+                                None,
+                                duration=0.1
+                            )
+                        )
+                    else:
+                        actions.append(
+                            partial(
+                                teleport,
+                                handle,
+                                ign,
+                                direction,
+                                teleport_skill,
+                                num_times=1,
+                            )
+                        )
+                except IndexError:
+                    actions.append(
+                        partial(
+                            teleport,
+                            handle,
+                            ign,
+                            direction,
+                            teleport_skill,
+                            num_times=1,
+                        )
+                    )
 
         elif movement[0] in [
             "FLASH_JUMP_LEFT",

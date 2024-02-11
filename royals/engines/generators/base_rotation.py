@@ -36,13 +36,14 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
         super().__init__(data)
         self.training_skill = training_skill
         self.mob_threshold = mob_threshold
+        self.actions = []
 
         self.next_target = (0, 0)
         self._teleport = teleport
 
         self._deadlock_counter = 0  # For Failsafe
         self._last_pos_change = time.perf_counter()  # For Failsafe
-        self._prev_pos = None  # For Failsafe
+        self._prev_pos = self._prev_action = None  # For Failsafe
         self._prev_rotation_actions = []  # For Failsafe
 
         self._on_screen_pos = None  # For Mobs Hitting
@@ -69,6 +70,9 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
             if self.data.current_on_screen_position is not None
             else self._on_screen_pos
         )
+        if self.actions:
+            self._prev_action = self.actions[0]
+
         self.actions = get_to_target(
             self.data.current_minimap_position,
             self.next_target,
@@ -100,6 +104,13 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
     def _rotation(self) -> QueueAction | None:
         if self.actions:
             res = self.actions[0]
+            if self._prev_action is not None:
+                if (
+                    res.func == self._prev_action.func
+                    and res.args == self._prev_action.args
+                ):
+                    self._prev_action = None
+                    return
             action = QueueAction(
                 identifier=self.__class__.__name__,
                 priority=99,

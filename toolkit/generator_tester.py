@@ -21,7 +21,7 @@ DATA_INSTANCE = RoyalsData(
     character=Bishop(IGN, "Elephant Cape", "large")
 )
 ENGINE_KWARGS = {}
-GENERATOR_KWARGS = dict(training_skill=DATA_INSTANCE.character.skills["Heal"], teleport=DATA_INSTANCE.character.skills["Teleport"], mob_threshold=5)
+GENERATOR_KWARGS = dict(training_skill=DATA_INSTANCE.character.skills["Heal"], teleport=DATA_INSTANCE.character.skills["Teleport"], mob_threshold=5, time_limit=0.2)
 
 
 class MockEngine(DecisionEngine):

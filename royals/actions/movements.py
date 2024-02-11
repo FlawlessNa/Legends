@@ -6,8 +6,9 @@ from typing import Literal
 async def move(
     handle: int,
     direction: Literal["left", "right", "up", "down"],
-    duration: float,
     secondary_direction: Literal["up", "down"] = None,
+    *,
+    duration: float,
 ) -> None:
     """
     Triggers the automatic repeat feature in a given direction.
@@ -86,7 +87,9 @@ async def jump_on_rope(
     # Long delay between keydowns and ups, to maximize chances of grabbing rope
     delays = [next(controller.random_delay) * 2, 0.75, next(controller.random_delay)]
     structure = controller.input_constructor(handle, keys, events)
-    await controller.focused_inputs(handle, structure, delays, enforce_last_inputs=1)
+    await controller.focused_inputs(
+        handle, structure, delays, enforce_last_inputs=1, enforce_transition_delay=True
+    )
 
 
 async def random_jump(handle: int, jump_key: str):
