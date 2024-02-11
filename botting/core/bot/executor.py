@@ -115,7 +115,7 @@ class Executor:
             queue_item.action = partial(asyncio.sleep, 0)
 
         # Ensures action is not interfering with other actions from the same bot.
-        queue_item.action = self._wrap_action(queue_item.action)
+        # queue_item.action = self._wrap_action(queue_item.action)
 
         # Callbacks are triggered upon completion OR cancellation of the task.
         new_task = asyncio.create_task(queue_item.action(), name=queue_item.identifier)
@@ -127,8 +127,8 @@ class Executor:
         new_task.is_cancellable = queue_item.is_cancellable
         new_task.process_id = queue_item.process_id
 
-        if queue_item.release_lock_on_callback:
-            new_task.add_done_callback(self._rotation_callback)
+        # if queue_item.release_lock_on_callback:
+        #     new_task.add_done_callback(self._rotation_callback)
 
         if queue_item.update_generators is not None:
             new_task.add_done_callback(
@@ -219,25 +219,25 @@ class Executor:
             kwargs=self.engine_kwargs,
         )
 
-    def _rotation_callback(self, fut):
-        """
-        Callback to use on map rotation actions if they need to acquire lock before
-        executing. In some cases, such as failsafe responses, the lock has not been
-        acquired yet.
-        For this reason, try to acquire the lock before releasing it.
-        """
-        self.rotation_lock.acquire(block=False)
-        self.rotation_lock.release()
-        if fut.cancelled():
-            pass
-            # logger.debug(
-            #     f"Rotation Lock released on {self} through callback. {fut.get_name()} is Cancelled."
-            # )
-        else:
-            pass
-            # logger.debug(
-            #     f"Rotation Lock released on {self} through callback. {fut.get_name()} is Done."
-            # )
+    # def _rotation_callback(self, fut):
+    #     """
+    #     Callback to use on map rotation actions if they need to acquire lock before
+    #     executing. In some cases, such as failsafe responses, the lock has not been
+    #     acquired yet.
+    #     For this reason, try to acquire the lock before releasing it.
+    #     """
+    #     self.rotation_lock.acquire(block=False)
+    #     self.rotation_lock.release()
+    #     if fut.cancelled():
+    #         pass
+    #         # logger.debug(
+    #         #     f"Rotation Lock released on {self} through callback. {fut.get_name()} is Cancelled."
+    #         # )
+    #     else:
+    #         pass
+    #         # logger.debug(
+    #         #     f"Rotation Lock released on {self} through callback. {fut.get_name()} is Done."
+    #         # )
 
     def _send_update_signal_callback(self, signal: GeneratorUpdate, fut):
         """
@@ -256,23 +256,23 @@ class Executor:
 
         self.bot_side.send(signal)
 
-    def _wrap_action(self, action: callable) -> callable:
-        """
-        Wrapper around actions to ensure they are not interfering with each other.
-        :param action: The action to be executed asynchronously.
-        :return: None
-        """
-
-        async def _wrapper():
-            await self.action_lock.acquire()
-            try:
-                # logger.debug(f"Action Lock acquired for {self} for {action}")
-                return await action()
-            finally:
-                self.action_lock.release()
-                # logger.debug(f"Action Lock released for {self} for {action}")
-
-        return _wrapper
+    # def _wrap_action(self, action: callable) -> callable:
+    #     """
+    #     Wrapper around actions to ensure they are not interfering with each other.
+    #     :param action: The action to be executed asynchronously.
+    #     :return: None
+    #     """
+    #
+    #     async def _wrapper():
+    #         await self.action_lock.acquire()
+    #         try:
+    #             # logger.debug(f"Action Lock acquired for {self} for {action}")
+    #             return await action()
+    #         finally:
+    #             self.action_lock.release()
+    #             # logger.debug(f"Action Lock released for {self} for {action}")
+    #
+    #     return _wrapper
 
     async def engine_listener(self) -> None:
         """
@@ -308,15 +308,19 @@ class Executor:
                     raise queue_item
 
                 logger.debug(f"Received {queue_item} from {self} monitoring process.")
-                task_ids = [
-                    (task.get_name(), getattr(task, "process_id", None))
-                    for task in asyncio.all_tasks()
-                ]
-                if (queue_item.identifier, queue_item.process_id) in task_ids:
-                    logger.info(
-                        f"Task {queue_item.identifier} already exists. Skipping."
-                    )
-                    continue
+                print(queue_item.action)
+                for task in asyncio.all_tasks():  # TODO - Refactor this hardcoding
+                    if task.get_name() == queue_item.identifier == 'SmartRotationGenerator':
+                        task.cancel()
+                # task_ids = [
+                #     (task.get_name(), getattr(task, "process_id", None))
+                #     for task in asyncio.all_tasks()
+                # ]
+                # if (queue_item.identifier, queue_item.process_id) in task_ids:
+                #     logger.info(
+                #         f"Task {queue_item.identifier} already exists. Skipping."
+                #     )
+                #     continue
 
                 new_task = self.create_task(queue_item)
                 logger.debug(f"Created task {new_task.get_name()}.")

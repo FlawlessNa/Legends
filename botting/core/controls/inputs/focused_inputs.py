@@ -126,7 +126,9 @@ async def activate(hwnd: int) -> bool:
     """
     acquired = False
     if GetForegroundWindow() != hwnd:
+        print(f"Acquiring lock {FOCUS_LOCK}")
         acquired = await FOCUS_LOCK.acquire()
+        print(f"Acquired lock {FOCUS_LOCK}")
         logger.debug(f"Activating window {hwnd}")
         # Before activating, make sure to release any keys that are currently pressed.
         _release_movement_keys(hwnd)
@@ -136,17 +138,24 @@ async def activate(hwnd: int) -> bool:
         SetForegroundWindow(hwnd)
 
     elif not acquired and not FOCUS_LOCK.locked():
+        print(f"Acquiring lock {FOCUS_LOCK}")
         acquired = await FOCUS_LOCK.acquire()
+        print(f"Acquired lock {FOCUS_LOCK}")
     return acquired
 
 
 def _release_movement_keys(hwnd: int) -> None:
-    move_keys = [win32con.VK_UP, win32con.VK_DOWN, win32con.VK_LEFT, win32con.VK_RIGHT]
+    move_keys = {
+        win32con.VK_UP: "up",
+        win32con.VK_DOWN: "down",
+        win32con.VK_LEFT: "left",
+        win32con.VK_RIGHT: "right",
+    }
     release = [[]]
     events = [[]]
     for key in move_keys:
         if win32api.HIBYTE(GetAsyncKeyState(key)) != 0:
-            release[0].append(key)
+            release[0].append(move_keys[key])
             events[0].append("keyup")
     if release[0]:
         inputs = input_constructor(hwnd, release, events)
@@ -279,9 +288,12 @@ async def focused_inputs(
         if keys_to_release:
             for i in range(len(keys_to_release)):
                 _send_input(keys_to_release[i])
+                res += 1
                 time.sleep(delays[-enforce_last_inputs + i])
         if acquired:
+            print(f"Releasing lock {FOCUS_LOCK}")
             FOCUS_LOCK.release()
+        print('num input sent', res, 'out of', len(inputs) + enforce_last_inputs)
         return res
 
 
@@ -329,7 +341,6 @@ def _add_transitions(
     if len(inputs) > 1:
         second_input = inputs[1][1][0]
 
-    # Case 1 - Single first input
     if len(first_input) == 1:
         keys = [first_input[0].structure.ki.wVk]
     elif len(first_input) == 2:

@@ -29,13 +29,11 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
     def __init__(
         self,
         data: RotationData,
-        lock,
         training_skill: RoyalsSkill,
         mob_threshold: int,
         teleport: RoyalsSkill = None,
     ) -> None:
         super().__init__(data)
-        self._lock = lock
         self.training_skill = training_skill
         self.mob_threshold = mob_threshold
 
@@ -78,7 +76,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
             self.data.handle,
             controller.key_binds(self.data.ign)["jump"],
             self._teleport,
-            self.data.ign
+            self.data.ign,
         )
 
     def __repr__(self):
@@ -101,47 +99,19 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
 
     def _rotation(self) -> QueueAction | None:
         if self.actions:
-            first_action = self.actions[0]
-            res = self._create_partial(first_action)
-            if first_action.func.__name__ == "jump_on_rope":
-                cancellable = False
-            else:
-                cancellable = True
+            res = self.actions[0]
             action = QueueAction(
                 identifier=self.__class__.__name__,
                 priority=99,
                 action=res,
-                is_cancellable=cancellable,
-                release_lock_on_callback=True,
+                # is_cancellable=cancellable,
+                # release_lock_on_callback=True,
             )
 
-            if self._lock is None:  # TODO - Fix prev_rotations appending
-                self._prev_rotation_actions.append(res)
-                if len(self._prev_rotation_actions) > 5:
-                    self._prev_rotation_actions.pop(0)
-                return action
-
-            elif self._lock.acquire(block=False):
-
-                if self.data.available_to_cast:
-                    self._prev_rotation_actions.append(res)
-                    if len(self._prev_rotation_actions) > 5:
-                        self._prev_rotation_actions.pop(0)
-                    return action
-                else:
-                    self._lock.release()
-
-    def _create_partial(self, action: callable) -> partial:
-        args = (
-            self.data.handle,
-            self.data.ign,
-            action.keywords["direction"],
-        )
-        kwargs = action.keywords.copy()
-        kwargs.pop("direction", None)
-        if action.func.__name__ == "teleport":
-            kwargs.update(teleport_skill=self._teleport)
-        return partial(action.func, *args, **kwargs)
+            self._prev_rotation_actions.append(res)
+            if len(self._prev_rotation_actions) > 5:
+                self._prev_rotation_actions.pop(0)
+            return action
 
     def _failsafe(self) -> QueueAction | None:
         now = time.perf_counter()
@@ -156,7 +126,11 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
         reaction = QueueAction(
             identifier=f"FAILSAFE - {self.__class__.__name__}",
             priority=97,
-            action=partial(random_jump, self.data.handle, self.data.ign),
+            action=partial(
+                random_jump,
+                self.data.handle,
+                controller.key_binds(self.data.ign)["jump"],
+            ),
             is_cancellable=False,
         )
 
@@ -176,20 +150,20 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
             self.data.update("current_entire_minimap_box", "current_minimap_area_box")
             return reaction
 
-        elif (
-            all(
-                action.func == self._prev_rotation_actions[0].func
-                and action.args == self._prev_rotation_actions[0].args
-                and action.keywords == self._prev_rotation_actions[0].keywords
-                for action in self._prev_rotation_actions
-            )
-            and len(self._prev_rotation_actions) > 4
-        ):
-            logger.warning(
-                f"{self.__class__.__name__} Failsafe Triggered Due to repeated actions"
-            )
-            self._prev_rotation_actions.clear()
-            return reaction
+        # elif (
+        #     all(
+        #         action.func == self._prev_rotation_actions[0].func
+        #         and action.args == self._prev_rotation_actions[0].args
+        #         and action.keywords == self._prev_rotation_actions[0].keywords
+        #         for action in self._prev_rotation_actions
+        #     )
+        #     and len(self._prev_rotation_actions) > 4
+        # ):
+        #     logger.warning(
+        #         f"{self.__class__.__name__} Failsafe Triggered Due to repeated actions"
+        #     )
+        #     self._prev_rotation_actions.clear()
+        #     return reaction
 
     def _mobs_hitting(self) -> QueueAction | None:
         res = None

@@ -38,7 +38,7 @@ class QueueAction:
     update_generators: Optional["GeneratorUpdate"] = field(
         compare=False, default=None, repr=False
     )
-    release_lock_on_callback: bool = field(compare=False, default=False, repr=False)
+    # release_lock_on_callback: bool = field(compare=False, default=False, repr=False)
 
     # Not yet implemented
     callbacks: list[callable] = field(compare=False, default_factory=list, repr=False)

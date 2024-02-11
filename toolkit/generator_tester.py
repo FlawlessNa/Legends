@@ -44,7 +44,7 @@ class MockEngine(DecisionEngine):
     @property
     def next_map_rotation(self) -> DecisionGenerator:
         if GENERATOR.generator_type == "Rotation":
-            return GENERATOR(self.game_data, lock=self.rotation_lock, **GENERATOR_KWARGS)
+            return GENERATOR(self.game_data, **GENERATOR_KWARGS)
 
     @property
     def items_to_monitor(self) -> list[DecisionGenerator]:

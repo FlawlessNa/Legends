@@ -280,7 +280,7 @@ def _convert_movements_to_actions(
             if movement[1] > 1:
                 breakpoint()
                 raise NotImplementedError("Not supposed to reach this point.")
-            actions.append(partial(jump_on_rope, handle, direction))
+            actions.append(partial(jump_on_rope, handle, direction, jump_key))
 
         elif movement[0] == "JUMP_ANY_AND_UP":
             raise NotImplementedError("Not supposed to reach this point.")
@@ -295,10 +295,9 @@ def _convert_movements_to_actions(
             "TELEPORT_DOWN",
         ]:
             assert teleport_skill is not None
-            direction = [movement[0].split("_")[-1].lower()] * movement[1]
-            num_teleports = movement[1]
+            direction = movement[0].split("_")[-1].lower()
             actions.append(
-                partial(teleport, handle, ign, direction, teleport_skill, num_teleports)
+                partial(teleport, handle, ign, direction, teleport_skill, movement[1])
             )
 
         elif movement[0] in [
