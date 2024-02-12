@@ -105,9 +105,12 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
         if self.actions:
             res = self.actions[0]
             if self._prev_action is not None and self._deadlock_type_2 < 50:
+                # If the same action is repeated and position is changing, all good
+                # If position remains, fire an action.
                 if (
                     res.func == self._prev_action.func
                     and res.args == self._prev_action.args
+                    and self._prev_pos != self.data.current_minimap_position
                 ):
                     self._prev_action = None
                     self._deadlock_type_2 += 1

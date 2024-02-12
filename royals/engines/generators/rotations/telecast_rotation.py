@@ -82,6 +82,7 @@ class TelecastRotationGenerator(RotationGenerator):
                     self._teleport,
                     self._ultimate,
                 )
+                self.blocked = True
                 # directions = []
                 # while self.actions and self.actions[0].func.__name__ == "teleport":
                 #     next_action = self.actions.pop(0)
@@ -96,13 +97,16 @@ class TelecastRotationGenerator(RotationGenerator):
                 #     self._teleport,
                 #     self._ultimate,
                 # )
+
+                updater = GeneratorUpdate(
+                    game_data_kwargs={"available_to_cast": True},
+                    generator_id=id(self), generator_kwargs={"blocked": False}
+                )
                 return QueueAction(
                     identifier=self.__class__.__name__,
                     priority=98,
                     action=res,
-                    update_generators=GeneratorUpdate(
-                        game_data_kwargs={"available_to_cast": True}
-                    ),
+                    update_generators=updater
                 )
         else:
             return self._rotation()
