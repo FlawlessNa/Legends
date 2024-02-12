@@ -97,18 +97,26 @@ async def teleport(
         time.sleep(0.1)  # Ensures a little buffer before releasing any prior keys
     keys = [direction, teleport_skill.key_bind(ign), teleport_skill.key_bind(ign)]
     events: list[Literal] = ["keydown", "keydown", "keyup"]
-    delays = [next(controller.random_delay) for _ in range(2)] + [
-        teleport_skill.animation_time
-    ]
-    for _ in range(num_times - 1):
+    delays = [next(controller.random_delay) * 2]
+    while sum(delays) < teleport_skill.animation_time * num_times:
+        delays.extend([next(controller.random_delay) * 2 for _ in range(2)])
         keys.extend([teleport_skill.key_bind(ign), teleport_skill.key_bind(ign)])
         events.extend(["keydown", "keyup"])
-        delays.extend(
-            [next(controller.random_delay) * 2, teleport_skill.animation_time]
-        )
+    # delays = [next(controller.random_delay) for _ in range(2)] + [
+    #     teleport_skill.animation_time
+    # ]
+    # for _ in range(num_times - 1):
+    #     keys.extend([teleport_skill.key_bind(ign), teleport_skill.key_bind(ign)])
+    #     events.extend(["keydown", "keyup"])
+    #     delays.extend(
+    #         [next(controller.random_delay) * 2, teleport_skill.animation_time]
+    #     )
 
     structure = controller.input_constructor(handle, keys, events)
-    release = controller.release_opposites(handle, direction)
+    if direction in ["left", "right"]:
+        release = controller.release_opposites(handle, direction, "up", "down")
+    else:
+        release = controller.release_opposites(handle, direction, "left", "right")
     if release:
         structure.insert(0, release)
         delays.insert(0, 0)

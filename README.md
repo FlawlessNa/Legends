@@ -2,19 +2,26 @@
 
 ## Bug Fixes
 - [ ] Minimap handling between CheckStillInMap and InventoryManager
-- [ ] InventoryManager triggers unexpectedly?
+- [x] InventoryManager triggers unexpectedly?
 - [ ] Cancellation of NPC Selling seems to be problematic because it has a return value
 
 ## Input-Constructor Branch - TODOs
+- [ ] Before Merging, major cleanup of:
+  - [ ] Entire controller module (refactor to be controller as a package)
+  - [ ] All Rotation Generators
+  - [ ] MinimapPathingMechanics and get_to_target module
+  - [ ] royals.actions
 - [x] Idea #1: For casting (especially attacking skills), always trigger repeated feature for skill.animation_time
 - [ ] Streamline input construction and allow mouse + keyboard inputs tangled
   - Allows repeated key feature on anything, keys + mouse inputs combined as well
-- [ ] Refactor using this "input constructor" to implement actions/movements specific to royals
+- [x] Refactor using this "input constructor" to implement actions/movements specific to royals
   - [ ] DELAYS between mousedown and mouseup should be 2 * DELAY! (right now, they are instant for clicks - correct this)
-  - [ ] Same is true between keydown/keyups
-- [ ] Casting - Use with the new Repeated key feature
+  - [x] Same is true between keydown/keyups
+- [x] Casting - Use with the new Repeated key feature
   - Casting should ensure keys are released at the end for human-like behavior, but it won't cause problems in terms of activity
-- [ ] Task Cancellation: 
+- [ ] Task Cancellation:
+  - Movements always cancel movements
+  - Mobhitting does not cancel movements. Movements do not cancel mobhitting (they run concurrently)
   - Tasks with lower priority number still cancel other tasks. 
   - Rotation tasks are cancelled by any other tasks.
   - Rotation tasks CANNOT be scheduled if a higher priority task is still in queue

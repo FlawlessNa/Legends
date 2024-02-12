@@ -30,6 +30,7 @@ class RotationData(EngineData):
     current_on_screen_position: tuple[int, int] = field(repr=False, init=False)
     allow_teleport: bool = field(repr=False, init=False, default=None)
     available_to_cast: bool = field(repr=False, init=False, default=True)
+    casting_until: float = field(repr=False, init=False, default=0)
     next_target: tuple[int, int] = field(repr=False, init=False)
 
     def __post_init__(self):

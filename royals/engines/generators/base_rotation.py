@@ -41,7 +41,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
         self.next_target = (0, 0)
         self._teleport = teleport
 
-        self._deadlock_counter = 0  # For Failsafe
+        self._deadlock_counter = self._deadlock_type_2 = 0  # For Failsafe
         self._last_pos_change = time.perf_counter()  # For Failsafe
         self._prev_pos = self._prev_action = None  # For Failsafe
         self._prev_rotation_actions = []  # For Failsafe
@@ -104,13 +104,16 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
     def _rotation(self) -> QueueAction | None:
         if self.actions:
             res = self.actions[0]
-            if self._prev_action is not None:
+            if self._prev_action is not None and self._deadlock_type_2 < 50:
                 if (
                     res.func == self._prev_action.func
                     and res.args == self._prev_action.args
                 ):
                     self._prev_action = None
+                    self._deadlock_type_2 += 1
                     return
+
+            self._deadlock_type_2 = 0
             action = QueueAction(
                 identifier=self.__class__.__name__,
                 priority=99,
@@ -215,10 +218,14 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                     self.data.handle,
                     self.data.ign,
                     self.training_skill,
+                    self.data.casting_until,
                     closest_mob_direction,
                 )
         if res and not self.data.character_in_a_ladder and self.data.available_to_cast:
-            self.data.update(available_to_cast=False)
+            self.data.update(
+                casting_until=time.perf_counter() + self.training_skill.animation_time,
+                available_to_cast=False,
+            )
             updater = GeneratorUpdate(game_data_kwargs={"available_to_cast": True})
             return QueueAction(
                 identifier=f"Mobs Hitting - {self.training_skill.name}",

@@ -7,12 +7,12 @@ from botting.utilities import client_handler
 from royals.engines.generators import TelecastRotationGenerator, SmartRotationGenerator
 from royals.characters import Bishop
 from royals import RoyalsData, royals_ign_finder
-from royals.maps import LudiFreeMarket
+from royals.maps import LudiFreeMarket, PathOfTime1
 
 
 IGN = "WrongDoor"
 GENERATOR = SmartRotationGenerator
-CURRENT_MAP = LudiFreeMarket
+CURRENT_MAP = PathOfTime1
 
 DATA_INSTANCE = RoyalsData(
     handle=client_handler.get_client_handle(IGN, royals_ign_finder),
@@ -21,7 +21,7 @@ DATA_INSTANCE = RoyalsData(
     character=Bishop(IGN, "Elephant Cape", "large")
 )
 ENGINE_KWARGS = {}
-GENERATOR_KWARGS = dict(training_skill=DATA_INSTANCE.character.skills["Heal"], teleport=DATA_INSTANCE.character.skills["Teleport"], mob_threshold=5, time_limit=0.2)
+GENERATOR_KWARGS = dict(training_skill=DATA_INSTANCE.character.skills["Genesis"], teleport=DATA_INSTANCE.character.skills["Teleport"], mob_threshold=5, time_limit=0.2)
 
 
 class MockEngine(DecisionEngine):
