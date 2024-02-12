@@ -1,13 +1,16 @@
 # Royals-V2
 
-## Bug Fixes
+## Bug Fixes (Current Branch)
 - [ ] Minimap handling between CheckStillInMap and InventoryManager
 - [x] InventoryManager triggers unexpectedly?
 - [ ] Cancellation of NPC Selling seems to be problematic because it has a return value
+- [ ] Party Re-buff is broken (casts way too much), for casting non-attack skill (since there's a rebuff validation), can simply cast once.
+  - Split into individual buffs and only re-cast buffs that didn't go through
 
 ## Input-Constructor Branch - TODOs
 - [ ] Before Merging, major cleanup of:
   - [ ] Entire controller module (refactor to be controller as a package)
+  - [ ] Executor class
   - [ ] All Rotation Generators
   - [ ] MinimapPathingMechanics and get_to_target module
   - [ ] royals.actions
@@ -33,6 +36,11 @@
   - When a new action overwrites the previous and keys change, then keyups are triggered
   - When Focus Lock changes, keyups are also triggered
 - [ ] Refactor the controller top-level functions
+
+## Performance Branch
+- [ ] Ability to use Multiple clients within a single Engine
+  - Need to have multiple instances of EngineData for 1 engine (1 instance per client)
+  - Blockers/Unblockers need to be work for each client individually
 
 ## Leeching Branch - TODOs
 - [ ] Multi-client blockers

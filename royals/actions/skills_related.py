@@ -29,7 +29,7 @@ async def cast_skill(
     :param ready_at:
     :return:
     """
-    delays = [0.5]
+    delays = []  # TODO - First 0.5 standard delay in new direction cases
     while sum(delays) < skill.animation_time:
         delays.append(next(controller.random_delay))
     # The last delay is between keydown and keyup, which is doubled
