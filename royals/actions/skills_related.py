@@ -92,9 +92,12 @@ async def teleport(
     :param num_times:
     :return:
     """
+    pressed = controller.get_held_movement_keys(handle)
+    if 'up' in pressed and direction in ['left', 'right']:
+        time.sleep(0.1)  # Ensures a little buffer before releasing any prior keys
     keys = [direction, teleport_skill.key_bind(ign), teleport_skill.key_bind(ign)]
     events: list[Literal] = ["keydown", "keydown", "keyup"]
-    delays = [next(controller.random_delay) * 2 for _ in range(2)] + [
+    delays = [next(controller.random_delay) for _ in range(2)] + [
         teleport_skill.animation_time
     ]
     for _ in range(num_times - 1):
@@ -105,6 +108,10 @@ async def teleport(
         )
 
     structure = controller.input_constructor(handle, keys, events)
+    release = controller.release_opposites(handle, direction)
+    if release:
+        structure.insert(0, release)
+        delays.insert(0, 0)
     await controller.focused_inputs(handle, structure, delays, 1)
 
 

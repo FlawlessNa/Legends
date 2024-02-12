@@ -21,11 +21,11 @@ from .inputs import (
     full_input_constructor,
     full_input_mouse_constructor,
     message_constructor,
-    repeat_inputs,
-    move_params_validator,
-    DELAY,
     random_delay,
     input_constructor,
+    release_opposites,
+    OPPOSITES,
+    get_held_movement_keys
 )
 
 logger = logging.getLogger(__name__)

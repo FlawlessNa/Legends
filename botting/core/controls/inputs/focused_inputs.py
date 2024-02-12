@@ -50,6 +50,12 @@ logger = logging.getLogger(__name__)
 
 EVENTS = Literal["keydown", "keyup", "click", "mousedown", "mouseup"]
 FOCUS_LOCK = asyncio.Lock()
+OPPOSITES = {
+    "up": "down",
+    "down": "up",
+    "left": "right",
+    "right": "left",
+}
 
 
 class MouseInputStruct(ctypes.Structure):
@@ -118,6 +124,7 @@ KEYBOARD = wintypes.DWORD(1)
 HARDWARE = wintypes.DWORD(2)
 T = 0
 
+
 async def activate(hwnd: int) -> bool:
     global T
     """
@@ -162,6 +169,32 @@ def _release_movement_keys(hwnd: int) -> None:
     if release[0]:
         inputs = input_constructor(hwnd, release, events)
         _send_input(inputs[0])
+
+
+def release_opposites(hwnd: int, *keys: str | None) -> tuple:
+    """
+    Releases the opposite keys of the given keys, if they are held down.
+    :param hwnd: Handle to the window to send the inputs to.
+    :param keys: Movement keys to release.
+    :return: Input structure to release the opposite keys.
+    """
+    release = []
+    events: list[Literal] = []
+    for key in keys:
+        if (
+            win32api.HIBYTE(
+                GetAsyncKeyState(
+                    _get_virtual_key(
+                        OPPOSITES[key], False, _keyboard_layout_handle(hwnd)
+                    )
+                )
+            )
+            != 0
+        ):
+            release.append(OPPOSITES[key])
+            events.append("keyup")
+    if release:
+        return input_constructor(hwnd, [release], [events])[0]
 
 
 def input_constructor(
@@ -291,13 +324,38 @@ async def focused_inputs(
             for i in range(len(keys_to_release)):
                 _send_input(keys_to_release[i])
                 res += 1
-                time.sleep(delays[-enforce_last_inputs + i])
+                # time.sleep(delays[-enforce_last_inputs + i])
         if acquired:
             # print(f"Releasing lock {FOCUS_LOCK} {time.perf_counter() - T} seconds later")
             FOCUS_LOCK.release()
 
         # print('num input sent', res, 'out of', len(inputs) + enforce_last_inputs)
         return res
+
+
+def get_held_movement_keys(hwnd: int) -> list[str]:
+    """
+    Returns a list of the currently held movement keys.
+    :param hwnd:
+    :return:
+    """
+    virtuals = {
+        win32con.VK_UP: "up",
+        win32con.VK_DOWN: "down",
+        win32con.VK_LEFT: "left",
+        win32con.VK_RIGHT: "right",
+    }
+    pressed = [
+        key
+        for key in OPPOSITES
+        if win32api.HIBYTE(
+            GetAsyncKeyState(
+                _get_virtual_key(key, False, _keyboard_layout_handle(hwnd))
+            )
+        )
+        != 0
+    ]
+    return pressed
 
 
 # def _add_transitions(

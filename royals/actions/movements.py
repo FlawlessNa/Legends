@@ -1,4 +1,5 @@
 import random
+import time
 from botting.core import controller
 from typing import Literal
 
@@ -20,6 +21,7 @@ async def move(
     :param secondary_direction:
     :return:
     """
+    # TODO - First 0.5 standard delay in new direction cases
     delays = []
     while sum(delays) < duration:
         delays.append(next(controller.random_delay))
@@ -32,6 +34,18 @@ async def move(
         keys = [direction] * len(delays)
         events: list[Literal] = ["keydown"] * len(delays)
     structure = controller.input_constructor(handle, keys, events)
+
+    if secondary_direction:
+        release = controller.release_opposites(handle, direction, secondary_direction)
+    elif direction in ["left", "right"]:
+        release = controller.release_opposites(handle, direction, "up", "down")
+        if "up" in controller.get_held_movement_keys(handle):
+            time.sleep(0.1)
+    else:
+        release = controller.release_opposites(handle, direction, "left", "right")
+    if release:
+        structure.insert(0, release)
+        delays.insert(0, 0)
     await controller.focused_inputs(hwnd=handle, inputs=structure, delays=delays)
 
 
@@ -45,14 +59,43 @@ async def single_jump(
     :param jump_key:
     :return:
     """
-    keys = [direction, jump_key, jump_key]
-    events: list[Literal["keydown", "keyup"]] = ["keydown", "keydown", "keyup"]
+    pressed = controller.get_held_movement_keys(handle)
+    if direction in ["left", "right"]:
+        if direction in pressed and controller.OPPOSITES[direction] not in pressed:
+            keys = [jump_key, jump_key]
+            events: list[Literal["keydown", "keyup"]] = ["keydown", "keyup"]
+            delays = [next(controller.random_delay) * 2, 0.75]
+        elif controller.OPPOSITES[direction] in pressed:
+            keys = [direction, jump_key, jump_key]
+            events: list[Literal["keydown", "keyup"]] = ["keydown", "keydown", "keyup"]
+            delays = [0.15, next(controller.random_delay) * 2, 0.75]
+        else:
+            keys = [direction, jump_key, jump_key]
+            events: list[Literal["keydown", "keyup"]] = ["keydown", "keydown", "keyup"]
+            delays = [next(controller.random_delay) * 2 for _ in range(2)] + [0.75]
+    elif direction == 'down':
+        # Special case where we voluntarily trigger the automatic repeat feature
+        # to avoid static position.
+        keys = [direction, jump_key, jump_key]
+        events: list[Literal["keydown", "keyup"]] = ["keydown", "keydown", "keyup"]
+        delays = [next(controller.random_delay) * 2 for _ in range(3)]
+        while sum(delays) < 0.75:
+            keys.extend([jump_key, jump_key])
+            events.extend(["keydown", "keyup"])
+            delays.extend([next(controller.random_delay) * 2 for _ in range(2)])
+    else:
+        keys = [direction, jump_key, jump_key]
+        events: list[Literal["keydown", "keyup"]] = ["keydown", "keydown", "keyup"]
+        delays = [next(controller.random_delay) * 2 for _ in range(2)] + [0.75]
 
-    # twice delay between direction & jump, and twice delay between keydown/up
-    delays = [next(controller.random_delay) * 2 for _ in range(2)] + [
-        0.75  # TODO - check if this needs improvement
-    ]
     structure = controller.input_constructor(handle, keys, events)
+    if direction in ["up", "down"]:
+        release = controller.release_opposites(handle, direction, "left", "right")
+    else:
+        release = controller.release_opposites(handle, direction, "up", "down")
+    if release:
+        structure.insert(0, release)
+        delays.insert(0, 0)
     await controller.focused_inputs(
         handle, structure, delays, enforce_last_inputs=1, enforce_transition_delay=True
     )
@@ -77,16 +120,50 @@ async def jump_on_rope(
     :param jump_key:
     :return:
     """
-    keys = [[direction, "up"], jump_key, [jump_key, direction]]
-    events: list[Literal["keydown", "keyup"] | list] = [
-        ["keydown", "keydown"],
-        "keydown",
-        ["keyup", "keyup"],
-    ]
+    pressed = controller.get_held_movement_keys(handle)
+    if direction in pressed and controller.OPPOSITES[direction] not in pressed:
+        keys = [[jump_key, "up"], [jump_key, direction]]
+        events: list[Literal["keydown", "keyup"] | list] = [
+            ["keydown", "keydown"],
+            ["keyup", "keyup"],
+        ]
+        delays = [
+            0.75,
+            next(controller.random_delay) * 2
+        ]
 
-    # Long delay between keydowns and ups, to maximize chances of grabbing rope
-    delays = [next(controller.random_delay) * 2, 0.75, next(controller.random_delay)]
+    elif controller.OPPOSITES[direction] in pressed:
+        keys = [
+            direction,
+            [jump_key, "up"],
+            [jump_key, direction],
+        ]
+        events: list[Literal["keydown", "keyup"] | list] = [
+            "keydown",
+            ["keydown", "keydown"],
+            ["keyup", "keyup"],
+        ]
+        # Small buffer for direction change
+        delays = [0.15, 0.75, next(controller.random_delay)]
+
+    else:
+        keys = [[direction, jump_key], "up", [jump_key, direction]]
+        events: list[Literal["keydown", "keyup"] | list] = [
+            ["keydown", "keydown"],
+            "keydown",
+            ["keyup", "keyup"],
+        ]
+        delays = [
+            next(controller.random_delay) * 2,
+            0.75,
+            next(controller.random_delay)
+        ]
+
     structure = controller.input_constructor(handle, keys, events)
+    release = controller.release_opposites(handle, direction)
+    if release:
+        structure.insert(0, release)
+        delays.insert(0, 0)
     await controller.focused_inputs(
         handle, structure, delays, enforce_last_inputs=1, enforce_transition_delay=True
     )
