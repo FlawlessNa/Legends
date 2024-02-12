@@ -70,7 +70,13 @@ class Rebuff(IntervalBasedGenerator):
 
         self.blocked = True
         self.data.update(available_to_cast=False)
-        action = partial(cast_skill, self.data.handle, self.data.ign, self._skill)
+        action = partial(
+            cast_skill,
+            self.data.handle,
+            self.data.ign,
+            self._skill,
+            self.data.casting_until,
+        )
         updater = GeneratorUpdate(
             generator_id=id(self),
             generator_kwargs={"blocked": False},

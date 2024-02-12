@@ -121,7 +121,6 @@ class LeechingEngine(DecisionEngine):
     def next_map_rotation(self) -> DecisionGenerator:
         return TelecastRotationGenerator(
             self.game_data,
-            self.rotation_lock,
             teleport_skill=self._teleport_skill,
             ultimate=self._training_skill,
             mob_threshold=self._mob_count_threshold,

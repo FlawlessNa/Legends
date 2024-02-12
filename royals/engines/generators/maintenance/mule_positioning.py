@@ -123,7 +123,7 @@ class ResetIdleSafeguard(DecisionGenerator):
             return QueueAction(
                 identifier=f"{self} Deadlock failsafe",
                 priority=0,
-                action=partial(random_jump, self.data.handle, self.data.ign),
+                action=partial(random_jump, self.data.handle, self._key),
                 update_generators=GeneratorUpdate(
                     generator_id=id(self),
                     generator_kwargs={"blocked": False},
@@ -145,7 +145,7 @@ class ResetIdleSafeguard(DecisionGenerator):
                 return QueueAction(
                     identifier=f"{self} Random Jump {self._jumps_done}",
                     priority=1,
-                    action=partial(random_jump, self.data.handle, self.data.ign),
+                    action=partial(random_jump, self.data.handle, self._key),
                     update_generators=GeneratorUpdate(
                         generator_id=id(self),
                         generator_kwargs={"blocked": False},
@@ -190,19 +190,11 @@ class ResetIdleSafeguard(DecisionGenerator):
                 if actions:
                     self._deadlock_counter = 0
                     self._failsafe_count = 0
-                    args = (
-                        self.data.handle,
-                        self.data.ign,
-                        actions[0].keywords["direction"],
-                    )
-                    kwargs = actions[0].keywords.copy()
-                    kwargs.pop("direction", None)
-                    action = partial(actions[0].func, *args, **kwargs)
                     self.blocked = True
                     return QueueAction(
                         identifier=f"{self} Returning to Initial Location",
                         priority=1,
-                        action=action,
+                        action=actions[0],
                         update_generators=GeneratorUpdate(
                             generator_id=id(self),
                             generator_kwargs={"blocked": False},

@@ -23,12 +23,11 @@ class TelecastRotationGenerator(RotationGenerator):
     def __init__(
         self,
         data: RoyalsData,
-        lock: mp.Lock,
         teleport_skill: RoyalsSkill,
         ultimate: RoyalsSkill,
         mob_threshold: int = 5,
     ) -> None:
-        super().__init__(data, lock, ultimate, mob_threshold, teleport_skill)
+        super().__init__(data, ultimate, mob_threshold, teleport_skill)
         self._ultimate = ultimate
         self._target_cycle = itertools.cycle(self.data.current_minimap.feature_cycle)
         if len(self.data.current_minimap.feature_cycle) > 0:
@@ -74,20 +73,31 @@ class TelecastRotationGenerator(RotationGenerator):
                 return hit_mobs
             else:
                 # If first move is teleport, replace by telecast and keep teleporting
-                directions = []
-                while self.actions and self.actions[0].func.__name__ == "teleport":
-                    next_action = self.actions.pop(0)
-                    directions.append(next_action.keywords["direction"])
+                direction = self.actions[0].args[-2]
                 res = partial(
                     telecast,
                     self.data.handle,
                     self.data.ign,
-                    directions,
+                    direction,
                     self._teleport,
                     self._ultimate,
                 )
+                # directions = []
+                # while self.actions and self.actions[0].func.__name__ == "teleport":
+                #     next_action = self.actions.pop(0)
+                #     directions.extend(
+                #         [next_action.args[-2]] * next_action.keywords["num_times"]
+                #     )
+                # res = partial(
+                #     telecast,
+                #     self.data.handle,
+                #     self.data.ign,
+                #     directions,
+                #     self._teleport,
+                #     self._ultimate,
+                # )
                 return QueueAction(
-                    identifier="Telecasting",
+                    identifier=self.__class__.__name__,
                     priority=98,
                     action=res,
                     update_generators=GeneratorUpdate(

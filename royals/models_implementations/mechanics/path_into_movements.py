@@ -306,7 +306,7 @@ def _convert_movements_to_actions(
             raise NotImplementedError("Not supposed to reach this point.")
 
         elif movement[0] == "PORTAL":
-            actions.append(partial(controller.press, handle, "up"))
+            actions.append(partial(move, handle, "up", duration=0.1))
 
         elif movement[0] in [
             "TELEPORT_LEFT",

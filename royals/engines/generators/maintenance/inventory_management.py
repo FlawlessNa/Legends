@@ -65,6 +65,7 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
         self.space_left_alert = space_left_alert
         self.procedure = procedure
         if self.procedure == self.PROC_USE_MYSTIC_DOOR:
+            self._teleport = self.data.character.skills["Teleport"]
             self.data.update(allow_teleport=True)
 
         self._key = eval(config_reader("keybindings", self.data.ign, "Non Skill Keys"))[

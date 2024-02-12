@@ -11,7 +11,7 @@ from royals.maps import LudiFreeMarket, PathOfTime1
 
 
 IGN = "WrongDoor"
-GENERATOR = SmartRotationGenerator
+GENERATOR = TelecastRotationGenerator
 CURRENT_MAP = PathOfTime1
 
 DATA_INSTANCE = RoyalsData(
@@ -21,7 +21,7 @@ DATA_INSTANCE = RoyalsData(
     character=Bishop(IGN, "Elephant Cape", "large")
 )
 ENGINE_KWARGS = {}
-GENERATOR_KWARGS = dict(training_skill=DATA_INSTANCE.character.skills["Genesis"], teleport=DATA_INSTANCE.character.skills["Teleport"], mob_threshold=5, time_limit=0.2)
+GENERATOR_KWARGS = dict(ultimate=DATA_INSTANCE.character.skills["Genesis"], teleport_skill=DATA_INSTANCE.character.skills["Teleport"], mob_threshold=5)
 
 
 class MockEngine(DecisionEngine):
