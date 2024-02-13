@@ -22,7 +22,9 @@ HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 import win32api
 from royals.models_implementations.mechanics.inventory import InventoryActions
 import royals.actions as act
-
+from botting.utilities import Box, find_image
+import os
+from paths import ROOT
 
 def calc_centroid(pts):
     n = len(pts)
@@ -56,6 +58,24 @@ if __name__ == "__main__":
     # FOCUS_LOCK.release()
     # asyncio.run(activate(HANDLE))
     # FOCUS_LOCK.release()
-    asyncio.run(telecast(HANDLE, "WrongDoor", "left", bishop.skills["Teleport"], bishop.skills["Genesis"], 0))
+    # asyncio.run(telecast(HANDLE, "WrongDoor", "left", bishop.skills["Teleport"], bishop.skills["Genesis"], 0))
+    sell_button_offset: Box = Box(left=268, right=227, top=34, bottom=-30, offset=True)
+    first_shop_slot_offset: Box = Box(
+        left=135, right=160, top=124, bottom=80, offset=True
+    )
+    shop_img_needle = cv2.imread(
+        os.path.join(ROOT, "royals/assets/detection_images/Open NPC Shop.png")
+    )
+    current_client_img = take_screenshot(HANDLE)
+    match = find_image(current_client_img, shop_img_needle)
+    box = first_shop_slot_offset + match[0]
+    num_clicks = 10
+    button = sell_button_offset + match[0]
 
+    asyncio.run(
+        InventoryActions._clear_inventory(
+            HANDLE,
+            box.random(), button.random(), num_clicks
+        )
+    )
     print(time.time() - start)

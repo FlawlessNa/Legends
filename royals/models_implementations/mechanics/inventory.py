@@ -99,7 +99,7 @@ class InventoryChecks:
                 else:
                     logger.debug(f"Active Tab {active_tab} is {tab_to_watch}.")
                     curr_step = getattr(self, "current_step")
-                    setattr(self, curr_step,  curr_step - 1)  # Since we return None
+                    setattr(self, curr_step, curr_step - 1)  # Since we return None
                     break
 
         else:
@@ -128,7 +128,7 @@ class InventoryChecks:
                     setattr(self, "current_step", getattr(self, "num_steps"))
                 else:
                     now = time.perf_counter()
-                    setattr(self, 'cleanup_procedure_started_at', now)
+                    setattr(self, "cleanup_procedure_started_at", now)
                     logger.info(f"Starting full cleanup procedure at {time.asctime()}")
             else:
                 logger.debug(f"Failed to get space left. Extending inv menu.")
@@ -462,7 +462,7 @@ class InventoryActions:
                 generator.data.ign,
                 generator.data.character.skills["Mystic Door"],
                 generator.data.casting_until,
-                single_press=True
+                single_press=True,
             ),
             update_generators=GeneratorUpdate(
                 generator_id=id(generator), generator_kwargs={"blocked": False}
@@ -506,13 +506,20 @@ class InventoryActions:
             handle, target_tab, move_away=False
         )
         await controller.mouse_move(handle, sell_button, total_duration=0.2)
-        inputs = ['y']
-        events: list[Literal] = ['keydown']
-        inputs.extend((None, None) * num_clicks * 2)
-        events.extend(['mousedown', 'mouseup'] * num_clicks)
-        inputs.append('y')
-        events.append('keyup')
-        delays = [next(controller.random_delay) for _ in range(len(inputs))]
+        inputs = [None, None, "y"] * num_clicks
+        events: list[Literal] = ["mousedown", "mouseup", "keydown"] * num_clicks
+        inputs.append("y")
+        events.append("keyup")
+        delays = []
+        for _ in range(num_clicks):
+            delays.extend(
+                [
+                    next(controller.random_delay) * 4,
+                    next(controller.random_delay) * 2,
+                    0.2,
+                ]
+            )
+        delays.append(0.2)
         structures = controller.input_constructor(handle, inputs, events)
         return await controller.focused_inputs(handle, structures, delays, 1)
         # try:
@@ -539,8 +546,8 @@ class InventoryActions:
             generator.data.current_minimap,
             generator.data.handle,
             controller.key_binds(generator.data.ign)["jump"],
-            getattr(generator, '_teleport', None),
-            generator.data.ign
+            getattr(generator, "_teleport", None),
+            generator.data.ign,
         )
         res = None
         if actions:

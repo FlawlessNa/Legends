@@ -497,7 +497,7 @@ async def mouse_move(
 
 async def click(
     handle: int,
-    down_or_up: Literal["click", "down", "up", "doubleclick"] = "click",
+    down_or_up: Literal["click", "mousedown", "mouseup"] = "click",
     nbr_times: int = 1,
     delay: float = 0.1,
 ) -> int:
@@ -508,8 +508,8 @@ async def click(
     :param delay: Delay between each click.
     :return: Nbr of times the click was successful.
     """
-    if down_or_up == "doubleclick":
-        events = [["click", "click"]] * nbr_times
+    if down_or_up == "click":
+        events = ["mousedown", "mouseup"] * nbr_times
     else:
         events = [down_or_up] * nbr_times
     delays = [random.uniform(0.95, 1.05) * delay for _ in range(nbr_times)]

@@ -253,17 +253,30 @@ def input_constructor(
                     )
                 )
             else:
-                structures.append(
-                    (
-                        wintypes.UINT(1),
-                        ctypes.POINTER(Input * 1)(
-                            _single_input_mouse_constructor(
-                                *lst_inputs, lst_events, mouse_data
-                            )
-                        ),
-                        wintypes.INT(ctypes.sizeof(Input)),
+                if lst_inputs is None:
+                    structures.append(
+                        (
+                            wintypes.UINT(1),
+                            ctypes.POINTER(Input * 1)(
+                                _single_input_mouse_constructor(
+                                    None, None, lst_events, mouse_data
+                                )
+                            ),
+                            wintypes.INT(ctypes.sizeof(Input)),
+                        )
                     )
-                )
+                else:
+                    structures.append(
+                        (
+                            wintypes.UINT(1),
+                            ctypes.POINTER(Input * 1)(
+                                _single_input_mouse_constructor(
+                                    *lst_inputs, lst_events, mouse_data
+                                )
+                            ),
+                            wintypes.INT(ctypes.sizeof(Input)),
+                        )
+                    )
     return structures
 
 
@@ -514,11 +527,9 @@ def _single_input_mouse_constructor(
         y = 0
 
     if event is not None:
-        if event == "click":
-            flags |= MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_LEFTUP
-        elif event == "down":
+        if event == "mousedown":
             flags |= MOUSEEVENTF_LEFTDOWN
-        elif event == "up":
+        elif event == "mouseup":
             flags |= MOUSEEVENTF_LEFTUP
         else:
             raise ValueError(f"Event {event} is not supported.")
