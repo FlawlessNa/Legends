@@ -14,12 +14,13 @@
   - [ ] All Rotation Generators
   - [ ] MinimapPathingMechanics and get_to_target module
   - [ ] royals.actions
+  - [ ] InventoryManagement + Inventory actions/checks
 - [x] Idea #1: For casting (especially attacking skills), always trigger repeated feature for skill.animation_time
 - [ ] Streamline input construction and allow mouse + keyboard inputs tangled
 - [ ] Add a "watcher" in controller module to create set of all keys that were sent at some point. Check those for release upon focus switch.
 - [ ] Replace "enforce_last_inputs" with "release following keys" which only release if they are down
 - Allows repeated key feature on anything, keys + mouse inputs combined as well
-- [ ] Test that the shared focus lock is the same instance for all bots.
+- [x] Test that the shared focus lock is the same instance for all bots.
 - [x] Refactor using this "input constructor" to implement actions/movements specific to royals
   - [ ] DELAYS between mousedown and mouseup should be 2 * DELAY! (right now, they are instant for clicks - correct this)
   - [x] Same is true between keydown/keyups

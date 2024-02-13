@@ -132,9 +132,7 @@ async def activate(hwnd: int) -> bool:
     """
     acquired = False
     if GetForegroundWindow() != hwnd:
-        print(f"Acquiring lock {id(SharedResources.focus_lock)}")
         acquired = await SharedResources.focus_lock.acquire()
-        print(f"Acquired lock {id(SharedResources.focus_lock)}")
         logger.debug(f"Activating window {hwnd}")
         # Before activating, make sure to release any keys that are currently pressed.
         _release_watched_keys(hwnd)
@@ -496,7 +494,7 @@ def _single_input_constructor(
 def _single_input_mouse_constructor(
     x: int | None,
     y: int | None,
-    event: Literal["click", "down", "up", "doubleclick"] | None | list,
+    event: Literal["mousedown", "mouseup"] | None,
     mouse_data: int | None,
 ) -> Input:
     """

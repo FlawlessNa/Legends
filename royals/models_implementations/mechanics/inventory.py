@@ -7,7 +7,7 @@ import numpy as np
 import random
 import time
 from functools import partial
-from typing import Union
+from typing import Union, Literal
 
 from botting import PARENT_LOG
 from botting.core import DecisionGenerator, GeneratorUpdate, QueueAction, controller
@@ -502,22 +502,30 @@ class InventoryActions:
         sell_button: tuple[int, int],
         num_clicks: int,
     ) -> int:
-        res = 0
         await InventoryActions._mouse_move_and_click(
             handle, target_tab, move_away=False
         )
         await controller.mouse_move(handle, sell_button, total_duration=0.2)
-        try:
-            for _ in range(num_clicks):
-                await asyncio.sleep(0.25)
-                res += await controller.click(handle)
-                await controller.press(handle, "y", silenced=True)
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            raise
-        finally:
-            return res
+        inputs = ['y']
+        events: list[Literal] = ['keydown']
+        inputs.extend((None, None) * num_clicks * 2)
+        events.extend(['mousedown', 'mouseup'] * num_clicks)
+        inputs.append('y')
+        events.append('keyup')
+        delays = [next(controller.random_delay) for _ in range(len(inputs))]
+        structures = controller.input_constructor(handle, inputs, events)
+        return await controller.focused_inputs(handle, structures, delays, 1)
+        # try:
+        #     for _ in range(num_clicks):
+        #         await asyncio.sleep(0.25)
+        #         res += await controller.click(handle)
+        #         await controller.press(handle, "y", silenced=True)
+        # except asyncio.CancelledError:
+        #     raise
+        # except Exception as e:
+        #     raise
+        # finally:
+        #     return res
 
     @staticmethod
     def move_to_target(

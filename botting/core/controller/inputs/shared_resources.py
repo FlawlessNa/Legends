@@ -9,6 +9,14 @@ logger = logging.getLogger(__name__)
 
 
 class SharedResources:
+    """
+    Helper class shared across all spawned processes.
+    Manages a Lock to prevent multiple processes from trying to use PC Focus
+    simultaneously.
+    Additionally, it maintains a set of all keys that have been sent through SendInput
+    during the lifecycle of the program. This set is used to inspect keys that may
+    require releasing before a switch of window focus is performed.
+    """
     focus_lock = asyncio.Lock()  # All instances of this class will share the same lock.
     # Used to prevent multiple processes from trying to use PC Focus simultaneously.
 

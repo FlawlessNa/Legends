@@ -7,5 +7,4 @@ from .bot import (
     GeneratorUpdate,
     QueueAction,
 )
-from .controller import controller
 from .session_manager import SessionManager

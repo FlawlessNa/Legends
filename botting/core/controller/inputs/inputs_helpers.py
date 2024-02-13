@@ -106,7 +106,7 @@ def _setup_exported_functions() -> dict[str, callable]:
         wintypes.LPARAM,
     ]
 
-    # Note - The argtypes of SendInput is defined in each function type,
+    # Note - The argtypes of SendInput is defined in each function call,
     # since the array length may change at each call.
     send_input = ctypes.windll.user32.SendInput
     send_input.restype = wintypes.UINT
