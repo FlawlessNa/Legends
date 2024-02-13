@@ -23,6 +23,11 @@ class SharedResources:
     keys_sent = set()
 
     @classmethod
+    def release_all(cls) -> None:
+        # TODO
+        pass
+
+    @classmethod
     def key_watcher(cls, func: callable) -> callable:
         """
         Use this decorator to add any keys being sent to a window to the keys_sent set.

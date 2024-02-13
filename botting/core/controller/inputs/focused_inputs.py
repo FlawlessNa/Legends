@@ -3,16 +3,13 @@ Low-level module that handles sending inputs to the focused window through SendI
 """
 import asyncio
 import ctypes
-import itertools
 import logging
-
-import win32api
 import win32con
 
 from ctypes import wintypes
 from typing import Literal
 from win32com.client import Dispatch
-from win32api import GetKeyState, GetAsyncKeyState
+from win32api import HIBYTE, GetKeyState, GetAsyncKeyState
 from win32gui import SetForegroundWindow, GetForegroundWindow
 
 from .shared_resources import SharedResources
@@ -158,7 +155,7 @@ def _release_watched_keys(hwnd: int) -> None:
     release = [[]]
     events = [[]]
     for key in watched_keys:
-        if win32api.HIBYTE(GetAsyncKeyState(key)) != 0:
+        if HIBYTE(GetAsyncKeyState(key)) != 0:
             release[0].append(move_keys[key])
             events[0].append("keyup")
     if release[0]:
@@ -177,7 +174,7 @@ def release_opposites(hwnd: int, *keys: str | None) -> tuple:
     events: list[Literal] = []
     for key in keys:
         if (
-            win32api.HIBYTE(
+            HIBYTE(
                 GetAsyncKeyState(
                     _get_virtual_key(
                         OPPOSITES[key], False, _keyboard_layout_handle(hwnd)
@@ -204,7 +201,6 @@ def input_constructor(
     These must be of the same length. When an item in inputs is a list, the
     corresponding item in events must also be a list. Those are considered as a single
     input array for the purpose of SendInput, so they are sent simultaneously.
-    # TODO - Validate if mouse/keyboard can be mixed into a same input (depends on ctypes.sizeof for each? needs to be the same?)
     :param hwnd: Handle to the window that will receive the inputs.
     :param inputs: keystrokes (str), mouse coordinates (tuple), None, or a list of those
     :param events: "keydown", "keyup", "click", "mousedown", "mouseup",
@@ -221,16 +217,16 @@ def input_constructor(
             num_inputs = len(lst_inputs)
             array_class = Input * num_inputs
             array_pointer = ctypes.POINTER(array_class)
-            inputs = []
-            for inp, event in zip(lst_inputs, lst_events):
-                if isinstance(inp, str):
-                    inputs.append(
-                        _single_input_constructor(hwnd, inp, event, as_unicode)
-                    )
-                else:
-                    inputs.append(
-                        _single_input_mouse_constructor(*inp, event, mouse_data)
-                    )
+            inputs = [input_constructor(hwnd, inp, event, as_unicode, mouse_data) for inp, event in zip(lst_inputs, lst_events)]
+            # for inp, event in zip(lst_inputs, lst_events):
+            #     if isinstance(inp, str):
+            #         inputs.append(
+            #             _single_input_constructor(hwnd, inp, event, as_unicode)
+            #         )
+            #     else:
+            #         inputs.append(
+            #             _single_input_mouse_constructor(*inp, event, mouse_data)
+            #         )
             input_array = array_class(*inputs)
             structures.append(
                 (
@@ -285,7 +281,6 @@ async def focused_inputs(
     inputs: list[tuple],
     delays: list[float],
     enforce_last_inputs: int = 0,
-    enforce_transition_delay: bool = False,
 ) -> int:
     """
     Sends the inputs to the active window.
@@ -301,8 +296,6 @@ async def focused_inputs(
     :param delays: delays between each input.
     :param enforce_last_inputs: Nbr of inputs at the end of input structure to enforce
     through a "finally" clause.
-    :param enforce_transition_delay: If True, a 0.2 delay is added between any change
-    in direction.
     :return: Nbr of inputs successfully sent.
     """
     res = 0
@@ -314,7 +307,6 @@ async def focused_inputs(
     acquired = False
     try:
         acquired = await activate(hwnd)
-        # _add_transitions(hwnd, inputs, delays, enforce_transition_delay)
 
         for i in range(len(inputs)):
             _send_input(inputs[i])
@@ -332,12 +324,8 @@ async def focused_inputs(
             for i in range(len(keys_to_release)):
                 _send_input(keys_to_release[i])
                 res += 1
-                # time.sleep(delays[-enforce_last_inputs + i])
         if acquired:
-            # print(f"Releasing lock {FOCUS_LOCK} {time.perf_counter() - T} seconds later")
             SharedResources.focus_lock.release()
-
-        # print('num input sent', res, 'out of', len(inputs) + enforce_last_inputs)
         return res
 
 
@@ -356,7 +344,7 @@ def get_held_movement_keys(hwnd: int) -> list[str]:
     pressed = [
         key
         for key in OPPOSITES
-        if win32api.HIBYTE(
+        if HIBYTE(
             GetAsyncKeyState(
                 _get_virtual_key(key, False, _keyboard_layout_handle(hwnd))
             )
@@ -382,82 +370,6 @@ def _send_input(structure: tuple) -> None:
         if failure_count > 10:
             logger.critical(f"Unable to send structure {structure} to active window")
             raise RuntimeError(f"Unable to send structure {structure} to active window")
-
-
-def full_input_constructor(
-    hwnd: int,
-    keys: list[list[str]],
-    events: list[list[Literal["keydown", "keyup"] | str]],
-    as_unicode: bool = False,
-) -> list[tuple]:
-    """
-    Constructs the input structures for the given keys and events.
-    :param hwnd: Handle to the window to send the inputs to.
-    :param keys: Keystrokes to send.
-    :param events: Keydown or Keyup events.
-    :param as_unicode: Used for typewriting only.
-    :return:
-    """
-
-    structures = []
-    for lst_key, lst_event in zip(keys, events):
-        assert len(lst_key) == len(lst_event)
-        inputs = []
-        num_inputs = len(lst_key)
-        array_class = Input * num_inputs
-        array_pointer = ctypes.POINTER(array_class)
-        for key, event in zip(lst_key, lst_event):
-            inputs.append(_single_input_constructor(hwnd, key, event, as_unicode))
-        input_array = array_class(*inputs)
-        structures.append(
-            (
-                wintypes.UINT(num_inputs),
-                array_pointer(input_array),
-                wintypes.INT(ctypes.sizeof(input_array[0])),
-            )
-        )
-    return structures
-
-
-def full_input_mouse_constructor(
-    x_trajectory: list[int | None],
-    y_trajectory: list[int | None],
-    events: list[Literal["click", "down", "up"] | None],
-    mouse_data: list[int | None],
-) -> list[tuple]:
-    """
-    Constructs the input structures for the given mouse events.
-    :param x_trajectory: X coordinates of mouse trajectory.
-    :param y_trajectory: Y coordinates of mouse trajectory.
-    :param events: Any click events.
-    :param mouse_data: Only Used for mouse scroll. Set to 0 otherwise.
-    :return:
-    """
-    return_val = []
-
-    for x, y, event, mouse in itertools.zip_longest(
-        x_trajectory, y_trajectory, events, mouse_data
-    ):
-        inputs = []
-        if isinstance(event, list):
-            num_inputs = len(event)
-            input_array_class = Input * num_inputs
-            for ev in event:
-                inputs.append(_single_input_mouse_constructor(x, y, ev, mouse))
-        else:
-            input_array_class = Input * 1
-            inputs.append(_single_input_mouse_constructor(x, y, event, mouse))
-
-        input_pointer = ctypes.POINTER(input_array_class)
-        input_array = input_array_class(*inputs)
-        return_val.append(
-            (
-                wintypes.UINT(len(inputs)),
-                input_pointer(input_array),
-                wintypes.INT(ctypes.sizeof(inputs[0])),
-            ),
-        )
-    return return_val
 
 
 def _single_input_constructor(
@@ -545,58 +457,6 @@ def _single_input_mouse_constructor(
     )
     input_struct = Input(type=MOUSE, structure=CombinedInput(mi=mouse_input))
     return input_struct
-
-
-def repeat_inputs(keys, events, delays, duration, central_delay, delay_gen) -> None:
-    """
-    Repeats the inputs for the given duration. Used for automatic repeat feature of
-    the keyboard.
-    """
-    upper_bound = int((duration - sum(delays)) // central_delay)
-    if upper_bound > 0:
-        repeated_key = keys[-1][-1]
-        keys.extend([[repeated_key]] * upper_bound)
-        events.extend([["keydown"]] * upper_bound)
-        delays_to_add = len(events) - len(delays)
-        delays.extend([next(delay_gen) for _ in range(delays_to_add)])
-
-
-def move_params_validator(
-    direction: Literal["up", "down", "left", "right"],
-    secondary_direction: Literal["up", "down", "left", "right"] | None,
-    duration: float,
-    central_delay: float,
-    jump: bool,
-    jump_interval: float,
-    secondary_key_press: str | None,
-    secondary_key_interval: float,
-    tertiary_key_press: str | None,
-    combine_jump_secondary: bool | None,
-) -> None:
-    """
-    Validates the parameters for the move function, since it is a complex function.
-    """
-    assert direction in ["up", "down", "left", "right"]
-    assert secondary_direction in [None, "up", "down", "left", "right"]
-    assert duration > 0 and central_delay > 0
-    assert jump_interval >= 0
-    assert secondary_key_interval >= 0
-
-    # Used for Flash Jumping (combined is false) or attack + jump (combine is true)
-    if jump and secondary_key_press:
-        assert jump_interval == secondary_key_interval
-        assert jump_interval > 0
-        assert combine_jump_secondary is not None
-
-    # Strictly used for telecast
-    if tertiary_key_press:
-        assert not secondary_direction and not jump
-        assert secondary_key_press is not None
-        assert secondary_key_interval > 0
-
-    # Strictly used for Flash Jumping into a rope (combine is false)
-    if secondary_direction and jump and secondary_key_press:
-        assert combine_jump_secondary is False
 
 
 def _remove_num_lock() -> None:
