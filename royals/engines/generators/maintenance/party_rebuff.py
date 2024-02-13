@@ -257,4 +257,4 @@ class PartyRebuff(IntervalBasedGenerator):
         ready_at: float, handle: int, ign: str, skills: list[RoyalsSkill], *args
     ):
         for skill in skills:
-            await cast_skill(handle, ign, skill, ready_at)
+            await cast_skill(handle, ign, skill, ready_at, single_press=True)

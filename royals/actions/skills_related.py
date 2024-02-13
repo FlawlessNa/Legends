@@ -16,6 +16,7 @@ async def cast_skill(
     skill: Skill,
     ready_at: float,
     direction: str = None,
+    single_press: bool = False,
 ) -> None:
     """
     Casts a skill and triggers the keyboard repeat feature for the duration.
@@ -25,10 +26,15 @@ async def cast_skill(
     :param handle:
     :param ign:
     :param skill:
-    :param direction:
     :param ready_at:
+    :param direction:
+    :param single_press:
     :return:
     """
+    if single_press:
+        await controller.press(handle, skill.key_bind(ign), silenced=True)
+        await asyncio.sleep(skill.animation_time)
+        return
     delays = []  # TODO - First 0.5 standard delay in new direction cases
     while sum(delays) < skill.animation_time:
         delays.append(next(controller.random_delay))

@@ -30,20 +30,23 @@
   - Mobhitting does not cancel movements. Movements do not cancel mobhitting (they run concurrently)
   - Tasks with lower priority number still cancel other tasks. 
   - Rotation tasks are cancelled by any other tasks.
-  - TODO!! -- Rotation tasks CANNOT be scheduled if a higher priority task is still in queue!!
+  - TODO!! -- Rotation tasks CANNOT be scheduled if a higher priority task is still in queue?
 - [ ] Rotation Fluidity
   - Rotation Generators should continuously fire rotation actions
   - Each new rotation action cancels the previous to take its place. Cancellations do not release keys.
   - Each new rotation inserts keyups event at the beginning of their streams depending on KeyState of prev actions
   - Each action mostly consists of keydowns inputs
   - When a new action overwrites the previous and keys change, then keyups are triggered
-  - When Focus Lock changes, keyups are also triggered
+  - When Focus Lock changes, keyups are also triggeredcv
 - [ ] Refactor the controller top-level functions
 
 ## Performance Branch
 - [ ] Ability to use Multiple clients within a single Engine
   - Need to have multiple instances of EngineData for 1 engine (1 instance per client)
   - Blockers/Unblockers need to be work for each client individually
+- [ ] Ability to only retrieve first action in pathfinding parser instead of entire actions
+- [ ] Look into leveraging psutil for performance monitoring of CPU resources by client/process
+- [ ] Look into "blocked" generators could wait on a mp.Event/Condition semaphore instead of a while loop
 
 ## Leeching Branch - TODOs
 - [ ] Multi-client blockers
@@ -57,11 +60,6 @@
   - [x] Task cancellation for movements - make "controller.move" cancellable, but other functions (tp, telecast, jump rope, etc.) non-cancellable.
     - A big advantage is that blocking generators will automatically block generators from other characters on the same engine
   - [ ] Ability to "reset" generator data? - goes with better data management
-
-### Performance Improvement
-- [ ] Ability to group multiple characters (aka engines) into single process. This means every generators for that engine needs to be created N times. There will also be N instances of game data.
-- [ ] Ability to only retrieve first action in pathfinding parser instead of entire actions
-
 
 ### Inventory Cleanup
 - [ ] Big code clean-up required.

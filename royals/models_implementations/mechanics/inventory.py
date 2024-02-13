@@ -461,7 +461,8 @@ class InventoryActions:
                 generator.data.handle,
                 generator.data.ign,
                 generator.data.character.skills["Mystic Door"],
-                generator.data.casting_until
+                generator.data.casting_until,
+                single_press=True
             ),
             update_generators=GeneratorUpdate(
                 generator_id=id(generator), generator_kwargs={"blocked": False}

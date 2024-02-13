@@ -4,7 +4,8 @@ import multiprocessing
 from botting import EngineData, Executor, SessionManager
 from botting.core import DecisionEngine, DecisionGenerator
 from botting.utilities import client_handler
-from royals.engines.generators import TelecastRotationGenerator, SmartRotationGenerator
+from royals.engines.generators import TelecastRotationGenerator
+from royals.engines.generators import PartyRebuff
 from royals.characters import Bishop
 from royals import RoyalsData, royals_ign_finder
 from royals.maps import LudiFreeMarket, PathOfTime1
