@@ -56,30 +56,6 @@ if __name__ == "__main__":
     # FOCUS_LOCK.release()
     # asyncio.run(activate(HANDLE))
     # FOCUS_LOCK.release()
-    for _ in range(2):
-        # asyncio.run(act.move(HANDLE, "left", 1, ))
-        # asyncio.run(act.move(HANDLE, "right", 1, secondary_direction="up"))
-        asyncio.run(act.jump_on_rope(HANDLE, "right", "alt"))
-        # asyncio.run(act.single_jump(HANDLE, "right", 'alt',))
-        # asyncio.run(act.single_jump(HANDLE, "left", 'alt', ))
-        # asyncio.run(
-        #     act.teleport(
-        #         HANDLE,
-        #         "WrongDoor",
-        #         "right",
-        #         bishop.skills["Teleport"],
-        #         3,
-        #     )
-        # )
-        # asyncio.run(
-        #     act.teleport(
-        #         HANDLE,
-        #         "WrongDoor",
-        #         "left",
-        #         bishop.skills["Teleport"],
-        #         3
-        #     )
-        # )
-    # asyncio.run(act.teleport(HANDLE, "WrongDoor", "left", bishop.skills['Teleport'], 3))
-    # asyncio.run(act.move(0x01460776, "up", 1))
+    asyncio.run(telecast(HANDLE, "WrongDoor", "left", bishop.skills["Teleport"], bishop.skills["Genesis"], 0))
+
     print(time.time() - start)

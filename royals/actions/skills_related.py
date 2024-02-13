@@ -35,6 +35,7 @@ async def cast_skill(
     # The last delay is between keydown and keyup, which is doubled
     delays[-1] *= 2
 
+    pressed = controller.get_held_movement_keys(handle)
     keys = [skill.key_bind(ign)] * len(delays)
     events: list[Literal["keydown", "keyup"]] = ["keydown"]
     [
@@ -50,6 +51,12 @@ async def cast_skill(
         keys.insert(0, direction)
         delays.append(2 * next(controller.random_delay))
         delays.append(next(controller.random_delay))
+
+    # Release down key even if going downwards to ensure character isn't crouching
+    if 'down' in pressed:
+        keys.insert(0, 'down')
+        events.insert(0, 'keyup')
+        delays.insert(0, next(controller.random_delay) * 2)
 
     structure = controller.input_constructor(handle, keys, events)
 
@@ -93,24 +100,23 @@ async def teleport(
     :return:
     """
     pressed = controller.get_held_movement_keys(handle)
+    enforce_last_inputs = 1
     if "up" in pressed and direction in ["left", "right"]:
         time.sleep(0.1)  # Ensures a little buffer before releasing any prior keys
     keys = [direction, teleport_skill.key_bind(ign), teleport_skill.key_bind(ign)]
     events: list[Literal] = ["keydown", "keydown", "keyup"]
     delays = [next(controller.random_delay) * 2]
+
     while sum(delays) < teleport_skill.animation_time * num_times:
         delays.extend([next(controller.random_delay) * 2 for _ in range(2)])
         keys.extend([teleport_skill.key_bind(ign), teleport_skill.key_bind(ign)])
         events.extend(["keydown", "keyup"])
-    # delays = [next(controller.random_delay) for _ in range(2)] + [
-    #     teleport_skill.animation_time
-    # ]
-    # for _ in range(num_times - 1):
-    #     keys.extend([teleport_skill.key_bind(ign), teleport_skill.key_bind(ign)])
-    #     events.extend(["keydown", "keyup"])
-    #     delays.extend(
-    #         [next(controller.random_delay) * 2, teleport_skill.animation_time]
-    #     )
+
+    if direction == "down":
+        keys.append(direction)
+        events.append("keyup")
+        delays.append(0)
+        enforce_last_inputs = 2
 
     structure = controller.input_constructor(handle, keys, events)
     if direction in ["left", "right"]:
@@ -120,7 +126,8 @@ async def teleport(
     if release:
         structure.insert(0, release)
         delays.insert(0, 0)
-    await controller.focused_inputs(handle, structure, delays, 1)
+
+    await controller.focused_inputs(handle, structure, delays, enforce_last_inputs)
 
 
 async def telecast(
@@ -129,6 +136,7 @@ async def telecast(
     direction: Literal["left", "right", "up", "down"],
     teleport_skill: Skill,
     ultimate_skill: Skill,
+    ready_at: float,
 ):
     """
     Teleport while casting ultimate in a given direction.
@@ -137,9 +145,11 @@ async def telecast(
     :param direction:
     :param teleport_skill:
     :param ultimate_skill:
+    :param ready_at:
     :return:
     """
     pressed = controller.get_held_movement_keys(handle)
+    enforce_last_inputs = 1
     if "up" in pressed and direction in ["left", "right"]:
         time.sleep(0.1)  # Ensures a little buffer before releasing any prior keys
 
@@ -160,12 +170,19 @@ async def telecast(
                 [teleport_skill.key_bind(ign), ultimate_skill.key_bind(ign)],
             ]
         )
-        events.extend(
-            [
-                ["keydown", "keydown"],
-                ["keyup", "keyup"]
-            ]
-        )
+        events.extend([["keydown", "keydown"], ["keyup", "keyup"]])
+
+    # Release down key even if going downwards to ensure character isn't crouching
+    if 'down' in pressed:
+        keys.insert(0, 'down')
+        events.insert(0, 'keyup')
+        delays.insert(0, next(controller.random_delay) * 2)
+
+    if direction == "down":
+        keys.append(direction)
+        events.append("keyup")
+        delays.append(0)
+        enforce_last_inputs = 2
 
     structure = controller.input_constructor(handle, keys, events)
     if direction in ["left", "right"]:
@@ -175,33 +192,10 @@ async def telecast(
     if release:
         structure.insert(0, release)
         delays.insert(0, 0)
-    await controller.focused_inputs(handle, structure, delays, 1)
-    #
-    # start = time.perf_counter()
-    # if duration is None:
-    #     duration = ultimate_skill.animation_time
-    # else:
-    #     assert (
-    #         duration < ultimate_skill.animation_time
-    #     ), "Duration must be less than ultimate skill animation time."
-    #
-    # async def _coro():
-    #     for direction in directions:
-    #         await controller.move(
-    #             handle,
-    #             ign,
-    #             direction,
-    #             teleport_skill.animation_time,
-    #             secondary_key_press=teleport_skill.key_bind(ign),
-    #             tertiary_key_press=ultimate_skill.key_bind(ign),
-    #             secondary_key_interval=teleport_skill.animation_time,
-    #         )
-    #
-    # try:
-    #     await asyncio.wait_for(_coro(), timeout=duration)
-    # except asyncio.TimeoutError:
-    #     pass
-    # finally:
-    #     await asyncio.sleep(
-    #         max(0.0, ultimate_skill.animation_time - (time.perf_counter() - start))
-    #     )
+
+    wait_time = max(ready_at + 0.1 - time.perf_counter(), 0.0)
+    if wait_time > 0:
+        print("Waiting", wait_time, "seconds before telecasting")
+        await asyncio.sleep(wait_time)
+    await controller.focused_inputs(handle, structure, delays, enforce_last_inputs)
+

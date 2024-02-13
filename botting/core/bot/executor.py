@@ -308,10 +308,13 @@ class Executor:
                     raise queue_item
 
                 logger.debug(f"Received {queue_item} from {self} monitoring process.")
-                print(queue_item.action)
+                from datetime import datetime
+                current = datetime.now()
+                formatted = current.strftime("%H:%M:%S.%f")
+                print(queue_item.action, formatted)
                 for task in asyncio.all_tasks():  # TODO - Refactor this hardcoding
                     if task.get_name() == queue_item.identifier and task.get_name() in ['SmartRotationGenerator', 'TelecastRotationGenerator']:
-                        print(f"Cancelled {task.action} after {asyncio.get_running_loop().time() - task.creation_time} seconds")
+                        # print(f"Cancelled {task.action} after {asyncio.get_running_loop().time() - task.creation_time} seconds")
                         task.cancel()
                 # task_ids = [
                 #     (task.get_name(), getattr(task, "process_id", None))

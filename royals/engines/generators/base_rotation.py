@@ -224,7 +224,8 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                     self.data.casting_until,
                     closest_mob_direction,
                 )
-        if res and not self.data.character_in_a_ladder and self.data.available_to_cast:
+        # if res and not self.data.character_in_a_ladder and self.data.available_to_cast:
+        if res and time.perf_counter() - self.data.casting_until > 0:
             self.data.update(
                 casting_until=time.perf_counter() + self.training_skill.animation_time,
                 available_to_cast=False,

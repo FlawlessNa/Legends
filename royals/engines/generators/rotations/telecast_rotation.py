@@ -2,6 +2,7 @@ import itertools
 import logging
 import math
 import random
+import time
 
 from functools import partial
 
@@ -71,6 +72,8 @@ class TelecastRotationGenerator(RotationGenerator):
                 return hit_mobs
             else:
                 # If first move is teleport, replace by telecast and keep teleporting
+                # Make sure to wait a little before telecasting
+                ready_at = self.data.teleporting_until
                 direction = self.actions[0].args[-2]
                 res = partial(
                     telecast,
@@ -79,32 +82,27 @@ class TelecastRotationGenerator(RotationGenerator):
                     direction,
                     self._teleport,
                     self._ultimate,
+                    ready_at,
                 )
-                self.blocked = True
-                # directions = []
-                # while self.actions and self.actions[0].func.__name__ == "teleport":
-                #     next_action = self.actions.pop(0)
-                #     directions.extend(
-                #         [next_action.args[-2]] * next_action.keywords["num_times"]
-                #     )
-                # res = partial(
-                #     telecast,
-                #     self.data.handle,
-                #     self.data.ign,
-                #     directions,
-                #     self._teleport,
-                #     self._ultimate,
+                # self.blocked = True
+                # updater = GeneratorUpdate(
+                #     # game_data_kwargs={"available_to_cast": True},
+                #     generator_id=id(self),
+                #     generator_kwargs={"blocked": False},
                 # )
-
-                updater = GeneratorUpdate(
-                    game_data_kwargs={"available_to_cast": True},
-                    generator_id=id(self), generator_kwargs={"blocked": False}
-                )
+                print("Telecasting", direction)
                 return QueueAction(
-                    identifier=self.__class__.__name__,
+                    identifier='Telecast',
                     priority=98,
                     action=res,
-                    update_generators=updater
+                    # update_generators=updater,
                 )
         else:
-            return self._rotation()
+            rotation = self._rotation()
+            if rotation:
+                if rotation.action.func.__name__ == "teleport":
+                    self.data.update(
+                        teleporting_until=time.perf_counter()
+                        + self._teleport.animation_time
+                    )
+            return rotation
