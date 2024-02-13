@@ -48,7 +48,7 @@ if __name__ == "__main__":
     #     time.sleep(1.075)
     # asyncio.run(cast_skill(HANDLE, "WrongDoor", bishop.skills['Genesis']))
     # asyncio.run(test())
-    # from botting.core.controls.inputs.focused_inputs import activate, FOCUS_LOCK
+    # from botting.core.controller.inputs.focused_inputs import activate, FOCUS_LOCK
     #
     # asyncio.run(activate(HANDLE))
     # FOCUS_LOCK.release()

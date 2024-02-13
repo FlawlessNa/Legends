@@ -28,9 +28,13 @@ random_delay = _random_delay()
 
 KEYBOARD_MAPPING = {
     "alt": win32con.VK_MENU,
-    "alt_right": win32con.VK_MENU,  # Could've used the win32con.VK_RMENU, but Spy++ shows that the game uses the VK_MENU instead. Reproduced here to copy human-like behavior.
-    "ctrl": win32con.VK_CONTROL,  # Could've used the win32con.VK_LCONTROL, but Spy++ shows that the game uses the VK_CONTROL instead. Reproduced here to copy human-like behavior.
-    "ctrl_right": win32con.VK_CONTROL,  # Could've used the win32con.VK_RCONTROL, but Spy++ shows that the game uses the VK_CONTROL instead. Reproduced here to copy human-like behavior.
+
+    # Or win32con.VK_RMENU, but Spy++ shows that the game uses the VK_MENU instead.
+    "alt_right": win32con.VK_MENU,
+    # Or win32con.VK_LCONTROL, but Spy++ shows that the game uses the VK_CONTROL instead.
+    "ctrl": win32con.VK_CONTROL,
+    # Or win32con.VK_RCONTROL, but Spy++ shows that the game uses the VK_CONTROL instead.
+    "ctrl_right": win32con.VK_CONTROL,
     "left": win32con.VK_LEFT,
     "right": win32con.VK_RIGHT,
     "up": win32con.VK_UP,

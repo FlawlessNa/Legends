@@ -7,13 +7,11 @@ from functools import partial
 from pathfinding.finder.a_star import AStarFinder
 
 from botting import PARENT_LOG
-from botting.core.controls import controller
 from royals.actions import (
     move,
     jump_on_rope,
     teleport,
     single_jump,
-    continuous_jump,
 )
 from royals.models_implementations.mechanics import (
     MinimapPathingMechanics,

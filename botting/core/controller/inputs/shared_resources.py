@@ -12,6 +12,26 @@ class SharedResources:
     focus_lock = asyncio.Lock()  # All instances of this class will share the same lock.
     # Used to prevent multiple processes from trying to use PC Focus simultaneously.
 
+    keys_sent = set()
+
+    @classmethod
+    def key_watcher(cls, func: callable) -> callable:
+        """
+        Use this decorator to add any keys being sent to a window to the keys_sent set.
+        This set is used to inspect keys that may require releasing before a switch of
+        window focus is performed.
+        :param func:
+        :return:
+        """
+        @functools.wraps(func)
+        async def inner(*args, **kwargs):
+            breakpoint()
+            res = await func(*args, **kwargs)
+            cls.keys_sent.add(args[0])
+            return res
+
+        return inner
+
     @classmethod
     def requires_focus(cls, func: callable) -> callable:
         """

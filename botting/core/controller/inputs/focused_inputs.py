@@ -5,7 +5,6 @@ import asyncio
 import ctypes
 import itertools
 import logging
-import time
 
 import win32api
 import win32con
@@ -15,6 +14,8 @@ from typing import Literal
 from win32com.client import Dispatch
 from win32api import GetKeyState, GetAsyncKeyState
 from win32gui import SetForegroundWindow, GetForegroundWindow
+
+from .shared_resources import SharedResources
 
 from .inputs_helpers import (
     _EXPORTED_FUNCTIONS,
@@ -49,7 +50,6 @@ ULONG_PTR = ctypes.POINTER(ctypes.c_ulong)
 logger = logging.getLogger(__name__)
 
 EVENTS = Literal["keydown", "keyup", "click", "mousedown", "mouseup"]
-FOCUS_LOCK = asyncio.Lock()
 OPPOSITES = {
     "up": "down",
     "down": "up",
@@ -122,11 +122,9 @@ InputArray = Input * 1
 MOUSE = wintypes.DWORD(0)
 KEYBOARD = wintypes.DWORD(1)
 HARDWARE = wintypes.DWORD(2)
-T = 0
 
 
 async def activate(hwnd: int) -> bool:
-    global T
     """
     Activates the window associated with the handle.
     Any key press or mouse click will be sent to the active window.
@@ -134,26 +132,25 @@ async def activate(hwnd: int) -> bool:
     """
     acquired = False
     if GetForegroundWindow() != hwnd:
-        # print(f"Acquiring lock {FOCUS_LOCK}")
-        acquired = await FOCUS_LOCK.acquire()
-        # print(f"Acquired lock {FOCUS_LOCK}")
+        print(f"Acquiring lock {id(SharedResources.focus_lock)}")
+        acquired = await SharedResources.focus_lock.acquire()
+        print(f"Acquired lock {id(SharedResources.focus_lock)}")
         logger.debug(f"Activating window {hwnd}")
         # Before activating, make sure to release any keys that are currently pressed.
-        _release_movement_keys(hwnd)
+        _release_watched_keys(hwnd)
 
         shell = Dispatch("WScript.Shell")
         shell.SendKeys("%")
         SetForegroundWindow(hwnd)
 
-    elif not acquired and not FOCUS_LOCK.locked():
-        # print(f"Acquiring lock {FOCUS_LOCK}")
-        acquired = await FOCUS_LOCK.acquire()
-        T = time.perf_counter()
-        # print(f"Acquired lock {FOCUS_LOCK}")
+    elif not acquired and not SharedResources.focus_lock.locked():
+        acquired = await SharedResources.focus_lock.acquire()
     return acquired
 
 
-def _release_movement_keys(hwnd: int) -> None:
+def _release_watched_keys(hwnd: int) -> None:
+    # TODO
+    watched_keys = SharedResources.keys_sent
     move_keys = {
         win32con.VK_UP: "up",
         win32con.VK_DOWN: "down",
@@ -162,7 +159,7 @@ def _release_movement_keys(hwnd: int) -> None:
     }
     release = [[]]
     events = [[]]
-    for key in move_keys:
+    for key in watched_keys:
         if win32api.HIBYTE(GetAsyncKeyState(key)) != 0:
             release[0].append(move_keys[key])
             events[0].append("keyup")
@@ -327,7 +324,7 @@ async def focused_inputs(
                 # time.sleep(delays[-enforce_last_inputs + i])
         if acquired:
             # print(f"Releasing lock {FOCUS_LOCK} {time.perf_counter() - T} seconds later")
-            FOCUS_LOCK.release()
+            SharedResources.focus_lock.release()
 
         # print('num input sent', res, 'out of', len(inputs) + enforce_last_inputs)
         return res
@@ -356,89 +353,6 @@ def get_held_movement_keys(hwnd: int) -> list[str]:
         != 0
     ]
     return pressed
-
-
-# def _add_transitions(
-#     hwnd: int,
-#     inputs: list[tuple],
-#     delays: list[float],
-#     enforce_transition_delay: bool = False,
-# ) -> None:
-#     """
-#     Takes in the inputs and delays meant to be sent to the active window and checks if
-#     any movement keys are used. If so, it releases the opposite direction keys when
-#     necessary.
-#     If the 2nd input contains the same direction as the first and the current direction
-#     was not already pressed, then the 0.5 standard first delay is also added.
-#     :param hwnd:
-#     :param inputs:
-#     :param delays:
-#     :return:
-#     """
-#     opposites = {
-#         "up": "down",
-#         "down": "up",
-#         "left": "right",
-#         "right": "left",
-#     }
-#     virtuals = {
-#         win32con.VK_UP: "up",
-#         win32con.VK_DOWN: "down",
-#         win32con.VK_LEFT: "left",
-#         win32con.VK_RIGHT: "right",
-#     }
-#     pressed = [
-#         key
-#         for key in opposites
-#         if win32api.HIBYTE(
-#             GetAsyncKeyState(
-#                 _get_virtual_key(key, False, _keyboard_layout_handle(hwnd))
-#             )
-#         )
-#         != 0
-#     ]
-#     first_input = inputs[0][1][0]
-#     second_input = None
-#     if len(inputs) > 1:
-#         second_input = inputs[1][1][0]
-#
-#     if len(first_input) == 1:
-#         keys = [first_input[0].structure.ki.wVk]
-#     elif len(first_input) == 2:
-#         keys = [first_input[0].structure.ki.wVk, first_input[1].structure.ki.wVk]
-#     else:
-#         breakpoint()
-#         raise NotImplementedError(f"Shouldn't reach this point")
-#
-#     if len(first_input) > 1 and keys[0] not in virtuals:
-#         breakpoint()  # TODO if we ever get here
-#         return
-#
-#     # If second input is a repeat of the last key in first input, replace delay
-#     if second_input and second_input[0].structure.ki.wVk == keys[-1]:
-#         # Check if both are keydown events
-#         if second_input[0].structure.ki.dwFlags == first_input[-1].structure.ki.dwFlags:
-#             # Check that the key is not already pressed
-#             if virtuals[keys[-1]] not in pressed:
-#                 if sum(delays) > 0.5:
-#                     delays[0] = 0.5
-#                     print('first delay overwritten')
-#
-#     for key in keys:
-#         if virtuals[key] in pressed:  # If it's already pressed, no need to release it
-#             pressed.remove(virtuals[key])
-#
-#     if pressed:  # Release all other directional pressed keys
-#         print(f'Releasing {pressed}')
-#         events: list[list[Literal]] = [["keyup"] * len(pressed)]
-#         new_input = input_constructor(hwnd, [pressed], events)
-#
-#         # When climbing up/down a ladder, add buffer to ensure climb is complete
-#         if pressed == ["up"] or pressed == ["down"]:
-#             time.sleep(0.2)
-#         _send_input(new_input[0])
-#         if enforce_transition_delay:
-#             time.sleep(0.2)
 
 
 def _send_input(structure: tuple) -> None:

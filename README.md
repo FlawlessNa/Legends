@@ -16,7 +16,9 @@
   - [ ] royals.actions
 - [x] Idea #1: For casting (especially attacking skills), always trigger repeated feature for skill.animation_time
 - [ ] Streamline input construction and allow mouse + keyboard inputs tangled
+- [ ] Add a "watcher" in controller module to create set of all keys that were sent at some point. Check those for release upon focus switch.
   - Allows repeated key feature on anything, keys + mouse inputs combined as well
+- [ ] Test that the shared focus lock is the same instance for all bots.
 - [x] Refactor using this "input constructor" to implement actions/movements specific to royals
   - [ ] DELAYS between mousedown and mouseup should be 2 * DELAY! (right now, they are instant for clicks - correct this)
   - [x] Same is true between keydown/keyups
@@ -27,7 +29,7 @@
   - Mobhitting does not cancel movements. Movements do not cancel mobhitting (they run concurrently)
   - Tasks with lower priority number still cancel other tasks. 
   - Rotation tasks are cancelled by any other tasks.
-  - Rotation tasks CANNOT be scheduled if a higher priority task is still in queue
+  - TODO!! -- Rotation tasks CANNOT be scheduled if a higher priority task is still in queue!!
 - [ ] Rotation Fluidity
   - Rotation Generators should continuously fire rotation actions
   - Each new rotation action cancels the previous to take its place. Cancellations do not release keys.
