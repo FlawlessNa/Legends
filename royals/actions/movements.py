@@ -97,7 +97,7 @@ async def single_jump(
         structure.insert(0, release)
         delays.insert(0, 0)
     await controller.focused_inputs(
-        handle, structure, delays, enforce_last_inputs=1, enforce_transition_delay=True
+        handle, structure, delays, enforce_last_inputs=1
     )
 
 
@@ -165,7 +165,7 @@ async def jump_on_rope(
         structure.insert(0, release)
         delays.insert(0, 0)
     await controller.focused_inputs(
-        handle, structure, delays, enforce_last_inputs=1, enforce_transition_delay=True
+        handle, structure, delays, enforce_last_inputs=1
     )
 
 

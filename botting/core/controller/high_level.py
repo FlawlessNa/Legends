@@ -20,11 +20,8 @@ from .inputs import (
     non_focused_input,
     message_constructor,
     DELAY,
-    random_delay,
     input_constructor,
-    release_opposites,
-    OPPOSITES,
-    get_held_movement_keys
+    SharedResources
 )
 
 logger = logging.getLogger(__name__)
@@ -148,6 +145,7 @@ async def write(
         When silenced=False, the focused_inputs is shielded from cancellation, such
         that the entire message is written before the lock releases.
     """
+    SharedResources.release_all()
     if silenced:
         logger.info(f"Writing message {message} in window {handle} silently.")
         inputs = message_constructor(
@@ -163,7 +161,7 @@ async def write(
 
         if delay == 0:
             message = [[char for char in list(message) for _ in range(2)]]
-            events: list[list[Literal["keyup", "keydown"] | str]] = [
+            events: list[list[Literal]] = [
                 ["keydown", "keyup"] * (len(message[0]) // 2)
             ]
             delays = [0]
@@ -243,8 +241,7 @@ async def mouse_move(
         y = [int(i * 65536 // HEIGHT) for i in y]
         delays = [step_duration] * len(x)
 
-    inputs = input_constructor(handle, list(zip(x, y)), [None])
-
+    inputs = input_constructor(handle, list(zip(x, y)), [None] * len(x))
     await focused_inputs(handle, inputs, delays, 0)
 
 
@@ -265,8 +262,8 @@ async def click(
         events = ["mousedown", "mouseup"] * nbr_times
     else:
         events = [down_or_up] * nbr_times
-    delays = [random.uniform(0.95, 1.05) * delay for _ in range(nbr_times)]
-    inputs = input_constructor(handle, [None], events)
+    delays = [random.uniform(0.95, 1.05) * delay for _ in range(len(events))]
+    inputs = input_constructor(handle, [None] * len(events), events)
     return await focused_inputs(handle, inputs, delays, 0)
 
 

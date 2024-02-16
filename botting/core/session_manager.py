@@ -8,7 +8,7 @@ from typing import Self
 from botting.screen_recorder import RecorderLauncher
 from .communications import DiscordLauncher
 from .bot import Executor, BotLauncher
-from .controller import high_level
+from botting.core import controller
 
 
 logger = logging.getLogger(__name__)

@@ -32,7 +32,7 @@ async def cast_skill(
     :return:
     """
     if single_press:
-        await controller.press(handle, skill.key_bind(ign), silenced=True)
+        await controller.press(handle, skill.key_bind(ign), silenced=False)
         await asyncio.sleep(skill.animation_time)
         return
     delays = []  # TODO - First 0.5 standard delay in new direction cases
@@ -199,7 +199,7 @@ async def telecast(
         structure.insert(0, release)
         delays.insert(0, 0)
 
-    wait_time = max(ready_at + 0.1 - time.perf_counter(), 0.0)
+    wait_time = max(ready_at + 0.2 - time.perf_counter(), 0.0)
     if wait_time > 0:
         print("Waiting", wait_time, "seconds before telecasting")
         await asyncio.sleep(wait_time)

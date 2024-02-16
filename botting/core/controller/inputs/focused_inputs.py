@@ -132,7 +132,7 @@ async def activate(hwnd: int) -> bool:
         acquired = await SharedResources.focus_lock.acquire()
         logger.debug(f"Activating window {hwnd}")
         # Before activating, make sure to release any keys that are currently pressed.
-        _release_watched_keys(hwnd)
+        release_all(GetForegroundWindow())
 
         shell = Dispatch("WScript.Shell")
         shell.SendKeys("%")
@@ -143,24 +143,24 @@ async def activate(hwnd: int) -> bool:
     return acquired
 
 
-def _release_watched_keys(hwnd: int) -> None:
-    # TODO
-    watched_keys = SharedResources.keys_sent
-    move_keys = {
-        win32con.VK_UP: "up",
-        win32con.VK_DOWN: "down",
-        win32con.VK_LEFT: "left",
-        win32con.VK_RIGHT: "right",
-    }
-    release = [[]]
-    events = [[]]
-    for key in watched_keys:
-        if HIBYTE(GetAsyncKeyState(key)) != 0:
-            release[0].append(move_keys[key])
-            events[0].append("keyup")
-    if release[0]:
-        inputs = input_constructor(hwnd, release, events)
-        _send_input(inputs[0])
+def release_all(hwnd: int) -> None:
+    release = []
+    events: list[Literal] = []
+    for key in SharedResources.keys_sent:
+        if (
+            HIBYTE(
+                GetAsyncKeyState(
+                    _get_virtual_key(key, True, _keyboard_layout_handle(hwnd))
+                )
+            )
+            != 0
+        ):
+            release.append(key)
+            events.append("keyup")
+    if release:
+        logger.debug(f"Releasing keys {release} from window {hwnd}")
+        inputs = input_constructor(hwnd, [release], [events])[0]
+        _send_input(inputs)
 
 
 def release_opposites(hwnd: int, *keys: str | None) -> tuple:
@@ -211,22 +211,56 @@ def input_constructor(
     """
     structures = []
     for lst_inputs, lst_events in zip(inputs, events):
-        if isinstance(lst_inputs, list):
-            assert isinstance(lst_events, list)
+        if isinstance(lst_inputs, str):  # Keyboard input
+            SharedResources.keys_sent.add(lst_inputs)
+            structures.append(
+                (
+                    wintypes.UINT(1),
+                    ctypes.POINTER(Input * 1)(
+                        _single_input_constructor(
+                            hwnd, lst_inputs, lst_events, as_unicode
+                        )
+                    ),
+                    wintypes.INT(ctypes.sizeof(Input)),
+                )
+            )
+        elif isinstance(lst_inputs, tuple) and lst_events is None:  # Mouse move input
+            structures.append(
+                (
+                    wintypes.UINT(1),
+                    ctypes.POINTER(Input * 1)(
+                        _single_input_mouse_constructor(
+                            *lst_inputs, lst_events, mouse_data
+                        )
+                    ),
+                    wintypes.INT(ctypes.sizeof(Input)),
+                )
+            )
+        elif lst_inputs is None:  # Click events
+            structures.append(
+                (
+                    wintypes.UINT(1),
+                    ctypes.POINTER(Input * 1)(
+                        _single_input_mouse_constructor(
+                            None, None, lst_events, mouse_data
+                        )
+                    ),
+                    wintypes.INT(ctypes.sizeof(Input)),
+                )
+            )
+
+        # Multiple inputs
+        elif isinstance(lst_inputs, list) and isinstance(lst_events, list):
             assert len(lst_inputs) == len(lst_events)
-            num_inputs = len(lst_inputs)
+            inputs = [
+                _single_input_constructor(hwnd, i, e, as_unicode)
+                for i, e in zip(lst_inputs, lst_events)
+            ]
+            for i in lst_inputs:
+                SharedResources.keys_sent.add(i)
+            num_inputs = len(inputs)
             array_class = Input * num_inputs
             array_pointer = ctypes.POINTER(array_class)
-            inputs = [input_constructor(hwnd, inp, event, as_unicode, mouse_data) for inp, event in zip(lst_inputs, lst_events)]
-            # for inp, event in zip(lst_inputs, lst_events):
-            #     if isinstance(inp, str):
-            #         inputs.append(
-            #             _single_input_constructor(hwnd, inp, event, as_unicode)
-            #         )
-            #     else:
-            #         inputs.append(
-            #             _single_input_mouse_constructor(*inp, event, mouse_data)
-            #         )
             input_array = array_class(*inputs)
             structures.append(
                 (
@@ -235,44 +269,7 @@ def input_constructor(
                     wintypes.INT(ctypes.sizeof(input_array[0])),
                 )
             )
-        else:
-            if isinstance(lst_inputs, str):
-                structures.append(
-                    (
-                        wintypes.UINT(1),
-                        ctypes.POINTER(Input * 1)(
-                            _single_input_constructor(
-                                hwnd, lst_inputs, lst_events, as_unicode
-                            )
-                        ),
-                        wintypes.INT(ctypes.sizeof(Input)),
-                    )
-                )
-            else:
-                if lst_inputs is None:
-                    structures.append(
-                        (
-                            wintypes.UINT(1),
-                            ctypes.POINTER(Input * 1)(
-                                _single_input_mouse_constructor(
-                                    None, None, lst_events, mouse_data
-                                )
-                            ),
-                            wintypes.INT(ctypes.sizeof(Input)),
-                        )
-                    )
-                else:
-                    structures.append(
-                        (
-                            wintypes.UINT(1),
-                            ctypes.POINTER(Input * 1)(
-                                _single_input_mouse_constructor(
-                                    *lst_inputs, lst_events, mouse_data
-                                )
-                            ),
-                            wintypes.INT(ctypes.sizeof(Input)),
-                        )
-                    )
+
     return structures
 
 
@@ -298,7 +295,7 @@ async def focused_inputs(
     through a "finally" clause.
     :return: Nbr of inputs successfully sent.
     """
-    res = 0
+    res = enforce_last_inputs
     keys_to_release: list[tuple] = []
     if enforce_last_inputs > 0:
         keys_to_release: list[tuple] = inputs[-enforce_last_inputs:]
@@ -312,6 +309,7 @@ async def focused_inputs(
             _send_input(inputs[i])
             res += 1
             await asyncio.sleep(delays[i])
+        return res
 
     except asyncio.CancelledError:
         raise
@@ -323,10 +321,8 @@ async def focused_inputs(
         if keys_to_release:
             for i in range(len(keys_to_release)):
                 _send_input(keys_to_release[i])
-                res += 1
         if acquired:
             SharedResources.focus_lock.release()
-        return res
 
 
 def get_held_movement_keys(hwnd: int) -> list[str]:

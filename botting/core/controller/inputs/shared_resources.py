@@ -7,6 +7,10 @@ from win32gui import GetForegroundWindow, SetForegroundWindow
 
 logger = logging.getLogger(__name__)
 
+MOUSE = 0
+KEYBOARD = 1
+HARDWARE = 2
+
 
 class SharedResources:
     """
@@ -17,33 +21,11 @@ class SharedResources:
     during the lifecycle of the program. This set is used to inspect keys that may
     require releasing before a switch of window focus is performed.
     """
+
     focus_lock = asyncio.Lock()  # All instances of this class will share the same lock.
     # Used to prevent multiple processes from trying to use PC Focus simultaneously.
 
     keys_sent = set()
-
-    @classmethod
-    def release_all(cls) -> None:
-        # TODO
-        pass
-
-    @classmethod
-    def key_watcher(cls, func: callable) -> callable:
-        """
-        Use this decorator to add any keys being sent to a window to the keys_sent set.
-        This set is used to inspect keys that may require releasing before a switch of
-        window focus is performed.
-        :param func:
-        :return:
-        """
-        @functools.wraps(func)
-        async def inner(*args, **kwargs):
-            breakpoint()
-            res = await func(*args, **kwargs)
-            cls.keys_sent.add(args[0])
-            return res
-
-        return inner
 
     @classmethod
     def requires_focus(cls, func: callable) -> callable:
@@ -61,11 +43,9 @@ class SharedResources:
             """
             await cls.focus_lock.acquire()
             try:
-                # logger.debug(f"Focus Lock {id(cls.focus_lock)} acquired by {os.getpid()}")
                 res = await func(*args, **kwargs)
             finally:
                 cls.focus_lock.release()
-                # logger.debug(f"Focus Lock {id(cls.focus_lock)} released by {os.getpid()}")
             return res
 
         return inner
