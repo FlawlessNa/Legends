@@ -26,7 +26,7 @@
   - [x] Same is true between keydown/keyups
 - [x] Casting - Use with the new Repeated key feature
   - Casting should ensure keys are released at the end for human-like behavior, but it won't cause problems in terms of activity
-- [ ] Task Cancellation:
+- [ ] Task Cancellation - This should be used to manage multi-process/clients task management from Executor:
   - Movements always cancel movements
   - Mobhitting does not cancel movements. Movements do not cancel mobhitting (they run concurrently)
   - Tasks with lower priority number still cancel other tasks. 
