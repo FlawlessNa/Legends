@@ -520,7 +520,7 @@ class InventoryActions:
             )
         delays.append(0.2)
         structures = controller.input_constructor(handle, inputs, events)
-        return await controller.focused_inputs(handle, structures, delays, 1)
+        return await controller.focused_inputs(handle, structures, delays, ["y"])
 
     @staticmethod
     def move_to_target(

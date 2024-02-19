@@ -21,7 +21,7 @@ from .inputs import (
     message_constructor,
     DELAY,
     input_constructor,
-    SharedResources
+    release_all,
 )
 
 logger = logging.getLogger(__name__)
@@ -102,18 +102,18 @@ async def press(
         inputs = []
         keys = []
         events = []
-        enforce_release = 0
+        release = None
         if down_or_up in ["keydown", None]:
             keys = [[key]] * nbr_times
             events: list[Literal | list] = [["keydown"]] * nbr_times
             inputs = input_constructor(handle, keys, events)
         if down_or_up in ["keyup", None]:
-            enforce_release = 1
+            release = [key]
             keys.append([key])
             events.append(["keyup"])
 
         delays = [random.uniform(0.95, 1.05) * delay for _ in range(len(inputs))]
-        await focused_inputs(handle, inputs, delays, enforce_release)
+        await focused_inputs(handle, inputs, delays, release)
 
 
 async def write(
@@ -145,7 +145,7 @@ async def write(
         When silenced=False, the focused_inputs is shielded from cancellation, such
         that the entire message is written before the lock releases.
     """
-    SharedResources.release_all()
+    release_all(handle)
     if silenced:
         logger.info(f"Writing message {message} in window {handle} silently.")
         inputs = message_constructor(
@@ -158,6 +158,7 @@ async def write(
 
     else:
         logger.info(f"Writing message {message} in window {handle} LOUDLY.")
+        release_keys = list(set(message))
 
         if delay == 0:
             message = [[char for char in list(message) for _ in range(2)]]
@@ -171,7 +172,7 @@ async def write(
             delays = [random.uniform(0.95, 1.05) * delay for _ in range(len(message))]
 
         inputs = input_constructor(handle, message, events, as_unicode=True)
-        await asyncio.shield(focused_inputs(handle, inputs, delays, 0))
+        await asyncio.shield(focused_inputs(handle, inputs, delays, release_keys))
 
 
 @randomize_params("total_duration")
@@ -242,7 +243,7 @@ async def mouse_move(
         delays = [step_duration] * len(x)
 
     inputs = input_constructor(handle, list(zip(x, y)), [None] * len(x))
-    await focused_inputs(handle, inputs, delays, 0)
+    await focused_inputs(handle, inputs, delays)
 
 
 async def click(
@@ -264,7 +265,7 @@ async def click(
         events = [down_or_up] * nbr_times
     delays = [random.uniform(0.95, 1.05) * delay for _ in range(len(events))]
     inputs = input_constructor(handle, [None] * len(events), events)
-    return await focused_inputs(handle, inputs, delays, 0)
+    return await focused_inputs(handle, inputs, delays)
 
 
 def get_mouse_pos(handle: int) -> tuple[int, int]:

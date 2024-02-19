@@ -10,6 +10,7 @@
 ## Input-Constructor Branch - TODOs
 - [ ] Before Merging, major cleanup of:
   - [ ] Entire controller module (refactor to be controller as a package)
+    - Test write function properly as well
   - [ ] Executor class
   - [ ] All Rotation Generators
   - [ ] MinimapPathingMechanics and get_to_target module
@@ -17,7 +18,7 @@
   - [ ] InventoryManagement + Inventory actions/checks
 - [x] Idea #1: For casting (especially attacking skills), always trigger repeated feature for skill.animation_time
 - [x] Streamline input construction and allow mouse + keyboard inputs tangled
-- [ ] Add a "watcher" in controller module to create set of all keys that were sent at some point. Check those for release upon focus switch.
+- [x] Add a "watcher" in controller module to create set of all keys that were sent at some point. Check those for release upon focus switch.
 - [ ] Replace "enforce_last_inputs" with "release following keys" which only release if they are down
 - Allows repeated key feature on anything, keys + mouse inputs combined as well
 - [x] Test that the shared focus lock is the same instance for all bots.
@@ -32,13 +33,13 @@
   - Tasks with lower priority number still cancel other tasks. 
   - Rotation tasks are cancelled by any other tasks.
   - TODO!! -- Rotation tasks CANNOT be scheduled if a higher priority task is still in queue?
-- [ ] Rotation Fluidity
+- [x] Rotation Fluidity
   - Rotation Generators should continuously fire rotation actions
   - Each new rotation action cancels the previous to take its place. Cancellations do not release keys.
   - Each new rotation inserts keyups event at the beginning of their streams depending on KeyState of prev actions
   - Each action mostly consists of keydowns inputs
   - When a new action overwrites the previous and keys change, then keyups are triggered
-  - When Focus Lock changes, keyups are also triggeredcv
+  - When Focus Lock changes, keyups are also triggered
 - [ ] Refactor the controller top-level functions
 
 ## Performance Branch

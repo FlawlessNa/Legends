@@ -144,8 +144,7 @@ async def activate(hwnd: int) -> bool:
 
 
 def release_all(hwnd: int) -> None:
-    release = []
-    events: list[Literal] = []
+    release_keys = []
     for key in SharedResources.keys_sent:
         if (
             HIBYTE(
@@ -155,23 +154,20 @@ def release_all(hwnd: int) -> None:
             )
             != 0
         ):
-            release.append(key)
-            events.append("keyup")
-    if release:
-        logger.debug(f"Releasing keys {release} from window {hwnd}")
-        inputs = input_constructor(hwnd, [release], [events])[0]
-        _send_input(inputs)
+            release_keys.append(key)
+    if release_keys:
+        logger.debug(f"Releasing keys {release_keys} from window {hwnd}")
+    _release_keys(release_keys)
 
 
-def release_opposites(hwnd: int, *keys: str | None) -> tuple:
+def release_opposites(hwnd: int, *keys: str | None) -> None:
     """
     Releases the opposite keys of the given keys, if they are held down.
     :param hwnd: Handle to the window to send the inputs to.
     :param keys: Movement keys to release.
     :return: Input structure to release the opposite keys.
     """
-    release = []
-    events: list[Literal] = []
+    release_keys = []
     for key in keys:
         if (
             HIBYTE(
@@ -183,10 +179,8 @@ def release_opposites(hwnd: int, *keys: str | None) -> tuple:
             )
             != 0
         ):
-            release.append(OPPOSITES[key])
-            events.append("keyup")
-    if release:
-        return input_constructor(hwnd, [release], [events])[0]
+            release_keys.append(OPPOSITES[key])
+    _release_keys(release_keys)
 
 
 def input_constructor(
@@ -277,30 +271,19 @@ async def focused_inputs(
     hwnd: int,
     inputs: list[tuple],
     delays: list[float],
-    enforce_last_inputs: int = 0,
+    keys_to_release: list[str] = None,
 ) -> int:
     """
     Sends the inputs to the active window.
     A small delay is added between each input.
-
-    Whenever a direction is used in the input, it is always within the first input.
-    Parse that input to see if any direction are used, and release opposite directions
-    when necessary.
-    If the 2nd input contains the same direction as the first, then the 0.5 delay is
-    added as well.
     :param hwnd: handle to the window to send the inputs to.
     :param inputs: input structures to send.
     :param delays: delays between each input.
-    :param enforce_last_inputs: Nbr of inputs at the end of input structure to enforce
-    through a "finally" clause.
+    :param keys_to_release: If provided, these are sure to be released at the end even
+    if the task is cancelled.
     :return: Nbr of inputs successfully sent.
     """
-    res = enforce_last_inputs
-    keys_to_release: list[tuple] = []
-    if enforce_last_inputs > 0:
-        keys_to_release: list[tuple] = inputs[-enforce_last_inputs:]
-        inputs = inputs[:-enforce_last_inputs]
-
+    res = 0
     acquired = False
     try:
         acquired = await activate(hwnd)
@@ -312,15 +295,25 @@ async def focused_inputs(
         return res
 
     except asyncio.CancelledError:
-        raise
+        return res
 
     except Exception as e:
         raise e
 
     finally:
         if keys_to_release:
-            for i in range(len(keys_to_release)):
-                _send_input(keys_to_release[i])
+            release_keys = []
+            for key in keys_to_release:
+                if (
+                    HIBYTE(
+                        GetAsyncKeyState(
+                            _get_virtual_key(key, True, _keyboard_layout_handle(hwnd))
+                        )
+                    )
+                    != 0
+                ):
+                    release_keys.append(key)
+            _release_keys(release_keys)
         if acquired:
             SharedResources.focus_lock.release()
 
@@ -331,13 +324,7 @@ def get_held_movement_keys(hwnd: int) -> list[str]:
     :param hwnd:
     :return:
     """
-    virtuals = {
-        win32con.VK_UP: "up",
-        win32con.VK_DOWN: "down",
-        win32con.VK_LEFT: "left",
-        win32con.VK_RIGHT: "right",
-    }
-    pressed = [
+    return [
         key
         for key in OPPOSITES
         if HIBYTE(
@@ -347,7 +334,6 @@ def get_held_movement_keys(hwnd: int) -> list[str]:
         )
         != 0
     ]
-    return pressed
 
 
 def _send_input(structure: tuple) -> None:
@@ -480,3 +466,16 @@ def _remove_num_lock() -> None:
 
 
 _remove_num_lock()
+
+
+def _release_keys(keys: list[str]) -> None:
+    """
+    Releases the given keys.
+    :param keys: Keys to release.
+    :return: Input structure to release the given keys.
+    """
+    if keys:
+        events: list[Literal] = ["keyup"] * len(keys)
+        inputs = input_constructor(GetForegroundWindow(), [keys], [events])
+        if inputs:
+            _send_input(inputs[0])

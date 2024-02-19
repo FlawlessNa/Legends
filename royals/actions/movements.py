@@ -36,16 +36,13 @@ async def move(
     structure = controller.input_constructor(handle, keys, events)
 
     if secondary_direction:
-        release = controller.release_opposites(handle, direction, secondary_direction)
+        controller.release_opposites(handle, direction, secondary_direction)
     elif direction in ["left", "right"]:
-        release = controller.release_opposites(handle, direction, "up", "down")
+        controller.release_opposites(handle, direction, "up", "down")
         if "up" in controller.get_held_movement_keys(handle):
             time.sleep(0.1)
     else:
-        release = controller.release_opposites(handle, direction, "left", "right")
-    if release:
-        structure.insert(0, release)
-        delays.insert(0, 0)
+        controller.release_opposites(handle, direction, "left", "right")
     await controller.focused_inputs(hwnd=handle, inputs=structure, delays=delays)
 
 
@@ -90,14 +87,11 @@ async def single_jump(
 
     structure = controller.input_constructor(handle, keys, events)
     if direction in ["up", "down"]:
-        release = controller.release_opposites(handle, direction, "left", "right")
+        controller.release_opposites(handle, direction, "left", "right")
     else:
-        release = controller.release_opposites(handle, direction, "up", "down")
-    if release:
-        structure.insert(0, release)
-        delays.insert(0, 0)
+        controller.release_opposites(handle, direction, "up", "down")
     await controller.focused_inputs(
-        handle, structure, delays, enforce_last_inputs=1
+        handle, structure, delays, keys_to_release=[jump_key]
     )
 
 
@@ -160,12 +154,9 @@ async def jump_on_rope(
         ]
 
     structure = controller.input_constructor(handle, keys, events)
-    release = controller.release_opposites(handle, direction)
-    if release:
-        structure.insert(0, release)
-        delays.insert(0, 0)
+    controller.release_opposites(handle, direction)
     await controller.focused_inputs(
-        handle, structure, delays, enforce_last_inputs=1
+        handle, structure, delays, keys_to_release=[direction, jump_key]
     )
 
 
