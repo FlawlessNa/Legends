@@ -314,7 +314,6 @@ def _convert_movements_to_actions(
         ]:
             assert teleport_skill is not None
             direction = movement[0].split("_")[-1].lower()
-            # if movement[1] > 1:
             actions.append(
                 partial(
                     teleport,
@@ -325,43 +324,6 @@ def _convert_movements_to_actions(
                     num_times=movement[1],
                 )
             )
-            # else:
-            #     # In this case, check if next movement is in opposite direction. If so,
-            #     # cancel the teleport and move instead.
-            #     try:
-            #         next_move = moves[moves.index(movement) + 1]
-            #         if next_move[0] in ["left", "right"] and next_move[0] != direction:
-            #             actions.append(
-            #                 partial(
-            #                     move,
-            #                     handle,
-            #                     direction,
-            #                     None,
-            #                     duration=0.1
-            #                 )
-            #             )
-            #         else:
-            #             actions.append(
-            #                 partial(
-            #                     teleport,
-            #                     handle,
-            #                     ign,
-            #                     direction,
-            #                     teleport_skill,
-            #                     num_times=1,
-            #                 )
-            #             )
-            #     except IndexError:
-            #         actions.append(
-            #             partial(
-            #                 teleport,
-            #                 handle,
-            #                 ign,
-            #                 direction,
-            #                 teleport_skill,
-            #                 num_times=1,
-            #             )
-            #         )
 
         elif movement[0] in [
             "FLASH_JUMP_LEFT",

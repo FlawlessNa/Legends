@@ -121,8 +121,6 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                 identifier=self.__class__.__name__,
                 priority=99,
                 action=res,
-                # is_cancellable=cancellable,
-                # release_lock_on_callback=True,
             )
 
             self._prev_rotation_actions.append(res)
@@ -167,21 +165,6 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
             self.data.update("current_entire_minimap_box", "current_minimap_area_box")
             return reaction
 
-        # elif (
-        #     all(
-        #         action.func == self._prev_rotation_actions[0].func
-        #         and action.args == self._prev_rotation_actions[0].args
-        #         and action.keywords == self._prev_rotation_actions[0].keywords
-        #         for action in self._prev_rotation_actions
-        #     )
-        #     and len(self._prev_rotation_actions) > 4
-        # ):
-        #     logger.warning(
-        #         f"{self.__class__.__name__} Failsafe Triggered Due to repeated actions"
-        #     )
-        #     self._prev_rotation_actions.clear()
-        #     return reaction
-
     def _mobs_hitting(self) -> QueueAction | None:
         res = None
         closest_mob_direction = None
@@ -224,7 +207,6 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                     self.data.casting_until,
                     closest_mob_direction,
                 )
-        # if res and not self.data.character_in_a_ladder and self.data.available_to_cast:
         if res and time.perf_counter() - self.data.casting_until > 0:
             self.data.update(
                 casting_until=time.perf_counter() + self.training_skill.animation_time,

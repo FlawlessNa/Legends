@@ -33,12 +33,15 @@ class QueueAction:
     action: partial = field(compare=True, default=None)
     process_id: int = field(compare=False, init=False)
     is_cancellable: bool = field(compare=False, default=False, repr=False)
+    cancels_itself: bool = field(compare=False, default=False, repr=False)
+    cancels_itself_all_processes: bool = field(compare=False, default=False, repr=False)
+    disable_lower_priority: bool = field(compare=False, default=False, repr=False)
+
     user_message: list = field(compare=False, default=None, repr=False)
 
     update_generators: Optional["GeneratorUpdate"] = field(
         compare=False, default=None, repr=False
     )
-    # release_lock_on_callback: bool = field(compare=False, default=False, repr=False)
 
     # Not yet implemented
     callbacks: list[callable] = field(compare=False, default_factory=list, repr=False)

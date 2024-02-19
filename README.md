@@ -6,20 +6,21 @@
 - [ ] Cancellation of NPC Selling seems to be problematic because it has a return value
 - [ ] Party Re-buff is broken (casts way too much), for casting non-attack skill (since there's a rebuff validation), can simply cast once.
   - Split into individual buffs and only re-cast buffs that didn't go through
+- [ ] Figure out why telecasting doesn't work as often as expected
 
 ## Input-Constructor Branch - TODOs
 - [ ] Before Merging, major cleanup of:
-  - [ ] Entire controller module (refactor to be controller as a package)
+  - [x] Entire controller module (refactor to be controller as a package)
     - Test write function properly as well
   - [ ] Executor class
-  - [ ] All Rotation Generators
-  - [ ] MinimapPathingMechanics and get_to_target module
-  - [ ] royals.actions
+  - [x] All Rotation Generators
+  - [x] MinimapPathingMechanics and get_to_target module
+  - [x] royals.actions
   - [ ] InventoryManagement + Inventory actions/checks
 - [x] Idea #1: For casting (especially attacking skills), always trigger repeated feature for skill.animation_time
 - [x] Streamline input construction and allow mouse + keyboard inputs tangled
 - [x] Add a "watcher" in controller module to create set of all keys that were sent at some point. Check those for release upon focus switch.
-- [ ] Replace "enforce_last_inputs" with "release following keys" which only release if they are down
+- [x] Replace "enforce_last_inputs" with "release following keys" which only release if they are down
 - Allows repeated key feature on anything, keys + mouse inputs combined as well
 - [x] Test that the shared focus lock is the same instance for all bots.
 - [x] Refactor using this "input constructor" to implement actions/movements specific to royals
@@ -40,7 +41,7 @@
   - Each action mostly consists of keydowns inputs
   - When a new action overwrites the previous and keys change, then keyups are triggered
   - When Focus Lock changes, keyups are also triggered
-- [ ] Refactor the controller top-level functions
+- [x] Refactor the controller top-level functions
 
 ## Performance Branch
 - [ ] Ability to use Multiple clients within a single Engine
