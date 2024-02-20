@@ -19,7 +19,8 @@ class InventoryMenu(InGameDynamicVisuals):
         os.path.join(ROOT, "royals/assets/detection_images/inventory_menu.png")
     )
     _slot_color: np.ndarray = np.array([221, 238, 238])
-    _active_tab_color: np.ndarray = np.array([136, 102, 238])
+    _active_tab_color_lower: np.ndarray = np.array([136, 102, 238])
+    _active_tab_color_upper: np.ndarray = np.array([187, 170, 255])
     _item_title_low_color: np.ndarray = np.array([140, 140, 140])
     _item_title_high_color: np.ndarray = np.array([255, 255, 255])
     _empty_slot_rect_width: int = 31
@@ -82,7 +83,9 @@ class InventoryMenu(InGameDynamicVisuals):
 
         menu_pos = self._menu_icon_position(handle, image)
 
-        processed = cv2.inRange(image, self._active_tab_color, self._active_tab_color)
+        processed = cv2.inRange(image,
+                                self._active_tab_color_lower,
+                                self._active_tab_color_upper)
         contours, _ = cv2.findContours(
             processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )

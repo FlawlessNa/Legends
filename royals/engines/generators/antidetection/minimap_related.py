@@ -175,9 +175,11 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
 
         if self._error_counter == 1:
             # First error, try to move cursor away from minimap
+            logger.debug(f"Moving Cursor away due to error in {self}.")
             return self._move_cursor_away(from_error=True)
         else:
             # Second error, try to open minimap to fully displayed
+            logger.debug(f"Toggling Minimap - error in {self} - {self._error_counter}.")
             return self._ensure_fully_displayed()
 
     def _move_cursor_away(self, from_error: bool) -> QueueAction | None:

@@ -175,7 +175,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         name="side_platform_6",
     )
     cube9: MinimapFeature = MinimapFeature(
-        left=12,
+        left=13,
         right=15,
         top=52,
         bottom=52,

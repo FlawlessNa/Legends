@@ -74,7 +74,7 @@ class InventoryChecks:
             self.data.handle, self.data.current_client_img
         ):
             attempt = 0
-            while attempt < 5:
+            while True:
                 active_tab = self.data.inventory_menu.get_active_tab(
                     self.data.handle, self.data.current_client_img
                 )
