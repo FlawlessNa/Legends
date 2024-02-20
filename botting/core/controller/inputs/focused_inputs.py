@@ -3,16 +3,16 @@ Low-level module that handles sending inputs to the focused window through SendI
 """
 import asyncio
 import ctypes
-import itertools
 import logging
-import time
 import win32con
 
 from ctypes import wintypes
 from typing import Literal
 from win32com.client import Dispatch
-from win32api import GetKeyState
+from win32api import HIBYTE, GetKeyState, GetAsyncKeyState
 from win32gui import SetForegroundWindow, GetForegroundWindow
+
+from .shared_resources import SharedResources
 
 from .inputs_helpers import (
     _EXPORTED_FUNCTIONS,
@@ -21,7 +21,6 @@ from .inputs_helpers import (
     EXTENDED_KEYS,
     MAPVK_VK_TO_VSC_EX,
 )
-from .shared_resources import SharedResources
 
 KEYEVENTF_EXTENDEDKEY = 0x0001
 KEYEVENTF_KEYUP = 0x0002
@@ -46,6 +45,14 @@ MOUSEEVENTF_ABSOLUTE = 0x8000
 ULONG_PTR = ctypes.POINTER(ctypes.c_ulong)
 
 logger = logging.getLogger(__name__)
+
+EVENTS = Literal["keydown", "keyup", "click", "mousedown", "mouseup"]
+OPPOSITES = {
+    "up": "down",
+    "down": "up",
+    "left": "right",
+    "right": "left",
+}
 
 
 class MouseInputStruct(ctypes.Structure):
@@ -114,25 +121,157 @@ KEYBOARD = wintypes.DWORD(1)
 HARDWARE = wintypes.DWORD(2)
 
 
-def activate(hwnd: int) -> None:
+async def activate(hwnd: int) -> bool:
     """
     Activates the window associated with the handle.
     Any key press or mouse click will be sent to the active window.
     :return: None
     """
+    acquired = False
     if GetForegroundWindow() != hwnd:
+        acquired = await SharedResources.focus_lock.acquire()
         logger.debug(f"Activating window {hwnd}")
+        # Before activating, make sure to release any keys that are currently pressed.
+        release_all(GetForegroundWindow())
+
         shell = Dispatch("WScript.Shell")
         shell.SendKeys("%")
         SetForegroundWindow(hwnd)
 
+    elif not acquired and not SharedResources.focus_lock.locked():
+        acquired = await SharedResources.focus_lock.acquire()
+    return acquired
 
-@SharedResources.requires_focus
+
+def release_all(hwnd: int) -> None:
+    release_keys = []
+    for key in SharedResources.keys_sent:
+        if (
+            HIBYTE(
+                GetAsyncKeyState(
+                    _get_virtual_key(key, True, _keyboard_layout_handle(hwnd))
+                )
+            )
+            != 0
+        ):
+            release_keys.append(key)
+    if release_keys:
+        logger.debug(f"Releasing keys {release_keys} from window {hwnd}")
+    _release_keys(release_keys)
+
+
+def release_opposites(hwnd: int, *keys: str | None) -> None:
+    """
+    Releases the opposite keys of the given keys, if they are held down.
+    :param hwnd: Handle to the window to send the inputs to.
+    :param keys: Movement keys to release.
+    :return: Input structure to release the opposite keys.
+    """
+    release_keys = []
+    for key in keys:
+        if (
+            HIBYTE(
+                GetAsyncKeyState(
+                    _get_virtual_key(
+                        OPPOSITES[key], False, _keyboard_layout_handle(hwnd)
+                    )
+                )
+            )
+            != 0
+        ):
+            release_keys.append(OPPOSITES[key])
+    _release_keys(release_keys)
+
+
+def input_constructor(
+    hwnd: int,
+    inputs: list[str | None | tuple[int, int] | list[str | None | tuple[int, int]]],
+    events: list[EVENTS | list[EVENTS] | None],
+    as_unicode: bool | list[bool] = False,
+    mouse_data: list[int | None] | None = None,
+) -> list[tuple]:
+    """
+    Constructs the input structures for the given inputs and events.
+    These must be of the same length. When an item in inputs is a list, the
+    corresponding item in events must also be a list. Those are considered as a single
+    input array for the purpose of SendInput, so they are sent simultaneously.
+    :param hwnd: Handle to the window that will receive the inputs.
+    :param inputs: keystrokes (str), mouse coordinates (tuple), None, or a list of those
+    :param events: "keydown", "keyup", "click", "mousedown", "mouseup",
+        or a list of those
+    :param as_unicode: TODO
+    :param mouse_data: TODO
+    :return: Series of input structures to be sent to the active window with SendInput.
+    """
+    structures = []
+    for lst_inputs, lst_events in zip(inputs, events):
+        if isinstance(lst_inputs, str):  # Keyboard input
+            SharedResources.keys_sent.add(lst_inputs)
+            structures.append(
+                (
+                    wintypes.UINT(1),
+                    ctypes.POINTER(Input * 1)(
+                        _single_input_constructor(
+                            hwnd, lst_inputs, lst_events, as_unicode
+                        )
+                    ),
+                    wintypes.INT(ctypes.sizeof(Input)),
+                )
+            )
+        elif isinstance(lst_inputs, tuple) and lst_events is None:  # Mouse move input
+            structures.append(
+                (
+                    wintypes.UINT(1),
+                    ctypes.POINTER(Input * 1)(
+                        _single_input_mouse_constructor(
+                            *lst_inputs, lst_events, mouse_data
+                        )
+                    ),
+                    wintypes.INT(ctypes.sizeof(Input)),
+                )
+            )
+        elif lst_inputs is None:  # Click events
+            structures.append(
+                (
+                    wintypes.UINT(1),
+                    ctypes.POINTER(Input * 1)(
+                        _single_input_mouse_constructor(
+                            None, None, lst_events, mouse_data
+                        )
+                    ),
+                    wintypes.INT(ctypes.sizeof(Input)),
+                )
+            )
+
+        # Multiple inputs
+        elif isinstance(lst_inputs, list) and isinstance(lst_events, list):
+            assert len(lst_inputs) == len(lst_events)
+            inputs = [
+                _single_input_constructor(hwnd, i, e, as_unicode)
+                for i, e in zip(lst_inputs, lst_events)
+            ]
+            for i in lst_inputs:
+                SharedResources.keys_sent.add(i)
+            num_inputs = len(inputs)
+            array_class = Input * num_inputs
+            array_pointer = ctypes.POINTER(array_class)
+            input_array = array_class(*inputs)
+            structures.append(
+                (
+                    wintypes.UINT(num_inputs),
+                    array_pointer(input_array),
+                    wintypes.INT(ctypes.sizeof(input_array[0])),
+                )
+            )
+
+    return structures
+
+
 async def focused_inputs(
     hwnd: int,
     inputs: list[tuple],
     delays: list[float],
-    keys_to_release: tuple | None,
+    keys_to_release: list[str] = None,
 ) -> int:
     """
     Sends the inputs to the active window.
@@ -140,31 +279,61 @@ async def focused_inputs(
     :param hwnd: handle to the window to send the inputs to.
     :param inputs: input structures to send.
     :param delays: delays between each input.
-    :param keys_to_release: Ensures that the keys are released after the inputs are sent
+    :param keys_to_release: If provided, these are sure to be released at the end even
+    if the task is cancelled.
     :return: Nbr of inputs successfully sent.
     """
-    cleanup = False
     res = 0
+    acquired = False
     try:
-        activate(hwnd)
+        acquired = await activate(hwnd)
 
         for i in range(len(inputs)):
             _send_input(inputs[i])
             res += 1
             await asyncio.sleep(delays[i])
+        return res
 
-        if keys_to_release:
-            _send_input(keys_to_release)
-            cleanup = True
+    except asyncio.CancelledError:
+        return res
 
     except Exception as e:
         raise e
+
     finally:
-        if keys_to_release and not cleanup:
-            if len(delays) > 1 or delays[0] != 0.5:
-                time.sleep(min(delays))
-            _send_input(keys_to_release)
-        return res
+        if keys_to_release:
+            release_keys = []
+            for key in keys_to_release:
+                if (
+                    HIBYTE(
+                        GetAsyncKeyState(
+                            _get_virtual_key(key, True, _keyboard_layout_handle(hwnd))
+                        )
+                    )
+                    != 0
+                ):
+                    release_keys.append(key)
+            _release_keys(release_keys)
+        if acquired:
+            SharedResources.focus_lock.release()
+
+
+def get_held_movement_keys(hwnd: int) -> list[str]:
+    """
+    Returns a list of the currently held movement keys.
+    :param hwnd:
+    :return:
+    """
+    return [
+        key
+        for key in OPPOSITES
+        if HIBYTE(
+            GetAsyncKeyState(
+                _get_virtual_key(key, False, _keyboard_layout_handle(hwnd))
+            )
+        )
+        != 0
+    ]
 
 
 def _send_input(structure: tuple) -> None:
@@ -183,82 +352,6 @@ def _send_input(structure: tuple) -> None:
         if failure_count > 10:
             logger.critical(f"Unable to send structure {structure} to active window")
             raise RuntimeError(f"Unable to send structure {structure} to active window")
-
-
-def full_input_constructor(
-    hwnd: int,
-    keys: list[list[str]],
-    events: list[list[Literal["keydown", "keyup"] | str]],
-    as_unicode: bool = False,
-) -> list[tuple]:
-    """
-    Constructs the input structures for the given keys and events.
-    :param hwnd: Handle to the window to send the inputs to.
-    :param keys: Keystrokes to send.
-    :param events: Keydown or Keyup events.
-    :param as_unicode: Used for typewriting only.
-    :return:
-    """
-
-    structures = []
-    for lst_key, lst_event in zip(keys, events):
-        assert len(lst_key) == len(lst_event)
-        inputs = []
-        num_inputs = len(lst_key)
-        array_class = Input * num_inputs
-        array_pointer = ctypes.POINTER(array_class)
-        for key, event in zip(lst_key, lst_event):
-            inputs.append(_single_input_constructor(hwnd, key, event, as_unicode))
-        input_array = array_class(*inputs)
-        structures.append(
-            (
-                wintypes.UINT(num_inputs),
-                array_pointer(input_array),
-                wintypes.INT(ctypes.sizeof(input_array[0])),
-            )
-        )
-    return structures
-
-
-def full_input_mouse_constructor(
-    x_trajectory: list[int | None],
-    y_trajectory: list[int | None],
-    events: list[Literal["click", "down", "up"] | None],
-    mouse_data: list[int | None],
-) -> list[tuple]:
-    """
-    Constructs the input structures for the given mouse events.
-    :param x_trajectory: X coordinates of mouse trajectory.
-    :param y_trajectory: Y coordinates of mouse trajectory.
-    :param events: Any click events.
-    :param mouse_data: Only Used for mouse scroll. Set to 0 otherwise.
-    :return:
-    """
-    return_val = []
-
-    for x, y, event, mouse in itertools.zip_longest(
-        x_trajectory, y_trajectory, events, mouse_data
-    ):
-        inputs = []
-        if isinstance(event, list):
-            num_inputs = len(event)
-            input_array_class = Input * num_inputs
-            for ev in event:
-                inputs.append(_single_input_mouse_constructor(x, y, ev, mouse))
-        else:
-            input_array_class = Input * 1
-            inputs.append(_single_input_mouse_constructor(x, y, event, mouse))
-
-        input_pointer = ctypes.POINTER(input_array_class)
-        input_array = input_array_class(*inputs)
-        return_val.append(
-            (
-                wintypes.UINT(len(inputs)),
-                input_pointer(input_array),
-                wintypes.INT(ctypes.sizeof(inputs[0])),
-            ),
-        )
-    return return_val
 
 
 def _single_input_constructor(
@@ -308,7 +401,7 @@ def _single_input_constructor(
 def _single_input_mouse_constructor(
     x: int | None,
     y: int | None,
-    event: Literal["click", "down", "up", "doubleclick"] | None | list,
+    event: Literal["mousedown", "mouseup"] | None,
     mouse_data: int | None,
 ) -> Input:
     """
@@ -328,11 +421,9 @@ def _single_input_mouse_constructor(
         y = 0
 
     if event is not None:
-        if event == "click":
-            flags |= MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_LEFTUP
-        elif event == "down":
+        if event == "mousedown":
             flags |= MOUSEEVENTF_LEFTDOWN
-        elif event == "up":
+        elif event == "mouseup":
             flags |= MOUSEEVENTF_LEFTUP
         else:
             raise ValueError(f"Event {event} is not supported.")
@@ -348,58 +439,6 @@ def _single_input_mouse_constructor(
     )
     input_struct = Input(type=MOUSE, structure=CombinedInput(mi=mouse_input))
     return input_struct
-
-
-def repeat_inputs(keys, events, delays, duration, central_delay, delay_gen) -> None:
-    """
-    Repeats the inputs for the given duration. Used for automatic repeat feature of
-    the keyboard.
-    """
-    upper_bound = int((duration - sum(delays)) // central_delay)
-    if upper_bound > 0:
-        repeated_key = keys[-1][-1]
-        keys.extend([[repeated_key]] * upper_bound)
-        events.extend([["keydown"]] * upper_bound)
-        delays_to_add = len(events) - len(delays)
-        delays.extend([next(delay_gen) for _ in range(delays_to_add)])
-
-
-def move_params_validator(
-    direction: Literal["up", "down", "left", "right"],
-    secondary_direction: Literal["up", "down", "left", "right"] | None,
-    duration: float,
-    central_delay: float,
-    jump: bool,
-    jump_interval: float,
-    secondary_key_press: str | None,
-    secondary_key_interval: float,
-    tertiary_key_press: str | None,
-    combine_jump_secondary: bool | None,
-) -> None:
-    """
-    Validates the parameters for the move function, since it is a complex function.
-    """
-    assert direction in ["up", "down", "left", "right"]
-    assert secondary_direction in [None, "up", "down", "left", "right"]
-    assert duration > 0 and central_delay > 0
-    assert jump_interval >= 0
-    assert secondary_key_interval >= 0
-
-    # Used for Flash Jumping (combined is false) or attack + jump (combine is true)
-    if jump and secondary_key_press:
-        assert jump_interval == secondary_key_interval
-        assert jump_interval > 0
-        assert combine_jump_secondary is not None
-
-    # Strictly used for telecast
-    if tertiary_key_press:
-        assert not secondary_direction and not jump
-        assert secondary_key_press is not None
-        assert secondary_key_interval > 0
-
-    # Strictly used for Flash Jumping into a rope (combine is false)
-    if secondary_direction and jump and secondary_key_press:
-        assert combine_jump_secondary is False
 
 
 def _remove_num_lock() -> None:
@@ -427,3 +466,16 @@ def _remove_num_lock() -> None:
 
 
 _remove_num_lock()
+
+
+def _release_keys(keys: list[str]) -> None:
+    """
+    Releases the given keys.
+    :param keys: Keys to release.
+    :return: Input structure to release the given keys.
+    """
+    if keys:
+        events: list[Literal] = ["keyup"] * len(keys)
+        inputs = input_constructor(GetForegroundWindow(), [keys], [events])
+        if inputs:
+            _send_input(inputs[0])

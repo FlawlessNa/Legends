@@ -189,9 +189,10 @@ class PartyRebuff(IntervalBasedGenerator):
         else:
             # Count the number of times we've been blocked in last minute.
             # If > 5, then we're unable to cast unless we move. # TODO - move
-            if len(
-                    [i for i in self._blocked_at_logs if time.perf_counter() - i < 60]
-            ) > 5:
+            if (
+                len([i for i in self._blocked_at_logs if time.perf_counter() - i < 60])
+                > 5
+            ):
                 self._blocked_at_logs.clear()
                 raise RuntimeError(
                     f"{self} has rebuffed more than 5 times in last minute. Exiting."
@@ -208,7 +209,7 @@ class PartyRebuff(IntervalBasedGenerator):
                 # Double check by extracting icon to gray and count bright pixels
                 rect = max_loc + (icon.shape[1], icon.shape[0])
                 rect_img = haystack[
-                    rect[1]: rect[1] + rect[3], rect[0]: rect[0] + rect[2]
+                    rect[1] : rect[1] + rect[3], rect[0] : rect[0] + rect[2]
                 ]
                 gray = cv2.cvtColor(rect_img, cv2.COLOR_BGR2GRAY)
                 _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
@@ -236,7 +237,11 @@ class PartyRebuff(IntervalBasedGenerator):
             identifier=f"{self}",
             priority=1,
             action=partial(
-                self.cast_all, 0.5, self.data.handle, self.data.ign, self.buffs
+                self.cast_all,
+                self.data.casting_until,
+                self.data.handle,
+                self.data.ign,
+                self.buffs,
             ),
             update_generators=GeneratorUpdate(
                 generator_id=id(self),
@@ -249,8 +254,7 @@ class PartyRebuff(IntervalBasedGenerator):
 
     @staticmethod
     async def cast_all(
-        wait_time: float, handle: int, ign: str, skills: list[RoyalsSkill], *args
+        ready_at: float, handle: int, ign: str, skills: list[RoyalsSkill], *args
     ):
-        await asyncio.sleep(wait_time)
         for skill in skills:
-            await cast_skill(handle, ign, *args, skill=skill)
+            await cast_skill(handle, ign, skill, ready_at, single_press=True)

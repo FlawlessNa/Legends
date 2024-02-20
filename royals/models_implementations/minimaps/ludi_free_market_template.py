@@ -8,11 +8,11 @@ from royals.models_implementations.mechanics import (
 class LudiFreeMarketTemplateMinimap(MinimapPathingMechanics):
     map_area_width = 116
     map_area_height = 57
-    jump_height = 4
-    jump_distance = 4
+    jump_height = 5
+    jump_distance = 5
     minimap_speed: float = 7.891176807337812  # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
     teleport_v_up_dist = 8
-    teleport_h_dist = 9
+    teleport_h_dist = 10
     teleport_v_down_dist = 10
 
     @property
@@ -206,7 +206,7 @@ class LudiFreeMarketTemplateMinimap(MinimapPathingMechanics):
         left=65,
         right=65,
         top=18,
-        bottom=29,
+        bottom=28,
         name="platform_5_ladder",
         # connections=[
         #     MinimapConnection("mid_platform", MinimapConnection.JUMP_LEFT),
@@ -217,7 +217,7 @@ class LudiFreeMarketTemplateMinimap(MinimapPathingMechanics):
         left=31,
         right=31,
         top=18,
-        bottom=29,
+        bottom=28,
         name="platform_2_ladder",
         # connections=[
         #     MinimapConnection("mid_platform", MinimapConnection.JUMP_LEFT),
@@ -228,7 +228,7 @@ class LudiFreeMarketTemplateMinimap(MinimapPathingMechanics):
         left=25,
         right=25,
         top=31,
-        bottom=42,
+        bottom=41,
         name="left_ladder",
         # connections=[
         #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_LEFT),
@@ -239,7 +239,7 @@ class LudiFreeMarketTemplateMinimap(MinimapPathingMechanics):
         left=74,
         right=74,
         top=31,
-        bottom=42,
+        bottom=41,
         name="right_ladder",
         # connections=[
         #     MinimapConnection("bottom_platform", MinimapConnection.JUMP_LEFT),

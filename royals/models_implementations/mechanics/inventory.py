@@ -1,4 +1,3 @@
-import asyncio
 import cv2
 import logging
 import os
@@ -7,13 +6,13 @@ import numpy as np
 import random
 import time
 from functools import partial
-from typing import Union
+from typing import Union, Literal
 
 from botting import PARENT_LOG
 from botting.core import DecisionGenerator, GeneratorUpdate, QueueAction, controller
 from botting.utilities import Box, find_image
 from paths import ROOT
-from royals.actions import cast_skill, continuous_teleport
+from royals.actions import cast_skill, move
 from royals.game_data import MaintenanceData, MinimapData
 from royals.models_implementations.mechanics import MinimapConnection
 from royals.models_implementations.mechanics.path_into_movements import get_to_target
@@ -99,7 +98,7 @@ class InventoryChecks:
                 else:
                     logger.debug(f"Active Tab {active_tab} is {tab_to_watch}.")
                     curr_step = getattr(self, "current_step")
-                    setattr(self, curr_step,  curr_step - 1)  # Since we return None
+                    setattr(self, curr_step, curr_step - 1)  # Since we return None
                     break
 
         else:
@@ -128,7 +127,7 @@ class InventoryChecks:
                     setattr(self, "current_step", getattr(self, "num_steps"))
                 else:
                     now = time.perf_counter()
-                    setattr(self, 'cleanup_procedure_started_at', now)
+                    setattr(self, "cleanup_procedure_started_at", now)
                     logger.info(f"Starting full cleanup procedure at {time.asctime()}")
             else:
                 logger.debug(f"Failed to get space left. Extending inv menu.")
@@ -162,7 +161,7 @@ class InventoryChecks:
 
         if (
             math.dist(self.data.current_minimap_position, getattr(self, "door_target"))
-            > 2
+            > 4
         ):
             return InventoryActions.move_to_target(
                 self.generator, getattr(self, "door_target"), "Moving to Door Spot"
@@ -181,7 +180,7 @@ class InventoryChecks:
         minimap = self.data.current_minimap
         minimap.grid.node(*self.data.current_minimap_position).connect(
             minimap.grid.node(0, 0), MinimapConnection.PORTAL
-        )  # TODO - Don't forget to remove connection afterwards once done
+        )
 
         return InventoryActions.use_mystic_door(self.generator)
 
@@ -190,7 +189,9 @@ class InventoryChecks:
             return InventoryActions.move_to_target(
                 self.generator, (0, 0), "Entering Door"
             )
-        time.sleep(1.5)
+        else:
+            controller.release_all(self.data.handle)
+            time.sleep(1.5)
 
     def _move_to_shop(self) -> QueueAction | None:
         if self.data.current_map.path_to_shop is not None:
@@ -222,8 +223,10 @@ class InventoryChecks:
 
         if math.dist(self.data.current_minimap_position, target) > 7:
             return InventoryActions.move_to_target(
-                self.generator, target, "Moving to Shop", enable_multi=True
+                self.generator, target, "Moving to Shop"
             )
+        else:
+            controller.release_all(self.data.handle)
 
     def _open_npc_shop(self) -> QueueAction | None:
         shop_img_needle = cv2.imread(
@@ -290,6 +293,7 @@ class InventoryChecks:
     def _return_to_door(self) -> QueueAction | None:
         curr_pos = self.data.current_minimap_position
         if curr_pos is None:
+            controller.release_all(self.data.handle)
             time.sleep(1.5)
             return
         target = getattr(self, "return_door_target")
@@ -303,7 +307,6 @@ class InventoryChecks:
                 self.generator,
                 getattr(self, "return_door_target"),
                 "Returning to Door",
-                enable_multi=True,
             )
 
         # If we reached the "central node" in minimap but are not yet at door, we need
@@ -326,12 +329,14 @@ class InventoryChecks:
                     curr_pos[1],
                 )
             )
+            controller.release_all(self.data.handle)
             return InventoryActions.move_to_target(
                 self.generator,
                 target,
                 "Returning to Door",
             )
         else:
+            controller.release_all(self.data.handle)
             horiz_dist = sum(
                 (current_npcs[i][0] - initial_npcs[i][0])
                 for i in range(len(current_npcs))
@@ -342,12 +347,11 @@ class InventoryChecks:
                 identifier="Re-entering in Door",
                 priority=5,
                 action=partial(
-                    controller.move,
+                    move,
                     self.data.handle,
-                    self.data.ign,
                     "right" if horiz_dist > 0 else "left",
-                    max(horiz_dist / self.data.current_minimap.minimap_speed, 0.01),
                     "up",
+                    duration=abs(horiz_dist / self.data.current_minimap.minimap_speed),
                 ),
                 update_generators=GeneratorUpdate(
                     generator_id=id(self.generator), generator_kwargs={"blocked": False}
@@ -459,14 +463,26 @@ class InventoryActions:
             identifier=f"Using Mystic Door",
             priority=5,
             action=partial(
-                cast_skill,
+                InventoryActions._mystic_door,
                 generator.data.handle,
                 generator.data.ign,
                 generator.data.character.skills["Mystic Door"],
+                generator.data.casting_until,
             ),
             update_generators=GeneratorUpdate(
                 generator_id=id(generator), generator_kwargs={"blocked": False}
             ),
+        )
+
+    @staticmethod
+    async def _mystic_door(handle, ign: str, skill, casting_until: float):
+        controller.release_all(handle)
+        await cast_skill(
+            handle,
+            ign,
+            skill,
+            casting_until,
+            single_press=True,
         )
 
     @staticmethod
@@ -502,66 +518,45 @@ class InventoryActions:
         sell_button: tuple[int, int],
         num_clicks: int,
     ) -> int:
-        res = 0
-        try:
-            await InventoryActions._mouse_move_and_click(
-                handle, target_tab, move_away=False
+        await InventoryActions._mouse_move_and_click(
+            handle, target_tab, move_away=False
+        )
+        await controller.mouse_move(handle, sell_button, total_duration=0.2)
+        inputs = [None, None, "y"] * num_clicks
+        events: list[Literal] = ["mousedown", "mouseup", "keydown"] * num_clicks
+        inputs.append("y")
+        events.append("keyup")
+        delays = []
+        for _ in range(num_clicks):
+            delays.extend(
+                [
+                    next(controller.random_delay) * 4,
+                    next(controller.random_delay) * 2,
+                    0.2,
+                ]
             )
-            await controller.mouse_move(handle, sell_button, total_duration=0.2)
-            for _ in range(num_clicks):
-                await asyncio.sleep(0.25)
-                res += await controller.click(handle)
-                await controller.press(handle, "y", silenced=True)
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            raise
-        finally:
-            return res
+        delays.append(0.2)
+        structures = controller.input_constructor(handle, inputs, events)
+        return await controller.focused_inputs(handle, structures, delays, ["y"])
 
     @staticmethod
     def move_to_target(
         generator: DecisionGenerator,
         target: tuple[int, int],
         identifier: str,
-        enable_multi: bool = False,
     ) -> QueueAction:
         actions = get_to_target(
             generator.data.current_minimap_position,
             target,
             generator.data.current_minimap,
+            generator.data.handle,
+            controller.key_binds(generator.data.ign)["jump"],
+            getattr(generator, "_teleport", None),
+            generator.data.ign,
         )
         res = None
-        if actions and enable_multi and actions[0].func.__name__ == "teleport_once":
-            num_actions = 0
-            for action in actions:
-                if action == actions[0]:
-                    num_actions += 1
-                else:
-                    break
-            res = partial(
-                continuous_teleport,
-                generator.data.handle,
-                generator.data.ign,
-                actions[0].keywords["direction"],
-                generator.data.character.skills["Teleport"],
-                num_actions,
-            )
-
-        elif actions:
-            first_action = actions[0]
-            args = (
-                generator.data.handle,
-                generator.data.ign,
-                first_action.keywords["direction"],
-            )
-            kwargs = first_action.keywords.copy()
-            kwargs.pop("direction", None)
-            if first_action.func.__name__ == "teleport_once":
-                kwargs.update(
-                    teleport_skill=generator.data.character.skills["Teleport"]
-                )
-            res = partial(first_action.func, *args, **kwargs)
+        if actions:
+            res = actions[0]
 
         generator.blocked = True
         return QueueAction(

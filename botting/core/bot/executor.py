@@ -31,6 +31,11 @@ class Executor:
     discord_parser: callable  # Defines how to interpret discord messages
     all_bots: list["Executor"] = []
 
+    # Strong ref to avoid garbage collection on unfinished tasks
+    all_tasks: list[asyncio.Task] = []
+
+    priority_levels: list[float] = [float("inf")]
+
     def __init__(self, engine: type["DecisionEngine"], ign: str, **kwargs) -> None:
         self.engine = engine
         self.engine_kwargs = kwargs
@@ -40,14 +45,6 @@ class Executor:
         )
 
         self.bot_side, self.monitoring_side = multiprocessing.Pipe()
-
-        # Single Rotation Lock by Bot - Prevents simultaneous rotation actions
-        self.rotation_lock = multiprocessing.Lock()
-
-        # Single Action Lock by Bot - Prevents conflicting actions from being executed
-        # simultaneously
-        self.action_lock = asyncio.Lock()
-
         self.update_bot_list(self)
 
         self.monitoring_process: multiprocessing.Process | None = None
@@ -100,8 +97,9 @@ class Executor:
                         f"Performing action {action} as requested by discord user."
                     )
                     new_task = cls.all_bots[0].create_task(action)
+                    await new_task
 
-    def create_task(self, queue_item: QueueAction) -> asyncio.Task:
+    def create_task(self, queue_item: QueueAction) -> asyncio.Task | None:
         """
         Wrapper around asyncio.create_task which also handles task priority and
         cancellations. It defines how QueueAction objects are converted into
@@ -111,40 +109,45 @@ class Executor:
         asynchronously.
         :return:
         """
+        if queue_item.user_message is not None:
+            logger.info(f"Sending message towards Discord Process")
+            for msg in queue_item.user_message:
+                self.discord_pipe.send(msg)
+
+        if queue_item.priority > min(Executor.priority_levels):
+            logger.debug(
+                f"{queue_item} is blocked by priority levels. Cannot be scheduled."
+            )
+            return
+
+        if queue_item.cancels_itself_all_processes:
+            # Cancels all tasks with the same name, regardless of process_id.
+            for task in asyncio.all_tasks():
+                if task.get_name() == queue_item.identifier:
+                    logger.debug(f"{queue_item} cancels all tasks with the same name.")
+                    task.cancel()
+
+        elif queue_item.cancels_itself:
+            # Cancels all tasks with the same name and process_id.
+            for task in asyncio.all_tasks():
+                if (
+                    task.get_name() == queue_item.identifier
+                    and getattr(task, "process_id", None) == queue_item.process_id
+                ):
+                    logger.debug(f"{queue_item} cancels itself.")
+                    task.cancel()
+        else:
+            for task in asyncio.all_tasks():
+                if (
+                    task.get_name() == queue_item.identifier
+                    and getattr(task, "process_id", None) == queue_item.process_id
+                ):
+                    raise ValueError(
+                        f"Task with name {queue_item.identifier} already exists."
+                    )
+
         if queue_item.action is None:
             queue_item.action = partial(asyncio.sleep, 0)
-
-        # Ensures action is not interfering with other actions from the same bot.
-        queue_item.action = self._wrap_action(queue_item.action)
-
-        # Callbacks are triggered upon completion OR cancellation of the task.
-        new_task = asyncio.create_task(queue_item.action(), name=queue_item.identifier)
-        new_task.add_done_callback(self._exception_handler)
-
-        # Custom attributes used to manage cancellations properly.
-        new_task.is_in_queue = True
-        new_task.priority = queue_item.priority
-        new_task.is_cancellable = queue_item.is_cancellable
-        new_task.process_id = queue_item.process_id
-
-        if queue_item.release_lock_on_callback:
-            new_task.add_done_callback(self._rotation_callback)
-
-        if queue_item.update_generators is not None:
-            new_task.add_done_callback(
-                partial(self._send_update_signal_callback, queue_item.update_generators)
-            )
-
-        # TODO - Implement if every needed. Those callbacks would execute in Main
-        if queue_item.callbacks:
-            for callback in queue_item.callbacks:
-                new_task.add_done_callback(callback)
-
-        # Add the original QueueAction object into the task for logging purposes.
-        new_task.action = queue_item.action
-
-        # Keep track of when the task was originally created.
-        new_task.creation_time = asyncio.get_running_loop().time()
 
         # Cancel all tasks with lower priority, provided they are cancellable.
         for task in asyncio.all_tasks():
@@ -161,11 +164,32 @@ class Executor:
                     )
                     task.cancel()
 
-        if queue_item.user_message is not None:
-            logger.info(f"Sending message towards Discord Process")
-            for msg in queue_item.user_message:
-                self.discord_pipe.send(msg)
+        # Callbacks are triggered upon completion OR cancellation of the task.
+        new_task = asyncio.create_task(queue_item.action(), name=queue_item.identifier)
+        Executor.all_tasks.append(new_task)  # Strong ref to avoid garbage collection
+        new_task.add_done_callback(self._exception_handler)
 
+        # Custom attributes used to manage cancellations properly.
+        new_task.is_in_queue = True
+        new_task.priority = queue_item.priority
+        new_task.is_cancellable = queue_item.is_cancellable
+        new_task.process_id = queue_item.process_id
+
+        if queue_item.update_generators is not None:
+            new_task.add_done_callback(
+                partial(self._send_update_signal_callback, queue_item.update_generators)
+            )
+
+        # TODO - Implement if every needed. Those callbacks would execute in Main
+        if queue_item.callbacks:
+            for callback in queue_item.callbacks:
+                new_task.add_done_callback(callback)
+
+        # Add the original QueueAction object into the task for logging purposes.
+        new_task.action = queue_item.action
+
+        # Keep track of when the task was originally created.
+        new_task.creation_time = asyncio.get_running_loop().time()
         return new_task
 
     @classmethod
@@ -219,26 +243,6 @@ class Executor:
             kwargs=self.engine_kwargs,
         )
 
-    def _rotation_callback(self, fut):
-        """
-        Callback to use on map rotation actions if they need to acquire lock before
-        executing. In some cases, such as failsafe responses, the lock has not been
-        acquired yet.
-        For this reason, try to acquire the lock before releasing it.
-        """
-        self.rotation_lock.acquire(block=False)
-        self.rotation_lock.release()
-        if fut.cancelled():
-            pass
-            # logger.debug(
-            #     f"Rotation Lock released on {self} through callback. {fut.get_name()} is Cancelled."
-            # )
-        else:
-            pass
-            # logger.debug(
-            #     f"Rotation Lock released on {self} through callback. {fut.get_name()} is Done."
-            # )
-
     def _send_update_signal_callback(self, signal: GeneratorUpdate, fut):
         """
         Callback to use on map rotation actions if they need to update game game_data.
@@ -248,31 +252,12 @@ class Executor:
         try:
             if fut.result() is not None:
                 signal.action_result = fut.result()
-        except asyncio.exceptions.CancelledError:
-            # TODO - Investigate how to deal with such case - happens when NPC'ing is cancelled by ResetIdlePosition
-            breakpoint()
+        except asyncio.CancelledError as e:
+            raise e
         except Exception as e:
-            breakpoint()
+            raise e
 
         self.bot_side.send(signal)
-
-    def _wrap_action(self, action: callable) -> callable:
-        """
-        Wrapper around actions to ensure they are not interfering with each other.
-        :param action: The action to be executed asynchronously.
-        :return: None
-        """
-
-        async def _wrapper():
-            await self.action_lock.acquire()
-            try:
-                # logger.debug(f"Action Lock acquired for {self} for {action}")
-                return await action()
-            finally:
-                self.action_lock.release()
-                # logger.debug(f"Action Lock released for {self} for {action}")
-
-        return _wrapper
 
     async def engine_listener(self) -> None:
         """
@@ -308,18 +293,18 @@ class Executor:
                     raise queue_item
 
                 logger.debug(f"Received {queue_item} from {self} monitoring process.")
-                task_ids = [
-                    (task.get_name(), getattr(task, "process_id", None))
-                    for task in asyncio.all_tasks()
-                ]
-                if (queue_item.identifier, queue_item.process_id) in task_ids:
-                    logger.info(
-                        f"Task {queue_item.identifier} already exists. Skipping."
-                    )
-                    continue
-
                 new_task = self.create_task(queue_item)
-                logger.debug(f"Created task {new_task.get_name()}.")
+                if new_task is not None:
+                    logger.debug(f"Created task {new_task.get_name()}.")
+                    if queue_item.disable_lower_priority:
+                        Executor.priority_levels.append(queue_item.priority)
+                        new_task.add_done_callback(
+                            partial(
+                                self.clear_priority_level, queue_item.priority
+                            )
+                        )
+
+                self._task_cleanup()
 
                 if len(asyncio.all_tasks()) > 30:
                     for t in asyncio.all_tasks():
@@ -327,3 +312,18 @@ class Executor:
                     logger.warning(
                         f"Nbr of tasks in the event loop is {len(asyncio.all_tasks())}."
                     )
+
+    @classmethod
+    def _task_cleanup(cls):
+        """
+        Cleans up the list of tasks maintained by the Executor.
+        """
+        cls.all_tasks = [t for t in cls.all_tasks if not t.done()]
+        cls.all_tasks = [t for t in cls.all_tasks if not t.cancelled()]
+
+    @classmethod
+    def clear_priority_level(cls, priority: float, fut):
+        """
+        Callback to clear priority levels once a task with a higher priority is done.
+        """
+        cls.priority_levels.remove(priority)

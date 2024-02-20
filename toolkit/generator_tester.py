@@ -5,14 +5,15 @@ from botting import EngineData, Executor, SessionManager
 from botting.core import DecisionEngine, DecisionGenerator
 from botting.utilities import client_handler
 from royals.engines.generators import TelecastRotationGenerator
+from royals.engines.generators import PartyRebuff
 from royals.characters import Bishop
 from royals import RoyalsData, royals_ign_finder
-from royals.maps import LudiFreeMarket
+from royals.maps import LudiFreeMarket, PathOfTime1
 
 
 IGN = "WrongDoor"
 GENERATOR = TelecastRotationGenerator
-CURRENT_MAP = LudiFreeMarket
+CURRENT_MAP = PathOfTime1
 
 DATA_INSTANCE = RoyalsData(
     handle=client_handler.get_client_handle(IGN, royals_ign_finder),
@@ -21,7 +22,7 @@ DATA_INSTANCE = RoyalsData(
     character=Bishop(IGN, "Elephant Cape", "large")
 )
 ENGINE_KWARGS = {}
-GENERATOR_KWARGS = dict(teleport_skill=DATA_INSTANCE.character.skills["Teleport"], ultimate=DATA_INSTANCE.character.skills["Genesis"])
+GENERATOR_KWARGS = dict(ultimate=DATA_INSTANCE.character.skills["Genesis"], teleport_skill=DATA_INSTANCE.character.skills["Teleport"], mob_threshold=5)
 
 
 class MockEngine(DecisionEngine):
@@ -44,7 +45,7 @@ class MockEngine(DecisionEngine):
     @property
     def next_map_rotation(self) -> DecisionGenerator:
         if GENERATOR.generator_type == "Rotation":
-            return GENERATOR(self.game_data, lock=self.rotation_lock, **GENERATOR_KWARGS)
+            return GENERATOR(self.game_data, **GENERATOR_KWARGS)
 
     @property
     def items_to_monitor(self) -> list[DecisionGenerator]:

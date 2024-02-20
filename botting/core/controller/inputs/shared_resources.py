@@ -7,10 +7,25 @@ from win32gui import GetForegroundWindow, SetForegroundWindow
 
 logger = logging.getLogger(__name__)
 
+MOUSE = 0
+KEYBOARD = 1
+HARDWARE = 2
+
 
 class SharedResources:
+    """
+    Helper class shared across all spawned processes.
+    Manages a Lock to prevent multiple processes from trying to use PC Focus
+    simultaneously.
+    Additionally, it maintains a set of all keys that have been sent through SendInput
+    during the lifecycle of the program. This set is used to inspect keys that may
+    require releasing before a switch of window focus is performed.
+    """
+
     focus_lock = asyncio.Lock()  # All instances of this class will share the same lock.
     # Used to prevent multiple processes from trying to use PC Focus simultaneously.
+
+    keys_sent = set()
 
     @classmethod
     def requires_focus(cls, func: callable) -> callable:
@@ -28,11 +43,9 @@ class SharedResources:
             """
             await cls.focus_lock.acquire()
             try:
-                # logger.debug(f"Focus Lock {id(cls.focus_lock)} acquired by {os.getpid()}")
                 res = await func(*args, **kwargs)
             finally:
                 cls.focus_lock.release()
-                # logger.debug(f"Focus Lock {id(cls.focus_lock)} released by {os.getpid()}")
             return res
 
         return inner

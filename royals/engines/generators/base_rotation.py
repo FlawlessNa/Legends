@@ -29,22 +29,21 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
     def __init__(
         self,
         data: RotationData,
-        lock,
         training_skill: RoyalsSkill,
         mob_threshold: int,
         teleport: RoyalsSkill = None,
     ) -> None:
         super().__init__(data)
-        self._lock = lock
         self.training_skill = training_skill
         self.mob_threshold = mob_threshold
+        self.actions = []
 
         self.next_target = (0, 0)
         self._teleport = teleport
 
-        self._deadlock_counter = 0  # For Failsafe
+        self._deadlock_counter = self._deadlock_type_2 = 0  # For Failsafe
         self._last_pos_change = time.perf_counter()  # For Failsafe
-        self._prev_pos = None  # For Failsafe
+        self._prev_pos = self._prev_action = None  # For Failsafe
         self._prev_rotation_actions = []  # For Failsafe
 
         self._on_screen_pos = None  # For Mobs Hitting
@@ -71,10 +70,17 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
             if self.data.current_on_screen_position is not None
             else self._on_screen_pos
         )
+        if self.actions:
+            self._prev_action = self.actions[0]
+
         self.actions = get_to_target(
             self.data.current_minimap_position,
             self.next_target,
             self.data.current_minimap,
+            self.data.handle,
+            controller.key_binds(self.data.ign)["jump"],
+            self._teleport,
+            self.data.ign,
         )
 
     def __repr__(self):
@@ -97,47 +103,32 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
 
     def _rotation(self) -> QueueAction | None:
         if self.actions:
-            first_action = self.actions[0]
-            res = self._create_partial(first_action)
-            if first_action.func.__name__ == "jump_on_rope":
-                cancellable = False
-            else:
-                cancellable = True
+            res = self.actions[0]
+            if self._prev_action is not None and self._deadlock_type_2 < 50:
+                # If the same action is repeated and position is changing, all good
+                # If position remains, fire an action.
+                if (
+                    res.func == self._prev_action.func
+                    and res.args == self._prev_action.args
+                    and self._prev_pos != self.data.current_minimap_position
+                ):
+                    self._prev_action = None
+                    self._deadlock_type_2 += 1
+                    return
+
+            self._deadlock_type_2 = 0
             action = QueueAction(
                 identifier=self.__class__.__name__,
                 priority=99,
                 action=res,
-                is_cancellable=cancellable,
-                release_lock_on_callback=True,
+                cancels_itself=True,
+                is_cancellable=True
             )
 
-            if self._lock is None:  # TODO - Fix prev_rotations appending
-                self._prev_rotation_actions.append(res)
-                if len(self._prev_rotation_actions) > 5:
-                    self._prev_rotation_actions.pop(0)
-                return action
-
-            elif self._lock.acquire(block=False):
-
-                if self.data.available_to_cast:
-                    self._prev_rotation_actions.append(res)
-                    if len(self._prev_rotation_actions) > 5:
-                        self._prev_rotation_actions.pop(0)
-                    return action
-                else:
-                    self._lock.release()
-
-    def _create_partial(self, action: callable) -> partial:
-        args = (
-            self.data.handle,
-            self.data.ign,
-            action.keywords["direction"],
-        )
-        kwargs = action.keywords.copy()
-        kwargs.pop("direction", None)
-        if action.func.__name__ == "teleport_once":
-            kwargs.update(teleport_skill=self._teleport)
-        return partial(action.func, *args, **kwargs)
+            self._prev_rotation_actions.append(res)
+            if len(self._prev_rotation_actions) > 5:
+                self._prev_rotation_actions.pop(0)
+            return action
 
     def _failsafe(self) -> QueueAction | None:
         now = time.perf_counter()
@@ -152,7 +143,11 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
         reaction = QueueAction(
             identifier=f"FAILSAFE - {self.__class__.__name__}",
             priority=97,
-            action=partial(random_jump, self.data.handle, self.data.ign),
+            action=partial(
+                random_jump,
+                self.data.handle,
+                controller.key_binds(self.data.ign)["jump"],
+            ),
             is_cancellable=False,
         )
 
@@ -170,21 +165,6 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
             )
             self._deadlock_counter = 0
             self.data.update("current_entire_minimap_box", "current_minimap_area_box")
-            return reaction
-
-        elif (
-            all(
-                action.func == self._prev_rotation_actions[0].func
-                and action.args == self._prev_rotation_actions[0].args
-                and action.keywords == self._prev_rotation_actions[0].keywords
-                for action in self._prev_rotation_actions
-            )
-            and len(self._prev_rotation_actions) > 4
-        ):
-            logger.warning(
-                f"{self.__class__.__name__} Failsafe Triggered Due to repeated actions"
-            )
-            self._prev_rotation_actions.clear()
             return reaction
 
     def _mobs_hitting(self) -> QueueAction | None:
@@ -226,17 +206,21 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                     self.data.handle,
                     self.data.ign,
                     self.training_skill,
+                    self.data.casting_until,
                     closest_mob_direction,
-                    attacking_skill=True,
                 )
-        if res and not self.data.character_in_a_ladder and self.data.available_to_cast:
-            self.data.update(available_to_cast=False)
+        if res and time.perf_counter() - self.data.casting_until > 0:
+            self.data.update(
+                casting_until=time.perf_counter() + self.training_skill.animation_time,
+                available_to_cast=False,
+            )
             updater = GeneratorUpdate(game_data_kwargs={"available_to_cast": True})
             return QueueAction(
                 identifier=f"Mobs Hitting - {self.training_skill.name}",
-                priority=98,
+                priority=99,
                 action=res,
                 update_generators=updater,
+                is_cancellable=True
             )
 
     def _exception_handler(self, e: Exception) -> QueueAction | None:

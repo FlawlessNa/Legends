@@ -101,7 +101,7 @@ class Priest(Cleric):
             "Shining Ray": RoyalsSkill(
                 "Shining Ray",
                 "Attack",
-                animation_time=1.1,
+                animation_time=1.075,
                 horizontal_screen_range=200,
                 vertical_screen_range=125,
                 unidirectional=False,
@@ -129,7 +129,7 @@ class Bishop(Priest):
             "Genesis": RoyalsSkill(
                 "Genesis",
                 "Attack",
-                animation_time=3,
+                animation_time=2.75,
                 unidirectional=False,
                 _use_by_default=True,
                 horizontal_screen_range=400,
