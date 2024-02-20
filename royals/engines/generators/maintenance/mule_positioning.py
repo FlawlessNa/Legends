@@ -77,7 +77,7 @@ class ResetIdleSafeguard(DecisionGenerator):
     def __init__(self, data: MinimapData, key: str) -> None:
         super().__init__(data)
         self.data.update(allow_teleport=False)
-        self._next_idle_trigger = time.perf_counter() + 300
+        self._next_idle_trigger = time.perf_counter() + 15
         self._stage = self._jumps_done = self._deadlock_counter = 0
         self._failsafe_count = 0
         self._target = self._feature = self._num_jumps = None
@@ -145,7 +145,7 @@ class ResetIdleSafeguard(DecisionGenerator):
                 return QueueAction(
                     identifier=f"{self} Random Jump {self._jumps_done}",
                     priority=1,
-                    action=partial(random_jump, self.data.handle, self._key),
+                    action=partial(random_jump, self.data.handle, controller.key_binds(self.data.ign)["jump"]),
                     update_generators=GeneratorUpdate(
                         generator_id=id(self),
                         generator_kwargs={"blocked": False},
@@ -155,7 +155,7 @@ class ResetIdleSafeguard(DecisionGenerator):
             else:
                 self._jumps_done = 0
                 self._num_jumps = None
-                self._next_idle_trigger = time.perf_counter() + 300
+                self._next_idle_trigger = time.perf_counter() + 15
                 self._stage += 1
                 self.blocked = True
                 return QueueAction(

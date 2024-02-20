@@ -121,6 +121,8 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                 identifier=self.__class__.__name__,
                 priority=99,
                 action=res,
+                cancels_itself=True,
+                is_cancellable=True
             )
 
             self._prev_rotation_actions.append(res)
@@ -215,9 +217,10 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
             updater = GeneratorUpdate(game_data_kwargs={"available_to_cast": True})
             return QueueAction(
                 identifier=f"Mobs Hitting - {self.training_skill.name}",
-                priority=98,
+                priority=99,
                 action=res,
                 update_generators=updater,
+                is_cancellable=True
             )
 
     def _exception_handler(self, e: Exception) -> QueueAction | None:

@@ -29,7 +29,6 @@ class DecisionEngine(ChildProcess, ABC):
         self, logging_queue: multiprocessing.Queue, bot: Executor, *args, **kwargs
     ) -> None:
         super().__init__(logging_queue, bot.monitoring_side)
-        self.rotation_lock = bot.rotation_lock
         self.source = repr(bot)
         self.handle = bot.handle
         self.ign = bot.ign

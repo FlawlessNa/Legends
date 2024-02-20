@@ -34,6 +34,8 @@ class Executor:
     # Strong ref to avoid garbage collection on unfinished tasks
     all_tasks: list[asyncio.Task] = []
 
+    priority_levels: list[float] = [float("inf")]
+
     def __init__(self, engine: type["DecisionEngine"], ign: str, **kwargs) -> None:
         self.engine = engine
         self.engine_kwargs = kwargs
@@ -112,34 +114,55 @@ class Executor:
             for msg in queue_item.user_message:
                 self.discord_pipe.send(msg)
 
-        if queue_item.disable_lower_priority:
-            # Disables all tasks with lower priority, regardless of cancellability.
-            # A callback is used to re-enable them once the task is completed.
-            self.current_priority_level = queue_item.priority
+        if queue_item.priority > min(Executor.priority_levels):
+            logger.debug(
+                f"{queue_item} is blocked by priority levels. Cannot be scheduled."
+            )
+            return
 
         if queue_item.cancels_itself_all_processes:
             # Cancels all tasks with the same name, regardless of process_id.
-            pass
+            for task in asyncio.all_tasks():
+                if task.get_name() == queue_item.identifier:
+                    logger.debug(f"{queue_item} cancels all tasks with the same name.")
+                    task.cancel()
+
         elif queue_item.cancels_itself:
             # Cancels all tasks with the same name and process_id.
-            pass
-
-        for task in asyncio.all_tasks():
-            if (
-                    getattr(task, "cancels_itself", False)
-                    and task.get_name() == queue_item.identifier
-            ):
-                if getattr(task, "cancels_diff_processes", False):
-                    logger.debug(
-                        f"{queue_item} cancels all tasks with same name."
-                    )
+            for task in asyncio.all_tasks():
+                if (
+                    task.get_name() == queue_item.identifier
+                    and getattr(task, "process_id", None) == queue_item.process_id
+                ):
+                    logger.debug(f"{queue_item} cancels itself.")
                     task.cancel()
-                else:
-                    if queue_item.process_id == getattr(task, 'process_id'):
-                        task.cancel()
+        else:
+            for task in asyncio.all_tasks():
+                if (
+                    task.get_name() == queue_item.identifier
+                    and getattr(task, "process_id", None) == queue_item.process_id
+                ):
+                    raise ValueError(
+                        f"Task with name {queue_item.identifier} already exists."
+                    )
 
         if queue_item.action is None:
             queue_item.action = partial(asyncio.sleep, 0)
+
+        # Cancel all tasks with lower priority, provided they are cancellable.
+        for task in asyncio.all_tasks():
+            if getattr(task, "is_in_queue", False):
+                if (
+                    getattr(task, "priority") > queue_item.priority
+                    and getattr(task, "is_cancellable")
+                    and not task.done()
+                ):
+                    id_ = queue_item.identifier
+                    name = task.get_name()
+                    logger.debug(
+                        f"{id_} has priority over task {name}. Cancelling {name}."
+                    )
+                    task.cancel()
 
         # Callbacks are triggered upon completion OR cancellation of the task.
         new_task = asyncio.create_task(queue_item.action(), name=queue_item.identifier)
@@ -167,22 +190,6 @@ class Executor:
 
         # Keep track of when the task was originally created.
         new_task.creation_time = asyncio.get_running_loop().time()
-
-        # Cancel all tasks with lower priority, provided they are cancellable.
-        for task in asyncio.all_tasks():
-            if getattr(task, "is_in_queue", False):
-                if (
-                    getattr(task, "priority") > queue_item.priority
-                    and getattr(task, "is_cancellable")
-                    and not task.done()
-                ):
-                    id_ = queue_item.identifier
-                    name = task.get_name()
-                    logger.debug(
-                        f"{id_} has priority over task {name}. Cancelling {name}."
-                    )
-                    task.cancel()
-
         return new_task
 
     @classmethod
@@ -245,11 +252,10 @@ class Executor:
         try:
             if fut.result() is not None:
                 signal.action_result = fut.result()
-        except asyncio.CancelledError:
-            # TODO - Investigate how to deal with such case - happens when NPC'ing is cancelled by ResetIdlePosition
-            breakpoint()
+        except asyncio.CancelledError as e:
+            raise e
         except Exception as e:
-            breakpoint()
+            raise e
 
         self.bot_side.send(signal)
 
@@ -290,6 +296,13 @@ class Executor:
                 new_task = self.create_task(queue_item)
                 if new_task is not None:
                     logger.debug(f"Created task {new_task.get_name()}.")
+                    if queue_item.disable_lower_priority:
+                        Executor.priority_levels.append(queue_item.priority)
+                        new_task.add_done_callback(
+                            partial(
+                                self.clear_priority_level, queue_item.priority
+                            )
+                        )
 
                 self._task_cleanup()
 
@@ -307,3 +320,10 @@ class Executor:
         """
         cls.all_tasks = [t for t in cls.all_tasks if not t.done()]
         cls.all_tasks = [t for t in cls.all_tasks if not t.cancelled()]
+
+    @classmethod
+    def clear_priority_level(cls, priority: float, fut):
+        """
+        Callback to clear priority levels once a task with a higher priority is done.
+        """
+        cls.priority_levels.remove(priority)

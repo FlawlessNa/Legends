@@ -67,13 +67,16 @@ async def cast_skill(
     structure = controller.input_constructor(handle, keys, events)
 
     wait_time = max(ready_at - time.perf_counter(), 0.0)
-    if wait_time > 0:
-        await asyncio.sleep(wait_time)
+    try:
+        if wait_time > 0:
+            await asyncio.sleep(wait_time)
 
-    await asyncio.wait_for(
-        controller.focused_inputs(handle, structure, delays, [skill.key_bind(ign)]),
-        timeout=min(skill.animation_time * 0.95, skill.animation_time - 0.05),
-    )
+        await asyncio.wait_for(
+            controller.focused_inputs(handle, structure, delays, [skill.key_bind(ign)]),
+            timeout=min(skill.animation_time * 0.95, skill.animation_time - 0.05),
+        )
+    except asyncio.CancelledError:
+        return
 
 
 async def ultimate_cast():
@@ -109,8 +112,8 @@ async def teleport(
     enforce_last_inputs = [teleport_skill.key_bind(ign)]
     if "up" in pressed and direction in ["left", "right"]:
         time.sleep(0.1)  # Ensures a little buffer before releasing any prior keys
-    keys = [direction, teleport_skill.key_bind(ign), teleport_skill.key_bind(ign)]
-    events: list[Literal] = ["keydown", "keydown", "keyup"]
+    keys = [direction]
+    events: list[Literal] = ["keydown"]
     delays = [next(controller.random_delay) * 2]
 
     while sum(delays) < teleport_skill.animation_time * num_times:
@@ -192,8 +195,11 @@ async def telecast(
     else:
         controller.release_opposites(handle, direction, "left", "right")
 
-    wait_time = max(ready_at + 0.2 - time.perf_counter(), 0.0)
-    if wait_time > 0:
-        print("Waiting", wait_time, "seconds before telecasting")
-        await asyncio.sleep(wait_time)
-    await controller.focused_inputs(handle, structure, delays, enforce_last_inputs)
+    wait_time = max(ready_at - time.perf_counter(), 0.0)
+    try:
+        if wait_time > 0:
+            print("Waiting", wait_time, "seconds before telecasting")
+            await asyncio.sleep(wait_time)
+        await controller.focused_inputs(handle, structure, delays, enforce_last_inputs)
+    except asyncio.CancelledError:
+        return

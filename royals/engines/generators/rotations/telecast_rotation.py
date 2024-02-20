@@ -84,11 +84,17 @@ class TelecastRotationGenerator(RotationGenerator):
                     self._ultimate,
                     ready_at,
                 )
-                print("Telecasting", direction)
+                updater = GeneratorUpdate(game_data_kwargs={"available_to_cast": True})
+                self.data.update(
+                    casting_until=max(time.perf_counter(), ready_at)
+                    + self.training_skill.animation_time,
+                )
                 return QueueAction(
-                    identifier='Telecast',
+                    identifier="Telecast",
                     priority=98,
                     action=res,
+                    disable_lower_priority=True,
+                    update_generators=updater,
                 )
         else:
             rotation = self._rotation()
