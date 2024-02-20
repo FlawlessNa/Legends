@@ -161,7 +161,7 @@ class InventoryChecks:
 
         if (
             math.dist(self.data.current_minimap_position, getattr(self, "door_target"))
-            > 2
+            > 4
         ):
             return InventoryActions.move_to_target(
                 self.generator, getattr(self, "door_target"), "Moving to Door Spot"
@@ -180,7 +180,7 @@ class InventoryChecks:
         minimap = self.data.current_minimap
         minimap.grid.node(*self.data.current_minimap_position).connect(
             minimap.grid.node(0, 0), MinimapConnection.PORTAL
-        )  # TODO - Don't forget to remove connection afterwards once done
+        )
 
         return InventoryActions.use_mystic_door(self.generator)
 
@@ -189,7 +189,9 @@ class InventoryChecks:
             return InventoryActions.move_to_target(
                 self.generator, (0, 0), "Entering Door"
             )
-        time.sleep(1.5)
+        else:
+            controller.release_all(self.data.handle)
+            time.sleep(1.5)
 
     def _move_to_shop(self) -> QueueAction | None:
         if self.data.current_map.path_to_shop is not None:
@@ -223,6 +225,8 @@ class InventoryChecks:
             return InventoryActions.move_to_target(
                 self.generator, target, "Moving to Shop"
             )
+        else:
+            controller.release_all(self.data.handle)
 
     def _open_npc_shop(self) -> QueueAction | None:
         shop_img_needle = cv2.imread(
@@ -289,6 +293,7 @@ class InventoryChecks:
     def _return_to_door(self) -> QueueAction | None:
         curr_pos = self.data.current_minimap_position
         if curr_pos is None:
+            controller.release_all(self.data.handle)
             time.sleep(1.5)
             return
         target = getattr(self, "return_door_target")
@@ -324,12 +329,14 @@ class InventoryChecks:
                     curr_pos[1],
                 )
             )
+            controller.release_all(self.data.handle)
             return InventoryActions.move_to_target(
                 self.generator,
                 target,
                 "Returning to Door",
             )
         else:
+            controller.release_all(self.data.handle)
             horiz_dist = sum(
                 (current_npcs[i][0] - initial_npcs[i][0])
                 for i in range(len(current_npcs))
@@ -456,16 +463,26 @@ class InventoryActions:
             identifier=f"Using Mystic Door",
             priority=5,
             action=partial(
-                cast_skill,
+                InventoryActions._mystic_door,
                 generator.data.handle,
                 generator.data.ign,
                 generator.data.character.skills["Mystic Door"],
                 generator.data.casting_until,
-                single_press=True,
             ),
             update_generators=GeneratorUpdate(
                 generator_id=id(generator), generator_kwargs={"blocked": False}
             ),
+        )
+
+    @staticmethod
+    async def _mystic_door(handle, ign: str, skill, casting_until: float):
+        controller.release_all(handle)
+        await cast_skill(
+            handle,
+            ign,
+            skill,
+            casting_until,
+            single_press=True,
         )
 
     @staticmethod

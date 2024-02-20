@@ -2,46 +2,10 @@
 
 ## Bug Fixes (Current Branch)
 - [ ] Minimap handling between CheckStillInMap and InventoryManager
-- [x] InventoryManager triggers unexpectedly?
 - [ ] Cancellation of NPC Selling seems to be problematic because it has a return value
 - [ ] Party Re-buff is broken (casts way too much), for casting non-attack skill (since there's a rebuff validation), can simply cast once.
   - Split into individual buffs and only re-cast buffs that didn't go through
-- [ ] Figure out why telecasting doesn't work as often as expected
-
-## Input-Constructor Branch - TODOs
-- [ ] Before Merging, major cleanup of:
-  - [x] Entire controller module (refactor to be controller as a package)
-    - Test write function properly as well
-  - [ ] Executor class
-  - [x] All Rotation Generators
-  - [x] MinimapPathingMechanics and get_to_target module
-  - [x] royals.actions
-  - [ ] InventoryManagement + Inventory actions/checks
-- [x] Idea #1: For casting (especially attacking skills), always trigger repeated feature for skill.animation_time
-- [x] Streamline input construction and allow mouse + keyboard inputs tangled
-- [x] Add a "watcher" in controller module to create set of all keys that were sent at some point. Check those for release upon focus switch.
-- [x] Replace "enforce_last_inputs" with "release following keys" which only release if they are down
-- Allows repeated key feature on anything, keys + mouse inputs combined as well
-- [x] Test that the shared focus lock is the same instance for all bots.
-- [x] Refactor using this "input constructor" to implement actions/movements specific to royals
-  - [x] DELAYS between mousedown and mouseup should be 2 * DELAY! (right now, they are instant for clicks - correct this)
-  - [x] Same is true between keydown/keyups
-- [x] Casting - Use with the new Repeated key feature
-  - Casting should ensure keys are released at the end for human-like behavior, but it won't cause problems in terms of activity
-- [ ] Task Cancellation - This should be used to manage multi-process/clients task management from Executor:
-  - Movements always cancel movements
-  - Mobhitting does not cancel movements. Movements do not cancel mobhitting (they run concurrently)
-  - Tasks with lower priority number still cancel other tasks. 
-  - Rotation tasks are cancelled by any other tasks.
-  - TODO!! -- Rotation tasks CANNOT be scheduled if a higher priority task is still in queue?
-- [x] Rotation Fluidity
-  - Rotation Generators should continuously fire rotation actions
-  - Each new rotation action cancels the previous to take its place. Cancellations do not release keys.
-  - Each new rotation inserts keyups event at the beginning of their streams depending on KeyState of prev actions
-  - Each action mostly consists of keydowns inputs
-  - When a new action overwrites the previous and keys change, then keyups are triggered
-  - When Focus Lock changes, keyups are also triggered
-- [x] Refactor the controller top-level functions
+- [ ] Fix algo for returning from shop - add prints of horizontal distances and such.
 
 ## Performance Branch
 - [ ] Ability to use Multiple clients within a single Engine
@@ -60,7 +24,7 @@
     - [ ] Release keys on cancellations only when necessary?
     - [ ] Rotations - More fluidity? -- Idea: using squeezed_movements, translate into callable functions, but those are only keydowns with no duration and/or keyups. keyups are triggered when movement changes or when focus changes.
     - [ ] Automated Repeat Feature on anything - not just move (aka Ultimate casting during animation time, etc)
-  - [ ] Improve data management - especially when minimap is being toggled.
+  - [ ] Improve data management - especially when minimap is being toggled.c
   - [ ] Task cancellation - Refactor how callbacks are triggered, such that if necessary, a callback coroutine is used to await for some time before updating data
   - [x] Task cancellation for movements - make "controller.move" cancellable, but other functions (tp, telecast, jump rope, etc.) non-cancellable.
     - A big advantage is that blocking generators will automatically block generators from other characters on the same engine

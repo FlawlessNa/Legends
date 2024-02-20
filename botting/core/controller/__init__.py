@@ -4,6 +4,7 @@ from .inputs.focused_inputs import (
     get_held_movement_keys,
     OPPOSITES,
     release_opposites,
+    release_all,
     EVENTS
 )
 
