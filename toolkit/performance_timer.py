@@ -19,6 +19,13 @@ FUNC = partial(
     current_pos,
     (0, 0),
     test,
+<<<<<<< HEAD
+=======
+    HANDLE,
+    "alt",
+    bishop.skills["Teleport"],
+    "WrongDoor",
+>>>>>>> 0f50b90ea59503320302ebf353e112945ecb1698
 )
 N_TIMES = 100
 total_time = timeit(FUNC, number=N_TIMES)

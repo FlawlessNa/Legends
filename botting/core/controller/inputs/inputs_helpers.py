@@ -3,6 +3,8 @@ Exports the necessary functions from windll.user32 to be used by the input modul
 Retrieves appropriate virtual key code given keyboard layout and key name.
 """
 import ctypes
+import random
+import time
 import win32api
 import win32con
 
@@ -12,12 +14,27 @@ from functools import lru_cache
 # http://www.kbdedit.com/manual/low_level_vk_list.html
 # https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 
+DELAY: float = 0.033 - time.get_clock_info("monotonic").resolution
+
+
+def _random_delay():
+    while True:
+        new_val = random.uniform(0.95, 1.05)
+        yield new_val * DELAY
+
+
+random_delay = _random_delay()
+
 
 KEYBOARD_MAPPING = {
     "alt": win32con.VK_MENU,
-    "alt_right": win32con.VK_MENU,  # Could've used the win32con.VK_RMENU, but Spy++ shows that the game uses the VK_MENU instead. Reproduced here to copy human-like behavior.
-    "ctrl": win32con.VK_CONTROL,  # Could've used the win32con.VK_LCONTROL, but Spy++ shows that the game uses the VK_CONTROL instead. Reproduced here to copy human-like behavior.
-    "ctrl_right": win32con.VK_CONTROL,  # Could've used the win32con.VK_RCONTROL, but Spy++ shows that the game uses the VK_CONTROL instead. Reproduced here to copy human-like behavior.
+
+    # Or win32con.VK_RMENU, but Spy++ shows that the game uses the VK_MENU instead.
+    "alt_right": win32con.VK_MENU,
+    # Or win32con.VK_LCONTROL, but Spy++ shows that the game uses the VK_CONTROL instead.
+    "ctrl": win32con.VK_CONTROL,
+    # Or win32con.VK_RCONTROL, but Spy++ shows that the game uses the VK_CONTROL instead.
+    "ctrl_right": win32con.VK_CONTROL,
     "left": win32con.VK_LEFT,
     "right": win32con.VK_RIGHT,
     "up": win32con.VK_UP,
@@ -89,7 +106,7 @@ def _setup_exported_functions() -> dict[str, callable]:
         wintypes.LPARAM,
     ]
 
-    # Note - The argtypes of SendInput is defined in each function type,
+    # Note - The argtypes of SendInput is defined in each function call,
     # since the array length may change at each call.
     send_input = ctypes.windll.user32.SendInput
     send_input.restype = wintypes.UINT

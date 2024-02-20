@@ -1,9 +1,8 @@
-import asyncio
 import itertools
 import logging
 import math
-import multiprocessing as mp
 import random
+import time
 
 from functools import partial
 
@@ -23,12 +22,11 @@ class TelecastRotationGenerator(RotationGenerator):
     def __init__(
         self,
         data: RoyalsData,
-        lock: mp.Lock,
         teleport_skill: RoyalsSkill,
         ultimate: RoyalsSkill,
         mob_threshold: int = 5,
     ) -> None:
-        super().__init__(data, lock, ultimate, mob_threshold, teleport_skill)
+        super().__init__(data, ultimate, mob_threshold, teleport_skill)
         self._ultimate = ultimate
         self._target_cycle = itertools.cycle(self.data.current_minimap.feature_cycle)
         if len(self.data.current_minimap.feature_cycle) > 0:
@@ -69,30 +67,41 @@ class TelecastRotationGenerator(RotationGenerator):
         hit_mobs = self._mobs_hitting()
         if hit_mobs is not None:
             # Check for telecast
-            if len(self.actions) == 0 or self.actions[0].func.__name__ != "teleport_once":
+            if len(self.actions) == 0 or self.actions[0].func.__name__ != "teleport":
                 # If first move isn't a teleport, simply cast skill instead
                 return hit_mobs
             else:
                 # If first move is teleport, replace by telecast and keep teleporting
-                directions = []
-                while self.actions and self.actions[0].func.__name__ == "teleport_once":
-                    next_action = self.actions.pop(0)
-                    directions.append(next_action.keywords["direction"])
+                # Make sure to wait a little before telecasting
+                ready_at = self.data.teleporting_until
+                direction = self.actions[0].args[-2]
                 res = partial(
                     telecast,
                     self.data.handle,
                     self.data.ign,
-                    directions,
+                    direction,
                     self._teleport,
                     self._ultimate,
+                    ready_at,
+                )
+                updater = GeneratorUpdate(game_data_kwargs={"available_to_cast": True})
+                self.data.update(
+                    casting_until=max(time.perf_counter(), ready_at)
+                    + self.training_skill.animation_time,
                 )
                 return QueueAction(
-                    identifier="Telecasting",
+                    identifier="Telecast",
                     priority=98,
                     action=res,
-                    update_generators=GeneratorUpdate(
-                        game_data_kwargs={"available_to_cast": True}
-                    ),
+                    disable_lower_priority=True,
+                    update_generators=updater,
                 )
         else:
-            return self._rotation()
+            rotation = self._rotation()
+            if rotation:
+                if rotation.action.func.__name__ == "teleport":
+                    self.data.update(
+                        teleporting_until=time.perf_counter()
+                        + self._teleport.animation_time
+                    )
+            return rotation

@@ -1,57 +1,57 @@
 # Royals-V2
 
-## TODO
+## Bug Fixes (Current Branch)
+- [ ] Minimap handling between CheckStillInMap and InventoryManager
+- [ ] Cancellation of NPC Selling seems to be problematic because it has a return value
+- [ ] Party Re-buff is broken (casts way too much), for casting non-attack skill (since there's a rebuff validation), can simply cast once.
+  - Split into individual buffs and only re-cast buffs that didn't go through
+- [ ] Fix algo for returning from shop - add prints of horizontal distances and such.
+
+## Performance Branch
+- [ ] Ability to use Multiple clients within a single Engine
+  - Need to have multiple instances of EngineData for 1 engine (1 instance per client)
+  - Blockers/Unblockers need to be work for each client individually
+- [ ] Ability to only retrieve first action in pathfinding parser instead of entire actions
+- [ ] Look into leveraging psutil for performance monitoring of CPU resources by client/process
+- [ ] Look into "blocked" generators could wait on a mp.Event/Condition semaphore to reduce CPU consumption
+- [ ] Convert generators into asynchronous generators? Each becomes an infinite "task" (in child process) that run concurrently
+  - With this framework, perhaps each generator can await on a QueueAction it submits and this "blocks" itself for the duration 
+
+## Leeching Branch - TODOs
+- [ ] Multi-client blockers
+- [ ] Multi-client parsers
   - [x] controller revamp for better focus-lock handling
-  - [ ] Another pass at controller revamp - better focus handling is already achieved, but now add "pattern" constructor to handle complex actions and properly deal with cancellations
-    - [ ] Things such has repeated key feature + clicks
     - [ ] Release keys on cancellations only when necessary?
-    - [ ] Refactor into an "input constructor" and use that constructor to implement actions/movements specific to royals later on
-    - [ ] Rotations - More fluidity?
-    - [ ] Ultimate Casting - Cancellable if cast not confirmed?
-  - [ ] Improve data management - especially when minimap is being toggled.
+    - [ ] Rotations - More fluidity? -- Idea: using squeezed_movements, translate into callable functions, but those are only keydowns with no duration and/or keyups. keyups are triggered when movement changes or when focus changes.
+    - [ ] Automated Repeat Feature on anything - not just move (aka Ultimate casting during animation time, etc)
+  - [ ] Improve data management - especially when minimap is being toggled.c
   - [ ] Task cancellation - Refactor how callbacks are triggered, such that if necessary, a callback coroutine is used to await for some time before updating data
-  - [x] Task Cancellation for movements - make "controller.move" cancellable, but other functions (tp, telecast, jump rope, etc.) non-cancellable.
-  - [ ] Ability to group multiple characters (aka engines) into single process. This means every generators for that engine needs to be created N times. There will also be N instances of game data.
+  - [x] Task cancellation for movements - make "controller.move" cancellable, but other functions (tp, telecast, jump rope, etc.) non-cancellable.
     - A big advantage is that blocking generators will automatically block generators from other characters on the same engine
   - [ ] Ability to "reset" generator data? - goes with better data management
 
 ### Inventory Cleanup
 - [ ] Big code clean-up required.
-- [ ] Ability to add custom connections (mystic door) from/to current minimap and nearest town
+- [x] Ability to add custom connections (mystic door) from/to current minimap and nearest town
 - [ ] Basic (incomplete) coding of relevant nearest towns - just enough to get to npc
-- [ ] NPC selling mechanics
-- [ ] CompoundAction implementation
+- [x] NPC selling mechanics
+- [x] CompoundAction implementation
 - [ ] Inventory parsing for godlies?
 - [ ] Storage mechanics
 
-### Controller-revamp
-- [ ] Cleanup the creation of inputs and enable better control of the focus lock on complex actions
-  - Ex: can call controller.move with a list of directions+durations, and it will only acquire/release once.
-
-### Leeching Engine
-  - [x] Rebuffing from Leechers
-    - Refactor buff mule safeguard into an actual rotation generator instead of interval-based
-  - [ ] Ultimate Cast failsafe - check if MP has changed by at least X%
-  - [x] Enhanced telecasting
-  - [ ] Multi-client blockers/parsers3`
-  
 ### Generators
   - [ ] MobCheck : 2nd reaction - add full sentences (more elaborate choices)
   - [ ] MobCheck : Unblock on 2nd reaction IF mobs are detected again
   - [ ] Check character still alive
   - [ ] Check Potions, Pet Food (_failsafe to PetFood), Mount Food, Magic Rocks left
-  - [x] Cooldown buffs
   - [ ] Inventory Management
-    - [x] Basic parser to check space left
-    - [ ] Basic actions to clear inventory at town
     - [ ] Advanced parser to check stats on each item
     - [ ] Advanced actions to store godlies
-  - [x] Automated AP distribution
-  - [x] Generic Generator class for botting library
+    - [ ] Refactor the NPC Shop UI into its own Visual class
+    - [ ] Refactor InventoryActions into royals.actions functions
+    - [ ] Clean the remainder of InventoryChecks and InventoryManager
   - [ ] Add failsafe on MobHitting (how??)
-  - [x] Add failsafe on Rebuff (look for fresh buff icon in top right screen)
   - [ ] Add failsafe on any Rotation Generators - Movement is expected if action is not cancelled
-  - [x] Streamline reactions for AntiDetection generators
 
 ### Anti Detection Features
   - [ ] Chat Parsing (try grayscale preprocessing on "general" lines) + GPT Automated Responses
@@ -79,7 +79,6 @@
   
 ### QueueAction
   - [ ] Implement better handling of QueueAction Priority
-  - [ ] Add action attributes to enable IPC
   
 ### Mob detection
   - [ ] Clean the pre-processing to remove the additional layer of the filter function
@@ -87,14 +86,12 @@
   - [ ] Combine with HP bar
   
 ### RoyalsData Management
-  - [x] Add a Loop ID on every iteration. When data is updated, assign it a loop id. only update when loop id is different.
-  - [x] Split into several subclasses, each specific to a generator
-  - [ ] Re-split data further into interface/mechanics components instead of generator types (ex: MinimapData, PathingData, MobData, etc)
-  - [ ] Add a PerformanceData class for monitoring (mesos/h, exp/h, etc)
-  - [x] DecisionEngine should not have to update anything. Each Generator should deal with their own requirements.
+- [ ] Re-split data further into interface/mechanics components instead of generator types (ex: MinimapData, PathingData, MobData, etc)
+- [ ] Add a PerformanceData class for monitoring (mesos/h, exp/h, etc)
+- [x] DecisionEngine should not have to update anything. Each Generator should deal with their own requirements.
 
 ### Error Management
-  - [ ] Deal with KeyboardInterrupt to ensure all keys are released from all clients
+  - [x] Deal with KeyboardInterrupt to ensure all keys are released from all clients
   - [ ] Ability to close all clients if error occurs
   - [ ] Ability to send all characters to lounge if error occurs
 
@@ -103,22 +100,21 @@
   - [ ] Add Macros + cast_macros which is cancellable in between each cast
   - [ ] streamline keybindings configs
   - [ ] Add variable speed/jump management
-  - [x] Add slice creation from box objects used to crop a numpy array (considers the client margins as well)
   - [ ] Skill Specs Finder
-  - [x] Mouse movements and mouse clicks
   - [ ] Finalize Discord communications - Control of which process are to respond to user commands
   - [ ] UnitTests on the botting library
 
 ### Documentation
-  - [ ] Botting.core
-    - [x] .bot
-    - [ ] .communications
-    - [x] .controls
-  - [ ] Royals (entire package)
+- [ ] Botting.core
+  - [x] .bot
+  - [ ] .communications
+  - [x] .controls
+- [ ] Royals (entire package)
+- [ ] Improve relevance of logs
 
 ### Game Interface
   - [ ] Quickslots
-  - [ ] Inventory
+  - [x] Inventory
   - [x] Level up detection
   - [ ] HP bar detection (check if still alive)
 

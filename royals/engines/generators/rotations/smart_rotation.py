@@ -19,13 +19,12 @@ class SmartRotationGenerator(RotationGenerator):
     def __init__(
         self,
         data: RotationData,
-        lock: mp.Lock,
         training_skill: RoyalsSkill,
         mob_threshold: int,
         teleport: RoyalsSkill = None,
         time_limit: float = 2,
     ) -> None:
-        super().__init__(data, lock, training_skill, mob_threshold, teleport)
+        super().__init__(data, training_skill, mob_threshold, teleport)
         self.time_limit = time_limit
         self._target_cycle = itertools.cycle(self.data.current_minimap.feature_cycle)
 

@@ -19,11 +19,14 @@ class MinimapConnection:
     Connection types are:
     - "jump_down": The character can jump down from one node to another.
     - "jump_...": The character can jump from one node to another.
-    - "fall": The character can fall from one node to another by walking towards the edge of a platform.
-    - "jump_..._and_up": The character jumps in a direction while holding "up" key, to get into a rope/ladder.
-    - "portal": The character can use a portal from one node to another (also from one map to another).
+    - "fall": The character can fall from one node to another by walking towards the
+        edge of a platform.
+    - "jump_..._and_up": The character jumps in a direction while holding "up" key, to
+        get into a rope/ladder.
+    - "portal": The character can use a portal from one node to another (also from one
+        map to another).
     - "teleport": The character can teleport from one node to another.
-    - "flash_jump_...": The character can use flash jump to get from one node to another.
+    - "flash_jump_...": The character can use flash jump to get from a node to another.
     """
 
     def __init__(
@@ -87,7 +90,8 @@ class MinimapNode(GridNode):
     """
     Class representing a node in the pathfinding algorithm.
     Each MinimapNode is a point within a feature the minimap.
-    Minimap Nodes have additional properties with respect to their "connections" to other nodes.
+    Minimap Nodes have additional properties with respect to their "connections" to
+    other nodes.
     Their type of connection describes how the connection can be used in-game.
     """
 
@@ -97,7 +101,8 @@ class MinimapNode(GridNode):
         """
         Connects the current node to another node.
         :param node: Node to connect to.
-        :param connection_type: The type of connection between the other node. "jump_down", "jump", "teleport", or "portal".
+        :param connection_type: The type of connection between the other node.
+            "jump_down", "jump", "teleport", or "portal".
         :return:
         """
         super().connect(node)
@@ -106,9 +111,10 @@ class MinimapNode(GridNode):
 
 class MinimapGrid(Grid):
     """
-    Exactly the same as the Grid class, except that it uses MinimapNodes instead of GridNodes.
+    Exactly the same as the Grid class, except that it uses MinimapNodes instead of
+    GridNodes.
     Weights between nodes are also calculated differently for connections.
-    Special treatment of TELEPORT connections depending on whether they are allowed or not.
+    Special treatment of TELEPORT connections depending on whether they are allowed.
     """
 
     nodes: list[list[MinimapNode]]
@@ -130,8 +136,9 @@ class MinimapGrid(Grid):
     def calc_cost(self, node_a: MinimapNode, node_b: MinimapNode, weighted=False):
         """
         Get the cost between neighbor nodes.
-        If the nodes are neighbors through a connection, add the horizontal distance, except for teleport
-        into the cost. This avoids unnecessary jumps on platforms/ropes and such.
+        If the nodes are neighbors through a connection, add the horizontal distance,
+        (except for teleport) into the cost.
+        This avoids unnecessary jumps on platforms/ropes and such.
         """
         ng = super().calc_cost(node_a, node_b, weighted)
         if node_a.connections and node_b in node_a.connections:
@@ -185,11 +192,13 @@ class MinimapGrid(Grid):
 class MinimapFeature(Box):
     """
     Class representing a feature on the minimap.
-    A minimap feature is essentially a box representing the platform coordinates on the minimap.
-    As opposed to a Box, a MinimapFeature must have a name and either its width or its height must be equal to 0.
-    MinimapFeatures establish connections with other MinimapFeatures, through various types of connections.
-    Each "point" within a MinimapFeature is considered a "MinimapNode" in the pathfinding algorithm.
-    MinimapFeature are iterables - iterating over them will return all the nodes within the feature.
+    A minimap feature is essentially a box representing the platform coordinates on the
+    minimap. As opposed to a Box, a MinimapFeature must have a name and either its
+    width or its height must be equal to 0. MinimapFeatures establish connections with
+    other MinimapFeatures, through various types of connections. Each "point" within
+    a MinimapFeature is considered a "MinimapNode" in the pathfinding algorithm.
+    MinimapFeature are iterables - iterating over them will return all the nodes within
+    the feature.
     """
 
     name: str
@@ -258,7 +267,8 @@ class MinimapFeature(Box):
     @property
     def area(self) -> int:
         """
-        Overwrites default behavior and considers the axis with 0 length equal to 1 for this calculation.
+        Overwrites default behavior and considers the axis with 0 length equal to 1 for
+        this calculation.
         """
         return max(self.width, self.height)
 
@@ -319,8 +329,9 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         self, starting_point: tuple[int, int], direction: str, grid: MinimapGrid
     ) -> None:
         """
-        For any given node, look whether there are other walkable (platform) nodes at self.teleport_h_dist
-        of horizontal distance and within a vertical range equal to self.teleport_v_up_dist // 2.
+        For any given node, look whether there are other walkable (platform) nodes at
+        self.teleport_h_dist of horizontal distance and within a vertical range equal
+        to self.teleport_v_up_dist // 2.
         Start by prioritizing any such node upwards.
         If not any, then finally look downwards.
         :param starting_point:
@@ -407,7 +418,8 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         x_values = x_values[mask].astype(int)
         y_values = y_values[mask].astype(int)
 
-        # The rounding may cause adjacent cells to be only connected diagonally. Add buffer in such cases.
+        # The rounding may cause adjacent cells to be only connected diagonally.
+        # Add buffer in such cases.
         buffered_x_values = []
         buffered_y_values = []
         for i in range(len(x_values) - 1):
@@ -462,8 +474,10 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         """
         Generates a "grid"-like array of the minimap, which includes royals mechanics.
         Those mechanics are:
-            - Connect nodes between parallel, horizontal platforms, provided they are not too distant (jump up/down/left/right/FALL).
-            - Connect adjacent nodes with small gaps (jump and/or teleport), provided they are not too distant.
+            - Connect nodes between parallel, horizontal platforms, provided they are
+            not too distant (jump up/down/left/right/FALL).
+            - Connect adjacent nodes with small gaps (jump and/or teleport), provided
+            they are not too distant.
             - Connect nodes between ladders and platforms and vice-versa
             - Connect nodes between portals (can be one-way or two-way) # TODO
         :return: Grid object
@@ -498,28 +512,36 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                         self._add_vertical_connection(
                             base_grid, node, MinimapConnection.TELEPORT_DOWN
                         )
-                        self._find_horizontal_teleport_node(node, "left", base_grid)
-                        self._find_horizontal_teleport_node(node, "right", base_grid)
+                        if node[0] != feature.left:
+                            self._find_horizontal_teleport_node(
+                                node, "left", base_grid
+                            )
+                        if node[0] != feature.right:
+                            self._find_horizontal_teleport_node(
+                                node, "right", base_grid
+                            )
 
                     # Compute jump trajectories for both directions
-                    left_trajectory = self._jump_trajectory(node, "left")
-                    right_trajectory = self._jump_trajectory(node, "right")
-                    self._parse_trajectory(
-                        node,
-                        feature,
-                        left_trajectory,
-                        MinimapConnection.JUMP_LEFT,
-                        MinimapConnection.JUMP_LEFT_AND_UP,
-                        base_grid,
-                    )
-                    self._parse_trajectory(
-                        node,
-                        feature,
-                        right_trajectory,
-                        MinimapConnection.JUMP_RIGHT,
-                        MinimapConnection.JUMP_RIGHT_AND_UP,
-                        base_grid,
-                    )
+                    if node[0] != feature.left:
+                        left_trajectory = self._jump_trajectory(node, "left")
+                        self._parse_trajectory(
+                            node,
+                            feature,
+                            left_trajectory,
+                            MinimapConnection.JUMP_LEFT,
+                            MinimapConnection.JUMP_LEFT_AND_UP,
+                            base_grid,
+                        )
+                    if node[0] != feature.right:
+                        right_trajectory = self._jump_trajectory(node, "right")
+                        self._parse_trajectory(
+                            node,
+                            feature,
+                            right_trajectory,
+                            MinimapConnection.JUMP_RIGHT,
+                            MinimapConnection.JUMP_RIGHT_AND_UP,
+                            base_grid,
+                        )
 
                     # Check for FALL_LEFT connection
                     if node == (feature.left, feature.top):
@@ -550,7 +572,8 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                         )  # TODO - Add FALL_RIGHT_AND_UP if needed
 
                 elif feature.is_ladder:
-                    # Skip the node on top to make sure jumping out of it doesn't lead back to platform at top (if any)
+                    # Skip the node on top to make sure jumping out of it doesn't lead
+                    # back to platform at top (if any)
                     if node[1] == feature.top or node[1] == feature.bottom:
                         continue
 
@@ -614,7 +637,8 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
             else:
                 other_feature = self.get_feature_containing(other_node)
                 if other_feature != feature:
-                    # If the other feature is a platform, the rest of the trajectory is ignored as this stops the movement
+                    # If the other feature is a platform, the rest of the trajectory is
+                    # ignored as this stops the movement
                     if other_feature.is_platform:
                         grid.node(*node).connect(
                             grid.node(*other_node),
@@ -645,7 +669,8 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
             - JUMP_UP: Find the furthest walkable node within jump_height range, if any
             - JUMP_DOWN: Find the nearest walkable node below current one
                 (within jump_down range)
-            - TELEPORT_UP: Find the furthest walkable node within teleport_v_up_dist range
+            - TELEPORT_UP: Find the furthest walkable node within teleport_v_up_dist
+            range
             - TELEPORT_DOWN: Find the nearest walkable node within teleport_v_down_dist
         :return:
         """
