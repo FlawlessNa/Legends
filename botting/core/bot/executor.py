@@ -31,6 +31,9 @@ class Executor:
     discord_parser: callable  # Defines how to interpret discord messages
     all_bots: list["Executor"] = []
 
+    # Strong ref to avoid garbage collection on unfinished tasks
+    all_tasks: list[asyncio.Task] = []
+
     def __init__(self, engine: type["DecisionEngine"], ign: str, **kwargs) -> None:
         self.engine = engine
         self.engine_kwargs = kwargs
@@ -146,6 +149,7 @@ class Executor:
 
         # Callbacks are triggered upon completion OR cancellation of the task.
         new_task = asyncio.create_task(queue_item.action(), name=queue_item.identifier)
+        Executor.all_tasks.append(new_task)  # Strong ref to avoid garbage collection
         new_task.add_done_callback(self._exception_handler)
 
         # Custom attributes used to manage cancellations properly.
@@ -293,9 +297,19 @@ class Executor:
                 if new_task is not None:
                     logger.debug(f"Created task {new_task.get_name()}.")
 
+                self._task_cleanup()
+
                 if len(asyncio.all_tasks()) > 30:
                     for t in asyncio.all_tasks():
                         print(t)
                     logger.warning(
                         f"Nbr of tasks in the event loop is {len(asyncio.all_tasks())}."
                     )
+
+    @classmethod
+    def _task_cleanup(cls):
+        """
+        Cleans up the list of tasks maintained by the Executor.
+        """
+        cls.all_tasks = [t for t in cls.all_tasks if not t.done()]
+        cls.all_tasks = [t for t in cls.all_tasks if not t.cancelled()]

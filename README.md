@@ -49,7 +49,9 @@
   - Blockers/Unblockers need to be work for each client individually
 - [ ] Ability to only retrieve first action in pathfinding parser instead of entire actions
 - [ ] Look into leveraging psutil for performance monitoring of CPU resources by client/process
-- [ ] Look into "blocked" generators could wait on a mp.Event/Condition semaphore instead of a while loop
+- [ ] Look into "blocked" generators could wait on a mp.Event/Condition semaphore to reduce CPU consumption
+- [ ] Convert generators into asynchronous generators? Each becomes an infinite "task" (in child process) that run concurrently
+  - With this framework, perhaps each generator can await on a QueueAction it submits and this "blocks" itself for the duration 
 
 ## Leeching Branch - TODOs
 - [ ] Multi-client blockers
@@ -125,7 +127,7 @@
 - [x] DecisionEngine should not have to update anything. Each Generator should deal with their own requirements.
 
 ### Error Management
-  - [ ] Deal with KeyboardInterrupt to ensure all keys are released from all clients
+  - [x] Deal with KeyboardInterrupt to ensure all keys are released from all clients
   - [ ] Ability to close all clients if error occurs
   - [ ] Ability to send all characters to lounge if error occurs
 
@@ -148,7 +150,7 @@
 
 ### Game Interface
   - [ ] Quickslots
-  - [ ] Inventory
+  - [x] Inventory
   - [x] Level up detection
   - [ ] HP bar detection (check if still alive)
 
