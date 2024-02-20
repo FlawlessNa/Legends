@@ -44,7 +44,6 @@ class Executor:
 
         self.monitoring_process: multiprocessing.Process | None = None
         self.main_task: asyncio.Task | None = None
-        self.current_priority_level: float = float('inf')
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}[{self.ign}]"
@@ -109,11 +108,6 @@ class Executor:
             logger.info(f"Sending message towards Discord Process")
             for msg in queue_item.user_message:
                 self.discord_pipe.send(msg)
-
-        if queue_item.priority > self.current_priority_level:
-            # If the priority of the task is lower than the current priority level,
-            # then the task is not scheduled.
-            return
 
         if queue_item.disable_lower_priority:
             # Disables all tasks with lower priority, regardless of cancellability.
