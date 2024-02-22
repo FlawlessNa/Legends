@@ -13,6 +13,7 @@
   - Blockers/Unblockers need to be work for each client individually
 - [ ] Ability to only retrieve first action in pathfinding parser instead of entire actions
 - [ ] Look into leveraging psutil for performance monitoring of CPU resources by client/process
+- [ ] Look into using Profilers (cProfile, line_profiler) to identify bottlenecks in the code
 - [ ] Look into "blocked" generators could wait on a mp.Event/Condition semaphore to reduce CPU consumption
 - [ ] Convert generators into asynchronous generators? Each becomes an infinite "task" (in child process) that run concurrently
   - With this framework, perhaps each generator can await on a QueueAction it submits and this "blocks" itself for the duration 
