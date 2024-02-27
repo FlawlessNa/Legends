@@ -1,3 +1,4 @@
+import asyncio
 import cv2
 import logging
 import os
@@ -190,8 +191,14 @@ class InventoryChecks:
                 self.generator, (0, 0), "Entering Door"
             )
         else:
-            controller.release_all(self.data.handle)
-            time.sleep(1.5)
+            start = time.time()
+            while time.time() - start < 1.5:
+                inputs = controller.input_constructor(
+                    self.data.handle, ["left", "right"], ["keyup", "keyup"]
+                )
+                delays = [0] * len(inputs)
+                asyncio.run(controller.focused_inputs(self.data.handle, inputs, delays))
+                time.sleep(0.1)
 
     def _move_to_shop(self) -> QueueAction | None:
         if self.data.current_map.path_to_shop is not None:
@@ -319,7 +326,14 @@ class InventoryChecks:
             map_area_box=self.data.current_minimap_area_box,
         )
         initial_npcs = getattr(self, "npcs_positions")
+        controller.release_all(self.data.handle)
         if len(current_npcs) != len(initial_npcs):
+            print(
+                "Different number of NPCs, initial:",
+                len(initial_npcs),
+                "current:",
+                len(current_npcs),
+            )
             direction = getattr(self, "_direction")
             target = (
                 (curr_pos[0] + 10, curr_pos[1])
@@ -329,34 +343,72 @@ class InventoryChecks:
                     curr_pos[1],
                 )
             )
-            controller.release_all(self.data.handle)
             return InventoryActions.move_to_target(
                 self.generator,
                 target,
                 "Returning to Door",
             )
         else:
-            controller.release_all(self.data.handle)
-            horiz_dist = sum(
-                (current_npcs[i][0] - initial_npcs[i][0])
-                for i in range(len(current_npcs))
-            ) / len(current_npcs)
-
-            self.blocked = True
-            return QueueAction(
-                identifier="Re-entering in Door",
-                priority=5,
-                action=partial(
-                    move,
-                    self.data.handle,
-                    "right" if horiz_dist > 0 else "left",
-                    "up",
-                    duration=abs(horiz_dist / self.data.current_minimap.minimap_speed),
-                ),
-                update_generators=GeneratorUpdate(
-                    generator_id=id(self.generator), generator_kwargs={"blocked": False}
-                ),
+            print(
+                "Same number of NPCs, initial:",
+                len(initial_npcs),
+                "current:",
+                len(current_npcs),
             )
+            # Check if the points currently seen are the same points as the initial ones
+            # If this is the case, all points will have a vertical distance of 0 with
+            # the initial ones
+            vert_distances = [
+                current_npcs[i][1] - initial_npcs[i][1]
+                for i in range(len(current_npcs))
+            ]
+            if all(v == 0 for v in vert_distances):
+                horiz_dist = sum(
+                    (current_npcs[i][0] - initial_npcs[i][0])
+                    for i in range(len(current_npcs))
+                ) / len(current_npcs)
+                print(
+                    "All vertical distances are 0",
+                    "horiz_dist:",
+                    horiz_dist,
+                    "direction",
+                    "right" if horiz_dist > 0 else "left",
+                )
+
+                self.blocked = True
+                return QueueAction(
+                    identifier="Re-entering in Door",
+                    priority=5,
+                    action=partial(
+                        move,
+                        self.data.handle,
+                        "right" if horiz_dist > 0 else "left",
+                        "up",
+                        duration=max(
+                            abs(horiz_dist / self.data.current_minimap.minimap_speed),
+                            0.05,
+                        ),
+                    ),
+                    update_generators=GeneratorUpdate(
+                        generator_id=id(self.generator),
+                        generator_kwargs={"blocked": False},
+                    ),
+                )
+            else:
+                direction = getattr(self, "_direction")
+                target = (
+                    (curr_pos[0] + 10, curr_pos[1])
+                    if direction == "right"
+                    else (
+                        curr_pos[0] - 10,
+                        curr_pos[1],
+                    )
+                )
+                return InventoryActions.move_to_target(
+                    self.generator,
+                    target,
+                    "Returning to Door",
+                )
 
     def _trigger_discord_alert(self) -> QueueAction:
         space_left = getattr(self, "_space_left")
