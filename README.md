@@ -8,7 +8,10 @@
 - [ ] Fix algo for returning from shop - add prints of horizontal distances and such.
 
 ## Performance Branch
+- [ ] Major Refactoring of Generators - needs to be easier to implement.
 - [ ] Ability to use Multiple clients within a single Engine
+  - Create a new layer "Client" within each Engine -> Each client has its own data and generators
+  - Engine now groups those "Client" and runs then asynchronously.
   - Need to have multiple instances of EngineData for 1 engine (1 instance per client)
   - Blockers/Unblockers need to be work for each client individually
 - [ ] Ability to only retrieve first action in pathfinding parser instead of entire actions
@@ -16,7 +19,8 @@
 - [ ] Look into using Profilers (cProfile, line_profiler) to identify bottlenecks in the code
 - [ ] Look into "blocked" generators could wait on a mp.Event/Condition semaphore to reduce CPU consumption
 - [ ] Convert generators into asynchronous generators? Each becomes an infinite "task" (in child process) that run concurrently
-  - With this framework, perhaps each generator can await on a QueueAction it submits and this "blocks" itself for the duration 
+  - With this framework, perhaps each generator can await on a QueueAction it submits and this "blocks" itself for the duration
+- [ ] Look into using asyncio DEBUG mode (PYTHONASYNCIODEBUG=1) to identify potential issues with the code
 
 ## Leeching Branch - TODOs
 - [ ] Multi-client blockers
