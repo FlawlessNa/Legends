@@ -21,6 +21,8 @@
 - [ ] Convert generators into asynchronous generators? Each becomes an infinite "task" (in child process) that run concurrently
   - With this framework, perhaps each generator can await on a QueueAction it submits and this "blocks" itself for the duration
 - [ ] Look into using asyncio DEBUG mode (PYTHONASYNCIODEBUG=1) to identify potential issues with the code
+- [ ] Look into leveraging loop.run_in_executor(concurrent.futures.ProcessPoolExecutor) for CPU-intensive operations?
+- [ ] Check if tasks created with executor.create_task should also be awaited? If not, the enclosing task may cancel if it terminates before
 
 ## Leeching Branch - TODOs
 - [ ] Multi-client blockers
