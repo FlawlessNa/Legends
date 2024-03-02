@@ -1,11 +1,13 @@
 import asyncio
 import logging
 import logging.handlers
-import multiprocessing
+import multiprocessing.connection
 
 from typing import Self
 
+from .engine_listener import EngineListener
 from .monitor import Monitor
+from .peripherals_process import peripherals_tasks
 
 logger = logging.getLogger(__name__)
 
@@ -29,15 +31,18 @@ class SessionManager:
 
     logging_queue = multiprocessing.Queue()
 
-    def __init__(self, *monitors_to_launch: list[Monitor]) -> None:
-        self.monitors: tuple = monitors_to_launch
+    def __init__(self, *engines: list[Monitor]) -> None:
+        self.engines: tuple = engines
         self.log_receiver = logging.handlers.QueueListener(
             self.logging_queue, *logger.parent.handlers, respect_handler_level=True
         )
+        self.listeners = []
+        self.peripherals_listener = self.peripherals_process = None
+        self.pipe_to_peripherals, self.pipe_from_peripherals = multiprocessing.Pipe()
 
     def __enter__(self) -> Self:
-        self.launch_peripheral_process()
-        self.launch_all_engines()
+        self._launch_peripheral_process()
+        self._launch_all_engines()
         self.log_receiver.start()
         return self
 
@@ -53,8 +58,7 @@ class SessionManager:
         :param exc_tb: Exception Traceback.
         :return: None
         """
-        self.terminate_peripheral_process()
-        self.terminate_log_receiver()
+        self._terminate_peripheral_process()
         logger.debug("Stopping Log listener")
         logger.info("SessionManager exited.")
         self.log_receiver.stop()
@@ -64,14 +68,46 @@ class SessionManager:
             # However, EngineListeners may not be able to handle their own clean-up??
             breakpoint()
 
-    def start(self):
-        logger.info(f"Starting {len(self.monitors)} Processes.")
-        for lst_monitor in self.monitors:
+    async def start(self):
+        logger.info(f"Starting {len(self.engines)} Processes.")
+        for lst_monitor in self.engines:
             logger.info(f"Launching Engine{lst_monitor}")
 
         try:
-            asyncio.run(self.launch_all_listeners())
+            await self._launch_all_listeners()
         finally:
             logger.info(
-                "All bots have been stopped. calling __exit__ on all launchers."
+                "All bots have been stopped. Session is about to exit."
             )
+
+    def _launch_all_engines(self) -> None:
+        raise NotImplementedError
+
+    async def _launch_all_listeners(self) -> None:
+        """
+        Launch all Engine Listeners and the Discord Listener.
+        :return:
+        """
+        async with asyncio.TaskGroup() as tg:
+            self.discord_listener = tg.create_task(
+                self._relay_disc_to_main(), name="Discord Listener"
+            )
+            for engine in self.engines:
+                listener = EngineListener(engine, self.pipe_to_peripherals)
+                self.listeners.append(listener)
+                listener.task = tg.create_task(listener.start(), name=repr(listener))
+                logger.info(f"Created task {listener.task.get_name()}.")
+
+    def _launch_peripheral_process(self) -> None:
+        self.peripherals_process = multiprocessing.Process(
+            target=peripherals_tasks,
+            name="Peripherals",
+            args=(self.pipe_from_peripherals, self.logging_queue)
+        )
+        self.peripherals_process.start()
+
+    async def _relay_disc_to_main(self) -> None:
+        raise NotImplementedError
+
+    def _terminate_peripheral_process(self) -> None:
+        raise NotImplementedError
