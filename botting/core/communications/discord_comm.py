@@ -8,51 +8,12 @@ import os
 
 from functools import cached_property
 
-from botting.utilities import ChildProcess, config_reader
+from botting.utilities import config_reader
 
 logger = logging.getLogger(__name__)
 
 
-class DiscordLauncher:
-    """
-    Launches a DiscordComm ChildProcess, responsible for communication with Discord.
-    While discord API is already asynchronous, we want to ensure that the bots are
-     not blocked by any Discord-related actions.
-    Therefore, we launch a separate Process to handle Discord communications.
-    """
-
-    def __init__(self, queue: multiprocessing.Queue) -> None:
-        # Two-way communication
-        self.main_side, self.discord_side = multiprocessing.Pipe()
-        self.logging_queue = queue
-        self.discord_process = None
-
-    def __enter__(self) -> None:
-        self.discord_process = multiprocessing.Process(
-            target=self.start_discord_comms,
-            name="Discord Communication",
-            args=(self.discord_side, self.logging_queue),
-        )
-        self.discord_process.start()
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.main_side.send(None)
-        self.main_side.close()
-        logger.debug("Sent stop signal to discord process")
-
-        self.discord_process.join()
-        logger.info(f"DiscordLauncher exited.")
-
-    @staticmethod
-    def start_discord_comms(
-        pipe_end: multiprocessing.connection.Connection,
-        log_queue: multiprocessing.Queue,
-    ):
-        discord_comm = DiscordComm(log_queue, pipe_end)
-        asyncio.run(discord_comm.start())
-
-
-class DiscordComm(discord.Client, ChildProcess):
+class DiscordIO(discord.Client):
     """
     Establishes communication with Discord,
      while maintaining the end of a Pipe object to communicate with the main process.
@@ -60,13 +21,12 @@ class DiscordComm(discord.Client, ChildProcess):
 
     def __init__(
         self,
-        log_queue: multiprocessing.Queue,
-        pipe_end: multiprocessing.connection.Connection,
+        pipe: multiprocessing.connection.Connection,
     ) -> None:
         super().__init__(intents=discord.Intents.all())
         self.config = config_reader("discord")
         self.config_section = f"User {self.config['DEFAULT']['user']}"
-        ChildProcess.__init__(self, log_queue, pipe_end)
+        self.pipe = pipe
 
     @cached_property
     def chat_id(self) -> int:
@@ -112,22 +72,10 @@ class DiscordComm(discord.Client, ChildProcess):
             return
 
         logger.info(
-            f"Received message from {msg.author.name}#{msg.author.discriminator} in channel {msg.channel.name}. Contents: {msg.content}"
+            f"Received message from {msg.author.name}#{msg.author.discriminator} in "
+            f"channel {msg.channel.name}. Contents: {msg.content}"
         )
-        self.pipe_end.send(msg.content)  # Send message to main process for parsing
-
-    async def start(self, *args, **kwargs) -> None:
-        """
-        Creates a TaskGroup to run the Discord client asynchronously
-         with the listener.
-        The discord client listens for discord events. and relays to main.
-        The listener listens for signals from the main process and relays to discord.
-        """
-        async with asyncio.TaskGroup() as tg:
-            tg.create_task(
-                discord.Client.start(self, self.config["DEFAULT"]["DISCORD_TOKEN"])
-            )
-            tg.create_task(self.relay_main_to_disc())
+        self.pipe.send(msg.content)  # Send message to main process for parsing
 
     async def relay_main_to_disc(self) -> None:
         """
@@ -139,31 +87,37 @@ class DiscordComm(discord.Client, ChildProcess):
         It is sent to the specified chat channel on Discord.
         :return: None
         """
-        while True:
-            # Check if a signal is received from main process, blocks Discord Process
-            # for 2 seconds, meaning Discord.client is idle during this time.
-            if await asyncio.to_thread(self.pipe_end.poll):
-                signal = self.pipe_end.recv()
-                if signal is None:
-                    logger.info("Stopping Discord Communications.")
-                    self.pipe_end.close()
-                    await self.close()
-                    break
-                else:
-                    if isinstance(signal, str):
-                        logger.info(
-                            f"{self.__class__.__name__} received a signal {signal}. Sending to Discord."
-                        )
-                        msg = f'<@{self.config[self.config_section]["DISCORD_ID"]}> {signal}'
-                        await self.get_channel(self.chat_id).send(msg)
-                    elif isinstance(signal, np.ndarray):
-                        cv2.imwrite("temp.png", signal)
-                        with open("temp.png", "rb") as f:
-                            await self.get_channel(self.chat_id).send(
-                                file=discord.File(f)
-                            )
-                        # Now delete the file
-                        os.remove("temp.png")
-
+        try:
+            while True:
+                # Check if a signal is received from main process
+                if await asyncio.to_thread(self.pipe.poll):
+                    signal = self.pipe.recv()
+                    if signal is None:
+                        logger.info("Stopping Discord Communications.")
+                        await self.close()
+                        break
                     else:
-                        raise NotImplementedError
+                        if isinstance(signal, str):
+                            logger.info(
+                                f"{self.__class__.__name__} received a signal {signal}"
+                                f". Sending to Discord."
+                            )
+                            msg = (f'<@{self.config[self.config_section]["DISCORD_ID"]}'
+                                   f'> {signal}')
+                            await self.get_channel(self.chat_id).send(msg)
+                        elif isinstance(signal, np.ndarray):
+                            cv2.imwrite("temp.png", signal)
+                            with open("temp.png", "rb") as f:
+                                await self.get_channel(self.chat_id).send(
+                                    file=discord.File(f)
+                                )
+                            # Now delete the file
+                            os.remove("temp.png")
+
+                        else:
+                            raise NotImplementedError
+        finally:
+            if not self.pipe.closed:
+                logger.debug("Closing Peripherals pipe to main process.")
+                self.pipe.send(None)
+                self.pipe.close()

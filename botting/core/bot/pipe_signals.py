@@ -2,7 +2,7 @@ from dataclasses import field, dataclass
 from functools import partial
 from typing import Any, Optional
 
-from botting.utilities import get_object_by_id
+# from botting.utilities import get_object_by_id
 
 
 @dataclass

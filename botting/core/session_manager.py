@@ -5,16 +5,14 @@ import multiprocessing.connection
 
 from typing import Self
 
-from botting.screen_recorder import RecorderLauncher
-from .communications import DiscordLauncher
-from .bot import Executor, BotLauncher
+# from .bot import Executor, BotLauncher
 from botting.core import controller
 
 
 logger = logging.getLogger(__name__)
 
 
-class SessionManager(BotLauncher, DiscordLauncher, RecorderLauncher):
+class SessionManager():
     """
     Entry point to launch any Bot, aka Executor.
     The Manager will handle the following:
@@ -33,17 +31,17 @@ class SessionManager(BotLauncher, DiscordLauncher, RecorderLauncher):
 
     logging_queue = multiprocessing.Queue()
 
-    def __init__(self, *bots_to_launch: Executor) -> None:
-        self.bots = bots_to_launch
-
-        BotLauncher.__init__(self, self.logging_queue)
-        DiscordLauncher.__init__(self, self.logging_queue)
-        RecorderLauncher.__init__(self, self.logging_queue)
-        Executor.update_logging_queue(self.logging_queue)
-        Executor.update_discord_pipe(self.main_side)
-        self.log_listener = logging.handlers.QueueListener(
-            self.logging_queue, *logger.parent.handlers, respect_handler_level=True
-        )
+    # def __init__(self, *bots_to_launch: Executor) -> None:
+    #     self.bots = bots_to_launch
+    #
+    #     BotLauncher.__init__(self, self.logging_queue)
+    #     DiscordLauncher.__init__(self, self.logging_queue)
+    #     RecorderLauncher.__init__(self, self.logging_queue)
+    #     Executor.update_logging_queue(self.logging_queue)
+    #     Executor.update_discord_pipe(self.main_side)
+    #     self.log_listener = logging.handlers.QueueListener(
+    #         self.logging_queue, *logger.parent.handlers, respect_handler_level=True
+    #     )
 
     def __enter__(self) -> Self:
         """

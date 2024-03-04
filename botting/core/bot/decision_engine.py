@@ -8,10 +8,10 @@ from .decision_generator import DecisionGenerator
 from .executor import Executor
 from botting.core.bot.engine_data import EngineData
 from botting.core.bot.pipe_signals import GeneratorUpdate
-from botting.utilities import ChildProcess, take_screenshot
+from botting.utilities import take_screenshot
 
 
-class DecisionEngine(ChildProcess, ABC):
+class DecisionEngine(ABC):
     """
     The DecisionEngine is the core of the bot. It is responsible for monitoring the
     status of an individual client and making decisions based on the current game state.

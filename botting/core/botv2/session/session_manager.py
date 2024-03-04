@@ -5,9 +5,11 @@ import multiprocessing.connection
 
 from typing import Self
 
-from .engine_listener import EngineListener
-from .monitor import Monitor
-from .peripherals_process import peripherals_tasks
+from botting.core.botv2.engine_listener import EngineListener
+from botting.core.botv2.monitor import Monitor
+
+from botting.core.botv2.tasks.async_task_manager import AsyncTaskManager
+from .peripherals_process import PeripheralsProcess
 
 logger = logging.getLogger(__name__)
 
@@ -15,34 +17,30 @@ logger = logging.getLogger(__name__)
 class SessionManager:
     """
     Lives in MainProcess.
-    The SessionManager is responsible for creating and managing the Engine and
-    EngineListener instances.
-    It is also responsible for enabling some basic communication across Engines (as they
-    all live in different processes) and ultimately across Monitors. It does so by
-    managing asyncio.Task creation based on the ActionData containers the EngineListener
-    receive and attempt to schedule into the Event Loop.
-
-    The SessionManager also manages the Peripheral Process, which is responsible for
-    handling user input and output as well as the screen recorder.
-
-    Lastly, it also launches a separate thread in which all log records from all child
-    processes are collected and handled.
+    Responsible to gather all relevant features and classes to create a Session.
+    Those currently include:
+    - Engine (and EngineListener)
+    - PeripheralProcess (Screen Recorder and Discord I/O)
+    - LogHandler
+    - TaskManager
     """
 
     logging_queue = multiprocessing.Queue()
 
     def __init__(self, *engines: list[Monitor]) -> None:
         self.engines: tuple = engines
+        self.task_manager = AsyncTaskManager()
+        self.peripherals = PeripheralsProcess(self.logging_queue)
+
         self.log_receiver = logging.handlers.QueueListener(
             self.logging_queue, *logger.parent.handlers, respect_handler_level=True
         )
         self.listeners = []
         self.peripherals_listener = self.peripherals_process = None
-        self.pipe_to_peripherals, self.pipe_from_peripherals = multiprocessing.Pipe()
 
     def __enter__(self) -> Self:
-        self._launch_peripheral_process()
-        self._launch_all_engines()
+        self.peripherals.start()
+        # self._launch_all_engines()
         self.log_receiver.start()
         return self
 
@@ -58,7 +56,7 @@ class SessionManager:
         :param exc_tb: Exception Traceback.
         :return: None
         """
-        self._terminate_peripheral_process()
+        self.peripherals.kill()
         logger.debug("Stopping Log listener")
         logger.info("SessionManager exited.")
         self.log_receiver.stop()
@@ -98,16 +96,5 @@ class SessionManager:
                 listener.task = tg.create_task(listener.start(), name=repr(listener))
                 logger.info(f"Created task {listener.task.get_name()}.")
 
-    def _launch_peripheral_process(self) -> None:
-        self.peripherals_process = multiprocessing.Process(
-            target=peripherals_tasks,
-            name="Peripherals",
-            args=(self.pipe_from_peripherals, self.logging_queue)
-        )
-        self.peripherals_process.start()
-
     async def _relay_disc_to_main(self) -> None:
-        raise NotImplementedError
-
-    def _terminate_peripheral_process(self) -> None:
         raise NotImplementedError
