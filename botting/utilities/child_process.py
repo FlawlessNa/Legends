@@ -1,10 +1,5 @@
-import logging
 import logging.handlers
 import multiprocessing
-
-import botting
-
-logger = logging.getLogger(__name__)
 
 
 def setup_child_proc_logging(log_queue: multiprocessing.Queue) -> None:
@@ -17,7 +12,7 @@ def setup_child_proc_logging(log_queue: multiprocessing.Queue) -> None:
     queue_handler = logging.handlers.QueueHandler(log_queue)
     queue_handler.setLevel(logging.DEBUG)
 
-    root = logging.getLogger(botting.PARENT_LOG)
+    root = logging.getLogger()
     while root.hasHandlers():
         root.handlers[0].close()
         root.removeHandler(root.handlers[0])

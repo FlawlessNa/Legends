@@ -15,7 +15,9 @@ class PeripheralsProcess:
     Used to spawn a new process to handle all peripherals tasks asynchronously.
     These tasks currently include:
     - Screen Recorder
-    - Discord I/O (Relaying messages to and from the main process)
+    - Discord Relay (Relaying messages from MainProcess towards Discord)
+    - Discord I/O (Sentinel that watches for message on specified discord channel and
+        relays to MainProcess)
     """
 
     def __init__(self, queue: multiprocessing.Queue) -> None:

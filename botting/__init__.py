@@ -13,12 +13,11 @@ import time
 # from .core import SessionManager, Executor, EngineData
 from paths import ROOT, TESSERACT
 
-
 PARENT_LOG = __name__
 pytesseract.pytesseract.tesseract_cmd = TESSERACT
 
 # Set the root logger for the entire project.
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 current_process = multiprocessing.current_process()
