@@ -17,7 +17,7 @@ PARENT_LOG = __name__
 pytesseract.pytesseract.tesseract_cmd = TESSERACT
 
 # Set the root logger for the entire project.
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 current_process = multiprocessing.current_process()

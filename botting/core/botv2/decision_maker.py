@@ -1,13 +1,14 @@
 from abc import ABC, abstractmethod
+from typing import Literal
 
-from .monitor_data import MonitorData
+from .bot_data import BotData
 from .action_data import ActionData
 
 
 class DecisionMaker(ABC):
     """
     Abstract base class to represent a decision maker of any kind.
-    Each Monitor consists of one or more DecisionMaker, which are cycled and called
+    Each Bot consists of one or more DecisionMaker, which are cycled and called
     one at a time.
     When called, a DecisionMaker may return an ActionData container,
     which will be sent to the Main Process to be executed there.
@@ -18,13 +19,28 @@ class DecisionMaker(ABC):
     on how each Monitor are assigned to their Engines.
     """
 
-    def __init__(self, data: MonitorData) -> None:
+    generator_type: Literal["Rotation", "AntiDetection", "Maintenance"]
+
+    def __init__(self, data: BotData) -> None:
         self.data = data
+
+    @abstractmethod
+    def cls_metadata(self) -> dict[str, str]:
+        """
+        Returns a dictionary with metadata about this DecisionMaker subclass.
+        Contains everything necessary to allow ANY other DecisionMaker to block/unblock
+        this instance, and to identify it. This includes DecisionMakers from other
+        Bots, and even from other Engines (e.g. living in different Processes).
+        :return:
+        """
+
+    def block_others(self):
+        pass
 
     @abstractmethod
     def __repr__(self) -> str:
         pass
 
     @abstractmethod
-    def __call__(self, *args, **kwargs) -> ActionData | None:
+    def _call(self, *args, **kwargs) -> ActionData | None:
         pass

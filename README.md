@@ -9,11 +9,12 @@
 
 ## Performance Branch
 - [ ] Major Refactoring of Generators - needs to be easier to implement.
+  - Idea: For more complex (multi-step) Generators, launch an infinite "idle" task that blocks other tasks from scheduling except those from same generator. Cancel that idle task when generator is done.
 - [ ] Ability to use Multiple clients within a single Engine
   - Create a new layer "Client" within each Engine -> Each client has its own data and generators
   - Engine now groups those "Client" and runs then asynchronously.
   - Need to have multiple instances of EngineData for 1 engine (1 instance per client)
-  - Blockers/Unblockers need to be work for each client individually
+  - Blockers/Unblockers need to work for each client individually
 - [ ] Ability to only retrieve first action in pathfinding parser instead of entire actions
 - [ ] Look into leveraging psutil for performance monitoring of CPU resources by client/process
 - [ ] Look into using Profilers (cProfile, line_profiler) to identify bottlenecks in the code
