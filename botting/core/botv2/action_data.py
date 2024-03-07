@@ -13,6 +13,8 @@ class ActionData:
     - Any task priority and scheduling attribute, used by Main Process to handle
     task management.
     """
+    bot_id: int
+    generator_id: int
     requeue_if_not_scheduled: bool = field(default=True)
     cancellable_by_self: bool = field(default=True)
     cancellable_by_others: bool = field(default=True)

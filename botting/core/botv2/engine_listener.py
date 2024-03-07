@@ -17,12 +17,11 @@ class EngineListener:
     """
     def __init__(
         self,
-        engine: Engine,
-        pipe_to_discord: multiprocessing.connection.Connection
+        pipe: multiprocessing.connection.Connection,
+        async_queue: asyncio.Queue
     ) -> None:
-        self.engine = engine
-        self.discord_pipe = pipe_to_discord
-        self.engine_side, self.listener_side = multiprocessing.Pipe()
+        self.pipe = pipe
+        self.async_queue = async_queue
 
         self.task = None  # asyncio.Task, strong ref to avoid garbage collection
 
@@ -33,7 +32,8 @@ class EngineListener:
         """
         Starts the EngineListener's main loop.
         Perpetually listens for ActionData containers received through the Pipe from the
-        Engine and schedules them into tasks.
+        associated Engine. Relays those into the asyncio.Queue, handled by the
+        SessionManager.
         If any process/task sends None through a Pipe, the entire program exits.
         :return: None
         """
@@ -56,23 +56,26 @@ class EngineListener:
                     )
                     raise queue_item
 
-                logger.debug(f"{queue_item} received from {self.engine}.")
-                new_task = self.create_task(queue_item)
-                if new_task is not None:
-                    logger.debug(f"Created task {new_task.get_name()}.")
-                    if queue_item.disable_lower_priority:
-                        Executor.priority_levels.append(queue_item.priority)
-                        new_task.add_done_callback(
-                            partial(
-                                self.clear_priority_level, queue_item.priority
-                            )
-                        )
-
-                self._task_cleanup()
-
-                if len(asyncio.all_tasks()) > 30:
-                    for t in asyncio.all_tasks():
-                        print(t)
-                    logger.warning(
-                        f"Nbr of tasks in the event loop is {len(asyncio.all_tasks())}."
-                    )
+                # TODO - Add additional data to ActionData, such as self.pipe,
+                # Such that the callbacks are sent through the proper pipe.
+                self.async_queue.put_nowait(queue_item)
+                # logger.debug(f"{queue_item} received from {self.engine}.")
+                # new_task = self.create_task(queue_item)
+                # if new_task is not None:
+                #     logger.debug(f"Created task {new_task.get_name()}.")
+                #     if queue_item.disable_lower_priority:
+                #         Executor.priority_levels.append(queue_item.priority)
+                #         new_task.add_done_callback(
+                #             partial(
+                #                 self.clear_priority_level, queue_item.priority
+                #             )
+                #         )
+                #
+                # self._task_cleanup()
+                #
+                # if len(asyncio.all_tasks()) > 30:
+                #     for t in asyncio.all_tasks():
+                #         print(t)
+                #     logger.warning(
+                #         f"Nbr of tasks in the event loop is {len(asyncio.all_tasks())}."
+                #     )

@@ -24,16 +24,6 @@ class DecisionMaker(ABC):
     def __init__(self, data: BotData) -> None:
         self.data = data
 
-    @abstractmethod
-    def cls_metadata(self) -> dict[str, str]:
-        """
-        Returns a dictionary with metadata about this DecisionMaker subclass.
-        Contains everything necessary to allow ANY other DecisionMaker to block/unblock
-        this instance, and to identify it. This includes DecisionMakers from other
-        Bots, and even from other Engines (e.g. living in different Processes).
-        :return:
-        """
-
     def block_others(self):
         pass
 
@@ -43,4 +33,7 @@ class DecisionMaker(ABC):
 
     @abstractmethod
     def _call(self, *args, **kwargs) -> ActionData | None:
+        pass
+
+    def __call__(self, *args, **kwargs) -> ActionData | None:
         pass

@@ -13,6 +13,8 @@ class Bot(ABC):
     A bot represents a single game client entity and is assigned a single
     BotData instance which it shares with all its DecisionMakers.
     """
+    def __init__(self) -> None:
+        self.data = BotData()
 
     @property
     @abstractmethod

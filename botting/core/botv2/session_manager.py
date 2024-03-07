@@ -5,11 +5,11 @@ import multiprocessing.connection
 
 from typing import Self
 
-# from botting.core.botv2.engine_listener import EngineListener
 # from botting.core.botv2.tasks.async_task_manager import AsyncTaskManager
 from botting.core.botv2.bot import Bot
 
 from .engine import Engine
+from .engine_listener import EngineListener
 from .peripherals_process import PeripheralsProcess
 
 logger = logging.getLogger(__name__)
@@ -44,16 +44,22 @@ class SessionManager:
         self.log_receiver = logging.handlers.QueueListener(
             self.metadata["Logging Queue"],
             *logger.parent.handlers,
-            respect_handler_level=True
+            respect_handler_level=True,
         )
 
+        self.async_queue = asyncio.Queue()
         self.engines: list[multiprocessing.Process] = []
+        self.listeners: list[EngineListener] = []
+        self.discord_listener = None
 
-        # self.listeners = []
         # self.task_manager = AsyncTaskManager()
-        # self.peripherals_listener = self.peripherals_process = None
 
     def __enter__(self) -> Self:
+        """
+        Spawns all necessary child processes and starts them.
+        Does NOT start the asyncio event loop (e.g. the EngineListeners).
+        :return:
+        """
         self.log_receiver.start()
         self.peripherals.start()
         self._launch_all_engines()
@@ -82,39 +88,33 @@ class SessionManager:
             # However, EngineListeners may not be able to handle their own clean-up??
             breakpoint()
 
-    # async def start(self):
-    #     logger.info(f"Starting {len(self.engines)} Processes.")
-    #     for lst_monitor in self.engines:
-    #         logger.info(f"Launching Engine{lst_monitor}")
-    #
-    #     try:
-    #         await self._launch_all_listeners()
-    #     finally:
-    #         logger.info(
-    #             "All bots have been stopped. Session is about to exit."
-    #         )
-
     def _launch_all_engines(self) -> None:
         for bot_group in self.bots:
-            self.engines.append(Engine.start(self.metadata, bot_group))
+            engine_side, listener_side = multiprocessing.Pipe()
+            self.listeners.append(EngineListener(listener_side, self.async_queue))
+            self.engines.append(Engine.start(engine_side, self.metadata, bot_group))
 
     def _kill_all_engines(self) -> None:
         raise NotImplementedError
 
-    # async def _launch_all_listeners(self) -> None:
-    #     """
-    #     Launch all Engine Listeners and the Discord Listener.
-    #     :return:
-    #     """
-    #     async with asyncio.TaskGroup() as tg:
-    #         self.discord_listener = tg.create_task(
-    #             self._relay_disc_to_main(), name="Discord Listener"
-    #         )
-    #         for engine in self.engines:
-    #             listener = EngineListener(engine, self.pipe_to_peripherals)
-    #             self.listeners.append(listener)
-    #             listener.task = tg.create_task(listener.start(), name=repr(listener))
-    #             logger.info(f"Created task {listener.task.get_name()}.")
-    #
-    # async def _relay_disc_to_main(self) -> None:
-    #     raise NotImplementedError
+    async def launch_all_listeners(self) -> None:
+        """
+        Launch all Engine Listeners and the Discord Listener.
+        :return:
+        """
+        logger.info(f"Launching {len(self.listeners)} Engine Listeners.")
+        try:
+            async with asyncio.TaskGroup() as tg:
+                self.discord_listener = tg.create_task(
+                    self._relay_disc_to_main(), name="Discord Listener"
+                )
+                for listener in self.listeners:
+                    listener.task = tg.create_task(
+                        listener.start(), name=repr(listener)
+                    )
+                    logger.info(f"Created task {listener.task.get_name()}.")
+        finally:
+            logger.info("All bots have been stopped. Session is about to exit.")
+
+    async def _relay_disc_to_main(self) -> None:
+        raise NotImplementedError
