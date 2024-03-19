@@ -5,8 +5,8 @@ import time
 import random
 from functools import partial
 
-from botting import PARENT_LOG
-from botting.core import QueueAction, controller, DecisionGenerator, GeneratorUpdate
+from botting import PARENT_LOG, controller
+from botting.core import QueueAction, DecisionGenerator, GeneratorUpdate
 from botting.utilities import config_reader
 from royals.game_data import AntiDetectionData
 from royals.engines.generators.interval_based import IntervalBasedGenerator

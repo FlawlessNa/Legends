@@ -6,7 +6,7 @@ import asyncio
 import time
 from typing import Literal
 
-from botting.core import controller
+from botting import controller
 from botting.models_abstractions import Skill
 
 

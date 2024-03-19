@@ -1,13 +1,11 @@
 import asyncio
-import logging
 import logging.handlers
 import multiprocessing.connection
 
 from typing import Self
 
 # from .bot import Executor, BotLauncher
-from botting.core import controller
-
+from botting import controller
 
 logger = logging.getLogger(__name__)
 

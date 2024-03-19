@@ -3,7 +3,8 @@ import random
 
 from functools import partial
 
-from botting.core import QueueAction, controller
+from botting.core import QueueAction
+from botting import controller
 from botting.utilities import config_reader
 from royals.engines.generators.interval_based import IntervalBasedGenerator
 from royals.game_data import MaintenanceData

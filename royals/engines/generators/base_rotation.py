@@ -5,8 +5,8 @@ import time
 from abc import ABC, abstractmethod
 from functools import partial
 
-from botting import PARENT_LOG
-from botting.core import DecisionGenerator, QueueAction, GeneratorUpdate, controller
+from botting import PARENT_LOG, controller
+from botting.core import DecisionGenerator, QueueAction, GeneratorUpdate
 from botting.utilities import Box, config_reader
 from royals.actions import cast_skill
 from royals.game_data import RotationData

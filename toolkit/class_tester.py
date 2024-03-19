@@ -1,29 +1,10 @@
-import asyncio
-import cv2
 import time
-import random
-import numpy as np
-import win32gui
-from functools import partial
 
-from botting.core import controller
-from botting.utilities import client_handler, take_screenshot
+from botting.utilities import client_handler
 from royals import royals_ign_finder
-from royals.models_implementations.mechanics import MinimapConnection
 
-from royals.models_implementations.minimaps import PathOfTime1Minimap, LudibriumMinimap
-from royals.maps import PathOfTime1
-from royals.interface import AbilityMenu, CharacterStats, InventoryMenu
-from royals.actions import write_in_chat, cast_skill, telecast, teleport
-from royals.characters import Bishop, Assassin
-from royals.models_implementations.mechanics.path_into_movements import get_to_target
-
-import win32api
-from royals.models_implementations.mechanics.inventory import InventoryActions
-import royals.actions as act
-from botting.utilities import Box, find_image
-import os
-from paths import ROOT
+from royals.models_implementations.minimaps import LudibriumMinimap
+from royals.characters import Bishop
 
 HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 

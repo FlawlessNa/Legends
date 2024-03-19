@@ -1,5 +1,5 @@
 import asyncio
-from botting.core import controller
+from botting import controller
 
 
 async def write_in_chat(

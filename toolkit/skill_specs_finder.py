@@ -1,5 +1,5 @@
 import asyncio
-from botting.core import controller
+from botting import controller
 from botting.utilities import client_handler
 
 from royals import royals_ign_finder

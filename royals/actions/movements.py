@@ -1,6 +1,6 @@
 import random
 import time
-from botting.core import controller
+from botting import controller
 from typing import Literal
 
 

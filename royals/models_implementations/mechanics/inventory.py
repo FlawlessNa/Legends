@@ -9,8 +9,8 @@ import time
 from functools import partial
 from typing import Union, Literal
 
-from botting import PARENT_LOG
-from botting.core import DecisionGenerator, GeneratorUpdate, QueueAction, controller
+from botting import PARENT_LOG, controller
+from botting.core import DecisionGenerator, GeneratorUpdate, QueueAction
 from botting.utilities import Box, find_image
 from paths import ROOT
 from royals.actions import cast_skill, move

@@ -4,8 +4,8 @@ import numpy as np
 import time
 from functools import cached_property, partial
 
-from botting import PARENT_LOG
-from botting.core import GeneratorUpdate, QueueAction, controller
+from botting import PARENT_LOG, controller
+from botting.core import GeneratorUpdate, QueueAction
 from botting.utilities import config_reader
 from royals.engines.generators.interval_based import IntervalBasedGenerator
 from royals.game_data import MaintenanceData
