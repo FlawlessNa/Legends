@@ -3,7 +3,7 @@ import logging
 import multiprocessing.connection
 
 from botting.screen_recorder import Recorder
-from botting.core.communications.discord_comm import DiscordIO
+from botting.communications import DiscordIO
 from botting.utilities import setup_child_proc_logging
 
 logger = logging.getLogger(__name__)
