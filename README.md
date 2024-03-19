@@ -20,11 +20,12 @@
   - Also look into managing the Manager Process since it is a new feature that needs to spawn a process
 - [ ] Look into using Profilers (cProfile, line_profiler) to identify bottlenecks in the code
 - [ ] Look into "blocked" generators could wait on a mp.Event/Condition semaphore to reduce CPU consumption
-- [ ] Convert generators into asynchronous generators? Each becomes an infinite "task" (in child process) that run concurrently
+- [ ] idea: Convert generators into asynchronous generators? Each becomes an infinite "task" (in child process) that run concurrently
   - With this framework, perhaps each generator can await on a QueueAction it submits and this "blocks" itself for the duration
 - [ ] Look into using asyncio DEBUG mode (PYTHONASYNCIODEBUG=1) to identify potential issues with the code
 - [ ] Look into leveraging loop.run_in_executor(concurrent.futures.ProcessPoolExecutor) for CPU-intensive operations?
 - [ ] Check if tasks created with executor.create_task should also be awaited? If not, the enclosing task may cancel if it terminates before
+- [ ] Refactoring of botting.core -> should only contain botting architecture. Move controller and communications into botting (ie botting.controller, botting.communications)
 
 ## Leeching Branch - TODOs
 - [ ] Multi-client blockers

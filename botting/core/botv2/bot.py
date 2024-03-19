@@ -1,3 +1,4 @@
+import multiprocessing.managers
 from abc import ABC, abstractmethod
 
 from .bot_data import BotData
@@ -13,7 +14,8 @@ class Bot(ABC):
     A bot represents a single game client entity and is assigned a single
     BotData instance which it shares with all its DecisionMakers.
     """
-    def __init__(self) -> None:
+    def __init__(self, metadata: multiprocessing.managers.DictProxy) -> None:
+        self.metadata = metadata
         self.data = BotData()
 
     @property

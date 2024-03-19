@@ -26,11 +26,9 @@ class SessionManager:
     - TaskManager
     """
 
-    def __init__(self, *grouped_bots: list[Bot]) -> None:
+    def __init__(self) -> None:
         """
-        Creates all necessary instances to start a new Session.
-        :param grouped_bots: each list represents a group of Bots that will
-        be assigned to a single Engine.
+        Creates all necessary objects to start a new Session.
         """
         # Create a Manager Process to share data between processes.
         self.manager = multiprocessing.Manager()
@@ -38,7 +36,6 @@ class SessionManager:
         # Add the logging queue to the metadata for convenience.
         self.metadata["Logging Queue"] = self.manager.Queue()
 
-        self.bots: tuple = grouped_bots
         self.peripherals = PeripheralsProcess(self.metadata["Logging Queue"])
 
         self.log_receiver = logging.handlers.QueueListener(
@@ -62,7 +59,7 @@ class SessionManager:
         """
         self.log_receiver.start()
         self.peripherals.start()
-        self._launch_all_engines()
+        # self._launch_all_engines()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -88,11 +85,14 @@ class SessionManager:
             # However, EngineListeners may not be able to handle their own clean-up??
             breakpoint()
 
-    def _launch_all_engines(self) -> None:
-        for bot_group in self.bots:
+    async def launch(self, *grouped_bots: list[Bot]) -> None:
+        for group in grouped_bots:
             engine_side, listener_side = multiprocessing.Pipe()
             self.listeners.append(EngineListener(listener_side, self.async_queue))
-            self.engines.append(Engine.start(engine_side, self.metadata, bot_group))
+            self.engines.append(Engine.start(engine_side, self.metadata, group))
+
+    # def _launch_all_engines(self) -> None:
+    #     for bot_group in self.bots:
 
     def _kill_all_engines(self) -> None:
         raise NotImplementedError

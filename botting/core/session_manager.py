@@ -12,7 +12,7 @@ from botting.core import controller
 logger = logging.getLogger(__name__)
 
 
-class SessionManager():
+class SessionManager:
     """
     Entry point to launch any Bot, aka Executor.
     The Manager will handle the following:

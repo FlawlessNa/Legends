@@ -1,3 +1,4 @@
+import multiprocessing.managers
 from abc import ABC, abstractmethod
 from typing import Literal
 
@@ -21,7 +22,10 @@ class DecisionMaker(ABC):
 
     generator_type: Literal["Rotation", "AntiDetection", "Maintenance"]
 
-    def __init__(self, data: BotData) -> None:
+    def __init__(
+            self, metadata: multiprocessing.managers.DictProxy, data: BotData
+    ) -> None:
+        self.metadata = metadata
         self.data = data
 
     def block_others(self):
