@@ -5,11 +5,8 @@ import multiprocessing.connection
 
 from typing import Self
 
-# from botting.core.botv2.tasks.async_task_manager import AsyncTaskManager
-from botting.core.botv2.bot import Bot
-
+from .bot import Bot
 from .engine import Engine
-from .engine_listener import EngineListener
 from .peripherals_process import PeripheralsProcess
 
 logger = logging.getLogger(__name__)
@@ -46,10 +43,8 @@ class SessionManager:
 
         self.async_queue = asyncio.Queue()
         self.engines: list[multiprocessing.Process] = []
-        self.listeners: list[EngineListener] = []
+        self.listeners: list[asyncio.Task] = []
         self.discord_listener = None
-
-        # self.task_manager = AsyncTaskManager()
 
     def __enter__(self) -> Self:
         """
@@ -59,7 +54,6 @@ class SessionManager:
         """
         self.log_receiver.start()
         self.peripherals.start()
-        # self._launch_all_engines()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -88,11 +82,8 @@ class SessionManager:
     async def launch(self, *grouped_bots: list[Bot]) -> None:
         for group in grouped_bots:
             engine_side, listener_side = multiprocessing.Pipe()
-            self.listeners.append(EngineListener(listener_side, self.async_queue))
             self.engines.append(Engine.start(engine_side, self.metadata, group))
-
-    # def _launch_all_engines(self) -> None:
-    #     for bot_group in self.bots:
+            self.listeners.append(Engine.listener(listener_side, self.async_queue))
 
     def _kill_all_engines(self) -> None:
         raise NotImplementedError

@@ -1,8 +1,6 @@
 import asyncio
 import logging
 
-from .task_wrapper import TaskWrapper
-
 logger = logging.getLogger(__name__)
 
 
