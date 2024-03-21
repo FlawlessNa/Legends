@@ -94,7 +94,6 @@ class DiscordIO(discord.Client):
                     signal = self.pipe.recv()
                     if signal is None:
                         logger.info("Stopping Discord Communications.")
-                        await self.close()
                         break
                     else:
                         if isinstance(signal, str):
@@ -121,3 +120,7 @@ class DiscordIO(discord.Client):
                 logger.debug("Closing Peripherals pipe to main process.")
                 self.pipe.send(None)
                 self.pipe.close()
+
+            if not self.is_closed():
+                logger.debug("Closing Discord Client.")
+                await self.close()
