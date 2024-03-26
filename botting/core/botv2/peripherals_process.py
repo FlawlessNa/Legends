@@ -41,13 +41,46 @@ class PeripheralsProcess:
         """
         Called from the MainProcess.
         Sends a stop signal to the peripherals process and waits for it to exit.
+        Cancels the listener task.
         :return:
         """
-        self.pipe_main_proc.send(None)
-        self.pipe_main_proc.close()
-        logger.debug("Sent stop signal to Peripherals process.")
+        if not self.pipe_main_proc.closed:
+            self.pipe_main_proc.send(None)
+            self.pipe_main_proc.close()
+            logger.debug("Sent stop signal to Peripherals process.")
+
         self.process.join()
         logger.info(f"Peripherals process exited.")
+
+    async def peripherals_listener(self, async_queue: asyncio.Queue) -> None:
+        """
+        TODO - Refactor to make it work with multiple executors simultaneously.
+        TODO - Requires improved parsing.
+        Main Process task.
+        Responsible for listening to the Peripherals discord pipe and see if any actions
+        are requested by discord user.
+        :return: None
+        """
+        try:
+            while True:
+                if await asyncio.to_thread(self.pipe_main_proc.poll):
+                    message: str = self.pipe_main_proc.recv()
+                    action: QueueAction = self.discord_parser(message, self.all_bots)
+                    if action is None:
+                        logger.info(f"Received {message} from discord pipe. Exiting.")
+                        break
+                    else:
+                        logger.info(
+                            f"Performing action {action} as requested by discord user."
+                        )
+                        new_task = self.all_bots[0].create_task(action)
+                        await new_task
+        finally:
+            if not self.pipe_main_proc.closed:
+                logger.debug("Closing Main pipe to peripherals process.")
+                self.pipe_main_proc.send(None)
+                self.pipe_main_proc.close()
+            async_queue.put_nowait(None)
 
     def _spawn_child(self) -> None:
         """

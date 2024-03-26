@@ -43,24 +43,28 @@ class SessionManager:
 
         self.async_queue = asyncio.Queue()
         self.engines: list[multiprocessing.Process] = []
-        self.listeners: list[asyncio.Task] = []
-        self.discord_listener = None
+        self.listeners: list[callable] = []
+        self.discord_listener: asyncio.Task | None = None
 
     def __enter__(self) -> Self:
         """
         Spawns all necessary child processes and starts them.
-        Does NOT start the asyncio event loop (e.g. the EngineListeners).
+        Both the Peripherals process and its listener are started.
         :return:
         """
         self.log_receiver.start()
         self.peripherals.start()
+        self.discord_listener = asyncio.create_task(
+            self.peripherals.peripherals_listener(self.async_queue),
+            name="Discord Listener"
+        )
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """
         Whenever the context manager is exited, that means the Event loop's execution
-        has halted, for whatever reason. In such a case, all EngineListeners are already
-        stopped. Assuming the Engines handle their own clean-up,
+        has halted, for whatever reason. In such a case, all Engine Listeners are
+        already stopped. Assuming the Engines handle their own clean-up,
         the remaining things left to do is to stop the peripherals and stop the log
         listener.
         :param exc_type: Exception Class.
@@ -69,7 +73,8 @@ class SessionManager:
         :return: None
         """
         self.peripherals.kill()
-        self._kill_all_engines()
+        self.discord_listener.cancel('SessionManager exited.')
+        # self._kill_all_engines()
         logger.debug("Stopping Log listener")
         logger.info("SessionManager exited.")
         self.log_receiver.stop()
@@ -88,7 +93,7 @@ class SessionManager:
     def _kill_all_engines(self) -> None:
         raise NotImplementedError
 
-    async def launch_all_listeners(self) -> None:
+    async def _launch_all_listeners(self) -> None:
         """
         Launch all Engine Listeners and the Discord Listener.
         :return:
@@ -96,16 +101,10 @@ class SessionManager:
         logger.info(f"Launching {len(self.listeners)} Engine Listeners.")
         try:
             async with asyncio.TaskGroup() as tg:
-                self.discord_listener = tg.create_task(
-                    self._relay_disc_to_main(), name="Discord Listener"
-                )
                 for listener in self.listeners:
                     listener.task = tg.create_task(
-                        listener.start(), name=repr(listener)
+                        listener, name=repr(listener)
                     )
                     logger.info(f"Created task {listener.task.get_name()}.")
         finally:
             logger.info("All bots have been stopped. Session is about to exit.")
-
-    async def _relay_disc_to_main(self) -> None:
-        raise NotImplementedError

@@ -136,46 +136,48 @@ class Engine(_ChildProcessEngine):
         :return:
         """
         assert multiprocessing.current_process().name == "MainProcess"
-        while True:
-            if await asyncio.to_thread(pipe.poll):
-                queue_item: ActionData = pipe.recv()
+        try:
+            while True:
+                if await asyncio.to_thread(pipe.poll):
+                    queue_item: ActionData = pipe.recv()
 
-                if queue_item is None:
-                    err_msg = f"{self} received None from {self.engine}. Exiting."
-                    logger.error(err_msg)
-                    raise SystemExit(err_msg)
+                    if queue_item is None:
+                        err_msg = f"{self} received None from {self.engine}. Exiting."
+                        logger.error(err_msg)
+                        raise SystemExit(err_msg)
 
-                elif isinstance(queue_item, BaseException):
-                    logger.error(
-                        f"Exception occurred in {self.engine}."
-                    )
+                    elif isinstance(queue_item, BaseException):
+                        logger.error(
+                            f"Exception occurred in {self.engine}."
+                        )
 
-                    self.discord_pipe.send(
-                        f'Exception {queue_item} \n occurred in {self.engine}.'
-                    )
-                    raise queue_item
+                        self.discord_pipe.send(
+                            f'Exception {queue_item} \n occurred in {self.engine}.'
+                        )
+                        raise queue_item
 
-                # TODO - Add additional data to ActionData, such as self.pipe,
-                # Such that the callbacks are sent through the proper pipe.
-                self.async_queue.put_nowait(queue_item)
-                # logger.debug(f"{queue_item} received from {self.engine}.")
-                # new_task = self.create_task(queue_item)
-                # if new_task is not None:
-                #     logger.debug(f"Created task {new_task.get_name()}.")
-                #     if queue_item.disable_lower_priority:
-                #         Executor.priority_levels.append(queue_item.priority)
-                #         new_task.add_done_callback(
-                #             partial(
-                #                 self.clear_priority_level, queue_item.priority
-                #             )
-                #         )
-                #
-                # self._task_cleanup()
-                #
-                # if len(asyncio.all_tasks()) > 30:
-                #     for t in asyncio.all_tasks():
-                #         print(t)
-                #     logger.warning(
-                #         f"Nbr of tasks in the event loop is {len(asyncio.all_tasks())}."
-                #     )
-
+                    # TODO - Add additional data to ActionData, such as self.pipe,
+                    # Such that the callbacks are sent through the proper pipe.
+                    self.async_queue.put_nowait(queue_item)
+                    # logger.debug(f"{queue_item} received from {self.engine}.")
+                    # new_task = self.create_task(queue_item)
+                    # if new_task is not None:
+                    #     logger.debug(f"Created task {new_task.get_name()}.")
+                    #     if queue_item.disable_lower_priority:
+                    #         Executor.priority_levels.append(queue_item.priority)
+                    #         new_task.add_done_callback(
+                    #             partial(
+                    #                 self.clear_priority_level, queue_item.priority
+                    #             )
+                    #         )
+                    #
+                    # self._task_cleanup()
+                    #
+                    # if len(asyncio.all_tasks()) > 30:
+                    #     for t in asyncio.all_tasks():
+                    #         print(t)
+                    #     logger.warning(
+                    #         f"Nbr of tasks in the event loop is {len(asyncio.all_tasks())}."
+                    #     )
+        finally:
+            queue.put_nowait(None)
