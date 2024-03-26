@@ -14,14 +14,16 @@ class Bot(ABC):
     A bot represents a single game client entity and is assigned a single
     BotData instance which it shares with all its DecisionMakers.
     """
-    def __init__(self, metadata: multiprocessing.managers.DictProxy) -> None:
+    def __init__(self, ign: str, metadata: multiprocessing.managers.DictProxy) -> None:
+        self.data = BotData(ign)
         self.metadata = metadata
-        self.data = BotData()
+        self.metadata.setdefault(ign, set())
 
     @property
     @abstractmethod
     def decision_makers(self) -> list[DecisionMaker]:
         """
+        TODO - Implement these as cached_property?
         A list of DecisionMakers that are used to make decisions for this Bot.
         :return:
         """

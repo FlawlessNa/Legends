@@ -1,5 +1,7 @@
+from dataclasses import dataclass
 
 
+@dataclass
 class BotData:
     """
     A data container instance used by a Bot instance to establish communication
@@ -8,4 +10,4 @@ class BotData:
     DecisionMakers assigned to it. This is done to allow DecisionMakers to be made aware
     of the overall state of the Bot, since each DecisionMaker may alter that state.
     """
-    pass
+    ign: str

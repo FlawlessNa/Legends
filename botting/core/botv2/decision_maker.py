@@ -13,13 +13,7 @@ class DecisionMaker(ABC):
     one at a time.
     When called, a DecisionMaker may return an ActionData container,
     which will be sent to the Main Process to be executed there.
-
-    DecisionMakers may additionally define Multiprocessing Synchronization Primitives
-    that will be shared with other instances of the same DecisionMaker class.
-    The other instances do not necessarily live in the same Process, as this depends
-    on how each Monitor are assigned to their Engines.
     """
-
     generator_type: Literal["Rotation", "AntiDetection", "Maintenance"]
 
     def __init__(
@@ -27,6 +21,7 @@ class DecisionMaker(ABC):
     ) -> None:
         self.metadata = metadata
         self.data = data
+        self.metadata[self.data.ign].add(id(self))
 
     def block_others(self):
         pass

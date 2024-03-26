@@ -83,7 +83,7 @@ class SessionManager:
         for group in grouped_bots:
             engine_side, listener_side = multiprocessing.Pipe()
             self.engines.append(Engine.start(engine_side, self.metadata, group))
-            self.listeners.append(Engine.listener(listener_side, self.async_queue))
+            # self.listeners.append(Engine.listener(listener_side, self.async_queue))
 
     def _kill_all_engines(self) -> None:
         raise NotImplementedError
