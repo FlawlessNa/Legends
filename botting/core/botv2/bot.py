@@ -14,10 +14,13 @@ class Bot(ABC):
     A bot represents a single game client entity and is assigned a single
     BotData instance which it shares with all its DecisionMakers.
     """
+
     def __init__(self, ign: str, metadata: multiprocessing.managers.DictProxy) -> None:
         self.data = BotData(ign)
         self.metadata = metadata
-        self.metadata.setdefault(ign, set())
+        self.metadata["Blockers"][ign] = {
+            val: dict() for val in DecisionMaker.__annotations__["_type"].__args__
+        }
 
     @property
     @abstractmethod

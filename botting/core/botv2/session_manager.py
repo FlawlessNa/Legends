@@ -32,6 +32,7 @@ class SessionManager:
         self.metadata = self.manager.dict()
         # Add the logging queue to the metadata for convenience.
         self.metadata["Logging Queue"] = self.manager.Queue()
+        self.metadata["Blockers"] = dict()
 
         self.peripherals = PeripheralsProcess(self.metadata["Logging Queue"])
 
@@ -88,6 +89,7 @@ class SessionManager:
         for group in grouped_bots:
             engine_side, listener_side = multiprocessing.Pipe()
             self.engines.append(Engine.start(engine_side, self.metadata, group))
+            self.listeners.append(listener_side)
             # self.listeners.append(Engine.listener(listener_side, self.async_queue))
 
     def _kill_all_engines(self) -> None:

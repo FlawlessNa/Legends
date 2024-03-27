@@ -95,9 +95,10 @@ class Engine(_ChildProcessEngine):
     Lives in a ChildProcess.
     An engine instance is a container of Bot instances.
     It cycles through each Bot instance, calling their DecisionMakers one at a time.
-    If any DecisionMaker triggers an ActionData instance, it is sent to the MainProcess.
+    If any DecisionMaker triggers an ActionRequest instance, it is sent to the
+    MainProcess.
     The Engine.listener() method lives within the MainProcess to monitor those
-    ActionData instances and dispatch to TaskManager.
+    ActionRequest instances and dispatch to TaskManager.
     """
     @classmethod
     def start(
@@ -117,7 +118,7 @@ class Engine(_ChildProcessEngine):
         assert multiprocessing.current_process().name == "MainProcess"
         process = multiprocessing.Process(
             target=cls._spawn_engine,
-            # name=f"Engine[{', '.join([b.name for b in bots])}]",
+            name=f"Engine[{', '.join([b.data.ign for b in bots])}]",
             args=(pipe, metadata, bots),
         )
         process.start()
@@ -126,7 +127,7 @@ class Engine(_ChildProcessEngine):
     @classmethod
     async def listener(
         cls, pipe: multiprocessing.connection.Connection, queue: asyncio.Queue
-    ) -> asyncio.Task:
+    ) -> None:
         """
         Called from the MainProcess.
         Creates a new asyncio.Task within MainProcess, responsible to listen to the
@@ -139,7 +140,7 @@ class Engine(_ChildProcessEngine):
         try:
             while True:
                 if await asyncio.to_thread(pipe.poll):
-                    queue_item: ActionData = pipe.recv()
+                    queue_item: ActionRequest = pipe.recv()
 
                     if queue_item is None:
                         err_msg = f"{self} received None from {self.engine}. Exiting."
@@ -156,7 +157,7 @@ class Engine(_ChildProcessEngine):
                         )
                         raise queue_item
 
-                    # TODO - Add additional data to ActionData, such as self.pipe,
+                    # TODO - Add additional data to ActionRequest, such as self.pipe,
                     # Such that the callbacks are sent through the proper pipe.
                     self.async_queue.put_nowait(queue_item)
                     # logger.debug(f"{queue_item} received from {self.engine}.")

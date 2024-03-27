@@ -2,7 +2,7 @@ from dataclasses import field, dataclass
 
 
 @dataclass
-class ActionData:
+class ActionRequest:
     """
     A data container sent by any DecisionMaker to the Main process.
     May contain the following:
