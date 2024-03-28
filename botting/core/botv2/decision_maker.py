@@ -124,12 +124,10 @@ class DecisionMaker(ABC):
         if bot is None:
             bot = self.data.ign
 
-        for decision_maker_id in self.metadata["Blockers"][bot][type_to_block]:
-            if decision_maker_id == id(self):
+        for dm_id in self.metadata["Blockers"][bot][type_to_block]:
+            if dm_id == id(self):
                 continue
-            self.metadata["Blockers"][bot][type_to_block][
-                decision_maker_id
-            ] += increment
+            self.metadata["Blockers"][bot][type_to_block][dm_id] += increment
 
     # def freeze(self, bots: list[str] | str | None = None) -> None:
     #     """
@@ -156,12 +154,12 @@ class DecisionMaker(ABC):
         pass
 
     def __call__(self, *args, **kwargs) -> ActionRequest | None:
-        blocked_since = self.blocked_at
+        blocked_since = self.blocked_at  # Call only once to prevent sudden status chg
         if blocked_since and time.perf_counter() - blocked_since > 300:
             raise RuntimeError(
                 f"{self} has been blocked for more than 5 minutes. Exiting."
             )
-        if self.blocked:
+        elif blocked_since:  # Means we're still blocked
             return
 
         return self._call(*args, **kwargs)
