@@ -16,11 +16,18 @@ class Bot(ABC):
     """
 
     def __init__(self, ign: str, metadata: multiprocessing.managers.DictProxy) -> None:
-        self.data = BotData(ign)
+        self.ign = ign
+        self.data = None
         self.metadata = metadata
         self.metadata["Blockers"][ign] = {
             val: dict() for val in DecisionMaker.__annotations__["_type"].__args__
         }
+
+    def child_init(self) -> None:
+        """
+        Called by the Engine to create Bot within Child process.
+        """
+        self.data = BotData(self.ign)
 
     @property
     @abstractmethod

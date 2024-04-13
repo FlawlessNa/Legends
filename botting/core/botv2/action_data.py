@@ -18,3 +18,14 @@ class ActionRequest:
     requeue_if_not_scheduled: bool = field(default=True)
     cancellable_by_self: bool = field(default=True)
     cancellable_by_others: bool = field(default=True)
+    update_request: "UpdateRequest" = None
+
+
+@dataclass
+class UpdateRequest:
+    """
+    A data container sent by the Main process to any Engine process after an
+    ActionRequest has completed its execution.
+    Used to update BotData attributes in the Engine process once the action is complete.
+    """
+    bot_id: int

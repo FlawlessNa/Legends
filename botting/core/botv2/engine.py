@@ -1,9 +1,13 @@
 import asyncio
+import logging
 import multiprocessing.connection
 import multiprocessing.managers
 
 from botting.utilities import setup_child_proc_logging
 from .bot import Bot
+from .action_data import ActionRequest, UpdateRequest
+
+logger = logging.getLogger(__name__)
 
 
 class _ChildProcessEngine:
@@ -59,8 +63,8 @@ class _ChildProcessEngine:
         :return:
         """
         while self.pipe.poll():
-            data_updater = self.pipe.recv()
-            self.bots[data_updater.id].update(data_updater)
+            data_updater: UpdateRequest = self.pipe.recv()
+            # TODO - Update BotData
 
     def _iterate_once(self, bot: Bot) -> None:
         """
@@ -69,9 +73,9 @@ class _ChildProcessEngine:
         :return:
         """
         for decision_maker in bot.decision_makers:
-            action_data = decision_maker()
-            if action_data is not None:
-                self.pipe.send(action_data)
+            request: ActionRequest = decision_maker()
+            if request is not None:
+                self.pipe.send(request)
 
     # def _exit(self) -> None:
     #     """
@@ -124,9 +128,11 @@ class Engine(_ChildProcessEngine):
         process.start()
         return process
 
-    @classmethod
+    @staticmethod
     async def listener(
-        cls, pipe: multiprocessing.connection.Connection, queue: asyncio.Queue
+        pipe: multiprocessing.connection.Connection,
+        queue: asyncio.Queue,
+        engine: multiprocessing.Process
     ) -> None:
         """
         Called from the MainProcess.
@@ -134,6 +140,7 @@ class Engine(_ChildProcessEngine):
         Engine and relay its content to the TaskManager.
         :param pipe: a multiprocessing.Connection instance.
         :param queue: an asyncio.Queue instance.
+        :param engine: The spawned process connected at the other end of the pipe.
         :return:
         """
         assert multiprocessing.current_process().name == "MainProcess"
@@ -143,23 +150,23 @@ class Engine(_ChildProcessEngine):
                     queue_item: ActionRequest = pipe.recv()
 
                     if queue_item is None:
-                        err_msg = f"{self} received None from {self.engine}. Exiting."
+                        err_msg = f"Received None from {engine.name}. Exiting."
                         logger.error(err_msg)
                         raise SystemExit(err_msg)
 
                     elif isinstance(queue_item, BaseException):
                         logger.error(
-                            f"Exception occurred in {self.engine}."
+                            f"Exception occurred in {engine.name}."
                         )
 
                         self.discord_pipe.send(
-                            f'Exception {queue_item} \n occurred in {self.engine}.'
+                            f'Exception {queue_item} \n occurred in {engine.name}.'
                         )
                         raise queue_item
 
                     # TODO - Add additional data to ActionRequest, such as self.pipe,
                     # Such that the callbacks are sent through the proper pipe.
-                    self.async_queue.put_nowait(queue_item)
+                    await queue.put(queue_item)
                     # logger.debug(f"{queue_item} received from {self.engine}.")
                     # new_task = self.create_task(queue_item)
                     # if new_task is not None:
