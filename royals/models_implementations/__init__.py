@@ -1,1 +1,2 @@
+from .mechanics import RoyalsSkill
 

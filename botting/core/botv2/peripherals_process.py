@@ -6,6 +6,8 @@ from botting.screen_recorder import Recorder
 from botting.communications import DiscordIO
 from botting.utilities import setup_child_proc_logging
 
+from .action_data import ActionRequest
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,10 +22,11 @@ class PeripheralsProcess:
         relays to MainProcess)
     """
 
-    def __init__(self, queue: multiprocessing.Queue) -> None:
+    def __init__(self, queue: multiprocessing.Queue, parser: callable) -> None:
         self.log_queue = queue
         self.process = None
         self.pipe_main_proc, self.pipe_spawned_proc = multiprocessing.Pipe()
+        self.discord_parser = parser
 
     def start(self) -> None:
         """
@@ -65,7 +68,7 @@ class PeripheralsProcess:
             while True:
                 if await asyncio.to_thread(self.pipe_main_proc.poll):
                     message: str = self.pipe_main_proc.recv()
-                    action: QueueAction = self.discord_parser(message, self.all_bots)
+                    action: ActionRequest = self.discord_parser(message, self.all_bots)
                     if action is None:
                         logger.info(f"Received {message} from discord pipe. Exiting.")
                         break

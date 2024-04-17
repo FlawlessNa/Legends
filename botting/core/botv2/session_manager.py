@@ -23,9 +23,11 @@ class SessionManager:
     - TaskManager
     """
 
-    def __init__(self) -> None:
+    def __init__(self, discord_parser: callable) -> None:
         """
         Creates all necessary objects to start a new Session.
+        :param discord_parser: A callable that parses discord message and returns
+        ActionRequests.
         """
         # Create a Manager Process to share data between processes.
         self.manager = multiprocessing.Manager()
@@ -34,7 +36,9 @@ class SessionManager:
         self.metadata["Logging Queue"] = self.manager.Queue()
         self.metadata["Blockers"] = dict()
 
-        self.peripherals = PeripheralsProcess(self.metadata["Logging Queue"])
+        self.peripherals = PeripheralsProcess(
+            self.metadata["Logging Queue"], discord_parser
+        )
 
         self.log_receiver = logging.handlers.QueueListener(
             self.metadata["Logging Queue"],
@@ -44,7 +48,7 @@ class SessionManager:
 
         self.async_queue = asyncio.Queue()
         self.engines: list[multiprocessing.Process] = []
-        self.listeners: list[callable] = []
+        self.listeners: list[asyncio.Task] = []
         self.discord_listener: asyncio.Task | None = None
 
     def __enter__(self) -> Self:
@@ -57,7 +61,7 @@ class SessionManager:
         self.peripherals.start()
         self.discord_listener = asyncio.create_task(
             self.peripherals.peripherals_listener(self.async_queue),
-            name="Discord Listener"
+            name="Discord Listener",
         )
         return self
 
@@ -74,9 +78,9 @@ class SessionManager:
         :return: None
         """
         self.peripherals.kill()
-        self.discord_listener.cancel('SessionManager exited.')
+        self.discord_listener.cancel("SessionManager exited.")
         # self._kill_all_engines()
-        logger.debug("Stopping Log listener")
+        logger.debug("Stopping Log listener.")
         logger.info("SessionManager exited.")
         self.log_receiver.stop()
 
@@ -88,9 +92,27 @@ class SessionManager:
     async def launch(self, *grouped_bots: list[Bot]) -> None:
         for group in grouped_bots:
             engine_side, listener_side = multiprocessing.Pipe()
-            self.engines.append(Engine.start(engine_side, self.metadata, group))
-            self.listeners.append(listener_side)
-            # self.listeners.append(Engine.listener(listener_side, self.async_queue))
+            engine_proc = Engine.start(engine_side, self.metadata, group)
+            engine_listener = Engine.listener(
+                listener_side,
+                self.async_queue,
+                engine_proc,
+                self.peripherals.pipe_main_proc,
+            )
+            self.engines.append(engine_proc)
+            self.listeners.append(engine_listener)
+
+        t_done, t_pending = await asyncio.wait(
+            self.listeners, return_when=asyncio.FIRST_COMPLETED
+        )
+        t_done = t_done.pop()
+
+        for task in t_pending:
+            logger.info(f"Cancelling task {task.get_name()}.")
+            task.cancel()
+
+        if t_done.exception():
+            raise t_done.exception()
 
     def _kill_all_engines(self) -> None:
         raise NotImplementedError
@@ -104,9 +126,7 @@ class SessionManager:
         try:
             async with asyncio.TaskGroup() as tg:
                 for listener in self.listeners:
-                    listener.task = tg.create_task(
-                        listener, name=repr(listener)
-                    )
+                    listener.task = tg.create_task(listener, name=repr(listener))
                     logger.info(f"Created task {listener.task.get_name()}.")
         finally:
             logger.info("All bots have been stopped. Session is about to exit.")

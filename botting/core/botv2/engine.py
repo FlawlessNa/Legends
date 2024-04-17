@@ -14,6 +14,7 @@ class _ChildProcessEngine:
     """
     Engine methods called within a Child (spawned) Process.
     """
+
     def __init__(
         self,
         pipe: multiprocessing.connection.Connection,
@@ -24,6 +25,9 @@ class _ChildProcessEngine:
         self.pipe = pipe
         self.metadata = metadata
         self.bots = bots
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({', '.join([b.ign for b in self.bots])})"
 
     @classmethod
     def _spawn_engine(
@@ -43,6 +47,7 @@ class _ChildProcessEngine:
         """
         setup_child_proc_logging(metadata["Logging Queue"])
         engine = cls(pipe, metadata, bots)
+        logger.info(f"{engine} Started.")
         engine._cycle_forever()
 
     def _cycle_forever(self) -> None:
@@ -51,11 +56,29 @@ class _ChildProcessEngine:
         Cycles through all Bots, calling their DecisionMakers one at a time.
         :return:
         """
-        while True:
-            self._poll_for_updates()
+        try:
+            import time
+            start = time.time()
+            while True:
+                if time.time() - start > 5:
+                    break
+                self._poll_for_updates()
 
-            for bot in self.bots:
-                self._iterate_once(bot)
+                for bot in self.bots:
+                    self._iterate_once(bot)
+
+        except SystemExit:
+            pass
+
+        except Exception:
+            logger.error(f"Exception occurred in {self}.")
+            raise
+
+        finally:
+            if not self.pipe.closed:
+                self.pipe.send(None)
+                self.pipe.close()
+            logger.info(f"{self} Exited.")
 
     def _poll_for_updates(self) -> None:
         """
@@ -64,6 +87,11 @@ class _ChildProcessEngine:
         """
         while self.pipe.poll():
             data_updater: UpdateRequest = self.pipe.recv()
+            if data_updater is None:
+                logger.info(f"{self} received None from MainProcess. Exiting.")
+                raise SystemExit(f"{self} received None from MainProcess. Exiting")
+
+            assert isinstance(data_updater, UpdateRequest), "Invalid signal type"
             # TODO - Update BotData
 
     def _iterate_once(self, bot: Bot) -> None:
@@ -104,6 +132,7 @@ class Engine(_ChildProcessEngine):
     The Engine.listener() method lives within the MainProcess to monitor those
     ActionRequest instances and dispatch to TaskManager.
     """
+
     @classmethod
     def start(
         cls,
@@ -122,70 +151,83 @@ class Engine(_ChildProcessEngine):
         assert multiprocessing.current_process().name == "MainProcess"
         process = multiprocessing.Process(
             target=cls._spawn_engine,
-            name=f"Engine[{', '.join([b.data.ign for b in bots])}]",
+            name=f"Engine[{', '.join([b.ign for b in bots])}]",
             args=(pipe, metadata, bots),
         )
         process.start()
         return process
 
     @staticmethod
-    async def listener(
+    def listener(
         pipe: multiprocessing.connection.Connection,
         queue: asyncio.Queue,
-        engine: multiprocessing.Process
-    ) -> None:
+        engine: multiprocessing.Process,
+        discord_pipe: multiprocessing.connection.Connection,
+    ) -> asyncio.Task:
         """
         Called from the MainProcess.
         Creates a new asyncio.Task within MainProcess, responsible to listen to the
         Engine and relay its content to the TaskManager.
-        :param pipe: a multiprocessing.Connection instance.
+        :param pipe: a multiprocessing.Connection instance to the Engine.
         :param queue: an asyncio.Queue instance.
         :param engine: The spawned process connected at the other end of the pipe.
+        :param discord_pipe: a multiprocessing.Connection instance to the Peripherals.
         :return:
         """
         assert multiprocessing.current_process().name == "MainProcess"
-        try:
-            while True:
-                if await asyncio.to_thread(pipe.poll):
-                    queue_item: ActionRequest = pipe.recv()
 
-                    if queue_item is None:
-                        err_msg = f"Received None from {engine.name}. Exiting."
-                        logger.error(err_msg)
-                        raise SystemExit(err_msg)
+        async def _coro():
+            try:
+                while True:
+                    if await asyncio.to_thread(pipe.poll):
+                        queue_item: ActionRequest = pipe.recv()
 
-                    elif isinstance(queue_item, BaseException):
-                        logger.error(
-                            f"Exception occurred in {engine.name}."
-                        )
+                        if queue_item is None:
+                            msg = f"Received None from {engine.name}. Exiting."
+                            logger.info(msg)
+                            break
 
-                        self.discord_pipe.send(
-                            f'Exception {queue_item} \n occurred in {engine.name}.'
-                        )
-                        raise queue_item
+                        elif isinstance(queue_item, BaseException):
+                            logger.error(f"Exception occurred in {engine.name}.")
 
-                    # TODO - Add additional data to ActionRequest, such as self.pipe,
-                    # Such that the callbacks are sent through the proper pipe.
-                    await queue.put(queue_item)
-                    # logger.debug(f"{queue_item} received from {self.engine}.")
-                    # new_task = self.create_task(queue_item)
-                    # if new_task is not None:
-                    #     logger.debug(f"Created task {new_task.get_name()}.")
-                    #     if queue_item.disable_lower_priority:
-                    #         Executor.priority_levels.append(queue_item.priority)
-                    #         new_task.add_done_callback(
-                    #             partial(
-                    #                 self.clear_priority_level, queue_item.priority
-                    #             )
-                    #         )
-                    #
-                    # self._task_cleanup()
-                    #
-                    # if len(asyncio.all_tasks()) > 30:
-                    #     for t in asyncio.all_tasks():
-                    #         print(t)
-                    #     logger.warning(
-                    #         f"Nbr of tasks in the event loop is {len(asyncio.all_tasks())}."
-                    #     )
-        finally:
-            queue.put_nowait(None)
+                            discord_pipe.send(
+                                f"Exception {queue_item} \n occurred in {engine.name}."
+                            )
+                            break
+
+                        # Such that the callbacks are sent through the proper pipe.
+                        await queue.put(queue_item)
+                        # logger.debug(f"{queue_item} received from {self.engine}.")
+                        # new_task = self.create_task(queue_item)
+                        # if new_task is not None:
+                        #     logger.debug(f"Created task {new_task.get_name()}.")
+                        #     if queue_item.disable_lower_priority:
+                        #         Executor.priority_levels.append(queue_item.priority)
+                        #         new_task.add_done_callback(
+                        #             partial(
+                        #                 self.clear_priority_level, queue_item.priority
+                        #             )
+                        #         )
+                        #
+                        # self._task_cleanup()
+                        #
+                        # if len(asyncio.all_tasks()) > 30:
+                        #     for t in asyncio.all_tasks():
+                        #         print(t)
+                        #     logger.warning(
+                        #         f"Nbr of tasks in the event loop is {len(asyncio.all_tasks())}."
+                        #     )
+            except asyncio.CancelledError:
+                logger.info(f"Listener to {engine.name} cancelled.")
+
+            except Exception:
+                logger.error(f"Exception occurred in Listener to {engine.name}.")
+                raise
+
+            finally:
+                if not pipe.closed:
+                    pipe.send(None)
+                    pipe.close()
+                queue.put_nowait(None)
+
+        return asyncio.create_task(_coro(), name=f"{engine.name} Listener")
