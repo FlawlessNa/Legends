@@ -38,7 +38,7 @@ class SessionManager:
 
         self.peripherals = PeripheralsProcess(
             self.metadata["Logging Queue"], discord_parser
-        )
+        ) 
 
         self.log_receiver = logging.handlers.QueueListener(
             self.metadata["Logging Queue"],
