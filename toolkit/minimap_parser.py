@@ -15,7 +15,7 @@ from botting.utilities import Box
 
 HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 OUTPUT_LOCATION = os.path.join(ROOT, "royals/models_implementations/minimaps/")
-OUTPUT_NAME = "ludibrium.py"
+OUTPUT_NAME = "muddy_banks_2.py"
 
 container = []
 
@@ -75,7 +75,7 @@ if __name__ == "__main__":
         f.write("\n")
         f.write("\n")
         f.write(
-            f'class {OUTPUT_NAME.removesuffix(".py").replace("_", " ").title().replace(" ", "")}(MinimapPathingMechanics):\n'
+            f'class {OUTPUT_NAME.removesuffix(".py").replace("_", " ").title().replace(" ", "")}Minimap(MinimapPathingMechanics):\n'
         )
         f.write("\n")
 

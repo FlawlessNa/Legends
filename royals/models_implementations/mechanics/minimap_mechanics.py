@@ -151,6 +151,8 @@ class MinimapGrid(Grid):
             ]:
                 dx = abs(node_a.x - node_b.x)
                 ng += dx
+            if conn_type == MinimapConnection.PORTAL:
+                ng = 1
         return ng
 
     def neighbors(
@@ -493,10 +495,20 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
 
         for feature in self.features.values():
             if feature.connections:
-                # TODO - Add custom connections defined by the feature itself
-                breakpoint()
+                for connection in feature.connections:
+                    if connection.connection_type == MinimapConnection.PORTAL:
+                        for source in connection.custom_sources:
+                            for dest in connection.custom_destinations:
+                                base_grid.node(*source).connect(
+                                    base_grid.node(*dest),
+                                    connection_type=MinimapConnection.PORTAL,
+                                )
+                    else:
+                        # TODO - Add custom connections defined by the feature itself
+                        breakpoint()
 
             for node in feature:
+
                 # Build default connections from 'standard' mechanics
                 if feature.is_platform:
                     self._add_vertical_connection(

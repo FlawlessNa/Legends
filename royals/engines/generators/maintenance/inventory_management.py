@@ -120,6 +120,8 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
                 self._close_npc_shop,
                 self._return_to_door,
             ]
+        elif self.procedure == self.PROC_REQUEST_MYSTIC_DOOR:
+            raise NotImplementedError
 
         return common + procedure_specific_steps
 

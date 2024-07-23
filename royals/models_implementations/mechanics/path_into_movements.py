@@ -22,7 +22,7 @@ from .royals_skill import RoyalsSkill
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
-DEBUG = False
+DEBUG = True
 
 
 def _debug(

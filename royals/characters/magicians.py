@@ -133,7 +133,7 @@ class Bishop(Priest):
                 unidirectional=False,
                 _use_by_default=True,
                 horizontal_screen_range=400,
-                vertical_screen_range=350,
+                vertical_screen_range=375,
             ),
             "Maple Warrior": RoyalsSkill(
                 "Maple Warrior",

@@ -1,20 +1,21 @@
 import time
 import math
 
-from royals.models_implementations.minimaps import PathOfTime1Minimap
+from royals.models_implementations.minimaps import MuddyBanks2Minimap
 from botting.utilities import client_handler
 from royals import royals_ign_finder
 # Once the script starts, it continuously monitors the character's position on the minimap.
 # As soon as the character starts moving, the script logs the character's position with a timestamp.
 # As soon as the character reaches the target position, the script saves the game_data and stops.
 
-TARGET = (4, 24)  # Target position on the minimap
+TARGET = (121, 50)  # Target position on the minimap
 
 
 HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 minimap = (
-    PathOfTime1Minimap()
-)  # Minimap implementation in which the speed is tested (Assumption is that speed may vary from map to map)
+    MuddyBanks2Minimap()
+)  # Minimap implementation in which the speed is tested
+# (Assumption is that speed may vary from map to map)
 
 initial_pos = minimap.get_character_positions(
     HANDLE
