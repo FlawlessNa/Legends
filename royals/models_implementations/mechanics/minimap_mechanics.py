@@ -151,6 +151,8 @@ class MinimapGrid(Grid):
             ]:
                 dx = abs(node_a.x - node_b.x)
                 ng += dx
+            if conn_type == MinimapConnection.PORTAL:
+                ng = 1
         return ng
 
     def neighbors(
@@ -207,16 +209,18 @@ class MinimapFeature(Box):
     avoid_edges: bool = field(default=True)
     area_coverage: float = field(default=0.9)
     edge_threshold: int = field(default=5)
+    is_irregular: bool = field(default=False)
+    backward: bool = field(default=False)
 
     def __post_init__(self):
         super().__post_init__()
         assert (
-            self.width == 0 or self.height == 0
-        ), "Minimap Features should be 1-dimensional"
+            self.width == 0 or self.height == 0 or self.is_irregular
+        ), "Minimap Features should be 1-dimensional or explicitly declared irregular"
 
     @property
     def is_platform(self) -> bool:
-        return self.height == 0
+        return not self.is_ladder
 
     @property
     def is_ladder(self) -> bool:
@@ -277,12 +281,19 @@ class MinimapFeature(Box):
         Iterates over all nodes within the feature.
         :return:
         """
-        if self.is_platform:
+        if self.is_platform and not self.is_irregular:
             for x in range(self.left, self.right + 1):
                 yield x, self.top
         elif self.is_ladder:
             for y in range(self.top, self.bottom + 1):
                 yield self.left, y
+        elif self.is_irregular:
+            for x, y in zip(
+                range(self.left, self.right + 1),
+                range(self.top, self.bottom + 1) if not self.backward
+                else range(self.bottom, self.top - 1, -1)
+            ):
+                yield x, y
         else:
             raise NotImplementedError("Should not reach this point")
 
@@ -451,9 +462,15 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         canvas = np.zeros_like(image)
         for feature in self.features.values():
-            pt1: Sequence = (feature.left, feature.top)
-            pt2: Sequence = (feature.right, feature.bottom)
-            cv2.line(canvas, pt1, pt2, (255, 255, 255), 1)
+            if feature.backward:
+                pt1: Sequence = (feature.left, feature.bottom)
+                pt2: Sequence = (feature.right, feature.top)
+            else:
+                pt1: Sequence = (feature.left, feature.top)
+                pt2: Sequence = (feature.right, feature.bottom)
+            cv2.line(
+                canvas, pt1, pt2, (255, 255, 255), 1, lineType=cv2.LINE_4
+            )
 
         return canvas
 
@@ -493,10 +510,20 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
 
         for feature in self.features.values():
             if feature.connections:
-                # TODO - Add custom connections defined by the feature itself
-                breakpoint()
+                for connection in feature.connections:
+                    if connection.connection_type == MinimapConnection.PORTAL:
+                        for source in connection.custom_sources:
+                            for dest in connection.custom_destinations:
+                                base_grid.node(*source).connect(
+                                    base_grid.node(*dest),
+                                    connection_type=MinimapConnection.PORTAL,
+                                )
+                    else:
+                        # TODO - Add custom connections defined by the feature itself
+                        breakpoint()
 
             for node in feature:
+
                 # Build default connections from 'standard' mechanics
                 if feature.is_platform:
                     self._add_vertical_connection(

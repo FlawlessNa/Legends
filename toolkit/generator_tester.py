@@ -8,21 +8,30 @@ from royals.engines.generators import TelecastRotationGenerator
 from royals.engines.generators import PartyRebuff, InventoryManager
 from royals.characters import Bishop
 from royals import RoyalsData, royals_ign_finder
-from royals.maps import LudiFreeMarket, PathOfTime1
+from royals.maps import LudiFreeMarket, PathOfTime1, MuddyBanks2
 
 
 IGN = "WrongDoor"
-GENERATOR = TelecastRotationGenerator
-CURRENT_MAP = PathOfTime1
-
+GENERATOR = InventoryManager
+CURRENT_MAP = MuddyBanks2
+HANDLE = client_handler.get_client_handle(IGN, royals_ign_finder)
 DATA_INSTANCE = RoyalsData(
     handle=client_handler.get_client_handle(IGN, royals_ign_finder),
     ign=IGN,
     current_map=CURRENT_MAP(),
-    character=Bishop(IGN, "Elephant Cape", "large")
+    character=Bishop(IGN, "Elephant Cape", "large"),
+    # current_minimap_position=CURRENT_MAP().minimap.get_character_positions(HANDLE)
+)
+DATA_INSTANCE.update(
+    'current_minimap_area_box',
+    'current_minimap_position'
 )
 ENGINE_KWARGS = {}
-GENERATOR_KWARGS = dict(ultimate=DATA_INSTANCE.character.skills["Genesis"], teleport_skill=DATA_INSTANCE.character.skills["Teleport"], mob_threshold=5)
+# GENERATOR_KWARGS = dict(ultimate=DATA_INSTANCE.character.skills["Genesis"], teleport_skill=DATA_INSTANCE.character.skills["Teleport"], mob_threshold=5)
+GENERATOR_KWARGS = dict(
+    procedure=InventoryManager.PROC_USE_MYSTIC_DOOR,
+    space_left_alert=96
+)
 
 
 class MockEngine(DecisionEngine):

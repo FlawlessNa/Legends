@@ -267,8 +267,8 @@ if __name__ == "__main__":
     from botting.utilities import client_handler
     from royals import royals_ign_finder
     HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
-    USE_HSV = False
-    USE_COLORS = True
+    USE_HSV = True
+    USE_COLORS = False
 
     if USE_HSV:
         init_control_gui_hsv()

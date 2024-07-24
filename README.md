@@ -1,5 +1,10 @@
 # Royals-V2
 
+# Todo before all the rest below
+- [ ] Complete stable MB2 and merge onto dev
+- [ ] Recycle performance-improvements for all components already finished and merge onto dev
+- [ ] Finish core refactoring of performance-improvements
+
 ## Bug Fixes (Current Branch)
 - [ ] Minimap handling between CheckStillInMap and InventoryManager
 - [ ] Cancellation of NPC Selling seems to be problematic because it has a return value
@@ -9,6 +14,7 @@
 
 ## Performance Branch
 - [ ] Major Refactoring of Generators - needs to be easier to implement.
+- [ ] Add logging everywhere -> use level 0 to disable thru a CONSTANT for each relevant script
 - [ ] Ability to use Multiple clients within a single Engine
   - Create a new layer "Client" within each Engine -> Each client has its own data and generators
   - Engine now groups those "Client" and runs then asynchronously.

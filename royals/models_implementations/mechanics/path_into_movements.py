@@ -22,7 +22,7 @@ from .royals_skill import RoyalsSkill
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
-DEBUG = False
+DEBUG = True
 
 
 def _debug(
@@ -161,6 +161,8 @@ def _translate_path_into_movements(
             movements.append("right")
         elif dx == -1 and dy == 0 and current_feature.is_platform:
             movements.append("left")
+        elif current_feature.is_platform and current_feature is next_feature and dx == 0:
+            continue
         elif (
             dx == 0
             and dy == 1
