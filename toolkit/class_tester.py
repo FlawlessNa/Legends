@@ -35,11 +35,22 @@ HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 if __name__ == "__main__":
     bishop = Bishop("WrongDoor", "Elephant Cape", "large")
     minimap = TrendZoneMetropolisMinimap()
+    minimap.generate_grid_template(allow_teleport=True)
+    target = minimap.door_spot
     while True:
         area_box = minimap.get_map_area_box(HANDLE)
         # print('Area Box', area_box.width, area_box.height)
         npc_pos = minimap.get_character_positions(HANDLE, map_area_box=area_box)
-        print('Char Pos', npc_pos)
+        get_to_target(
+            npc_pos.pop(),
+            target,
+            minimap,
+            HANDLE,
+            'alt',
+            teleport_skill=bishop.skills['Teleport'],
+            ign='WrongDoor'
+        )
+        # print('Char Pos', npc_pos)
     #
     # start = time.time()
     # initial_list = ludi.get_character_positions(

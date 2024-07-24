@@ -95,6 +95,8 @@ class TelecastRotationGenerator(RotationGenerator):
                     action=res,
                     disable_lower_priority=True,
                     update_generators=updater,
+                    # TODO - False sometimes cause errors, see if True is better
+                    cancels_itself=True,
                 )
         else:
             rotation = self._rotation()

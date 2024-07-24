@@ -53,3 +53,13 @@ class TrendZoneMetropolisMinimap(MinimapPathingMechanics):
         bottom=75,
         name="door_platform",
     )
+
+    diag_platform = MinimapFeature(
+        left=62,
+        right=80,
+        top=75,
+        bottom=87,
+        name="diag_platform",
+        is_irregular=True,
+        backward=True
+    )

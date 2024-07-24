@@ -14,6 +14,7 @@
 
 ## Performance Branch
 - [ ] Major Refactoring of Generators - needs to be easier to implement.
+- [ ] Add logging everywhere -> use level 0 to disable thru a CONSTANT for each relevant script
 - [ ] Ability to use Multiple clients within a single Engine
   - Create a new layer "Client" within each Engine -> Each client has its own data and generators
   - Engine now groups those "Client" and runs then asynchronously.
