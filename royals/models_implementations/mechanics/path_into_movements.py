@@ -75,7 +75,9 @@ def get_to_target(
     :return: List of partial where each partial represents a given movement.
     """
     path = _get_path_to_target(current, target, in_game_minimap)
+    # breakpoint()
     movements = _translate_path_into_movements(path, in_game_minimap)
+    print(movements)
     if movements:
         if (
             movements[0] == ("down", 1)
@@ -111,16 +113,44 @@ def _get_path_to_target(
      for all existing features.
     :return: A series of MinimapNodes that consist of the path to take to reach target.
     """
+
     grid = in_game_minimap.grid
     start = grid.node(int(current[0]), int(current[1]))
     end = grid.node(target[0], target[1])
     finder = AStarFinder()
-    path, runs = finder.find_path(start, end, grid)
+
+    # Find direct path
+    direct_path, runs = finder.find_path(start, end, grid)
+    min_cost = end.f
+    best_path = direct_path
     grid.cleanup()
 
+    # Find portal path(s)
+    for portal_start, portal_end in grid.portals.items():
+        indirect_start = grid.node(*portal_start)
+        indirect_end = grid.node(*portal_end)
+
+        path_to_portal, _ = finder.find_path(start, indirect_start, grid)
+        if not path_to_portal:
+            grid.cleanup()
+            continue
+        cost = indirect_start.f
+        grid.cleanup()
+
+        path_from_portal, runs = finder.find_path(indirect_end, end, grid)
+        if not path_from_portal:
+            grid.cleanup()
+            continue
+        cost += end.f
+        grid.cleanup()
+
+        if cost < min_cost:
+            min_cost = cost
+            best_path = path_to_portal + path_from_portal
+
     if DEBUG:
-        _debug(in_game_minimap, start, end, path)
-    return path
+        _debug(in_game_minimap, start, end, best_path)
+    return best_path
 
 
 def _translate_path_into_movements(

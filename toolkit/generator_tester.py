@@ -8,12 +8,12 @@ from royals.engines.generators import TelecastRotationGenerator
 from royals.engines.generators import PartyRebuff, InventoryManager
 from royals.characters import Bishop
 from royals import RoyalsData, royals_ign_finder
-from royals.maps import LudiFreeMarket, PathOfTime1, MuddyBanks2
+from royals.maps import LudiFreeMarket, PathOfTime1, MuddyBanks2, FantasyThemePark1
 
 
 IGN = "WrongDoor"
-GENERATOR = InventoryManager
-CURRENT_MAP = MuddyBanks2
+GENERATOR = TelecastRotationGenerator
+CURRENT_MAP = FantasyThemePark1
 HANDLE = client_handler.get_client_handle(IGN, royals_ign_finder)
 DATA_INSTANCE = RoyalsData(
     handle=client_handler.get_client_handle(IGN, royals_ign_finder),

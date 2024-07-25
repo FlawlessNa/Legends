@@ -4,6 +4,8 @@
 - [ ] Complete stable MB2 and merge onto dev
 - [ ] Recycle performance-improvements for all components already finished and merge onto dev
 - [ ] Finish core refactoring of performance-improvements
+- [ ] Flexible map movements, speed, jumps, etc.
+- [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
 
 ## Bug Fixes (Current Branch)
 - [ ] Minimap handling between CheckStillInMap and InventoryManager

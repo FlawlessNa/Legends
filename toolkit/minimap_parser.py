@@ -15,7 +15,7 @@ from botting.utilities import Box
 
 HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 OUTPUT_LOCATION = os.path.join(ROOT, "royals/models_implementations/minimaps/")
-OUTPUT_NAME = "muddy_banks_2.py"
+OUTPUT_NAME = "fantasy_theme_park_1.py"
 
 container = []
 

@@ -14,7 +14,8 @@ from royals.models_implementations.mechanics import MinimapConnection
 from royals.models_implementations.minimaps import (
     PathOfTime1Minimap,
     MuddyBanks2Minimap,
-    TrendZoneMetropolisMinimap
+    TrendZoneMetropolisMinimap,
+    FantasyThemePark1Minimap,
 )
 # from royals.maps import PathOfTime1
 from royals.interface import AbilityMenu, CharacterStats, InventoryMenu
@@ -34,16 +35,18 @@ HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 
 if __name__ == "__main__":
     bishop = Bishop("WrongDoor", "Elephant Cape", "large")
-    minimap = TrendZoneMetropolisMinimap()
+    minimap = FantasyThemePark1Minimap()
     minimap.generate_grid_template(allow_teleport=True)
-    target = minimap.door_spot
+    target = minimap.door_spot[0]
+    import random
+    area_box = minimap.get_map_area_box(HANDLE)
     while True:
-        area_box = minimap.get_map_area_box(HANDLE)
+        # print(area_box.width, area_box.height)
         # print('Area Box', area_box.width, area_box.height)
         npc_pos = minimap.get_character_positions(HANDLE, map_area_box=area_box)
         get_to_target(
             npc_pos.pop(),
-            target,
+            (int(minimap.safe_spot.center[0]), int(minimap.safe_spot.center[1])),
             minimap,
             HANDLE,
             'alt',

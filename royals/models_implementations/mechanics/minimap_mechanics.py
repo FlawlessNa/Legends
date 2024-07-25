@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import random
-
+from functools import cached_property
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathfinding.core.grid import Grid, DiagonalMovement
@@ -108,6 +108,28 @@ class MinimapNode(GridNode):
         super().connect(node)
         self.connections_types.append(connection_type)
 
+    def __str__(self) -> str:
+        conn_list = []
+        if self.connections:
+            for idx, (conn, conn_type) in enumerate(
+                zip(self.connections, self.connections_types)
+            ):
+                conn_list.append(
+                    (
+                        conn.x,
+                        conn.y,
+                        MinimapConnection.convert_to_string(self.connections_types[idx])
+                    )
+                )
+        return (
+            f"MinimapNode({self.x}, {self.y}, walkable={self.walkable}, "
+            f"weight={self.weight}, grid_id={self.grid_id}, "
+            f"connections={conn_list})"
+        )
+
+    def __repr__(self):
+        return self.__str__()
+
 
 class MinimapGrid(Grid):
     """
@@ -148,11 +170,10 @@ class MinimapGrid(Grid):
                 MinimapConnection.TELEPORT_DOWN,
                 MinimapConnection.TELEPORT_LEFT,
                 MinimapConnection.TELEPORT_RIGHT,
+                MinimapConnection.PORTAL,
             ]:
                 dx = abs(node_a.x - node_b.x)
                 ng += dx
-            if conn_type == MinimapConnection.PORTAL:
-                ng = 1
         return ng
 
     def neighbors(
@@ -188,6 +209,21 @@ class MinimapGrid(Grid):
                     node.grid_id,
                     node.connections,
                 )
+
+    @cached_property
+    def portals(self) -> dict[tuple[int, int], tuple[int, int]]:
+        result = {}
+        for row in self.nodes:
+            for node in row:
+                if (
+                    node.connections
+                    and MinimapConnection.PORTAL in node.connections_types
+                ):
+                    maps_to = node.connections[
+                        node.connections_types.index(MinimapConnection.PORTAL)
+                    ]
+                    result[(node.x, node.y)] = maps_to.x, maps_to.y
+        return result
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -288,12 +324,18 @@ class MinimapFeature(Box):
             for y in range(self.top, self.bottom + 1):
                 yield self.left, y
         elif self.is_irregular:
-            for x, y in zip(
-                range(self.left, self.right + 1),
-                range(self.top, self.bottom + 1) if not self.backward
-                else range(self.bottom, self.top - 1, -1)
-            ):
-                yield x, y
+            x_range = range(self.left, self.right + 1)
+            y_range = range(self.top, self.bottom + 1) if not self.backward else range(
+                self.bottom, self.top - 1, -1
+            )
+            if len(x_range) > len(y_range):
+                y_values = np.interp(np.linspace(0, len(y_range) - 1, len(x_range)), np.arange(len(y_range)), y_range)
+                for x, y in zip(x_range, y_values):
+                    yield int(x), int(round(y))
+            else:
+                x_values = np.interp(np.linspace(0, len(x_range) - 1, len(y_range)), np.arange(len(x_range)), x_range)
+                for x, y in zip(x_values, y_range):
+                    yield int(round(x)), int(y)
         else:
             raise NotImplementedError("Should not reach this point")
 
@@ -509,18 +551,17 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         )
 
         for feature in self.features.values():
-            if feature.connections:
-                for connection in feature.connections:
-                    if connection.connection_type == MinimapConnection.PORTAL:
-                        for source in connection.custom_sources:
-                            for dest in connection.custom_destinations:
-                                base_grid.node(*source).connect(
-                                    base_grid.node(*dest),
-                                    connection_type=MinimapConnection.PORTAL,
-                                )
-                    else:
-                        # TODO - Add custom connections defined by the feature itself
-                        breakpoint()
+            for connection in feature.connections:
+                if connection.connection_type == MinimapConnection.PORTAL:
+                    for source in connection.custom_sources:
+                        for dest in connection.custom_destinations:
+                            base_grid.node(*source).connect(
+                                base_grid.node(*dest),
+                                connection_type=MinimapConnection.PORTAL,
+                            )
+                else:
+                    # TODO - Add custom connections defined by the feature itself
+                    breakpoint()
 
             for node in feature:
 
