@@ -8,7 +8,7 @@ from typing import Sequence
 from botting.utilities import Box
 from botting.visuals import InGameBaseVisuals
 
-DEBUG = False
+DEBUG = True
 
 
 class BaseMob(InGameBaseVisuals, ABC):

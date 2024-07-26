@@ -1,15 +1,22 @@
 # Royals-V2
 
+# Todo before all the rest below
+- [ ] Idea to test: For re-buffing, try converting each buff icon into binary and save those. Then, use as kernels instead of matchTemplate.
+- [ ] Recycle performance-improvements for all components already finished and merge onto dev
+- [ ] Finish core refactoring of performance-improvements
+- [ ] Flexible map movements, speed, jumps, etc.
+- [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
+
 ## Bug Fixes (Current Branch)
 - [ ] Minimap handling between CheckStillInMap and InventoryManager
 - [ ] Cancellation of NPC Selling seems to be problematic because it has a return value
 - [ ] Party Re-buff is broken (casts way too much), for casting non-attack skill (since there's a rebuff validation), can simply cast once.
   - Split into individual buffs and only re-cast buffs that didn't go through
-- [ ] Fix algo for returning from shop - add prints of horizontal distances and such.
 
 ## Performance Branch
 - [ ] Major Refactoring of Generators - needs to be easier to implement.
   - Idea: For more complex (multi-step) Generators, launch an infinite "idle" task that blocks other tasks from scheduling except those from same generator. Cancel that idle task when generator is done.
+- [ ] Add logging everywhere -> use level 0 to disable thru a CONSTANT for each relevant script
 - [ ] Ability to use Multiple clients within a single Engine
   - Create a new layer "Client" within each Engine -> Each client has its own data and generators
   - Engine now groups those "Client" and runs then asynchronously.

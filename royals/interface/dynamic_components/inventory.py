@@ -82,8 +82,10 @@ class InventoryMenu(InGameDynamicVisuals):
             return
 
         menu_pos = self._menu_icon_position(handle, image)
+        buffer = Box(left=0, right=100, top=0, bottom=30)
+        target = (menu_pos + buffer).extract_client_img(image)
 
-        processed = cv2.inRange(image,
+        processed = cv2.inRange(target,
                                 self._active_tab_color_lower,
                                 self._active_tab_color_upper)
         contours, _ = cv2.findContours(
@@ -94,16 +96,16 @@ class InventoryMenu(InGameDynamicVisuals):
             rect = cv2.boundingRect(largest)
             center = (rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)
 
-            horizontal_distance = center[0] - menu_pos.center[0]
-            if horizontal_distance < -35:
+            horizontal_distance = center[0] - (menu_pos.width // 2)
+            if horizontal_distance < -16:
                 return "Equip"
-            elif -35 <= horizontal_distance < -1:
+            elif -16 <= horizontal_distance < 18:
                 return "Use"
-            elif -1 <= horizontal_distance < 33:
+            elif 18 <= horizontal_distance < 52:
                 return "Setup"
-            elif 33 <= horizontal_distance < 67:
+            elif 52 <= horizontal_distance < 86:
                 return "Etc"
-            elif 67 <= horizontal_distance:
+            elif 86 <= horizontal_distance:
                 return "Cash"
 
     def get_tab_count(self, current: str, target: str) -> int:

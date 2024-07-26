@@ -120,6 +120,8 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
                 self._close_npc_shop,
                 self._return_to_door,
             ]
+        elif self.procedure == self.PROC_REQUEST_MYSTIC_DOOR:
+            raise NotImplementedError
 
         return common + procedure_specific_steps
 
@@ -235,6 +237,7 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
 
     def _confirm_in_original_map(self) -> QueueAction | None:
         # Check dimensions
+        time.sleep(2)
         box = self.data.current_minimap.get_map_area_box(self.data.handle)
         if (box.width, box.height) == (
             self.data.current_minimap.map_area_width,

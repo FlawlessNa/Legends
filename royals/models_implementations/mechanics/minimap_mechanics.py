@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import random
-
+from functools import cached_property
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathfinding.core.grid import Grid, DiagonalMovement
@@ -108,6 +108,28 @@ class MinimapNode(GridNode):
         super().connect(node)
         self.connections_types.append(connection_type)
 
+    def __str__(self) -> str:
+        conn_list = []
+        if self.connections:
+            for idx, (conn, conn_type) in enumerate(
+                zip(self.connections, self.connections_types)
+            ):
+                conn_list.append(
+                    (
+                        conn.x,
+                        conn.y,
+                        MinimapConnection.convert_to_string(self.connections_types[idx])
+                    )
+                )
+        return (
+            f"MinimapNode({self.x}, {self.y}, walkable={self.walkable}, "
+            f"weight={self.weight}, grid_id={self.grid_id}, "
+            f"connections={conn_list})"
+        )
+
+    def __repr__(self):
+        return self.__str__()
+
 
 class MinimapGrid(Grid):
     """
@@ -151,6 +173,11 @@ class MinimapGrid(Grid):
             ]:
                 dx = abs(node_a.x - node_b.x)
                 ng += dx
+            else:
+                dx = abs(node_a.x - node_b.x)
+                ng += dx / 2
+            if conn_type == MinimapConnection.PORTAL:
+                ng = 0
         return ng
 
     def neighbors(
@@ -187,6 +214,21 @@ class MinimapGrid(Grid):
                     node.connections,
                 )
 
+    @cached_property
+    def portals(self) -> dict[tuple[int, int], tuple[int, int]]:
+        result = {}
+        for row in self.nodes:
+            for node in row:
+                if (
+                    node.connections
+                    and MinimapConnection.PORTAL in node.connections_types
+                ):
+                    maps_to = node.connections[
+                        node.connections_types.index(MinimapConnection.PORTAL)
+                    ]
+                    result[(node.x, node.y)] = maps_to.x, maps_to.y
+        return result
+
 
 @dataclass(frozen=True, kw_only=True)
 class MinimapFeature(Box):
@@ -207,16 +249,25 @@ class MinimapFeature(Box):
     avoid_edges: bool = field(default=True)
     area_coverage: float = field(default=0.9)
     edge_threshold: int = field(default=5)
+    is_irregular: bool = field(default=False)
+    backward: bool = field(default=False)
 
     def __post_init__(self):
         super().__post_init__()
         assert (
-            self.width == 0 or self.height == 0
-        ), "Minimap Features should be 1-dimensional"
+            self.width == 0 or self.height == 0 or self.is_irregular
+        ), "Minimap Features should be 1-dimensional or explicitly declared irregular"
+
+    def random(self) -> tuple[int, int]:
+        """
+        Returns a random point inside the box.
+        :return:
+        """
+        return random.choice(list(self))
 
     @property
     def is_platform(self) -> bool:
-        return self.height == 0
+        return not self.is_ladder
 
     @property
     def is_ladder(self) -> bool:
@@ -277,12 +328,25 @@ class MinimapFeature(Box):
         Iterates over all nodes within the feature.
         :return:
         """
-        if self.is_platform:
+        if self.is_platform and not self.is_irregular:
             for x in range(self.left, self.right + 1):
                 yield x, self.top
         elif self.is_ladder:
             for y in range(self.top, self.bottom + 1):
                 yield self.left, y
+        elif self.is_irregular:
+            x_range = range(self.left, self.right + 1)
+            y_range = range(self.top, self.bottom + 1) if not self.backward else range(
+                self.bottom, self.top - 1, -1
+            )
+            if len(x_range) > len(y_range):
+                y_values = np.interp(np.linspace(0, len(y_range) - 1, len(x_range)), np.arange(len(y_range)), y_range)
+                for x, y in zip(x_range, y_values):
+                    yield int(x), int(round(y))
+            else:
+                x_values = np.interp(np.linspace(0, len(x_range) - 1, len(y_range)), np.arange(len(x_range)), x_range)
+                for x, y in zip(x_values, y_range):
+                    yield int(round(x)), int(y)
         else:
             raise NotImplementedError("Should not reach this point")
 
@@ -451,9 +515,15 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         canvas = np.zeros_like(image)
         for feature in self.features.values():
-            pt1: Sequence = (feature.left, feature.top)
-            pt2: Sequence = (feature.right, feature.bottom)
-            cv2.line(canvas, pt1, pt2, (255, 255, 255), 1)
+            if feature.backward:
+                pt1: Sequence = (feature.left, feature.bottom)
+                pt2: Sequence = (feature.right, feature.top)
+            else:
+                pt1: Sequence = (feature.left, feature.top)
+                pt2: Sequence = (feature.right, feature.bottom)
+            cv2.line(
+                canvas, pt1, pt2, (255, 255, 255), 1, lineType=cv2.LINE_4
+            )
 
         return canvas
 
@@ -492,11 +562,20 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         )
 
         for feature in self.features.values():
-            if feature.connections:
-                # TODO - Add custom connections defined by the feature itself
-                breakpoint()
+            for connection in feature.connections:
+                if connection.connection_type == MinimapConnection.PORTAL:
+                    for source in connection.custom_sources:
+                        for dest in connection.custom_destinations:
+                            base_grid.node(*source).connect(
+                                base_grid.node(*dest),
+                                connection_type=MinimapConnection.PORTAL,
+                            )
+                else:
+                    # TODO - Add custom connections defined by the feature itself
+                    breakpoint()
 
             for node in feature:
+
                 # Build default connections from 'standard' mechanics
                 if feature.is_platform:
                     self._add_vertical_connection(

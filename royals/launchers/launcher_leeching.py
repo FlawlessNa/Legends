@@ -17,7 +17,7 @@ import royals.parsers
 
 LEECHER_IGN = "WrongDoor"
 LEECHER_CLASS = royals.characters.Bishop
-LEECHER_BUFFS_TO_USE = []
+LEECHER_BUFFS_TO_USE = ['Magic Guard', 'Invincible']
 LEECHER_NUM_PETS = 3
 BUFFS_TO_SYNCHRONIZE = [
     "Holy Symbol",
@@ -29,8 +29,8 @@ BUFF_MULES_IGN = ["UluLoot", "BCoinFarm", "iYieldMoney", "MoneyEngine", "Financi
 BUFF_MULES_CLASSES = [royals.characters.Assassin] + [royals.characters.Magician] * 4
 
 NUM_BOTS = 6
-TRAINING_MAP = royals.maps.PathOfTime1
-MOB_COUNT_THRESHOLD = 5
+TRAINING_MAP = royals.maps.FantasyThemePark1
+MOB_COUNT_THRESHOLD = 6
 
 DETECTION_CONFIG_SECTION = "Elephant Cape"
 CLIENT_SIZE = "large"
