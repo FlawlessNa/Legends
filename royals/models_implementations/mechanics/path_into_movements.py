@@ -51,7 +51,6 @@ def _debug(
     cv2.imshow("_DEBUG_ Mode - PathFinding", path_img)
     cv2.waitKey(1)
 
-
 @lru_cache(maxsize=None)
 def get_to_target(
     current: tuple[int, int],
