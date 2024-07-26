@@ -16,6 +16,7 @@ from royals.models_implementations.minimaps import (
     MuddyBanks2Minimap,
     TrendZoneMetropolisMinimap,
     FantasyThemePark1Minimap,
+    KampungVillageMinimap,
 )
 # from royals.maps import PathOfTime1
 from royals.interface import AbilityMenu, CharacterStats, InventoryMenu
@@ -35,9 +36,9 @@ HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 
 if __name__ == "__main__":
     bishop = Bishop("WrongDoor", "Elephant Cape", "large")
-    minimap = FantasyThemePark1Minimap()
+    minimap = KampungVillageMinimap()
     minimap.generate_grid_template(allow_teleport=True)
-    target = minimap.door_spot[0]
+    # target = minimap.door_spot[0]
     import random
     area_box = minimap.get_map_area_box(HANDLE)
     while True:
@@ -45,15 +46,15 @@ if __name__ == "__main__":
         # print('Area Box', area_box.width, area_box.height)
         npc_pos = minimap.get_character_positions(HANDLE, map_area_box=area_box)
         get_to_target(
-            npc_pos.pop(),
-            (int(minimap.safe_spot.center[0]), int(minimap.safe_spot.center[1])),
+            npc_pos[0],
+            minimap.door_spot,
             minimap,
             HANDLE,
             'alt',
             teleport_skill=bishop.skills['Teleport'],
             ign='WrongDoor'
         )
-        # print('Char Pos', npc_pos)
+        print('Char Pos', npc_pos)
     #
     # start = time.time()
     # initial_list = ludi.get_character_positions(

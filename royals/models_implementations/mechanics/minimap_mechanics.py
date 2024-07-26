@@ -170,10 +170,14 @@ class MinimapGrid(Grid):
                 MinimapConnection.TELEPORT_DOWN,
                 MinimapConnection.TELEPORT_LEFT,
                 MinimapConnection.TELEPORT_RIGHT,
-                MinimapConnection.PORTAL,
             ]:
                 dx = abs(node_a.x - node_b.x)
                 ng += dx
+            else:
+                dx = abs(node_a.x - node_b.x)
+                ng += dx / 2
+            if conn_type == MinimapConnection.PORTAL:
+                ng = 0
         return ng
 
     def neighbors(
@@ -253,6 +257,13 @@ class MinimapFeature(Box):
         assert (
             self.width == 0 or self.height == 0 or self.is_irregular
         ), "Minimap Features should be 1-dimensional or explicitly declared irregular"
+
+    def random(self) -> tuple[int, int]:
+        """
+        Returns a random point inside the box.
+        :return:
+        """
+        return random.choice(list(self))
 
     @property
     def is_platform(self) -> bool:

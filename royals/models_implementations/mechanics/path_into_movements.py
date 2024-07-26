@@ -1,9 +1,11 @@
+import time
+
 import cv2
 import itertools
 import logging
 
 import numpy as np
-from functools import partial
+from functools import partial, lru_cache
 from pathfinding.finder.a_star import AStarFinder
 
 from botting import PARENT_LOG
@@ -50,6 +52,7 @@ def _debug(
     cv2.waitKey(1)
 
 
+@lru_cache(maxsize=None)
 def get_to_target(
     current: tuple[int, int],
     target: tuple[int, int],
@@ -75,9 +78,7 @@ def get_to_target(
     :return: List of partial where each partial represents a given movement.
     """
     path = _get_path_to_target(current, target, in_game_minimap)
-    # breakpoint()
     movements = _translate_path_into_movements(path, in_game_minimap)
-    print(movements)
     if movements:
         if (
             movements[0] == ("down", 1)
@@ -113,7 +114,7 @@ def _get_path_to_target(
      for all existing features.
     :return: A series of MinimapNodes that consist of the path to take to reach target.
     """
-
+    start_time = time.time()
     grid = in_game_minimap.grid
     start = grid.node(int(current[0]), int(current[1]))
     end = grid.node(target[0], target[1])
@@ -150,6 +151,7 @@ def _get_path_to_target(
 
     if DEBUG:
         _debug(in_game_minimap, start, end, best_path)
+    print(f"Time to find path {current} -> {target}: {time.time() - start_time}")
     return best_path
 
 

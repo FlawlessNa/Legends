@@ -2,6 +2,7 @@ from .budhha_minimap import BuddhaMinimap
 from .fantasy_theme_park_1 import FantasyThemePark1Minimap
 from .ludibrium import LudibriumMinimap
 from .ludi_free_market_template import LudiFreeMarketTemplateMinimap
+from .kampung_village import KampungVillageMinimap
 from .kerning_line1_area1 import KerningLine1Area1Minimap
 from .kerning_line1_area2 import KerningLine1Area2Minimap
 from .muddy_banks_2 import MuddyBanks2Minimap

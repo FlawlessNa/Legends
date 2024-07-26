@@ -12,7 +12,7 @@ from royals.maps import LudiFreeMarket, PathOfTime1, MuddyBanks2, FantasyThemePa
 
 
 IGN = "WrongDoor"
-GENERATOR = TelecastRotationGenerator
+GENERATOR = InventoryManager
 CURRENT_MAP = FantasyThemePark1
 HANDLE = client_handler.get_client_handle(IGN, royals_ign_finder)
 DATA_INSTANCE = RoyalsData(

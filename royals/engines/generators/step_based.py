@@ -24,6 +24,7 @@ class StepBasedGenerator(DecisionGenerator, ABC):
         super().__init__(data)
         self._current_step = self._current_step_executed = 0
         self._failsafe_enabled = True
+        self._current_step_limit = 30
 
     @property
     def num_steps(self) -> int:
@@ -63,7 +64,7 @@ class StepBasedGenerator(DecisionGenerator, ABC):
             logger.debug(f"Executing step {self.steps[self.current_step]}")
             res = self.steps[self.current_step]()
             self._current_step_executed += 1
-            if self._current_step_executed >= 30:
+            if self._current_step_executed >= self._current_step_limit:
                 raise ValueError(
                     f"{self} executed {self.steps[self.current_step]} too many times."
                 )

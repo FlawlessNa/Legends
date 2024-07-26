@@ -1,3 +1,4 @@
+import random
 from royals.models_implementations.mechanics import (
 	MinimapFeature,
 	MinimapConnection,
@@ -10,16 +11,32 @@ class FantasyThemePark1Minimap(MinimapPathingMechanics):
 	map_area_height = 111
 	minimap_speed = 10
 
-	jump_height: int = 8
-	jump_distance: int = 9
-
+	jump_height: int = 5
+	jump_distance: int = 6
+	jump_down_limit = 35
 	teleport_h_dist = 9
-	teleport_v_up_dist = 9
+	teleport_v_up_dist = 7
 	teleport_v_down_dist = 15
 
 	@property
+	def central_node(self) -> tuple[int, int]:
+		return int(self.safe_spot.center[0]), int(self.safe_spot.center[1])
+
+	@property
 	def feature_cycle(self) -> list[MinimapFeature]:
-		return []
+		return [
+			self.safe_spot,
+			self.first_platform,
+			self.first_platform,
+			self.second_platform_upper,
+			self.second_platform_slope,
+			random.choice([self.second_platform_upper, self.second_platform_lower]),
+			self.third_platform,
+			self.third_platform,
+			self.fourth_platform_upper,
+			*[self.bottom_platform] * 5,
+			self.rightmost_ramp,
+		]
 
 	top_left_portal_platform: MinimapFeature = MinimapFeature(
 		left=8,
@@ -35,9 +52,8 @@ class FantasyThemePark1Minimap(MinimapPathingMechanics):
 		bottom=34,
 		name='first_platform',
 	)
-	door_spot = list(first_platform)
 	safe_spot: MinimapFeature = MinimapFeature(
-		left=103,
+		left=104,
 		right=120,
 		top=34,
 		bottom=34,
@@ -160,6 +176,7 @@ class FantasyThemePark1Minimap(MinimapPathingMechanics):
 		bottom=92,
 		name='bottom_platform',
 	)
+	door_spot = list(bottom_platform)[40:-40]
 	leftmost_ramp: MinimapFeature = MinimapFeature(
 		left=9,
 		right=16,

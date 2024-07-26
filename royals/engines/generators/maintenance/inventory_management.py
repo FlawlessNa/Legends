@@ -237,6 +237,7 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
 
     def _confirm_in_original_map(self) -> QueueAction | None:
         # Check dimensions
+        time.sleep(2)
         box = self.data.current_minimap.get_map_area_box(self.data.handle)
         if (box.width, box.height) == (
             self.data.current_minimap.map_area_width,
