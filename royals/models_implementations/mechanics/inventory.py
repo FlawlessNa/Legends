@@ -28,11 +28,11 @@ class InventoryChecks:
     """
 
     tabs_offsets = {
-        "Equip": Box(left=130, right=55, top=90, bottom=35, offset=True),
-        "Use": Box(left=174, right=99, top=90, bottom=35, offset=True),
-        "Set-up": Box(left=218, right=143, top=90, bottom=35, offset=True),
-        "Etc": Box(left=262, right=187, top=90, bottom=35, offset=True),
-        "Cash": Box(left=306, right=231, top=90, bottom=35, offset=True),
+        "Equip": Box(left=84, right=55, top=90, bottom=35, offset=True),
+        "Use": Box(left=128, right=99, top=90, bottom=35, offset=True),
+        "Set-up": Box(left=172, right=143, top=90, bottom=35, offset=True),
+        "Etc": Box(left=216, right=187, top=90, bottom=35, offset=True),
+        "Cash": Box(left=260, right=231, top=90, bottom=35, offset=True),
     }
     active_color = np.array([136, 102, 238])
     selected_item_color = np.array([34, 153, 238])
@@ -139,7 +139,7 @@ class InventoryChecks:
 
     def _get_to_door_spot(
         self, nodes: list[tuple[int, int]] | None
-    ) -> QueueAction | None:
+    ) -> QueueAction | None | bool:
         """
         Moves to the door spot.
         # TODO - Might make more sense to take advantage of Rotation generator due to all
@@ -158,15 +158,22 @@ class InventoryChecks:
                 nodes = [self.data.current_minimap_position]
             target = random.choice(nodes)
             setattr(self, "door_target", target)
-            self.generator.block_generators("All", id(self.generator))
+        else:
+            target = getattr(self, "door_target")
+        setattr(self.data, 'next_target', target)
+        self.generator.block_generators("Maintenance", id(self.generator))
+        self.generator.block_generators("AntiDetection", id(self.generator))
+        self._current_step_limit = 2000
 
         if (
-            math.dist(self.data.current_minimap_position, getattr(self, "door_target"))
+            math.dist(self.data.current_minimap_position, target)
             > 4
         ):
-            return InventoryActions.move_to_target(
-                self.generator, getattr(self, "door_target"), "Moving to Door Spot"
-            )
+            return False
+        self._current_step_limit = 30
+        self._current_step_executed = 0
+        self.generator.block_generators("Rotation", id(self.generator))
+        time.sleep(2)
 
     def _use_mystic_door(self) -> QueueAction | None:
         """
@@ -176,14 +183,20 @@ class InventoryChecks:
         :return:
         """
         setattr(self, "door_target", self.data.current_minimap_position)
-        setattr(self, "current_step", getattr(self, "current_step") + 1)
         # Create a connection to (0, 0), which is a void node used to represent town
         minimap = self.data.current_minimap
         minimap.grid.node(*self.data.current_minimap_position).connect(
             minimap.grid.node(0, 0), MinimapConnection.PORTAL
         )
-
-        return InventoryActions.use_mystic_door(self.generator)
+        controller.release_all(self.data.handle)
+        asyncio.run(cast_skill(
+            self.data.handle,
+            self.data.ign,
+            self.data.character.skills["Mystic Door"],
+            self.generator.data.casting_until,
+            single_press=True,
+        ))
+        return None
 
     def _enter_door(self) -> QueueAction | None:
         if self.data.current_minimap_position is not None:

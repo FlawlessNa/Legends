@@ -1,5 +1,7 @@
 from .bubblings import Bubbling
 from .dreamy_ghost import DreamyGhost
+from .froscola import Froscola
+from .jester_scarlion import JesterScarlion
 from .jr_wraith import JrWraith
 from .platoon_chronos import PlatoonChronos
 from .rodeo import Rodeo

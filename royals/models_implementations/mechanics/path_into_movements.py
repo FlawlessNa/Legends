@@ -1,9 +1,11 @@
+import time
+
 import cv2
 import itertools
 import logging
 
 import numpy as np
-from functools import partial
+from functools import partial, lru_cache
 from pathfinding.finder.a_star import AStarFinder
 
 from botting import PARENT_LOG
@@ -49,7 +51,7 @@ def _debug(
     cv2.imshow("_DEBUG_ Mode - PathFinding", path_img)
     cv2.waitKey(1)
 
-
+@lru_cache(maxsize=None)
 def get_to_target(
     current: tuple[int, int],
     target: tuple[int, int],
@@ -111,16 +113,45 @@ def _get_path_to_target(
      for all existing features.
     :return: A series of MinimapNodes that consist of the path to take to reach target.
     """
+    start_time = time.time()
     grid = in_game_minimap.grid
     start = grid.node(int(current[0]), int(current[1]))
     end = grid.node(target[0], target[1])
     finder = AStarFinder()
-    path, runs = finder.find_path(start, end, grid)
+
+    # Find direct path
+    direct_path, runs = finder.find_path(start, end, grid)
+    min_cost = end.f
+    best_path = direct_path
     grid.cleanup()
 
+    # Find portal path(s)
+    for portal_start, portal_end in grid.portals.items():
+        indirect_start = grid.node(*portal_start)
+        indirect_end = grid.node(*portal_end)
+
+        path_to_portal, _ = finder.find_path(start, indirect_start, grid)
+        if not path_to_portal:
+            grid.cleanup()
+            continue
+        cost = indirect_start.f
+        grid.cleanup()
+
+        path_from_portal, runs = finder.find_path(indirect_end, end, grid)
+        if not path_from_portal:
+            grid.cleanup()
+            continue
+        cost += end.f
+        grid.cleanup()
+
+        if cost < min_cost:
+            min_cost = cost
+            best_path = path_to_portal + path_from_portal
+
     if DEBUG:
-        _debug(in_game_minimap, start, end, path)
-    return path
+        _debug(in_game_minimap, start, end, best_path)
+    print(f"Time to find path {current} -> {target}: {time.time() - start_time}")
+    return best_path
 
 
 def _translate_path_into_movements(

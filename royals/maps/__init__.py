@@ -4,7 +4,9 @@ to other maps.
 """
 from .base import RoyalsMap
 from .buddha_encounter import EncounterWithTheBuddha
+from .fantasy_theme_park_1 import FantasyThemePark1
 from .free_market import LudiFreeMarket
+from .kampung_village import KampungVillage
 from .line_1_area_1 import Line1Area1
 from .line_1_area_2 import Line1Area2
 from .ludibrium import Ludibrium
