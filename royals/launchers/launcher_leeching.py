@@ -17,7 +17,7 @@ import royals.parsers
 
 LEECHER_IGN = "WrongDoor"
 LEECHER_CLASS = royals.characters.Bishop
-LEECHER_BUFFS_TO_USE = ['Magic Guard', 'Invincible']
+LEECHER_BUFFS_TO_USE = ['Invincible']
 LEECHER_NUM_PETS = 3
 BUFFS_TO_SYNCHRONIZE = [
     "Holy Symbol",
