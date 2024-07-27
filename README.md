@@ -1,19 +1,22 @@
 # Royals-V2
 
 # Todo before all the rest below
-- [ ] Idea to test: For re-buffing, try converting each buff icon into binary and save those. Then, use as kernels instead of matchTemplate.
 - [ ] Recycle performance-improvements for all components already finished and merge onto dev
 - [ ] Finish core refactoring of performance-improvements
-- [ ] Flexible map movements, speed, jumps, etc.
-- [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
 
 ## Bug Fixes (Current Branch)
 - [ ] Minimap handling between CheckStillInMap and InventoryManager
 - [ ] Cancellation of NPC Selling seems to be problematic because it has a return value
 - [ ] Party Re-buff is broken (casts way too much), for casting non-attack skill (since there's a rebuff validation), can simply cast once.
+  - Idea to test: For re-buffing, try converting each buff icon into binary and save those. Then, use as kernels instead of matchTemplate.
   - Split into individual buffs and only re-cast buffs that didn't go through
 
 ## Performance Branch
+- [ ] Implement unit tests - use mocking such that test can run without the game environment
+- [ ] Cache a CustomAFinder.find_path instead of get_to_target (or both). Will help with indirect paths caching as well
+- [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases 
+- [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
+- [ ] Flexible map movements, speed, jumps, etc.
 - [ ] Major Refactoring of Generators - needs to be easier to implement.
   - Idea: For more complex (multi-step) Generators, launch an infinite "idle" task that blocks other tasks from scheduling except those from same generator. Cancel that idle task when generator is done.
 - [ ] Add logging everywhere -> use level 0 to disable thru a CONSTANT for each relevant script
@@ -22,7 +25,6 @@
   - Engine now groups those "Client" and runs then asynchronously.
   - Need to have multiple instances of EngineData for 1 engine (1 instance per client)
   - Blockers/Unblockers need to work for each client individually
-- [ ] Ability to only retrieve first action in pathfinding parser instead of entire actions
 - [ ] Look into leveraging psutil for performance monitoring of CPU resources by client/process
   - Also look into managing the Manager Process since it is a new feature that needs to spawn a process
 - [ ] Look into using Profilers (cProfile, line_profiler) to identify bottlenecks in the code

@@ -10,7 +10,6 @@ import os
 import pytesseract
 import time
 
-# from .core import SessionManager, Executor, EngineData
 from paths import ROOT, TESSERACT
 
 PARENT_LOG = __name__
@@ -50,7 +49,10 @@ if current_process.name == "MainProcess":
             return super().format(record)
 
     formatter = CustomFormatter(
-        fmt="{levelname} -- PROCESS {processName} -- MODULE {name} -- {asctime}:::{message}",
+        fmt=(
+            "{levelname} -- PROCESS {processName} -- MODULE {name} -- "
+            "{asctime}:::{message}"
+        ),
         style="{",
         datefmt="%Y.%m.%d. %H:%M:%S",
     )  # TODO - If you ever switch to 3.12, then add TASK %(taskName)s to the formatter

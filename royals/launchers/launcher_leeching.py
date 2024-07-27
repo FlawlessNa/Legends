@@ -44,7 +44,7 @@ DISCORD_PARSER = royals.parsers.single_bot_parser  # TODO - Change to multi_bot_
 async def main(*bots: botting.Executor) -> None:
     botting.Executor.update_discord_parser(DISCORD_PARSER)
     with botting.SessionManager(*bots) as session:
-        await session.launch()
+        await session.start()
 
 
 if __name__ == "__main__":

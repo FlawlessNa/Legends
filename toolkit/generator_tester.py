@@ -69,7 +69,7 @@ class MockEngine(DecisionEngine):
 
 async def main(*bots: Executor) -> None:
     with SessionManager(*bots) as session:
-        await session.launch()
+        await session.start()
 
 
 if __name__ == "__main__":

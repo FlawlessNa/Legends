@@ -34,7 +34,7 @@ class SessionManager:
         self.metadata = self.manager.dict()
         # Add the logging queue to the metadata for convenience.
         self.metadata["Logging Queue"] = self.manager.Queue()
-        self.metadata["Blockers"] = dict()
+        # self.metadata["Blockers"] = dict()
 
         self.peripherals = PeripheralsProcess(
             self.metadata["Logging Queue"], discord_parser
@@ -50,6 +50,7 @@ class SessionManager:
         self.engines: list[multiprocessing.Process] = []
         self.listeners: list[asyncio.Task] = []
         self.discord_listener: asyncio.Task | None = None
+        self.main_bot = None
 
     def __enter__(self) -> Self:
         """
@@ -90,7 +91,14 @@ class SessionManager:
             breakpoint()
 
     async def launch(self, *grouped_bots: list[Bot]) -> None:
-        for group in grouped_bots:
+        """
+        Launch all bots. The "Main" bot is ALWAYS set to the first bot within first group
+        :param grouped_bots: Each group is launched in a single Engine.
+        :return:
+        """
+        for idx, group in enumerate(grouped_bots):
+            if idx == 0:
+                self.main_bot = group[0]
             engine_side, listener_side = multiprocessing.Pipe()
             engine_proc = Engine.start(engine_side, self.metadata, group)
             engine_listener = Engine.listener(
@@ -117,16 +125,16 @@ class SessionManager:
     def _kill_all_engines(self) -> None:
         raise NotImplementedError
 
-    async def _launch_all_listeners(self) -> None:
-        """
-        Launch all Engine Listeners and the Discord Listener.
-        :return:
-        """
-        logger.info(f"Launching {len(self.listeners)} Engine Listeners.")
-        try:
-            async with asyncio.TaskGroup() as tg:
-                for listener in self.listeners:
-                    listener.task = tg.create_task(listener, name=repr(listener))
-                    logger.info(f"Created task {listener.task.get_name()}.")
-        finally:
-            logger.info("All bots have been stopped. Session is about to exit.")
+    # async def _launch_all_listeners(self) -> None:
+    #     """
+    #     Launch all Engine Listeners and the Discord Listener.
+    #     :return:
+    #     """
+    #     logger.info(f"Launching {len(self.listeners)} Engine Listeners.")
+    #     try:
+    #         async with asyncio.TaskGroup() as tg:
+    #             for listener in self.listeners:
+    #                 listener.task = tg.create_task(listener, name=repr(listener))
+    #                 logger.info(f"Created task {listener.task.get_name()}.")
+    #     finally:
+    #         logger.info("All bots have been stopped. Session is about to exit.")

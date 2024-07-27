@@ -11,12 +11,13 @@ from functools import cached_property
 from botting.utilities import config_reader
 
 logger = logging.getLogger(__name__)
+LOG_LEVEL = logging.DEBUG
 
 
 class DiscordIO(discord.Client):
     """
     Establishes communication with Discord,
-     while maintaining the end of a Pipe object to communicate with the main process.
+    while maintaining the end of a Pipe object to communicate with the main process.
     """
 
     def __init__(

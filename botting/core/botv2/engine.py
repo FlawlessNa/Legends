@@ -25,6 +25,7 @@ class _ChildProcessEngine:
         self.pipe = pipe
         self.metadata = metadata
         self.bots = bots
+        self.bot_tasks = []
 
     def __repr__(self):
         return f"{self.__class__.__name__}({', '.join([b.ign for b in self.bots])})"
@@ -48,24 +49,21 @@ class _ChildProcessEngine:
         setup_child_proc_logging(metadata["Logging Queue"])
         engine = cls(pipe, metadata, bots)
         logger.info(f"{engine} Started.")
-        engine._cycle_forever()
+        asyncio.run(engine._cycle_forever())
 
-    def _cycle_forever(self) -> None:
+    async def _cycle_forever(self) -> None:
         """
         Called within Child Process.
-        Cycles through all Bots, calling their DecisionMakers one at a time.
+        Launches the DecisionMakers of all Bots.
         :return:
         """
         try:
-            import time
-            start = time.time()
-            while True:
-                if time.time() - start > 5:
-                    break
-                self._poll_for_updates()
-
-                for bot in self.bots:
-                    self._iterate_once(bot)
+            for bot in self.bots:
+                bot.child_init()
+                self.bot_tasks.append(
+                    asyncio.create_task(bot.start(), name=f"{bot.ign} - Engine")
+                )
+            await asyncio.gather(*self.bot_tasks)
 
         except SystemExit:
             pass
@@ -80,30 +78,30 @@ class _ChildProcessEngine:
                 self.pipe.close()
             logger.info(f"{self} Exited.")
 
-    def _poll_for_updates(self) -> None:
-        """
-        Parses the pipe for any updates to one BotData instance.
-        :return:
-        """
-        while self.pipe.poll():
-            data_updater: UpdateRequest = self.pipe.recv()
-            if data_updater is None:
-                logger.info(f"{self} received None from MainProcess. Exiting.")
-                raise SystemExit(f"{self} received None from MainProcess. Exiting")
+    # def _poll_for_updates(self) -> None:
+    #     """
+    #     Parses the pipe for any updates to one BotData instance.
+    #     :return:
+    #     """
+    #     while self.pipe.poll():
+    #         data_updater: UpdateRequest = self.pipe.recv()
+    #         if data_updater is None:
+    #             logger.info(f"{self} received None from MainProcess. Exiting.")
+    #             raise SystemExit(f"{self} received None from MainProcess. Exiting")
+    #
+    #         assert isinstance(data_updater, UpdateRequest), "Invalid signal type"
+    #         # TODO - Update BotData
 
-            assert isinstance(data_updater, UpdateRequest), "Invalid signal type"
-            # TODO - Update BotData
-
-    def _iterate_once(self, bot: Bot) -> None:
-        """
-        Calls the DecisionMakers of a single Bot instance.
-        :param bot:
-        :return:
-        """
-        for decision_maker in bot.decision_makers:
-            request: ActionRequest = decision_maker()
-            if request is not None:
-                self.pipe.send(request)
+    # def _iterate_once(self, bot: Bot) -> None:
+    #     """
+    #     Calls the DecisionMakers of a single Bot instance.
+    #     :param bot:
+    #     :return:
+    #     """
+    #     for decision_maker in bot.decision_makers:
+    #         request: ActionRequest = decision_maker()
+    #         if request is not None:
+    #             self.pipe.send(request)
 
     # def _exit(self) -> None:
     #     """

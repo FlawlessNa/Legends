@@ -36,7 +36,7 @@ ANTI_DETECTION_TIME_THRESHOLD = 10
 async def main(*bots: botting.Executor) -> None:
     botting.Executor.update_discord_parser(DISCORD_PARSER)
     with botting.SessionManager(*bots) as session:
-        await session.launch()
+        await session.start()
 
 
 if __name__ == "__main__":
