@@ -122,6 +122,10 @@ class SessionManager:
         if t_done.exception():
             raise t_done.exception()
 
+        for engine in self.engines:
+            engine.join()
+        logger.info("All bots have been stopped. Session is about to exit.")
+
     def _kill_all_engines(self) -> None:
         raise NotImplementedError
 

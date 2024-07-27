@@ -7,10 +7,11 @@ from typing import Literal
 from .bot_data import BotData
 
 logger = logging.getLogger(__name__)
+LOG_LEVEL = logging.INFO
 
 
-class SkipCall(Exception):
-    pass
+# class SkipCall(Exception):
+#     pass
 
 
 class DecisionMaker(ABC):
@@ -23,7 +24,7 @@ class DecisionMaker(ABC):
     """
     _throttle: float = None
     _type: Literal["Rotation", "AntiDetection", "Maintenance"]
-    skip = SkipCall
+    # skip = SkipCall
 
     def __init__(
         self, metadata: multiprocessing.managers.DictProxy, data: BotData
@@ -43,16 +44,15 @@ class DecisionMaker(ABC):
         pass
 
     async def start(self) -> None:
-        while True:
-            try:
+        logger.log(LOG_LEVEL, f"{self} started for {self.data.ign}.")
+        try:
+            while True:
                 await self._decide()
                 if self._throttle:
                     await asyncio.sleep(self._throttle)
-            except SkipCall:
-                continue
-            except Exception as e:
-                logger.error(f"Exception occurred in {self}.")
-                raise
+        except Exception as e:
+            logger.error(f"Exception occurred in {self}.")
+            raise
 
     # @property
     # def blocked(self) -> bool:

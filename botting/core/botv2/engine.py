@@ -8,6 +8,7 @@ from .bot import Bot
 from .action_data import ActionRequest, UpdateRequest
 
 logger = logging.getLogger(__name__)
+LOG_LEVEL = logging.NOTSET
 
 
 class _ChildProcessEngine:
@@ -61,9 +62,10 @@ class _ChildProcessEngine:
             for bot in self.bots:
                 bot.child_init()
                 self.bot_tasks.append(
-                    asyncio.create_task(bot.start(), name=f"{bot.ign} - Engine")
+                    asyncio.create_task(bot.start(), name=f"Bot({bot.ign})")
                 )
             await asyncio.gather(*self.bot_tasks)
+            logger.log(LOG_LEVEL, f"{self} gathered all tasks.")
 
         except SystemExit:
             pass
@@ -74,8 +76,8 @@ class _ChildProcessEngine:
 
         finally:
             if not self.pipe.closed:
+                logger.info(f"{self} is sending None and closing pipe")
                 self.pipe.send(None)
-                self.pipe.close()
             logger.info(f"{self} Exited.")
 
     # def _poll_for_updates(self) -> None:
@@ -149,7 +151,7 @@ class Engine(_ChildProcessEngine):
         assert multiprocessing.current_process().name == "MainProcess"
         process = multiprocessing.Process(
             target=cls._spawn_engine,
-            name=f"Engine[{', '.join([b.ign for b in bots])}]",
+            name=f"Engine({', '.join([b.ign for b in bots])})",
             args=(pipe, metadata, bots),
         )
         process.start()
@@ -224,8 +226,8 @@ class Engine(_ChildProcessEngine):
 
             finally:
                 if not pipe.closed:
+                    logger.info(f"Sending None from {engine.name} listener")
                     pipe.send(None)
-                    pipe.close()
                 queue.put_nowait(None)
 
-        return asyncio.create_task(_coro(), name=f"{engine.name} Listener")
+        return asyncio.create_task(_coro(), name=f"Listener({engine.name})")
