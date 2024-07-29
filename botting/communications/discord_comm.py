@@ -47,7 +47,9 @@ class DiscordIO(discord.Client):
         """
         Callback function triggered by discord.Client when connection is established.
         """
-        logger.info(f"Discord Communication Established with {self.user}.")
+        msg = f"Discord Communication Established with {self.user}."
+        logger.info(msg)
+        await self.get_channel(self.chat_id).send(msg)
 
     async def on_message(self, msg: discord.Message) -> None:
         """
