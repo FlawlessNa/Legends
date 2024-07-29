@@ -12,6 +12,7 @@
   - Split into individual buffs and only re-cast buffs that didn't go through
 
 ## Performance Branch
+- [ ] Complete implementation of discord parser + unit tests
 - [ ] DecisionMaker create unique identifiers of callback functions to be called by the engine when it receives the identifier from the pipe.
 - [ ] Implement unit tests - use mocking such that test can run without the game environment
 - [ ] Cache a CustomAFinder.find_path instead of get_to_target (or both). Will help with indirect paths caching as well

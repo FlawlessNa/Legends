@@ -8,6 +8,7 @@ from typing import Self
 from .bot import Bot
 from .engine import Engine
 from .peripherals_process import PeripheralsProcess
+from botting.communications import BaseParser
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class SessionManager:
     - TaskManager
     """
 
-    def __init__(self, discord_parser: callable) -> None:
+    def __init__(self, discord_parser: type[BaseParser]) -> None:
         """
         Creates all necessary objects to start a new Session.
         :param discord_parser: A callable that parses discord message and returns

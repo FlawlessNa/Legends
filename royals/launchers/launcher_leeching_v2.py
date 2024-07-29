@@ -1,14 +1,11 @@
 import asyncio
 from botting.core.botv2.session_manager import SessionManager
 import royals.bots as bots
-
-
-def _fake_parser():
-    pass
+import royals.parsers
 
 
 async def main():
-    with SessionManager(_fake_parser) as session:
+    with SessionManager(royals.parsers.RoyalsParser) as session:
         leecher = bots.LeechingBot('WrongDoor', session.metadata)
         # mule1 = bots.TestBot('UluLoot', session.metadata)
         # mule2 = bots.TestBot('FinancialWiz', session.metadata)
