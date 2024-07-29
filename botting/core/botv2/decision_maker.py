@@ -43,6 +43,7 @@ class DecisionMaker(ABC):
         logger.log(LOG_LEVEL, f"{self} started.")
         try:
             while True:
+                logger.log(LOG_LEVEL, f"{self} is deciding.")
                 await self._decide()
                 if self._throttle:
                     await asyncio.sleep(self._throttle)

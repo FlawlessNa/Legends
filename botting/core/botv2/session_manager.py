@@ -88,7 +88,7 @@ class SessionManager:
 
         if exc_type is not None:
             # Normally, each Engine should handle their own clean-up.
-            # However, EngineListeners may not be able to handle their own clean-up??
+            # However, Listeners may not be able to handle their own clean-up??
             breakpoint()
 
     async def launch(self, *grouped_bots: list[Bot]) -> None:
@@ -112,7 +112,7 @@ class SessionManager:
             self.listeners.append(engine_listener)
 
         t_done, t_pending = await asyncio.wait(
-            self.listeners, return_when=asyncio.FIRST_COMPLETED
+            self.listeners + [self.discord_listener], return_when=asyncio.FIRST_COMPLETED
         )
         t_done = t_done.pop()
 

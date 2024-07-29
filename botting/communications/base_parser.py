@@ -2,8 +2,9 @@ import argparse
 import logging
 import multiprocessing.connection
 
-from enum import Enum
 from abc import ABC, abstractmethod
+from enum import Enum
+from functools import cached_property
 from botting.core.botv2.action_data import ActionRequest
 
 logger = logging.getLogger(__name__)
@@ -19,9 +20,6 @@ class Actions(Enum):
 
 class BaseParser(ABC):
     """
-    # TODO - Implement Discord confirmation and/or error message from user-input.
-     (EG: if input is wrong, send a discord message to inform user. If input is correct,
-     send confirmation to user).
     Implements basic to interpret discord messages received by the user.
     User messages should have the general format:
     <ACTION> --ign <IGN> (optional) --args <ARGS> (varies based on ACTION)
@@ -33,35 +31,39 @@ class BaseParser(ABC):
     WRITE --ign IgnFromABot --m Message to write
     """
     action_choices = [action.value for action in Actions]
-    action_choices.extend(action.lower() for action in action_choices)
-    action_choices.extend(action.title() for action in action_choices)
+    action_choices.extend(action.value.lower() for action in Actions)
+    action_choices.extend(action.value.title() for action in Actions)
 
     def __init__(self, pipe: multiprocessing.connection.Connection) -> None:
         self.pipe = pipe
-        self.parser = argparse.ArgumentParser(
+
+    @cached_property
+    def parser(self) -> argparse.ArgumentParser:
+        parser = argparse.ArgumentParser(
             description='Parse messages from discord user.',
             exit_on_error=False
         )
-        self.parser.add_argument(
+        parser.add_argument(
             'action',
             type=str,
             help='The action to perform.',
             choices=self.action_choices,
         )
-        self.parser.add_argument(
+        parser.add_argument(
             '--ign',
             type=str,
             help='The IGN of the bot to perform the action on.',
             required=False,
             nargs='+'
         )
-        self.parser.add_argument(
+        parser.add_argument(
             '-m', '--message',
             type=str,
             help='The message to write.',
             nargs='+',
             required=False,
         )
+        return parser
 
     def parse_message(self, message: str) -> ActionRequest | None:
         """
@@ -69,7 +71,14 @@ class BaseParser(ABC):
         :param message: The message to parse.
         :return: TBD.
         """
-        args = self.parser.parse_args(message.split())
+        try:
+            args = self.parser.parse_args(message.split())
+        except argparse.ArgumentError as e:
+            self.pipe.send(f'{e}')
+            return
+        except Exception as e:
+            raise
+
         action = args.action.upper()
 
         if action == 'KILL':

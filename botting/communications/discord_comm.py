@@ -96,6 +96,9 @@ class DiscordIO(discord.Client):
                 if await asyncio.to_thread(self.pipe.poll):
                     signal = self.pipe.recv()
                     if signal is None:
+                        await self.get_channel(self.chat_id).send(
+                            f"Discord Communication Stopped with {self.user}"
+                        )
                         logger.info("Stopping Discord Communications.")
                         break
                     else:

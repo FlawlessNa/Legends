@@ -57,8 +57,6 @@ class PeripheralsProcess:
 
     async def peripherals_listener(self, async_queue: asyncio.Queue) -> None:
         """
-        TODO - Refactor to make it work with multiple executors simultaneously.
-        TODO - Requires improved parsing.
         Main Process task.
         Responsible for listening to the Peripherals discord pipe and see if any actions
         are requested by discord user.
