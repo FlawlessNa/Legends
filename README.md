@@ -12,10 +12,12 @@
   - Split into individual buffs and only re-cast buffs that didn't go through
 
 ## Performance Branch
+- [ ] DecisionMaker create unique identifiers of callback functions to be called by the engine when it receives the identifier from the pipe.
 - [ ] Implement unit tests - use mocking such that test can run without the game environment
 - [ ] Cache a CustomAFinder.find_path instead of get_to_target (or both). Will help with indirect paths caching as well
 - [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases 
 - [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
+- [ ] Create royals.models package to hold all modelling related to the game itself (maps, characters, minimaps, etc)
 - [ ] Flexible map movements, speed, jumps, etc.
 - [ ] Major Refactoring of Generators - needs to be easier to implement.
   - Idea: For more complex (multi-step) Generators, launch an infinite "idle" task that blocks other tasks from scheduling except those from same generator. Cancel that idle task when generator is done.

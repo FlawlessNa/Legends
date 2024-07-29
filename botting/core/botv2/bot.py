@@ -1,4 +1,5 @@
 import asyncio
+import multiprocessing.connection
 import multiprocessing.managers
 from abc import ABC, abstractmethod
 from functools import cached_property
@@ -21,15 +22,14 @@ class Bot(ABC):
         self.ign = ign
         self.data = None
         self.metadata = metadata
-        # self.metadata["Blockers"][ign] = {
-        #     val: dict() for val in DecisionMaker.__annotations__["_type"].__args__
-        # }
+        self.pipe = None
 
-    def child_init(self) -> None:
+    def child_init(self, pipe: multiprocessing.connection.Connection) -> None:
         """
         Called by the Engine to create Bot within Child process.
         """
         self.data = BotData(self.ign)
+        self.pipe = pipe
 
     async def start(self) -> None:
         """
@@ -43,10 +43,18 @@ class Bot(ABC):
                 )
 
     @cached_property
-    @abstractmethod
     def decision_makers(self) -> list[DecisionMaker]:
         """
         A list of DecisionMakers that are used to make decisions for this Bot.
         :return:
         """
+        assert self.data is not None
+        assert self.pipe is not None
+        return [  # TODO - Add **kwargs to instances
+            class_(self.metadata, self.data, self.pipe)
+            for class_ in self._decision_makers()
+        ]
+
+    @abstractmethod
+    def _decision_makers(self) -> list[type[DecisionMaker]]:
         pass

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import multiprocessing.connection
 import multiprocessing.managers
 from abc import ABC, abstractmethod
 from typing import Literal
@@ -8,10 +9,6 @@ from .bot_data import BotData
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = logging.INFO
-
-
-# class SkipCall(Exception):
-#     pass
 
 
 class DecisionMaker(ABC):
@@ -24,27 +21,26 @@ class DecisionMaker(ABC):
     """
     _throttle: float = None
     _type: Literal["Rotation", "AntiDetection", "Maintenance"]
-    # skip = SkipCall
 
     def __init__(
-        self, metadata: multiprocessing.managers.DictProxy, data: BotData
+        self,
+        metadata: multiprocessing.managers.DictProxy,
+        data: BotData,
+        pipe: multiprocessing.connection.Connection,
     ) -> None:
         self.metadata = metadata
         self.data = data
-        # self.metadata["Blockers"][self.data.ign][self._type][id(self)] = 0
-        # self._blocked_at = None
-        # self._previously_blocked = False
+        self.pipe = pipe
 
-    @abstractmethod
     def __repr__(self) -> str:
-        pass
+        return f'{self.__class__.__name__}({self.data.ign})'
 
     @abstractmethod
     async def _decide(self) -> None:
         pass
 
     async def start(self) -> None:
-        logger.log(LOG_LEVEL, f"{self} started for {self.data.ign}.")
+        logger.log(LOG_LEVEL, f"{self} started.")
         try:
             while True:
                 await self._decide()

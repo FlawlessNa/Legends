@@ -60,7 +60,7 @@ class _ChildProcessEngine:
         """
         try:
             for bot in self.bots:
-                bot.child_init()
+                bot.child_init(self.pipe)
                 self.bot_tasks.append(
                     asyncio.create_task(bot.start(), name=f"Bot({bot.ign})")
                 )
