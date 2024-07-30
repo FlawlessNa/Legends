@@ -34,17 +34,17 @@ class SessionManager:
         # Create a Manager Process to share data between processes.
         self.process_manager = multiprocessing.Manager()
         self.task_manager = AsyncTaskManager()
-        self.metadata = self.process_manager.dict()
-        # Add the logging queue to the metadata for convenience.
-        self.metadata["Logging Queue"] = self.process_manager.Queue()
-        # self.metadata["Blockers"] = dict()
+        self.metadata = self.process_manager.dict(
+            logging_queue=self.process_manager.Queue(),
+            proxy_request=self.process_manager.Event()
+        )
 
         self.peripherals = PeripheralsProcess(
-            self.metadata["Logging Queue"], discord_parser
+            self.metadata["logging_queue"], discord_parser
         )
 
         self.log_receiver = logging.handlers.QueueListener(
-            self.metadata["Logging Queue"],
+            self.metadata["logging_queue"],
             *logger.parent.handlers,
             respect_handler_level=True,
         )
@@ -101,9 +101,10 @@ class SessionManager:
         :param grouped_bots: Each group is launched in a single Engine.
         :return:
         """
-        for idx, group in enumerate(grouped_bots):
-            if idx == 0:
-                self.main_bot = group[0]
+        self.main_bot = grouped_bots[0][0]
+        for group in grouped_bots:
+            # if idx == 0:
+            #     self.main_bot = group[0]
             engine_side, listener_side = multiprocessing.Pipe()
             engine_proc = Engine.start(engine_side, self.metadata, group)
             engine_listener = Engine.listener(

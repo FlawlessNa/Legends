@@ -1,5 +1,5 @@
 from dataclasses import field, dataclass
-from typing import Awaitable
+from typing import Coroutine
 
 
 @dataclass
@@ -15,9 +15,10 @@ class ActionRequest:
     task management.
     """
 
+    procedure: Coroutine
     identifier: str
-    procedure: Awaitable
+    priority: int
     requeue_if_not_scheduled: bool = field(default=True)
     cancellable_by_self: bool = field(default=True)
     cancellable_by_others: bool = field(default=True)
-    callback_id: str = field(default=None)
+    callback: callable = field(default=None)

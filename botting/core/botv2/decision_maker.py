@@ -37,6 +37,31 @@ class DecisionMaker(ABC):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.data.ign})"
 
+    @staticmethod
+    def request_proxy(
+        metadata: multiprocessing.managers.DictProxy,
+        requester: str,
+        primitive_type: str,
+        *args,
+        **kwargs
+    ):
+        """
+        Creates a Proxy for a primitive type.
+        :param metadata: An EventProxy object that is set to notify the Manager of the
+        request.
+        :param requester: a string representing the requester.
+        :param primitive_type: a string representing the primitive type.
+        :return: a Proxy instance.
+        """
+        notifier = metadata["proxy_request"]
+        while notifier.is_set:
+            # if already set, wait until it is cleared by Manager.
+            pass
+        metadata[requester] = primitive_type, args, kwargs
+        notifier.set()
+        notifier.wait()
+        return metadata.pop(requester)
+
     @abstractmethod
     async def _decide(self) -> None:
         pass
@@ -52,129 +77,3 @@ class DecisionMaker(ABC):
         except Exception as e:
             logger.error(f"Exception occurred in {self}.")
             raise
-
-    # @property
-    # def blocked(self) -> bool:
-    #     """
-    #     Returns True if the DecisionMaker is blocked by any DecisionMaker, including
-    #     itself. Returns False otherwise.
-    #     """
-    #     val = self.metadata["Blockers"][self.data.ign][self._type][id(self)]
-    #     assert val >= 0, f"Blocking counter for {self} is negative."
-    #     return val > 0
-    #
-    # @blocked.setter
-    # def blocked(self, value: bool):
-    #     """
-    #     Used by a DecisionMaker to block/unblock itself.
-    #     :param value: If True, increments blocking counter for this DecisionMaker. Else,
-    #     decrements it.
-    #     :return:
-    #     """
-    #     if value:
-    #         if not self.blocked:
-    #             logger.debug(f"{self} has been blocked.")
-    #
-    #         self.metadata["Blockers"][self.data.ign][self._type][id(self)] += 1
-    #
-    #     else:
-    #         was_blocked = self.blocked
-    #         self.metadata["Blockers"][self.data.ign][self._type][id(self)] -= 1
-    #         if was_blocked and not self.blocked:
-    #             logger.debug(f"{self} has been unblocked.")
-    #
-    # @property
-    # def blocked_at(self) -> float | None:
-    #     """
-    #     Returns the approx. time at which DecisionMaker was blocked, if it is blocked.
-    #     None otherwise.
-    #     """
-    #     if self.blocked:
-    #         if not self._previously_blocked:
-    #             self._blocked_at = time.perf_counter()
-    #         self._previously_blocked = True
-    #     else:
-    #         self._blocked_at = None
-    #         self._previously_blocked = False
-    #     return self._blocked_at
-    #
-    # def block(
-    #     self,
-    #     type_to_block: Literal["Rotation", "AntiDetection", "Maintenance", "All"],
-    #     bot: str = None,
-    # ) -> None:
-    #     """
-    #     Blocks all DecisionMaker of a given type for the specified bot.
-    #     :param type_to_block: The type of DecisionMakers to block.
-    #     :param bot: The bot to block. If None, defaults to the bot containing self.
-    #     :return:
-    #     """
-    #     if type_to_block == "All":
-    #         for type_ in self.metadata["Blockers"][bot]:
-    #             self.block(type_, bot)
-    #     else:
-    #         self._update_blockers(type_to_block, bot, 1)
-    #
-    # def unblock(
-    #     self,
-    #     type_to_unblock: Literal["Rotation", "AntiDetection", "Maintenance", "All"],
-    #     bot: str = None,
-    # ) -> None:
-    #     """
-    #     Unblocks all DecisionMaker of a given type for the specified bot.
-    #     :param type_to_unblock: The type of DecisionMakers to unblock.
-    #     :param bot: The bot to unblock. If None, defaults to the bot containing self.
-    #     :return:
-    #     """
-    #     if type_to_unblock == "All":
-    #         for type_ in self.metadata["Blockers"][bot]:
-    #             self.unblock(type_, bot)
-    #     else:
-    #         self._update_blockers(type_to_unblock, bot, -1)
-    #
-    # def _update_blockers(
-    #     self,
-    #     type_to_block: Literal["Rotation", "AntiDetection", "Maintenance", "All"],
-    #     bot: str,
-    #     increment: int,
-    # ):
-    #     assert increment in (-1, 1), f"Increment must be -1 or 1, not {increment}."
-    #     if bot is None:
-    #         bot = self.data.ign
-    #
-    #     for dm_id in self.metadata["Blockers"][bot][type_to_block]:
-    #         if dm_id == id(self):
-    #             continue
-    #         self.metadata["Blockers"][bot][type_to_block][dm_id] += increment
-
-    # def freeze(self, bots: list[str] | str | None = None) -> None:
-    #     """
-    #     Used by a higher level entity, such as the Bot itself or an Engine, to block
-    #     all DecisionMakers for one or multiple bots.
-    #     :return:
-    #     """
-    #     if isinstance(bots, str):
-    #         for type_to_block in self.metadata["Blockers"][bots]:
-    #             self.block(type_to_block, bots)
-    #     elif isinstance(bots, list):
-    #         for bot in bots:
-    #             self.freeze(bot)
-    #     elif bots is None:
-    #         for bot in self.metadata["Blockers"]:
-    #             self.freeze(bot)
-    #
-
-    # @abstractmethod
-    # def _call(self, *args, **kwargs) -> ActionRequest | None:
-    #     pass
-    #
-    # def __call__(self, *args, **kwargs) -> ActionRequest | None:
-    #     blocked_since = self.blocked_at  # Call only once to prevent sudden status chg
-    #     if blocked_since and time.perf_counter() - blocked_since > 300:
-    #         raise RuntimeError(
-    #             f"{self} has been blocked for more than 5 minutes. Exiting."
-    #         )
-    #     elif blocked_since:  # Means we're still blocked
-    #         return
-    #
-    #     return self._call(*args, **kwargs)

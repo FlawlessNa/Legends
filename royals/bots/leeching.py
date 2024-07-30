@@ -12,6 +12,6 @@ LOG_LEVEL = logging.NOTSET
 class LeechingBot(RoyalsBot):
     def _decision_makers(self) -> list[type[DecisionMaker]]:
         return [
-            decision_makers.TelecastMobsHitting,
+            decision_makers.MobsHitting,
             # decision_makers.TelecastRotation,
         ]

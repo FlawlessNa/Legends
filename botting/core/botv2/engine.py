@@ -26,7 +26,8 @@ class _ChildProcessEngine:
         self.pipe = pipe
         self.metadata = metadata
         self.bots = bots
-        self.bot_tasks = []
+        self.bot_tasks: list[asyncio.Task] = []
+        self.main_listener: asyncio.Task | None = None
 
     def __repr__(self):
         return f"{self.__class__.__name__}({', '.join([b.ign for b in self.bots])})"
@@ -47,7 +48,7 @@ class _ChildProcessEngine:
         :param bots: a list of Bot instances to include.
         :return:
         """
-        setup_child_proc_logging(metadata["Logging Queue"])
+        setup_child_proc_logging(metadata["logging_queue"])
         engine = cls(pipe, metadata, bots)
         logger.info(f"{engine} Started.")
         asyncio.run(engine._cycle_forever())
@@ -64,8 +65,22 @@ class _ChildProcessEngine:
                 self.bot_tasks.append(
                     asyncio.create_task(bot.start(), name=f"Bot({bot.ign})")
                 )
-            await asyncio.gather(*self.bot_tasks)
-            logger.log(LOG_LEVEL, f"{self} gathered all tasks.")
+            self.main_listener = asyncio.create_task(
+                self._poll_for_updates(), name=f"{self} MainListener"
+            )
+            t_done, t_pending = await asyncio.wait(
+                [self.main_listener] + self.bot_tasks,
+                return_when=asyncio.FIRST_COMPLETED
+            )
+            logger.info(f"{self} has finished waiting due to {t_done}.")
+            t_done = t_done.pop()
+
+            for task in t_pending:
+                logger.info(f"{self} Cancelling task {task.get_name()}")
+                task.cancel()
+
+            if t_done.exception():
+                raise t_done.exception()
 
         except SystemExit:
             pass
@@ -80,19 +95,19 @@ class _ChildProcessEngine:
                 self.pipe.send(None)
             logger.info(f"{self} Exited.")
 
-    # def _poll_for_updates(self) -> None:
-    #     """
-    #     Parses the pipe for any updates to one BotData instance.
-    #     :return:
-    #     """
-    #     while self.pipe.poll():
-    #         data_updater: UpdateRequest = self.pipe.recv()
-    #         if data_updater is None:
-    #             logger.info(f"{self} received None from MainProcess. Exiting.")
-    #             raise SystemExit(f"{self} received None from MainProcess. Exiting")
-    #
-    #         assert isinstance(data_updater, UpdateRequest), "Invalid signal type"
-    #         # TODO - Update BotData
+    async def _poll_for_updates(self) -> None:
+        """
+        Parses the pipe for any updates to one BotData instance.
+        :return:
+        """
+        while True:
+            if await asyncio.to_thread(self.pipe.poll):
+                data = self.pipe.recv()
+                if data is None:
+                    logger.info(f"{self} received None from MainProcess. Exiting.")
+                    break
+                else:
+                    breakpoint()  # TODO
 
     # def _iterate_once(self, bot: Bot) -> None:
     #     """

@@ -45,3 +45,6 @@ class RoyalsBot(Bot, ABC):
         self.data.create_attribute(
             "current_minimap", lambda: self.data.current_map.minimap
         )
+        self.data.create_attribute(
+            "current_mobs", lambda: self.data.current_map.mobs
+        )
