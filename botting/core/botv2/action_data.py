@@ -1,4 +1,5 @@
 from dataclasses import field, dataclass
+from typing import Awaitable
 
 
 @dataclass
@@ -13,19 +14,9 @@ class ActionRequest:
     - Any task priority and scheduling attribute, used by Main Process to handle
     task management.
     """
-    bot_id: int
-    generator_id: int
+    identifier: str
+    procedure: Awaitable
     requeue_if_not_scheduled: bool = field(default=True)
     cancellable_by_self: bool = field(default=True)
     cancellable_by_others: bool = field(default=True)
-    update_request: "UpdateRequest" = None
-
-
-@dataclass
-class UpdateRequest:
-    """
-    A data container sent by the Main process to any Engine process after an
-    ActionRequest has completed its execution.
-    Used to update BotData attributes in the Engine process once the action is complete.
-    """
-    bot_id: int
+    callback_id: str = field(default=None)

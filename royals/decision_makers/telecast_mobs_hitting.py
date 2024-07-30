@@ -1,15 +1,25 @@
 import asyncio
+import multiprocessing.connection
+import multiprocessing.managers
+
+from botting.core.botv2.bot_data import BotData
 from botting.core.botv2.decision_maker import DecisionMaker
 from botting.core.botv2.action_data import ActionRequest
 
 
 class TelecastMobsHitting(DecisionMaker):
 
-    def __init__(self, metadata, data, pipe):
+    def __init__(
+        self,
+        metadata: multiprocessing.managers.DictProxy,
+        data: BotData,
+        pipe: multiprocessing.connection.Connection,
+    ) -> None:
         super().__init__(metadata, data, pipe)
         # self._on_screen_pos = None
 
     async def _decide(self) -> None:
+        ons_screen_pos = self.data.on_screen_pos
         # breakpoint()
         await asyncio.sleep(10)
         # self._on_screen_pos = self.data.on_screen_pos or self._on_screen_pos

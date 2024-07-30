@@ -3,6 +3,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+MAX_CONCURRENT_TASKS = 30
+
 
 class AsyncTaskManager:
     """
@@ -11,8 +13,7 @@ class AsyncTaskManager:
     """
 
     queue = asyncio.Queue()
-    client_tasks: list[TaskWrapper] = []
-    _event_loop_overflow = 30
+    _event_loop_overflow = MAX_CONCURRENT_TASKS
 
     @classmethod
     def _check_for_event_loop_overflow(cls):

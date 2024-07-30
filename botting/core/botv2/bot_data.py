@@ -75,7 +75,7 @@ class BotData:
         if name in self._attributes:
             metadata = self._metadata[name]
             metadata.access_count += 1
-            threshold = self._thresholds[name] or 0.0
+            threshold = self._thresholds[name] or float('inf')
             now = datetime.now()
             last_update_time = metadata.last_update_time or datetime.min
             if (now - last_update_time).total_seconds() > threshold:

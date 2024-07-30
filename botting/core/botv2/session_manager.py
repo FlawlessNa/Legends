@@ -5,6 +5,7 @@ import multiprocessing.connection
 
 from typing import Self
 
+from .async_task_manager import AsyncTaskManager
 from .bot import Bot
 from .engine import Engine
 from .peripherals_process import PeripheralsProcess
@@ -31,10 +32,11 @@ class SessionManager:
         ActionRequests.
         """
         # Create a Manager Process to share data between processes.
-        self.manager = multiprocessing.Manager()
-        self.metadata = self.manager.dict()
+        self.process_manager = multiprocessing.Manager()
+        self.task_manager = AsyncTaskManager()
+        self.metadata = self.process_manager.dict()
         # Add the logging queue to the metadata for convenience.
-        self.metadata["Logging Queue"] = self.manager.Queue()
+        self.metadata["Logging Queue"] = self.process_manager.Queue()
         # self.metadata["Blockers"] = dict()
 
         self.peripherals = PeripheralsProcess(
@@ -47,7 +49,6 @@ class SessionManager:
             respect_handler_level=True,
         )
 
-        self.async_queue = asyncio.Queue()
         self.engines: list[multiprocessing.Process] = []
         self.listeners: list[asyncio.Task] = []
         self.discord_listener: asyncio.Task | None = None
@@ -62,7 +63,7 @@ class SessionManager:
         self.log_receiver.start()
         self.peripherals.start()
         self.discord_listener = asyncio.create_task(
-            self.peripherals.peripherals_listener(self.async_queue),
+            self.peripherals.peripherals_listener(self.task_manager.queue),
             name="Discord Listener",
         )
         return self
@@ -81,10 +82,13 @@ class SessionManager:
         """
         self.peripherals.kill()
         self.discord_listener.cancel("SessionManager exited.")
-        # self._kill_all_engines()
         logger.debug("Stopping Log listener.")
         logger.info("SessionManager exited.")
         self.log_receiver.stop()
+
+        for engine in self.engines:
+            engine.join()
+            logger.info(f"Engine {engine.name} has been stopped.")
 
         if exc_type is not None:
             # Normally, each Engine should handle their own clean-up.
@@ -104,7 +108,7 @@ class SessionManager:
             engine_proc = Engine.start(engine_side, self.metadata, group)
             engine_listener = Engine.listener(
                 listener_side,
-                self.async_queue,
+                self.task_manager.queue,
                 engine_proc,
                 self.peripherals.pipe_main_proc,
             )
@@ -122,24 +126,4 @@ class SessionManager:
 
         if t_done.exception():
             raise t_done.exception()
-
-        for engine in self.engines:
-            engine.join()
         logger.info("All bots have been stopped. Session is about to exit.")
-
-    def _kill_all_engines(self) -> None:
-        raise NotImplementedError
-
-    # async def _launch_all_listeners(self) -> None:
-    #     """
-    #     Launch all Engine Listeners and the Discord Listener.
-    #     :return:
-    #     """
-    #     logger.info(f"Launching {len(self.listeners)} Engine Listeners.")
-    #     try:
-    #         async with asyncio.TaskGroup() as tg:
-    #             for listener in self.listeners:
-    #                 listener.task = tg.create_task(listener, name=repr(listener))
-    #                 logger.info(f"Created task {listener.task.get_name()}.")
-    #     finally:
-    #         logger.info("All bots have been stopped. Session is about to exit.")

@@ -13,7 +13,10 @@
 
 ## Performance Branch
 - [ ] Complete implementation of discord parser + unit tests
-- [ ] DecisionMaker create unique identifiers of callback functions to be called by the engine when it receives the identifier from the pipe.
+- [ ] DecisionMaker:
+- Solution 1: create unique identifiers of callback functions to be called by the engine when it receives the identifier from the pipe. Asyncio primitives can be used for the waiting.
+- Solution 2: use multiprocessing primitives such that the callbacks can be directly in main process. Use asyncio.to_thread to wait on those primitives within DecisionMakers without block event loop.
+- Could use profilers to compare both options?
 - [ ] Implement unit tests - use mocking such that test can run without the game environment
 - [ ] Cache a CustomAFinder.find_path instead of get_to_target (or both). Will help with indirect paths caching as well
 - [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases 
@@ -37,7 +40,7 @@
 - [ ] Look into using asyncio DEBUG mode (PYTHONASYNCIODEBUG=1) to identify potential issues with the code
 - [ ] Look into leveraging loop.run_in_executor(concurrent.futures.ProcessPoolExecutor) for CPU-intensive operations?
 - [ ] Check if tasks created with executor.create_task should also be awaited? If not, the enclosing task may cancel if it terminates before
-- [ ] Refactoring of botting.core -> should only contain botting architecture. Move controller and communications into botting (ie botting.controller, botting.communications)
+- [x] Refactoring of botting.core -> should only contain botting architecture. Move controller and communications into botting (ie botting.controller, botting.communications)
 
 ## Leeching Branch - TODOs
 - [ ] Multi-client blockers
