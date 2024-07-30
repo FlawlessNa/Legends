@@ -1,6 +1,7 @@
 import asyncio
 import multiprocessing.connection
 import multiprocessing.managers
+import numpy as np
 from functools import cached_property
 
 from botting.core.botv2.bot_data import BotData
@@ -32,7 +33,6 @@ class TelecastMobsHitting(DecisionMaker):
         self.data.create_attribute(
             "current_on_screen_position", self._get_on_screen_pos, threshold=1.0
         )
-        breakpoint()
 
     def _get_training_skill(self, training_skill_str: str) -> RoyalsSkill:
         if training_skill_str:
@@ -41,7 +41,7 @@ class TelecastMobsHitting(DecisionMaker):
 
     @cached_property
     def _hide_minimap_box(self) -> Box:
-        minimap_box = self.data.current_minimap_area_box
+        minimap_box = self.data.current_minimap.get_map_area_box(self.data.handle)
         return Box(
             max(
                 0,
@@ -60,6 +60,10 @@ class TelecastMobsHitting(DecisionMaker):
         return Box(left=700, right=1024, top=0, bottom=300)
 
     def _get_on_screen_pos(self) -> tuple[int, int]:
+        """
+        Function to use to update the current on screen position of the character.
+        :return:
+        """
         return self.data.character.get_onscreen_position(
             None,
             self.data.handle,
@@ -70,62 +74,65 @@ class TelecastMobsHitting(DecisionMaker):
         )
 
     async def _decide(self) -> None:
-        # ons_screen_pos = self.data.on_screen_pos
-        # breakpoint()
-        await asyncio.sleep(10)
-        raise Exception
-        # self._on_screen_pos = self.data.on_screen_pos or self._on_screen_pos
-        # res = None
-        # closest_mob_direction = None
-        #
-        # if self._on_screen_pos:
-        #     x, y = self._on_screen_pos
-        #     if (
-        #         self.training_skill.horizontal_screen_range
-        #         and self.training_skill.vertical_screen_range
-        #     ):
-        #         region = Box(
-        #             left=x - self.training_skill.horizontal_screen_range,
-        #             right=x + self.training_skill.horizontal_screen_range,
-        #             top=y - self.training_skill.vertical_screen_range,
-        #             bottom=y + self.training_skill.vertical_screen_range,
-        #         )
-        #         x, y = region.width / 2, region.height / 2
-        #     else:
-        #         region = self.data.current_map.detection_box
-        #     cropped_img = region.extract_client_img(self.data.current_client_img)
-        #     mobs = self.data.current_mobs
-        #     nbr_mobs = 0
-        #     for mob in mobs:
-        #         nbr_mobs += mob.get_mob_count(cropped_img)
-        #
-        #     if nbr_mobs >= self.mob_threshold:
-        #         if self.training_skill.unidirectional:
-        #             mobs_locations = self.get_mobs_positions_in_img(
-        #                 cropped_img, self.data.current_mobs
-        #             )
-        #             closest_mob_direction = self.get_closest_mob_direction(
-        #                 (x, y), mobs_locations
-        #             )
-        #
-        #         res = partial(
-        #             cast_skill,
-        #             self.data.handle,
-        #             self.data.ign,
-        #             self.training_skill,
-        #             self.data.casting_until,
-        #             closest_mob_direction,
-        #         )
-        # if res and time.perf_counter() - self.data.casting_until > 0:
-        #     self.data.update(
-        #         casting_until=time.perf_counter() + self.training_skill.animation_time,
-        #         available_to_cast=False,
-        #     )
-        #     updater = GeneratorUpdate(game_data_kwargs={"available_to_cast": True})
-        #     return QueueAction(
-        #         identifier=f"Mobs Hitting - {self.training_skill.name}",
-        #         priority=99,
-        #         action=res,
-        #         update_generators=updater,
-        #         is_cancellable=True
-        #     )
+        """
+        Looks for the character on-screen, or use the last known location.
+        Crop the image to the region of interest, centered around character location.
+        Then, count the number of mobs in the region.
+        If the number of mobs is greater than the threshold, cast the skill.
+        :return:
+        """
+        on_screen_pos = self.data.get_last_known_value("current_on_screen_position")
+        res = None
+        closest_mob_direction = None
+
+        if on_screen_pos:
+            x, y = on_screen_pos
+            if (
+                self.training_skill.horizontal_screen_range
+                and self.training_skill.vertical_screen_range
+            ):
+                region = Box(
+                    left=x - self.training_skill.horizontal_screen_range,
+                    right=x + self.training_skill.horizontal_screen_range,
+                    top=y - self.training_skill.vertical_screen_range,
+                    bottom=y + self.training_skill.vertical_screen_range,
+                )
+                x, y = region.width / 2, region.height / 2
+            else:
+                region = self.data.current_map.detection_box
+            cropped_img = region.extract_client_img(self.data.current_client_img)
+            mobs = self.data.current_mobs
+            nbr_mobs = 0
+            for mob in mobs:
+                nbr_mobs += mob.get_mob_count(cropped_img)
+
+            if nbr_mobs >= self.mob_threshold:
+                if self.training_skill.unidirectional:
+                    mobs_locations = self.get_mobs_positions_in_img(
+                        cropped_img, self.data.current_mobs
+                    )
+                    closest_mob_direction = self.get_closest_mob_direction(
+                        (x, y), mobs_locations
+                    )
+
+                res = partial(
+                    cast_skill,
+                    self.data.handle,
+                    self.data.ign,
+                    self.training_skill,
+                    self.data.casting_until,
+                    closest_mob_direction,
+                )
+        if res and time.perf_counter() - self.data.casting_until > 0:
+            self.data.update(
+                casting_until=time.perf_counter() + self.training_skill.animation_time,
+                available_to_cast=False,
+            )
+            updater = GeneratorUpdate(game_data_kwargs={"available_to_cast": True})
+            return QueueAction(
+                identifier=f"Mobs Hitting - {self.training_skill.name}",
+                priority=99,
+                action=res,
+                update_generators=updater,
+                is_cancellable=True
+            )

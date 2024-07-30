@@ -65,6 +65,23 @@ class BotData:
     def __str__(self) -> str:
         return f"BotData({self.ign})"
 
+    def get_last_known_value(self, name: str) -> Any:
+        """
+        Returns the last known (non-None) value of an attribute, if it exists.
+        :param name: Name of the attribute.
+        :return: Last known value of the attribute.
+        """
+        if name in self._metadata:
+
+            return getattr(self, name) or next(
+                (
+                    value for value in reversed(self._metadata[name].last_values)
+                    if value is not None
+                ),
+                None
+            )
+        raise AttributeError(f"{name} not found in {self}")
+
     def __getattr__(self, name: str) -> Any:
         """
         Returns the value of an attribute if it exists, and also updates the metadata
