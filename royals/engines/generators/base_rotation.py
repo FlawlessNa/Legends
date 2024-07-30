@@ -12,8 +12,8 @@ from royals.actions import cast_skill
 from royals.game_data import RotationData
 from royals.actions import random_jump
 from royals.engines.generators.rotations.hit_mobs import MobsHitting
-from royals.models_implementations.mechanics.path_into_movements import get_to_target
-from royals.models_implementations.mechanics import RoyalsSkill
+from royals.model.mechanics.path_into_movements import get_to_target
+from royals.model.mechanics import RoyalsSkill
 
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
@@ -122,7 +122,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                 priority=99,
                 action=res,
                 cancels_itself=True,
-                is_cancellable=True
+                is_cancellable=True,
             )
 
             self._prev_rotation_actions.append(res)
@@ -220,7 +220,7 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
                 priority=99,
                 action=res,
                 update_generators=updater,
-                is_cancellable=True
+                is_cancellable=True,
             )
 
     def _exception_handler(self, e: Exception) -> QueueAction | None:

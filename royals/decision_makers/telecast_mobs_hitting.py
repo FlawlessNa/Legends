@@ -1,27 +1,79 @@
 import asyncio
 import multiprocessing.connection
 import multiprocessing.managers
+from functools import cached_property
 
 from botting.core.botv2.bot_data import BotData
 from botting.core.botv2.decision_maker import DecisionMaker
 from botting.core.botv2.action_data import ActionRequest
+from botting.utilities import (
+    Box,
+    CLIENT_HORIZONTAL_MARGIN_PX,
+    CLIENT_VERTICAL_MARGIN_PX,
+)
+
+from royals.model.mechanics import RoyalsSkill
 
 
 class TelecastMobsHitting(DecisionMaker):
-
     def __init__(
         self,
         metadata: multiprocessing.managers.DictProxy,
         data: BotData,
         pipe: multiprocessing.connection.Connection,
+        mob_count_threshold: int,
+        training_skill: str = None,
+        **kwargs
     ) -> None:
         super().__init__(metadata, data, pipe)
-        # self._on_screen_pos = None
+        self.mob_threshold = mob_count_threshold
+        self.training_skill = self._get_training_skill(training_skill)
+
+        self.data.create_attribute(
+            "current_on_screen_position", self._get_on_screen_pos, threshold=1.0
+        )
+        breakpoint()
+
+    def _get_training_skill(self, training_skill_str: str) -> RoyalsSkill:
+        if training_skill_str:
+            return self.data.character.skills[training_skill_str]
+        return self.data.character.skills[self.data.character.main_skill]
+
+    @cached_property
+    def _hide_minimap_box(self) -> Box:
+        minimap_box = self.data.current_minimap_area_box
+        return Box(
+            max(
+                0,
+                minimap_box.left - CLIENT_HORIZONTAL_MARGIN_PX - 5,
+            ),
+            minimap_box.right + CLIENT_HORIZONTAL_MARGIN_PX + 5,
+            max(
+                0,
+                minimap_box.top - CLIENT_VERTICAL_MARGIN_PX - 10,
+            ),
+            minimap_box.bottom + CLIENT_VERTICAL_MARGIN_PX + 5,
+        )
+
+    @cached_property
+    def _hide_tv_smega_box(self) -> Box:
+        return Box(left=700, right=1024, top=0, bottom=300)
+
+    def _get_on_screen_pos(self) -> tuple[int, int]:
+        return self.data.character.get_onscreen_position(
+            None,
+            self.data.handle,
+            [
+                self._hide_minimap_box,
+                self._hide_tv_smega_box,
+            ],  # TODO - Add Chat Box as well into hiding
+        )
 
     async def _decide(self) -> None:
-        ons_screen_pos = self.data.on_screen_pos
+        # ons_screen_pos = self.data.on_screen_pos
         # breakpoint()
         await asyncio.sleep(10)
+        raise Exception
         # self._on_screen_pos = self.data.on_screen_pos or self._on_screen_pos
         # res = None
         # closest_mob_direction = None

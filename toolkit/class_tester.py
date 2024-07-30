@@ -1,28 +1,13 @@
-import time
-
 from botting.utilities import client_handler
 from royals import royals_ign_finder
 
-from royals.models_implementations.minimaps import (
-    PathOfTime1Minimap,
-    MuddyBanks2Minimap,
-    TrendZoneMetropolisMinimap,
-    FantasyThemePark1Minimap,
+from royals.model.minimaps import (
     KampungVillageMinimap,
-    LudibriumMinimap,
 )
-# from royals.maps import PathOfTime1
-from royals.interface import AbilityMenu, CharacterStats, InventoryMenu
-from royals.actions import write_in_chat, cast_skill, telecast, teleport
-from royals.characters import Bishop, Assassin
-from royals.models_implementations.mechanics.path_into_movements import get_to_target
 
-import win32api
-from royals.models_implementations.mechanics.inventory import InventoryActions
-import royals.actions as act
-from botting.utilities import Box, find_image
-import os
-from paths import ROOT
+# from royals.maps import PathOfTime1
+from royals.model.characters import Bishop
+from royals.model.mechanics.path_into_movements import get_to_target
 
 HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 
@@ -32,7 +17,6 @@ if __name__ == "__main__":
     minimap = KampungVillageMinimap()
     minimap.generate_grid_template(allow_teleport=True)
     # target = minimap.door_spot[0]
-    import random
     area_box = minimap.get_map_area_box(HANDLE)
     while True:
         # print(area_box.width, area_box.height)
@@ -43,11 +27,11 @@ if __name__ == "__main__":
             minimap.door_spot,
             minimap,
             HANDLE,
-            'alt',
-            teleport_skill=bishop.skills['Teleport'],
-            ign='WrongDoor'
+            "alt",
+            teleport_skill=bishop.skills["Teleport"],
+            ign="WrongDoor",
         )
-        print('Char Pos', npc_pos)
+        print("Char Pos", npc_pos)
     #
     # start = time.time()
     # initial_list = ludi.get_character_positions(

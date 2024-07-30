@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 
 from botting.core import EngineData
-from royals.characters import Character
-from royals.interface import AbilityMenu, CharacterStats, InventoryMenu
+from royals.model.characters import Character
+from royals.model.interface import AbilityMenu, CharacterStats, InventoryMenu
 
 
 @dataclass

@@ -19,6 +19,7 @@ class DecisionMaker(ABC):
     When called, a DecisionMaker may return an ActionRequest container,
     which will be sent to the Main Process to be executed there.
     """
+
     _throttle: float = None
     _type: Literal["Rotation", "AntiDetection", "Maintenance"]
 
@@ -27,13 +28,14 @@ class DecisionMaker(ABC):
         metadata: multiprocessing.managers.DictProxy,
         data: BotData,
         pipe: multiprocessing.connection.Connection,
+        **kwargs,
     ) -> None:
         self.metadata = metadata
         self.data = data
         self.pipe = pipe
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__name__}({self.data.ign})'
+        return f"{self.__class__.__name__}({self.data.ign})"
 
     @abstractmethod
     async def _decide(self) -> None:

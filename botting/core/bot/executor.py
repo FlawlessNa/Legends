@@ -299,9 +299,7 @@ class Executor:
                     if queue_item.disable_lower_priority:
                         Executor.priority_levels.append(queue_item.priority)
                         new_task.add_done_callback(
-                            partial(
-                                self.clear_priority_level, queue_item.priority
-                            )
+                            partial(self.clear_priority_level, queue_item.priority)
                         )
 
                 self._task_cleanup()

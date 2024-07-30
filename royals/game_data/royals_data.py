@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from royals.characters.character import Character
+from royals.model.characters import Character
 from royals.game_data import AntiDetectionData, MaintenanceData, RotationData
 
 

@@ -36,9 +36,7 @@ if current_process.name == "MainProcess":
                     record.__dict__[attr] = record.__dict__[attr].removeprefix(
                         "botting."
                     )
-                    record.__dict__[attr] = record.__dict__[attr].removeprefix(
-                        "core."
-                    )
+                    record.__dict__[attr] = record.__dict__[attr].removeprefix("core.")
                     record.__dict__[attr] = record.__dict__[attr].removeprefix(
                         "royals."
                     )

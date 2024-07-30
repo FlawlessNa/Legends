@@ -16,6 +16,7 @@ class AttributeMetadata:
     updates for each attribute, as well as the average update time and the last
     N values of the attribute.
     """
+
     access_count: int = 0  # Number of times the attribute has been accessed
     update_count: int = 0  # Number of times the attribute has been updated
     total_update_time: float = 0.0  # Total time spent updating the attribute
@@ -45,12 +46,13 @@ class BotData:
     automatically updated if the time since the last update is greater than the
     threshold value.
     """
+
     _authorized_attributes: set[str] = {
         "ign",
         "_attributes",
         "_metadata",
         "_update_functions",
-        "_thresholds"
+        "_thresholds",
     }
 
     def __init__(self, ign: str) -> None:
@@ -75,7 +77,7 @@ class BotData:
         if name in self._attributes:
             metadata = self._metadata[name]
             metadata.access_count += 1
-            threshold = self._thresholds[name] or float('inf')
+            threshold = self._thresholds[name] or float("inf")
             now = datetime.now()
             last_update_time = metadata.last_update_time or datetime.min
             if (now - last_update_time).total_seconds() > threshold:
@@ -84,7 +86,7 @@ class BotData:
                 )
                 self.update_attribute(name)
             return self._attributes[name]
-        elif name in [*self._authorized_attributes, '_authorized_attributes']:
+        elif name in [*self._authorized_attributes, "_authorized_attributes"]:
             return super().__getattribute__(name)
         raise AttributeError(f"{name} not found in {self}")
 

@@ -5,7 +5,7 @@ from .inputs.focused_inputs import (
     OPPOSITES,
     release_opposites,
     release_all,
-    EVENTS
+    EVENTS,
 )
 
 from .inputs.non_focused_inputs import non_focused_input, message_constructor

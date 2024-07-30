@@ -28,7 +28,6 @@ random_delay = _random_delay()
 
 KEYBOARD_MAPPING = {
     "alt": win32con.VK_MENU,
-
     # Or win32con.VK_RMENU, but Spy++ shows that the game uses the VK_MENU instead.
     "alt_right": win32con.VK_MENU,
     # Or win32con.VK_LCONTROL, but Spy++ shows that the game uses the VK_CONTROL instead.
@@ -50,7 +49,7 @@ KEYBOARD_MAPPING = {
     "space": win32con.VK_SPACE,
     "enter": win32con.VK_RETURN,
     "tab": win32con.VK_TAB,
-    'escape': win32con.VK_ESCAPE,
+    "escape": win32con.VK_ESCAPE,
 }
 
 EXTENDED_KEYS = (

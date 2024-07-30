@@ -7,7 +7,6 @@ from botting.core.botv2.bot_data import BotData
 from botting.utilities import config_reader
 
 from royals.game_data import RotationData
-from royals.models_implementations import RoyalsSkill
 
 
 class Rotation(DecisionMaker):

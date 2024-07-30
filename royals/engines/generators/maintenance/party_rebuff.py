@@ -1,4 +1,3 @@
-import asyncio
 import cv2
 import logging
 import math
@@ -16,7 +15,7 @@ from botting.utilities import Box
 from royals.actions import cast_skill
 from royals.engines.generators.interval_based import IntervalBasedGenerator
 from royals.game_data import MaintenanceData, MinimapData
-from royals.models_implementations.mechanics import RoyalsSkill
+from royals.model.mechanics import RoyalsSkill
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 

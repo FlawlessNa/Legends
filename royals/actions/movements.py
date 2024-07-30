@@ -70,7 +70,7 @@ async def single_jump(
             keys = [direction, jump_key, jump_key]
             events: list[Literal["keydown", "keyup"]] = ["keydown", "keydown", "keyup"]
             delays = [next(controller.random_delay) * 2 for _ in range(2)] + [0.75]
-    elif direction == 'down':
+    elif direction == "down":
         # Special case where we voluntarily trigger the automatic repeat feature
         # to avoid static position.
         keys = [direction, jump_key, jump_key]
@@ -121,10 +121,7 @@ async def jump_on_rope(
             ["keydown", "keydown"],
             ["keyup", "keyup"],
         ]
-        delays = [
-            0.75,
-            next(controller.random_delay) * 2
-        ]
+        delays = [0.75, next(controller.random_delay) * 2]
 
     elif controller.OPPOSITES[direction] in pressed:
         keys = [
@@ -150,7 +147,7 @@ async def jump_on_rope(
         delays = [
             next(controller.random_delay) * 2,
             0.75,
-            next(controller.random_delay)
+            next(controller.random_delay),
         ]
 
     structure = controller.input_constructor(handle, keys, events)

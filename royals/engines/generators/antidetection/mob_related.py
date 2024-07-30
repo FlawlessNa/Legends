@@ -123,7 +123,7 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
                 "wtf!?",
             ],
             2: [
-                'Hello?',
+                "Hello?",
                 "What's going on?",
                 "Can I help you?",
                 "What's up?",
@@ -132,7 +132,7 @@ class MobCheck(IntervalBasedGenerator, AntiDetectionReactions):
                 "Hello??",
                 "Whats happening",
                 "Uh wth is going on",
-            ]
+            ],
         }
 
     def _exception_handler(self, e: Exception) -> None:

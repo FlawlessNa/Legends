@@ -1,23 +1,19 @@
 import cv2
 import json
-import numpy as np
 import os
 
 from paths import ROOT
-from royals.interface.fixed_components.in_game_chat.chat_lines import General
+from royals.model.interface.fixed_components.in_game_chat.chat_lines import General
 
 OUTPUT_FILENAME = "general_characters.json"
 result = {}
 
-with open(
-        os.path.join(ROOT, 'tests/chat_lines.json'),
-        'r'
-) as fp:
+with open(os.path.join(ROOT, "tests/chat_lines.json"), "r") as fp:
     annotations = json.load(fp)
 
 
 for idx, img_path in enumerate(os.listdir(os.path.join(ROOT, "tests", "images"))):
-    if img_path.startswith('test'):
+    if img_path.startswith("test"):
         continue
     elif annotations[img_path][0] != "General":
         continue
@@ -26,7 +22,7 @@ for idx, img_path in enumerate(os.listdir(os.path.join(ROOT, "tests", "images"))
     img = cv2.imread(full_path)
     processed = General._preprocess_img(img)
     print(img_path)
-    cv2.imshow('processed', cv2.resize(processed, None, fx=5, fy=5))
+    cv2.imshow("processed", cv2.resize(processed, None, fx=5, fy=5))
     cv2.waitKey(0)
 
     # Extract each contour. If contours are vertically aligned, they are grouped together
@@ -68,9 +64,10 @@ for idx, img_path in enumerate(os.listdir(os.path.join(ROOT, "tests", "images"))
     #     else:
     #         result[char].append(char_filename)
 
-
     # results[os.path.basename(new_path)] = [line_type, line_text]
 
 
-with open(os.path.join(ROOT, 'royals/assets/detection_characters', OUTPUT_FILENAME), 'w') as fp:
+with open(
+    os.path.join(ROOT, "royals/assets/detection_characters", OUTPUT_FILENAME), "w"
+) as fp:
     json.dump(result, fp, indent=4)

@@ -8,7 +8,7 @@ from botting import controller
 from royals.engines.generators.interval_based import IntervalBasedGenerator
 from royals.actions import random_jump
 from royals.game_data import MinimapData
-from royals.models_implementations.mechanics.path_into_movements import get_to_target
+from royals.model.mechanics.path_into_movements import get_to_target
 
 
 class EnsureSafeSpot(IntervalBasedGenerator):
@@ -145,7 +145,11 @@ class ResetIdleSafeguard(DecisionGenerator):
                 return QueueAction(
                     identifier=f"{self} Random Jump {self._jumps_done}",
                     priority=1,
-                    action=partial(random_jump, self.data.handle, controller.key_binds(self.data.ign)["jump"]),
+                    action=partial(
+                        random_jump,
+                        self.data.handle,
+                        controller.key_binds(self.data.ign)["jump"],
+                    ),
                     update_generators=GeneratorUpdate(
                         generator_id=id(self),
                         generator_kwargs={"blocked": False},
@@ -162,10 +166,7 @@ class ResetIdleSafeguard(DecisionGenerator):
                     identifier=f"{self} re-casting to remove game safeguard",
                     priority=1,
                     action=partial(
-                        controller.press,
-                        self.data.handle,
-                        self._key,
-                        silenced=False
+                        controller.press, self.data.handle, self._key, silenced=False
                     ),
                     update_generators=GeneratorUpdate(
                         generator_id=id(self),
@@ -185,7 +186,7 @@ class ResetIdleSafeguard(DecisionGenerator):
                     self.data.current_minimap,
                     self.data.handle,
                     controller.key_binds(self.data.ign)["jump"],
-                    ign=self.data.ign
+                    ign=self.data.ign,
                 )
                 if actions:
                     self._deadlock_counter = 0

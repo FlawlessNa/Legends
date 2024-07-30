@@ -1,14 +1,13 @@
 import itertools
 import logging
 import math
-import multiprocessing as mp
 import random
 import time
 
 from botting import PARENT_LOG
 from botting.utilities import Box
 from royals.engines.generators.base_rotation import RotationGenerator
-from royals.models_implementations.mechanics import RoyalsSkill
+from royals.model.mechanics import RoyalsSkill
 from royals.game_data import RotationData
 
 

@@ -11,7 +11,7 @@ from botting.utilities import (
     CLIENT_VERTICAL_MARGIN_PX,
 )
 from paths import ROOT
-from royals.interface import Minimap
+from royals.model.interface import Minimap
 
 
 class MinimapTester(Minimap):
@@ -61,7 +61,7 @@ class TestMinimap(TestCase):
             "Partial",
             "Full",
             "Partial",
-            "Full"
+            "Full",
         ]
         # Defined by looking at pixel positions with Paint
         _world_icons_top_left = [
@@ -78,7 +78,7 @@ class TestMinimap(TestCase):
             (248, 86),
             (701, 77),
             (417, 171),
-            (568, 247)
+            (568, 247),
         ]
         # Defined by looking at pixel positions with Paint
         _world_icons_bot_right = [
@@ -95,7 +95,7 @@ class TestMinimap(TestCase):
             (281, 95),
             (734, 86),
             (450, 180),
-            (601, 256)
+            (601, 256),
         ]
         cls._world_icons_box = [
             Box(
@@ -138,7 +138,7 @@ class TestMinimap(TestCase):
             (282, 198),
             (735, 232),
             (451, 247),
-            (602, 366)
+            (602, 366),
         ]
         # Only applicable when minimap is fully displayed.
         _extra_widths = [18, 18, None, None, 0, 0, 0, 0, 10, None, 0, 10, 0, [1, 2]]
@@ -146,11 +146,19 @@ class TestMinimap(TestCase):
             Box(
                 left=_map_area_top_left[i][0]
                 + CLIENT_HORIZONTAL_MARGIN_PX
-                + [_extra_widths[i] // 2 if isinstance(_extra_widths[i], int) else _extra_widths[i][0]].pop(),
+                + [
+                    _extra_widths[i] // 2
+                    if isinstance(_extra_widths[i], int)
+                    else _extra_widths[i][0]
+                ].pop(),
                 right=_map_area_bot_right[i][0]
                 + CLIENT_HORIZONTAL_MARGIN_PX
                 + 1
-                - [_extra_widths[i] // 2 if isinstance(_extra_widths[i], int) else _extra_widths[i][1]].pop(),
+                - [
+                    _extra_widths[i] // 2
+                    if isinstance(_extra_widths[i], int)
+                    else _extra_widths[i][1]
+                ].pop(),
                 top=_map_area_top_left[i][1] + CLIENT_VERTICAL_MARGIN_PX,
                 bottom=_map_area_bot_right[i][1] + CLIENT_VERTICAL_MARGIN_PX + 1,
             )
@@ -218,7 +226,7 @@ class TestMinimap(TestCase):
             [(186, 147), (190, 180), (195, 180), (208, 178)],
             [(634, 181), (638, 214), (643, 214), (656, 212)],
             [],
-            []
+            [],
         ]
         _npc_position = [
             [],

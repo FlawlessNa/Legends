@@ -5,7 +5,7 @@ import multiprocessing.managers
 
 from botting.utilities import setup_child_proc_logging
 from .bot import Bot
-from .action_data import ActionRequest, UpdateRequest
+from .action_data import ActionRequest
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = logging.NOTSET

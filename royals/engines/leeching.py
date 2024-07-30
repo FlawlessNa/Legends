@@ -1,7 +1,7 @@
 import multiprocessing
 
 from botting.core import DecisionEngine, Executor, DecisionGenerator
-from royals.maps import RoyalsMap
+from royals.model.maps import RoyalsMap
 
 from royals import royals_ign_finder, RoyalsData
 

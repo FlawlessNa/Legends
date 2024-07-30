@@ -8,8 +8,8 @@ from botting.utilities import config_reader, take_screenshot
 from royals.engines.generators.interval_based import IntervalBasedGenerator
 from royals.engines.generators.step_based import StepBasedGenerator
 from royals.game_data import MaintenanceData
-from royals.models_implementations.mechanics import MinimapConnection
-from royals.models_implementations.mechanics.inventory import (
+from royals.model.mechanics import MinimapConnection
+from royals.model.mechanics.inventory import (
     InventoryChecks,
     InventoryActions,
 )
@@ -138,7 +138,7 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
             delattr(self, "_slots_cleaned")
 
     def _failsafe(self) -> QueueAction | None:
-        started_at = getattr(self, 'cleanup_procedure_started_at', time.perf_counter())
+        started_at = getattr(self, "cleanup_procedure_started_at", time.perf_counter())
         if time.perf_counter() - started_at > 180:
             raise ValueError(f"{self} has been running for too long.")
 
@@ -181,8 +181,8 @@ class InventoryManager(IntervalBasedGenerator, StepBasedGenerator, InventoryChec
             delattr(self, "npcs_positions")
         if hasattr(self, "_direction"):
             delattr(self, "_direction")
-        if hasattr(self, 'cleanup_procedure_started_at'):
-            delattr(self, 'cleanup_procedure_started_at')
+        if hasattr(self, "cleanup_procedure_started_at"):
+            delattr(self, "cleanup_procedure_started_at")
         logger.info(f"{self} has completed the inventory cleanup procedure.")
         self.generator.unblock_generators("All", id(self.generator))
         raise self.skip_iteration

@@ -8,9 +8,9 @@ from botting.utilities import (
     CLIENT_VERTICAL_MARGIN_PX,
 )
 from botting.models_abstractions import Skill
-from royals.characters import Character
-from royals.maps import RoyalsMap
-from royals.models_implementations.mechanics import (
+from royals.model.characters import Character
+from royals.model.maps import RoyalsMap
+from royals.model.mechanics import (
     MinimapPathingMechanics,
     MinimapFeature,
 )

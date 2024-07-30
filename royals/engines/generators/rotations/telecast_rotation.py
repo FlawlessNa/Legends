@@ -11,7 +11,7 @@ from botting.core import QueueAction, GeneratorUpdate
 from royals.engines.generators.base_rotation import RotationGenerator
 from royals import RoyalsData
 from royals.actions import telecast
-from royals.models_implementations.mechanics import RoyalsSkill
+from royals.model.mechanics import RoyalsSkill
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 

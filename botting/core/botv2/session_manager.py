@@ -41,7 +41,7 @@ class SessionManager:
 
         self.peripherals = PeripheralsProcess(
             self.metadata["Logging Queue"], discord_parser
-        ) 
+        )
 
         self.log_receiver = logging.handlers.QueueListener(
             self.metadata["Logging Queue"],
@@ -116,7 +116,8 @@ class SessionManager:
             self.listeners.append(engine_listener)
 
         t_done, t_pending = await asyncio.wait(
-            self.listeners + [self.discord_listener], return_when=asyncio.FIRST_COMPLETED
+            self.listeners + [self.discord_listener],
+            return_when=asyncio.FIRST_COMPLETED,
         )
         t_done = t_done.pop()
 

@@ -89,9 +89,7 @@ class SessionManager:
 
     async def launch(self) -> None:
         bots = f"{' '.join(repr(bot) for bot in self.bots)}"
-        logger.info(
-            f'Launching {len(self.bots)} bots: {bots}'
-        )
+        logger.info(f"Launching {len(self.bots)} bots: {bots}")
         try:
             await Executor.run_all()
         finally:

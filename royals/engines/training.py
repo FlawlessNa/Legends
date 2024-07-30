@@ -3,7 +3,7 @@ import multiprocessing
 from botting.core import DecisionEngine, Executor, DecisionGenerator
 
 from royals import royals_ign_finder, RoyalsData
-from royals.maps import RoyalsMap
+from royals.model.maps import RoyalsMap
 from .generators import (
     SmartRotationGenerator,
     Rebuff,

@@ -107,8 +107,10 @@ class DiscordIO(discord.Client):
                                 f"{self.__class__.__name__} received a signal {signal}"
                                 f". Sending to Discord."
                             )
-                            msg = (f'<@{self.config[self.config_section]["DISCORD_ID"]}'
-                                   f'> {signal}')
+                            msg = (
+                                f'<@{self.config[self.config_section]["DISCORD_ID"]}'
+                                f"> {signal}"
+                            )
                             await self.get_channel(self.chat_id).send(msg)
                         elif isinstance(signal, np.ndarray):
                             cv2.imwrite("temp.png", signal)

@@ -266,6 +266,7 @@ class ColorsFilter:
 if __name__ == "__main__":
     from botting.utilities import client_handler
     from royals import royals_ign_finder
+
     HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
     USE_HSV = True
     USE_COLORS = False
@@ -285,8 +286,12 @@ if __name__ == "__main__":
             cv2.imshow("processed_hsv", processed_hsv)
             cv2.waitKey(1)
             hsv_filters = get_hsv_filter_from_controls()
-            _hsv_lower = np.array([hsv_filters.hMin, hsv_filters.sMin, hsv_filters.vMin])
-            _hsv_upper = np.array([hsv_filters.hMax, hsv_filters.sMax, hsv_filters.vMax])
+            _hsv_lower = np.array(
+                [hsv_filters.hMin, hsv_filters.sMin, hsv_filters.vMin]
+            )
+            _hsv_upper = np.array(
+                [hsv_filters.hMax, hsv_filters.sMax, hsv_filters.vMax]
+            )
             hsv = cv2.cvtColor(img_hsv, cv2.COLOR_BGR2HSV)
             hsv_binary = cv2.inRange(hsv, _hsv_lower, _hsv_upper)
             hsv_contours, _ = cv2.findContours(
@@ -299,12 +304,16 @@ if __name__ == "__main__":
             cv2.imshow("contoured_hsv", img_hsv)
             cv2.waitKey(1)
 
-            hsv_groups = cv2.groupRectangles(hsv_rects, hsv_filters.groupthresh, hsv_filters.eps)
+            hsv_groups = cv2.groupRectangles(
+                hsv_rects, hsv_filters.groupthresh, hsv_filters.eps
+            )
 
             for rect in hsv_groups[0]:
                 x, y, w, h = rect
                 if w >= hsv_filters.w and h >= hsv_filters.h:
-                    cv2.rectangle(img_hsv_grouped, (x, y), (x + w, y + h), (0, 0, 255), 3)
+                    cv2.rectangle(
+                        img_hsv_grouped, (x, y), (x + w, y + h), (0, 0, 255), 3
+                    )
             cv2.imshow("contoured_hsv_grouped", img_hsv_grouped)
             cv2.waitKey(1)
 
@@ -332,13 +341,23 @@ if __name__ == "__main__":
                 cv2.drawContours(img_color_cnt, [cnt], 0, (0, 255, 0), 3)
             colors_rects = [cv2.boundingRect(cnt) for cnt in colors_contours]
             for x, y, w, h in colors_rects:
-                if colors_filters.minw <= w <= colors_filters.maxw and colors_filters.minh <= h <= colors_filters.maxh:
-                    cv2.rectangle(img_color_rect, (x, y), (x + w, y + h), (0, 255, 0), 3)
+                if (
+                    colors_filters.minw <= w <= colors_filters.maxw
+                    and colors_filters.minh <= h <= colors_filters.maxh
+                ):
+                    cv2.rectangle(
+                        img_color_rect, (x, y), (x + w, y + h), (0, 255, 0), 3
+                    )
 
             grouped = cv2.groupRectangles(colors_rects, 1, colors_filters.eps)
             for x, y, w, h in grouped[0]:
-                if colors_filters.minw <= w <= colors_filters.maxw and colors_filters.minh <= h <= colors_filters.maxh:
-                    cv2.rectangle(img_color_grouped, (x, y), (x + w, y + h), (0, 0, 255), 3)
+                if (
+                    colors_filters.minw <= w <= colors_filters.maxw
+                    and colors_filters.minh <= h <= colors_filters.maxh
+                ):
+                    cv2.rectangle(
+                        img_color_grouped, (x, y), (x + w, y + h), (0, 0, 255), 3
+                    )
 
             hulls = [cv2.convexHull(cnt) for cnt in colors_contours]
             for hull in hulls:

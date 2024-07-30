@@ -40,7 +40,7 @@
 - [ ] Look into using asyncio DEBUG mode (PYTHONASYNCIODEBUG=1) to identify potential issues with the code
 - [ ] Look into leveraging loop.run_in_executor(concurrent.futures.ProcessPoolExecutor) for CPU-intensive operations?
 - [ ] Check if tasks created with executor.create_task should also be awaited? If not, the enclosing task may cancel if it terminates before
-- [x] Refactoring of botting.core -> should only contain botting architecture. Move controller and communications into botting (ie botting.controller, botting.communications)
+- [ ] Make sure to refresh documentation everywhere
 
 ## Leeching Branch - TODOs
 - [ ] Multi-client blockers

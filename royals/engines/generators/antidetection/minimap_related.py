@@ -25,26 +25,27 @@ class CheckStillInMap(IntervalBasedGenerator, AntiDetectionReactions):
 
     @property
     def reaction_choices(self) -> dict:
-        return {1: [
-            "wtf",
-            "wassup?",
-            "why?",
-            "why" "?",
-            "???",
-            "tha hell",
-            "wth",
-            "wth?",
-            "wtf!",
-            "wtf!?",
-        ],
-        2: [
-            "Whaaaat is up?",
-            "What the actual ? is going on",
-            "Why????",
-            "Can I help you??",
-            "What's up?",
-            "Uhm Hello?"
-        ]
+        return {
+            1: [
+                "wtf",
+                "wassup?",
+                "why?",
+                "why" "?",
+                "???",
+                "tha hell",
+                "wth",
+                "wth?",
+                "wtf!",
+                "wtf!?",
+            ],
+            2: [
+                "Whaaaat is up?",
+                "What the actual ? is going on",
+                "Why????",
+                "Can I help you??",
+                "What's up?",
+                "Uhm Hello?",
+            ],
         }
 
     def __init__(

@@ -12,10 +12,10 @@ LOG_LEVEL = logging.NOTSET
 
 
 class Actions(Enum):
-    KILL = 'KILL'
-    PAUSE = 'PAUSE'
-    RESUME = 'RESUME'
-    WRITE = 'WRITE'
+    KILL = "KILL"
+    PAUSE = "PAUSE"
+    RESUME = "RESUME"
+    WRITE = "WRITE"
 
 
 class BaseParser(ABC):
@@ -30,6 +30,7 @@ class BaseParser(ABC):
     RESUME --ign IgnFromAPausedBot
     WRITE --ign IgnFromABot --m Message to write
     """
+
     action_choices = [action.value for action in Actions]
     action_choices.extend(action.value.lower() for action in Actions)
     action_choices.extend(action.value.title() for action in Actions)
@@ -40,27 +41,27 @@ class BaseParser(ABC):
     @cached_property
     def parser(self) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(
-            description='Parse messages from discord user.',
-            exit_on_error=False
+            description="Parse messages from discord user.", exit_on_error=False
         )
         parser.add_argument(
-            'action',
+            "action",
             type=str,
-            help='The action to perform.',
+            help="The action to perform.",
             choices=self.action_choices,
         )
         parser.add_argument(
-            '--ign',
+            "--ign",
             type=str,
-            help='The IGN of the bot to perform the action on.',
+            help="The IGN of the bot to perform the action on.",
             required=False,
-            nargs='+'
+            nargs="+",
         )
         parser.add_argument(
-            '-m', '--message',
+            "-m",
+            "--message",
             type=str,
-            help='The message to write.',
-            nargs='+',
+            help="The message to write.",
+            nargs="+",
             required=False,
         )
         return parser
@@ -74,14 +75,14 @@ class BaseParser(ABC):
         try:
             args = self.parser.parse_args(message.split())
         except argparse.ArgumentError as e:
-            self.pipe.send(f'{e}')
+            self.pipe.send(f"{e}")
             return
         except Exception as e:
             raise
 
         action = args.action.upper()
 
-        if action == 'KILL':
+        if action == "KILL":
             if args.ign or args.message:
                 msg = (
                     "KILL action does not accept --ign or --message arguments. "
@@ -91,7 +92,7 @@ class BaseParser(ABC):
                 self.pipe.send(msg)
             request = self.kill()
 
-        elif action == 'PAUSE':
+        elif action == "PAUSE":
             if args.message:
                 msg = (
                     "PAUSE action does not accept --message argument. "
@@ -101,7 +102,7 @@ class BaseParser(ABC):
                 self.pipe.send(msg)
             request = self.pause(args.ign)
 
-        elif action == 'RESUME':
+        elif action == "RESUME":
             if args.message:
                 msg = (
                     "RESUME action does not accept --message argument. "
@@ -111,20 +112,19 @@ class BaseParser(ABC):
                 self.pipe.send(msg)
             request = self.resume(args.ign)
 
-        elif action == 'WRITE':
+        elif action == "WRITE":
             if not args.message:
                 msg = (
-                    "WRITE action requires a --message argument. "
-                    "Please provide one."
+                    "WRITE action requires a --message argument. " "Please provide one."
                 )
                 logger.error(msg)
                 self.pipe.send(msg)
                 return
-            request = self.write(' '.join(args.message), args.ign)
+            request = self.write(" ".join(args.message), args.ign)
         else:
             raise ValueError(f"Invalid action: {action}")
 
-        self.pipe.send(f'Confirmation: Executing {request}')
+        self.pipe.send(f"Confirmation: Executing {request}")
         return request
 
     @abstractmethod
