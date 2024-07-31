@@ -1,5 +1,5 @@
 import asyncio
-from botting.core.botv2.session_manager import SessionManager
+from botting.core.session_manager import SessionManager
 import royals.bots as bots
 import royals.model.maps as maps
 import royals.parsers

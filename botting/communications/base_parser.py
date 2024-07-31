@@ -5,7 +5,7 @@ import multiprocessing.connection
 from abc import ABC, abstractmethod
 from enum import Enum
 from functools import cached_property
-from botting.core.botv2.action_data import ActionRequest
+from botting.core import ActionRequest
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = logging.NOTSET

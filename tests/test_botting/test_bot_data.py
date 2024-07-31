@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime, timedelta
 from unittest.mock import Mock
 
-from botting.core.botv2.bot_data import BotData, AttributeMetadata
+from botting.core.bot_data import BotData
 
 
 class TestBotData(unittest.TestCase):

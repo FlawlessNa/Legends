@@ -35,7 +35,7 @@ class AsyncTaskManager:
     async def _process_request(self, request: ActionRequest) -> None:
         if request.identifier in self.running_tasks:
             self._handle_duplicate_request(request)
-        self._handle_priority(request)
+        await self._handle_priority(request)
 
     def _handle_duplicate_request(self, request: ActionRequest) -> None:
         former = self.running_tasks[request.identifier]
@@ -47,15 +47,16 @@ class AsyncTaskManager:
                 f"Task {request.identifier} already exists and can't cancel itself"
             )
 
-    def _handle_priority(self, request: ActionRequest) -> None:
+    async def _handle_priority(self, request: ActionRequest) -> None:
         if request.priority > self._get_priority_blocking():
             self._schedule_task(request)
         elif request.requeue_if_not_scheduled:
-            self.queue.put_nowait(request)
+            await self.queue.put(request)
 
     def _get_priority_blocking(self) -> int:
         """
-        :return:
+        :return: The highest priority of all running tasks that prevents lower priorities
+        from being scheduled.
         """
         return max(
             (

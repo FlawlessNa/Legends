@@ -1,98 +1,167 @@
 import asyncio
+import logging
 import logging.handlers
 import multiprocessing.connection
 
 from typing import Self
 
-# from .bot import Executor, BotLauncher
-from botting import controller
+from .async_task_manager import AsyncTaskManager
+from .bot import Bot
+from .engine import Engine
+from .peripherals_process import PeripheralsProcess
+from botting.communications import BaseParser
 
 logger = logging.getLogger(__name__)
+LOG_LEVEL = logging.INFO
 
 
 class SessionManager:
     """
-    Entry point to launch any Bot, aka Executor.
-    The Manager will handle the following:
-        - Establish Discord communications. While discord API is already asynchronous,
-          we want to ensure that the Bot is not blocked by any Discord-related actions.
-          Therefore, we launch a separate Process to handle Discord communications.
-        - Launch an independent multiprocessing.Process to handle the screen recording.
-          Recording is CPU-intensive and should not be done in the same process.
-        - Schedule each Executor as tasks to be executed in the asyncio event loop.
-          This ensures no actions are executed in parallel, which would be suspicious.
-        - Schedule a listener for Discord messages (from Discord child process).
-        - Schedule a listener for any log records from child processes.
-        - Perform automatic clean-up as necessary. When the Executor is stopped,
-         the Manager will ensure the screen recording is stopped and saved.
+    Lives in MainProcess.
+    Responsible to gather all relevant features and classes to create a Session.
+    Those currently include:
+    - Engine (and EngineListener)
+    - PeripheralProcess (Screen Recorder and Discord I/O)
+    - LogHandler
+    - TaskManager
     """
 
-    logging_queue = multiprocessing.Queue()
+    def __init__(self, discord_parser: type[BaseParser]) -> None:
+        """
+        Creates all necessary objects to start a new Session.
+        :param discord_parser: A callable that parses discord message and returns
+        ActionRequests.
+        """
+        # Create a Manager Process to share data between processes.
+        self.process_manager = multiprocessing.Manager()
+        self.task_manager = AsyncTaskManager()
+        self.metadata = self.process_manager.dict(
+            logging_queue=self.process_manager.Queue(),
+            proxy_request=self.process_manager.Condition()
+        )
 
-    # def __init__(self, *bots_to_launch: Executor) -> None:
-    #     self.bots = bots_to_launch
-    #
-    #     BotLauncher.__init__(self, self.logging_queue)
-    #     DiscordLauncher.__init__(self, self.logging_queue)
-    #     RecorderLauncher.__init__(self, self.logging_queue)
-    #     Executor.update_logging_queue(self.logging_queue)
-    #     Executor.update_discord_pipe(self.main_side)
-    #     self.log_listener = logging.handlers.QueueListener(
-    #         self.logging_queue, *logger.parent.handlers, respect_handler_level=True
-    #     )
+        self.peripherals = PeripheralsProcess(
+            self.metadata["logging_queue"], discord_parser
+        )
+
+        self.log_receiver = logging.handlers.QueueListener(
+            self.metadata["logging_queue"],
+            *logger.parent.handlers,
+            respect_handler_level=True,
+        )
+
+        self.engines: list[multiprocessing.Process] = []
+        self.listeners: list[asyncio.Task] = []
+        self.discord_listener: asyncio.Task | None = None
+        self.proxy_listener: asyncio.Task | None = None
+        self.management_task: asyncio.Task | None = None
+        self.main_bot = None
 
     def __enter__(self) -> Self:
         """
-        Setup all Executor tasks. Start Monitoring process on each.
-        Setup Recorder process. Start Recorder process.
-        Setup Discord process. Start Discord process.
-        Start listening to any log records from those child processes.
-        :return: self
+        Spawns all necessary child processes and starts them.
+        Both the Peripherals process and its listener are started.
+        :return:
         """
-        BotLauncher.__enter__(self)
-        DiscordLauncher.__enter__(self)
-        RecorderLauncher.__enter__(self)
-        self.log_listener.start()
+        self.log_receiver.start()
+        self.peripherals.start()
+        self.discord_listener = asyncio.create_task(
+            self.peripherals.peripherals_listener(self.task_manager.queue),
+            name="Discord Listener",
+        )
+        self.proxy_listener = asyncio.create_task(
+            self._monitor_proxy(), name="Proxy Listener"
+        )
+        self.management_task = asyncio.create_task(
+            self.task_manager.start(), name="Task Manager"
+        )
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """
-        Whenever the context manager is exited, that means the asynchronous
-        loop's execution has halted, for whatever reason.
-        In such a case, all Executor are already stopped.
-        Assuming the bots handle their own clean-up,
-        the only thing left to do is to stop the screen recording and save it.
-        To do send, we send a signal to the isolated recording Process.
+        Whenever the context manager is exited, that means the Event loop's execution
+        has halted, for whatever reason. In such a case, all Engine Listeners are
+        already stopped. Assuming the Engines handle their own clean-up,
+        the remaining things left to do is to stop the peripherals and stop the log
+        listener.
         :param exc_type: Exception Class.
         :param exc_val: Exception Value (instance).
         :param exc_tb: Exception Traceback.
         :return: None
         """
-        BotLauncher.__exit__(self, exc_type, exc_val, exc_tb)
-        DiscordLauncher.__exit__(self, exc_type, exc_val, exc_tb)
-        RecorderLauncher.__exit__(self, exc_type, exc_val, exc_tb)
-
-        logger.debug("Stopping Log listener")
-        self.log_listener.stop()
+        self.peripherals.kill()
+        self.discord_listener.cancel("SessionManager exited.")
+        logger.debug("Stopping Log listener.")
         logger.info("SessionManager exited.")
+        self.log_receiver.stop()
 
-        for bot in self.bots:
-            for key in ["up", "down", "left", "right"]:
-                asyncio.run(
-                    controller.press(
-                        bot.handle, key, silenced=False, down_or_up="keyup"
-                    )
-                )
+        for engine in self.engines:
+            engine.join()
+            logger.info(f"Engine {engine.name} has been stopped.")
+
         if exc_type is not None:
-            # TODO - Cleanup procedure, such as Lounge or Terminating all clients
-            pass
+            # Normally, each Engine should handle their own clean-up.
+            # However, Listeners may not be able to handle their own clean-up??
+            breakpoint()
 
-    async def launch(self) -> None:
-        bots = f"{' '.join(repr(bot) for bot in self.bots)}"
-        logger.info(f"Launching {len(self.bots)} bots: {bots}")
-        try:
-            await Executor.run_all()
-        finally:
-            logger.info(
-                "All bots have been stopped. calling __exit__ on all launchers."
+    async def launch(self, *grouped_bots: list[Bot]) -> None:
+        """
+        Launch all bots. The "Main" bot is ALWAYS set to the first bot within first group
+        :param grouped_bots: Each group is launched in a single Engine.
+        :return:
+        """
+        self.main_bot = grouped_bots[0][0]
+        for group in grouped_bots:
+            engine_side, listener_side = multiprocessing.Pipe()
+            engine_proc = Engine.start(engine_side, self.metadata, group)
+            engine_listener = Engine.listener(
+                listener_side,
+                self.task_manager.queue,
+                engine_proc,
+                self.peripherals.pipe_main_proc,
             )
+            self.engines.append(engine_proc)
+            self.listeners.append(engine_listener)
+        t_done, t_pending = await asyncio.wait(
+            self.listeners + [
+                self.discord_listener, self.proxy_listener, self.management_task
+            ],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        t_done = t_done.pop()
+
+        for task in t_pending:
+            logger.info(f"Cancelling task {task.get_name()}.")
+            task.cancel()
+
+        if t_done.exception():
+            self.peripherals.pipe_main_proc.send(f'Error: {t_done.exception()}')
+            raise t_done.exception()
+        logger.info("All bots have been stopped. Session is about to exit.")
+
+    async def _monitor_proxy(self) -> None:
+        """
+        Monitor the proxy request queue.
+        :return:
+        """
+        notifier = self.metadata["proxy_request"]
+
+        def _single_cycle(cond):
+            with cond:  # Acquire the underlying Lock
+                while not cond.wait(timeout=1):  # Release and wait for notification
+                    if self.proxy_listener.cancelling():
+                        return
+                # Reaching here, we've reacquired the Lock after being notified
+                key = next(
+                    key for key in self.metadata.keys()
+                    if key not in ['proxy_request', 'logging_queue']
+                )
+                type_, args, kwargs = self.metadata[key]
+                logger.log(LOG_LEVEL, f"Request received from {key} for {type_}.")
+                self.metadata[key] = getattr(
+                    self.process_manager, type_
+                )(*args, **kwargs)
+                cond.notify()  # The proxy request has been processed, notify waiter.
+
+        while True:
+            await asyncio.to_thread(_single_cycle, notifier)

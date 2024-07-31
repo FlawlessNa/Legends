@@ -8,9 +8,7 @@ from functools import cached_property, partial
 from typing import Sequence
 
 from botting import PARENT_LOG
-from botting.core.botv2.bot_data import BotData
-from botting.core.botv2.decision_maker import DecisionMaker
-from botting.core.botv2.action_data import ActionRequest
+from botting.core import ActionRequest, BotData, DecisionMaker
 from botting.models_abstractions import BaseMob
 from botting.utilities import (
     Box,

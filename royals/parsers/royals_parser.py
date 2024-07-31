@@ -1,5 +1,5 @@
 from botting.communications import BaseParser
-from botting.core.botv2.action_data import ActionRequest
+from botting.core.action_data import ActionRequest
 
 
 class RoyalsParser(BaseParser):

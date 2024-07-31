@@ -2,7 +2,7 @@ import asyncio
 import logging
 from botting import PARENT_LOG
 from .royals_bot import RoyalsBot
-from botting.core.botv2.decision_maker import DecisionMaker
+from botting.core import DecisionMaker
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.NOTSET

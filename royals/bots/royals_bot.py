@@ -1,7 +1,7 @@
 import multiprocessing.connection
 import multiprocessing.managers
 from abc import ABC
-from botting.core.botv2.bot import Bot
+from botting.core import Bot
 from royals import royals_ign_finder, royals_job_finder
 from royals.model.characters import MAPPING as CHARACTER_MAPPING
 from royals.model.maps import RoyalsMap

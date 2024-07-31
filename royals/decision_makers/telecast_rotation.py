@@ -1,5 +1,5 @@
 import math
-from botting.core.botv2.decision_maker import DecisionMaker
+from botting.core import DecisionMaker
 
 DISTANCE_THRESHOLD = 10
 
