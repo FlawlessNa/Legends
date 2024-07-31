@@ -182,7 +182,10 @@ class MobsHitting(DecisionMaker, _MobsHittingMixin):
                     left=x - self.training_skill.horizontal_screen_range,
                     right=x + self.training_skill.horizontal_screen_range,
                     top=y - self.training_skill.vertical_screen_range,
-                    bottom=y + self.training_skill.vertical_screen_range,
+                    bottom=min(
+                        y + self.training_skill.vertical_screen_range,
+                        self.data.current_client_img.shape[0]-40
+                    )
                 )
                 x, y = region.width / 2, region.height / 2
             else:

@@ -5,7 +5,7 @@ from typing import Any
 import logging
 
 logger = logging.getLogger(__name__)
-LOG_LEVEL = logging.INFO
+LOG_LEVEL = logging.NOTSET
 N_RET_VALUES = 10
 
 
