@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import math
 import multiprocessing.connection
 import multiprocessing.managers
@@ -6,6 +7,7 @@ import numpy as np
 from functools import cached_property
 from typing import Sequence
 
+from botting import PARENT_LOG
 from botting.core.botv2.bot_data import BotData
 from botting.core.botv2.decision_maker import DecisionMaker
 from botting.core.botv2.action_data import ActionRequest
@@ -18,6 +20,9 @@ from botting.utilities import (
 )
 from royals.actions import cast_skill
 from royals.model.mechanics import RoyalsSkill
+
+logger = logging.getLogger(f'{PARENT_LOG}.{__name__}')
+LOG_LEVEL = logging.INFO
 
 
 class _MobsHittingMixin:
@@ -79,21 +84,20 @@ class MobsHitting(DecisionMaker, _MobsHittingMixin):
         **kwargs
     ) -> None:
         super().__init__(metadata, data, pipe)
-        self.lock = self.request_proxy("Lock")
-        self.lock = self.metadata.pop(f'{self}')
+        self.lock = self.request_proxy(self.metadata, f'{self}', "Lock")
         self.mob_threshold = mob_count_threshold
         self.training_skill = self._get_training_skill(training_skill)
 
-        self.data.create_attribute(
-            "current_on_screen_position", self._get_on_screen_pos, threshold=1.0
-        )
         self.data.create_attribute(
             'current_client_img',
             lambda: take_screenshot(self.data.handle),
             threshold=0.1
         )
+        self.data.create_attribute(
+            "current_on_screen_position", self._get_on_screen_pos, threshold=1.0
+        )
 
-    def _hit_mobs(self) -> ActionRequest:
+    def _hit_mobs(self, direction: str | None) -> ActionRequest:
         """
         Function to use to update the current on screen position of the character.
         :return:
@@ -103,7 +107,8 @@ class MobsHitting(DecisionMaker, _MobsHittingMixin):
                 self.data.handle,
                 self.data.ign,
                 self.training_skill,
-                ready_at=0
+                ready_at=0,
+                direction=direction
             )
         return ActionRequest(
             _action(),
@@ -162,8 +167,10 @@ class MobsHitting(DecisionMaker, _MobsHittingMixin):
         If the number of mobs is greater than the threshold, cast the skill.
         :return:
         """
+        logger.log(LOG_LEVEL, f"{self} is deciding.")
+        await asyncio.to_thread(self.lock.acquire)
+
         on_screen_pos = self.data.get_last_known_value("current_on_screen_position")
-        res = None
         closest_mob_direction = None
 
         if on_screen_pos:
@@ -196,5 +203,4 @@ class MobsHitting(DecisionMaker, _MobsHittingMixin):
                         (x, y), mobs_locations
                     )
 
-                if self.lock.acquire(blocking=False):
-                    self.pipe.send(self._hit_mobs())
+                self.pipe.send(self._hit_mobs(closest_mob_direction))

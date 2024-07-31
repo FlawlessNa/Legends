@@ -12,6 +12,7 @@ from .peripherals_process import PeripheralsProcess
 from botting.communications import BaseParser
 
 logger = logging.getLogger(__name__)
+LOG_LEVEL = logging.INFO
 
 
 class SessionManager:
@@ -36,7 +37,7 @@ class SessionManager:
         self.task_manager = AsyncTaskManager()
         self.metadata = self.process_manager.dict(
             logging_queue=self.process_manager.Queue(),
-            proxy_request=self.process_manager.Event()
+            proxy_request=self.process_manager.Condition()
         )
 
         self.peripherals = PeripheralsProcess(
@@ -52,6 +53,7 @@ class SessionManager:
         self.engines: list[multiprocessing.Process] = []
         self.listeners: list[asyncio.Task] = []
         self.discord_listener: asyncio.Task | None = None
+        self.proxy_listener: asyncio.Task | None = None
         self.main_bot = None
 
     def __enter__(self) -> Self:
@@ -65,6 +67,9 @@ class SessionManager:
         self.discord_listener = asyncio.create_task(
             self.peripherals.peripherals_listener(self.task_manager.queue),
             name="Discord Listener",
+        )
+        self.proxy_listener = asyncio.create_task(
+            self._monitor_proxy(), name="Proxy Listener"
         )
         return self
 
@@ -117,7 +122,7 @@ class SessionManager:
             self.listeners.append(engine_listener)
 
         t_done, t_pending = await asyncio.wait(
-            self.listeners + [self.discord_listener],
+            self.listeners + [self.discord_listener, self.proxy_listener],
             return_when=asyncio.FIRST_COMPLETED,
         )
         t_done = t_done.pop()
@@ -129,3 +134,30 @@ class SessionManager:
         if t_done.exception():
             raise t_done.exception()
         logger.info("All bots have been stopped. Session is about to exit.")
+
+    async def _monitor_proxy(self) -> None:
+        """
+        Monitor the proxy request queue.
+        :return:
+        """
+        notifier = self.metadata["proxy_request"]
+
+        def _single_cycle(cond):
+            with cond:  # Acquire the underlying Lock
+                while not cond.wait(timeout=1):  # Release and wait for notification
+                    if self.proxy_listener.cancelling():
+                        return
+                # Reaching here, we've reacquired the Lock after being notified
+                key = next(
+                    key for key in self.metadata.keys()
+                    if key not in ['proxy_request', 'logging_queue']
+                )
+                type_, args, kwargs = self.metadata[key]
+                logger.log(LOG_LEVEL, f"Request received from {key} for {type_}.")
+                self.metadata[key] = getattr(
+                    self.process_manager, type_
+                )(*args, **kwargs)
+                cond.notify()  # The proxy request has been processed, notify waiter.
+
+        while True:
+            await asyncio.to_thread(_single_cycle, notifier)

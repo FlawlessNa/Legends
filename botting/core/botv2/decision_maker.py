@@ -53,13 +53,14 @@ class DecisionMaker(ABC):
         :param primitive_type: a string representing the primitive type.
         :return: a Proxy instance.
         """
+        logger.log(LOG_LEVEL, f"Requesting {primitive_type} for {requester}.")
         notifier = metadata["proxy_request"]
-        while notifier.is_set:
-            # if already set, wait until it is cleared by Manager.
-            pass
-        metadata[requester] = primitive_type, args, kwargs
-        notifier.set()
-        notifier.wait()
+        with notifier:  # Acquire the underlying Lock
+            data = primitive_type, args, kwargs
+            metadata[requester] = data
+            notifier.notify()
+            notifier.wait_for(lambda: metadata[requester] != data)
+        logger.log(LOG_LEVEL, f"Created {primitive_type} for {requester}.")
         return metadata.pop(requester)
 
     @abstractmethod
@@ -70,7 +71,6 @@ class DecisionMaker(ABC):
         logger.log(LOG_LEVEL, f"{self} started.")
         try:
             while True:
-                logger.log(LOG_LEVEL, f"{self} is deciding.")
                 await self._decide()
                 if self._throttle:
                     await asyncio.sleep(self._throttle)
