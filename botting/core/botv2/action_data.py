@@ -1,5 +1,5 @@
+import asyncio
 from dataclasses import field, dataclass
-from typing import Coroutine
 
 
 @dataclass
@@ -15,10 +15,19 @@ class ActionRequest:
     task management.
     """
 
-    procedure: Coroutine
+    procedure: callable
     identifier: str
-    priority: int
+    ign: str
+    priority: int = field(default=1)  # Higher priority tasks have more control
+
+    # Whether to cancel a task with same identifier
+    cancels_itself: bool = field(default=False)
+
+    # Used when this task is blocked from being scheduled by another task
     requeue_if_not_scheduled: bool = field(default=True)
-    cancellable_by_self: bool = field(default=True)
-    cancellable_by_others: bool = field(default=True)
+
+    # Used to block lower priority tasks from being scheduled
+    block_lower_priority: bool = field(default=False)
+
     callback: callable = field(default=None)
+    task: asyncio.Task = field(default=None, init=False)

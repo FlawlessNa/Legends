@@ -54,6 +54,7 @@ class SessionManager:
         self.listeners: list[asyncio.Task] = []
         self.discord_listener: asyncio.Task | None = None
         self.proxy_listener: asyncio.Task | None = None
+        self.management_task: asyncio.Task | None = None
         self.main_bot = None
 
     def __enter__(self) -> Self:
@@ -70,6 +71,9 @@ class SessionManager:
         )
         self.proxy_listener = asyncio.create_task(
             self._monitor_proxy(), name="Proxy Listener"
+        )
+        self.management_task = asyncio.create_task(
+            self.task_manager.start(), name="Task Manager"
         )
         return self
 
@@ -108,8 +112,6 @@ class SessionManager:
         """
         self.main_bot = grouped_bots[0][0]
         for group in grouped_bots:
-            # if idx == 0:
-            #     self.main_bot = group[0]
             engine_side, listener_side = multiprocessing.Pipe()
             engine_proc = Engine.start(engine_side, self.metadata, group)
             engine_listener = Engine.listener(
@@ -120,9 +122,10 @@ class SessionManager:
             )
             self.engines.append(engine_proc)
             self.listeners.append(engine_listener)
-
         t_done, t_pending = await asyncio.wait(
-            self.listeners + [self.discord_listener, self.proxy_listener],
+            self.listeners + [
+                self.discord_listener, self.proxy_listener, self.management_task
+            ],
             return_when=asyncio.FIRST_COMPLETED,
         )
         t_done = t_done.pop()
@@ -132,6 +135,7 @@ class SessionManager:
             task.cancel()
 
         if t_done.exception():
+            self.peripherals.pipe_main_proc.send(f'Error: {t_done.exception()}')
             raise t_done.exception()
         logger.info("All bots have been stopped. Session is about to exit.")
 

@@ -195,43 +195,26 @@ class Engine(_ChildProcessEngine):
             try:
                 while True:
                     if await asyncio.to_thread(pipe.poll):
-                        queue_item: ActionRequest = pipe.recv()
+                        request: ActionRequest = pipe.recv()
 
-                        if queue_item is None:
+                        if request is None:
                             msg = f"Received None from {engine.name}. Exiting."
                             logger.info(msg)
                             break
 
-                        elif isinstance(queue_item, BaseException):
+                        elif isinstance(request, BaseException):
                             logger.error(f"Exception occurred in {engine.name}.")
 
                             discord_pipe.send(
-                                f"Exception {queue_item} \n occurred in {engine.name}."
+                                f"Exception {request} \n occurred in {engine.name}."
                             )
                             break
+                        elif isinstance(request, str):
+                            logger.info(f"Received {request} from {engine.name}.")
+                            discord_pipe.send(request)
 
-                        # Such that the callbacks are sent through the proper pipe.
-                        await queue.put(queue_item)
-                        # logger.debug(f"{queue_item} received from {self.engine}.")
-                        # new_task = self.create_task(queue_item)
-                        # if new_task is not None:
-                        #     logger.debug(f"Created task {new_task.get_name()}.")
-                        #     if queue_item.disable_lower_priority:
-                        #         Executor.priority_levels.append(queue_item.priority)
-                        #         new_task.add_done_callback(
-                        #             partial(
-                        #                 self.clear_priority_level, queue_item.priority
-                        #             )
-                        #         )
-                        #
-                        # self._task_cleanup()
-                        #
-                        # if len(asyncio.all_tasks()) > 30:
-                        #     for t in asyncio.all_tasks():
-                        #         print(t)
-                        #     logger.warning(
-                        #         f"Nbr of tasks in the event loop is {len(asyncio.all_tasks())}."
-                        #     )
+                        await queue.put(request)
+
             except asyncio.CancelledError:
                 logger.info(f"Listener to {engine.name} cancelled.")
 

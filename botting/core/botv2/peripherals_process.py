@@ -67,6 +67,7 @@ class PeripheralsProcess:
                 if await asyncio.to_thread(self.pipe_main_proc.poll):
                     message: str = self.pipe_main_proc.recv()
                     action: ActionRequest = self.discord_parser.parse_message(message)
+                    # TODO - Finish this
                     if action is not None:
                         await async_queue.put(action)
                     # if action is None:

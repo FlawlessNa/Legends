@@ -4,7 +4,7 @@ import math
 import multiprocessing.connection
 import multiprocessing.managers
 import numpy as np
-from functools import cached_property
+from functools import cached_property, partial
 from typing import Sequence
 
 from botting import PARENT_LOG
@@ -22,7 +22,7 @@ from royals.actions import cast_skill
 from royals.model.mechanics import RoyalsSkill
 
 logger = logging.getLogger(f'{PARENT_LOG}.{__name__}')
-LOG_LEVEL = logging.INFO
+LOG_LEVEL = logging.NOTSET
 
 
 class _MobsHittingMixin:
@@ -74,6 +74,7 @@ class _MobsHittingMixin:
 
 
 class MobsHitting(DecisionMaker, _MobsHittingMixin):
+
     def __init__(
         self,
         metadata: multiprocessing.managers.DictProxy,
@@ -102,21 +103,19 @@ class MobsHitting(DecisionMaker, _MobsHittingMixin):
         Function to use to update the current on screen position of the character.
         :return:
         """
-        async def _action():
-            await cast_skill(
-                self.data.handle,
-                self.data.ign,
-                self.training_skill,
-                ready_at=0,
-                direction=direction
-            )
+        _action = partial(
+            cast_skill,
+            self.data.handle,
+            self.data.ign,
+            self.training_skill,
+            ready_at=0,
+            direction=direction
+        )
+
         return ActionRequest(
-            _action(),
+            _action,
             f'{self}',
-            99,
-            requeue_if_not_scheduled=False,
-            cancellable_by_self=False,
-            cancellable_by_others=True,
+            ign=self.data.ign,
             callback=self.lock.release
         )
 
@@ -204,3 +203,5 @@ class MobsHitting(DecisionMaker, _MobsHittingMixin):
                     )
 
                 self.pipe.send(self._hit_mobs(closest_mob_direction))
+                return
+        await asyncio.to_thread(self.lock.release)
