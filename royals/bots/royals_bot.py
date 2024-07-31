@@ -2,6 +2,7 @@ import multiprocessing.connection
 import multiprocessing.managers
 from abc import ABC
 from botting.core import Bot
+from botting.utilities import take_screenshot
 from royals import royals_ign_finder, royals_job_finder
 from royals.model.characters import MAPPING as CHARACTER_MAPPING
 from royals.model.maps import RoyalsMap
@@ -33,6 +34,9 @@ class RoyalsBot(Bot, ABC):
     def child_init(self, pipe: multiprocessing.connection.Connection) -> None:
         """
         Called by the Engine to create Bot within Child process.
+        Since virtually every bot will at some point require to know the character class
+        and be made aware of the minimap position, those attributes are created here for
+        convenience.
         """
         super().child_init(pipe)
         self.data.create_attribute(
@@ -47,4 +51,9 @@ class RoyalsBot(Bot, ABC):
         )
         self.data.create_attribute(
             "current_mobs", lambda: self.data.current_map.mobs
+        )
+        self.data.create_attribute(
+            'current_client_img',
+            lambda: take_screenshot(self.data.handle),
+            threshold=0.1
         )

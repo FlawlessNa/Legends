@@ -1,8 +1,5 @@
 # Royals-V2
 
-# Todo before all the rest below
-- [ ] Finish core refactoring of performance-improvements
-
 ## Bug Fixes (Current Branch)
 - [ ] Minimap handling between CheckStillInMap and InventoryManager
 - [ ] Cancellation of NPC Selling seems to be problematic because it has a return value
@@ -22,6 +19,7 @@
 - [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases
 - [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
 - [ ] Look into partial path computing otherwise?
+- [ ] Can use a fixed-length movement buffer instead of just first movement
 - [ ] Look into game files to reverse engineer movements??
 - [ ] Flexible map movements, speed, jumps, etc.
 - [ ] Add logging everywhere -> use level 0 to disable thru a CONSTANT for each relevant script
@@ -29,10 +27,8 @@
 - [ ] Look into leveraging psutil for performance monitoring of CPU resources by client/process
   - Also look into managing the Manager Process since it is a new feature that needs to spawn a process
 - [ ] Look into using Profilers (cProfile, line_profiler) to identify bottlenecks in the code
-- [ ] Look into "blocked" generators could wait on a mp.Event/Condition semaphore to reduce CPU consumption
-  - [ ] Look into using asyncio DEBUG mode (PYTHONASYNCIODEBUG=1) to identify potential issues with the code
+- [ ] Look into using asyncio DEBUG mode (PYTHONASYNCIODEBUG=1) to identify potential issues with the code
 - [ ] Look into leveraging loop.run_in_executor(concurrent.futures.ProcessPoolExecutor) for CPU-intensive operations?
-- [ ] Check if tasks created with executor.create_task should also be awaited? If not, the enclosing task may cancel if it terminates before
 - [ ] Make sure to refresh documentation everywhere
 
 ## Leeching Branch - TODOs

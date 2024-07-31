@@ -49,7 +49,7 @@ class TestBotData(unittest.TestCase):
         self.bot_data.test_attr = "manually_set_value"
         self.assertEqual(self.bot_data.test_attr, "manually_set_value")
         self.assertIn(
-            "manually_set_value", self.bot_data._metadata["test_attr"].last_values
+            "manually_set_value", self.bot_data._metadata["test_attr"].prev_values
         )
 
     def test_update_attribute_raises_error_if_no_update_function(self):

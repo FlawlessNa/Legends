@@ -14,9 +14,9 @@ from botting.utilities import (
     Box,
     CLIENT_HORIZONTAL_MARGIN_PX,
     CLIENT_VERTICAL_MARGIN_PX,
-    take_screenshot
 )
 from royals.actions import cast_skill
+from royals.model.interface import LargeClientChatFeed
 from royals.model.mechanics import RoyalsSkill
 
 logger = logging.getLogger(f'{PARENT_LOG}.{__name__}')
@@ -86,12 +86,6 @@ class MobsHitting(DecisionMaker, _MobsHittingMixin):
         self.lock = self.request_proxy(self.metadata, f'{self}', "Lock")
         self.mob_threshold = mob_count_threshold
         self.training_skill = self._get_training_skill(training_skill)
-
-        self.data.create_attribute(
-            'current_client_img',
-            lambda: take_screenshot(self.data.handle),
-            threshold=0.1
-        )
         self.data.create_attribute(
             "current_on_screen_position", self._get_on_screen_pos, threshold=1.0
         )
@@ -182,7 +176,7 @@ class MobsHitting(DecisionMaker, _MobsHittingMixin):
                     top=y - self.training_skill.vertical_screen_range,
                     bottom=min(
                         y + self.training_skill.vertical_screen_range,
-                        self.data.current_client_img.shape[0]-40
+                        LargeClientChatFeed._chat_typing_area.top  # noqa
                     )
                 )
                 x, y = region.width / 2, region.height / 2

@@ -1,7 +1,6 @@
 import math
 from botting.core import DecisionMaker
 
-DISTANCE_THRESHOLD = 10
 
 
 class TelecastRotation(DecisionMaker):

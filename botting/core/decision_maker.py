@@ -3,7 +3,6 @@ import logging
 import multiprocessing.connection
 import multiprocessing.managers
 from abc import ABC, abstractmethod
-from typing import Literal
 
 from .bot_data import BotData
 
@@ -21,7 +20,6 @@ class DecisionMaker(ABC):
     """
 
     _throttle: float = None
-    _type: Literal["Rotation", "AntiDetection", "Maintenance"]
 
     def __init__(
         self,

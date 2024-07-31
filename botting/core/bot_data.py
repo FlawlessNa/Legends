@@ -22,7 +22,7 @@ class AttributeMetadata:
     total_update_time: float = 0.0  # Total time spent updating the attribute
     last_update_time: datetime = None  # Timestamp of the last update
     # Last N values of the attribute
-    last_values: deque[Any] = field(default_factory=lambda: deque(maxlen=N_RET_VALUES))
+    prev_values: deque[Any] = field(default_factory=lambda: deque(maxlen=N_RET_VALUES))
 
     @property
     def average_update_time(self) -> float:
@@ -75,7 +75,7 @@ class BotData:
 
             return getattr(self, name) or next(
                 (
-                    value for value in reversed(self._metadata[name].last_values)
+                    value for value in reversed(self._metadata[name].prev_values)
                     if value is not None
                 ),
                 None
@@ -118,7 +118,7 @@ class BotData:
             super().__setattr__(name, value)
         elif name in self._attributes:
             self._attributes[name] = value
-            self._metadata[name].last_values.append(value)
+            self._metadata[name].prev_values.append(value)
         else:
             raise AttributeError(f"{name} created in {self}. Use create_attribute()")
 
@@ -152,6 +152,7 @@ class BotData:
         name: str,
         update_function: callable,
         threshold: float = None,
+        **kwargs
     ) -> None:
         """
         Creates a new attribute or overwrites the specifications of an existing one.
@@ -160,7 +161,7 @@ class BotData:
         :param threshold: Maximum delay after which the attribute is updated.
         :return:
         """
-        self._metadata.setdefault(name, AttributeMetadata())
+        self._metadata.setdefault(name, AttributeMetadata(**kwargs))
         self._update_functions[name] = update_function
         self._thresholds[name] = threshold
         self._attributes[name] = None
