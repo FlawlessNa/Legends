@@ -17,16 +17,17 @@ import royals.parsers
 
 LEECHER_IGN = "WrongDoor"
 LEECHER_CLASS = royals.characters.Bishop
-LEECHER_BUFFS_TO_USE = ['Magic Guard', 'Invincible']
+LEECHER_BUFFS_TO_USE = ['Invincible']
 LEECHER_NUM_PETS = 3
 BUFFS_TO_SYNCHRONIZE = [
     "Holy Symbol",
     "Maple Warrior",
-    "Haste"
+    "Haste",
+    "Mesos Up"
 ]
 
 BUFF_MULES_IGN = ["UluLoot", "BCoinFarm", "iYieldMoney", "MoneyEngine", "FinancialWiz"]
-BUFF_MULES_CLASSES = [royals.characters.Assassin] + [royals.characters.Magician] * 4
+BUFF_MULES_CLASSES = [royals.characters.Hermit] + [royals.characters.Magician] * 4
 
 NUM_BOTS = 6
 TRAINING_MAP = royals.maps.FantasyThemePark1
