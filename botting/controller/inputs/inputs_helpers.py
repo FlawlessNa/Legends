@@ -14,8 +14,8 @@ from functools import lru_cache
 # http://www.kbdedit.com/manual/low_level_vk_list.html
 # https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 
-DELAY: float = 0.033 - time.get_clock_info("monotonic").resolution
-
+# DELAY: float = 0.033 - time.get_clock_info("monotonic").resolution
+DELAY: float = 0.033
 
 def _random_delay():
     while True:

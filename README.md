@@ -16,9 +16,14 @@
 - [ ] Implement unit tests - use mocking such that test can run without the game environment
 - **Movements**:
 - [ ] Cache a CustomAFinder.find_path instead of get_to_target (or both). Will help with indirect paths caching as well
+- [ ] Breakdown get_to_target for better performance/efficiency and finetuning
+  - For example, instead of comparison previous action with current, you can compare previous movements, which is much easier
+  - IDEA: fire up a movement sequence, then monitor character's distance from closest point on path. If too far, refresh path.
+  - IDEA: always fire up a movement of a given duration (say, 0.5s, which is a buffer). That action can combine several movement segments.
 - [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases
 - [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
 - [ ] Look into partial path computing otherwise?
+- Experiment with truncating currently known path based on current position relative to path.
 - [ ] Can use a fixed-length movement buffer instead of just first movement
 - [ ] Look into game files to reverse engineer movements??
 - [ ] Flexible map movements, speed, jumps, etc.

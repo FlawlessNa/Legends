@@ -65,21 +65,24 @@ class BotData:
     def __str__(self) -> str:
         return f"BotData({self.ign})"
 
-    def get_last_known_value(self, name: str) -> Any:
+    def get_last_known_value(self, name: str, update: bool = True) -> Any:
         """
         Returns the last known (non-None) value of an attribute, if it exists.
         :param name: Name of the attribute.
+        :param update: Whether to enable automatic update.
         :return: Last known value of the attribute.
         """
         if name in self._metadata:
-
-            return getattr(self, name) or next(
+            last_no_update = next(
                 (
                     value for value in reversed(self._metadata[name].prev_values)
-                    if value is not None
+                    if value not in [None, '', [], {}]
                 ),
                 None
             )
+            if not update:
+                return last_no_update
+            return getattr(self, name) or last_no_update
         raise AttributeError(f"{name} not found in {self}")
 
     def __getattr__(self, name: str) -> Any:
@@ -142,8 +145,8 @@ class BotData:
         metadata = self._metadata[name]
         metadata.update_count += 1
         now = datetime.now()
-        metadata.last_update_time = now
         value = self._update_functions[name]()
+        metadata.last_update_time = datetime.now()
         self.__setattr__(name, value)
         metadata.total_update_time += (datetime.now() - now).total_seconds()
 
@@ -152,6 +155,7 @@ class BotData:
         name: str,
         update_function: callable,
         threshold: float = None,
+        initial_value: Any = None,
         **kwargs
     ) -> None:
         """
@@ -159,10 +163,13 @@ class BotData:
         :param name: Name of the attribute.
         :param update_function: Function to update the attribute.
         :param threshold: Maximum delay after which the attribute is updated.
+        :param initial_value: Initial value of the attribute, which bypasses the
+        update function if specified.
         :return:
         """
         self._metadata.setdefault(name, AttributeMetadata(**kwargs))
         self._update_functions[name] = update_function
         self._thresholds[name] = threshold
-        self._attributes[name] = None
-        self.update_attribute(name)
+        self._attributes.setdefault(name, initial_value)
+        if not initial_value:
+            self.update_attribute(name)

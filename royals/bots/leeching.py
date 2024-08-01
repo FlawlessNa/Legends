@@ -13,5 +13,5 @@ class LeechingBot(RoyalsBot):
     def _decision_makers(self) -> list[type[DecisionMaker]]:
         return [
             decision_makers.MobsHitting,
-            # decision_makers.TelecastRotation,
+            decision_makers.Rotation,
         ]

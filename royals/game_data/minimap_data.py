@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from functools import partial
 
-from botting.core import EngineData
+from botting.core import BotData as EngineData
 from botting.utilities import (
     Box,
     CLIENT_HORIZONTAL_MARGIN_PX,

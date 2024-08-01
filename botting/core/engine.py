@@ -9,6 +9,7 @@ from .action_data import ActionRequest
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = logging.NOTSET
+_DEBUG_TIMEOUT_ = None  # None to run infinitely. Otherwise, this stops the engine
 
 
 class _ChildProcessEngine:
@@ -70,17 +71,19 @@ class _ChildProcessEngine:
             )
             t_done, t_pending = await asyncio.wait(
                 [self.main_listener] + self.bot_tasks,
+                timeout=_DEBUG_TIMEOUT_,
                 return_when=asyncio.FIRST_COMPLETED
             )
             logger.info(f"{self} has finished waiting due to {t_done}.")
-            t_done = t_done.pop()
 
             for task in t_pending:
                 logger.info(f"{self} Cancelling task {task.get_name()}")
                 task.cancel()
+            if t_done:
+                t_done = t_done.pop()
 
-            if t_done.exception():
-                raise t_done.exception()
+                if t_done.exception():
+                    raise t_done.exception()
 
         except SystemExit:
             pass

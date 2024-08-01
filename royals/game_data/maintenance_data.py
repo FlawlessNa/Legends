@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from botting.core import EngineData
+from botting.core import BotData as EngineData
 from royals.model.characters import Character
 from royals.model.interface import AbilityMenu, CharacterStats, InventoryMenu
 

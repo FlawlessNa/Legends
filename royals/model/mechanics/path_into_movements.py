@@ -119,7 +119,7 @@ def _get_path_to_target(
     grid = in_game_minimap.grid
     start = grid.node(int(current[0]), int(current[1]))
     end = grid.node(target[0], target[1])
-    finder = AStarFinder() if grid.portals else DijkstraFinder()
+    finder = AStarFinder() if not grid.portals else DijkstraFinder()
 
     # Find direct path
     direct_path, runs = finder.find_path(start, end, grid)

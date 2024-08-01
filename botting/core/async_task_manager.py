@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from dataclasses import dataclass
 
 from .action_data import ActionRequest
 
@@ -85,7 +84,7 @@ class AsyncTaskManager:
         except Exception:
             raise
         finally:
-            self.running_tasks.pop(fut.get_name())
+            self.running_tasks.pop(fut.get_name(), None)
 
     def _check_for_event_loop_overflow(self):
         """
