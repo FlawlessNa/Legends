@@ -1,4 +1,13 @@
 # Royals-V2
+Movements:
+- Breakdown all 3 functions into individual components
+- Create a MovementData class that contains all relevant data for movements, including input structures
+- Create compound movements (all combined in a single structure)
+  - Compound movements automatically determine which keys need to be released within transitions.
+  - 
+- 
+- Create buffers of pre-determined duration from those compound movements
+- Look into multiprocessing context for whether GetAsyncKeyState works or not (can the releasing of keys be determined within child proc even if the keys are held from main proc? )
 
 ## Bug Fixes (Current Branch)
 - [ ] Minimap handling between CheckStillInMap and InventoryManager
@@ -28,7 +37,12 @@
 - [ ] Look into game files to reverse engineer movements??
 - [ ] Flexible map movements, speed, jumps, etc.
 - [ ] Add logging everywhere -> use level 0 to disable thru a CONSTANT for each relevant script
+- **royals.actions**:
 - [ ] Add prioritities into royals.actions
+- [ ] Implement complex actions that can either perform checks between transitions in the main process, or they can use primitives instead.
+  - Ex: Opening inventory, toggling tabs, and checking items
+  - Ex: Going to store, opening store, selling stuff, etc.
+- [ ] Implement all simple actions that can come up as wrappers around botting.controller
 - [ ] Look into leveraging psutil for performance monitoring of CPU resources by client/process
   - Also look into managing the Manager Process since it is a new feature that needs to spawn a process
 - [ ] Look into using Profilers (cProfile, line_profiler) to identify bottlenecks in the code

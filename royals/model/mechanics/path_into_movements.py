@@ -5,7 +5,7 @@ import itertools
 import logging
 
 import numpy as np
-from functools import partial, lru_cache
+from functools import partial
 from pathfinding.finder.a_star import AStarFinder
 from pathfinding.finder.dijkstra import DijkstraFinder
 
@@ -53,7 +53,6 @@ def _debug(
     cv2.waitKey(1)
 
 
-@lru_cache(maxsize=None)
 def get_to_target(
     current: tuple[int, int],
     target: tuple[int, int],
