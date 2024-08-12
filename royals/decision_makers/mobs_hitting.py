@@ -16,12 +16,11 @@ from royals.model.interface import LargeClientChatFeed
 from royals.model.mechanics import RoyalsSkill
 from ._mixins import _MobsHittingMixin
 
-logger = logging.getLogger(f'{PARENT_LOG}.{__name__}')
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.NOTSET
 
 
 class MobsHitting(DecisionMaker, _MobsHittingMixin):
-
     def __init__(
         self,
         metadata: multiprocessing.managers.DictProxy,
@@ -29,10 +28,10 @@ class MobsHitting(DecisionMaker, _MobsHittingMixin):
         pipe: multiprocessing.connection.Connection,
         mob_count_threshold: int,
         training_skill: str = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         super().__init__(metadata, data, pipe)
-        self.lock = self.request_proxy(self.metadata, f'{self}', "Lock")
+        self.lock = self.request_proxy(self.metadata, f"{self}", "Lock")
         self.mob_threshold = mob_count_threshold
         self.training_skill = self._get_training_skill(training_skill)
         self.data.create_attribute(
@@ -50,14 +49,11 @@ class MobsHitting(DecisionMaker, _MobsHittingMixin):
             self.data.ign,
             self.training_skill,
             ready_at=0,
-            direction=direction
+            direction=direction,
         )
 
         return ActionRequest(
-            _action,
-            f'{self}',
-            ign=self.data.ign,
-            callback=self.lock.release
+            _action, f"{self}", ign=self.data.ign, callback=self.lock.release
         )
 
     def _get_training_skill(self, training_skill_str: str) -> RoyalsSkill:
@@ -125,8 +121,8 @@ class MobsHitting(DecisionMaker, _MobsHittingMixin):
                     top=y - self.training_skill.vertical_screen_range,
                     bottom=min(
                         y + self.training_skill.vertical_screen_range,
-                        LargeClientChatFeed._chat_typing_area.top  # noqa
-                    )
+                        LargeClientChatFeed._chat_typing_area.top,  # noqa
+                    ),
                 )
                 x, y = region.width / 2, region.height / 2
             else:

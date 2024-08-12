@@ -14,6 +14,7 @@ class AsyncTaskManager:
     Main Process class for managing asynchronous tasks.
     Task priority, scheduling, and cancellations are handled here.
     """
+
     _event_loop_overflow = MAX_CONCURRENT_TASKS
 
     def __init__(self) -> None:
@@ -58,11 +59,8 @@ class AsyncTaskManager:
         from being scheduled.
         """
         return max(
-            (
-                r.priority for r in self.running_tasks.values()
-                if r.block_lower_priority
-            ),
-            default=0
+            (r.priority for r in self.running_tasks.values() if r.block_lower_priority),
+            default=0,
         )
 
     def _schedule_task(self, request: ActionRequest) -> None:
@@ -77,7 +75,9 @@ class AsyncTaskManager:
         try:
             exception = fut.exception()
             if exception:
-                logger.error(f"Exception occurred in task {fut.get_name()}: {exception}")
+                logger.error(
+                    f"Exception occurred in task {fut.get_name()}: {exception}"
+                )
                 raise exception
         except (asyncio.CancelledError, TimeoutError):
             pass
@@ -105,6 +105,8 @@ class AsyncTaskManager:
         :param func: a function.
         :return: a function.
         """
+
         def _wrapper(fut):
             return func()
+
         return _wrapper

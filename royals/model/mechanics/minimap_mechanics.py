@@ -97,7 +97,7 @@ class MinimapNode(GridNode):
 
     connections_types: list = field(default_factory=list, init=False)
 
-    def connect(self, node: "MinimapNode", connection_type: int) -> None:
+    def connect(self, node: "MinimapNode", connection_type: int) -> None:  # noqa
         """
         Connects the current node to another node.
         :param node: Node to connect to.
@@ -131,6 +131,20 @@ class MinimapNode(GridNode):
 
     def __repr__(self):
         return self.__str__()
+
+    def __hash__(self):
+        return hash((self.x, self.y, self.walkable, self.weight, self.grid_id))
+
+    def __eq__(self, other):
+        if not isinstance(other, MinimapNode):
+            return False
+        return (
+            self.x == other.x
+            and self.y == other.y
+            and self.walkable == other.walkable
+            and self.weight == other.weight
+            and self.grid_id == other.grid_id
+        )
 
 
 class MinimapGrid(Grid):

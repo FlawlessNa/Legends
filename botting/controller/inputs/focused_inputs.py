@@ -7,7 +7,8 @@ import logging
 import win32con
 
 from ctypes import wintypes
-from typing import Literal
+from dataclasses import dataclass, field
+from typing import Literal, Generator
 from win32com.client import Dispatch
 from win32api import HIBYTE, GetKeyState, GetAsyncKeyState
 from win32gui import SetForegroundWindow, GetForegroundWindow
@@ -20,6 +21,7 @@ from .inputs_helpers import (
     _keyboard_layout_handle,
     EXTENDED_KEYS,
     MAPVK_VK_TO_VSC_EX,
+    OVERHEAD,
 )
 
 KEYEVENTF_EXTENDEDKEY = 0x0001
@@ -47,12 +49,7 @@ ULONG_PTR = ctypes.POINTER(ctypes.c_ulong)
 logger = logging.getLogger(__name__)
 
 EVENTS = Literal["keydown", "keyup", "click", "mousedown", "mouseup"]
-OPPOSITES = {
-    "up": "down",
-    "down": "up",
-    "left": "right",
-    "right": "left",
-}
+OPPOSITES = {"up": "down", "down": "up", "left": "right", "right": "left"}
 
 
 class MouseInputStruct(ctypes.Structure):
@@ -121,6 +118,76 @@ KEYBOARD = wintypes.DWORD(1)
 HARDWARE = wintypes.DWORD(2)
 
 
+@dataclass
+class KeyboardInputWrapper:
+    """
+    Dataclass that stores the input structure and the delay to wait before sending
+    the next input.
+    """
+
+    handle: int
+    keys: list[str | list[str]] = field(default_factory=list)
+    events: list[EVENTS | list[EVENTS]] = field(default_factory=list)
+    delays: list[float] = field(default_factory=list)
+    forced_key_releases: list[str] = field(default_factory=list)
+
+    @property
+    def c_input(self) -> list[tuple]:
+        return input_constructor(self.handle, self.keys, self.events)
+
+    @property
+    def duration(self) -> float:
+        return sum(self.delays) + OVERHEAD * len(self.delays)
+
+    def append(
+        self, keys: str | list[str], events: EVENTS | list[EVENTS], delay: float
+    ) -> None:
+        self.keys.append(keys)
+        self.events.append(events)
+        self.delays.append(delay)
+
+    def fill(self, key: str, event: EVENTS, delay_generator: Generator, limit: float):
+        """
+        Fills the structure with the given key and event until the duration reaches the
+        limit.
+        :param key:
+        :param event:
+        :param delay_generator:
+        :param limit:
+        :return:
+        """
+        while self.duration < limit:
+            self.append(key, event, next(delay_generator))
+
+    @property
+    def keys_held(self) -> set[str]:
+        """
+        Introspects the input structures to find the keys for which a KEYDOWN event is
+        sent and for which no subsequent KEYUP event is sent.
+        :return:
+        """
+        keys_down = set()
+        keys_up = set()
+        for i, key in enumerate(self.keys):
+            if isinstance(key, list):
+                for j, k in enumerate(key):
+                    if self.events[i][j] == "keydown":
+                        keys_down.add(k)
+                    elif self.events[i][j] == "keyup":
+                        keys_up.add(k)
+            else:
+                if self.events[i] == "keydown":
+                    keys_down.add(key)
+                elif self.events[i] == "keyup":
+                    keys_up.add(key)
+        return keys_down - keys_up
+
+    async def send(self):
+        return await focused_inputs(
+            self.handle, self.c_input, self.delays, self.forced_key_releases
+        )
+
+
 async def activate(hwnd: int) -> bool:
     """
     Activates the window associated with the handle.
@@ -133,9 +200,7 @@ async def activate(hwnd: int) -> bool:
         logger.debug(f"Activating window {hwnd}")
         # Before activating, make sure to release any keys that are currently pressed.
         release_all(GetForegroundWindow())
-
-        shell = Dispatch("WScript.Shell")
-        shell.SendKeys("%")
+        Dispatch("WScript.Shell").SendKeys("%")
         SetForegroundWindow(hwnd)
 
     elif not acquired and not SharedResources.focus_lock.locked():
@@ -271,7 +336,7 @@ async def focused_inputs(
     hwnd: int,
     inputs: list[tuple],
     delays: list[float],
-    keys_to_release: list[str] = None,
+    forced_key_releases: list[str] = None,
 ) -> int:
     """
     Sends the inputs to the active window.
@@ -279,8 +344,8 @@ async def focused_inputs(
     :param hwnd: handle to the window to send the inputs to.
     :param inputs: input structures to send.
     :param delays: delays between each input.
-    :param keys_to_release: If provided, these are sure to be released at the end even
-    if the task is cancelled.
+    :param forced_key_releases: If provided, these are sure to be released at the end,
+    even if the task is cancelled.
     :return: Nbr of inputs successfully sent.
     """
     res = 0
@@ -301,9 +366,9 @@ async def focused_inputs(
         raise e
 
     finally:
-        if keys_to_release:
+        if forced_key_releases:
             release_keys = []
-            for key in keys_to_release:
+            for key in forced_key_releases:
                 if (
                     HIBYTE(
                         GetAsyncKeyState(

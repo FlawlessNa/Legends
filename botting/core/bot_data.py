@@ -75,10 +75,11 @@ class BotData:
         if name in self._metadata:
             last_no_update = next(
                 (
-                    value for value in reversed(self._metadata[name].prev_values)
-                    if value not in [None, '', [], {}]
+                    value
+                    for value in reversed(self._metadata[name].prev_values)
+                    if value not in [None, "", [], {}]
                 ),
-                None
+                None,
             )
             if not update:
                 return last_no_update
@@ -156,7 +157,7 @@ class BotData:
         update_function: callable,
         threshold: float = None,
         initial_value: Any = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         """
         Creates a new attribute or overwrites the specifications of an existing one.

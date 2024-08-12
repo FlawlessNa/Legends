@@ -41,7 +41,7 @@ class DecisionMaker(ABC):
         requester: str,
         primitive_type: str,
         *args,
-        **kwargs
+        **kwargs,
     ):
         """
         Creates a Proxy for a primitive type.

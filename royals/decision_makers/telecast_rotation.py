@@ -2,7 +2,6 @@ import math
 from botting.core import DecisionMaker
 
 
-
 class TelecastRotation(DecisionMaker):
     def __repr__(self) -> str:
         pass

@@ -11,6 +11,7 @@ class _NextTargetMixin:
     """
     Utility function to set next target.
     """
+
     data: BotData
     DISTANCE_THRESHOLD = 10
 
@@ -18,24 +19,24 @@ class _NextTargetMixin:
         if self.data.current_minimap.feature_cycle:
             cycle = itertools.cycle(self.data.current_minimap.feature_cycle)
             self.data.create_attribute(
-                'next_feature',
+                "next_feature",
                 lambda: next(cycle),
             )
             self.data.create_attribute(
-                'next_target',
+                "next_target",
                 self._update_next_target_from_cycle,
                 initial_value=self.data.next_feature.random(),
             )
         else:
             self.data.create_attribute(
-                'next_target',
+                "next_target",
                 self.data.current_minimap.random_point,
             )
             self.data.create_attribute(
-                'next_feature',
+                "next_feature",
                 lambda: self.data.current_minimap.get_feature_containing(
                     self.data.next_target
-                )
+                ),
             )
 
     def _update_next_target_from_cycle(self) -> None:
@@ -43,12 +44,13 @@ class _NextTargetMixin:
         Updates the next target from the feature cycle.
         :return:
         """
-        if math.dist(
-            self.data.current_minimap_position, self.data.next_target
-        ) > self.DISTANCE_THRESHOLD:
+        if (
+            math.dist(self.data.current_minimap_position, self.data.next_target)
+            > self.DISTANCE_THRESHOLD
+        ):
             return self.data.next_target
         else:
-            self.data.update_attribute('next_feature')
+            self.data.update_attribute("next_feature")
             return self.data.next_feature.random()
 
     def _converge_towards_mobs(self):
@@ -64,9 +66,10 @@ class _NextTargetMixin:
         Sets the next target from the feature cycle.
         :return:
         """
-        if math.dist(
-            self.data.current_minimap_position, self.data.next_target
-        ) > self.DISTANCE_THRESHOLD:
+        if (
+            math.dist(self.data.current_minimap_position, self.data.next_target)
+            > self.DISTANCE_THRESHOLD
+        ):
             return self.data.next_target
         else:
             next_target = self.data.current_minimap.random_point()
@@ -80,6 +83,7 @@ class _MobsHittingMixin:
     """
     Utility functions to determine mob count, mob positions, and closest mob direction.
     """
+
     @staticmethod
     def mob_count_in_img(img: np.ndarray, mobs: list[BaseMob]) -> int:
         """
@@ -138,15 +142,21 @@ class _MinimapAttributesMixin:
 
     def _create_minimap_attributes(self) -> None:
         self.data.create_attribute(
-            'current_minimap_area_box',
-            lambda: self.data.current_minimap.get_map_area_box(self.data.handle)
+            "current_minimap_area_box",
+            lambda: self.data.current_minimap.get_map_area_box(self.data.handle),
         )
         self.data.create_attribute(
-            'current_minimap_position',
+            "current_minimap_position",
             self._get_minimap_pos,
-            threshold=self.MINIMAP_POS_REFRESH_RATE
+            threshold=self.MINIMAP_POS_REFRESH_RATE,
         )
         self.data.create_attribute(
-            'current_entire_minimap_box',
-            lambda: self.data.current_minimap.get_entire_minimap_box(self.data.handle)
+            "current_entire_minimap_box",
+            lambda: self.data.current_minimap.get_entire_minimap_box(self.data.handle),
         )
+
+
+class _PartyBuffMixin:
+    # TODO - Use this to setup primitives shared across Bots.
+    # TODO - Try using a Condition primitive
+    pass

@@ -31,3 +31,9 @@ class ActionRequest:
 
     callback: callable = field(default=None)
     task: asyncio.Task = field(default=None, init=False)
+    discord_request: "DiscordRequest" = field(default=None)
+
+
+@dataclass
+class DiscordRequest:
+    pass  # TODO: Implement this

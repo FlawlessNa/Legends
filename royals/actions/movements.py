@@ -91,7 +91,7 @@ async def single_jump(
     else:
         controller.release_opposites(handle, direction, "up", "down")
     await controller.focused_inputs(
-        handle, structure, delays, keys_to_release=[jump_key]
+        handle, structure, delays, forced_key_releases=[jump_key]
     )
 
 
@@ -153,7 +153,7 @@ async def jump_on_rope(
     structure = controller.input_constructor(handle, keys, events)
     controller.release_opposites(handle, direction)
     await controller.focused_inputs(
-        handle, structure, delays, keys_to_release=[direction, jump_key]
+        handle, structure, delays, forced_key_releases=[direction, jump_key]
     )
 
 

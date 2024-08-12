@@ -14,8 +14,9 @@ from functools import lru_cache
 # http://www.kbdedit.com/manual/low_level_vk_list.html
 # https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 
-# DELAY: float = 0.033 - time.get_clock_info("monotonic").resolution
-DELAY: float = 0.033
+DELAY: float = 0.033 - time.get_clock_info("monotonic").resolution
+# DELAY: float = 0.033
+
 
 def _random_delay():
     while True:
@@ -25,6 +26,24 @@ def _random_delay():
 
 random_delay = _random_delay()
 
+
+def _get_asyncio_overhead():
+    import timeit
+    import asyncio
+
+    actuals = []
+
+    async def _measure_delay():
+        actuals.append(next(random_delay))
+        await asyncio.sleep(actuals[-1])
+
+    def _main():
+        asyncio.run(_measure_delay())
+
+    return timeit.timeit(_main, number=50) / 50 - sum(actuals) / len(actuals)
+
+
+OVERHEAD: float = _get_asyncio_overhead()
 
 KEYBOARD_MAPPING = {
     "alt": win32con.VK_MENU,

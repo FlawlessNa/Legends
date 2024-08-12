@@ -72,7 +72,7 @@ class _ChildProcessEngine:
             t_done, t_pending = await asyncio.wait(
                 [self.main_listener] + self.bot_tasks,
                 timeout=_DEBUG_TIMEOUT_,
-                return_when=asyncio.FIRST_COMPLETED
+                return_when=asyncio.FIRST_COMPLETED,
             )
             logger.info(f"{self} has finished waiting due to {t_done}.")
 

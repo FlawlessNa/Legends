@@ -37,7 +37,7 @@ class SessionManager:
         self.task_manager = AsyncTaskManager()
         self.metadata = self.process_manager.dict(
             logging_queue=self.process_manager.Queue(),
-            proxy_request=self.process_manager.Condition()
+            proxy_request=self.process_manager.Condition(),
         )
 
         self.peripherals = PeripheralsProcess(
@@ -123,9 +123,8 @@ class SessionManager:
             self.engines.append(engine_proc)
             self.listeners.append(engine_listener)
         t_done, t_pending = await asyncio.wait(
-            self.listeners + [
-                self.discord_listener, self.proxy_listener, self.management_task
-            ],
+            self.listeners
+            + [self.discord_listener, self.proxy_listener, self.management_task],
             return_when=asyncio.FIRST_COMPLETED,
         )
         t_done = t_done.pop()
@@ -135,7 +134,7 @@ class SessionManager:
             task.cancel()
 
         if t_done.exception():
-            self.peripherals.pipe_main_proc.send(f'Error: {t_done.exception()}')
+            self.peripherals.pipe_main_proc.send(f"Error: {t_done.exception()}")
             raise t_done.exception()
         logger.info("All bots have been stopped. Session is about to exit.")
 
@@ -153,14 +152,15 @@ class SessionManager:
                         return
                 # Reaching here, we've reacquired the Lock after being notified
                 key = next(
-                    key for key in self.metadata.keys()
-                    if key not in ['proxy_request', 'logging_queue']
+                    key
+                    for key in self.metadata.keys()
+                    if key not in ["proxy_request", "logging_queue"]
                 )
                 type_, args, kwargs = self.metadata[key]
                 logger.log(LOG_LEVEL, f"Request received from {key} for {type_}.")
-                self.metadata[key] = getattr(
-                    self.process_manager, type_
-                )(*args, **kwargs)
+                self.metadata[key] = getattr(self.process_manager, type_)(
+                    *args, **kwargs
+                )
                 cond.notify()  # The proxy request has been processed, notify waiter.
 
         while True:

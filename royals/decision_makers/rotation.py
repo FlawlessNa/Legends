@@ -9,7 +9,7 @@ from botting.core import ActionRequest, BotData, DecisionMaker
 from royals.model.mechanics import get_to_target
 from ._mixins import _NextTargetMixin, _MinimapAttributesMixin
 
-logger = logging.getLogger(f'{PARENT_LOG}.{__name__}')
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.INFO
 
 
@@ -17,14 +17,14 @@ class Rotation(DecisionMaker, _NextTargetMixin, _MinimapAttributesMixin):
     _throttle = 0.05
 
     def __init__(
-            self,
-            metadata: multiprocessing.managers.DictProxy,
-            data: BotData,
-            pipe: multiprocessing.connection.Connection,
-            **kwargs,
+        self,
+        metadata: multiprocessing.managers.DictProxy,
+        data: BotData,
+        pipe: multiprocessing.connection.Connection,
+        **kwargs,
     ) -> None:
         super().__init__(metadata, data, pipe)
-        self._teleport_skill = self.data.character.skills.get('Teleport')
+        self._teleport_skill = self.data.character.skills.get("Teleport")
 
         # Minimap attributes
         self._create_minimap_attributes()
@@ -35,18 +35,18 @@ class Rotation(DecisionMaker, _NextTargetMixin, _MinimapAttributesMixin):
         # Rotation attributes
         self._create_rotation_attributes()
         self.data.create_attribute(
-            'movements',
+            "movements",
             lambda: self._compute_full_path(
                 self.data.current_minimap_position, self.data.next_target
             ),
-            threshold=0.01
+            threshold=0.01,
         )
         self.pipe.send(self._request(self.data.movements))
 
     async def _decide(self) -> None:
         logger.log(LOG_LEVEL, f"{self} is deciding.")
-        self.data.update_attribute('next_target')
-        prev_movements = self.data.get_last_known_value('movements', False)
+        self.data.update_attribute("next_target")
+        prev_movements = self.data.get_last_known_value("movements", False)
         movements = self.data.movements
         if self._compare_with_previous(movements, prev_movements):
             self.pipe.send(self._request(movements))
@@ -54,10 +54,10 @@ class Rotation(DecisionMaker, _NextTargetMixin, _MinimapAttributesMixin):
     def _request(self, movements: list[partial]) -> ActionRequest:
         return ActionRequest(
             movements[0],
-            f'{self}',
+            f"{self}",
             ign=self.data.ign,
             cancels_itself=True,
-            requeue_if_not_scheduled=False
+            requeue_if_not_scheduled=False,
         )
 
     @staticmethod
@@ -96,7 +96,7 @@ class Rotation(DecisionMaker, _NextTargetMixin, _MinimapAttributesMixin):
             self.data.handle,
             controller.key_binds(self.data.ign)["jump"],
             self._teleport_skill,
-            self.data.ign
+            self.data.ign,
         )
 
     def _truncate_path(self, current, path):

@@ -1,48 +1,58 @@
 # Royals-V2
-Movements:
-- Breakdown all 3 functions into individual components
-- Create a MovementData class that contains all relevant data for movements, including input structures
-- Create compound movements (all combined in a single structure)
-  - Compound movements automatically determine which keys need to be released within transitions.
-  - 
-- 
-- Create buffers of pre-determined duration from those compound movements
-- Look into multiprocessing context for whether GetAsyncKeyState works or not (can the releasing of keys be determined within child proc even if the keys are held from main proc? )
 
-## Bug Fixes (Current Branch)
+## Bug Fixes
 - [ ] Minimap handling between CheckStillInMap and InventoryManager
 - [ ] Cancellation of NPC Selling seems to be problematic because it has a return value
 - [ ] Party Re-buff is broken (casts way too much), for casting non-attack skill (since there's a rebuff validation), can simply cast once.
   - Idea to test: For re-buffing, try converting each buff icon into binary and save those. Then, use as kernels instead of matchTemplate.
   - Split into individual buffs and only re-cast buffs that didn't go through
+- [ ] MobCheck:
+  - First alert after X seconds -> disable MobsHitting but keep movements
+  - Second alert after 2X seconds -> pause everything except necessary maintenance + random reaction
 
 ## Performance Branch
-- [ ] Complete implementation of discord parser + unit tests
-- [ ] DecisionMaker:
-- Solution 1: create unique identifiers of callback functions to be called by the engine when it receives the identifier from the pipe. Asyncio primitives can be used for the waiting.
-- Solution 2: use multiprocessing primitives such that the callbacks can be directly in main process. Use asyncio.to_thread to wait on those primitives within DecisionMakers without block event loop.
-- Could use profilers to compare both options?
-- [ ] Implement unit tests - use mocking such that test can run without the game environment
-- **Movements**:
+
+### Movements
+- Breakdown all 3 functions into individual components
+- Create a MovementData class that contains all relevant data for movements, including input structures
+- Create compound movements (all combined in a single structure)
+  - Compound movements automatically determine which keys need to be released within transitions.
+  - On cancellation/error, release all held keys
+  - On focus change, release all held keys
+- Rotation decision maker cancels itself when stray too far from path
+- Create buffers of pre-determined duration from those compound movements
+
+### Inputs
+- [ ] Remove _release_keys, release_all and integrate this logic into compound inputs directly
+- [ ] Change SharedResources to remove ununused methods
+  - Instead, add decorator method ensuring that the focus lock is only acquired within the MainProcess and nothing else
+
+### Pathing
 - [ ] Cache a CustomAFinder.find_path instead of get_to_target (or both). Will help with indirect paths caching as well
 - [ ] Breakdown get_to_target for better performance/efficiency and finetuning
-  - For example, instead of comparison previous action with current, you can compare previous movements, which is much easier
-  - IDEA: fire up a movement sequence, then monitor character's distance from closest point on path. If too far, refresh path.
-  - IDEA: always fire up a movement of a given duration (say, 0.5s, which is a buffer). That action can combine several movement segments.
 - [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases
 - [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
-- [ ] Look into partial path computing otherwise?
-- Experiment with truncating currently known path based on current position relative to path.
-- [ ] Can use a fixed-length movement buffer instead of just first movement
-- [ ] Look into game files to reverse engineer movements??
+- [ ] Look into game files to reverse engineer movements for better precision
+  - Can definitely use VRTop, VRLeft, VRBottom, VBRRight to convert minimap coordinates into actual map coordinates
 - [ ] Flexible map movements, speed, jumps, etc.
-- [ ] Add logging everywhere -> use level 0 to disable thru a CONSTANT for each relevant script
-- **royals.actions**:
+
+
+### DecisionMaker
+- [Not tested] Solution 1: create unique identifiers of callback functions to be called by the engine when it receives the identifier from the pipe. Asyncio primitives can be used for the waiting.
+- [Implemented] Solution 2: use multiprocessing primitives such that the callbacks can be directly in main process. Use asyncio.to_thread to wait on those primitives within DecisionMakers without block event loop.
+- Could use profilers to compare both options?
+
+### Royals.actions
 - [ ] Add prioritities into royals.actions
 - [ ] Implement complex actions that can either perform checks between transitions in the main process, or they can use primitives instead.
   - Ex: Opening inventory, toggling tabs, and checking items
   - Ex: Going to store, opening store, selling stuff, etc.
 - [ ] Implement all simple actions that can come up as wrappers around botting.controller
+
+### Other
+- [ ] Complete implementation of discord parser + unit tests
+- [ ] Implement unit tests - use mocking such that test can run without the game environment
+- [ ] Add logging everywhere -> use level 0 to disable thru a CONSTANT for each relevant script
 - [ ] Look into leveraging psutil for performance monitoring of CPU resources by client/process
   - Also look into managing the Manager Process since it is a new feature that needs to spawn a process
 - [ ] Look into using Profilers (cProfile, line_profiler) to identify bottlenecks in the code
