@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import multiprocessing
 
 from .action_data import ActionRequest
 
@@ -26,6 +27,9 @@ class AsyncTaskManager:
             action_request: ActionRequest = await self.queue.get()
             if action_request is None:
                 logger.info("Received None from the queue. Exiting Task Manager.")
+                for child in multiprocessing.active_children():
+                    if 'Engine' in child.name:
+                        child.terminate()
                 break
 
             logger.log(LOG_LEVEL, f"Received {action_request}.")
@@ -78,6 +82,7 @@ class AsyncTaskManager:
                 logger.error(
                     f"Exception occurred in task {fut.get_name()}: {exception}"
                 )
+                self.queue.put_nowait(None)
                 raise exception
         except (asyncio.CancelledError, TimeoutError):
             pass

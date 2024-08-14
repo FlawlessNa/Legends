@@ -6,3 +6,5 @@ from .minimap_mechanics import (
 )
 from .royals_skill import RoyalsSkill
 from .path_into_movements import get_to_target
+from .movement_mechanics import Movements
+

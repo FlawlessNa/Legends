@@ -148,7 +148,7 @@ class Movements:
     @lru_cache
     def movements_into_action(
         self,
-        movements: list[tuple[str, int]],
+        movements: tuple[tuple[str, int]],
         duration: float = None
     ) -> controller.KeyboardInputWrapper:
         """
@@ -160,7 +160,11 @@ class Movements:
         """
         structure = None
         for move in movements:
-            if duration is not None and structure.duration >= duration:
+            if (
+                duration is not None
+                and structure is not None
+                and structure.duration >= duration
+            ):
                 break
             if move[0] in ["left", "right", "up", "down", "FALL_LEFT", "FALL_RIGHT"]:
                 duration = move[1] / self.minimap.minimap_speed

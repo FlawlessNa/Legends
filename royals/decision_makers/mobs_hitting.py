@@ -14,13 +14,13 @@ from botting.utilities import (
 from royals.actions import cast_skill
 from royals.model.interface import LargeClientChatFeed
 from royals.model.mechanics import RoyalsSkill
-from ._mixins import _MobsHittingMixin
+from .mixins import MobsHittingMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.NOTSET
 
 
-class MobsHitting(DecisionMaker, _MobsHittingMixin):
+class MobsHitting(DecisionMaker, MobsHittingMixin):
     def __init__(
         self,
         metadata: multiprocessing.managers.DictProxy,
