@@ -69,7 +69,7 @@ def move(
 
     first_delay = (
         FIRST_DELAY
-        if repeated_key not in structure.keys_held
+        if repeated_key not in list(structure.keys_held) + ['up']
         else next(controller.random_delay)
     )
     structure.append(first_keys, ["keydown"] * len(first_keys), first_delay)  # noqa
@@ -204,3 +204,4 @@ def teleport(
     if direction == "down":
         enforce_last_inputs.append(direction)
     structure.forced_key_releases = enforce_last_inputs
+    return structure

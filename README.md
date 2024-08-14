@@ -11,6 +11,7 @@
   - Second alert after 2X seconds -> pause everything except necessary maintenance + random reaction
 
 ## Performance Branch
+- [ ] Re-implement all former DecisionGenerators into DecisionMakers
 
 ### Movements
 - Breakdown all 3 functions into individual components
@@ -28,14 +29,11 @@
   - Instead, add decorator method ensuring that the focus lock is only acquired within the MainProcess and nothing else
 
 ### Pathing
-- [ ] Cache a CustomAFinder.find_path instead of get_to_target (or both). Will help with indirect paths caching as well
-- [ ] Breakdown get_to_target for better performance/efficiency and finetuning
 - [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases
 - [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
 - [ ] Look into game files to reverse engineer movements for better precision
   - Can definitely use VRTop, VRLeft, VRBottom, VBRRight to convert minimap coordinates into actual map coordinates
 - [ ] Flexible map movements, speed, jumps, etc.
-
 
 ### DecisionMaker
 - [Not tested] Solution 1: create unique identifiers of callback functions to be called by the engine when it receives the identifier from the pipe. Asyncio primitives can be used for the waiting.

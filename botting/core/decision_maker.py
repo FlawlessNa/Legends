@@ -73,5 +73,5 @@ class DecisionMaker(ABC):
                 if self._throttle:
                     await asyncio.sleep(self._throttle)
         except Exception as e:
-            logger.error(f"Exception occurred in {self}.")
-            raise
+            logger.error(f"Exception occurred in {self}: {e}.")
+            raise e

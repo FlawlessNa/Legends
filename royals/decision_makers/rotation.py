@@ -24,7 +24,7 @@ class Rotation(
         metadata: multiprocessing.managers.DictProxy,
         data: BotData,
         pipe: multiprocessing.connection.Connection,
-        movements_duration: float = 1.0,
+        movements_duration: float = 0.75,
         **kwargs,
     ) -> None:
         super().__init__(metadata, data, pipe)
@@ -53,7 +53,10 @@ class Rotation(
 
         self.data.update_attribute("next_target")
         self.data.update_attribute("action")
-        self.pipe.send(self._request(self.data.action))
+        if self.data.action is not None:
+            self.pipe.send(self._request(self.data.action))
+        else:
+            self.lock.release()
 
         # prev_movements = self.data.get_last_known_value("movements", False)
         # movements = self.data.movements

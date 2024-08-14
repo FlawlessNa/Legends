@@ -149,21 +149,21 @@ class Movements:
     def movements_into_action(
         self,
         movements: tuple[tuple[str, int]],
-        duration: float = None
+        total_duration: float = None
     ) -> controller.KeyboardInputWrapper:
         """
         Translates a series of movements into a series of inputs and delays.
         :param movements: series of
             ("movement to do", "number of nodes/times to go through")
-        :param duration: The maximum duration of the movements.
+        :param total_duration: The maximum duration of the movements.
         :return: KeyboardInputWrapper containing necessary inputs to execute movement.
         """
         structure = None
         for move in movements:
             if (
-                duration is not None
+                total_duration is not None
                 and structure is not None
-                and structure.duration >= duration
+                and structure.duration >= total_duration
             ):
                 break
             if move[0] in ["left", "right", "up", "down", "FALL_LEFT", "FALL_RIGHT"]:
@@ -210,17 +210,15 @@ class Movements:
             elif move[0] in ["JUMP_LEFT", "JUMP_RIGHT", "JUMP_DOWN", "JUMP_UP"]:
                 direction = move[0].split("_")[-1].lower()
                 num_jumps = move[1]
-                if num_jumps == 1:
+                for _ in range(num_jumps):
                     structure = movements_v2.single_jump(
                         self.handle,
                         direction,  # noqa
                         controller.key_binds(self.ign)['jump'],
                         structure=structure
                     )
-                elif num_jumps > 1:
-                    breakpoint()
             elif move[0] in ["JUMP_LEFT_AND_UP", "JUMP_RIGHT_AND_UP"]:
-                direction = move[0].split("_")[-1].lower()
+                direction = move[0].split("_")[1].lower()
                 if move[1] > 1:
                     breakpoint()
                     raise NotImplementedError("Not supposed to reach this point.")

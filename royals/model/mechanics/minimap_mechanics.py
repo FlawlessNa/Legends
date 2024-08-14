@@ -1,4 +1,5 @@
 import cv2
+import math
 import numpy as np
 import random
 from functools import cached_property
@@ -181,7 +182,9 @@ class MinimapGrid(Grid):
         ng = super().calc_cost(node_a, node_b, weighted)
         if node_a.connections and node_b in node_a.connections:
             conn_type = node_a.connections_types[node_a.connections.index(node_b)]
-            if conn_type not in [
+            if conn_type == MinimapConnection.PORTAL:
+                pass
+            elif conn_type not in [
                 MinimapConnection.TELEPORT_UP,
                 MinimapConnection.TELEPORT_DOWN,
                 MinimapConnection.TELEPORT_LEFT,
@@ -192,8 +195,6 @@ class MinimapGrid(Grid):
             else:
                 dx = abs(node_a.x - node_b.x)
                 ng += dx / 2
-            if conn_type == MinimapConnection.PORTAL:
-                ng = 0
         return ng
 
     def neighbors(
