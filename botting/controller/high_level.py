@@ -21,7 +21,7 @@ from .inputs import (
     message_constructor,
     DELAY,
     input_constructor,
-    release_all,
+    # release_all,
 )
 
 logger = logging.getLogger(__name__)

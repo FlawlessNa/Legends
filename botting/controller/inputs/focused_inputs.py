@@ -187,6 +187,26 @@ class KeyboardInputWrapper:
             self.handle, self.c_input, self.delays, self.forced_key_releases
         )
 
+    def cancelled_callback(self, future):
+        breakpoint()
+        if future.cancelled():
+            logger.debug(f"Cancelled callback called for {self}")
+            forced_key_releases = list(self.keys_held)
+            logger.debug(f"Keys to release: {forced_key_releases}")
+
+    def truncate(self, limit: float) -> "KeyboardInputWrapper":
+        result = KeyboardInputWrapper(
+            self.handle, forced_key_releases=self.forced_key_releases
+        )
+        generator = zip(self.keys, self.events, self.delays)
+        while result.duration < limit:
+            try:
+                key, event, delay = next(generator)
+                result.append(key, event, delay)
+            except StopIteration:
+                break
+        return result
+
 
 async def activate(hwnd: int) -> bool:
     """
@@ -208,44 +228,44 @@ async def activate(hwnd: int) -> bool:
     return acquired
 
 
-def release_all(hwnd: int) -> None:
-    release_keys = []
-    for key in SharedResources.keys_sent:
-        if (
-            HIBYTE(
-                GetAsyncKeyState(
-                    _get_virtual_key(key, True, _keyboard_layout_handle(hwnd))
-                )
-            )
-            != 0
-        ):
-            release_keys.append(key)
-    if release_keys:
-        logger.debug(f"Releasing keys {release_keys} from window {hwnd}")
-    _release_keys(release_keys)
+# def release_all(hwnd: int) -> None:
+#     release_keys = []
+#     for key in SharedResources.keys_sent:
+#         if (
+#             HIBYTE(
+#                 GetAsyncKeyState(
+#                     _get_virtual_key(key, True, _keyboard_layout_handle(hwnd))
+#                 )
+#             )
+#             != 0
+#         ):
+#             release_keys.append(key)
+#     if release_keys:
+#         logger.debug(f"Releasing keys {release_keys} from window {hwnd}")
+#     _release_keys(release_keys)
 
 
-def release_opposites(hwnd: int, *keys: str | None) -> None:
-    """
-    Releases the opposite keys of the given keys, if they are held down.
-    :param hwnd: Handle to the window to send the inputs to.
-    :param keys: Movement keys to release.
-    :return: Input structure to release the opposite keys.
-    """
-    release_keys = []
-    for key in keys:
-        if (
-            HIBYTE(
-                GetAsyncKeyState(
-                    _get_virtual_key(
-                        OPPOSITES[key], False, _keyboard_layout_handle(hwnd)
-                    )
-                )
-            )
-            != 0
-        ):
-            release_keys.append(OPPOSITES[key])
-    _release_keys(release_keys)
+# def release_opposites(hwnd: int, *keys: str | None) -> None:
+#     """
+#     Releases the opposite keys of the given keys, if they are held down.
+#     :param hwnd: Handle to the window to send the inputs to.
+#     :param keys: Movement keys to release.
+#     :return: Input structure to release the opposite keys.
+#     """
+#     release_keys = []
+#     for key in keys:
+#         if (
+#             HIBYTE(
+#                 GetAsyncKeyState(
+#                     _get_virtual_key(
+#                         OPPOSITES[key], False, _keyboard_layout_handle(hwnd)
+#                     )
+#                 )
+#             )
+#             != 0
+#         ):
+#             release_keys.append(OPPOSITES[key])
+#     _release_keys(release_keys)
 
 
 def input_constructor(
@@ -533,14 +553,14 @@ def _remove_num_lock() -> None:
 _remove_num_lock()
 
 
-def _release_keys(keys: list[str]) -> None:
-    """
-    Releases the given keys.
-    :param keys: Keys to release.
-    :return: Input structure to release the given keys.
-    """
-    if keys:
-        events: list[Literal] = ["keyup"] * len(keys)
-        inputs = input_constructor(GetForegroundWindow(), [keys], [events])
-        if inputs:
-            _send_input(inputs[0])
+# def _release_keys(keys: list[str]) -> None:
+#     """
+#     Releases the given keys.
+#     :param keys: Keys to release.
+#     :return: Input structure to release the given keys.
+#     """
+#     if keys:
+#         events: list[Literal] = ["keyup"] * len(keys)
+#         inputs = input_constructor(GetForegroundWindow(), [keys], [events])
+#         if inputs:
+#             _send_input(inputs[0])
