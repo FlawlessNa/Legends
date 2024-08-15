@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = logging.NOTSET
@@ -20,7 +21,9 @@ class AttributeMetadata:
     access_count: int = 0  # Number of times the attribute has been accessed
     update_count: int = 0  # Number of times the attribute has been updated
     total_update_time: float = 0.0  # Total time spent updating the attribute
-    last_update_time: datetime = None  # Timestamp of the last update
+    last_update_time: datetime = datetime.min  # Timestamp of last update
+    last_valid_update_time: datetime = datetime.min  # Timestamp of last valid update
+    last_value_change_time: datetime = datetime.min  # Timestamp of last value change
     # Last N values of the attribute
     prev_values: deque[Any] = field(default_factory=lambda: deque(maxlen=N_RET_VALUES))
 
@@ -73,7 +76,7 @@ class BotData:
         :return: Last known value of the attribute.
         """
         if name in self._metadata:
-            last_no_update = next(
+            last_known_update = next(
                 (
                     value
                     for value in reversed(self._metadata[name].prev_values)
@@ -82,8 +85,32 @@ class BotData:
                 None,
             )
             if not update:
-                return last_no_update
-            return getattr(self, name) or last_no_update
+                return last_known_update
+            return getattr(self, name) or last_known_update
+        raise AttributeError(f"{name} not found in {self}")
+
+    def get_time_since_last_valid_update(self, name: str) -> float:
+        """
+        Returns the time since the last valid update of an attribute.
+        :param name: Name of the attribute.
+        :return: Time since the last valid update.
+        """
+        if name in self._metadata:
+            return (
+                datetime.now() - self._metadata[name].last_valid_update_time
+            ).total_seconds()
+        raise AttributeError(f"{name} not found in {self}")
+
+    def get_time_since_last_value_change(self, name: str) -> float:
+        """
+        Returns the time since the last value change of an attribute.
+        :param name: Name of the attribute.
+        :return: Time since the last value change.
+        """
+        if name in self._metadata:
+            return (
+                datetime.now() - self._metadata[name].last_value_change_time
+            ).total_seconds()
         raise AttributeError(f"{name} not found in {self}")
 
     def __getattr__(self, name: str) -> Any:
@@ -148,8 +175,28 @@ class BotData:
         now = datetime.now()
         value = self._update_functions[name]()
         metadata.last_update_time = datetime.now()
+
+        if self._update_is_valid(value):
+            metadata.last_valid_update_time = metadata.last_update_time
+
+        if self._update_is_change(value, self._attributes[name]):
+            metadata.last_value_change_time = metadata.last_update_time
         self.__setattr__(name, value)
         metadata.total_update_time += (datetime.now() - now).total_seconds()
+
+    @staticmethod
+    def _update_is_valid(value: Any) -> bool:
+        if isinstance(value, np.ndarray):
+            return not (np.all(value == 0) or value.size == 0)
+        else:
+            return value not in [None, "", [], {}, set()]
+
+    @staticmethod
+    def _update_is_change(value: Any, prev_value: Any) -> bool:
+        if isinstance(value, np.ndarray):
+            return not np.all(value == prev_value)
+        else:
+            return value != prev_value
 
     def create_attribute(
         self,

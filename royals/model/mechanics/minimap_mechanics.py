@@ -183,7 +183,7 @@ class MinimapGrid(Grid):
         if node_a.connections and node_b in node_a.connections:
             conn_type = node_a.connections_types[node_a.connections.index(node_b)]
             if conn_type == MinimapConnection.PORTAL:
-                pass
+                ng += 10  # TODO - Figure out better solution. Idea is to prevent using portals on otherwise short paths
             elif conn_type not in [
                 MinimapConnection.TELEPORT_UP,
                 MinimapConnection.TELEPORT_DOWN,

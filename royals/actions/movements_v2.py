@@ -1,3 +1,4 @@
+import random
 from typing import Literal
 from botting import controller
 from botting.models_abstractions import Skill
@@ -205,3 +206,11 @@ def teleport(
         enforce_last_inputs.append(direction)
     structure.forced_key_releases = enforce_last_inputs
     return structure
+
+
+def random_jump(
+    handle: int,
+    jump_key: str
+) -> controller.KeyboardInputWrapper:
+    direction = random.choice(['left', 'right'])
+    return single_jump(handle, direction, jump_key)

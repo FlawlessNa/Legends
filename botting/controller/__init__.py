@@ -3,8 +3,7 @@ from .inputs.focused_inputs import (
     input_constructor,
     get_held_movement_keys,
     OPPOSITES,
-    # release_opposites,
-    # release_all,
+    release_all,
     EVENTS,
     KeyboardInputWrapper,
 )

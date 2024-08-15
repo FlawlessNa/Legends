@@ -10,6 +10,7 @@ from .bot import Bot
 from .engine import Engine
 from .peripherals_process import PeripheralsProcess
 from botting.communications import BaseParser
+from botting.controller import release_all
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = logging.INFO
@@ -34,7 +35,6 @@ class SessionManager:
         """
         # Create a Manager Process to share data between processes.
         self.process_manager = multiprocessing.Manager()
-        self.task_manager = AsyncTaskManager()
         self.metadata = self.process_manager.dict(
             logging_queue=self.process_manager.Queue(),
             proxy_request=self.process_manager.Condition(),
@@ -42,6 +42,9 @@ class SessionManager:
 
         self.peripherals = PeripheralsProcess(
             self.metadata["logging_queue"], discord_parser
+        )
+        self.task_manager = AsyncTaskManager(
+            discord_pipe=self.peripherals.pipe_main_proc,
         )
 
         self.log_receiver = logging.handlers.QueueListener(
@@ -56,6 +59,7 @@ class SessionManager:
         self.proxy_listener: asyncio.Task | None = None
         self.management_task: asyncio.Task | None = None
         self.main_bot = None
+        self.bots = []
 
     def __enter__(self) -> Self:
         """
@@ -96,8 +100,13 @@ class SessionManager:
         self.log_receiver.stop()
 
         for engine in self.engines:
-            engine.join()
+            engine.join(timeout=5)
+            if engine.is_alive():
+                engine.terminate()
             logger.info(f"Engine {engine.name} has been stopped.")
+
+        for bot in self.bots:
+            release_all(bot.get_handle_from_ign(bot.ign))
 
         if exc_type is not None:
             # Normally, each Engine should handle their own clean-up.
@@ -112,6 +121,7 @@ class SessionManager:
         """
         self.main_bot = grouped_bots[0][0]
         for group in grouped_bots:
+            self.bots.extend(group)
             engine_side, listener_side = multiprocessing.Pipe()
             engine_proc = Engine.start(engine_side, self.metadata, group)
             engine_listener = Engine.listener(

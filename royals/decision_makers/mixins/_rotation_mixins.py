@@ -1,12 +1,17 @@
 import itertools
+import logging
 import math
 
+from botting import PARENT_LOG
 from botting.core import BotData
 from royals.model.mechanics import (
     MinimapPathingMechanics,
     Movements,
     RoyalsSkill,
 )
+
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
+LOG_LEVEL = logging.WARNING
 
 
 class NextTargetMixin:
@@ -83,6 +88,7 @@ class NextTargetMixin:
 
 class MovementsMixin:
     data: BotData
+    NO_PATH_FOUND_THRESHOLD: float = 15.0
 
     def _create_pathing_attributes(
         self,
@@ -114,3 +120,21 @@ class MovementsMixin:
                 self.data.movements, duration
             )
         )
+
+    def _check_for_path(self, threshold: float, lock):
+        time_since_last_path = self.data.get_time_since_last_valid_update("path")
+        if time_since_last_path > self.NO_PATH_FOUND_THRESHOLD:
+            breakpoint()  # Kill switch
+        elif time_since_last_path > 2 * threshold:
+            logger.log(
+                LOG_LEVEL,
+                f"{self.data.ign} has no path since > {2 * threshold:.1f}s."
+            )
+            return self._random_jump_request(time_since_last_path, True, lock)
+
+        elif time_since_last_path > threshold:
+            logger.log(
+                LOG_LEVEL,
+                f"{self.data.ign} has no path since > {threshold:.1f}s."
+            )
+            return self._random_jump_request(time_since_change, False, lock)

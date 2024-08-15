@@ -53,7 +53,7 @@ class MobsHitting(DecisionMaker, MobsHittingMixin):
         )
 
         return ActionRequest(
-            _action, f"{self}", ign=self.data.ign, callback=self.lock.release
+            f"{self}", _action, ign=self.data.ign, callbacks=[self.lock.release]
         )
 
     def _get_training_skill(self, training_skill_str: str) -> RoyalsSkill:

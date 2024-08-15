@@ -1,4 +1,10 @@
+import logging
+
+from botting import PARENT_LOG
 from botting.core import BotData
+
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
+LOG_LEVEL = logging.WARNING
 
 
 class MinimapAttributesMixin:

@@ -15,13 +15,14 @@ class ActionRequest:
     task management.
     """
 
-    procedure: callable
     identifier: str
+    procedure: callable
     ign: str
     priority: int = field(default=1)  # Higher priority tasks have more control
 
     # Whether to cancel a task with same identifier
     cancels_itself: bool = field(default=False)
+    cancel_tasks: list[str] = field(default_factory=list)
 
     # Used when this task is blocked from being scheduled by another task
     requeue_if_not_scheduled: bool = field(default=True)
@@ -29,11 +30,11 @@ class ActionRequest:
     # Used to block lower priority tasks from being scheduled
     block_lower_priority: bool = field(default=False)
 
-    callback: callable = field(default=None)
+    callbacks: list[callable] = field(default_factory=list)
     task: asyncio.Task = field(default=None, init=False)
     discord_request: "DiscordRequest" = field(default=None)
 
 
 @dataclass
 class DiscordRequest:
-    pass  # TODO: Implement this
+    msg: str

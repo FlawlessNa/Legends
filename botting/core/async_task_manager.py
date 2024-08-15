@@ -1,6 +1,6 @@
 import asyncio
 import logging
-import multiprocessing
+import multiprocessing.connection
 
 from .action_data import ActionRequest
 
@@ -17,24 +17,24 @@ class AsyncTaskManager:
     """
 
     _event_loop_overflow = MAX_CONCURRENT_TASKS
+    _throttle = 0.1
 
-    def __init__(self) -> None:
+    def __init__(self, discord_pipe: multiprocessing.connection.Connection) -> None:
         self.queue = asyncio.Queue()
         self.running_tasks: dict[str, ActionRequest] = {}
+        self.discord_pipe = discord_pipe
 
     async def start(self) -> None:
         while True:
+            await asyncio.sleep(self._throttle)
             action_request: ActionRequest = await self.queue.get()
             if action_request is None:
                 logger.info("Received None from the queue. Exiting Task Manager.")
-                for child in multiprocessing.active_children():
-                    if 'Engine' in child.name:
-                        child.terminate()
                 break
 
-            logger.log(LOG_LEVEL, f"Received {action_request}.")
             await self._process_request(action_request)
             self._check_for_event_loop_overflow()
+            self._check_for_queue_overflow()
 
     async def _process_request(self, request: ActionRequest) -> None:
         if request.identifier in self.running_tasks:
@@ -53,6 +53,7 @@ class AsyncTaskManager:
 
     async def _handle_priority(self, request: ActionRequest) -> None:
         if request.priority > self._get_priority_blocking():
+            logger.log(LOG_LEVEL, f"Scheduling {request}.")
             self._schedule_task(request)
         elif request.requeue_if_not_scheduled:
             await self.queue.put(request)
@@ -68,10 +69,22 @@ class AsyncTaskManager:
         )
 
     def _schedule_task(self, request: ActionRequest) -> None:
+        for task in request.cancel_tasks:
+            if task in self.running_tasks:
+                logger.log(
+                    LOG_LEVEL,
+                    f"{request.identifier} is cancelling task {task}."
+                )
+                self.running_tasks[task].task.cancel()
+                self.running_tasks.pop(task)
+
+        if request.discord_request is not None:
+            self.discord_pipe.send(request.discord_request.msg)
         request.task = asyncio.create_task(request.procedure(), name=request.identifier)
         request.task.add_done_callback(self._cleanup_handler)
-        if request.callback:
-            request.task.add_done_callback(self.cb_wrapper(request.callback))
+        if request.callbacks:
+            for cb in request.callbacks:
+                request.task.add_done_callback(self.cb_wrapper(cb))
         self.running_tasks[request.identifier] = request
 
     def _cleanup_handler(self, fut):
@@ -100,6 +113,17 @@ class AsyncTaskManager:
             logger.warning(
                 f"Nbr of tasks scheduled from ActionRequests in the event loop is "
                 f"{len(self.running_tasks)}."
+            )
+
+    def _check_for_queue_overflow(self):
+        """
+        Check if the queue has too many tasks.
+        This method is only called occasionally for debugging purposes.
+        """
+        if self.queue.qsize() > self._event_loop_overflow:
+            logger.warning(
+                f"Nbr of tasks scheduled from ActionRequests in the queue is "
+                f"{self.queue.qsize()}."
             )
 
     @staticmethod

@@ -12,16 +12,12 @@
 
 ## Performance Branch
 - [ ] Re-implement all former DecisionGenerators into DecisionMakers
+  - Implement kill switch as part of failsafes and discord commands
+  - Rotation decision maker cancels itself when stray too far from path
 
 ### Movements
-- Breakdown all 3 functions into individual components
-- Create a MovementData class that contains all relevant data for movements, including input structures
 - Create compound movements (all combined in a single structure)
-  - Compound movements automatically determine which keys need to be released within transitions.
   - On cancellation/error, release all held keys
-  - On focus change, release all held keys
-- Rotation decision maker cancels itself when stray too far from path
-- Create buffers of pre-determined duration from those compound movements
 
 ### Inputs
 - [ ] Remove _release_keys, release_all and integrate this logic into compound inputs directly

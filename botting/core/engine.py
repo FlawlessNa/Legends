@@ -83,13 +83,17 @@ class _ChildProcessEngine:
                 t_done = t_done.pop()
 
                 if t_done.exception():
-                    raise t_done.exception()
+                    if isinstance(t_done.exception(), ExceptionGroup):
+                        raise t_done.exception().exceptions[0]
+                    else:
+                        raise t_done.exception()
 
         except SystemExit:
             pass
 
-        except Exception:
-            logger.error(f"Exception occurred in {self}.")
+        except Exception as e:
+            logger.error(f"Exception occurred in {self}: {e}.")
+            self.pipe.send(e)
             raise
 
         finally:
@@ -111,33 +115,6 @@ class _ChildProcessEngine:
                     break
                 else:
                     breakpoint()  # TODO
-
-    # def _iterate_once(self, bot: Bot) -> None:
-    #     """
-    #     Calls the DecisionMakers of a single Bot instance.
-    #     :param bot:
-    #     :return:
-    #     """
-    #     for decision_maker in bot.decision_makers:
-    #         request: ActionRequest = decision_maker()
-    #         if request is not None:
-    #             self.pipe.send(request)
-
-    # def _exit(self) -> None:
-    #     """
-    #     This method is called when the Engine is about to be terminated.
-    #     Performs any necessary clean-up.
-    #     1. Ensures not keys are being held down on any of the bots.
-    #     2.
-    #     :return:
-    #     """
-    #     for monitor in self.monitors:
-    #         for key in ["up", "down", "left", "right"]:
-    #             asyncio.run(
-    #                 controller.press(
-    #                     bot.handle, key, silenced=False, down_or_up="keyup"
-    #                 )
-    #             )
 
 
 class Engine(_ChildProcessEngine):
@@ -211,7 +188,7 @@ class Engine(_ChildProcessEngine):
                             discord_pipe.send(
                                 f"Exception {request} \n occurred in {engine.name}."
                             )
-                            break
+                            raise request
                         elif isinstance(request, str):
                             logger.info(f"Received {request} from {engine.name}.")
                             discord_pipe.send(request)
@@ -221,9 +198,9 @@ class Engine(_ChildProcessEngine):
             except asyncio.CancelledError:
                 logger.info(f"Listener to {engine.name} cancelled.")
 
-            except Exception:
+            except Exception as e:
                 logger.error(f"Exception occurred in Listener to {engine.name}.")
-                raise
+                raise e
 
             finally:
                 if not pipe.closed:
