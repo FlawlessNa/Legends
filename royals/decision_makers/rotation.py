@@ -24,6 +24,8 @@ class Rotation(
 ):
     # TODO - Implement logic to continuously check if character strayed too far from
     #  path to cancel current movements
+    # TODO - Error handling for minimap attributes and other. Should probably be within Mixins?
+    # TODO - improved failsafe reactions, including writing in chat after 2x or 3x
     _throttle = 0.1
     STATIC_POS_KILL_SWITCH = 20.0
     NO_PATH_KILL_SWITCH = 20.0
@@ -124,7 +126,10 @@ class Rotation(
         self, disc_msg: str = None
     ) -> ActionRequest:
 
-        alert = DiscordRequest(disc_msg) if disc_msg else None
+        alert = DiscordRequest(
+            disc_msg, self.data.current_client_img
+        ) if disc_msg else None
+
         return ActionRequest(
             f"{self} - Failsafe",
             random_jump(

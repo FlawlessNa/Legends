@@ -1,4 +1,5 @@
 import asyncio
+import numpy as np
 from dataclasses import field, dataclass
 
 
@@ -38,3 +39,4 @@ class ActionRequest:
 @dataclass
 class DiscordRequest:
     msg: str
+    img: np.ndarray = field(default=None)

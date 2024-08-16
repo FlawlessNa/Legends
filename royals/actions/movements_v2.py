@@ -208,6 +208,34 @@ def teleport(
     return structure
 
 
+def telecast(
+    handle: int,
+    ign: str,
+    teleport_skill: Skill,
+    ultimate_skill: Skill,
+    structure: controller.KeyboardInputWrapper,
+    num_times: int = 1
+) -> controller.KeyboardInputWrapper:
+    """
+    This function does not extend the structure like other functions in this module.
+    Instead, it introspects that structure and adds ultimate cast keystrokes in
+    combination to the teleport keystrokes.
+    :param handle:
+    :param ign:
+    :param teleport_skill:
+    :param ultimate_skill:
+    :param num_times:
+    :param structure:
+    :return:
+    """
+    if teleport_skill.key_bind(ign) not in structure.keys:
+        return structure
+
+    # Modify the structure such that teleports are combined with ultimate casts
+    structure.forced_key_releases.append(ultimate_skill.key_bind(ign))
+    breakpoint()
+
+
 def random_jump(
     handle: int,
     jump_key: str

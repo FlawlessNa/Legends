@@ -5,7 +5,7 @@ import multiprocessing.connection
 from .action_data import ActionRequest
 
 logger = logging.getLogger(__name__)
-LOG_LEVEL = logging.INFO
+LOG_LEVEL = logging.DEBUG
 
 MAX_CONCURRENT_TASKS = 30
 
@@ -80,6 +80,9 @@ class AsyncTaskManager:
 
         if request.discord_request is not None:
             self.discord_pipe.send(request.discord_request.msg)
+            if request.discord_request.img is not None:
+                self.discord_pipe.send(request.discord_request.img)
+
         request.task = asyncio.create_task(request.procedure(), name=request.identifier)
         request.task.add_done_callback(self._cleanup_handler)
         if request.callbacks:

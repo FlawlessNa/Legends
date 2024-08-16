@@ -12,15 +12,10 @@
 
 ## Performance Branch
 - [ ] Re-implement all former DecisionGenerators into DecisionMakers
-  - Implement kill switch as part of failsafes and discord commands
-  - Rotation decision maker cancels itself when stray too far from path
-
-### Movements
-- Create compound movements (all combined in a single structure)
-  - On cancellation/error, release all held keys
+  - Implement kill switch as part of fail safes and discord commands
+  - Generic Error handling for data attributes not updating properly (ex: minimap data, etc)
 
 ### Inputs
-- [ ] Remove _release_keys, release_all and integrate this logic into compound inputs directly
 - [ ] Change SharedResources to remove ununused methods
   - Instead, add decorator method ensuring that the focus lock is only acquired within the MainProcess and nothing else
 
@@ -30,11 +25,7 @@
 - [ ] Look into game files to reverse engineer movements for better precision
   - Can definitely use VRTop, VRLeft, VRBottom, VBRRight to convert minimap coordinates into actual map coordinates
 - [ ] Flexible map movements, speed, jumps, etc.
-
-### DecisionMaker
-- [Not tested] Solution 1: create unique identifiers of callback functions to be called by the engine when it receives the identifier from the pipe. Asyncio primitives can be used for the waiting.
-- [Implemented] Solution 2: use multiprocessing primitives such that the callbacks can be directly in main process. Use asyncio.to_thread to wait on those primitives within DecisionMakers without block event loop.
-- Could use profilers to compare both options?
+- [ ] (least priority) Rotation decision maker cancels itself when stray too far from path
 
 ### Royals.actions
 - [ ] Add prioritities into royals.actions
@@ -44,6 +35,10 @@
 - [ ] Implement all simple actions that can come up as wrappers around botting.controller
 
 ### Other
+- [ ] Kill switches that either:
+    - Stops program
+    - Return to lounge, then stops program
+    - Exit client, then stops program
 - [ ] Complete implementation of discord parser + unit tests
 - [ ] Implement unit tests - use mocking such that test can run without the game environment
 - [ ] Add logging everywhere -> use level 0 to disable thru a CONSTANT for each relevant script

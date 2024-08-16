@@ -40,6 +40,7 @@ class MobsHitting(DecisionMaker, MobsHittingMixin):
 
     def _hit_mobs(self, direction: str | None) -> ActionRequest:
         """
+        TODO - Change this with new KeyboardInputWrapper structure. Requires changing cast_skill as well.
         Function to use to update the current on screen position of the character.
         :return:
         """
@@ -103,8 +104,8 @@ class MobsHitting(DecisionMaker, MobsHittingMixin):
         If the number of mobs is greater than the threshold, cast the skill.
         :return:
         """
-        logger.log(LOG_LEVEL, f"{self} is deciding.")
         await asyncio.to_thread(self.lock.acquire)
+        logger.log(LOG_LEVEL, f"{self} is deciding.")
 
         on_screen_pos = self.data.get_last_known_value("current_on_screen_position")
         closest_mob_direction = None
