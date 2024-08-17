@@ -159,6 +159,7 @@ class Movements:
         :return: KeyboardInputWrapper containing necessary inputs to execute movement.
         """
         structure = None
+        direction = None
         for move in movements:
             if (
                 total_duration is not None
@@ -192,10 +193,10 @@ class Movements:
                                 secondary_direction = (
                                     "up" if next_move[0] in ["up", "PORTAL"] else "down"
                                 )
-                                duration += 3 / self.minimap.minimap_speed
-                            else:
+                                # duration += 5 / self.minimap.minimap_speed
+                            # else:
                                 # Otherwise, make sure we stop before ladder/portal
-                                duration -= 3 / self.minimap.minimap_speed
+                                # duration -= 5 / self.minimap.minimap_speed
                     except IndexError:
                         # If this is last movement and there's only 1 node, cap duration
                         if move[1] == 1:
@@ -229,8 +230,10 @@ class Movements:
                     structure=structure
                 )
             elif move[0] == "PORTAL":
+                primary = direction or 'up'
+                secondary = 'up' if primary != 'up' else None
                 structure = movements_v2.move(
-                    self.handle, 'up', duration=0.1, structure=structure
+                    self.handle, primary, secondary, duration=0.1, structure=structure
                 )
             elif move[0] in [
                 "TELEPORT_LEFT", "TELEPORT_RIGHT", "TELEPORT_UP", "TELEPORT_DOWN"
@@ -248,7 +251,8 @@ class Movements:
                 breakpoint()
                 raise NotImplementedError("TBD")
 
-        return structure
+        if structure is not None:
+            return structure.truncate(total_duration)
 
     @lru_cache
     def _compute_path(

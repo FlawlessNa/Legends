@@ -194,18 +194,18 @@ class KeyboardInputWrapper:
     #         forced_key_releases = list(self.keys_held)
     #         logger.debug(f"Keys to release: {forced_key_releases}")
     #
-    # def truncate(self, limit: float) -> "KeyboardInputWrapper":
-    #     result = KeyboardInputWrapper(
-    #         self.handle, forced_key_releases=self.forced_key_releases
-    #     )
-    #     generator = zip(self.keys, self.events, self.delays)
-    #     while result.duration < limit:
-    #         try:
-    #             key, event, delay = next(generator)
-    #             result.append(key, event, delay)
-    #         except StopIteration:
-    #             break
-    #     return result
+    def truncate(self, limit: float) -> "KeyboardInputWrapper":
+        result = KeyboardInputWrapper(
+            self.handle, forced_key_releases=self.forced_key_releases
+        )
+        generator = zip(self.keys, self.events, self.delays)
+        while result.duration < limit:
+            try:
+                key, event, delay = next(generator)
+                result.append(key, event, delay)
+            except StopIteration:
+                break
+        return result
 
 
 async def activate(hwnd: int) -> bool:

@@ -1,20 +1,22 @@
-import multiprocessing.connection
-import multiprocessing.managers
+import logging
 
-from botting import controller
-from botting.core import ActionRequest, BotData, DecisionMaker
+from botting import PARENT_LOG
+from botting.core import ActionRequest
 from .mobs_hitting import MobsHitting
+from royals.actions.movements_v2 import telecast
+
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
+LOG_LEVEL = logging.INFO
 
 
-class TelecastRotation(MobsHitting):
+class TelecastMobsHitting(MobsHitting):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._teleport_skill = self.data.character.skills["Teleport"]
 
     def _teleport_in_upcoming_action(self) -> bool:
-        action: controller.KeyboardInputWrapper = self.data.action
         teleport_key = self._teleport_skill.key_bind(self.data.ign)
-        if teleport_key in self.data.action.keys:
+        if self.data.action is not None and teleport_key in self.data.action.keys:
             return True
         return False
 
@@ -26,10 +28,15 @@ class TelecastRotation(MobsHitting):
         :return:
         """
         if self._teleport_in_upcoming_action():
-            print("Telecasting rotation")
+            inputs = self.data.action
+            logger.log(LOG_LEVEL, f"{self} is about to Telecast.")
             return ActionRequest(
                 f"{self}",
-                inputs.send,
+                telecast(
+                    inputs,
+                    self._teleport_skill.key_bind(self.data.ign),
+                    self.training_skill.key_bind(self.data.ign)
+                ).send,
                 ign=self.data.ign,
                 priority=2,
                 cancel_tasks=[f"Rotation({self.data.ign})"],

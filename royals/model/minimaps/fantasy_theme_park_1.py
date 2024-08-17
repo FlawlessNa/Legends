@@ -25,7 +25,6 @@ class FantasyThemePark1Minimap(MinimapPathingMechanics):
     @property
     def feature_cycle(self) -> list[MinimapFeature]:
         return [
-            self.safe_spot,
             self.first_platform,
             self.first_platform,
             self.second_platform_upper,

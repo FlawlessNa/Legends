@@ -17,7 +17,7 @@ from royals.model.mechanics import RoyalsSkill
 from .mixins import MobsHittingMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.NOTSET
+LOG_LEVEL = logging.INFO
 
 
 class MobsHitting(DecisionMaker, MobsHittingMixin):
@@ -40,14 +40,19 @@ class MobsHitting(DecisionMaker, MobsHittingMixin):
 
     def _hit_mobs(self, direction: str | None) -> ActionRequest:
         """
-        TODO - Change this with new KeyboardInputWrapper structure. Requires changing cast_skill as well.
         Function to use to update the current on screen position of the character.
         :return:
         """
         inputs = cast_skill(self.data.handle, self.data.ign, self.training_skill)
 
         return ActionRequest(
-            f"{self}", inputs.send, ign=self.data.ign, callbacks=[self.lock.release]
+            f"{self}",
+            inputs.send,
+            ign=self.data.ign,
+            priority=2,
+            cancel_tasks=[f"Rotation({self.data.ign})"],
+            block_lower_priority=True,
+            callbacks=[self.lock.release]
         )
 
     def _get_skill_from_str(self, skill_str: str) -> RoyalsSkill:
@@ -98,7 +103,6 @@ class MobsHitting(DecisionMaker, MobsHittingMixin):
         :return:
         """
         await asyncio.to_thread(self.lock.acquire)
-        logger.log(LOG_LEVEL, f"{self} is deciding.")
 
         on_screen_pos = self.data.get_last_known_value("current_on_screen_position")
         closest_mob_direction = None
@@ -135,7 +139,7 @@ class MobsHitting(DecisionMaker, MobsHittingMixin):
                     closest_mob_direction = self.get_closest_mob_direction(
                         (x, y), mobs_locations
                     )
-
+                logger.log(LOG_LEVEL, f"{self} fires an action.")
                 self.pipe.send(self._hit_mobs(closest_mob_direction))
                 return
         await asyncio.to_thread(self.lock.release)

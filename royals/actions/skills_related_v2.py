@@ -17,8 +17,14 @@ def cast_skill(
     :return:
     """
     structure = controller.KeyboardInputWrapper(handle)
+    held_keys = controller.get_held_movement_keys(handle)
+
+    if 'down' in held_keys:
+        held_keys.remove('down')
+        # Larger delay to prevent skill from being cast while crouched
+        structure.append('down', 'keyup', 0.1)
+
     if direction:
-        held_keys = controller.get_held_movement_keys(handle)
         if direction in held_keys:
             held_keys.remove(direction)
         if held_keys:
@@ -33,7 +39,6 @@ def cast_skill(
     )
     structure.forced_key_releases.append(skill.key_bind(ign))
     return structure
-
 
 
 def cast_skill_single_press():

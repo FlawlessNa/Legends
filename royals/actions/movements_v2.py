@@ -115,6 +115,7 @@ def single_jump(
         structure.append(jump_key, "keydown", next(controller.random_delay) * 2)
         structure.append(jump_key, "keyup", 0.75)
 
+    structure.forced_key_releases.append(jump_key)
     return structure
 
 
@@ -158,6 +159,7 @@ def jump_on_rope(
             [jump_key, direction], ["keyup", "keyup"], next(controller.random_delay) * 2
         )
 
+    structure.forced_key_releases.append(jump_key)
     return structure
 
 
@@ -209,31 +211,29 @@ def teleport(
 
 
 def telecast(
-    handle: int,
-    ign: str,
-    teleport_skill: Skill,
-    ultimate_skill: Skill,
     structure: controller.KeyboardInputWrapper,
-    num_times: int = 1
+    teleport_key: str,
+    ultimate_key: str,
 ) -> controller.KeyboardInputWrapper:
     """
     This function does not extend the structure like other functions in this module.
     Instead, it introspects that structure and adds ultimate cast keystrokes in
     combination to the teleport keystrokes.
-    :param handle:
-    :param ign:
-    :param teleport_skill:
-    :param ultimate_skill:
-    :param num_times:
     :param structure:
+    :param teleport_key:
+    :param ultimate_key:
     :return:
     """
-    if teleport_skill.key_bind(ign) not in structure.keys:
+    if teleport_key not in structure.keys:
         return structure
 
     # Modify the structure such that teleports are combined with ultimate casts
-    structure.forced_key_releases.append(ultimate_skill.key_bind(ign))
-    breakpoint()
+    structure.forced_key_releases.append(ultimate_key)
+    for idx, (key, event) in enumerate(zip(structure.keys, structure.events)):
+        if key == teleport_key and event == "keydown":
+            structure.keys[idx] = [teleport_key, ultimate_key]
+            structure.events[idx] = ["keydown", "keydown"]
+    return structure
 
 
 def random_jump(
