@@ -2,7 +2,7 @@ import asyncio
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
-from functools import cached_property, partial
+from functools import cached_property
 
 from botting import PARENT_LOG
 from botting.core import ActionRequest, BotData, DecisionMaker
@@ -11,7 +11,7 @@ from botting.utilities import (
     CLIENT_HORIZONTAL_MARGIN_PX,
     CLIENT_VERTICAL_MARGIN_PX,
 )
-from royals.actions import cast_skill
+from royals.actions.skills_related_v2 import cast_skill
 from royals.model.interface import LargeClientChatFeed
 from royals.model.mechanics import RoyalsSkill
 from .mixins import MobsHittingMixin
@@ -33,7 +33,7 @@ class MobsHitting(DecisionMaker, MobsHittingMixin):
         super().__init__(metadata, data, pipe)
         self.lock = self.request_proxy(self.metadata, f"{self}", "Lock")
         self.mob_threshold = mob_count_threshold
-        self.training_skill = self._get_training_skill(training_skill)
+        self.training_skill = self._get_skill_from_str(training_skill)
         self.data.create_attribute(
             "current_on_screen_position", self._get_on_screen_pos, threshold=1.0
         )
@@ -44,22 +44,15 @@ class MobsHitting(DecisionMaker, MobsHittingMixin):
         Function to use to update the current on screen position of the character.
         :return:
         """
-        _action = partial(
-            cast_skill,
-            self.data.handle,
-            self.data.ign,
-            self.training_skill,
-            ready_at=0,
-            direction=direction,
-        )
+        inputs = cast_skill(self.data.handle, self.data.ign, self.training_skill)
 
         return ActionRequest(
-            f"{self}", _action, ign=self.data.ign, callbacks=[self.lock.release]
+            f"{self}", inputs.send, ign=self.data.ign, callbacks=[self.lock.release]
         )
 
-    def _get_training_skill(self, training_skill_str: str) -> RoyalsSkill:
-        if training_skill_str:
-            return self.data.character.skills[training_skill_str]
+    def _get_skill_from_str(self, skill_str: str) -> RoyalsSkill:
+        if skill_str:
+            return self.data.character.skills[skill_str]
         return self.data.character.skills[self.data.character.main_skill]
 
     @cached_property
