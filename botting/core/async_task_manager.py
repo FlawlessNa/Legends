@@ -83,7 +83,10 @@ class AsyncTaskManager:
             if request.discord_request.img is not None:
                 self.discord_pipe.send(request.discord_request.img)
 
-        request.task = asyncio.create_task(request.procedure(), name=request.identifier)
+        request.task = asyncio.create_task(
+            request.procedure(*request.args, **request.kwargs),
+            name=request.identifier
+        )
         request.task.add_done_callback(self._cleanup_handler)
         if request.callbacks:
             for cb in request.callbacks:

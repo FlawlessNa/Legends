@@ -34,6 +34,8 @@ class ActionRequest:
     callbacks: list[callable] = field(default_factory=list)
     task: asyncio.Task = field(default=None, init=False)
     discord_request: "DiscordRequest" = field(default=None)
+    args: tuple = field(default_factory=tuple)
+    kwargs: dict = field(default_factory=dict)
 
 
 @dataclass

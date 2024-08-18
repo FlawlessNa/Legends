@@ -16,7 +16,7 @@
   - Generic Error handling for data attributes not updating properly (ex: minimap data, etc)
 
 ### Inputs
-- [ ] Change SharedResources to remove ununused methods
+- [ ] Change SharedResources to remove un-unused methods
   - Instead, add decorator method ensuring that the focus lock is only acquired within the MainProcess and nothing else
 
 ### Pathing
@@ -32,7 +32,6 @@
 - [ ] Implement complex actions that can either perform checks between transitions in the main process, or they can use primitives instead.
   - Ex: Opening inventory, toggling tabs, and checking items
   - Ex: Going to store, opening store, selling stuff, etc.
-- [ ] Implement all simple actions that can come up as wrappers around botting.controller
 
 ### Other
 - [ ] Kill switches that either:

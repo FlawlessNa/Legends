@@ -14,13 +14,13 @@ from botting.utilities import (
 from royals.actions.skills_related_v2 import cast_skill
 from royals.model.interface import LargeClientChatFeed
 from royals.model.mechanics import RoyalsSkill
-from .mixins import MobsHittingMixin
+from .mixins import MobsHittingMixin, MinimapAttributesMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.INFO
 
 
-class MobsHitting(DecisionMaker, MobsHittingMixin):
+class MobsHitting(DecisionMaker, MobsHittingMixin, MinimapAttributesMixin):
     def __init__(
         self,
         metadata: multiprocessing.managers.DictProxy,
@@ -34,6 +34,7 @@ class MobsHitting(DecisionMaker, MobsHittingMixin):
         self.lock = self.request_proxy(self.metadata, f"{self}", "Lock")
         self.mob_threshold = mob_count_threshold
         self.training_skill = self._get_skill_from_str(training_skill)
+        self._create_minimap_attributes()
         self.data.create_attribute(
             "current_on_screen_position", self._get_on_screen_pos, threshold=1.0
         )
@@ -62,7 +63,7 @@ class MobsHitting(DecisionMaker, MobsHittingMixin):
 
     @cached_property
     def _hide_minimap_box(self) -> Box:
-        minimap_box = self.data.current_minimap.get_map_area_box(self.data.handle)
+        minimap_box = self.data.current_minimap_area_box
         return Box(
             max(
                 0,

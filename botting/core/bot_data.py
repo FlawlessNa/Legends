@@ -1,9 +1,9 @@
+import logging
+import numpy as np
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
-import logging
-import numpy as np
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = logging.NOTSET
@@ -56,6 +56,7 @@ class BotData:
         "_metadata",
         "_update_functions",
         "_thresholds",
+        "_error_handlers",
     }
 
     def __init__(self, ign: str) -> None:
@@ -64,6 +65,7 @@ class BotData:
         self._metadata: dict[str, AttributeMetadata] = {}
         self._update_functions: dict[str, callable] = {}
         self._thresholds: dict[str, float] = {}
+        self._error_handlers: dict[str, callable] = {}
 
     def __str__(self) -> str:
         return f"BotData({self.ign})"
@@ -173,16 +175,22 @@ class BotData:
         metadata = self._metadata[name]
         metadata.update_count += 1
         now = datetime.now()
-        value = self._update_functions[name]()
-        metadata.last_update_time = datetime.now()
+        try:
+            value = self._update_functions[name]()
+            metadata.last_update_time = datetime.now()
 
-        if self._update_is_valid(value):
-            metadata.last_valid_update_time = metadata.last_update_time
+            if self._update_is_valid(value):
+                metadata.last_valid_update_time = metadata.last_update_time
 
-        if self._update_is_change(value, self._attributes[name]):
-            metadata.last_value_change_time = metadata.last_update_time
-        self.__setattr__(name, value)
-        metadata.total_update_time += (datetime.now() - now).total_seconds()
+            if self._update_is_change(value, self._attributes[name]):
+                metadata.last_value_change_time = metadata.last_update_time
+            self.__setattr__(name, value)
+            metadata.total_update_time += (datetime.now() - now).total_seconds()
+        except Exception as e:
+            if name in self._error_handlers:
+                self._error_handlers[name]()
+            else:
+                raise e
 
     @staticmethod
     def _update_is_valid(value: Any) -> bool:
@@ -204,6 +212,7 @@ class BotData:
         update_function: callable,
         threshold: float = None,
         initial_value: Any = None,
+        error_handler: callable = None,
         **kwargs,
     ) -> None:
         """
@@ -212,12 +221,15 @@ class BotData:
         :param update_function: Function to update the attribute.
         :param threshold: Maximum delay after which the attribute is updated.
         :param initial_value: Initial value of the attribute, which bypasses the
-        update function if specified.
+            update function if specified.
+        :param error_handler: Function to handle errors in the update function.
         :return:
         """
         self._metadata.setdefault(name, AttributeMetadata(**kwargs))
         self._update_functions[name] = update_function
         self._thresholds[name] = threshold
         self._attributes.setdefault(name, initial_value)
+        if error_handler is not None:
+            self._error_handlers[name] = error_handler
         if not initial_value:
             self.update_attribute(name)
