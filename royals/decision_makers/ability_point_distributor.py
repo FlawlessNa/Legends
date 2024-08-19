@@ -9,8 +9,9 @@ from .mixins import (
     MinimapAttributesMixin,
     MovementsMixin,
     NextTargetMixin,
-    TimeBasedFailsafeMixin
+    TimeBasedFailsafeMixin,
 )
+
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.NOTSET
 
@@ -55,21 +56,18 @@ class AbilityPointDistributor(
             inputs.send,
             ign=self.data.ign,
             requeue_if_not_scheduled=True,
-            callbacks=[self.lock.release]
+            callbacks=[self.lock.release],
         )
 
-    def _failsafe_request(
-        self, disc_msg: str = None
-    ) -> ActionRequest:
-
-        alert = DiscordRequest(
-            disc_msg, self.data.current_client_img
-        ) if disc_msg else None
+    def _failsafe_request(self, disc_msg: str = None) -> ActionRequest:
+        alert = (
+            DiscordRequest(disc_msg, self.data.current_client_img) if disc_msg else None
+        )
 
         return ActionRequest(
             f"{self} - Failsafe",
             random_jump(
-                self.data.handle, controller.key_binds(self.data.ign)['jump']
+                self.data.handle, controller.key_binds(self.data.ign)["jump"]
             ).send,
             ign=self.data.ign,
             priority=10,

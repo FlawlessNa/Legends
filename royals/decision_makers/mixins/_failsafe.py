@@ -15,6 +15,7 @@ class TimeBasedFailsafeMixin:
     attribute.
     The failsafe may then trigger a specific action to correct the condition.
     """
+
     data: BotData
     pipe: multiprocessing.connection.Connection
     _sentinels: list[dict]
@@ -24,14 +25,14 @@ class TimeBasedFailsafeMixin:
         attribute: str,
         method: callable,
         threshold: float,
-        response: ActionRequest
+        response: ActionRequest,
     ) -> None:
         sentinel = {
             "attribute": attribute,
             "method": method,
             "threshold": threshold,
             "response": response,
-            "triggered": False
+            "triggered": False,
         }
         self._sentinels.append(sentinel)
 

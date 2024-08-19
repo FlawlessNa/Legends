@@ -35,14 +35,13 @@ class TelecastMobsHitting(MobsHitting):
                 telecast(
                     inputs,
                     self._teleport_skill.key_bind(self.data.ign),
-                    self.training_skill.key_bind(self.data.ign)
+                    self.training_skill.key_bind(self.data.ign),
                 ).send,
                 ign=self.data.ign,
                 priority=2,
                 cancel_tasks=[f"Rotation({self.data.ign})"],
                 block_lower_priority=True,
-                callbacks=[self.lock.release]
+                callbacks=[self.lock.release],
             )
         else:
             return super()._hit_mobs(direction=None)
-

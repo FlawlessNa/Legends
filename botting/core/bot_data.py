@@ -172,25 +172,34 @@ class BotData:
         """
         if name not in self._metadata:
             raise AttributeError(f"{name} not found in {self}")
-        metadata = self._metadata[name]
-        metadata.update_count += 1
-        now = datetime.now()
         try:
-            value = self._update_functions[name]()
-            metadata.last_update_time = datetime.now()
-
-            if self._update_is_valid(value):
-                metadata.last_valid_update_time = metadata.last_update_time
-
-            if self._update_is_change(value, self._attributes[name]):
-                metadata.last_value_change_time = metadata.last_update_time
-            self.__setattr__(name, value)
-            metadata.total_update_time += (datetime.now() - now).total_seconds()
+            self._update_value(name)
         except Exception as e:
             if name in self._error_handlers:
                 self._error_handlers[name]()
+                self._update_value(name)
             else:
                 raise e
+
+    def _update_value(self, name: str) -> None:
+        """
+        Updates the value of an attribute.
+        :param name: Name of the attribute.
+        :return:
+        """
+        metadata = self._metadata[name]
+        now = datetime.now()
+        value = self._update_functions[name]()
+        metadata.update_count += 1
+        metadata.last_update_time = datetime.now()
+
+        if self._update_is_valid(value):
+            metadata.last_valid_update_time = metadata.last_update_time
+
+        if self._update_is_change(value, self._attributes[name]):
+            metadata.last_value_change_time = metadata.last_update_time
+        self.__setattr__(name, value)
+        metadata.total_update_time += (datetime.now() - now).total_seconds()
 
     @staticmethod
     def _update_is_valid(value: Any) -> bool:

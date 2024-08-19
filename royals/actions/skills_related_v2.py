@@ -19,23 +19,25 @@ def cast_skill(
     structure = controller.KeyboardInputWrapper(handle)
     held_keys = controller.get_held_movement_keys(handle)
 
-    if 'down' in held_keys:
-        held_keys.remove('down')
+    if "down" in held_keys:
+        held_keys.remove("down")
         # Larger delay to prevent skill from being cast while crouched
-        structure.append('down', 'keyup', 0.1)
+        structure.append("down", "keyup", 0.1)
 
     if direction:
         if direction in held_keys:
             held_keys.remove(direction)
         if held_keys:
             structure.append(
-                held_keys, ["keyup"] * len(held_keys), next(controller.random_delay)  # noqa
+                held_keys,
+                ["keyup"] * len(held_keys),
+                next(controller.random_delay),  # noqa
             )
-        structure.append(direction, 'keydown', 2 * next(controller.random_delay))
-        structure.append(direction, 'keyup', next(controller.random_delay))
+        structure.append(direction, "keydown", 2 * next(controller.random_delay))
+        structure.append(direction, "keyup", next(controller.random_delay))
 
     structure.fill(
-        skill.key_bind(ign), 'keydown', controller.random_delay, skill.animation_time
+        skill.key_bind(ign), "keydown", controller.random_delay, skill.animation_time
     )
     structure.forced_key_releases.append(skill.key_bind(ign))
     return structure

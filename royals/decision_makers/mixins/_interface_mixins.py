@@ -12,7 +12,7 @@ class MenusMixin:
     def _create_ap_menu_attributes(self):
         menu = AbilityMenu()
         self.data.create_attribute(
-            'ability_menu',
+            "ability_menu",
         )
 
 

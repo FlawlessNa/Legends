@@ -109,32 +109,12 @@ class MovementsMixin:
         )
         self.data.create_attribute(
             "movements",
-            lambda: movement_handler.path_into_movements(
-                self.data.path
-            ),
+            lambda: movement_handler.path_into_movements(self.data.path),
             threshold=0.1,
         )
         self.data.create_attribute(
             "action",
             lambda: movement_handler.movements_into_action(
                 self.data.movements, duration
-            )
+            ),
         )
-
-    def _check_for_path(self, threshold: float, lock):
-        time_since_last_path = self.data.get_time_since_last_valid_update("path")
-        if time_since_last_path > self.NO_PATH_FOUND_THRESHOLD:
-            breakpoint()  # Kill switch
-        elif time_since_last_path > 2 * threshold:
-            logger.log(
-                LOG_LEVEL,
-                f"{self.data.ign} has no path since > {2 * threshold:.1f}s."
-            )
-            return self._random_jump_request(time_since_last_path, True, lock)
-
-        elif time_since_last_path > threshold:
-            logger.log(
-                LOG_LEVEL,
-                f"{self.data.ign} has no path since > {threshold:.1f}s."
-            )
-            return self._random_jump_request(time_since_change, False, lock)

@@ -70,7 +70,7 @@ def move(
 
     first_delay = (
         FIRST_DELAY
-        if repeated_key not in list(structure.keys_held) + ['up']
+        if repeated_key not in list(structure.keys_held) + ["up"]
         else next(controller.random_delay)
     )
     structure.append(first_keys, ["keydown"] * len(first_keys), first_delay)  # noqa
@@ -82,7 +82,7 @@ def single_jump(
     handle: int,
     direction: Literal["left", "right", "up", "down"],
     jump_key: str,
-    structure: controller.KeyboardInputWrapper = None
+    structure: controller.KeyboardInputWrapper = None,
 ) -> controller.KeyboardInputWrapper:
     # TODO - Adjust the hard-coded 0.75 delay appropriately
     if structure is None:
@@ -123,7 +123,7 @@ def jump_on_rope(
     handle: int,
     direction: Literal["left", "right"],
     jump_key: str,
-    structure: controller.KeyboardInputWrapper = None
+    structure: controller.KeyboardInputWrapper = None,
 ) -> controller.KeyboardInputWrapper:
     """
     Jump on a rope. The secondary direction is maintained after the jump.
@@ -141,20 +141,14 @@ def jump_on_rope(
         structure.append(key, "keyup", next(controller.random_delay))
 
     if direction in structure.keys_held:
-        structure.append(
-            [jump_key, "up"], ["keydown", "keydown"], 0.75
-        )
+        structure.append([jump_key, "up"], ["keydown", "keydown"], 0.75)
         structure.append(
             [jump_key, direction], ["keyup", "keyup"], next(controller.random_delay) * 2
         )
 
     else:
-        structure.append(
-            direction, "keydown", next(controller.random_delay) * 2
-        )
-        structure.append(
-            [jump_key, "up"], ["keydown", "keydown"], 0.75
-        )
+        structure.append(direction, "keydown", next(controller.random_delay) * 2)
+        structure.append([jump_key, "up"], ["keydown", "keydown"], 0.75)
         structure.append(
             [jump_key, direction], ["keyup", "keyup"], next(controller.random_delay) * 2
         )
@@ -169,7 +163,7 @@ def teleport(
     direction: Literal["left", "right", "up", "down"],
     teleport_skill: Skill,
     num_times: int = 1,
-    structure: controller.KeyboardInputWrapper = None
+    structure: controller.KeyboardInputWrapper = None,
 ) -> controller.KeyboardInputWrapper:
     """
     Casts teleport in a given direction.
@@ -189,7 +183,7 @@ def teleport(
     for key in structure.keys_held:
         if key == direction:
             continue
-        elif key == 'up' and direction in ["left", "right"]:
+        elif key == "up" and direction in ["left", "right"]:
             # TODO - Hardcodings to improve/remove
             structure.append(key, "keyup", 0.1)
         else:
@@ -198,10 +192,7 @@ def teleport(
     if direction not in structure.keys_held:
         structure.append(direction, "keydown", next(controller.random_delay))
     structure.fill(
-        teleport_skill.key_bind(ign),
-        "keydown",
-        controller.random_delay,
-        limit=limit
+        teleport_skill.key_bind(ign), "keydown", controller.random_delay, limit=limit
     )
     enforce_last_inputs = [teleport_skill.key_bind(ign)]
     if direction == "down":
@@ -236,9 +227,6 @@ def telecast(
     return structure
 
 
-def random_jump(
-    handle: int,
-    jump_key: str
-) -> controller.KeyboardInputWrapper:
-    direction = random.choice(['left', 'right'])
+def random_jump(handle: int, jump_key: str) -> controller.KeyboardInputWrapper:
+    direction = random.choice(["left", "right"])
     return single_jump(handle, direction, jump_key)

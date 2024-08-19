@@ -1,4 +1,4 @@
-from .action_data import ActionRequest, DiscordRequest
+from .action_data import ActionRequest, ActionWithValidation, DiscordRequest
 from .async_task_manager import AsyncTaskManager
 from .bot import Bot
 from .bot_data import BotData

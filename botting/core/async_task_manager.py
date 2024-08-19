@@ -72,8 +72,7 @@ class AsyncTaskManager:
         for task in request.cancel_tasks:
             if task in self.running_tasks:
                 logger.log(
-                    LOG_LEVEL,
-                    f"{request.identifier} is cancelling task {task}."
+                    LOG_LEVEL, f"{request.identifier} is cancelling task {task}."
                 )
                 self.running_tasks[task].task.cancel()
                 self.running_tasks.pop(task)
@@ -84,8 +83,7 @@ class AsyncTaskManager:
                 self.discord_pipe.send(request.discord_request.img)
 
         request.task = asyncio.create_task(
-            request.procedure(*request.args, **request.kwargs),
-            name=request.identifier
+            request.procedure(*request.args, **request.kwargs), name=request.identifier
         )
         request.task.add_done_callback(self._cleanup_handler)
         if request.callbacks:

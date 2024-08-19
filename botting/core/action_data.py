@@ -1,6 +1,9 @@
 import asyncio
+import multiprocessing.connection
+import multiprocessing.managers
 import numpy as np
 from dataclasses import field, dataclass
+from functools import partial
 
 
 @dataclass
@@ -42,3 +45,101 @@ class ActionRequest:
 class DiscordRequest:
     msg: str
     img: np.ndarray = field(default=None)
+
+
+class ActionWithValidation:
+    def __init__(
+        self,
+        pipe: multiprocessing.connection.Connection,
+        validator: callable,
+        condition: multiprocessing.Condition,
+        timeout: float,
+        max_trials: int = 10,
+    ):
+        self.pipe = pipe
+        self.validator = validator
+        self.condition = condition
+        self.timeout = timeout
+        self.max_trials = max_trials
+
+        self.trials = 0
+
+    def execute_blocking(self, action: ActionRequest) -> None:
+        """
+        This must be called from within an Engine process.
+        Blocks the entire Engine process until the action is validated, allowing
+        the procedure to be executed uninterrupted by other tasks.
+        # TODO - see if it makes more sense to  use wait_for and to continuously fire
+        # the procedure. Once the predicate is met, another request with same identifier
+        # is sent to the Engine to cancel itself and stop procedure.
+        :return:
+        """
+        action.procedure = self._wrap(action.procedure)
+
+        with self.condition:
+            while True:
+                self.pipe.send(action)
+                if not self.condition.wait(timeout=self.timeout):
+                    raise TimeoutError(f"{action.identifier} failed validation.")
+                if self.validator():
+                    break
+                self.trials += 1
+                if self.trials >= self.max_trials:
+                    raise TimeoutError(
+                        f"{action.identifier} failed validation after {self.max_trials}"
+                        f" trials."
+                    )
+
+    async def execute_async(self, action: ActionRequest) -> None:
+        """
+        This must be called from within an Engine process.
+        Does not block the Engine process, but instead schedules the action to be
+        executed asynchronously.
+        :param action:
+        :return:
+        """
+        # TODO - This has never been tested.
+        action.procedure = self._wrap(action.procedure)
+        with self.condition:
+            self.pipe.send(action)
+            await asyncio.wait_for(
+                asyncio.to_thread(self.condition.wait_for, self.validator),
+                timeout=self.timeout,
+            )
+
+    def _wrap(self, procedure: callable) -> callable:
+        """
+        Wraps the procedure within the ActionRequest such that it acquires the Condition
+        object and releases it once the procedure completes.
+        :param procedure:
+        :return:
+        """
+        return partial(self._wrapped_procedure, procedure, self.condition, self.timeout)
+
+    @staticmethod
+    async def _wrapped_procedure(
+        procedure: callable, condition, timeout: float, *args, **kwargs
+    ):
+        _conditional_proc = ActionWithValidation._conditional_procedure(
+            procedure, condition, *args, **kwargs
+        )
+        try:
+            await asyncio.wait_for(_conditional_proc, timeout=timeout)
+        except asyncio.TimeoutError:
+            raise TimeoutError(
+                f"Procedure {procedure} timed out after {timeout} seconds."
+            )
+
+    @staticmethod
+    async def _conditional_procedure(procedure: callable, condition, *args, **kwargs):
+        while True:
+            if not condition.acquire(timeout=0.1):
+                await asyncio.sleep(0.1)
+            else:
+                try:
+                    res = await procedure(*args, **kwargs)
+                    condition.notify()
+                    break
+                finally:
+                    condition.release()
+        return res

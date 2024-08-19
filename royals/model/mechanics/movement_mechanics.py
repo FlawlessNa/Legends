@@ -24,7 +24,7 @@ class Movements:
         ign: str,
         handle: int,
         teleport: RoyalsSkill | None,
-        minimap: MinimapPathingMechanics
+        minimap: MinimapPathingMechanics,
     ):
         self.ign = ign
         self.handle = handle
@@ -147,9 +147,7 @@ class Movements:
 
     @lru_cache
     def movements_into_action(
-        self,
-        movements: tuple[tuple[str, int]],
-        total_duration: float = None
+        self, movements: tuple[tuple[str, int]], total_duration: float = None
     ) -> controller.KeyboardInputWrapper:
         """
         Translates a series of movements into a series of inputs and delays.
@@ -195,8 +193,8 @@ class Movements:
                                 )
                                 # duration += 5 / self.minimap.minimap_speed
                             # else:
-                                # Otherwise, make sure we stop before ladder/portal
-                                # duration -= 5 / self.minimap.minimap_speed
+                            # Otherwise, make sure we stop before ladder/portal
+                            # duration -= 5 / self.minimap.minimap_speed
                     except IndexError:
                         # If this is last movement and there's only 1 node, cap duration
                         if move[1] == 1:
@@ -206,7 +204,7 @@ class Movements:
                     direction,  # noqa
                     secondary_direction,
                     duration=duration,
-                    structure=structure
+                    structure=structure,
                 )
             elif move[0] in ["JUMP_LEFT", "JUMP_RIGHT", "JUMP_DOWN", "JUMP_UP"]:
                 direction = move[0].split("_")[-1].lower()
@@ -215,8 +213,8 @@ class Movements:
                     structure = movements_v2.single_jump(
                         self.handle,
                         direction,  # noqa
-                        controller.key_binds(self.ign)['jump'],
-                        structure=structure
+                        controller.key_binds(self.ign)["jump"],
+                        structure=structure,
                     )
             elif move[0] in ["JUMP_LEFT_AND_UP", "JUMP_RIGHT_AND_UP"]:
                 direction = move[0].split("_")[1].lower()
@@ -226,17 +224,20 @@ class Movements:
                 structure = movements_v2.jump_on_rope(
                     self.handle,
                     direction,  # noqa
-                    controller.key_binds(self.ign)['jump'],
-                    structure=structure
+                    controller.key_binds(self.ign)["jump"],
+                    structure=structure,
                 )
             elif move[0] == "PORTAL":
-                primary = direction or 'up'
-                secondary = 'up' if primary != 'up' else None
+                primary = direction or "up"
+                secondary = "up" if primary != "up" else None
                 structure = movements_v2.move(
                     self.handle, primary, secondary, duration=0.1, structure=structure
                 )
             elif move[0] in [
-                "TELEPORT_LEFT", "TELEPORT_RIGHT", "TELEPORT_UP", "TELEPORT_DOWN"
+                "TELEPORT_LEFT",
+                "TELEPORT_RIGHT",
+                "TELEPORT_UP",
+                "TELEPORT_DOWN",
             ]:
                 direction = move[0].split("_")[-1].lower()
                 structure = movements_v2.teleport(
@@ -245,7 +246,7 @@ class Movements:
                     direction,  # noqa
                     self.teleport,
                     num_times=move[1],
-                    structure=structure
+                    structure=structure,
                 )
             else:
                 breakpoint()

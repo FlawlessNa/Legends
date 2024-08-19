@@ -111,7 +111,7 @@ class SessionManager:
         if exc_type is not None:
             # Normally, each Engine should handle their own clean-up.
             # However, Listeners may not be able to handle their own clean-up??
-            breakpoint()
+            raise exc_val
 
     async def launch(self, *grouped_bots: list[Bot]) -> None:
         """

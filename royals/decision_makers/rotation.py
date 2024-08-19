@@ -9,8 +9,9 @@ from .mixins import (
     MinimapAttributesMixin,
     MovementsMixin,
     NextTargetMixin,
-    TimeBasedFailsafeMixin
+    TimeBasedFailsafeMixin,
 )
+
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.NOTSET
 
@@ -20,11 +21,10 @@ class Rotation(
     NextTargetMixin,
     MinimapAttributesMixin,
     MovementsMixin,
-    TimeBasedFailsafeMixin
+    TimeBasedFailsafeMixin,
 ):
     # TODO - Implement logic to continuously check if character strayed too far from
     #  path to cancel current movements
-    # TODO - Error handling for minimap attributes and other. Should probably be within Mixins?
     # TODO - improved failsafe reactions, including writing in chat after 2x or 3x
     _throttle = 0.1
     STATIC_POS_KILL_SWITCH = 20.0
@@ -66,37 +66,37 @@ class Rotation(
             attribute="current_minimap_position",
             method=self.data.get_time_since_last_value_change,
             threshold=static_position_threshold,
-            response=self._failsafe_request()
+            response=self._failsafe_request(),
         )
         self._create_time_based_sentinel(
             attribute="current_minimap_position",
             method=self.data.get_time_since_last_value_change,
             threshold=2 * static_position_threshold,
-            response=self._failsafe_request(f"{self.data.ign} is stuck.")
+            response=self._failsafe_request(f"{self.data.ign} is stuck."),
         )
         self._create_time_based_sentinel(
             attribute="current_minimap_position",
             method=self.data.get_time_since_last_value_change,
             threshold=self.STATIC_POS_KILL_SWITCH,
-            response=...  # TODO - Kill switch
+            response=...,  # TODO - Kill switch
         )
         self._create_time_based_sentinel(
             attribute="path",
             method=self.data.get_time_since_last_valid_update,
             threshold=no_path_threshold,
-            response=self._failsafe_request()
+            response=self._failsafe_request(),
         )
         self._create_time_based_sentinel(
             attribute="path",
             method=self.data.get_time_since_last_valid_update,
             threshold=2 * no_path_threshold,
-            response=self._failsafe_request(f"{self.data.ign} has no path.")
+            response=self._failsafe_request(f"{self.data.ign} has no path."),
         )
         self._create_time_based_sentinel(
             attribute="path",
             method=self.data.get_time_since_last_valid_update,
             threshold=self.NO_PATH_KILL_SWITCH,
-            response=...  # TODO - Kill switch
+            response=...,  # TODO - Kill switch
         )
 
     async def _decide(self) -> None:
@@ -120,21 +120,18 @@ class Rotation(
             inputs.send,
             ign=self.data.ign,
             requeue_if_not_scheduled=True,
-            callbacks=[self.lock.release]
+            callbacks=[self.lock.release],
         )
 
-    def _failsafe_request(
-        self, disc_msg: str = None
-    ) -> ActionRequest:
-
-        alert = DiscordRequest(
-            disc_msg, self.data.current_client_img
-        ) if disc_msg else None
+    def _failsafe_request(self, disc_msg: str = None) -> ActionRequest:
+        alert = (
+            DiscordRequest(disc_msg, self.data.current_client_img) if disc_msg else None
+        )
 
         return ActionRequest(
             f"{self} - Failsafe",
             random_jump(
-                self.data.handle, controller.key_binds(self.data.ign)['jump']
+                self.data.handle, controller.key_binds(self.data.ign)["jump"]
             ).send,
             ign=self.data.ign,
             priority=10,
