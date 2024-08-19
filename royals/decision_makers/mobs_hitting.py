@@ -36,7 +36,10 @@ class MobsHitting(DecisionMaker, MobsHittingMixin, MinimapAttributesMixin):
         self.training_skill = self._get_skill_from_str(training_skill)
         self._create_minimap_attributes()
         self.data.create_attribute(
-            "current_on_screen_position", self._get_on_screen_pos, threshold=1.0
+            "current_on_screen_position",
+            self._get_on_screen_pos,
+            threshold=1.0,
+            error_handler=...  # TODO - Implement error handler
         )
 
     def _hit_mobs(self, direction: str | None) -> ActionRequest:

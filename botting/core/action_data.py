@@ -75,6 +75,8 @@ class ActionWithValidation:
         :return:
         """
         action.procedure = self._wrap(action.procedure)
+        if self.validator():
+            return
 
         with self.condition:
             while True:

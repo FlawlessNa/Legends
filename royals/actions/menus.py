@@ -25,9 +25,9 @@ async def toggle_minimap(
 
 
 def minimap_display_validator(
-    minimap: Minimap,
+    minimap: Minimap, handle: int, desired_state: str
 ):
-    breakpoint()
+    return minimap.get_minimap_state(handle) == desired_state
 
 
 def ensure_minimap_displayed(
@@ -41,6 +41,7 @@ def ensure_minimap_displayed(
     desired_state: Literal["Hidden", "Partial", "Full"] = "Full",
     mode: Literal["Blocking", "Async"] = "Blocking",
 ) -> None:
+
     request = ActionRequest(
         identifier,
         toggle_minimap,
@@ -49,13 +50,9 @@ def ensure_minimap_displayed(
         block_lower_priority=True,
         args=(handle, ign),
     )
-
-    def _predicate() -> bool:
-        return minimap.get_minimap_state(handle) == desired_state
-
     validated_action = ActionWithValidation(
         pipe,
-        _predicate,
+        lambda: minimap_display_validator(minimap, handle, desired_state),
         condition,
         timeout,
     )

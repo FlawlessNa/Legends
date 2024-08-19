@@ -1,10 +1,12 @@
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
+import win32gui
 
-from royals.actions import ensure_minimap_displayed, toggle_minimap
-from botting import PARENT_LOG
-from botting.core import ActionRequest, ActionWithValidation, BotData, DecisionMaker
+from royals.actions import ensure_minimap_displayed
+from botting import PARENT_LOG, controller
+from botting.core import ActionRequest, BotData, DecisionMaker
+from botting.utilities import Box
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.WARNING
@@ -48,8 +50,7 @@ class MinimapAttributesMixin:
             self.ERROR_HANDLING_TIME_LIMIT,
         )
 
-        # TODO - Add Mouse not interfering
-        ensure_mouse_not_on_minimap(identifier, ...)
+        self._ensure_mouse_not_on_minimap(identifier)
         self.data.update_attribute("current_client_img")
         self.data.update_attribute("minimap_currently_displayed")
         self.data.update_attribute("current_minimap_state")
@@ -57,7 +58,55 @@ class MinimapAttributesMixin:
         self.data.update_attribute("current_entire_minimap_box")
         self.data.update_attribute("current_minimap_position")
 
+    def _ensure_mouse_not_on_minimap(
+        self, identifier: str
+    ) -> None:
+        """
+        Looks into the current_entire_minimap_box is currently known.
+        If it is, set a mouse position target that is anywhere on the window except for
+        the minimap.
+        If not, the target is set to the center of the window (with small variation).
+        # TODO - If other mouse functions are needed, crate a royals.action module instead.
+        :param identifier:
+        :return:
+        """
+        if getattr(self.data, 'current_entire_minimap_box', None) is not None:
+            region_to_avoid = self.data.current_entire_minimap_box
+        else:
+            # In this case, avoid the first "quadrant" of the window.
+            region_to_avoid = Box(left=0, right=500, top=0, bottom=500)
+
+        # Choose a random point on the window that is not on the minimap.
+        left, top, right, bottom = win32gui.GetWindowRect(self.data.handle)
+        width, height = right - left, bottom - top
+        client_box = Box(left=0, right=width, top=0, bottom=height)
+        while True:
+            x, y = client_box.random()
+            if (x, y) not in region_to_avoid:
+                break
+
+        request = ActionRequest(
+            identifier,
+            controller.mouse_move,
+            self.data.ign,
+            args=(self.data.handle, (x, y))
+        )
+        self.pipe.send(request)
+
     def _create_minimap_attributes(self) -> None:
+        ensure_minimap_displayed(
+            f"{self} Initial Setup",
+            self.data.handle,
+            self.data.ign,
+            self.pipe,
+            self.data.current_minimap,
+            DecisionMaker.request_proxy(
+                self.metadata,
+                f"{self} Initial Setup",
+                "Condition",
+            ),
+            self.ERROR_HANDLING_TIME_LIMIT,
+        )
         self.data.create_attribute(
             "minimap_currently_displayed",
             lambda: self.data.current_minimap.is_displayed(
