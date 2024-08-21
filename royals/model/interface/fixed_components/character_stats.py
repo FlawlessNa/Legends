@@ -3,7 +3,7 @@ import numpy as np
 import string
 
 from botting.visuals import InGameBaseVisuals
-from botting.utilities import Box
+from botting.utilities import Box, take_screenshot
 
 
 class CharacterStats(InGameBaseVisuals):
@@ -71,14 +71,15 @@ class CharacterStats(InGameBaseVisuals):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         if gray.shape == (self.level_box.height, self.level_box.width):
             gray = cv2.inRange(gray, np.array([255]), np.array([255]))
-            gray = cv2.resize(gray, None, fx=10, fy=10)
+            # gray = cv2.resize(gray, None, fx=10, fy=10)
         return gray
 
     def get_ign(self, handle: int) -> str:
         return self.read_from_box(handle, self.ign_box, confidence_level=0)
 
     def get_level(self, handle: int) -> int:
-        return int(self.read_from_box(handle, self.level_box))
+        img = take_screenshot(handle, self.level_box)
+        return int(self.read_from_img(img))
 
     def get_job(self, handle: int) -> str:
         return self.read_from_box(handle, self.job_box, confidence_level=0)

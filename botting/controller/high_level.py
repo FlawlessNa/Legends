@@ -268,6 +268,24 @@ async def click(
     return await focused_inputs(handle, inputs, delays)
 
 
+async def mouse_move_and_click(
+    handle: int,
+    target: tuple[int | float, int | float],
+    total_duration: float = 0.5,
+    nbr_times: int = 1,
+    delay: float = DELAY,
+) -> None:
+    """
+    :param handle: Window handle to the process.
+    :param target: Target position of the mouse.
+    :param total_duration: Duration of the movement. If 0, the mouse is moved instantly.
+    :param nbr_times: Number of times to click.
+    :param delay: Delay between each click.
+    """
+    await mouse_move(handle, target, total_duration)
+    await click(handle, "click", nbr_times, delay)
+
+
 def get_mouse_pos(handle: int) -> tuple[int, int]:
     """
     Returns the position of the cursor inside the window, if it is inside the window.

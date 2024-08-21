@@ -51,16 +51,16 @@ class MinimapAttributesMixin:
         )
 
         self._ensure_mouse_not_on_minimap(identifier)
-        self.data.update_attribute("current_client_img")
-        self.data.update_attribute("minimap_currently_displayed")
-        self.data.update_attribute("current_minimap_state")
-        self.data.update_attribute("current_minimap_area_box")
-        self.data.update_attribute("current_entire_minimap_box")
-        self.data.update_attribute("current_minimap_position")
+        self.data.update_attributes(
+            "current_client_img",
+            "minimap_currently_displayed",
+            "current_minimap_state",
+            "current_minimap_area_box",
+            "current_entire_minimap_box",
+            "current_minimap_position",
+        )
 
-    def _ensure_mouse_not_on_minimap(
-        self, identifier: str
-    ) -> None:
+    def _ensure_mouse_not_on_minimap(self, identifier: str) -> None:
         """
         Looks into the current_entire_minimap_box is currently known.
         If it is, set a mouse position target that is anywhere on the window except for
@@ -70,7 +70,7 @@ class MinimapAttributesMixin:
         :param identifier:
         :return:
         """
-        if getattr(self.data, 'current_entire_minimap_box', None) is not None:
+        if getattr(self.data, "current_entire_minimap_box", None) is not None:
             region_to_avoid = self.data.current_entire_minimap_box
         else:
             # In this case, avoid the first "quadrant" of the window.
@@ -89,7 +89,7 @@ class MinimapAttributesMixin:
             identifier,
             controller.mouse_move,
             self.data.ign,
-            args=(self.data.handle, (x, y))
+            args=(self.data.handle, (x, y)),
         )
         self.pipe.send(request)
 
@@ -127,14 +127,14 @@ class MinimapAttributesMixin:
             ),
         )
         self.data.create_attribute(
-            "current_minimap_position",
-            self._get_minimap_pos,
-            threshold=self.MINIMAP_POS_REFRESH_RATE,
-            error_handler=self._minimap_pos_error_handler,
-        )
-        self.data.create_attribute(
             "current_entire_minimap_box",
             lambda: self.data.current_minimap.get_entire_minimap_box(
                 self.data.handle, self.data.current_client_img
             ),
+        )
+        self.data.create_attribute(
+            "current_minimap_position",
+            self._get_minimap_pos,
+            threshold=self.MINIMAP_POS_REFRESH_RATE,
+            error_handler=self._minimap_pos_error_handler,
         )

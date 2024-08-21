@@ -14,4 +14,5 @@ class LeechingBot(RoyalsBot):
         return [
             decision_makers.TelecastMobsHitting,
             decision_makers.Rotation,
+            decision_makers.AbilityPointDistributor,
         ]

@@ -65,7 +65,7 @@ class InGameBaseVisuals(ABC):
         """
         img = self._preprocess_img(image)
         result = pytesseract.image_to_data(
-            img, lang="eng", config=config, output_type=pytesseract.Output.DICT
+            img, lang="eng", config=config or "", output_type=pytesseract.Output.DICT
         )
         filtered_res = [
             result["text"][i]

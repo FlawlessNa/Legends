@@ -39,7 +39,7 @@ class MobsHitting(DecisionMaker, MobsHittingMixin, MinimapAttributesMixin):
             "current_on_screen_position",
             self._get_on_screen_pos,
             threshold=1.0,
-            error_handler=...  # TODO - Implement error handler
+            error_handler=...,  # TODO - Implement error handler
         )
 
     def _hit_mobs(self, direction: str | None) -> ActionRequest:

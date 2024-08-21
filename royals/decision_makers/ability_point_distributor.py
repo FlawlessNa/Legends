@@ -1,24 +1,21 @@
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
+import numpy as np
 
 from botting import PARENT_LOG, controller
-from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
-from royals.actions.movements_v2 import random_jump
+from botting.core import ActionRequest, ActionWithValidation, BotData, DecisionMaker
+from royals.actions import ensure_ability_menu_displayed
 from .mixins import (
-    MinimapAttributesMixin,
-    MovementsMixin,
-    NextTargetMixin,
-    TimeBasedFailsafeMixin,
+    MenusMixin,
+    UIMixin,
 )
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.NOTSET
+LOG_LEVEL = logging.WARNING
 
 
-class AbilityPointDistributor(
-    DecisionMaker,
-):
+class AbilityPointDistributor(DecisionMaker, MenusMixin, UIMixin):
     CONFIG_KEY = "Ability Menu"
     _throttle = 30.0
 
@@ -27,52 +24,54 @@ class AbilityPointDistributor(
         metadata: multiprocessing.managers.DictProxy,
         data: BotData,
         pipe: multiprocessing.connection.Connection,
-        movements_duration: float = 1.0,
-        static_position_threshold: float = 7.5,
-        no_path_threshold: float = 5.0,
         **kwargs,
     ) -> None:
         super().__init__(metadata, data, pipe)
         self._ap_menu_key = controller.key_binds(self.data.ign)[self.CONFIG_KEY]
+        self.condition = self.request_proxy(self.metadata, f"{self}", "Condition")
+        self._create_ap_menu_attributes(self.condition)
+        self._create_ui_attributes()
+        self._prev_level_img = self.data.current_level_img.copy()
 
     async def _decide(self) -> None:
-        self._failsafe_checks()  # Check each time, no need to wait for lock
+        self.data.update_attribute("current_level_img")
 
-        # Only send standard request when lock is acquired, otherwise wait for lock
-        acquired = self.lock.acquire(blocking=False)
-        if acquired:
-            logger.log(LOG_LEVEL, f"{self} is deciding.")
-            self.data.update_attribute("next_target")
-            self.data.update_attribute("action")
-            if self.data.action is not None:
-                print(self.data.action.duration)
-                self.pipe.send(self._request(self.data.action))
+        if not np.array_equal(self.data.current_level_img, self._prev_level_img):
+            logger.log(LOG_LEVEL, f"Level up detected for {self.data.ign}.")
+            ensure_ability_menu_displayed(
+                **self._display_kwargs("Ability Menu Trigger", 2.0, self.condition)
+            )
+            self.data.update_attribute("available_ap")
+
+            if self.data.available_ap > 0:
+                logger.log(LOG_LEVEL, f"{self} now distributing AP.")
+                self.pipe.send(self._distribute_ap(self.data.available_ap))
             else:
-                self.lock.release()
+                logger.log(LOG_LEVEL, f"Uh-oh. {self} has no AP to distribute.")
+                ensure_ability_menu_displayed(
+                    **self._display_kwargs("Ability Menu Trigger", 2.0, self.condition),
+                    ensure_displayed=False,
+                )
 
-    def _request(self, inputs: controller.KeyboardInputWrapper) -> ActionRequest:
-        return ActionRequest(
-            f"{self}",
-            inputs.send,
-            ign=self.data.ign,
-            requeue_if_not_scheduled=True,
-            callbacks=[self.lock.release],
-        )
+        self._prev_level_img = self.data.current_level_img.copy()
 
-    def _failsafe_request(self, disc_msg: str = None) -> ActionRequest:
-        alert = (
-            DiscordRequest(disc_msg, self.data.current_client_img) if disc_msg else None
+    def _distribute_ap(self, num_points: int) -> None:
+        target = self.data.ability_menu.stat_mapper[self.data.character.main_stat]
+        request = ActionRequest(
+            "Distributing AP",
+            controller.mouse_move_and_click,
+            self.data.ign,
+            5,
+            args=(self.data.handle, target.center),
+            kwargs={"nbr_times": num_points},
         )
-
-        return ActionRequest(
-            f"{self} - Failsafe",
-            random_jump(
-                self.data.handle, controller.key_binds(self.data.ign)["jump"]
-            ).send,
-            ign=self.data.ign,
-            priority=10,
-            requeue_if_not_scheduled=True,
-            block_lower_priority=True,
-            cancel_tasks=[f"{self}"],
-            discord_request=alert,
+        validated_action = ActionWithValidation(
+            self.pipe,
+            lambda: self.data.ability_menu.get_available_ap(
+                self.data.handle, self.data.current_client_img
+            )
+            == 0,
+            self.condition,
+            5.0,
         )
+        validated_action.execute_blocking(request)
