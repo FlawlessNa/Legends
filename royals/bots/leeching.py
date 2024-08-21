@@ -15,4 +15,5 @@ class LeechingBot(RoyalsBot):
             decision_makers.TelecastMobsHitting,
             decision_makers.Rotation,
             decision_makers.AbilityPointDistributor,
+            decision_makers.PetFood,
         ]

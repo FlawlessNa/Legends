@@ -92,13 +92,14 @@ class MovementsMixin:
 
     def _create_pathing_attributes(
         self,
-        ign: str,
-        handle: int,
-        teleport: RoyalsSkill | None,
-        minimap: MinimapPathingMechanics,
         duration: float,
     ) -> None:
-        movement_handler = Movements(ign, handle, teleport, minimap)
+        movement_handler = Movements(
+            self.data.ign,
+            self.data.handle,
+            self.data.character.skills.get("Teleport"),
+            self.data.current_minimap,
+        )
 
         self.data.create_attribute(
             "path",

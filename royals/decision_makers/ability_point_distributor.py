@@ -45,7 +45,11 @@ class AbilityPointDistributor(DecisionMaker, MenusMixin, UIMixin):
 
             if self.data.available_ap > 0:
                 logger.log(LOG_LEVEL, f"{self} now distributing AP.")
-                self.pipe.send(self._distribute_ap(self.data.available_ap))
+                self._distribute_ap(self.data.available_ap)
+                ensure_ability_menu_displayed(
+                    **self._display_kwargs("Ability Menu Trigger", 2.0, self.condition),
+                    ensure_displayed=False,
+                )
             else:
                 logger.log(LOG_LEVEL, f"Uh-oh. {self} has no AP to distribute.")
                 ensure_ability_menu_displayed(

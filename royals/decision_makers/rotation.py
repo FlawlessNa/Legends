@@ -52,13 +52,7 @@ class Rotation(
 
         # Rotation attributes
         self._create_rotation_attributes()
-        self._create_pathing_attributes(
-            self.data.ign,
-            self.data.handle,
-            self._teleport_skill,
-            self.data.current_minimap,
-            movements_duration,
-        )
+        self._create_pathing_attributes(movements_duration)
 
         # Fail safes
         self._sentinels = []
@@ -109,7 +103,6 @@ class Rotation(
             self.data.update_attribute("next_target")
             self.data.update_attribute("action")
             if self.data.action is not None:
-                print(self.data.action.duration)
                 self.pipe.send(self._request(self.data.action))
             else:
                 self.lock.release()
