@@ -41,6 +41,16 @@ class ActionRequest:
     args: tuple = field(default_factory=tuple)
     kwargs: dict = field(default_factory=dict)
 
+    def __lt__(self, other):
+        """
+        Used by the PriorityQueue to determine the order of tasks.
+        :param other:
+        :return:
+        """
+        if other is None:
+            return False
+        return self.priority > other.priority
+
 
 @dataclass
 class DiscordRequest:
@@ -87,9 +97,9 @@ class ActionWithValidation:
             while True:
                 self.pipe.send(action)
                 if time.perf_counter() - now > self.timeout:
-                    raise TimeoutError(f"{action.identifier} failed validation.")
+                    raise TimeoutError(f"{action.identifier} failed validation")
                 elif not self.condition.wait(timeout=self.timeout):
-                    raise TimeoutError(f"{action.identifier} failed validation.")
+                    raise TimeoutError(f"{action.identifier} failed validation")
                 if self.validator():
                     break
                 self.trials += 1

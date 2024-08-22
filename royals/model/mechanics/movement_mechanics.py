@@ -158,7 +158,7 @@ class Movements:
         """
         structure = None
         direction = None
-        for move in movements:
+        for idx, move in enumerate(movements):
             if (
                 total_duration is not None
                 and structure is not None
@@ -182,7 +182,7 @@ class Movements:
                     # Check if next movement is a simple "up" or "down". If so, add it
                     # as secondary direction, but only if close enough to the ladder.
                     try:
-                        next_move = movements[movements.index(move) + 1]
+                        next_move = movements[idx + 1]
                         if next_move[0] in ["up", "down", "PORTAL"]:
                             # TODO - Try truncating move[1] and appending a next move of
                             #  same direction into movements vector
@@ -209,6 +209,11 @@ class Movements:
             elif move[0] in ["JUMP_LEFT", "JUMP_RIGHT", "JUMP_DOWN", "JUMP_UP"]:
                 direction = move[0].split("_")[-1].lower()
                 num_jumps = move[1]
+                # try:
+                #     next_move = movements[idx + 1]
+                #     if next_move[0] == 'PORTAL':
+                # except IndexError:
+                #     pass
                 for _ in range(num_jumps):
                     structure = movements_v2.single_jump(
                         self.handle,

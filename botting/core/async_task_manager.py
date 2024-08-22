@@ -20,7 +20,7 @@ class AsyncTaskManager:
     _throttle = 0.1
 
     def __init__(self, discord_pipe: multiprocessing.connection.Connection) -> None:
-        self.queue = asyncio.Queue()
+        self.queue = asyncio.PriorityQueue()
         self.running_tasks: dict[str, ActionRequest] = {}
         self.discord_pipe = discord_pipe
 

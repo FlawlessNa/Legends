@@ -27,6 +27,8 @@ def _create_initial_input(
         held_keys.remove(direction)
     if secondary_direction in held_keys:
         held_keys.remove(secondary_direction)
+    # if 'up' in held_keys and 'down' not in [direction, secondary_direction]:
+    #     held_keys.remove('up')
     if held_keys:
         _initial_structure.append(
             held_keys, ["keyup"] * len(held_keys), next(controller.random_delay)  # noqa

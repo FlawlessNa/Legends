@@ -3,35 +3,27 @@
 ## Bug Fixes
 - [ ] Minimap handling between CheckStillInMap and InventoryManager
 - [ ] Cancellation of NPC Selling seems to be problematic because it has a return value
-- [ ] Party Re-buff is broken (casts way too much), for casting non-attack skill (since there's a rebuff validation), can simply cast once.
-  - Idea to test: For re-buffing, try converting each buff icon into binary and save those. Then, use as kernels instead of matchTemplate.
-  - Split into individual buffs and only re-cast buffs that didn't go through
 - [ ] MobCheck:
   - First alert after X seconds -> disable MobsHitting but keep movements
   - Second alert after 2X seconds -> pause everything except necessary maintenance + random reaction
+- [ ] There's a situation where keys are not released properly, leading to a stuck state
 
 ## Performance Branch
 - [ ] Re-implement all former DecisionGenerators into DecisionMakers
   - Implement kill switch as part of fail safes and discord commands
-  - Generic Error handling for data attributes not updating properly (ex: minimap data, etc)
 
 ### Inputs
 - [ ] Change SharedResources to remove un-unused methods
   - Instead, add decorator method ensuring that the focus lock is only acquired within the MainProcess and nothing else
 
 ### Pathing
+- [ ] Create special sets of inputs whenever portal is present, OR; add keyboard-repeat feature on "Up" key whenever portal is within movements
 - [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases
 - [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
 - [ ] Look into game files to reverse engineer movements for better precision
   - Can definitely use VRTop, VRLeft, VRBottom, VBRRight to convert minimap coordinates into actual map coordinates
 - [ ] Flexible map movements, speed, jumps, etc.
 - [ ] (least priority) Rotation decision maker cancels itself when stray too far from path
-
-### Royals.actions
-- [ ] Add prioritities into royals.actions
-- [ ] Implement complex actions that can either perform checks between transitions in the main process, or they can use primitives instead.
-  - Ex: Opening inventory, toggling tabs, and checking items
-  - Ex: Going to store, opening store, selling stuff, etc.
 
 ### Other
 - [ ] Kill switches that either:
