@@ -171,7 +171,7 @@ class SessionManager:
                 self.metadata[key] = getattr(self.process_manager, type_)(
                     *args, **kwargs
                 )
-                cond.notify()  # The proxy request has been processed, notify waiter.
+                cond.notify_all()  # The proxy request has been processed, notify waiter
 
         while True:
             await asyncio.to_thread(_single_cycle, notifier)

@@ -17,11 +17,11 @@ LOG_LEVEL = logging.NOTSET
 
 
 class Rotation(
-    DecisionMaker,
     NextTargetMixin,
     MinimapAttributesMixin,
     MovementsMixin,
     TimeBasedFailsafeMixin,
+    DecisionMaker,
 ):
     # TODO - Implement logic to continuously check if character strayed too far from
     #  path to cancel current movements
@@ -130,6 +130,7 @@ class Rotation(
             priority=10,
             requeue_if_not_scheduled=True,
             block_lower_priority=True,
+            cancels_itself=True,
             cancel_tasks=[f"{self}"],
             discord_request=alert,
         )

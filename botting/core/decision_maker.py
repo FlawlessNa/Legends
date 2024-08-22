@@ -56,20 +56,22 @@ class DecisionMaker(ABC):
         with notifier:  # Acquire the underlying Lock
             data = primitive_type, args, kwargs
             metadata[requester] = data
-            notifier.notify()
-            notifier.wait_for(lambda: metadata[requester] != data)
+            while metadata[requester] == data:
+                notifier.notify_all()
+                notifier.wait(timeout=1)
+
         logger.log(LOG_LEVEL, f"Created {primitive_type} for {requester}.")
         return metadata.pop(requester)
 
     @abstractmethod
-    async def _decide(self) -> None:
+    async def _decide(self, *args, **kwargs) -> None:
         pass
 
-    async def start(self) -> None:
+    async def start(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
         logger.log(LOG_LEVEL, f"{self} started.")
         try:
             while True:
-                await self._decide()
+                await self._decide(*args, **kwargs)
                 if self._throttle:
                     await asyncio.sleep(self._throttle)
         except Exception as e:

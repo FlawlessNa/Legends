@@ -15,7 +15,7 @@ logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.NOTSET
 
 
-class EnsureSafeSpot(DecisionMaker, MinimapAttributesMixin):
+class EnsureSafeSpot(MinimapAttributesMixin, DecisionMaker):
     """
     Basic DecisionMaker that ensures character has not moved.
     Useful for leeching mules in case they get hit.
@@ -70,7 +70,7 @@ class EnsureSafeSpot(DecisionMaker, MinimapAttributesMixin):
         )
 
 
-class ResetIdleSafeguard(DecisionMaker, MinimapAttributesMixin, MovementsMixin):
+class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
     """
     DecisionMaker that moves character at every interval.
     Used to ensure actions such as rebuffing still go through after some time.

@@ -6,6 +6,7 @@ import numpy as np
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, ActionWithValidation, BotData, DecisionMaker
 from royals.actions import ensure_ability_menu_displayed
+from royals.actions import priorities
 from .mixins import (
     MenusMixin,
     UIMixin,
@@ -15,7 +16,7 @@ logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.WARNING
 
 
-class AbilityPointDistributor(DecisionMaker, MenusMixin, UIMixin):
+class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
     CONFIG_KEY = "Ability Menu"
     _throttle = 30.0
 
@@ -65,7 +66,7 @@ class AbilityPointDistributor(DecisionMaker, MenusMixin, UIMixin):
             "Distributing AP",
             controller.mouse_move_and_click,
             self.data.ign,
-            5,
+            priorities.AP_DISTRIBUTION,
             args=(self.data.handle, target.center),
             kwargs={"nbr_times": num_points},
         )

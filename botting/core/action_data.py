@@ -1,4 +1,5 @@
 import asyncio
+import time
 import multiprocessing.connection
 import multiprocessing.managers
 import numpy as np
@@ -78,10 +79,16 @@ class ActionWithValidation:
         if self.validator():
             return
 
+        self._run(action)
+
+    def _run(self, action: ActionRequest) -> None:
         with self.condition:
+            now = time.perf_counter()
             while True:
                 self.pipe.send(action)
-                if not self.condition.wait(timeout=self.timeout):
+                if time.perf_counter() - now > self.timeout:
+                    raise TimeoutError(f"{action.identifier} failed validation.")
+                elif not self.condition.wait(timeout=self.timeout):
                     raise TimeoutError(f"{action.identifier} failed validation.")
                 if self.validator():
                     break
@@ -100,14 +107,10 @@ class ActionWithValidation:
         :param action:
         :return:
         """
-        # TODO - This has never been tested.
         action.procedure = self._wrap(action.procedure)
-        with self.condition:
-            self.pipe.send(action)
-            await asyncio.wait_for(
-                asyncio.to_thread(self.condition.wait_for, self.validator),
-                timeout=self.timeout,
-            )
+        if self.validator():
+            return
+        await asyncio.to_thread(self._run, action)
 
     def _wrap(self, procedure: callable) -> callable:
         """

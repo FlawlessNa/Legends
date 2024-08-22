@@ -20,7 +20,7 @@ logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.INFO
 
 
-class MobsHitting(DecisionMaker, MobsHittingMixin, MinimapAttributesMixin):
+class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
     def __init__(
         self,
         metadata: multiprocessing.managers.DictProxy,

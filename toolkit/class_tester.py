@@ -1,11 +1,11 @@
-from botting.utilities import client_handler
+import win32gui
+from botting.utilities import client_handler, Box
 from royals import royals_ign_finder
 
 from royals.model.minimaps import (
     KampungVillageMinimap,
 )
 
-# from royals.maps import PathOfTime1
 from royals.model.characters import Bishop
 from royals.model.mechanics.path_into_movements import get_to_target
 
@@ -13,6 +13,8 @@ HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 
 
 if __name__ == "__main__":
+    left, top, right, bottom = win32gui.GetClientRect(HANDLE)
+    region = Box(left=right - 150, top=top + 45, right=right, bottom=85)
     bishop = Bishop("WrongDoor", "Elephant Cape", "large")
     minimap = KampungVillageMinimap()
     minimap.generate_grid_template(allow_teleport=True)

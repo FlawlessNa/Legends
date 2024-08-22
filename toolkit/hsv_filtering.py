@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from botting.utilities import take_screenshot
+from botting.utilities import take_screenshot, Box
 
 
 def init_control_gui_hsv():
@@ -266,24 +266,30 @@ class ColorsFilter:
 if __name__ == "__main__":
     from botting.utilities import client_handler
     from royals import royals_ign_finder
+    import win32gui
 
     HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
-    USE_HSV = True
-    USE_COLORS = False
+    USE_HSV = False
+    USE_COLORS = True
 
     if USE_HSV:
         init_control_gui_hsv()
     if USE_COLORS:
         init_control_gui_color()
 
+    left, top, right, bottom = win32gui.GetClientRect(HANDLE)
+    region = Box(left=right - 250, top=top + 45, right=right, bottom=85)
+    fx = 5
+    fy = 5
+
     while True:
-        img_hsv = take_screenshot(HANDLE, dict(left=0, right=1024, top=165, bottom=700))
+        img_hsv = take_screenshot(HANDLE, region)
         img_color = img_hsv.copy()
 
         if USE_HSV:
             img_hsv_grouped = img_hsv.copy()
             processed_hsv = apply_hsv_filters(img_hsv)
-            cv2.imshow("processed_hsv", processed_hsv)
+            cv2.imshow("processed_hsv", cv2.resize(processed_hsv, None, fx=fx, fy=fy))
             cv2.waitKey(1)
             hsv_filters = get_hsv_filter_from_controls()
             _hsv_lower = np.array(
@@ -294,6 +300,11 @@ if __name__ == "__main__":
             )
             hsv = cv2.cvtColor(img_hsv, cv2.COLOR_BGR2HSV)
             hsv_binary = cv2.inRange(hsv, _hsv_lower, _hsv_upper)
+            cv2.imshow("hsv_binary", cv2.resize(hsv_binary, None, fx=fx, fy=fy))
+            cv2.imshow(
+                "hsv_inv_binary",
+                cv2.resize(cv2.bitwise_not(hsv_binary), None, fx=fx, fy=fy),
+            )
             hsv_contours, _ = cv2.findContours(
                 hsv_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
@@ -301,7 +312,7 @@ if __name__ == "__main__":
             for x, y, w, h in hsv_rects:
                 if w >= hsv_filters.w and h >= hsv_filters.h:
                     cv2.rectangle(img_hsv, (x, y), (x + w, y + h), (0, 255, 0), 3)
-            cv2.imshow("contoured_hsv", img_hsv)
+            cv2.imshow("contoured_hsv", cv2.resize(img_hsv, None, fx=fx, fy=fy))
             cv2.waitKey(1)
 
             hsv_groups = cv2.groupRectangles(
@@ -314,12 +325,16 @@ if __name__ == "__main__":
                     cv2.rectangle(
                         img_hsv_grouped, (x, y), (x + w, y + h), (0, 0, 255), 3
                     )
-            cv2.imshow("contoured_hsv_grouped", img_hsv_grouped)
+            cv2.imshow(
+                "contoured_hsv_grouped", cv2.resize(img_hsv_grouped, None, fx=fx, fy=fy)
+            )
             cv2.waitKey(1)
 
         if USE_COLORS:
             processed_color = apply_color_filters(img_color)
-            cv2.imshow("processed_color", processed_color)
+            cv2.imshow(
+                "processed_color", cv2.resize(processed_color, None, fx=fx, fy=fy)
+            )
 
             colors_filters = get_colors_filter_from_controls()
             _colors_lower = np.array(
@@ -329,7 +344,7 @@ if __name__ == "__main__":
                 [colors_filters.bMax, colors_filters.gMax, colors_filters.rMax]
             )
             colors_binary = cv2.inRange(img_color, _colors_lower, _colors_upper)
-            cv2.imshow("colors_binary", colors_binary)
+            cv2.imshow("colors_binary", cv2.resize(colors_binary, None, fx=fx, fy=fy))
             colors_contours, _ = cv2.findContours(
                 colors_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
@@ -362,8 +377,21 @@ if __name__ == "__main__":
             hulls = [cv2.convexHull(cnt) for cnt in colors_contours]
             for hull in hulls:
                 cv2.drawContours(img_color_hull, [hull], 0, (0, 255, 0), 3)
-            cv2.imshow("contoured_color_cnt", img_color_cnt)
-            cv2.imshow("contoured_color_rect", img_color_rect)
-            cv2.imshow("contoured_color_grouped", img_color_grouped)
-            cv2.imshow("contoured_color_hull", img_color_hull)
+            cv2.imshow(
+                "contoured_color_cnt", cv2.resize(img_color_cnt, None, fx=fx, fy=fy)
+            )
+            cv2.imshow(
+                "contoured_color_rect", cv2.resize(img_color_rect, None, fx=fx, fy=fy)
+            )
+            cv2.imshow(
+                "contoured_color_grouped",
+                cv2.resize(img_color_grouped, None, fx=fx, fy=fy),
+            )
+            cv2.imshow(
+                "contoured_color_hull", cv2.resize(img_color_hull, None, fx=fx, fy=fy)
+            )
+            gray = cv2.cvtColor(img_color, cv2.COLOR_BGR2GRAY)
+            cv2.imshow("gray", cv2.resize(gray, None, fx=fx, fy=fy))
+            thresholded = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)[1]
+            cv2.imshow("thresholded", cv2.resize(thresholded, None, fx=fx, fy=fy))
             cv2.waitKey(1)

@@ -60,6 +60,7 @@ class _ChildProcessEngine:
         Launches the DecisionMakers of all Bots.
         :return:
         """
+        asyncio.current_task().set_name(f"MainTask - {self}")
         try:
             for bot in self.bots:
                 bot.child_init(self.pipe)

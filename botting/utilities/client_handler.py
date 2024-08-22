@@ -1,3 +1,4 @@
+from functools import lru_cache
 import fuzzywuzzy.fuzz as fuzz
 import win32gui
 
@@ -23,6 +24,7 @@ def get_open_clients(
     return result
 
 
+@lru_cache
 def get_client_handle(ign: str, ign_finder: callable) -> int:
     """
     Returns the handle of the client with the provided IGN.

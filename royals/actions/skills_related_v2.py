@@ -43,8 +43,8 @@ def cast_skill(
     return structure
 
 
-def cast_skill_single_press():
-    pass
+async def cast_skill_single_press(handle: int, ign: str, skill: Skill) -> None:
+    await controller.press(handle, skill.key_bind(ign), delay=skill.animation_time)
 
 
 def cast_skill_silenced():

@@ -4,7 +4,7 @@ from typing import Literal
 from botting import controller
 from botting.core import ActionRequest, ActionWithValidation
 from royals.model.interface import Minimap, AbilityMenu
-from ._priorities import ERROR_HANDLING
+from .priorities import ERROR_HANDLING
 
 
 async def toggle_menu(

@@ -45,12 +45,12 @@ class Bot(ABC):
     async def start(self) -> None:
         """
         Called by the Engine to start the DecisionMakers tasks.
+        Passes the TaskGroup to each DecisionMaker, such that they can define sub-tasks
+        if required.
         """
         async with asyncio.TaskGroup() as tg:
             for decision_maker in self.decision_makers:
-                tg.create_task(
-                    decision_maker.start(), name=f"{self.ign} - {decision_maker}"
-                )
+                tg.create_task(decision_maker.start(tg), name=f"{decision_maker}")
 
     @cached_property
     def decision_makers(self) -> list[DecisionMaker]:

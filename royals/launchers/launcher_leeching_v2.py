@@ -13,6 +13,14 @@ leeching_configs = {
     "client_size": "large",
     "anti_detection_mob_threshold": 4,
     "anti_detection_time_threshold": 10,
+    "included_buffs": [
+        "Magic Guard",
+        "Invincible",
+        "Maple Warrior",
+        "Bless",
+        "Holy Symbol",
+    ]
+    # 'included_buffs': ['Maple Warrior']
 }
 
 
