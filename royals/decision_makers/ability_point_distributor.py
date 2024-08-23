@@ -62,6 +62,8 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
 
     def _distribute_ap(self, num_points: int) -> None:
         target = self.data.ability_menu.stat_mapper[self.data.character.main_stat]
+        target = self.data.ability_menu.get_abs_box(self.data.handle, target)
+
         request = ActionRequest(
             "Distributing AP",
             controller.mouse_move_and_click,
