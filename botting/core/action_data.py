@@ -51,6 +51,16 @@ class ActionRequest:
             return False
         return self.priority > other.priority
 
+    def __gt__(self, other):
+        """
+        Used by the PriorityQueue to determine the order of tasks.
+        :param other:
+        :return:
+        """
+        if other is None:
+            return True
+        return self.priority < other.priority
+
 
 @dataclass
 class DiscordRequest:

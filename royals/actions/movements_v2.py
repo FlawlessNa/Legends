@@ -85,6 +85,7 @@ def single_jump(
     direction: Literal["left", "right", "up", "down"],
     jump_key: str,
     structure: controller.KeyboardInputWrapper = None,
+    repeat_key: str = None,
 ) -> controller.KeyboardInputWrapper:
     # TODO - Adjust the hard-coded 0.75 delay appropriately
     if structure is None:
@@ -97,11 +98,23 @@ def single_jump(
     if direction in ["left", "right"]:
         if direction in structure.keys_held:
             structure.append(jump_key, "keydown", next(controller.random_delay) * 2)
-            structure.append(jump_key, "keyup", 0.75)
+            if repeat_key is not None:
+                structure.fill(
+                    repeat_key,
+                    "keydown",
+                    controller.random_delay,
+                    limit=0.75 + structure.duration,
+                )
         else:
             structure.append(direction, "keydown", next(controller.random_delay) * 2)
             structure.append(jump_key, "keydown", next(controller.random_delay) * 2)
-            structure.append(jump_key, "keyup", 0.75)
+            if repeat_key is not None:
+                structure.fill(
+                    repeat_key,
+                    "keydown",
+                    controller.random_delay,
+                    limit=0.75 + structure.duration,
+                )
     elif direction == "down":
         # Special case where we voluntarily trigger the automatic repeat feature
         # to avoid static position.
@@ -166,6 +179,7 @@ def teleport(
     teleport_skill: Skill,
     num_times: int = 1,
     structure: controller.KeyboardInputWrapper = None,
+    repeat_key: str = None,
 ) -> controller.KeyboardInputWrapper:
     """
     Casts teleport in a given direction.
@@ -175,6 +189,7 @@ def teleport(
     :param direction:
     :param num_times:
     :param structure:
+    :param repeat_key:
     :return:
     """
     if structure is None:
@@ -193,9 +208,21 @@ def teleport(
 
     if direction not in structure.keys_held:
         structure.append(direction, "keydown", next(controller.random_delay))
-    structure.fill(
-        teleport_skill.key_bind(ign), "keydown", controller.random_delay, limit=limit
-    )
+    if repeat_key is None:
+        structure.fill(
+            teleport_skill.key_bind(ign),
+            "keydown",
+            controller.random_delay,
+            limit=limit,
+        )
+    else:
+        structure.append(
+            teleport_skill.key_bind(ign), "keydown", next(controller.random_delay)
+        )
+        structure.append(
+            teleport_skill.key_bind(ign), "keyup", next(controller.random_delay)
+        )
+        structure.fill(repeat_key, "keydown", controller.random_delay, limit=limit)
     enforce_last_inputs = [teleport_skill.key_bind(ign)]
     if direction == "down":
         enforce_last_inputs.append(direction)

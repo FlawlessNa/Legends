@@ -143,7 +143,44 @@ class Movements:
         squeezed_movements = tuple(
             (k, len(list(g))) for k, g in itertools.groupby(movements)
         )
-        return squeezed_movements
+        return self._fix_movements_for_portals(squeezed_movements)
+
+    # @staticmethod
+    def _fix_movements_for_portals(
+        self, movements: tuple[tuple[str, int], ...]
+    ) -> tuple[tuple[str, int], ...]:
+        """
+        Whenever a PORTAL movement is present, the previous movement is modified to
+        maximizes chances of character properly entering portal.
+        :param movements: List of movements to check for a PORTAL type movement.
+        :return: List of movements
+        """
+        indexes = [i for i, m in enumerate(movements) if m[0] == "PORTAL"]
+        copied_movements = list(movements)
+        adjustment = 0
+        for idx in indexes:
+            if idx == 0:
+                continue
+            adj_idx = idx + adjustment
+            prev_move, nodes = copied_movements[adj_idx - 1]
+            replacement = f"{prev_move}_AND_PORTAL"
+            # When previous move is a straight direction, check number of nodes to
+            # move. When this is too long, split the movement into 2 movements.
+            if prev_move in ["left", "right"] and nodes > 5:
+                copied_movements[adj_idx - 1] = (prev_move, 5)
+                copied_movements[adj_idx] = (replacement, nodes - 5)
+            elif prev_move in ["up", "down"]:
+                breakpoint()
+            elif prev_move in ["JUMP_RIGHT_AND_UP", "JUMP_LEFT_AND_UP"]:
+                breakpoint()
+            elif prev_move == "PORTAL":
+                breakpoint()
+            else:
+                adjustment -= 1
+                copied_movements[adj_idx] = (replacement, nodes)
+                copied_movements.remove((movements[idx - 1]))
+        print(copied_movements)
+        return tuple(copied_movements)
 
     @lru_cache
     def movements_into_action(
@@ -159,16 +196,17 @@ class Movements:
         structure = None
         direction = None
         for idx, move in enumerate(movements):
-            if (
-                total_duration is not None
-                and structure is not None
-                and structure.duration >= total_duration
-            ):
-                break
-            if move[0] in ["left", "right", "up", "down", "FALL_LEFT", "FALL_RIGHT"]:
+            if move[0].removesuffix("_AND_PORTAL") in [
+                "left",
+                "right",
+                "up",
+                "down",
+                "FALL_LEFT",
+                "FALL_RIGHT",
+            ]:
                 duration = move[1] / self.minimap.minimap_speed
-                direction = move[0].split("_")[-1].lower()
-                secondary_direction = None
+                direction = move[0].removesuffix("_AND_PORTAL").split("_")[-1].lower()
+                secondary_direction = "up" if move[0].endswith("_AND_PORTAL") else None
 
                 if move[0].startswith("FALL"):
                     # Add extra nodes to ensure character goes beyond the edge
@@ -183,18 +221,14 @@ class Movements:
                     # as secondary direction, but only if close enough to the ladder.
                     try:
                         next_move = movements[idx + 1]
-                        if next_move[0] in ["up", "down", "PORTAL"]:
-                            # TODO - Try truncating move[1] and appending a next move of
-                            #  same direction into movements vector
+                        if next_move[0] in ["up", "down"]:
                             if move[1] < 5:
                                 # Make sure we reach the ladder portal
-                                secondary_direction = (
-                                    "up" if next_move[0] in ["up", "PORTAL"] else "down"
-                                )
-                                # duration += 5 / self.minimap.minimap_speed
-                            # else:
-                            # Otherwise, make sure we stop before ladder/portal
-                            # duration -= 5 / self.minimap.minimap_speed
+                                secondary_direction = next_move[0]
+                                duration += 5 / self.minimap.minimap_speed
+                            else:
+                                # Otherwise, make sure we stop before ladder/portal
+                                duration -= 5 / self.minimap.minimap_speed
                     except IndexError:
                         # If this is last movement and there's only 1 node, cap duration
                         if move[1] == 1:
@@ -209,11 +243,6 @@ class Movements:
             elif move[0] in ["JUMP_LEFT", "JUMP_RIGHT", "JUMP_DOWN", "JUMP_UP"]:
                 direction = move[0].split("_")[-1].lower()
                 num_jumps = move[1]
-                # try:
-                #     next_move = movements[idx + 1]
-                #     if next_move[0] == 'PORTAL':
-                # except IndexError:
-                #     pass
                 for _ in range(num_jumps):
                     structure = movements_v2.single_jump(
                         self.handle,
@@ -253,9 +282,43 @@ class Movements:
                     num_times=move[1],
                     structure=structure,
                 )
+            elif move[0] in [
+                "TELEPORT_LEFT_AND_PORTAL",
+                "TELEPORT_RIGHT_AND_PORTAL",
+                "TELEPORT_UP_AND_PORTAL",
+                "TELEPORT_DOWN_AND_PORTAL",
+            ]:
+                direction = move[0].removesuffix("_AND_PORTAL").split("_")[-1].lower()
+                structure = movements_v2.teleport(
+                    self.handle,
+                    self.ign,
+                    direction,  # noqa
+                    self.teleport,
+                    num_times=move[1],
+                    structure=structure,
+                    repeat_key="up",
+                )
+            elif move[0] in ["JUMP_RIGHT_AND_PORTAL", "JUMP_LEFT_AND_PORTAL"]:
+                direction = move[0].split("_")[1].lower()
+                structure = movements_v2.single_jump(
+                    self.handle,
+                    direction,  # noqa
+                    controller.key_binds(self.ign)["jump"],
+                    structure=structure,
+                    repeat_key="up",
+                )
             else:
                 breakpoint()
-                raise NotImplementedError("TBD")
+                raise NotImplementedError("Not supposed to reach this point.")
+
+            if (
+                total_duration is not None
+                and structure is not None
+                and structure.duration >= total_duration
+            ):
+                break
+            elif move[0].endswith("_AND_PORTAL"):
+                break
 
         if structure is not None:
             return structure.truncate(total_duration)

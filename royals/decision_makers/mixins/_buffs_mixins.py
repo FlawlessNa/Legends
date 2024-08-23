@@ -21,7 +21,7 @@ class RebuffMixin:
     _hsv_lower = np.array([0, 0, 0])
     _hsv_upper = np.array([179, 255, 53])
     MATCH_TEMPLATE_THRESHOLD = 0.60
-    MATCH_ICON_THRESHOLD = 0.85
+    MATCH_ICON_THRESHOLD = 0.75
     # BOTTOM_ROWS: int = 8
 
     def _get_character_default_buffs(self, buff_type: str) -> list[RoyalsSkill]:
