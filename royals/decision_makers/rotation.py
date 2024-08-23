@@ -134,3 +134,4 @@ class Rotation(
             cancel_tasks=[f"{self}"],
             discord_request=alert,
         )
+
