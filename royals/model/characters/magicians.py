@@ -122,7 +122,7 @@ class Bishop(Priest):
             "Genesis": RoyalsSkill(
                 "Genesis",
                 "Attack",
-                animation_time=2.75,
+                animation_time=3.00,
                 unidirectional=False,
                 _use_by_default=True,
                 horizontal_screen_range=400,

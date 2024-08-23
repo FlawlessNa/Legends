@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import logging
 import os
+import random
 import win32gui
 from functools import cached_property, lru_cache
 
@@ -22,7 +23,6 @@ class RebuffMixin:
     _hsv_upper = np.array([179, 255, 53])
     MATCH_TEMPLATE_THRESHOLD = 0.60
     MATCH_ICON_THRESHOLD = 0.75
-    # BOTTOM_ROWS: int = 8
 
     def _get_character_default_buffs(self, buff_type: str) -> list[RoyalsSkill]:
         return [
@@ -37,7 +37,7 @@ class RebuffMixin:
         The region of the screen where the buff icons are located.
         """
         left, top, right, bottom = win32gui.GetClientRect(self.data.handle)
-        return Box(left=right - 250, top=top + 45, right=right, bottom=85)
+        return Box(left=right - 350, top=top + 45, right=right, bottom=85)
 
     @lru_cache
     def _get_buff_icon(self, buff_name: str) -> np.ndarray:
@@ -54,6 +54,9 @@ class RebuffMixin:
         gray = cv2.cvtColor(haystack_img, cv2.COLOR_BGR2GRAY)
         _, processed = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
         return processed
+
+    def _buffs_confirmation(self, buffs: list[RoyalsSkill]) -> bool:
+        return all(self._buff_confirmation(buff) for buff in buffs)
 
     def _buff_confirmation(self, buff: RoyalsSkill) -> bool:
         """
@@ -92,6 +95,15 @@ class RebuffMixin:
         """
         # bottom_rows = target[-self.BOTTOM_ROWS:]
         return (target == icon).sum() / target.size > self.MATCH_ICON_THRESHOLD  # noqa
+
+    @staticmethod
+    def _randomized(duration: float) -> float:
+        """
+        Pick a random point within 90% and 95% of the buff's duration.
+        :param duration: The duration of the buff.
+        :return:
+        """
+        return duration * (0.9 + 0.05 * random.random())
 
     def _debug(
         self, results: np.ndarray, buff: RoyalsSkill, haystack, buff_icon

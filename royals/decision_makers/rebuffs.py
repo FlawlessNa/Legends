@@ -1,5 +1,4 @@
 import asyncio
-import random
 import multiprocessing.connection
 import multiprocessing.managers
 from .mixins import RebuffMixin, SharedProxyMixin
@@ -10,10 +9,33 @@ from royals.actions import priorities
 
 
 class PartyRebuff(SharedProxyMixin, RebuffMixin, DecisionMaker):
-    pass
+    # TODO - Deal with Macros as well.
+    def __init__(
+        self,
+        metadata: multiprocessing.managers.DictProxy,
+        data: BotData,
+        pipe: multiprocessing.connection.Connection,
+        synchronized_buffs: list[str] = None,
+        buff_location: tuple[int, int] = None,
+        **kwargs
+    ) -> None:
+        super().__init__(metadata, data, pipe)
+
+        self._location = buff_location or self.data.current_minimap.central_node
+        buffs = self._get_character_default_buffs("Party Buff")
+        for buff in (synchronized_buffs or []):
+            if buff in self.data.character.skills:
+                buffs.append(self.data.character.skills[buff])
+        self._buffs = buffs
+        self._min_duration = min([buff.duration for buff in self._buffs])
 
     async def _decide(self, *args, **kwargs) -> None:
-        pass
+        # IDEA - Use loop.call_at(...) to schedule the next rebuff
+        await self._get_to_buff_location()
+        await self._wait_for_party()
+        await self._cast_and_confirm()
+        # TODO - Change this to wait on the first of : min duration, event trigger (aka another party member wants rebuff)
+        await asyncio.sleep(self._randomized(self._min_duration))
 
 
 class SoloRebuff(RebuffMixin, DecisionMaker):
@@ -81,13 +103,3 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
             max_trials=10,
         )
         await validator.execute_async(request)
-        # validator.execute_blocking(request)
-
-    @staticmethod
-    def _randomized(duration: float) -> float:
-        """
-        Pick a random point within 90% and 95% of the buff's duration.
-        :param duration: The duration of the buff.
-        :return:
-        """
-        return duration * (0.9 + 0.05 * random.random())

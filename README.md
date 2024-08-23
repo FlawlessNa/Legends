@@ -17,7 +17,7 @@
   - Instead, add decorator method ensuring that the focus lock is only acquired within the MainProcess and nothing else
 
 ### Pathing
-- [ ] Create special sets of inputs whenever portal is present, OR; add keyboard-repeat feature on "Up" key whenever portal is within movements
+- [ ] refactoring of movement_mechanics to be cleaner
 - [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases
 - [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
 - [ ] Look into game files to reverse engineer movements for better precision

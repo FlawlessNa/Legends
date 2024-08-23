@@ -4,6 +4,13 @@ import royals.bots as bots
 import royals.model.maps as maps
 import royals.parsers
 
+
+SYNCHRONIZED_BUFFS = [
+    'Holy Symbol',
+    'Maple Warrior',
+    'Haste',
+    'Mesos Up'
+]
 leeching_configs = {
     "self_buffs": [],
     "num_pets": 3,
@@ -13,14 +20,11 @@ leeching_configs = {
     "client_size": "large",
     "anti_detection_mob_threshold": 4,
     "anti_detection_time_threshold": 10,
-    "included_buffs": [
-        "Magic Guard",
-        "Invincible",
-        "Maple Warrior",
-        "Bless",
-        "Holy Symbol",
-    ]
-    # 'included_buffs': ['Maple Warrior']
+    "included_buffs": ["Invincible"],
+    "synchronized_buffs": SYNCHRONIZED_BUFFS,
+}
+mule_configs = {
+    "synchronized_buffs": SYNCHRONIZED_BUFFS,
 }
 
 
@@ -37,4 +41,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main(), debug=True)
