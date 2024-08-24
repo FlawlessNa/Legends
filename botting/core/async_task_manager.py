@@ -56,7 +56,7 @@ class AsyncTaskManager:
         if request.priority > self._get_priority_blocking():
             await self._schedule_task(request)
         elif request.requeue_if_not_scheduled:
-            logger.log(LOG_LEVEL, f"{request} has been re-queued.")
+            logger.log(LOG_LEVEL, f"{request.identifier} has been re-queued.")
             await self.queue.put(request)
         else:
             logger.log(

@@ -105,12 +105,14 @@ class Rotation(
             self.data.update_attribute("next_target")
             self.data.update_attribute("action")
             if self.data.action is not None:
-                # action = self._truncate_action_if_portal(self.data.action)
                 self.pipe.send(self._request(self.data.action))
             else:
                 self.lock.release()
 
     def _request(self, inputs: controller.KeyboardInputWrapper) -> ActionRequest:
+        # TODO - Could switch to requeue=False while ensuring that the lock is released.
+        # This is because Telecasting will move the character, and the next action should
+        # be based on the new position.
         return ActionRequest(
             f"{self}",
             inputs.send,
@@ -118,21 +120,6 @@ class Rotation(
             requeue_if_not_scheduled=True,
             callbacks=[self.lock.release],
         )
-    #
-    # def _truncate_action_if_portal(
-    #     self, action: controller.KeyboardInputWrapper
-    # ) -> controller.KeyboardInputWrapper:
-    #     """
-    #     TODO - If this works well, generalize into mixin.
-    #     Truncate the action if the first 2 movements contain a PORTAL.
-    #     :param action: the action to check.
-    #     :return: the truncated action.
-    #     """
-    #     for move, length in self.data.movements[:2]:
-    #         if "PORTAL" in move:
-    #             logger.log(LOG_LEVEL, f"{self} truncates action due to portal.")
-    #             return action.truncate(action.duration / 2)
-    #     return action
 
     def _failsafe_request(self, disc_msg: str = None) -> ActionRequest:
         alert = (
