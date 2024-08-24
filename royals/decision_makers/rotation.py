@@ -1,6 +1,7 @@
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
+import time
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
@@ -92,6 +93,7 @@ class Rotation(
             threshold=self.NO_PATH_KILL_SWITCH,
             response=...,  # TODO - Kill switch
         )
+        self._sentinel_starts_at = time.perf_counter() + 20.0
 
     async def _decide(self) -> None:
         self._failsafe_checks()  # Check each time, no need to wait for lock
@@ -134,4 +136,3 @@ class Rotation(
             cancel_tasks=[f"{self}"],
             discord_request=alert,
         )
-

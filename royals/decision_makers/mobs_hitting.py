@@ -17,7 +17,7 @@ from royals.model.mechanics import RoyalsSkill
 from .mixins import MobsHittingMixin, MinimapAttributesMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.INFO
+LOG_LEVEL = logging.DEBUG
 
 
 class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):

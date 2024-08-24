@@ -45,6 +45,7 @@ class NextTargetMixin:
                     self.data.next_target
                 ),
             )
+        self.data.create_attribute('has_rotation_attributes', lambda: True)
 
     def _update_next_target_from_cycle(self) -> None:
         """
@@ -119,3 +120,4 @@ class MovementsMixin:
                 self.data.movements, duration
             ),
         )
+        self.data.create_attribute('has_pathing_attributes', lambda: True)

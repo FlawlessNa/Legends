@@ -1,5 +1,6 @@
 import logging
 import multiprocessing.connection
+import time
 
 from botting import PARENT_LOG
 from botting.core import ActionRequest, BotData
@@ -19,6 +20,7 @@ class TimeBasedFailsafeMixin:
     data: BotData
     pipe: multiprocessing.connection.Connection
     _sentinels: list[dict]
+    _sentinel_starts_at: float
 
     def _create_time_based_sentinel(
         self,
@@ -37,6 +39,8 @@ class TimeBasedFailsafeMixin:
         self._sentinels.append(sentinel)
 
     def _failsafe_checks(self) -> None:
+        if time.perf_counter() < self._sentinel_starts_at:
+            return
         for sentinel in self._sentinels:
             attribute = sentinel["attribute"]
             method = sentinel["method"]

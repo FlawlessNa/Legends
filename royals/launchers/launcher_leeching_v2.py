@@ -5,12 +5,7 @@ import royals.model.maps as maps
 import royals.parsers
 
 
-SYNCHRONIZED_BUFFS = [
-    'Holy Symbol',
-    'Maple Warrior',
-    'Haste',
-    'Mesos Up'
-]
+SYNCHRONIZED_BUFFS = ["Holy Symbol", "Maple Warrior", "Haste", "Meso Up"]
 leeching_configs = {
     "self_buffs": [],
     "num_pets": 3,

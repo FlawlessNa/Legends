@@ -41,6 +41,7 @@ class MenusMixin:
             **self._display_kwargs(f"{self} - Ability Menu Setup", 2.0, condition),
             ensure_displayed=False,
         )
+        self.data.create_attribute('has_ap_menu_attributes', lambda: True)
 
     def _display_kwargs(self, identifier: str, timeout: float, condition=None) -> dict:
         if condition is None:
@@ -73,3 +74,4 @@ class UIMixin:
             "current_level_img",
             lambda: stats.level_box.extract_client_img(self.data.current_client_img),
         )
+        self.data.create_attribute('has_ui_attributes', lambda: True)

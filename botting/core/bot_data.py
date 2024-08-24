@@ -138,6 +138,8 @@ class BotData:
             return self._attributes[name]
         elif name in [*self._authorized_attributes, "_authorized_attributes"]:
             return super().__getattribute__(name)
+        elif name.startswith('has'):
+            return False
         raise AttributeError(f"{name} not found in {self}")
 
     def __setattr__(self, name: str, value: Any) -> None:

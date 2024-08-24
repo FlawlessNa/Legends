@@ -40,6 +40,7 @@ class DecisionMaker(ABC):
         metadata: multiprocessing.managers.DictProxy,
         requester: str,
         primitive_type: str,
+        multi_request: bool = False,
         *args,
         **kwargs,
     ):
@@ -49,11 +50,19 @@ class DecisionMaker(ABC):
         request.
         :param requester: a string representing the requester.
         :param primitive_type: a string representing the primitive type.
+        :param multi_request: If true, the proxy will not be popped from the metadata,
+        so multiple requesters can use the same proxy.
         :return: a Proxy instance.
         """
         logger.log(LOG_LEVEL, f"Requesting {primitive_type} for {requester}.")
         notifier = metadata["proxy_request"]
         with notifier:  # Acquire the underlying Lock
+            if requester in metadata and not isinstance(metadata[requester], tuple):
+                logger.log(
+                    LOG_LEVEL, f"Returning existing {primitive_type} for {requester}."
+                )
+                return metadata[requester]
+
             data = primitive_type, args, kwargs
             metadata[requester] = data
             while metadata[requester] == data:
@@ -61,7 +70,23 @@ class DecisionMaker(ABC):
                 notifier.wait(timeout=1)
 
         logger.log(LOG_LEVEL, f"Created {primitive_type} for {requester}.")
-        return metadata.pop(requester)
+        if multi_request:
+            # Clear the proxy after 120 seconds
+            asyncio.get_running_loop().call_later(
+                120, DecisionMaker._clear_proxy, metadata, requester
+            )
+            metadata["ignored_keys"] = metadata["ignored_keys"].union({requester})
+            return metadata[requester]
+        else:
+            return metadata.pop(requester)
+
+    @staticmethod
+    def _clear_proxy(metadata: multiprocessing.managers.DictProxy, requester: str):
+        with metadata["proxy_request"]:
+            if requester in metadata:
+                logger.log(LOG_LEVEL, f"Clearing {requester} from metadata.")
+                metadata.pop(requester)
+                metadata["ignored_keys"] = metadata["ignored_keys"] - {requester}
 
     @abstractmethod
     async def _decide(self, *args, **kwargs) -> None:

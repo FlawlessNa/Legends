@@ -39,6 +39,9 @@ class SessionManager:
             logging_queue=self.process_manager.Queue(),
             proxy_request=self.process_manager.Condition(),
         )
+        self.metadata["ignored_keys"] = set(self.metadata.keys()).union(
+            {"ignored_keys"}
+        )
 
         self.peripherals = PeripheralsProcess(
             self.metadata["logging_queue"], discord_parser
@@ -164,7 +167,7 @@ class SessionManager:
                 key = next(
                     key
                     for key in self.metadata.keys()
-                    if key not in ["proxy_request", "logging_queue"]
+                    if key not in self.metadata["ignored_keys"]
                 )
                 type_, args, kwargs = self.metadata[key]
                 logger.log(LOG_LEVEL, f"Request received from {key} for {type_}.")
