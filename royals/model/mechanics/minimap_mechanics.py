@@ -185,7 +185,7 @@ class MinimapGrid(Grid):
             if conn_type == MinimapConnection.PORTAL:
                 dx = abs(node_a.x - node_b.x)
                 dy = abs(node_a.y - node_b.y)
-                ng += math.sqrt(dx ** 2 + dy ** 2) / 5
+                ng += math.sqrt(dx**2 + dy**2) / 5
             elif conn_type not in [
                 MinimapConnection.TELEPORT_UP,
                 MinimapConnection.TELEPORT_DOWN,

@@ -3,10 +3,9 @@ import logging
 import multiprocessing.connection
 
 from .action_data import ActionRequest
-from botting.controller import release_all
 
 logger = logging.getLogger(__name__)
-LOG_LEVEL = logging.INFO
+LOG_LEVEL = logging.NOTSET
 
 MAX_CONCURRENT_TASKS = 30
 
@@ -46,7 +45,6 @@ class AsyncTaskManager:
         former = self.running_tasks[request.identifier]
         if request.cancels_itself:
             former.task.cancel()
-            self.running_tasks.pop(request.identifier)
         else:
             raise ValueError(
                 f"Task {request.identifier} already exists and can't cancel itself"
@@ -61,7 +59,7 @@ class AsyncTaskManager:
         else:
             logger.log(
                 LOG_LEVEL,
-                f"{request.identifier} has been blocked by higher priority tasks."
+                f"{request.identifier} has been blocked by higher priority tasks.",
             )
 
     def _get_priority_blocking(self) -> int:
@@ -94,6 +92,8 @@ class AsyncTaskManager:
         if request.callbacks:
             for cb in request.callbacks:
                 request.task.add_done_callback(self.cb_wrapper(cb))
+        if request.cancel_callback is not None:
+            request.task.add_done_callback(request.cancel_callback)
         self.running_tasks[request.identifier] = request
 
     def _cleanup_handler(self, fut):
@@ -106,7 +106,7 @@ class AsyncTaskManager:
                 )
                 self.queue.put_nowait(None)
                 raise exception
-        except (asyncio.CancelledError, TimeoutError):
+        except asyncio.CancelledError:
             pass
         except Exception:
             raise

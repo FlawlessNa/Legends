@@ -4,6 +4,7 @@ from .inputs.focused_inputs import (
     get_held_movement_keys,
     OPPOSITES,
     release_all,
+    release_keys,
     EVENTS,
     KeyboardInputWrapper,
 )

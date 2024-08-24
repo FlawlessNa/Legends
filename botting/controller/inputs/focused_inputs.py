@@ -231,8 +231,27 @@ async def activate(hwnd: int) -> bool:
 def release_all(hwnd: int = None) -> None:
     if hwnd is None:
         hwnd = GetForegroundWindow()
-    release_keys = []
+    keys_to_release = []
     for key in SharedResources.keys_sent:
+        if (
+            HIBYTE(
+                GetAsyncKeyState(
+                    _get_virtual_key(key, True, _keyboard_layout_handle(hwnd))
+                )
+            )
+            != 0
+        ):
+            keys_to_release.append(key)
+    if keys_to_release:
+        logger.debug(f"Releasing keys {keys_to_release} from window {hwnd}")
+    release_keys(keys_to_release)
+
+
+def release_directions(hwnd: int = None) -> None:
+    if hwnd is None:
+        hwnd = GetForegroundWindow()
+    release_keys = []
+    for key in ["left", "right"]:
         if (
             HIBYTE(
                 GetAsyncKeyState(
@@ -244,7 +263,7 @@ def release_all(hwnd: int = None) -> None:
             release_keys.append(key)
     if release_keys:
         logger.debug(f"Releasing keys {release_keys} from window {hwnd}")
-    _release_keys(release_keys)
+    release_keys(release_keys)
 
 
 def input_constructor(
@@ -359,7 +378,6 @@ async def focused_inputs(
         return res
 
     except asyncio.CancelledError as e:
-        release_all(hwnd)
         raise e
 
     except Exception as e:
@@ -367,7 +385,7 @@ async def focused_inputs(
 
     finally:
         if forced_key_releases:
-            release_keys = []
+            keys_to_release = []
             for key in forced_key_releases:
                 if (
                     HIBYTE(
@@ -377,8 +395,8 @@ async def focused_inputs(
                     )
                     != 0
                 ):
-                    release_keys.append(key)
-            _release_keys(release_keys)
+                    keys_to_release.append(key)
+            release_keys(keys_to_release)
         if acquired:
             SharedResources.focus_lock.release()
 
@@ -533,14 +551,17 @@ def _remove_num_lock() -> None:
 _remove_num_lock()
 
 
-def _release_keys(keys: list[str]) -> None:
+def release_keys(keys: list[str], handle: int = None) -> None:
     """
     Releases the given keys.
     :param keys: Keys to release.
+    :param handle: Handle to the window to release the keys.
     :return: Input structure to release the given keys.
     """
+    if handle is None:
+        handle = GetForegroundWindow()
     if keys:
         events: list[Literal] = ["keyup"] * len(keys)
-        inputs = input_constructor(GetForegroundWindow(), [keys], [events])
+        inputs = input_constructor(handle, [keys], [events])
         if inputs:
             _send_input(inputs[0])

@@ -15,7 +15,7 @@ leeching_configs = {
     "client_size": "large",
     "anti_detection_mob_threshold": 4,
     "anti_detection_time_threshold": 10,
-    "included_buffs": ["Invincible"],
+    "included_buffs": ["Invincible", "Holy Symbol", "Maple Warrior", "Magic Guard"],
     "synchronized_buffs": SYNCHRONIZED_BUFFS,
 }
 mule_configs = {

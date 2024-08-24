@@ -9,6 +9,7 @@ from functools import cached_property, lru_cache
 from botting import PARENT_LOG
 from botting.core import BotData
 from botting.utilities import Box
+from royals.actions.skills_related_v2 import cast_skill_single_press
 from royals.model.mechanics import RoyalsSkill
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
@@ -55,15 +56,15 @@ class RebuffMixin:
         _, processed = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
         return processed
 
-    def _buffs_confirmation(self, buffs: list[RoyalsSkill]) -> bool:
+    def _buffs_confirmation(self, buffs: list[str]) -> bool:
         return all(self._buff_confirmation(buff) for buff in buffs)
 
-    def _buff_confirmation(self, buff: RoyalsSkill) -> bool:
+    def _buff_confirmation(self, buff: str) -> bool:
         """
         Check if the rebuff was successful by looking for the buff icon.
         :return:
         """
-        buff_icon = self._get_buff_icon(buff.name)
+        buff_icon = self._get_buff_icon(buff)
         haystack = self._icons_detection_region.extract_client_img(
             self.data.current_client_img
         )
@@ -73,9 +74,7 @@ class RebuffMixin:
         self._debug(results, buff, haystack, buff_icon)
         # Start by finding actual location of the buff icon with reasonable threshold
         if max_val < self.MATCH_TEMPLATE_THRESHOLD:
-            logger.log(
-                LOG_LEVEL, f"Insufficient confidence {max_val:.4f} for {buff.name}."
-            )
+            logger.log(LOG_LEVEL, f"Insufficient confidence {max_val:.4f} for {buff}.")
             return False
         else:
             # Then compare bottom of icon to check if darkened or not
@@ -105,9 +104,14 @@ class RebuffMixin:
         """
         return duration * (0.9 + 0.05 * random.random())
 
-    def _debug(
-        self, results: np.ndarray, buff: RoyalsSkill, haystack, buff_icon
+    @staticmethod
+    async def _cast_skills_single_press(
+        handle: int, ign: str, skills: list[RoyalsSkill]
     ) -> None:
+        for skill in skills:
+            await cast_skill_single_press(handle, ign, skill)
+
+    def _debug(self, results: np.ndarray, buff: str, haystack, buff_icon) -> None:
         """
         Show the matchTemplate location for each actual buff, as well as the match
         results. Can also show processed images for each buff.
@@ -116,7 +120,7 @@ class RebuffMixin:
         if DEBUG:
             min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(results)
             left, top = max_loc
-            width, height = self._get_buff_icon(buff.name).shape[::-1]
+            width, height = self._get_buff_icon(buff).shape[::-1]
             target = haystack[top : top + height, left : left + width]
             score = (target == buff_icon).sum() / target.size
-            print(f"{buff.name} has confidence {max_val} and score {score}.")
+            print(f"{buff} has confidence {max_val} and score {score}.")

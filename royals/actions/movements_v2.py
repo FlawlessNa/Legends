@@ -223,10 +223,10 @@ def teleport(
             teleport_skill.key_bind(ign), "keyup", next(controller.random_delay)
         )
         structure.fill(repeat_key, "keydown", controller.random_delay, limit=limit)
-    enforce_last_inputs = [teleport_skill.key_bind(ign)]
-    if direction == "down":
-        enforce_last_inputs.append(direction)
-    structure.forced_key_releases = enforce_last_inputs
+    if direction == "down" and direction not in structure.forced_key_releases:
+        structure.forced_key_releases.append(direction)
+    if teleport_skill.key_bind(ign) not in structure.forced_key_releases:
+        structure.forced_key_releases.append(teleport_skill.key_bind(ign))
     return structure
 
 

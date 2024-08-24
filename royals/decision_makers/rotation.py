@@ -1,8 +1,9 @@
+import asyncio
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import time
-
+from functools import partial
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
 from royals.actions.movements_v2 import random_jump
@@ -119,7 +120,21 @@ class Rotation(
             ign=self.data.ign,
             requeue_if_not_scheduled=True,
             callbacks=[self.lock.release],
+            cancel_callback=partial(self._release_left_right, self.data.handle),
         )
+
+    @staticmethod
+    def _release_left_right(handle: int, fut: asyncio.Future) -> None:
+        if not fut.cancelled():
+            return
+        held = list(
+            filter(
+                lambda i: i in ["left", "right"],
+                controller.get_held_movement_keys(handle),
+            )
+        )
+        if held:
+            controller.release_keys(held, handle)
 
     def _failsafe_request(self, disc_msg: str = None) -> ActionRequest:
         alert = (

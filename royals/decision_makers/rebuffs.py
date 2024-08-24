@@ -8,7 +8,6 @@ from .mixins import RebuffMixin, NextTargetMixin
 from botting import PARENT_LOG
 from botting.core import ActionRequest, ActionWithValidation, DecisionMaker, BotData
 from royals.model.mechanics import RoyalsSkill
-from royals.actions.skills_related_v2 import cast_skill_single_press
 from royals.actions import priorities
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
@@ -47,16 +46,14 @@ class PartyRebuff(NextTargetMixin, RebuffMixin, DecisionMaker):
             ],
             default=5,
         )
-        self._all_buff_icons = [
-            self._get_buff_icon(buff) for buff in synchronized_buffs
-        ]
+        self._all_buffs = synchronized_buffs
 
         # Set up the synchronization primitives used across bots with this DecisionMaker
         self._condition = self.request_proxy(
-            self.metadata, self.__class__.__name__ + 'Condition', "Condition", True
+            self.metadata, self.__class__.__name__ + "Condition", "Condition", True
         )
         self._event = self.request_proxy(
-            self.metadata, self.__class__.__name__ + 'Event', "Event", True
+            self.metadata, self.__class__.__name__ + "Event", "Event", True
         )
         self._set_ready_state()
         with self._condition:
@@ -64,21 +61,39 @@ class PartyRebuff(NextTargetMixin, RebuffMixin, DecisionMaker):
 
         self._reset_flag = False
 
+    async def _attempt_party_rebuff(self) -> None:
+        """
+        Attempt to rebuff the party.
+        """
+        while True:
+            if self._buffs_confirmation(self._all_buffs):
+                break
+
+            await asyncio.to_thread(self._wait_for_party_at_location)
+            self.pipe.send(
+                ActionRequest(
+                    f"{self}",
+                    self._cast_skills_single_press,
+                    self.data.ign,
+                    priority=priorities.BUFFS,
+                    block_lower_priority=True,
+                    args=(self.data.handle, self.data.ign, self._buffs),
+                )
+            )
+
     async def _decide(self, *args, **kwargs) -> None:
         await self._wait_until_ready()
         self._set_target_to_buff_location()
         try:
             await asyncio.wait_for(
-                asyncio.to_thread(self._wait_for_party_at_location),
-                timeout=self._TIME_LIMIT
+                self._attempt_party_rebuff(), timeout=self._TIME_LIMIT
             )
         except asyncio.TimeoutError:
-            logger.error(f"{self} - Timeout reached while waiting for party.")
+            logger.error(f"{self} - Timeout reached while attempting party rebuff.")
             raise asyncio.TimeoutError(
-                f"{self} - Timeout reached while waiting for party."
+                f"{self} - Timeout reached while attempting party rebuff."
             )
-        breakpoint()
-        # await self._cast_and_confirm()
+
         self._reset_state()
 
     def _set_ready_state(self) -> None:
@@ -126,16 +141,17 @@ class PartyRebuff(NextTargetMixin, RebuffMixin, DecisionMaker):
         """
         Move to the location where the buffs are cast.
         """
-        if math.dist(
-            self.data.current_minimap_position, self._location
-        ) > self._min_range:
+        if (
+            math.dist(self.data.current_minimap_position, self._location)
+            > self._min_range
+        ):
             assert self.data.has_rotation_attributes, (
                 "Character must have rotation attributes. This is usually set with a "
                 "Rotation DecisionMaker"
             )
             # Overwrite how the next_target attribute is set until the rebuff is done
             self.data.create_attribute(
-                'next_target',
+                "next_target",
                 lambda: self._location,
             )
             self._reset_flag = True
@@ -158,7 +174,7 @@ class PartyRebuff(NextTargetMixin, RebuffMixin, DecisionMaker):
         Update the shared location to the current location.
         """
         assert self.data.has_minimap_attributes, f"{self} must have minimap attributes"
-        ident = self.__class__.__name__ + '_character_locations'
+        ident = self.__class__.__name__ + "_character_locations"
         if ident not in self.metadata:
             self.metadata[ident] = dict()
             self.metadata["ignored_keys"] = self.metadata["ignored_keys"].union({ident})
@@ -172,7 +188,7 @@ class PartyRebuff(NextTargetMixin, RebuffMixin, DecisionMaker):
         Computes the maximum distance between all shared locations and check if within
         range.
         """
-        ident = self.__class__.__name__ + '_character_locations'
+        ident = self.__class__.__name__ + "_character_locations"
         locations = self.metadata[ident].values()
         return all(
             math.dist(location, self._location) <= self._min_range
@@ -216,30 +232,30 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
     async def _decide(
         self, buff: RoyalsSkill, condition: multiprocessing.managers.ConditionProxy
     ) -> None:
-        await self._cast_and_confirm(buff, condition)
+        await self._cast_and_confirm([buff], condition)
         await asyncio.sleep(self._randomized(buff.duration))
 
     async def _cast_and_confirm(
         self,
-        buff: RoyalsSkill,
+        buffs: list[RoyalsSkill],
         condition: multiprocessing.managers.ConditionProxy,  # noqa
     ) -> None:
         """
         Cast the buff and confirm that it was successful.
-        :param buff: The buff to cast.
+        :param buffs: The buff to cast.
         :return:
         """
         request = ActionRequest(
-            f"{self} - {buff.name}",
-            cast_skill_single_press,
+            f"{self} - {[buff.name for buff in buffs]}",
+            self._cast_skills_single_press,
             self.data.ign,
             priority=priorities.BUFFS,
             block_lower_priority=True,
-            args=(self.data.handle, self.data.ign, buff),
+            args=(self.data.handle, self.data.ign, buffs),
         )
         validator = ActionWithValidation(
             self.pipe,
-            lambda: self._buff_confirmation(buff),
+            lambda: self._buffs_confirmation([buff.name for buff in buffs]),
             condition,
             timeout=10.0,
             max_trials=10,

@@ -316,7 +316,7 @@ class Movements:
                 and structure.duration >= total_duration
             ):
                 break
-            elif 'PORTAL' in move[0]:
+            elif "PORTAL" in move[0]:
                 break
 
         if structure is not None:

@@ -1,3 +1,4 @@
+import asyncio
 from botting import controller
 from botting.models_abstractions import Skill
 
@@ -44,7 +45,8 @@ def cast_skill(
 
 
 async def cast_skill_single_press(handle: int, ign: str, skill: Skill) -> None:
-    await controller.press(handle, skill.key_bind(ign), delay=skill.animation_time)
+    await controller.press(handle, skill.key_bind(ign))
+    await asyncio.sleep(skill.animation_time)
 
 
 def cast_skill_silenced():
