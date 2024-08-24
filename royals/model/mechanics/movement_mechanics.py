@@ -145,9 +145,9 @@ class Movements:
         )
         return self._fix_movements_for_portals(squeezed_movements)
 
-    # @staticmethod
+    @staticmethod
     def _fix_movements_for_portals(
-        self, movements: tuple[tuple[str, int], ...]
+        movements: tuple[tuple[str, int], ...]
     ) -> tuple[tuple[str, int], ...]:
         """
         Whenever a PORTAL movement is present, the previous movement is modified to
@@ -179,7 +179,6 @@ class Movements:
                 adjustment -= 1
                 copied_movements[adj_idx] = (replacement, nodes)
                 copied_movements.remove((movements[idx - 1]))
-        print(copied_movements)
         return tuple(copied_movements)
 
     @lru_cache
@@ -317,7 +316,7 @@ class Movements:
                 and structure.duration >= total_duration
             ):
                 break
-            elif move[0].endswith("_AND_PORTAL"):
+            elif 'PORTAL' in move[0]:
                 break
 
         if structure is not None:

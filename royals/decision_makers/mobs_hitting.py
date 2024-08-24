@@ -17,7 +17,7 @@ from royals.model.mechanics import RoyalsSkill
 from .mixins import MobsHittingMixin, MinimapAttributesMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.DEBUG
+LOG_LEVEL = logging.INFO
 
 
 class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
@@ -143,7 +143,7 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
                     closest_mob_direction = self.get_closest_mob_direction(
                         (x, y), mobs_locations
                     )
-                logger.log(LOG_LEVEL, f"{self} fires an action.")
+                logger.log(LOG_LEVEL, f"{self} is about to hit.")
                 self.pipe.send(self._hit_mobs(closest_mob_direction))
                 return
         await asyncio.to_thread(self.lock.release)

@@ -228,7 +228,9 @@ async def activate(hwnd: int) -> bool:
     return acquired
 
 
-def release_all(hwnd: int) -> None:
+def release_all(hwnd: int = None) -> None:
+    if hwnd is None:
+        hwnd = GetForegroundWindow()
     release_keys = []
     for key in SharedResources.keys_sent:
         if (
@@ -243,29 +245,6 @@ def release_all(hwnd: int) -> None:
     if release_keys:
         logger.debug(f"Releasing keys {release_keys} from window {hwnd}")
     _release_keys(release_keys)
-
-
-# def release_opposites(hwnd: int, *keys: str | None) -> None:
-#     """
-#     Releases the opposite keys of the given keys, if they are held down.
-#     :param hwnd: Handle to the window to send the inputs to.
-#     :param keys: Movement keys to release.
-#     :return: Input structure to release the opposite keys.
-#     """
-#     release_keys = []
-#     for key in keys:
-#         if (
-#             HIBYTE(
-#                 GetAsyncKeyState(
-#                     _get_virtual_key(
-#                         OPPOSITES[key], False, _keyboard_layout_handle(hwnd)
-#                     )
-#                 )
-#             )
-#             != 0
-#         ):
-#             release_keys.append(OPPOSITES[key])
-#     _release_keys(release_keys)
 
 
 def input_constructor(
@@ -379,8 +358,9 @@ async def focused_inputs(
             await asyncio.sleep(delays[i])
         return res
 
-    except asyncio.CancelledError:
-        return res
+    except asyncio.CancelledError as e:
+        release_all(hwnd)
+        raise e
 
     except Exception as e:
         raise e

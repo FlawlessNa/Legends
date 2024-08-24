@@ -3,9 +3,10 @@ import logging
 import multiprocessing.connection
 
 from .action_data import ActionRequest
+from botting.controller import release_all
 
 logger = logging.getLogger(__name__)
-LOG_LEVEL = logging.DEBUG
+LOG_LEVEL = logging.INFO
 
 MAX_CONCURRENT_TASKS = 30
 
@@ -53,10 +54,15 @@ class AsyncTaskManager:
 
     async def _handle_priority(self, request: ActionRequest) -> None:
         if request.priority > self._get_priority_blocking():
-            logger.log(LOG_LEVEL, f"Scheduling {request}.")
-            self._schedule_task(request)
+            await self._schedule_task(request)
         elif request.requeue_if_not_scheduled:
+            logger.log(LOG_LEVEL, f"{request} has been re-queued.")
             await self.queue.put(request)
+        else:
+            logger.log(
+                LOG_LEVEL,
+                f"{request.identifier} has been blocked by higher priority tasks."
+            )
 
     def _get_priority_blocking(self) -> int:
         """
@@ -68,14 +74,13 @@ class AsyncTaskManager:
             default=0,
         )
 
-    def _schedule_task(self, request: ActionRequest) -> None:
+    async def _schedule_task(self, request: ActionRequest) -> None:
         for task in request.cancel_tasks:
             if task in self.running_tasks:
                 logger.log(
                     LOG_LEVEL, f"{request.identifier} is cancelling task {task}."
                 )
                 self.running_tasks[task].task.cancel()
-                self.running_tasks.pop(task)
 
         if request.discord_request is not None:
             self.discord_pipe.send(request.discord_request.msg)

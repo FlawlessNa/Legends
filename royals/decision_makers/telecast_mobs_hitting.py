@@ -6,17 +6,17 @@ from .mobs_hitting import MobsHitting
 from royals.actions.movements_v2 import telecast
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.DEBUG
+LOG_LEVEL = logging.INFO
 
 
 class TelecastMobsHitting(MobsHitting):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._teleport_skill = self.data.character.skills["Teleport"]
+        self._teleport_key = self._teleport_skill.key_bind(self.data.ign)
 
     def _teleport_in_upcoming_action(self) -> bool:
-        teleport_key = self._teleport_skill.key_bind(self.data.ign)
-        if self.data.action is not None and teleport_key in self.data.action.keys:
+        if self.data.action is not None and self._teleport_key in self.data.action.keys:
             return True
         return False
 
