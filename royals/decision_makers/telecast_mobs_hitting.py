@@ -6,7 +6,7 @@ from .mobs_hitting import MobsHitting
 from royals.actions.movements_v2 import telecast
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.INFO
+LOG_LEVEL = logging.DEBUG
 
 
 class TelecastMobsHitting(MobsHitting):

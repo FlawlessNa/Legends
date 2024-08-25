@@ -54,7 +54,12 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         self._event = self.request_proxy(
             self.metadata, self.__class__.__name__ + "Event", "Event", True
         )
-        self._set_ready_state()
+
+        # Unique condition is used by this instance and NOT shared.
+        # Used for buff confirmation
+        self._unique_condition = self.request_proxy(
+            self.metadata, f"{self}", "Condition"
+        )
 
         if not self.data.has_minimap_attributes:
             self._create_minimap_attributes()
@@ -62,6 +67,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         with self._condition:
             self._update_shared_location()
 
+        self._set_ready_state()
         self._reset_flag = False
 
     async def _decide(self, *args, **kwargs) -> None:
@@ -86,9 +92,14 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         while True:
             if self._buffs_confirmation(self._all_buffs):
                 break
-
-            await asyncio.to_thread(self._wait_for_party_at_location)
-            await self._cast_and_confirm(list(self._buffs), self._condition)  # TODO - should it be a unique condition object?
+            elif self._buffs_confirmation([buff.name for buff in self._buffs]):
+                await asyncio.to_thread(self._wait_for_party_at_location)
+                await asyncio.sleep(2)
+                self._set_ready_state()
+            else:
+                await asyncio.to_thread(self._wait_for_party_at_location)
+                logger.log(LOG_LEVEL, f"{self} is casting {self._buffs}.")
+                await self._cast_and_confirm(list(self._buffs), self._unique_condition)
 
     def _set_ready_state(self) -> None:
         """
@@ -98,6 +109,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
             if not self._event.is_set():
                 logger.log(LOG_LEVEL, f"{self} signaled its time to rebuff.")
                 self._event.set()
+                self._reset_shared_location()
 
     def _reset_state(self) -> None:
         """
@@ -178,6 +190,13 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         locations[f"{self}"] = self.data.current_minimap_position
         self.metadata[ident] = locations
 
+    def _reset_shared_location(self) -> None:
+        ident = self.__class__.__name__ + "_character_locations"
+        locations = self.metadata[ident]
+        for key in locations:
+            locations[key] = (-100, -100)
+        self.metadata[ident] = locations
+
     def _members_all_in_range(self) -> bool:
         """
         Computes the maximum distance between all shared locations and check if within
@@ -188,7 +207,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         return all(
             math.dist(location, self._location) <= self._min_range
             for location in locations
-        )
+        ) and len(locations) > 1
 
 
 class SoloRebuff(RebuffMixin, DecisionMaker):

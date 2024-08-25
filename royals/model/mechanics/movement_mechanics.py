@@ -13,7 +13,7 @@ from .royals_skill import RoyalsSkill
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.NOTSET
-DEBUG = False
+DEBUG = True
 
 
 class Movements:
@@ -335,6 +335,8 @@ class Movements:
     def _run_debug(
         self, start: tuple[int, int], end: tuple[int, int], path: list[MinimapNode]
     ) -> None:
+        if not self._debug:
+            return
         canvas = np.zeros(
             (self.minimap.map_area_height, self.minimap.map_area_width),
             dtype=np.uint8,
@@ -350,5 +352,5 @@ class Movements:
         for node in path:
             path_img[node.y, node.x] = (0, 255, 0)
         path_img = cv2.resize(path_img, None, fx=5, fy=5)
-        cv2.imshow("_DEBUG_ Mode - PathFinding", path_img)
+        cv2.imshow(f"_DEBUG_ Mode - PathFinding {self.ign}", path_img)
         cv2.waitKey(1)

@@ -10,6 +10,7 @@ from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
 from royals.actions.movements_v2 import random_jump
 from royals.actions.skills_related_v2 import cast_skill_single_press
+from royals.actions import priorities
 from .mixins import MinimapAttributesMixin, MovementsMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -77,7 +78,7 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
     Used to ensure actions such as rebuffing still go through after some time.
     """
 
-    _throttle = 300.0
+    _TIME_LIMIT = 300.0
     DISTANCE_THRESHOLD = 2
 
     def __init__(
@@ -116,9 +117,19 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         ])
 
     async def _decide(self) -> None:
+        try:
+            await asyncio.wait_for(self._ensure_safe_spot(), timeout=self._TIME_LIMIT)
+        except asyncio.TimeoutError:
+            pass
         await self._jump_out_of_safe_spot()
         await self._cast_random_buff()
         await self._return_to_safe_spot()
+
+    async def _ensure_safe_spot(self) -> None:
+        while True:
+            if not self._is_at_safe_spot():
+                break
+            await asyncio.sleep(5)
 
     async def _jump_out_of_safe_spot(self) -> None:
         num_jumps = random.randint(1, 3)
@@ -132,26 +143,28 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
                     ).send,
                     ign=self.data.ign,
                     callbacks=[self.lock.release],
+                    priority=priorities.MULE_POSITIONING,
+                    block_lower_priority=True
                 )
             )
-            print(f"{self} - Jumping Out of Rope")
 
     async def _cast_random_buff(self) -> None:
         """Required to remove the game safeguard"""
         await asyncio.to_thread(self.lock.acquire)
-        print(f"{self} - Casting Random Buff")
         self.pipe.send(
             ActionRequest(
                 f"{self} - Casting Random Buff",
                 cast_skill_single_press,
                 ign=self.data.ign,
                 callbacks=[self.lock.release],
+                priority=priorities.MULE_POSITIONING,
+                block_lower_priority=True,
                 args=(self.data.handle, self.data.ign, self._skill)
             )
         )
 
-    async def _return_to_safe_spot(self) -> None:
-        check_safe_spot = lambda: (
+    def _is_at_safe_spot(self) -> bool:
+        return (
             math.dist(self.data.current_minimap_position, self._target_position)
             < self.DISTANCE_THRESHOLD
             and self.data.current_minimap.get_feature_containing(
@@ -159,7 +172,9 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             )
             == self._feature
         )
-        while not check_safe_spot():
+
+    async def _return_to_safe_spot(self) -> None:
+        while not self._is_at_safe_spot():
             await asyncio.to_thread(self.lock.acquire)
             self.data.update_attribute('action')
             if self.data.action is not None:
@@ -171,9 +186,8 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
                         self.data.action.send,
                         ign=self.data.ign,
                         callbacks=[self.lock.release],
+                        priority=priorities.MULE_POSITIONING,
+                        block_lower_priority=True
                     )
                 )
-        # Now that we're out, sleep for a few seconds and confirm still on safe spot
-        await asyncio.sleep(5)
-        if not check_safe_spot():
-            await self._return_to_safe_spot()
+        logger.log(LOG_LEVEL, f"{self.data.ign} is back at safe spot.")

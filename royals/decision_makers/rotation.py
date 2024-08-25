@@ -7,6 +7,7 @@ from functools import partial
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
 from royals.actions.movements_v2 import random_jump
+from royals.actions import priorities
 from .mixins import (
     MinimapAttributesMixin,
     MovementsMixin,
@@ -29,8 +30,8 @@ class Rotation(
     #  path to cancel current movements
     # TODO - improved failsafe reactions, including writing in chat after 2x or 3x
     _throttle = 0.1
-    STATIC_POS_KILL_SWITCH = 20.0
-    NO_PATH_KILL_SWITCH = 20.0
+    STATIC_POS_KILL_SWITCH = 30.0
+    NO_PATH_KILL_SWITCH = 30.0
 
     def __init__(
         self,
@@ -39,7 +40,7 @@ class Rotation(
         pipe: multiprocessing.connection.Connection,
         movements_duration: float = 1.0,
         static_position_threshold: float = 7.5,
-        no_path_threshold: float = 5.0,
+        no_path_threshold: float = 10.0,
         **kwargs,
     ) -> None:
         super().__init__(metadata, data, pipe)
@@ -49,7 +50,7 @@ class Rotation(
         # Minimap attributes
         self._create_minimap_attributes()
         self.data.current_minimap.generate_grid_template(
-            True if self._teleport_skill is not None else False
+            self._teleport_skill is not None
         )
 
         # Rotation attributes
@@ -147,7 +148,7 @@ class Rotation(
                 self.data.handle, controller.key_binds(self.data.ign)["jump"]
             ).send,
             ign=self.data.ign,
-            priority=10,
+            priority=priorities.FAILSAFE,
             requeue_if_not_scheduled=True,
             block_lower_priority=True,
             cancels_itself=True,

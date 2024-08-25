@@ -16,7 +16,7 @@ from royals.model.mechanics import RoyalsSkill
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 LOG_LEVEL = logging.WARNING
-DEBUG = True
+DEBUG = False
 
 
 class RebuffMixin:
@@ -125,7 +125,6 @@ class RebuffMixin:
         )
         await validator.execute_async(request)
 
-
     @staticmethod
     def _randomized(duration: float) -> float:
         """
@@ -133,7 +132,7 @@ class RebuffMixin:
         :param duration: The duration of the buff.
         :return:
         """
-        return duration * (0.9 + 0.05 * random.random())
+        return duration * (0.8 + 0.05 * random.random())
 
     @staticmethod
     async def _cast_skills_single_press(

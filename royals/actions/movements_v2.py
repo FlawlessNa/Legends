@@ -258,5 +258,7 @@ def telecast(
 
 def random_jump(handle: int, jump_key: str) -> controller.KeyboardInputWrapper:
     direction = random.choice(["left", "right"])
-    controller.release_keys(["left", "right"], handle)
-    return single_jump(handle, direction, jump_key)
+    controller.release_all(handle)
+    structure = single_jump(handle, direction, jump_key)
+    structure.forced_key_releases.append(direction)
+    return structure

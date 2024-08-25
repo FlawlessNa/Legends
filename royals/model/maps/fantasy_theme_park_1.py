@@ -11,7 +11,7 @@ from .base import RoyalsMap
 @dataclass
 class FantasyThemePark1(RoyalsMap):
     detection_box: Box = Box(left=0, right=1024, top=60, bottom=700)
-    minimap: FantasyThemePark1Minimap = FantasyThemePark1Minimap()
+    minimap: FantasyThemePark1Minimap = field(default_factory=FantasyThemePark1Minimap)
     mobs: tuple[BaseMob] = (
         Froscola(Box(left=0, right=1024, top=0, bottom=700)),
         JesterScarlion(Box(left=0, right=1024, top=0, bottom=700)),

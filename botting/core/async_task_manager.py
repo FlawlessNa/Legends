@@ -58,7 +58,7 @@ class AsyncTaskManager:
             await self.queue.put(request)
         else:
             logger.log(
-                LOG_LEVEL,
+                logging.INFO,
                 f"{request.identifier} has been blocked by higher priority tasks.",
             )
 

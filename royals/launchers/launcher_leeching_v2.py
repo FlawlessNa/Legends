@@ -5,8 +5,7 @@ import royals.model.maps as maps
 import royals.parsers
 
 
-# SYNCHRONIZED_BUFFS = ["Holy Symbol", "Maple Warrior", "Haste", "Meso Up"]
-SYNCHRONIZED_BUFFS = ["Haste", "Meso Up"]
+SYNCHRONIZED_BUFFS = ["Holy Symbol", "Maple Warrior", "Haste", "Meso Up"]
 GAME_MAP = maps.FantasyThemePark1
 CLIENT_SIZE = "large"
 DETECTION_CONFIG_SECTION = "Elephant Cape"
@@ -32,7 +31,7 @@ mule_configs = {
 
 async def main():
     with SessionManager(royals.parsers.RoyalsParser) as session:
-        # leecher = bots.LeechingBot("WrongDoor", session.metadata, **leeching_configs)
+        leecher = bots.LeechingBot("WrongDoor", session.metadata, **leeching_configs)
         mule1 = bots.LeechMuleWithBuffs(
             'UluLoot', session.metadata, character_class='Hermit', **mule_configs
         )
@@ -41,7 +40,7 @@ async def main():
         # mule4 = bots.TestBot('iYieldMoney', session.metadata)
         # mule5 = bots.TestBot('BCoinFarm', session.metadata)
         # await session.launch([leecher], [mule1, mule2, mule3, mule4, mule5])
-        await session.launch([mule1])
+        await session.launch([leecher, mule1])
 
 
 if __name__ == "__main__":
