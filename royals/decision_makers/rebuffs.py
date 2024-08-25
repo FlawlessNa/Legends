@@ -4,17 +4,16 @@ import math
 import multiprocessing.connection
 import multiprocessing.managers
 
-from .mixins import RebuffMixin, NextTargetMixin
+from .mixins import RebuffMixin, NextTargetMixin, MinimapAttributesMixin
 from botting import PARENT_LOG
-from botting.core import ActionRequest, ActionWithValidation, DecisionMaker, BotData
+from botting.core import DecisionMaker, BotData
 from royals.model.mechanics import RoyalsSkill
-from royals.actions import priorities
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 LOG_LEVEL = logging.INFO
 
 
-class PartyRebuff(NextTargetMixin, RebuffMixin, DecisionMaker):
+class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, DecisionMaker):
     _TIME_LIMIT = 120  # An error is triggered after 2 minutes of waiting
     # TODO - Deal with Macros as well.
 
@@ -56,30 +55,14 @@ class PartyRebuff(NextTargetMixin, RebuffMixin, DecisionMaker):
             self.metadata, self.__class__.__name__ + "Event", "Event", True
         )
         self._set_ready_state()
+
+        if not self.data.has_minimap_attributes:
+            self._create_minimap_attributes()
+
         with self._condition:
             self._update_shared_location()
 
         self._reset_flag = False
-
-    async def _attempt_party_rebuff(self) -> None:
-        """
-        Attempt to rebuff the party.
-        """
-        while True:
-            if self._buffs_confirmation(self._all_buffs):
-                break
-
-            await asyncio.to_thread(self._wait_for_party_at_location)
-            self.pipe.send(
-                ActionRequest(
-                    f"{self}",
-                    self._cast_skills_single_press,
-                    self.data.ign,
-                    priority=priorities.BUFFS,
-                    block_lower_priority=True,
-                    args=(self.data.handle, self.data.ign, self._buffs),
-                )
-            )
 
     async def _decide(self, *args, **kwargs) -> None:
         await self._wait_until_ready()
@@ -95,6 +78,17 @@ class PartyRebuff(NextTargetMixin, RebuffMixin, DecisionMaker):
             )
 
         self._reset_state()
+
+    async def _attempt_party_rebuff(self) -> None:
+        """
+        Attempt to rebuff the party.
+        """
+        while True:
+            if self._buffs_confirmation(self._all_buffs):
+                break
+
+            await asyncio.to_thread(self._wait_for_party_at_location)
+            await self._cast_and_confirm(list(self._buffs), self._condition)  # TODO - should it be a unique condition object?
 
     def _set_ready_state(self) -> None:
         """
@@ -167,6 +161,7 @@ class PartyRebuff(NextTargetMixin, RebuffMixin, DecisionMaker):
                     self._members_all_in_range, timeout=1
                 )
                 if success:
+                    self._condition.notify_all()
                     break
 
     def _update_shared_location(self) -> None:
@@ -235,29 +230,3 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
         await self._cast_and_confirm([buff], condition)
         await asyncio.sleep(self._randomized(buff.duration))
 
-    async def _cast_and_confirm(
-        self,
-        buffs: list[RoyalsSkill],
-        condition: multiprocessing.managers.ConditionProxy,  # noqa
-    ) -> None:
-        """
-        Cast the buff and confirm that it was successful.
-        :param buffs: The buff to cast.
-        :return:
-        """
-        request = ActionRequest(
-            f"{self} - {[buff.name for buff in buffs]}",
-            self._cast_skills_single_press,
-            self.data.ign,
-            priority=priorities.BUFFS,
-            block_lower_priority=True,
-            args=(self.data.handle, self.data.ign, buffs),
-        )
-        validator = ActionWithValidation(
-            self.pipe,
-            lambda: self._buffs_confirmation([buff.name for buff in buffs]),
-            condition,
-            timeout=10.0,
-            max_trials=10,
-        )
-        await validator.execute_async(request)

@@ -9,13 +9,20 @@ logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.NOTSET
 
 
-class LeechingBot(RoyalsBot):
+class LeechMuleWithBuffs(RoyalsBot):
     def _decision_makers(self) -> list[type[DecisionMaker]]:
         return [
-            decision_makers.TelecastMobsHitting,
-            decision_makers.Rotation,
             decision_makers.AbilityPointDistributor,
             decision_makers.PetFood,
-            decision_makers.SoloRebuff,
+            decision_makers.ResetIdleSafeguard,
             decision_makers.PartyRebuff,
+        ]
+
+
+class LeechMuleWithoutBuffs(RoyalsBot):
+    def _decision_makers(self) -> list[type[DecisionMaker]]:
+        return [
+            decision_makers.AbilityPointDistributor,
+            decision_makers.PartyRebuff,
+            decision_makers.EnsureSafeSpot
         ]

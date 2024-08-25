@@ -7,6 +7,7 @@
   - First alert after X seconds -> disable MobsHitting but keep movements
   - Second alert after 2X seconds -> pause everything except necessary maintenance + random reaction
 - [ ] There's a situation where keys are not released properly, leading to a stuck state
+- [ ] The lock used for MobsHitting doesn't seem to always work for some reason. To investigate.
 
 ## Performance Branch
 - [ ] Re-implement all former DecisionGenerators into DecisionMakers

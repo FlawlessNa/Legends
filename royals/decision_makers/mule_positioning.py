@@ -9,6 +9,7 @@ import multiprocessing.managers
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
 from royals.actions.movements_v2 import random_jump
+from royals.actions.skills_related_v2 import cast_skill_single_press
 from .mixins import MinimapAttributesMixin, MovementsMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -109,6 +110,10 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         self._feature = self.data.current_minimap.get_feature_containing(
             self._target_position
         )
+        self._skill = random.choice([
+            skill for skill in self.data.character.skills.values()
+            if skill.type in ["Buff", "Party Buff"]
+        ])
 
     async def _decide(self) -> None:
         await self._jump_out_of_safe_spot()
@@ -122,39 +127,44 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             self.pipe.send(
                 ActionRequest(
                     f"{self} - Jumping Out of Rope",
-                    random_jump,
+                    random_jump(
+                        self.data.handle, controller.key_binds(self.data.ign)["jump"]
+                    ).send,
                     ign=self.data.ign,
                     callbacks=[self.lock.release],
-                    args=(
-                        self.data.handle,
-                        controller.key_binds(self.data.ign)["jump"],
-                    ),
                 )
             )
+            print(f"{self} - Jumping Out of Rope")
 
     async def _cast_random_buff(self) -> None:
         """Required to remove the game safeguard"""
         await asyncio.to_thread(self.lock.acquire)
+        print(f"{self} - Casting Random Buff")
         self.pipe.send(
             ActionRequest(
                 f"{self} - Casting Random Buff",
-                ...,
+                cast_skill_single_press,
                 ign=self.data.ign,
                 callbacks=[self.lock.release],
+                args=(self.data.handle, self.data.ign, self._skill)
             )
         )
 
     async def _return_to_safe_spot(self) -> None:
-        while (
+        check_safe_spot = lambda: (
             math.dist(self.data.current_minimap_position, self._target_position)
-            > self.DISTANCE_THRESHOLD
-            or self.data.current_minimap.get_feature_containing(
+            < self.DISTANCE_THRESHOLD
+            and self.data.current_minimap.get_feature_containing(
                 self.data.current_minimap_position
             )
-            != self._feature
-        ):
+            == self._feature
+        )
+        while not check_safe_spot():
             await asyncio.to_thread(self.lock.acquire)
+            self.data.update_attribute('action')
             if self.data.action is not None:
+                action = self.data.action
+                action.forced_key_releases.extend(['left', 'up', 'right', 'left'])
                 self.pipe.send(
                     ActionRequest(
                         f"{self} - Returning to Safe Spot",
@@ -163,3 +173,7 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
                         callbacks=[self.lock.release],
                     )
                 )
+        # Now that we're out, sleep for a few seconds and confirm still on safe spot
+        await asyncio.sleep(5)
+        if not check_safe_spot():
+            await self._return_to_safe_spot()

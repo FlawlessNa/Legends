@@ -79,7 +79,7 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
 class PetFood(UseAndCheckConsumable):
     _throttle = 900
 
-    def __init__(self, metadata, data, pipe, num_pets: int, **kwargs):
+    def __init__(self, metadata, data, pipe, num_pets: int = 1, **kwargs):
         super().__init__(metadata, data, pipe, "Pet Food", num_usage=num_pets)
 
 

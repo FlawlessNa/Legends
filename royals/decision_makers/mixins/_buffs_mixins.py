@@ -1,15 +1,17 @@
 import cv2
-import numpy as np
 import logging
+import multiprocessing.connection
+import numpy as np
 import os
 import random
 import win32gui
 from functools import cached_property, lru_cache
 
 from botting import PARENT_LOG
-from botting.core import BotData
+from botting.core import ActionRequest, ActionWithValidation, BotData
 from botting.utilities import Box
 from royals.actions.skills_related_v2 import cast_skill_single_press
+from royals.actions import priorities
 from royals.model.mechanics import RoyalsSkill
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
@@ -19,10 +21,11 @@ DEBUG = True
 
 class RebuffMixin:
     data: BotData
+    pipe: multiprocessing.connection.Connection
     _icons_directory = RoyalsSkill.icon_path
     _hsv_lower = np.array([0, 0, 0])
     _hsv_upper = np.array([179, 255, 53])
-    MATCH_TEMPLATE_THRESHOLD = 0.60
+    MATCH_TEMPLATE_THRESHOLD = 0.55
     MATCH_ICON_THRESHOLD = 0.75
 
     def _get_character_default_buffs(self, buff_type: str) -> list[RoyalsSkill]:
@@ -94,6 +97,34 @@ class RebuffMixin:
         """
         # bottom_rows = target[-self.BOTTOM_ROWS:]
         return (target == icon).sum() / target.size > self.MATCH_ICON_THRESHOLD  # noqa
+
+    async def _cast_and_confirm(
+        self,
+        buffs: list[RoyalsSkill],
+        condition: multiprocessing.managers.ConditionProxy,  # noqa
+    ) -> None:
+        """
+        Cast the buff and confirm that it was successful.
+        :param buffs: The buff to cast.
+        :return:
+        """
+        request = ActionRequest(
+            f"{self} - {[buff.name for buff in buffs]}",
+            self._cast_skills_single_press,
+            self.data.ign,
+            priority=priorities.BUFFS,
+            block_lower_priority=True,
+            args=(self.data.handle, self.data.ign, buffs),
+        )
+        validator = ActionWithValidation(
+            self.pipe,
+            lambda: self._buffs_confirmation([buff.name for buff in buffs]),
+            condition,
+            timeout=10.0,
+            max_trials=10,
+        )
+        await validator.execute_async(request)
+
 
     @staticmethod
     def _randomized(duration: float) -> float:
