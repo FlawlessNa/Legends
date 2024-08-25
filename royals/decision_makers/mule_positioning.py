@@ -14,7 +14,7 @@ from royals.actions import priorities
 from .mixins import MinimapAttributesMixin, MovementsMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.NOTSET
+LOG_LEVEL = logging.INFO
 
 
 class EnsureSafeSpot(MinimapAttributesMixin, DecisionMaker):
@@ -119,8 +119,10 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
     async def _decide(self) -> None:
         try:
             await asyncio.wait_for(self._ensure_safe_spot(), timeout=self._TIME_LIMIT)
+            logger.log(LOG_LEVEL, f"{self.data.ign} is not at safe spot. Resetting")
         except asyncio.TimeoutError:
-            pass
+            logger.log(LOG_LEVEL, f"{self.data.ign} is idle. Engaging reset.")
+
         await self._jump_out_of_safe_spot()
         await self._cast_random_buff()
         await self._return_to_safe_spot()
@@ -178,8 +180,11 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             await asyncio.to_thread(self.lock.acquire)
             self.data.update_attribute('action')
             if self.data.action is not None:
+                print(self.data.action)
                 action = self.data.action
-                action.forced_key_releases.extend(['left', 'up', 'right', 'left'])
+                for key in ['left', 'up', 'right', 'left']:
+                    if key not in action.forced_key_releases and key in action.keys_held:
+                        action.forced_key_releases.append(key)
                 self.pipe.send(
                     ActionRequest(
                         f"{self} - Returning to Safe Spot",

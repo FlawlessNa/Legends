@@ -40,7 +40,7 @@ async def main():
         # mule4 = bots.TestBot('iYieldMoney', session.metadata)
         # mule5 = bots.TestBot('BCoinFarm', session.metadata)
         # await session.launch([leecher], [mule1, mule2, mule3, mule4, mule5])
-        await session.launch([leecher, mule1])
+        await session.launch([leecher], [mule1])
 
 
 if __name__ == "__main__":

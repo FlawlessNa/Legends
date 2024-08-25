@@ -39,7 +39,7 @@ class Rotation(
         data: BotData,
         pipe: multiprocessing.connection.Connection,
         movements_duration: float = 1.0,
-        static_position_threshold: float = 7.5,
+        static_position_threshold: float = 10.0,
         no_path_threshold: float = 10.0,
         **kwargs,
     ) -> None:

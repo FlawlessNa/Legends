@@ -66,6 +66,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
 
         with self._condition:
             self._update_shared_location()
+            self._update_rebuff_status()
 
         self._set_ready_state()
         self._reset_flag = False
@@ -90,16 +91,34 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         Attempt to rebuff the party.
         """
         while True:
-            if self._buffs_confirmation(self._all_buffs):
-                break
-            elif self._buffs_confirmation([buff.name for buff in self._buffs]):
-                await asyncio.to_thread(self._wait_for_party_at_location)
-                await asyncio.sleep(2)
-                self._set_ready_state()
-            else:
-                await asyncio.to_thread(self._wait_for_party_at_location)
-                logger.log(LOG_LEVEL, f"{self} is casting {self._buffs}.")
-                await self._cast_and_confirm(list(self._buffs), self._unique_condition)
+            with self._condition:
+                self._update_rebuff_status()
+                rebuffed = self._condition.wait_for(
+                    self._rebuff_status_all_true, timeout=1
+                )
+                if rebuffed:
+                    logger.log(LOG_LEVEL, "All have successfully been rebuffed.")
+                    self._condition.notify_all()
+                    break
+
+            self._set_ready_state()
+            await asyncio.to_thread(self._wait_for_party_at_location)
+            logger.log(LOG_LEVEL, f"{self} is casting {self._buffs}.")
+            await self._cast_and_confirm(
+                list(self._buffs), self._unique_condition
+            )
+        #
+        # while True:
+        #     if self._buffs_confirmation(self._all_buffs):
+        #         break
+        #     elif self._buffs_confirmation([buff.name for buff in self._buffs]):
+        #         await asyncio.to_thread(self._wait_for_party_at_location)
+        #         await asyncio.sleep(1)
+        #         self._set_ready_state()
+        #     else:
+        #         await asyncio.to_thread(self._wait_for_party_at_location)
+        #         logger.log(LOG_LEVEL, f"{self} is casting {self._buffs}.")
+        #         await self._cast_and_confirm(list(self._buffs), self._unique_condition)
 
     def _set_ready_state(self) -> None:
         """
@@ -110,6 +129,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
                 logger.log(LOG_LEVEL, f"{self} signaled its time to rebuff.")
                 self._event.set()
                 self._reset_shared_location()
+                self._reset_rebuff_status()
 
     def _reset_state(self) -> None:
         """
@@ -151,8 +171,8 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
             math.dist(self.data.current_minimap_position, self._location)
             > self._min_range
         ):
-            assert self.data.has_rotation_attributes, (
-                "Character must have rotation attributes. This is usually set with a "
+            assert self.data.has_pathing_attributes, (
+                "Character must have pathing attributes. This is usually set with a "
                 "Rotation DecisionMaker"
             )
             # Overwrite how the next_target attribute is set until the rebuff is done
@@ -190,12 +210,35 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         locations[f"{self}"] = self.data.current_minimap_position
         self.metadata[ident] = locations
 
+    def _update_rebuff_status(self) -> None:
+        """
+        Update the rebuffed status for the current member.
+        """
+        ident = self.__class__.__name__ + "_rebuffed"
+        if ident not in self.metadata:
+            self.metadata[ident] = dict()
+            self.metadata["ignored_keys"] = self.metadata["ignored_keys"].union({ident})
+
+        statuses = self.metadata[ident]
+        statuses[f"{self}"] = self._buffs_confirmation(self._all_buffs)
+        self.metadata[ident] = statuses
+
     def _reset_shared_location(self) -> None:
         ident = self.__class__.__name__ + "_character_locations"
         locations = self.metadata[ident]
         for key in locations:
             locations[key] = (-100, -100)
         self.metadata[ident] = locations
+
+    def _reset_rebuff_status(self) -> None:
+        """
+        Reset the rebuffed status for all members.
+        """
+        ident = self.__class__.__name__ + "_rebuffed"
+        statuses = self.metadata[ident]
+        for key in statuses:
+            statuses[key] = False
+        self.metadata[ident] = statuses
 
     def _members_all_in_range(self) -> bool:
         """
@@ -208,6 +251,15 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
             math.dist(location, self._location) <= self._min_range
             for location in locations
         ) and len(locations) > 1
+
+    def _rebuff_status_all_true(self) -> bool:
+        """
+        Check if all members have properly been rebuffed.
+        :return:
+        """
+        ident = self.__class__.__name__ + "_rebuffed"
+        statuses = self.metadata[ident].values()
+        return all(statuses) and len(statuses) > 1
 
 
 class SoloRebuff(RebuffMixin, DecisionMaker):
