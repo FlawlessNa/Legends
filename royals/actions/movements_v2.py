@@ -3,6 +3,8 @@ from typing import Literal
 from botting import controller
 from botting.models_abstractions import Skill
 
+from .skills_related_v2 import cast_skill
+
 FIRST_DELAY = 0.5
 
 
@@ -232,28 +234,33 @@ def teleport(
 
 def telecast(
     structure: controller.KeyboardInputWrapper,
+    ign: str,
     teleport_key: str,
-    ultimate_key: str,
+    ultimate_skill: Skill,
 ) -> controller.KeyboardInputWrapper:
     """
     This function does not extend the structure like other functions in this module.
     Instead, it introspects that structure and adds ultimate cast keystrokes in
     combination to the teleport keystrokes.
     :param structure:
+    :param ign:
     :param teleport_key:
-    :param ultimate_key:
+    :param ultimate_skill:
     :return:
     """
     if teleport_key not in structure.keys:
-        return structure
+        print('No telecast possible. Casting ultimate instead')
+        return cast_skill(structure.handle, ign, ultimate_skill)
 
     # Modify the structure such that teleports are combined with ultimate casts
+    ultimate_key = ultimate_skill.key_bind(ign)
     structure.forced_key_releases.append(ultimate_key)
     for idx, (key, event) in enumerate(zip(structure.keys, structure.events)):
         if key == teleport_key and event == "keydown":
             structure.keys[idx] = [teleport_key, ultimate_key]
             structure.events[idx] = ["keydown", "keydown"]
-    return structure
+    print(structure.truncate(ultimate_skill.animation_time))
+    return structure.truncate(ultimate_skill.animation_time)
 
 
 def random_jump(handle: int, jump_key: str) -> controller.KeyboardInputWrapper:

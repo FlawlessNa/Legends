@@ -1,13 +1,12 @@
+import asyncio
 import logging
-import time
-from functools import partial
 from botting import PARENT_LOG
 from botting.core import ActionRequest
 from .mobs_hitting import MobsHitting
 from royals.actions.movements_v2 import telecast
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.DEBUG
+LOG_LEVEL = logging.INFO
 
 
 class TelecastMobsHitting(MobsHitting):
@@ -29,24 +28,24 @@ class TelecastMobsHitting(MobsHitting):
         if self._teleport_in_upcoming_action():
             inputs = self.data.action
             logger.log(LOG_LEVEL, f"{self} is about to Telecast.")
+            telecast_action = telecast(
+                inputs,
+                self.data.ign,
+                self._teleport_skill.key_bind(self.data.ign),
+                self.training_skill,
+            )
+            asyncio.get_running_loop().call_later(
+                self.training_skill.animation_time + 0.1, self.lock.release
+            )
             return ActionRequest(
                 f"{self}",
-                telecast(
-                    inputs,
-                    self._teleport_skill.key_bind(self.data.ign),
-                    self.training_skill.key_bind(self.data.ign),
-                ).send,
+                telecast_action.send,
                 ign=self.data.ign,
                 priority=2,
                 cancel_tasks=[f"Rotation({self.data.ign})"],
                 block_lower_priority=True,
+                cancels_itself=True,
                 # callbacks=[self.lock.release],
-                callbacks=[partial(self._release, self.lock)],
             )
         else:
             return super()._hit_mobs(direction=None)
-
-    @staticmethod
-    def _release(lock):
-        print(time.asctime(), "TelecastMobsHitting releasing lock")
-        lock.release()

@@ -137,7 +137,7 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             await asyncio.sleep(5)
 
     async def _jump_out_of_safe_spot(self) -> None:
-        num_jumps = random.randint(1, 3)
+        num_jumps = random.randint(2, 4)
         for _ in range(num_jumps):
             await asyncio.to_thread(self.lock.acquire)
             self.pipe.send(

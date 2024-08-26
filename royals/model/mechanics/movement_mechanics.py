@@ -183,7 +183,7 @@ class Movements:
 
     @lru_cache
     def movements_into_action(
-        self, movements: tuple[tuple[str, int]], total_duration: float = None
+        self, movements: tuple[tuple[str, int], ...], total_duration: float = None
     ) -> controller.KeyboardInputWrapper:
         """
         Translates a series of movements into a series of inputs and delays.
@@ -319,8 +319,10 @@ class Movements:
             elif "PORTAL" in move[0]:
                 break
 
-        if structure is not None:
+        if structure is not None and total_duration is not None:
             return structure.truncate(total_duration)
+        elif structure is not None:
+            return structure
 
     @lru_cache
     def _compute_path(

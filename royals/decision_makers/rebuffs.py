@@ -108,13 +108,13 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
 
             print(f"{_CURRENT_TIME()}: {self} is setting the event flag")
             self._set_ready_state()
-            await asyncio.to_thread(self._wait_for_party_at_location)
-            logger.log(LOG_LEVEL, f"{self} confirms all members at location.")
-            await self._cast_and_confirm(
-                list(self._buffs),
-                self._unique_condition,
-                predicate=self._own_buff_completed,
-            )
+            if await asyncio.to_thread(self._wait_for_party_at_location):
+                logger.log(LOG_LEVEL, f"{self} confirms all members at location.")
+                await self._cast_and_confirm(
+                    list(self._buffs),
+                    self._unique_condition,
+                    predicate=self._own_buff_completed,
+                )
 
     def _set_ready_state(self) -> None:
         """
@@ -180,22 +180,24 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
             )
             self._reset_flag = True
 
-    def _wait_for_party_at_location(self) -> None:
+    def _wait_for_party_at_location(self) -> bool:
         """
         Wait for the party to be ready to rebuff (e.g. at target location).
         """
-        while True:
-            with self._condition:
-                print(
-                    f"{_CURRENT_TIME()}: {self} has acquired _condition to update locations and check if all members are in range"
-                )
-                # self._update_shared_location()
-                if self._condition.wait_for(self._members_all_in_range, timeout=1):
-                    self._condition.notify_all()
-                    break
+        # while True:
+        res = False
+        with self._condition:
             print(
-                f"{_CURRENT_TIME()}: {self} has released _condition to update locations and check if all members are in range"
+                f"{_CURRENT_TIME()}: {self} has acquired _condition to update locations and check if all members are in range"
             )
+            # self._update_shared_location()
+            if self._condition.wait_for(self._members_all_in_range, timeout=1):
+                self._condition.notify_all()
+                res = True
+        print(
+            f"{_CURRENT_TIME()}: {self} has released _condition to update locations and check if all members are in range"
+        )
+        return res
 
     def _update_shared_location(self) -> None:
         """

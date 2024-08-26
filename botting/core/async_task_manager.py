@@ -5,7 +5,7 @@ import multiprocessing.connection
 from .action_data import ActionRequest
 
 logger = logging.getLogger(__name__)
-LOG_LEVEL = logging.DEBUG
+LOG_LEVEL = logging.INFO
 
 MAX_CONCURRENT_TASKS = 30
 
