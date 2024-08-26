@@ -39,6 +39,7 @@ class ActionRequest:
     cancel_callback: callable = field(default=None)
     task: asyncio.Task = field(default=None, init=False)
     discord_request: "DiscordRequest" = field(default=None)
+    log: bool = field(default=False)
     args: tuple = field(default_factory=tuple)
     kwargs: dict = field(default_factory=dict)
 
@@ -120,16 +121,17 @@ class ActionWithValidation:
                         f" trials."
                     )
 
-    async def execute_async(self, action: ActionRequest) -> None:
+    async def execute_async(self, action: ActionRequest, forced: bool = False) -> None:
         """
         This must be called from within an Engine process.
         Does not block the Engine process, but instead schedules the action to be
         executed asynchronously.
         :param action:
+        :param forced: Whether to execute the action regardless of the first validation.
         :return:
         """
         action.procedure = self._wrap(action.procedure)
-        if self.validator():
+        if not forced and self.validator():
             return
         await asyncio.to_thread(self._run, action)
 

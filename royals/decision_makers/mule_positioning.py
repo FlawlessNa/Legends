@@ -96,7 +96,7 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         # Minimap attributes
         self._create_minimap_attributes()
         self.data.current_minimap.generate_grid_template(
-            True if self._teleport_skill is not None else False
+            self._teleport_skill is not None
         )
 
         # Rotation attributes
@@ -111,17 +111,20 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         self._feature = self.data.current_minimap.get_feature_containing(
             self._target_position
         )
-        self._skill = random.choice([
-            skill for skill in self.data.character.skills.values()
-            if skill.type in ["Buff", "Party Buff"]
-        ])
+        self._skill = random.choice(
+            [
+                skill
+                for skill in self.data.character.skills.values()
+                if skill.type in ["Buff"]
+            ]
+        )
 
     async def _decide(self) -> None:
         try:
             await asyncio.wait_for(self._ensure_safe_spot(), timeout=self._TIME_LIMIT)
-            logger.log(LOG_LEVEL, f"{self.data.ign} is not at safe spot. Resetting")
+            logger.log(LOG_LEVEL, f"{self} is not at safe spot. Resetting")
         except asyncio.TimeoutError:
-            logger.log(LOG_LEVEL, f"{self.data.ign} is idle. Engaging reset.")
+            logger.log(LOG_LEVEL, f"{self} is idle. Engaging reset.")
 
         await self._jump_out_of_safe_spot()
         await self._cast_random_buff()
@@ -146,7 +149,8 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
                     ign=self.data.ign,
                     callbacks=[self.lock.release],
                     priority=priorities.MULE_POSITIONING,
-                    block_lower_priority=True
+                    block_lower_priority=True,
+                    log=True,
                 )
             )
 
@@ -161,11 +165,13 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
                 callbacks=[self.lock.release],
                 priority=priorities.MULE_POSITIONING,
                 block_lower_priority=True,
-                args=(self.data.handle, self.data.ign, self._skill)
+                args=(self.data.handle, self.data.ign, self._skill),
+                log=True,
             )
         )
 
     def _is_at_safe_spot(self) -> bool:
+        print(self.data.current_minimap_position, self._target_position)
         return (
             math.dist(self.data.current_minimap_position, self._target_position)
             < self.DISTANCE_THRESHOLD
@@ -178,13 +184,16 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
     async def _return_to_safe_spot(self) -> None:
         while not self._is_at_safe_spot():
             await asyncio.to_thread(self.lock.acquire)
-            self.data.update_attribute('action')
+            self.data.update_attribute("action")
             if self.data.action is not None:
-                print(self.data.action)
                 action = self.data.action
-                for key in ['left', 'up', 'right', 'left']:
-                    if key not in action.forced_key_releases and key in action.keys_held:
+                for key in ["left", "up", "right", "left"]:
+                    if (
+                        key not in action.forced_key_releases
+                        and key in action.keys_held
+                    ):
                         action.forced_key_releases.append(key)
+                print(action)
                 self.pipe.send(
                     ActionRequest(
                         f"{self} - Returning to Safe Spot",
@@ -192,7 +201,11 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
                         ign=self.data.ign,
                         callbacks=[self.lock.release],
                         priority=priorities.MULE_POSITIONING,
-                        block_lower_priority=True
+                        block_lower_priority=True,
+                        log=True,
                     )
                 )
+            else:
+                self.lock.release()
+                await asyncio.sleep(1)
         logger.log(LOG_LEVEL, f"{self.data.ign} is back at safe spot.")

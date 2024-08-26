@@ -33,7 +33,7 @@ async def main():
     with SessionManager(royals.parsers.RoyalsParser) as session:
         leecher = bots.LeechingBot("WrongDoor", session.metadata, **leeching_configs)
         mule1 = bots.LeechMuleWithBuffs(
-            'UluLoot', session.metadata, character_class='Hermit', **mule_configs
+            "UluLoot", session.metadata, character_class="Hermit", **mule_configs
         )
         # mule2 = bots.TestBot('FinancialWiz', session.metadata)
         # mule3 = bots.TestBot('MoneyEngine', session.metadata)

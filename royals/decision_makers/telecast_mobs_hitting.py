@@ -1,5 +1,6 @@
 import logging
-
+import time
+from functools import partial
 from botting import PARENT_LOG
 from botting.core import ActionRequest
 from .mobs_hitting import MobsHitting
@@ -39,7 +40,13 @@ class TelecastMobsHitting(MobsHitting):
                 priority=2,
                 cancel_tasks=[f"Rotation({self.data.ign})"],
                 block_lower_priority=True,
-                callbacks=[self.lock.release],
+                # callbacks=[self.lock.release],
+                callbacks=[partial(self._release, self.lock)],
             )
         else:
             return super()._hit_mobs(direction=None)
+
+    @staticmethod
+    def _release(lock):
+        print(time.asctime(), "TelecastMobsHitting releasing lock")
+        lock.release()

@@ -79,11 +79,13 @@ class CharacterStats(InGameBaseVisuals):
 
     def get_level(self, handle: int) -> int:
         img = take_screenshot(handle, self.level_box)
-        return int(self.read_from_img(
-            img,
-            config='--psm 7 -c tessedit_char_whitelist=0123456789',
-            confidence_level=0
-        ))
+        return int(
+            self.read_from_img(
+                img,
+                config="--psm 7 -c tessedit_char_whitelist=0123456789",
+                confidence_level=0,
+            )
+        )
 
     def get_job(self, handle: int) -> str:
         return self.read_from_box(handle, self.job_box, confidence_level=0)

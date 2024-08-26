@@ -95,19 +95,24 @@ class RebuffMixin:
         :param target:
         :return:
         """
-        # bottom_rows = target[-self.BOTTOM_ROWS:]
         return (target == icon).sum() / target.size > self.MATCH_ICON_THRESHOLD  # noqa
 
     async def _cast_and_confirm(
         self,
         buffs: list[RoyalsSkill],
         condition: multiprocessing.managers.ConditionProxy,  # noqa
+        forced: bool = False,
+        predicate: callable = None,
     ) -> None:
         """
         Cast the buff and confirm that it was successful.
         :param buffs: The buff to cast.
+        :param condition: The condition to wait on.
+        :param forced: Whether to force the cast.
         :return:
         """
+        if predicate is None:
+            predicate = lambda: self._buffs_confirmation([buff.name for buff in buffs])
         request = ActionRequest(
             f"{self} - {[buff.name for buff in buffs]}",
             self._cast_skills_single_press,
@@ -118,12 +123,12 @@ class RebuffMixin:
         )
         validator = ActionWithValidation(
             self.pipe,
-            lambda: self._buffs_confirmation([buff.name for buff in buffs]),
+            predicate,
             condition,
-            timeout=10.0,
+            timeout=15.0,
             max_trials=10,
         )
-        await validator.execute_async(request)
+        await validator.execute_async(request, forced)
 
     @staticmethod
     def _randomized(duration: float) -> float:
@@ -153,4 +158,4 @@ class RebuffMixin:
             width, height = self._get_buff_icon(buff).shape[::-1]
             target = haystack[top : top + height, left : left + width]
             score = (target == buff_icon).sum() / target.size
-            print(f"{buff} has confidence {max_val} and score {score}.")
+            print(f"{self}: {buff} has confidence {max_val} and score {score}.")

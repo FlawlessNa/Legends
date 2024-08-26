@@ -134,7 +134,7 @@ class Bishop(Priest):
                 animation_time=1.5,
                 unidirectional=False,
                 _use_by_default=True,
-                horizontal_minimap_distance=15,
+                horizontal_minimap_distance=10,
                 duration=300,
             ),
         }

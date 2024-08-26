@@ -24,5 +24,5 @@ class LeechMuleWithoutBuffs(RoyalsBot):
         return [
             decision_makers.AbilityPointDistributor,
             decision_makers.PartyRebuff,
-            decision_makers.EnsureSafeSpot
+            decision_makers.EnsureSafeSpot,
         ]

@@ -5,7 +5,7 @@ import multiprocessing.connection
 from .action_data import ActionRequest
 
 logger = logging.getLogger(__name__)
-LOG_LEVEL = logging.NOTSET
+LOG_LEVEL = logging.DEBUG
 
 MAX_CONCURRENT_TASKS = 30
 
@@ -44,6 +44,11 @@ class AsyncTaskManager:
     def _handle_duplicate_request(self, request: ActionRequest) -> None:
         former = self.running_tasks[request.identifier]
         if request.cancels_itself:
+            if request.log:
+                logger.log(
+                    LOG_LEVEL,
+                    f"{request.identifier} has cancelled itself.",
+                )
             former.task.cancel()
         else:
             raise ValueError(
@@ -51,10 +56,13 @@ class AsyncTaskManager:
             )
 
     async def _handle_priority(self, request: ActionRequest) -> None:
-        if request.priority > self._get_priority_blocking():
+        if request.priority >= self._get_priority_blocking():
+            if request.log:
+                logger.log(LOG_LEVEL, f"{request.identifier} has been scheduled.")
             await self._schedule_task(request)
         elif request.requeue_if_not_scheduled:
-            logger.log(LOG_LEVEL, f"{request.identifier} has been re-queued.")
+            if request.log:
+                logger.log(LOG_LEVEL, f"{request.identifier} has been re-queued.")
             await self.queue.put(request)
         else:
             logger.log(

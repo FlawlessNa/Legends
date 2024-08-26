@@ -167,20 +167,19 @@ class KeyboardInputWrapper:
         :return:
         """
         keys_down = set()
-        keys_up = set()
         for i, key in enumerate(self.keys):
             if isinstance(key, list):
                 for j, k in enumerate(key):
                     if self.events[i][j] == "keydown":
                         keys_down.add(k)
                     elif self.events[i][j] == "keyup":
-                        keys_up.add(k)
+                        keys_down.discard(k)
             else:
                 if self.events[i] == "keydown":
                     keys_down.add(key)
                 elif self.events[i] == "keyup":
-                    keys_up.add(key)
-        return keys_down - keys_up
+                    keys_down.discard(key)
+        return keys_down
 
     async def send(self):
         return await focused_inputs(

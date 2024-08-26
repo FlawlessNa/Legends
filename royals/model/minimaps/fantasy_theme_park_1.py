@@ -20,7 +20,7 @@ class FantasyThemePark1Minimap(MinimapPathingMechanics):
 
     @property
     def central_node(self) -> tuple[int, int]:
-        return 72, 39
+        return 55, 83
 
     @property
     def feature_cycle(self) -> list[MinimapFeature]:
