@@ -9,9 +9,9 @@ from botting import PARENT_LOG, controller
 from botting.core import DecisionGenerator, QueueAction, GeneratorUpdate
 from botting.utilities import Box, config_reader
 from royals.actions import cast_skill
-from royals.game_data import RotationData
+from royals._old.game_data import RotationData
 from royals.actions import random_jump
-from royals.engines.generators.rotations.hit_mobs import MobsHitting
+from royals._old.engines.generators.rotations import MobsHitting
 from royals.model.mechanics.path_into_movements import get_to_target
 from royals.model.mechanics import RoyalsSkill
 

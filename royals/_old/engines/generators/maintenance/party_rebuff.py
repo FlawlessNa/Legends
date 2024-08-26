@@ -13,8 +13,8 @@ from botting import PARENT_LOG, ROOT
 from botting.core import QueueAction, GeneratorUpdate, DecisionGenerator
 from botting.utilities import Box
 from royals.actions import cast_skill
-from royals.engines.generators.interval_based import IntervalBasedGenerator
-from royals.game_data import MaintenanceData, MinimapData
+from royals._old.engines.generators.interval_based import IntervalBasedGenerator
+from royals._old.game_data import MaintenanceData, MinimapData
 from royals.model.mechanics import RoyalsSkill
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)

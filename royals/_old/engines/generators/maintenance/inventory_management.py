@@ -5,9 +5,9 @@ from functools import partial, cached_property
 from botting import PARENT_LOG
 from botting.core import QueueAction, DecisionGenerator
 from botting.utilities import config_reader, take_screenshot
-from royals.engines.generators.interval_based import IntervalBasedGenerator
-from royals.engines.generators.step_based import StepBasedGenerator
-from royals.game_data import MaintenanceData
+from royals._old.engines.generators.interval_based import IntervalBasedGenerator
+from royals._old.engines.generators.step_based import StepBasedGenerator
+from royals._old.game_data import MaintenanceData
 from royals.model.mechanics import MinimapConnection
 from royals.model.mechanics.inventory import (
     InventoryChecks,

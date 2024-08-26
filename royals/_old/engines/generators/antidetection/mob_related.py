@@ -3,9 +3,9 @@ import time
 
 from botting import PARENT_LOG
 from botting.core import QueueAction, DecisionGenerator
-from royals.engines.generators.interval_based import IntervalBasedGenerator
-from royals.engines.generators.antidetection.reactions import AntiDetectionReactions
-from royals.game_data import AntiDetectionData
+from royals._old.engines.generators.interval_based import IntervalBasedGenerator
+from royals._old.engines.generators.antidetection.reactions import AntiDetectionReactions
+from royals._old.game_data import AntiDetectionData
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 

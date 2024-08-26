@@ -6,8 +6,8 @@ from functools import partial
 from botting.core import QueueAction
 from botting import controller
 from botting.utilities import config_reader
-from royals.engines.generators.interval_based import IntervalBasedGenerator
-from royals.game_data import MaintenanceData
+from royals._old.engines.generators.interval_based import IntervalBasedGenerator
+from royals._old.game_data import MaintenanceData
 
 
 class PetFood(IntervalBasedGenerator):

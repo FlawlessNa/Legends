@@ -9,7 +9,6 @@ import multiprocessing
 from functools import partial
 
 import botting
-import royals.engines
 import royals.parsers
 
 

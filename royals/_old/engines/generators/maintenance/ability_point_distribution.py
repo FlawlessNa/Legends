@@ -7,8 +7,8 @@ from functools import cached_property, partial
 from botting import PARENT_LOG, controller
 from botting.core import GeneratorUpdate, QueueAction
 from botting.utilities import config_reader
-from royals.engines.generators.interval_based import IntervalBasedGenerator
-from royals.game_data import MaintenanceData
+from royals._old.engines.generators.interval_based import IntervalBasedGenerator
+from royals._old.game_data import MaintenanceData
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 

@@ -5,9 +5,7 @@ import math
 from botting import PARENT_LOG
 from botting.core import BotData
 from royals.model.mechanics import (
-    MinimapPathingMechanics,
     Movements,
-    RoyalsSkill,
 )
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -20,7 +18,8 @@ class NextTargetMixin:
     """
 
     data: BotData
-    DISTANCE_THRESHOLD = 10
+    BASE_ROTATION_THRESHOLD = 10  # Used for basic rotation mechanism
+    SMART_ROTATION_THRESHOLD = 2  # Used for "gravitate towards mobs" rotation mechanism
 
     def _create_rotation_attributes(self) -> None:
         if self.data.current_minimap.feature_cycle:
@@ -54,7 +53,7 @@ class NextTargetMixin:
         """
         if (
             math.dist(self.data.current_minimap_position, self.data.next_target)
-            > self.DISTANCE_THRESHOLD
+            > self.BASE_ROTATION_THRESHOLD
         ):
             return self.data.next_target
         else:
@@ -76,7 +75,7 @@ class NextTargetMixin:
         """
         if (
             math.dist(self.data.current_minimap_position, self.data.next_target)
-            > self.DISTANCE_THRESHOLD
+            > self.BASE_ROTATION_THRESHOLD
         ):
             return self.data.next_target
         else:

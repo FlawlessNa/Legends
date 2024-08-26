@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from royals.game_data.minimap_data import MinimapData
+from royals._old.game_data.minimap_data import MinimapData
 
 
 @dataclass

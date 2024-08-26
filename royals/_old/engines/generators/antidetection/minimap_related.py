@@ -8,9 +8,9 @@ from functools import partial
 from botting import PARENT_LOG, controller
 from botting.core import QueueAction, DecisionGenerator, GeneratorUpdate
 from botting.utilities import config_reader
-from royals.game_data import AntiDetectionData
-from royals.engines.generators.interval_based import IntervalBasedGenerator
-from royals.engines.generators.antidetection.reactions import AntiDetectionReactions
+from royals._old.game_data import AntiDetectionData
+from royals._old.engines.generators.interval_based import IntervalBasedGenerator
+from royals._old.engines.generators.antidetection.reactions import AntiDetectionReactions
 
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)

@@ -5,9 +5,9 @@ from functools import partial
 
 from botting.core import QueueAction, GeneratorUpdate, DecisionGenerator
 from botting import controller
-from royals.engines.generators.interval_based import IntervalBasedGenerator
+from royals._old.engines.generators.interval_based import IntervalBasedGenerator
 from royals.actions import random_jump
-from royals.game_data import MinimapData
+from royals._old.game_data import MinimapData
 from royals.model.mechanics.path_into_movements import get_to_target
 
 

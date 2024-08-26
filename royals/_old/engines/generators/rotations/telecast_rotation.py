@@ -8,7 +8,7 @@ from functools import partial
 
 from botting import PARENT_LOG
 from botting.core import QueueAction, GeneratorUpdate
-from royals.engines.generators.base_rotation import RotationGenerator
+from royals._old.engines.generators.base_rotation import RotationGenerator
 from royals import RoyalsData
 from royals.actions import telecast
 from royals.model.mechanics import RoyalsSkill

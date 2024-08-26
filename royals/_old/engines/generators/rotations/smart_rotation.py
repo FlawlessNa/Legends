@@ -6,9 +6,9 @@ import time
 
 from botting import PARENT_LOG
 from botting.utilities import Box
-from royals.engines.generators.base_rotation import RotationGenerator
+from royals._old.engines.generators.base_rotation import RotationGenerator
 from royals.model.mechanics import RoyalsSkill
-from royals.game_data import RotationData
+from royals._old.game_data import RotationData
 
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
@@ -69,6 +69,7 @@ class SmartRotationGenerator(RotationGenerator):
 
         # Reach this code once you've been on target for > time_limit seconds.
         self._first_time_on_target = True
+        # Check for mobs in the vicinity
         if self._on_screen_pos is not None:
             x, y = self._on_screen_pos
             region = Box(
@@ -83,9 +84,12 @@ class SmartRotationGenerator(RotationGenerator):
             )
 
             if len(mobs_locations) >= self.mob_threshold:
+                # Compute "center of mass" of mobs at the character's left and right
                 center_x = [rect[0] + rect[2] / 2 for rect in mobs_locations]
                 left_x = [rect_x for rect_x in center_x if rect_x < x]
                 right_x = [rect_x for rect_x in center_x if rect_x >= x]
+
+                # Go towards left
                 if len(left_x) > len(right_x):
                     avg_dist = sum([abs(rect_x - x) for rect_x in left_x]) / len(left_x)
                     minimap_dist = min(
@@ -97,6 +101,8 @@ class SmartRotationGenerator(RotationGenerator):
                         minimum_x += self.data.current_minimap_feature.edge_threshold
                     target = (max(minimap_x - minimap_dist, minimum_x), minimap_y)
                     self.next_target = target
+
+                # Go towards right
                 else:
                     avg_dist = sum([abs(rect_x - x) for rect_x in right_x]) / len(
                         right_x

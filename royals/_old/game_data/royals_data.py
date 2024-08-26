@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
 from royals.model.characters import Character
-from royals.game_data import AntiDetectionData, MaintenanceData, RotationData
+from royals._old.game_data import AntiDetectionData, MaintenanceData, RotationData
 
 
 @dataclass

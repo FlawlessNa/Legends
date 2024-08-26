@@ -6,7 +6,6 @@ import botting
 
 from functools import partial
 
-import royals.engines
 import royals.parsers
 
 

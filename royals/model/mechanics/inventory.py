@@ -14,7 +14,7 @@ from botting.core import DecisionGenerator, GeneratorUpdate, QueueAction
 from botting.utilities import Box, find_image
 from paths import ROOT
 from royals.actions import cast_skill, move
-from royals.game_data import MaintenanceData, MinimapData
+from royals._old.game_data import MaintenanceData, MinimapData
 from royals.model.mechanics import MinimapConnection
 from royals.model.mechanics.path_into_movements import get_to_target
 

@@ -14,8 +14,8 @@ from botting.utilities import Box
 from paths import ROOT
 
 from royals.actions import cast_skill
-from royals.engines.generators.interval_based import IntervalBasedGenerator
-from royals.game_data import MaintenanceData
+from royals._old.engines.generators.interval_based import IntervalBasedGenerator
+from royals._old.game_data import MaintenanceData
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 

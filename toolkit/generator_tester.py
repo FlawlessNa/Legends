@@ -4,7 +4,7 @@ import multiprocessing
 from botting import EngineData, Executor, SessionManager
 from botting.core import DecisionEngine, DecisionGenerator
 from botting.utilities import client_handler
-from royals.engines.generators import InventoryManager
+from royals._old.engines import InventoryManager
 from royals.model.characters import Bishop
 from royals import RoyalsData, royals_ign_finder
 from royals.model.maps import FantasyThemePark1
