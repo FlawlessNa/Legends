@@ -7,7 +7,7 @@
   - First alert after X seconds -> disable MobsHitting but keep movements
   - Second alert after 2X seconds -> pause everything except necessary maintenance + random reaction
 - [ ] There's a situation where keys are not released properly, leading to a stuck state
-- [ ] The lock used for MobsHitting doesn't seem to always work for some reason. To investigate.
+- [ ] Investigate why sometimes the bot spams ultimate. Is it because the ultimate key is not released properly?
 - [ ] Cleanup party rebuffing and fix for both same-process and multi-process situations
 
 ## Performance Branch

@@ -19,6 +19,7 @@ _CURRENT_TIME = lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, DecisionMaker):
     _TIME_LIMIT = 120  # An error is triggered after 2 minutes of waiting
     # TODO - Deal with Macros as well.
+    # TODO - Could potentially use nested DictProxy or ListProxy within metadata to facilitate synchronization.
 
     def __init__(
         self,
@@ -336,6 +337,7 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
             ident = f"{self} - {buff.name}"
             condition = self.request_proxy(self.metadata, ident, "Condition")
             tg.create_task(super().start(tg, buff, condition), name=ident)
+        # TODO - Need to handle cancellation on each SoloBuffs differently since overwriting start
 
     async def _decide(
         self, buff: RoyalsSkill, condition: multiprocessing.managers.ConditionProxy

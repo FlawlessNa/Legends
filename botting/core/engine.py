@@ -68,7 +68,7 @@ class _ChildProcessEngine:
                     asyncio.create_task(bot.start(), name=f"Bot({bot.ign})")
                 )
             self.main_listener = asyncio.create_task(
-                self._poll_for_updates(), name=f"{self} MainListener"
+                self._poll_for_updates(), name=f"MainListener - {self}"
             )
             t_done, t_pending = await asyncio.wait(
                 [self.main_listener] + self.bot_tasks,

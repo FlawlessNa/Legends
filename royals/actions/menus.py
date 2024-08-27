@@ -1,4 +1,5 @@
 import multiprocessing.connection
+import random
 from typing import Literal
 
 from botting import controller
@@ -29,6 +30,34 @@ async def toggle_ability_menu(
     ign: str,
 ) -> None:
     await toggle_menu(handle, ign, "Ability Menu")
+
+
+async def expand_inventory(
+    handle: int,
+    target: tuple[int, int],
+    **kwargs
+) -> None:
+    """
+    Must be called after the inventory menu is displayed.
+    :param handle:
+    :param target:
+    :param kwargs:
+    :return:
+    """
+    await controller.mouse_move_and_click(handle, target, nbr_times=1, **kwargs)
+    next_target = (
+        target[0] + random.randint(-100, 100),
+        target[1] - random.randint(50, 100)
+    )
+    # Simply ensures mouse isn't obstructing the view
+    await controller.mouse_move(handle, next_target, total_duration=0)
+
+
+async def toggle_inventory(
+    handle: int,
+    ign: str,
+) -> None:
+    await toggle_menu(handle, ign, "Inventory Menu")
 
 
 def ensure_minimap_displayed(

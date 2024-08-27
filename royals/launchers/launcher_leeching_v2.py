@@ -1,6 +1,7 @@
 import asyncio
 from botting.core.session_manager import SessionManager
 import royals.bots as bots
+import royals.constants as constants
 import royals.model.maps as maps
 import royals.parsers
 
@@ -20,6 +21,7 @@ leeching_configs = {
     "anti_detection_time_threshold": 10,
     "included_buffs": ["Invincible"],
     "synchronized_buffs": SYNCHRONIZED_BUFFS,
+    "cleanup_procedure": constants.INVENTORY_CLEANUP_WITH_SELF_DOOR
 }
 mule_configs = {
     "synchronized_buffs": SYNCHRONIZED_BUFFS,
@@ -40,7 +42,8 @@ async def main():
         # mule4 = bots.TestBot('iYieldMoney', session.metadata)
         # mule5 = bots.TestBot('BCoinFarm', session.metadata)
         # await session.launch([leecher], [mule1, mule2, mule3, mule4, mule5])
-        await session.launch([leecher], [mule1])
+        # await session.launch([leecher], [mule1])
+        await session.launch([leecher])
 
 
 if __name__ == "__main__":

@@ -63,7 +63,11 @@ class AsyncTaskManager:
         elif request.requeue_if_not_scheduled:
             if request.log:
                 logger.log(LOG_LEVEL, f"{request.identifier} has been re-queued.")
-            await self.queue.put(request)
+            # Self-inflicted delay to avoid infinite re-queueing
+            asyncio.get_running_loop().call_later(
+                1.0, self.queue.put_nowait, request
+            )
+            # await self.queue.put(request)
         else:
             logger.log(
                 logging.INFO,

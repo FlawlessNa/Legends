@@ -38,6 +38,7 @@ class SessionManager:
         self.metadata = self.process_manager.dict(
             logging_queue=self.process_manager.Queue(),
             proxy_request=self.process_manager.Condition(),
+            _disabled=self.process_manager.dict(),
         )
         self.metadata["ignored_keys"] = set(self.metadata.keys()).union(
             {"ignored_keys"}
