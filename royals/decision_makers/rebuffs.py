@@ -326,6 +326,7 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
         if excluded_buffs:
             buffs = list(filter(lambda buff: buff.name not in excluded_buffs, buffs))
         self._buffs = buffs
+        self._decision_task: dict[str, asyncio.Task] = dict()
 
     async def start(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
         """
@@ -336,8 +337,32 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
         for buff in self._buffs:
             ident = f"{self} - {buff.name}"
             condition = self.request_proxy(self.metadata, ident, "Condition")
-            tg.create_task(super().start(tg, buff, condition), name=ident)
-        # TODO - Need to handle cancellation on each SoloBuffs differently since overwriting start
+            tg.create_task(
+                asyncio.to_thread(self._disabler_task, tg, buff, condition),
+                name=f"{ident} - Disabler"
+            )
+            self._decision_task[ident] = tg.create_task(
+                self._task(buff, condition), name=ident
+            )
+
+    def _disabler_task(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
+        """
+        Overwrites the DecisionMaker start method such that there is one disabler per
+        individual buff.
+        :return:
+        """
+        ident = f'{self} - {args[0].name}'
+        while True:
+            with self._disabler:
+                # When notified, cancel the task
+                self._disabler.wait()
+                self._decision_task[ident].cancel()
+
+                # Upon next notification, re-enable the task
+                self._disabler.wait()
+                self._decision_task[ident] = tg.create_task(
+                    self._task(*args, **kwargs), name=f"{self}"
+                )
 
     async def _decide(
         self, buff: RoyalsSkill, condition: multiprocessing.managers.ConditionProxy

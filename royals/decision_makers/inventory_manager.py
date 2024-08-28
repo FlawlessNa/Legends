@@ -42,8 +42,8 @@ class InventoryManager(MenusMixin, DecisionMaker):
         self._create_inventory_menu_attributes()
 
     async def _decide(self, *args, **kwargs) -> None:
-        print("InventoryManager - _decide")
         space_left = await self._check_inventory_space()
+        await self._ensure_inventory_displayed(displayed=False)
         if space_left < self._space_left_trigger:
             await self._trigger_procedure()
 
@@ -60,7 +60,7 @@ class InventoryManager(MenusMixin, DecisionMaker):
             logger.error(f"Exception occurred in {self}: {e}.")
             raise e
 
-    async def _ensure_inventory_displayed(self) -> None:
+    async def _ensure_inventory_displayed(self, displayed: bool = True) -> None:
         request = ActionRequest(
             f"{self} - Toggling Inventory On",
             toggle_inventory,
@@ -68,13 +68,22 @@ class InventoryManager(MenusMixin, DecisionMaker):
             priorities.INVENTORY_CHECKUP,
             args=(self.data.handle, self.data.ign),
         )
-        await self._validate_request_async(
-            request,
-            lambda: self.data.inventory_menu.is_displayed(
-                self.data.handle, self.data.current_client_img
-            ),
-            timeout=2.0
-        )
+        if displayed:
+            await self._validate_request_async(
+                request,
+                lambda: self.data.inventory_menu.is_displayed(
+                    self.data.handle, self.data.current_client_img
+                ),
+                timeout=10.0
+            )
+        else:
+            await self._validate_request_async(
+                request,
+                lambda: not self.data.inventory_menu.is_displayed(
+                    self.data.handle, self.data.current_client_img
+                ),
+                timeout=10.0
+            )
         self.data.update_attribute("inventory_menu_displayed")
 
     async def _ensure_inventory_extended(self) -> None:
@@ -96,7 +105,7 @@ class InventoryManager(MenusMixin, DecisionMaker):
             lambda: self.data.inventory_menu.is_extended(
                 self.data.handle, self.data.current_client_img
             ),
-            timeout=3.0
+            timeout=10.0
         )
         self.data.update_attribute("inventory_menu_extended")
 
@@ -116,7 +125,7 @@ class InventoryManager(MenusMixin, DecisionMaker):
             lambda: self.data.inventory_menu.get_active_tab(
                 self.data.handle, self.data.current_client_img
             ) == self._target_tab,
-            timeout=3.0
+            timeout=10.0
         )
         self.data.update_attribute("inventory_menu_active_tab")
 
@@ -129,13 +138,21 @@ class InventoryManager(MenusMixin, DecisionMaker):
         if self._cleanup_procedure == INVENTORY_DISCORD_ALERT:
             self.pipe.send(self._discord_alert())
         else:
-            await self._disable_decision_makers(
+            self._disable_decision_makers(
                 "Rotation",
                 "MobsHitting",
                 "TelecastMobsHitting",
                 "PartyRebuff",
                 "SoloRebuff",
-                "PetFood",  # TODO - Remove this line after testing
+            )
+            import time
+            await asyncio.sleep(10)
+            self._enable_decision_makers(
+                "Rotation",
+                "MobsHitting",
+                "TelecastMobsHitting",
+                "PartyRebuff",
+                "SoloRebuff",
             )
             if self._cleanup_procedure == INVENTORY_CLEANUP_WITH_TOWN_SCROLL:
                 await self._cleanup_with_town_scroll()

@@ -19,7 +19,7 @@ leeching_configs = {
     "client_size": CLIENT_SIZE,
     "anti_detection_mob_threshold": 4,
     "anti_detection_time_threshold": 10,
-    "included_buffs": ["Invincible"],
+    "included_buffs": ["Invincible", "Holy Symbol"],
     "synchronized_buffs": SYNCHRONIZED_BUFFS,
     "cleanup_procedure": constants.INVENTORY_CLEANUP_WITH_SELF_DOOR
 }
@@ -42,7 +42,7 @@ async def main():
         # mule4 = bots.TestBot('iYieldMoney', session.metadata)
         # mule5 = bots.TestBot('BCoinFarm', session.metadata)
         # await session.launch([leecher], [mule1, mule2, mule3, mule4, mule5])
-        # await session.launch([leecher], [mule1])
+        # await session.launch([leecher],  [mule1])
         await session.launch([leecher])
 
 

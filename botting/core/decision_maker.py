@@ -33,24 +33,13 @@ class DecisionMaker(ABC):
         self.data = data
         self.pipe = pipe
 
-        # self.metadata["_disabled"].setdefault(
-        #     f"{self.__class__.__name__}",
-        # proxy = self.request_proxy(
-        #         self.metadata,
-        #         f"{self.__class__.__name__} - Disabler",
-        #         "Event",
-        #         True,
-        #     )
-        # # )
-        # self.metadata["_disabled"][f'{self.__class__.__name__}'] = proxy
-        breakpoint()
+        self._disabler = self.request_proxy(
+            self.metadata, f"{self.__class__.__name__} - Disabler", "Condition", True
+        )
+        self._decision_task = None
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.data.ign})"
-
-    @property
-    def disabled(self) -> bool:
-        return self.__class__.__name__ in self.metadata["_disabled"]
 
     @staticmethod
     def request_proxy(
@@ -88,53 +77,40 @@ class DecisionMaker(ABC):
 
         logger.log(LOG_LEVEL, f"Created {primitive_type} for {requester}.")
         if multi_request:
-            # Clear the proxy after 120 seconds
-            asyncio.get_running_loop().call_later(
-                120, DecisionMaker._clear_proxy, metadata, requester
-            )
             metadata["ignored_keys"] = metadata["ignored_keys"].union({requester})
             return metadata[requester]
         else:
             return metadata.pop(requester)
 
-    @staticmethod
-    def _clear_proxy(metadata: multiprocessing.managers.DictProxy, requester: str):
-        with metadata["proxy_request"]:
-            if requester in metadata:
-                logger.log(LOG_LEVEL, f"Clearing {requester} from metadata.")
-                metadata.pop(requester)
-                metadata["ignored_keys"] = metadata["ignored_keys"] - {requester}
-
     @abstractmethod
     async def _decide(self, *args, **kwargs) -> None:
         pass
 
-    async def _disable_decision_makers(self, *args: str) -> None:
+    def _disable_decision_makers(self, *args: str, self_only: bool = False) -> None:
         """
         Disables the given decision makers across all engines.
         :param args: The DecisionMakers (class names) to disable.
         :return:
         """
-        for task in asyncio.all_tasks():
-            if any(task.get_name().startswith(dm) for dm in args):
-                print(f"{self} Cancelling task {task.get_name()}.")
-                task.cancel()
-                # await task
-        # disabled = self.metadata["_disabled"]
-        # for dm in args:
-        #     disabled.add(dm)
-        # self.metadata["_disabled"] = disabled
+        for class_name in args:
+            condition_proxy = self.metadata.get(f"{class_name} - Disabler", None)
+            if condition_proxy is not None:
+                logger.log(LOG_LEVEL, f"{self} is disabling {class_name}.")
+                with condition_proxy:
+                    condition_proxy.notify_all()  # noqa
 
-    def _enable_decision_makers(self, *args: str) -> None:
+    def _enable_decision_makers(self, *args: str, self_only: bool = False) -> None:
         """
         Enables the given decision makers across all engines.
         :param args: The DecisionMakers (class names) to enable.
         :return:
         """
-        disabled = self.metadata["_disabled"]
-        for dm in args:
-            self.metadata["_disabled"].discard(dm)
-        self.metadata["_disabled"] = disabled
+        for class_name in args:
+            condition_proxy = self.metadata.get(f"{class_name} - Disabler", None)
+            if condition_proxy is not None:
+                logger.log(LOG_LEVEL, f"{self} is re-enabling {class_name}.")
+                with condition_proxy:
+                    condition_proxy.notify_all()  # noqa1
 
     async def _validate_request_async(
         self,
@@ -154,24 +130,47 @@ class DecisionMaker(ABC):
         await validator.execute_async(request)
 
     async def start(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
-        logger.log(LOG_LEVEL, f"{self} started.")
-        tg.create_task(self._disabler_listener())
+        tg.create_task(
+            asyncio.to_thread(self._disabler_task, tg, *args, **kwargs),
+            name=f"{self} - Disabler"
+        )
+        self._decision_task = tg.create_task(
+            self._task(*args, **kwargs), name=f"{self}"
+        )
+
+    async def _task(self, *args, **kwargs) -> None:
+        """
+        The main task of the DecisionMaker.
+        :return:
+        """
+        name = asyncio.current_task().get_name()
+        logger.log(LOG_LEVEL, f"{name} has been enabled.")
         try:
             while True:
                 await self._decide(*args, **kwargs)
                 if self._throttle:
                     await asyncio.sleep(self._throttle)
         except asyncio.CancelledError:
-            breakpoint()
+            logger.log(LOG_LEVEL, f"{name} has been disabled.")
+            pass  # TODO - see if cleanup is required
         except BaseException as e:
             breakpoint()
-            logger.error(f"Exception occurred in {self}: {e}.")
+            logger.error(f"Exception occurred in {name}: {e}.")
             raise e
 
-    async def _disabler_listener(self) -> None:
+    def _disabler_task(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
         """
         Listens for a disable request.
         :return:
         """
         while True:
-            await asyncio.to_thread(...)
+            with self._disabler:
+                # When notified, cancel the task
+                self._disabler.wait()
+                self._decision_task.cancel()
+
+                # Upon next notification, re-enable the task
+                self._disabler.wait()
+                self._decision_task = tg.create_task(
+                    self._task(*args, **kwargs), name=f"{self}"
+                )

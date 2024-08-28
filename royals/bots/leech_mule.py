@@ -12,10 +12,10 @@ LOG_LEVEL = logging.NOTSET
 class LeechMuleWithBuffs(RoyalsBot):
     def _decision_makers(self) -> list[type[DecisionMaker]]:
         return [
-            decision_makers.AbilityPointDistributor,
+            # decision_makers.AbilityPointDistributor,
             decision_makers.PetFood,
-            decision_makers.ResetIdleSafeguard,
-            decision_makers.PartyRebuff,
+            # decision_makers.ResetIdleSafeguard,
+            # decision_makers.PartyRebuff,
         ]
 
 
