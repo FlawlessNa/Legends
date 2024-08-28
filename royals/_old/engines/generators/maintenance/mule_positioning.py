@@ -8,7 +8,7 @@ from botting import controller
 from royals._old.engines.generators.interval_based import IntervalBasedGenerator
 from royals.actions import random_jump
 from royals._old.game_data import MinimapData
-from royals.model.mechanics.path_into_movements import get_to_target
+from royals._old.path_into_movements import get_to_target
 
 
 class EnsureSafeSpot(IntervalBasedGenerator):

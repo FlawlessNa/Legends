@@ -13,7 +13,7 @@ class LeechingBot(RoyalsBot):
     def _decision_makers(self) -> list[type[DecisionMaker]]:
         return [
             # decision_makers.TelecastMobsHitting,
-            # decision_makers.Rotation,
+            decision_makers.Rotation,
             # decision_makers.AbilityPointDistributor,
             # decision_makers.PetFood,
             decision_makers.SoloRebuff,

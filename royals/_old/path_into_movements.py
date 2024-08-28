@@ -21,7 +21,7 @@ from royals.model.mechanics import (
     MinimapNode,
     MinimapConnection,
 )
-from .royals_skill import RoyalsSkill
+from royals.model.mechanics.royals_skill import RoyalsSkill
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 

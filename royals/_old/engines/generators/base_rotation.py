@@ -12,7 +12,7 @@ from royals.actions import cast_skill
 from royals._old.game_data import RotationData
 from royals.actions import random_jump
 from royals._old.engines.generators.rotations import MobsHitting
-from royals.model.mechanics.path_into_movements import get_to_target
+from royals._old.path_into_movements import get_to_target
 from royals.model.mechanics import RoyalsSkill
 
 

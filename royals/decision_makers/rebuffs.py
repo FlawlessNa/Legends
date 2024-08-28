@@ -76,7 +76,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
 
     async def _decide(self, *args, **kwargs) -> None:
         await self._wait_until_ready()
-        self._set_target_to_buff_location()
+        self._set_fixed_target(self._location)
         try:
             await asyncio.wait_for(
                 self._attempt_party_rebuff(), timeout=self._TIME_LIMIT
@@ -169,18 +169,6 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
             print(f"{_CURRENT_TIME()}: {self}: Time to rebuff")
             self._set_ready_state()
 
-    def _set_target_to_buff_location(self) -> None:
-        """
-        Move to the location where the buffs are cast.
-        """
-        if self.data.has_rotation_attributes:
-            # Overwrite how the next_target attribute is set until the rebuff is done
-            self.data.create_attribute(
-                "next_target",
-                lambda: self._location,
-            )
-            self._reset_flag = True
-
     def _wait_for_party_at_location(self) -> bool:
         """
         Wait for the party to be ready to rebuff (e.g. at target location).
@@ -191,7 +179,6 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
             print(
                 f"{_CURRENT_TIME()}: {self} has acquired _condition to update locations and check if all members are in range"
             )
-            # self._update_shared_location()
             if self._condition.wait_for(self._members_all_in_range, timeout=1):
                 self._condition.notify_all()
                 res = True

@@ -16,7 +16,7 @@ from paths import ROOT
 from royals.actions import cast_skill, move
 from royals._old.game_data import MaintenanceData, MinimapData
 from royals.model.mechanics import MinimapConnection
-from royals.model.mechanics.path_into_movements import get_to_target
+from royals._old.path_into_movements import get_to_target
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 

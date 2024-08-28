@@ -71,7 +71,7 @@ class DecisionMaker(ABC):
 
             data = primitive_type, args, kwargs
             metadata[requester] = data
-            while metadata[requester] == data:
+            while isinstance(metadata[requester], tuple):
                 notifier.notify_all()
                 notifier.wait(timeout=1)
 
@@ -154,7 +154,6 @@ class DecisionMaker(ABC):
             logger.log(LOG_LEVEL, f"{name} has been disabled.")
             pass  # TODO - see if cleanup is required
         except BaseException as e:
-            breakpoint()
             logger.error(f"Exception occurred in {name}: {e}.")
             raise e
 

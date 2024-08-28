@@ -1,24 +1,30 @@
 import asyncio
 import logging
+import math
 import multiprocessing.connection
 import multiprocessing.managers
+import random
 from botting import controller, PARENT_LOG
 from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
 from royals.actions import toggle_inventory, expand_inventory, priorities
+from royals.actions.skills_related_v2 import cast_skill_single_press
 from royals.constants import (
     INVENTORY_DISCORD_ALERT,
     INVENTORY_CLEANUP_WITH_TOWN_SCROLL,
     INVENTORY_CLEANUP_WITH_SELF_DOOR,
     INVENTORY_CLEANUP_WITH_PARTY_DOOR,
 )
-from .mixins import MenusMixin
+from royals.model.mechanics import MinimapConnection
+from .mixins import MenusMixin, NextTargetMixin, MovementsMixin
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 LOG_LEVEL = logging.INFO
 
 
-class InventoryManager(MenusMixin, DecisionMaker):
+class InventoryManager(MenusMixin, NextTargetMixin, MovementsMixin, DecisionMaker):
     _throttle = 180
+    _TIME_LIMIT = 300
+    _DISTANCE_TO_DOOR_THRESHOLD = 2
 
     def __init__(
         self,
@@ -31,8 +37,11 @@ class InventoryManager(MenusMixin, DecisionMaker):
         **kwargs,
     ) -> None:
         super().__init__(metadata, data, pipe, **kwargs)
+        # Set a condition but use a standard Lock instead of RLock, allowing to use
+        # basic lock mechanism as well
+        temp_lock = self.request_proxy(metadata, f"{self}", "Lock")
         self._condition = DecisionMaker.request_proxy(
-            metadata, f"{self}", "Condition"
+            metadata, f"{self}", "Condition", False, temp_lock
         )
         self._cleanup_procedure = cleanup_procedure
         self._space_left_trigger = space_left_trigger
@@ -42,7 +51,7 @@ class InventoryManager(MenusMixin, DecisionMaker):
         self._create_inventory_menu_attributes()
 
     async def _decide(self, *args, **kwargs) -> None:
-        space_left = await self._check_inventory_space()
+        space_left = await asyncio.wait_for(self._check_inventory_space(), timeout=10)
         await self._ensure_inventory_displayed(displayed=False)
         if space_left < self._space_left_trigger:
             await self._trigger_procedure()
@@ -52,7 +61,7 @@ class InventoryManager(MenusMixin, DecisionMaker):
             await self._ensure_inventory_displayed()
             await self._ensure_inventory_extended()
             await self._ensure_on_target_tab()
-            return self._get_space_left()
+            return await self._get_space_left()
         except AssertionError:
             logger.log(LOG_LEVEL, f"Failed to check inventory space. Retrying once")
             await self._check_inventory_space()
@@ -87,7 +96,8 @@ class InventoryManager(MenusMixin, DecisionMaker):
         self.data.update_attribute("inventory_menu_displayed")
 
     async def _ensure_inventory_extended(self) -> None:
-        assert self.data.inventory_menu_displayed
+        if not self.data.inventory_menu_displayed:
+            await self._ensure_inventory_displayed()
 
         target = self.data.inventory_menu.get_abs_box(
             self.data.handle, self.data.inventory_menu.extend_button
@@ -110,7 +120,8 @@ class InventoryManager(MenusMixin, DecisionMaker):
         self.data.update_attribute("inventory_menu_extended")
 
     async def _ensure_on_target_tab(self) -> None:
-        assert self.data.inventory_menu_extended
+        if not self.data.inventory_menu_extended:
+            await self._ensure_inventory_extended()
 
         request = ActionRequest(
             f"{self} - Switching to Target Tab",
@@ -129,8 +140,10 @@ class InventoryManager(MenusMixin, DecisionMaker):
         )
         self.data.update_attribute("inventory_menu_active_tab")
 
-    def _get_space_left(self) -> int:
-        assert self.data.inventory_menu_active_tab == self._target_tab
+    async def _get_space_left(self) -> int:
+        if not self.data.inventory_menu_active_tab == self._target_tab:
+            await self._ensure_on_target_tab()
+
         self.data.update_attribute("inventory_space_left")
         return self.data.inventory_space_left
 
@@ -139,16 +152,6 @@ class InventoryManager(MenusMixin, DecisionMaker):
             self.pipe.send(self._discord_alert())
         else:
             self._disable_decision_makers(
-                "Rotation",
-                "MobsHitting",
-                "TelecastMobsHitting",
-                "PartyRebuff",
-                "SoloRebuff",
-            )
-            import time
-            await asyncio.sleep(10)
-            self._enable_decision_makers(
-                "Rotation",
                 "MobsHitting",
                 "TelecastMobsHitting",
                 "PartyRebuff",
@@ -157,7 +160,9 @@ class InventoryManager(MenusMixin, DecisionMaker):
             if self._cleanup_procedure == INVENTORY_CLEANUP_WITH_TOWN_SCROLL:
                 await self._cleanup_with_town_scroll()
             elif self._cleanup_procedure == INVENTORY_CLEANUP_WITH_SELF_DOOR:
-                await self._cleanup_with_self_door()
+                await asyncio.wait_for(
+                    self._cleanup_with_self_door(), timeout=self._TIME_LIMIT
+                )
             elif self._cleanup_procedure == INVENTORY_CLEANUP_WITH_PARTY_DOOR:
                 await self._cleanup_with_party_door()
             else:
@@ -180,7 +185,100 @@ class InventoryManager(MenusMixin, DecisionMaker):
         raise NotImplementedError
 
     async def _cleanup_with_self_door(self) -> None:
-        pass
+        logger.log(LOG_LEVEL, f"{self} is cleaning up with SELF DOOR")
+        await self._get_to_door_spot()
+        logger.log(LOG_LEVEL, f"{self} has reached door_spot")
+        await self._cast_door()
+        await self._enter_door()
+        logger.log(LOG_LEVEL, f"{self} has reached town")
+        await self._move_to_npc_shop()
+        logger.log(LOG_LEVEL, f"{self} has reached NPC Shop")
+        await self._open_npc_shop()
+        await self._activate_equip_tab()
+        await self._clear_inventory()
+        logger.log(LOG_LEVEL, f"{self} inventory has been cleared")
+        await self._close_npc_shop()
+        await self._get_to_door_spot()
+        logger.log(LOG_LEVEL, f"{self} is back to door (in-town)")
+        await self._enter_door()
+        logger.log(LOG_LEVEL, f"{self} procedure completed")
 
     async def _cleanup_with_party_door(self) -> None:
         raise NotImplementedError
+
+    async def _get_to_door_spot(self) -> None:
+        # TODO - Implement grid connections
+        assert self.data.has_pathing_attributes
+        assert self.data.has_minimap_attributes
+        door_spot = getattr(
+            self.data.current_minimap, "door_spot", [self.data.current_minimap_position]
+        )
+        target = random.choice(door_spot)
+        self._set_fixed_target(target)
+
+        # Update action mechanics to ensure keys are always released
+        self.data.create_attribute("action", self._always_release_keys_on_actions)
+        await asyncio.to_thread(self._wait_until_target_reached)
+
+    def _wait_until_target_reached(self) -> None:
+        while True:
+            with self._condition:
+                if self._condition.wait_for(
+                    lambda: math.dist(
+                        self.data.current_minimap_position, self.data.next_target
+                    ) < self._DISTANCE_TO_DOOR_THRESHOLD,
+                    timeout=1.0
+                ):
+                    break
+
+    async def _cast_door(self) -> None:
+        # TODO - implement validation mechanism to ensure door is properly cast.
+        # Create a PORTAL connection to (0, 0) and attempt to move there
+        grid = self.data.current_minimap.grid
+
+        # Now use current spot as the target
+        while True:
+            target = self.data.current_minimap_position
+            if grid.node(*target).walkable:
+                break
+            await asyncio.sleep(0.1)
+        self._set_fixed_target(target)
+        grid.node(*self.data.next_target).connect(
+            grid.node(0, 0), MinimapConnection.PORTAL
+        )
+        await asyncio.to_thread(self._condition.acquire)
+        self.pipe.send(
+            ActionRequest(
+                f"{self} - Casting Door",
+                cast_skill_single_press,
+                priorities.INVENTORY_CLEANUP,
+                block_lower_priority=True,
+                cancel_tasks=[f"Rotation({self.data.ign})"],
+                args=(
+                    self.data.handle,
+                    self.data.ign,
+                    self.data.character.skills["Mystic Door"]
+                ),
+                callbacks=[self._condition.release],
+            )
+        )
+
+    async def _enter_door(self) -> None:
+        self._set_fixed_target((0, 0))
+        await asyncio.to_thread(self._wait_until_minimap_changes)
+
+    def _wait_until_minimap_changes(self) -> None:
+        current_box = self.data.current_entire_minimap_box
+
+        def _predicate():
+            self.data.update_attribute("current_entire_minimap_box")
+            return current_box != self.data.current_entire_minimap_box
+
+        while True:
+            with self._condition:
+                if self._condition.wait_for(_predicate, timeout=1.0):
+                    self._disable_decision_makers("Rotation")
+                    import time
+                    time.sleep(5)
+                    breakpoint()
+                    break

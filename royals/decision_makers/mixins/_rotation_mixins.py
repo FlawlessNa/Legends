@@ -86,6 +86,19 @@ class NextTargetMixin:
             return next_target
 
 
+    def _set_fixed_target(self, target: tuple[int, int]) -> None:
+        """
+        Move to the location where the buffs are cast.
+        """
+        if self.data.has_rotation_attributes:
+            # Overwrite how the next_target attribute is set until the rebuff is done
+            self.data.create_attribute(
+                "next_target",
+                lambda: target,
+            )
+            self._reset_flag = True
+
+
 class MovementsMixin:
     data: BotData
     NO_PATH_FOUND_THRESHOLD: float = 15.0
@@ -94,12 +107,15 @@ class MovementsMixin:
         self,
         duration: float,
     ) -> None:
+
         movement_handler = Movements(
             self.data.ign,
             self.data.handle,
             self.data.character.skills.get("Teleport"),
             self.data.current_minimap,
         )
+        self.data.create_attribute("action_duration", lambda: duration)
+        self.data.create_attribute("movement_handler", lambda: movement_handler)
 
         self.data.create_attribute(
             "path",
@@ -120,3 +136,13 @@ class MovementsMixin:
             ),
         )
         self.data.create_attribute("has_pathing_attributes", lambda: True)
+
+    def _always_release_keys_on_actions(self):
+        actions = self.data.movement_handler.movements_into_action(
+            self.data.movements, self.data.action_duration
+        )
+        if actions is not None:
+            for key in actions.keys_held:
+                if key not in actions.forced_key_releases:
+                    actions.forced_key_releases.append(key)
+        return actions

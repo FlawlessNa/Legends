@@ -165,7 +165,7 @@ class FantasyThemePark1Minimap(MinimapPathingMechanics):
         bottom=92,
         name="bottom_platform",
     )
-    door_spot = list(bottom_platform)[40:-40]
+    door_spot = list(bottom_platform)[80:120]
     leftmost_ramp: MinimapFeature = MinimapFeature(
         left=9,
         right=16,
