@@ -51,17 +51,17 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         self._all_buffs = synchronized_buffs
 
         # Set up the synchronization primitives used across bots with this DecisionMaker
-        self._condition = self.request_proxy(
-            self.metadata, self.__class__.__name__ + "Condition", "Condition", True
+        self._shared_lock = self.request_proxy(
+            self.metadata, self.__class__.__name__ + "Lock", "Lock", True
         )
         self._event = self.request_proxy(
             self.metadata, self.__class__.__name__ + "Event", "Event", True
         )
 
-        # Unique condition is used by this instance and NOT shared.
+        # Unique Lock is used by this instance and NOT shared.
         # Used for buff confirmation
-        self._unique_condition = self.request_proxy(
-            self.metadata, f"{self}", "Condition"
+        self._unique_lock = self.request_proxy(
+            self.metadata, f"{self}", "Lock"
         )
 
         if not self.data.has_minimap_attributes:
@@ -70,7 +70,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         assert self.data.has_minimap_attributes, f"{self} must have minimap attributes"
         location_key = self.__class__.__name__ + "_character_locations"
         rebuff_key = self.__class__.__name__ + "_rebuffed"
-        with self._condition:
+        with self._shared_lock:
             if location_key not in self.metadata:
                 self.metadata[location_key] = dict()
                 self.metadata["ignored_keys"] = self.metadata["ignored_keys"].union(
@@ -105,14 +105,20 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         while True:
             if self._rebuff_status_all_true():
                 logger.log(LOG_LEVEL, "All have successfully been rebuffed.")
-                with self._condition:
-                    self._condition.notify_all()
+                # with self._condition:
+                #     self._condition.notify_all()
                 break
 
-            self._set_ready_state()
+            # self._set_ready_state()
             if self._members_all_in_range():
                 logger.log(LOG_LEVEL, f"{self} confirms all members at location.")
+                await asyncio.to_thread(self._unique_lock.acquire)
+                self.pipe.send(
+                    ActionRequest()
+                )
                 ...  # TODO - Single cast for required members only
+
+            await asyncio.sleep(1.0)
 
             # with self._condition:
             #     print(
@@ -141,7 +147,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         """
         Set the ready state, shared across all PartyRebuff instances from all processes.
         """
-        with self._condition:
+        with self._shared_lock:
             print(
                 f"{_CURRENT_TIME()}: {self} has acquired _condition to set the event flag"
             )
@@ -158,7 +164,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         """
         Reset the ready state as well as the rotation mechanism, if necessary.
         """
-        with self._condition:
+        with self._shared_lock:
             print(
                 f"{_CURRENT_TIME()}: {self} has acquired _condition to reset the event flag"
             )
@@ -195,12 +201,12 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         """
         # while True:
         res = False
-        with self._condition:
+        with self._shared_lock:
             print(
                 f"{_CURRENT_TIME()}: {self} has acquired _condition to update locations and check if all members are in range"
             )
-            if self._condition.wait_for(self._members_all_in_range, timeout=1):
-                self._condition.notify_all()
+            if self._shared_lock.wait_for(self._members_all_in_range, timeout=1):
+                self._shared_lock.notify_all()
                 res = True
         print(
             f"{_CURRENT_TIME()}: {self} has released _condition to update locations and check if all members are in range"
@@ -256,7 +262,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         """
         ident = self.__class__.__name__ + "_rebuffed"
         buff_names = {buff.name for buff in self._buffs}
-        with self._condition:
+        with self._shared_lock:
             self._update_rebuff_status()
             # self._update_shared_location()
             statuses = self.metadata[ident]
@@ -272,7 +278,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         range.
         """
         ident = self.__class__.__name__ + "_character_locations"
-        with self._condition:
+        with self._shared_lock:
             # self._update_rebuff_status()
             self._update_shared_location()
             locations = self.metadata[ident].values()
@@ -293,7 +299,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         :return:
         """
         ident = self.__class__.__name__ + "_rebuffed"
-        with self._condition:
+        with self._shared_lock:
             self._update_rebuff_status()
             # self._update_shared_location()
             statuses = self.metadata[ident].values()
