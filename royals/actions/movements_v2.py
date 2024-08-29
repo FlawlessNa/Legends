@@ -249,7 +249,7 @@ def telecast(
     :return:
     """
     if teleport_key not in structure.keys:
-        print('No telecast possible. Casting ultimate instead')
+        print("No telecast possible. Casting ultimate instead")
         return cast_skill(structure.handle, ign, ultimate_skill)
 
     # Modify the structure such that teleports are combined with ultimate casts

@@ -118,21 +118,21 @@ class DecisionMaker(ABC):
         predicate: callable,
         timeout: float,
         condition: multiprocessing.managers.ConditionProxy = None,  # noqa
-        max_trials: int = 10
+        max_trials: int = 10,
     ) -> None:
         validator = ActionWithValidation(
             self.pipe,
             predicate,
-            condition or getattr(self, '_condition'),
+            condition or getattr(self, "_condition"),
             timeout,
-            max_trials
+            max_trials,
         )
         await validator.execute_async(request)
 
     async def start(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
         tg.create_task(
             asyncio.to_thread(self._disabler_task, tg, *args, **kwargs),
-            name=f"{self} - Disabler"
+            name=f"{self} - Disabler",
         )
         self._decision_task = tg.create_task(
             self._task(*args, **kwargs), name=f"{self}"

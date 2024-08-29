@@ -85,7 +85,6 @@ class NextTargetMixin:
             )
             return next_target
 
-
     def _set_fixed_target(self, target: tuple[int, int]) -> None:
         """
         Move to the location where the buffs are cast.
@@ -107,7 +106,6 @@ class MovementsMixin:
         self,
         duration: float,
     ) -> None:
-
         movement_handler = Movements(
             self.data.ign,
             self.data.handle,

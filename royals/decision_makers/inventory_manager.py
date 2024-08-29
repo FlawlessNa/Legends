@@ -15,13 +15,15 @@ from royals.constants import (
     INVENTORY_CLEANUP_WITH_PARTY_DOOR,
 )
 from royals.model.mechanics import MinimapConnection
-from .mixins import MenusMixin, NextTargetMixin, MovementsMixin
+from .mixins import MenusMixin, NextTargetMixin, MovementsMixin, MinimapAttributesMixin
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 LOG_LEVEL = logging.INFO
 
 
-class InventoryManager(MenusMixin, NextTargetMixin, MovementsMixin, DecisionMaker):
+class InventoryManager(
+    MenusMixin, NextTargetMixin, MovementsMixin, MinimapAttributesMixin, DecisionMaker
+):
     _throttle = 180
     _TIME_LIMIT = 300
     _DISTANCE_TO_DOOR_THRESHOLD = 2
@@ -32,7 +34,7 @@ class InventoryManager(MenusMixin, NextTargetMixin, MovementsMixin, DecisionMake
         data: BotData,
         pipe: multiprocessing.connection.Connection,
         cleanup_procedure: int,
-        space_left_trigger: int = 96,
+        space_left_trigger: int = 97,
         target_tab: str = "Equip",
         **kwargs,
     ) -> None:
@@ -83,7 +85,7 @@ class InventoryManager(MenusMixin, NextTargetMixin, MovementsMixin, DecisionMake
                 lambda: self.data.inventory_menu.is_displayed(
                     self.data.handle, self.data.current_client_img
                 ),
-                timeout=10.0
+                timeout=10.0,
             )
         else:
             await self._validate_request_async(
@@ -91,7 +93,7 @@ class InventoryManager(MenusMixin, NextTargetMixin, MovementsMixin, DecisionMake
                 lambda: not self.data.inventory_menu.is_displayed(
                     self.data.handle, self.data.current_client_img
                 ),
-                timeout=10.0
+                timeout=10.0,
             )
         self.data.update_attribute("inventory_menu_displayed")
 
@@ -115,7 +117,7 @@ class InventoryManager(MenusMixin, NextTargetMixin, MovementsMixin, DecisionMake
             lambda: self.data.inventory_menu.is_extended(
                 self.data.handle, self.data.current_client_img
             ),
-            timeout=10.0
+            timeout=10.0,
         )
         self.data.update_attribute("inventory_menu_extended")
 
@@ -135,8 +137,9 @@ class InventoryManager(MenusMixin, NextTargetMixin, MovementsMixin, DecisionMake
             request,
             lambda: self.data.inventory_menu.get_active_tab(
                 self.data.handle, self.data.current_client_img
-            ) == self._target_tab,
-            timeout=10.0
+            )
+            == self._target_tab,
+            timeout=10.0,
         )
         self.data.update_attribute("inventory_menu_active_tab")
 
@@ -177,8 +180,8 @@ class InventoryManager(MenusMixin, NextTargetMixin, MovementsMixin, DecisionMake
             args=(0,),
             discord_request=DiscordRequest(
                 msg=f"{self.data.ign} only has {self.data.inventory_space_left} "
-                    f"inventory space left",
-            )
+                f"inventory space left",
+            ),
         )
 
     async def _cleanup_with_town_scroll(self) -> None:
@@ -216,7 +219,7 @@ class InventoryManager(MenusMixin, NextTargetMixin, MovementsMixin, DecisionMake
         target = random.choice(door_spot)
         self._set_fixed_target(target)
 
-        # Update action mechanics to ensure keys are always released
+        # Overwrite action mechanics to ensure keys are always released
         self.data.create_attribute("action", self._always_release_keys_on_actions)
         await asyncio.to_thread(self._wait_until_target_reached)
 
@@ -226,13 +229,15 @@ class InventoryManager(MenusMixin, NextTargetMixin, MovementsMixin, DecisionMake
                 if self._condition.wait_for(
                     lambda: math.dist(
                         self.data.current_minimap_position, self.data.next_target
-                    ) < self._DISTANCE_TO_DOOR_THRESHOLD,
-                    timeout=1.0
+                    )
+                    < self._DISTANCE_TO_DOOR_THRESHOLD,
+                    timeout=1.0,
                 ):
                     break
 
     async def _cast_door(self) -> None:
         # TODO - implement validation mechanism to ensure door is properly cast.
+        # Use door image from game files and find a matchTemplate threshold acceptable
         # Create a PORTAL connection to (0, 0) and attempt to move there
         grid = self.data.current_minimap.grid
 
@@ -243,9 +248,12 @@ class InventoryManager(MenusMixin, NextTargetMixin, MovementsMixin, DecisionMake
                 break
             await asyncio.sleep(0.1)
         self._set_fixed_target(target)
+
+        # Add the temporary PORTAL connection
         grid.node(*self.data.next_target).connect(
             grid.node(0, 0), MinimapConnection.PORTAL
         )
+
         await asyncio.to_thread(self._condition.acquire)
         self.pipe.send(
             ActionRequest(
@@ -257,15 +265,17 @@ class InventoryManager(MenusMixin, NextTargetMixin, MovementsMixin, DecisionMake
                 args=(
                     self.data.handle,
                     self.data.ign,
-                    self.data.character.skills["Mystic Door"]
+                    self.data.character.skills["Mystic Door"],
                 ),
                 callbacks=[self._condition.release],
             )
         )
 
     async def _enter_door(self) -> None:
+        door_location = self.data.next_target
         self._set_fixed_target((0, 0))
         await asyncio.to_thread(self._wait_until_minimap_changes)
+        await self._setup_new_map(door_location)
 
     def _wait_until_minimap_changes(self) -> None:
         current_box = self.data.current_entire_minimap_box
@@ -278,7 +288,15 @@ class InventoryManager(MenusMixin, NextTargetMixin, MovementsMixin, DecisionMake
             with self._condition:
                 if self._condition.wait_for(_predicate, timeout=1.0):
                     self._disable_decision_makers("Rotation")
-                    import time
-                    time.sleep(5)
-                    breakpoint()
                     break
+
+    async def _setup_new_map(self, location: tuple[int, int]) -> None:
+        await asyncio.sleep(1.5)
+        # Remove the temporary PORTAL connection
+        grid = self.data.current_minimap.grid
+        grid.node(*location).connections.pop(-1)
+        self.data.current_map = self.data.current_map.path_to_shop
+        self.data.update_attribute("current_minimap")
+        # This will effectively refresh all minimap attributes
+        self._create_minimap_attributes()
+        breakpoint()

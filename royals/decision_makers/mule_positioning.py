@@ -153,6 +153,7 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
                     log=True,
                 )
             )
+            await asyncio.sleep(1.0)
 
     async def _cast_random_buff(self) -> None:
         """Required to remove the game safeguard"""

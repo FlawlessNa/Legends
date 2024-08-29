@@ -213,7 +213,7 @@ class BotData:
     @staticmethod
     def _update_is_change(value: Any, prev_value: Any) -> bool:
         if isinstance(value, np.ndarray):
-            return not np.all(value == prev_value)
+            return not np.array_equal(value, prev_value)
         else:
             return value != prev_value
 

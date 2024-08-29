@@ -19,9 +19,9 @@ leeching_configs = {
     "client_size": CLIENT_SIZE,
     "anti_detection_mob_threshold": 4,
     "anti_detection_time_threshold": 10,
-    "included_buffs": ["Invincible", "Holy Symbol"],
+    "included_buffs": ["Invincible"],
     "synchronized_buffs": SYNCHRONIZED_BUFFS,
-    "cleanup_procedure": constants.INVENTORY_CLEANUP_WITH_SELF_DOOR
+    "cleanup_procedure": constants.INVENTORY_CLEANUP_WITH_SELF_DOOR,
 }
 mule_configs = {
     "synchronized_buffs": SYNCHRONIZED_BUFFS,
@@ -37,10 +37,18 @@ async def main():
         mule1 = bots.LeechMuleWithBuffs(
             "UluLoot", session.metadata, character_class="Hermit", **mule_configs
         )
-        # mule2 = bots.TestBot('FinancialWiz', session.metadata)
-        # mule3 = bots.TestBot('MoneyEngine', session.metadata)
-        # mule4 = bots.TestBot('iYieldMoney', session.metadata)
-        # mule5 = bots.TestBot('BCoinFarm', session.metadata)
+        mule2 = bots.LeechMuleWithoutBuffs(
+            "FinancialWiz", session.metadata, **mule_configs
+        )
+        mule3 = bots.LeechMuleWithoutBuffs(
+            "MoneyEngine", session.metadata, **mule_configs
+        )
+        mule4 = bots.LeechMuleWithoutBuffs(
+            "iYieldMoney", session.metadata, **mule_configs
+        )
+        mule5 = bots.LeechMuleWithoutBuffs(
+            "BCoinFarm", session.metadata, **mule_configs
+        )
         # await session.launch([leecher], [mule1, mule2, mule3, mule4, mule5])
         # await session.launch([leecher],  [mule1])
         await session.launch([leecher])

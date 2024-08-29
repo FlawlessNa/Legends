@@ -326,7 +326,7 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
             condition = self.request_proxy(self.metadata, ident, "Condition")
             tg.create_task(
                 asyncio.to_thread(self._disabler_task, tg, buff, condition),
-                name=f"{ident} - Disabler"
+                name=f"{ident} - Disabler",
             )
             self._decision_task[ident] = tg.create_task(
                 self._task(buff, condition), name=ident
@@ -338,7 +338,7 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
         individual buff.
         :return:
         """
-        ident = f'{self} - {args[0].name}'
+        ident = f"{self} - {args[0].name}"
         while True:
             with self._disabler:
                 # When notified, cancel the task

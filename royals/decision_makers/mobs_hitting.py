@@ -57,7 +57,8 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
             cancel_tasks=[f"Rotation({self.data.ign})"],
             block_lower_priority=True,
             callbacks=[self.lock.release],
-            log=True
+            cancels_itself=True,
+            log=True,
         )
 
     def _get_skill_from_str(self, skill_str: str) -> RoyalsSkill:

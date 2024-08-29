@@ -11,7 +11,7 @@ from .base import RoyalsMap
 @dataclass
 class PathOfTime1(RoyalsMap):
     detection_box: Box = Box(left=0, right=1024, top=60, bottom=700)
-    minimap: PathOfTime1Minimap = PathOfTime1Minimap()
+    minimap: PathOfTime1Minimap = field(default_factory=PathOfTime1Minimap)
     mobs: tuple[BaseMob] = (
         PlatoonChronos(Box(left=0, right=1024, top=29, bottom=700)),
     )

@@ -6,7 +6,7 @@ import win32gui
 from royals.actions import ensure_minimap_displayed
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
-from botting.utilities import Box
+from botting.utilities import Box, take_screenshot
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.WARNING
@@ -57,6 +57,7 @@ class MinimapAttributesMixin:
             "current_minimap_state",
             "current_minimap_area_box",
             "current_entire_minimap_box",
+            "current_minimap_title_box",
             "current_minimap_position",
         )
 
@@ -130,6 +131,18 @@ class MinimapAttributesMixin:
             "current_entire_minimap_box",
             lambda: self.data.current_minimap.get_entire_minimap_box(
                 self.data.handle, self.data.current_client_img
+            ),
+        )
+        self.data.create_attribute(
+            "current_minimap_title_box",
+            lambda: self.data.current_minimap.get_minimap_title_box(
+                self.data.handle, self.data.current_client_img
+            ),
+        ),
+        self.data.create_attribute(
+            "current_minimap_title_img",
+            lambda: take_screenshot(
+                self.data.handle, self.data.current_minimap_title_box
             ),
         )
         self.data.create_attribute(

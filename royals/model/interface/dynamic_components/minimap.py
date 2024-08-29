@@ -58,8 +58,9 @@ class Minimap(InGameDynamicVisuals, ABC):
     _minimap_area_top_offset_partial: int = 22
     _minimap_area_top_offset_full: int = 65
 
+    @classmethod
     def is_displayed(
-        self,
+        cls,
         handle: int,
         client_img: np.ndarray | None = None,
         world_icon_box: Box | None = None,
@@ -71,13 +72,14 @@ class Minimap(InGameDynamicVisuals, ABC):
         :param world_icon_box: If provided, use this box instead of detecting the world icon.
         :return: True if the minimap is either Partially or Fully displayed, False otherwise.
         """
-        return self.get_minimap_state(handle, client_img, world_icon_box) in [
+        return cls.get_minimap_state(handle, client_img, world_icon_box) in [
             "Partial",
             "Full",
         ]
 
+    @classmethod
     def get_minimap_state(
-        self,
+        cls,
         handle: int,
         client_img: np.ndarray | None = None,
         world_icon_box: Box | None = None,
@@ -90,12 +92,12 @@ class Minimap(InGameDynamicVisuals, ABC):
         :return:
         """
         if world_icon_box is None:
-            world_icon_box = self._menu_icon_position(handle, client_img)
+            world_icon_box = cls._menu_icon_position(handle, client_img)
         if world_icon_box:
             detection_box = world_icon_box + Box(
                 offset=True,
-                left=self._menu_icon_left_offset,
-                right=self._menu_icon_right_offset,
+                left=cls._menu_icon_left_offset,
+                right=cls._menu_icon_right_offset,
                 top=0,
                 bottom=0,
             )
@@ -104,7 +106,7 @@ class Minimap(InGameDynamicVisuals, ABC):
             else:
                 detection_img = take_screenshot(handle, detection_box)
             detection_color = cv2.inRange(
-                detection_img, *self._minimap_state_detection_color
+                detection_img, *cls._minimap_state_detection_color
             )
             columns = np.unique(detection_color.nonzero()[1])
             if columns.size > 0:

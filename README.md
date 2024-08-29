@@ -10,6 +10,7 @@
 - [ ] Investigate why sometimes the bot spams ultimate. Is it because the ultimate key is not released properly?
 - [ ] Cleanup party rebuffing and fix for both same-process and multi-process situations
 - [ ] Improve client_handler to avoid need of updating window title on every game update
+- [ ] Customized icon location threshold and refresh acceptance threshold for each buff individually 
 
 ## Performance Branch
 - [ ] Re-implement all former DecisionGenerators into DecisionMakers
