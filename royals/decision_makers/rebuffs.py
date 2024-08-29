@@ -26,7 +26,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         metadata: multiprocessing.managers.DictProxy,
         data: BotData,
         pipe: multiprocessing.connection.Connection,
-        synchronized_buffs: list[str] = None,
+        synchronized_buffs: list[str],
         buff_location: tuple[int, int] = None,
         **kwargs,
     ) -> None:
@@ -36,7 +36,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         # Set the party-buffs specific to the current character
         self._buffs = {
             self.data.character.skills[buff]
-            for buff in synchronized_buffs or []
+            for buff in synchronized_buffs
             if buff in self.data.character.skills
         }
         self._min_duration = min([buff.duration for buff in self._buffs], default=1000)
@@ -67,9 +67,20 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         if not self.data.has_minimap_attributes:
             self._create_minimap_attributes()
 
+        assert self.data.has_minimap_attributes, f"{self} must have minimap attributes"
+        location_key = self.__class__.__name__ + "_character_locations"
+        rebuff_key = self.__class__.__name__ + "_rebuffed"
         with self._condition:
-            self._update_shared_location()
-            self._update_rebuff_status()
+            if location_key not in self.metadata:
+                self.metadata[location_key] = dict()
+                self.metadata["ignored_keys"] = self.metadata["ignored_keys"].union(
+                    {location_key}
+                )
+            if rebuff_key not in self.metadata:
+                self.metadata[rebuff_key] = dict()
+                self.metadata["ignored_keys"] = self.metadata["ignored_keys"].union(
+                    {rebuff_key}
+                )
 
         self._set_ready_state()
         self._reset_flag = False
@@ -81,11 +92,9 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
             await asyncio.wait_for(
                 self._attempt_party_rebuff(), timeout=self._TIME_LIMIT
             )
-        except asyncio.TimeoutError:
-            logger.error(f"{self} - Timeout reached while attempting party rebuff.")
-            raise asyncio.TimeoutError(
-                f"{self} - Timeout reached while attempting party rebuff."
-            )
+        except asyncio.TimeoutError as e:
+            e.add_note(f"{self} timed out while attempting to party rebuff.")
+            raise e
 
         self._reset_state()
 
@@ -94,29 +103,39 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         Attempt to rebuff the party.
         """
         while True:
-            with self._condition:
-                print(
-                    f"{_CURRENT_TIME()}: {self} has acquired _condition to update rebuff status and check status"
-                )
-                # self._update_rebuff_status()
-                if self._condition.wait_for(self._rebuff_status_all_true, timeout=1):
-                    logger.log(LOG_LEVEL, "All have successfully been rebuffed.")
+            if self._rebuff_status_all_true():
+                logger.log(LOG_LEVEL, "All have successfully been rebuffed.")
+                with self._condition:
                     self._condition.notify_all()
-                    break
-            print(
-                f"{_CURRENT_TIME()}: {self} has released _condition to update rebuff status and check status"
-            )
+                break
 
-            print(f"{_CURRENT_TIME()}: {self} is setting the event flag")
             self._set_ready_state()
-            if await asyncio.to_thread(self._wait_for_party_at_location):
+            if self._members_all_in_range():
                 logger.log(LOG_LEVEL, f"{self} confirms all members at location.")
-                # TODO - Change this. If character gets away while attempting to cast, locations are not updated, triggering a timeout.
-                await self._cast_and_confirm(
-                    list(self._buffs),
-                    self._unique_condition,
-                    predicate=self._own_buff_completed,
-                )
+                ...  # TODO - Single cast for required members only
+
+            # with self._condition:
+            #     print(
+            #         f"{_CURRENT_TIME()}: {self} has acquired _condition to update rebuff status and check status"
+            #     )
+            #     if self._condition.wait_for(self._rebuff_status_all_true, timeout=1):
+            #         logger.log(LOG_LEVEL, "All have successfully been rebuffed.")
+            #         self._condition.notify_all()
+            #         break
+            # print(
+            #     f"{_CURRENT_TIME()}: {self} has released _condition to update rebuff status and check status"
+            # )
+            #
+            # print(f"{_CURRENT_TIME()}: {self} is setting the event flag")
+            # self._set_ready_state()
+            # if await asyncio.to_thread(self._wait_for_party_at_location):
+            #     logger.log(LOG_LEVEL, f"{self} confirms all members at location.")
+            #     # TODO - Change this. If character gets away while attempting to cast, locations are not updated, triggering a timeout.
+            #     await self._cast_and_confirm(
+            #         list(self._buffs),
+            #         self._unique_condition,
+            #         predicate=self._own_buff_completed,
+            #     )
 
     def _set_ready_state(self) -> None:
         """
@@ -192,12 +211,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         """
         Update the shared location to the current location.
         """
-        assert self.data.has_minimap_attributes, f"{self} must have minimap attributes"
         ident = self.__class__.__name__ + "_character_locations"
-        if ident not in self.metadata:
-            self.metadata[ident] = dict()
-            self.metadata["ignored_keys"] = self.metadata["ignored_keys"].union({ident})
-
         locations = self.metadata[ident]
         locations[f"{self}"] = self.data.current_minimap_position
         print(f"{_CURRENT_TIME()}: {self} updated locations: {locations}")
@@ -208,12 +222,8 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         Update the rebuffed status for the current member.
         """
         ident = self.__class__.__name__ + "_rebuffed"
-        if ident not in self.metadata:
-            self.metadata[ident] = dict()
-            self.metadata["ignored_keys"] = self.metadata["ignored_keys"].union({ident})
-
         statuses = self.metadata[ident]
-        temp = statuses.setdefault(f"{self}", self._all_buffs).copy()
+        temp = statuses[f"{self}"].copy()
         for buff in temp:
             if self._buff_confirmation(buff):
                 statuses[f"{self}"].remove(buff)
@@ -221,25 +231,23 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         self.metadata[ident] = statuses
 
     def _reset_shared_location(self) -> None:
-        with self._condition:
-            ident = self.__class__.__name__ + "_character_locations"
-            locations = self.metadata[ident]
-            for key in locations:
-                locations[key] = (-100, -100)
-            self.metadata[ident] = locations
-            print(f"{_CURRENT_TIME()}: {self} reset locations: {locations}")
+        ident = self.__class__.__name__ + "_character_locations"
+        locations = self.metadata[ident]
+        for key in locations:
+            locations[key] = (-100, -100)
+        self.metadata[ident] = locations
+        print(f"{_CURRENT_TIME()}: {self} reset locations: {locations}")
 
     def _reset_rebuff_status(self) -> None:
         """
         Reset the rebuffed status for all members.
         """
-        with self._condition:
-            ident = self.__class__.__name__ + "_rebuffed"
-            statuses = self.metadata[ident]
-            for key in statuses:
-                statuses[key] = self._all_buffs
-            self.metadata[ident] = statuses
-            print(f"{_CURRENT_TIME()}: {self} reset rebuff status: {statuses}")
+        ident = self.__class__.__name__ + "_rebuffed"
+        statuses = self.metadata[ident]
+        for key in statuses:
+            statuses[key] = self._all_buffs
+        self.metadata[ident] = statuses
+        print(f"{_CURRENT_TIME()}: {self} reset rebuff status: {statuses}")
 
     def _own_buff_completed(self) -> bool:
         """
@@ -250,7 +258,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         buff_names = {buff.name for buff in self._buffs}
         with self._condition:
             self._update_rebuff_status()
-            self._update_shared_location()
+            # self._update_shared_location()
             statuses = self.metadata[ident]
         print(f"{_CURRENT_TIME()}: {self} Own Buff Done: {statuses}")
         print(
@@ -265,7 +273,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         """
         ident = self.__class__.__name__ + "_character_locations"
         with self._condition:
-            self._update_rebuff_status()
+            # self._update_rebuff_status()
             self._update_shared_location()
             locations = self.metadata[ident].values()
         print(
@@ -287,7 +295,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         ident = self.__class__.__name__ + "_rebuffed"
         with self._condition:
             self._update_rebuff_status()
-            self._update_shared_location()
+            # self._update_shared_location()
             statuses = self.metadata[ident].values()
         print(f"{_CURRENT_TIME()}: {self} checking rebuff status: {statuses}")
         return all(len(status) == 0 for status in statuses) and len(statuses) > 1

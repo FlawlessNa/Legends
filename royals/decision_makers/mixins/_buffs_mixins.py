@@ -101,14 +101,12 @@ class RebuffMixin:
         self,
         buffs: list[RoyalsSkill],
         condition: multiprocessing.managers.ConditionProxy,  # noqa
-        forced: bool = False,
         predicate: callable = None,
     ) -> None:
         """
         Cast the buff and confirm that it was successful.
         :param buffs: The buff to cast.
         :param condition: The condition to wait on.
-        :param forced: Whether to force the cast.
         :return:
         """
         if predicate is None:
@@ -128,7 +126,7 @@ class RebuffMixin:
             timeout=15.0,
             max_trials=10,
         )
-        await validator.execute_async(request, forced)
+        await validator.execute_async(request)
 
     @staticmethod
     def _randomized(duration: float) -> float:
@@ -149,7 +147,8 @@ class RebuffMixin:
     def _debug(self, results: np.ndarray, buff: str, haystack, buff_icon) -> None:
         """
         Show the matchTemplate location for each actual buff, as well as the match
-        results. Can also show processed images for each buff.
+        results.
+        TODO - Can also show processed images for each buff.
         :return:
         """
         if DEBUG:

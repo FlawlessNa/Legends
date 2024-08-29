@@ -2,22 +2,26 @@
 
 ## Bug Fixes
 - [ ] Minimap handling between CheckStillInMap and InventoryManager
-- [ ] Cancellation of NPC Selling seems to be problematic because it has a return value
 - [ ] MobCheck:
   - First alert after X seconds -> disable MobsHitting but keep movements
   - Second alert after 2X seconds -> pause everything except necessary maintenance + random reaction
 - [ ] There's a situation where keys are not released properly, leading to a stuck state
 - [ ] Investigate why sometimes the bot spams ultimate. Is it because the ultimate key is not released properly?
-- [ ] Cleanup party rebuffing and fix for both same-process and multi-process situations
 - [ ] Improve client_handler to avoid need of updating window title on every game update
-- [ ] Customized icon location threshold and refresh acceptance threshold for each buff individually
-- [ ] Handling of in-game Macros efficiently
-- [ ] Better logging of the DCCompatibleObject error -> definitely related to thread-safety.
-  - Investigation suggests take_screenshot is process-safe, but not thread-safe IF the handle is the same.
 
 ## Performance Branch
-- [ ] Re-implement all former DecisionGenerators into DecisionMakers
-  - Implement kill switch as part of fail safes and discord commands
+- [ ] Rebuffing:
+  - [ ] Customized icon location threshold and refresh acceptance threshold for each buff individually
+  - [ ] Handling of in-game Macros efficiently
+  - [ ] Clean up PartyRebuff
+  - [ ] Make sure screenshots are being handled thread-safely
+   
+- [ ] InventoryManager:
+  - [ ] Confirmation of Door being cast properly
+  - [ ] Confirmation of map change using saved minimap title images
+  - [ ] Finalize Procedure
+  - [ ] Make sure screenshots are being handled thread-safely
+- [ ] Implement kill switch as part of fail safes and discord commands
 
 ### Inputs
 - [ ] Change SharedResources to remove un-unused methods

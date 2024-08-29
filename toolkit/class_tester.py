@@ -23,58 +23,58 @@ if __name__ == "__main__":
     mask_frame = np.ones(door_frame_img.shape, dtype=np.uint8)
     mask_frame[door_frame_img == 0] = 0
     masked_door_frame = cv2.bitwise_and(door_frame_img, door_frame_img, mask=mask_frame)
-    breakpoint()
+    # breakpoint()
     while True:
         client_img = take_screenshot(HANDLE)
-        orb = cv2.ORB_create()
-
-        # Detect keypoints and compute descriptors
-        keypoints1, descriptors1 = orb.detectAndCompute(door_img, None)
-        keypoints2, descriptors2 = orb.detectAndCompute(client_img, None)
-
-        # Use BFMatcher to match descriptors
-        bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-        matches = bf.match(descriptors1, descriptors2)
-
-        # Sort matches by distance
-        matches = sorted(matches, key=lambda x: x.distance)
-
-        # Draw the top matches
-        needle_img_matches = cv2.drawMatches(door_img, keypoints1, client_img,
-                                             keypoints2, matches[:10], None,
-                                             flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-
-        # Find the homography
-        if len(matches) > 4:
-            src_pts = np.float32([keypoints1[m.queryIdx].pt for m in matches]).reshape(
-                -1, 1, 2)
-            dst_pts = np.float32([keypoints2[m.trainIdx].pt for m in matches]).reshape(
-                -1, 1, 2)
-            M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-            h, w = door_img.shape
-            pts = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(
-                -1, 1, 2)
-            dst = cv2.perspectiveTransform(pts, M)
-            client_img = cv2.polylines(client_img, [np.int32(dst)], True, 255, 3,
-                                         cv2.LINE_AA)
-
-        # Display the result
-        cv2.imshow('Matches', needle_img_matches)
-        cv2.imshow('Detected', client_img)
-        cv2.waitKey(1)
-        # gray = cv2.cvtColor(client_img, cv2.COLOR_BGR2GRAY)
-        # frame_res = cv2.matchTemplate(gray, masked_door_frame, cv2.TM_SQDIFF)
-        # door_res = cv2.matchTemplate(gray, door_img, cv2.TM_SQDIFF)
+        # orb = cv2.ORB_create()
         #
-        # _, max_frame_val, _, max_frame_loc = cv2.minMaxLoc(frame_res)
-        # _, max_door_val, _, max_door_loc = cv2.minMaxLoc(door_res)
+        # # Detect keypoints and compute descriptors
+        # keypoints1, descriptors1 = orb.detectAndCompute(door_img, None)
+        # keypoints2, descriptors2 = orb.detectAndCompute(client_img, None)
         #
-        # print('Frame', max_frame_val)
-        # print('Door', max_door_val)
+        # # Use BFMatcher to match descriptors
+        # bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+        # matches = bf.match(descriptors1, descriptors2)
         #
-        # # Draw the rectangles
-        # cv2.rectangle(client_img, max_frame_loc, (max_frame_loc[0] + door_frame_img.shape[1], max_frame_loc[1] + door_frame_img.shape[0]), (255, 0, 0), 2)
-        # cv2.rectangle(client_img, max_door_loc, (max_door_loc[0] + door_img.shape[1], max_door_loc[1] + door_img.shape[0]), (0, 0, 255), 2)
-        # cv2.imshow('Client', client_img)
+        # # Sort matches by distance
+        # matches = sorted(matches, key=lambda x: x.distance)
+        #
+        # # Draw the top matches
+        # needle_img_matches = cv2.drawMatches(door_img, keypoints1, client_img,
+        #                                      keypoints2, matches[:10], None,
+        #                                      flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+        #
+        # # Find the homography
+        # if len(matches) > 4:
+        #     src_pts = np.float32([keypoints1[m.queryIdx].pt for m in matches]).reshape(
+        #         -1, 1, 2)
+        #     dst_pts = np.float32([keypoints2[m.trainIdx].pt for m in matches]).reshape(
+        #         -1, 1, 2)
+        #     M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+        #     h, w = door_img.shape
+        #     pts = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(
+        #         -1, 1, 2)
+        #     dst = cv2.perspectiveTransform(pts, M)
+        #     client_img = cv2.polylines(client_img, [np.int32(dst)], True, 255, 3,
+        #                                  cv2.LINE_AA)
+        #
+        # # Display the result
+        # cv2.imshow('Matches', needle_img_matches)
+        # cv2.imshow('Detected', client_img)
         # cv2.waitKey(1)
-        #
+        gray = cv2.cvtColor(client_img, cv2.COLOR_BGR2GRAY)
+        frame_res = cv2.matchTemplate(gray, door_frame_img, cv2.TM_CCOEFF_NORMED, mask=mask_frame)
+        door_res = cv2.matchTemplate(gray, door_img, cv2.TM_CCOEFF_NORMED)
+
+        _, max_frame_val, _, max_frame_loc = cv2.minMaxLoc(frame_res)
+        _, max_door_val, _, max_door_loc = cv2.minMaxLoc(door_res)
+
+        print('Frame', max_frame_val)
+        print('Door', max_door_val)
+
+        # Draw the rectangles
+        cv2.rectangle(client_img, max_frame_loc, (max_frame_loc[0] + door_frame_img.shape[1], max_frame_loc[1] + door_frame_img.shape[0]), (255, 0, 0), 2)
+        cv2.rectangle(client_img, max_door_loc, (max_door_loc[0] + door_img.shape[1], max_door_loc[1] + door_img.shape[0]), (0, 0, 255), 2)
+        cv2.imshow('Client', client_img)
+        cv2.waitKey(1)
+
