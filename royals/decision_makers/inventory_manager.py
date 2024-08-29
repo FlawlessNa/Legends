@@ -291,6 +291,7 @@ class InventoryManager(
                     break
 
     async def _setup_new_map(self, location: tuple[int, int]) -> None:
+        # TODO - Compare the new minimap title img to the saved ones to assert in the expected map.
         await asyncio.sleep(1.5)
         # Remove the temporary PORTAL connection
         grid = self.data.current_minimap.grid

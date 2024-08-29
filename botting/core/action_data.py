@@ -98,42 +98,42 @@ class ActionWithValidation:
         :return:
         """
         action.procedure = self._wrap(action.procedure)
-        if self.validator():
-            return
+        now = time.perf_counter()
 
-        self._run(action)
+        while not self.validator():
+            self._send_and_wait(action, now)
+            self._check_for_trials(action)
 
-    def _run(self, action: ActionRequest) -> None:
-        with self.condition:
-            now = time.perf_counter()
-            while True:
-                self.pipe.send(action)
-                if time.perf_counter() - now > self.timeout:
-                    raise TimeoutError(f"{action.identifier} failed validation")
-                elif not self.condition.wait(timeout=self.timeout):
-                    raise TimeoutError(f"{action.identifier} failed validation")
-                if self.validator():
-                    break
-                self.trials += 1
-                if self.trials >= self.max_trials:
-                    raise TimeoutError(
-                        f"{action.identifier} failed validation after {self.max_trials}"
-                        f" trials."
-                    )
-
-    async def execute_async(self, action: ActionRequest, forced: bool = False) -> None:
+    async def execute_async(self, action: ActionRequest) -> None:
         """
         This must be called from within an Engine process.
         Does not block the Engine process, but instead schedules the action to be
         executed asynchronously.
         :param action:
-        :param forced: Whether to execute the action regardless of the first validation.
         :return:
         """
         action.procedure = self._wrap(action.procedure)
-        if not forced and self.validator():
-            return
-        await asyncio.to_thread(self._run, action)
+        now = time.perf_counter()
+
+        while not self.validator():
+            await asyncio.to_thread(self._send_and_wait, action, now)
+            self._check_for_trials(action)
+
+    def _send_and_wait(self, action: ActionRequest, started_at: float) -> None:
+        with self.condition:
+            self.pipe.send(action)
+            if time.perf_counter() - started_at > self.timeout:
+                raise TimeoutError(f"{action.identifier} failed validation")
+            elif not self.condition.wait(timeout=self.timeout):
+                raise TimeoutError(f"{action.identifier} failed validation")
+
+    def _check_for_trials(self, action: ActionRequest) -> None:
+        self.trials += 1
+        if self.trials >= self.max_trials:
+            raise TimeoutError(
+                f"{action.identifier} failed validation after {self.max_trials}"
+                f" trials."
+            )
 
     def _wrap(self, procedure: callable) -> callable:
         """

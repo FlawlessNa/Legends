@@ -10,7 +10,10 @@
 - [ ] Investigate why sometimes the bot spams ultimate. Is it because the ultimate key is not released properly?
 - [ ] Cleanup party rebuffing and fix for both same-process and multi-process situations
 - [ ] Improve client_handler to avoid need of updating window title on every game update
-- [ ] Customized icon location threshold and refresh acceptance threshold for each buff individually 
+- [ ] Customized icon location threshold and refresh acceptance threshold for each buff individually
+- [ ] Handling of in-game Macros efficiently
+- [ ] Better logging of the DCCompatibleObject error -> definitely related to thread-safety.
+  - Investigation suggests take_screenshot is process-safe, but not thread-safe IF the handle is the same.
 
 ## Performance Branch
 - [ ] Re-implement all former DecisionGenerators into DecisionMakers
@@ -44,25 +47,7 @@
 - [ ] Look into leveraging loop.run_in_executor(concurrent.futures.ProcessPoolExecutor) for CPU-intensive operations?
 - [ ] Make sure to refresh documentation everywhere
 
-## Leeching Branch - TODOs
-- [ ] Multi-client blockers
-- [ ] Multi-client parsers
-  - [x] controller revamp for better focus-lock handling
-    - [ ] Release keys on cancellations only when necessary?
-    - [ ] Rotations - More fluidity? -- Idea: using squeezed_movements, translate into callable functions, but those are only keydowns with no duration and/or keyups. keyups are triggered when movement changes or when focus changes.
-    - [ ] Automated Repeat Feature on anything - not just move (aka Ultimate casting during animation time, etc)
-  - [ ] Improve data management - especially when minimap is being toggled.c
-  - [ ] Task cancellation - Refactor how callbacks are triggered, such that if necessary, a callback coroutine is used to await for some time before updating data
-  - [x] Task cancellation for movements - make "controller.move" cancellable, but other functions (tp, telecast, jump rope, etc.) non-cancellable.
-    - A big advantage is that blocking generators will automatically block generators from other characters on the same engine
-  - [ ] Ability to "reset" generator data? - goes with better data management
-
 ### Inventory Cleanup
-- [ ] Big code clean-up required.
-- [x] Ability to add custom connections (mystic door) from/to current minimap and nearest town
-- [ ] Basic (incomplete) coding of relevant nearest towns - just enough to get to npc
-- [x] NPC selling mechanics
-- [x] CompoundAction implementation
 - [ ] Inventory parsing for godlies?
 - [ ] Storage mechanics
 
@@ -99,7 +84,6 @@
 
 ### Discord
    - [ ] Add a callback on user-messages to confirm action (such as writing to chat) properly made
-   - [ ] Implement multi-bot parser
 
 ### Character detection
   - [ ] Standardize code and transfer detection framework into botting library

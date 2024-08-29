@@ -28,6 +28,7 @@ mule_configs = {
     "game_map": GAME_MAP,
     "client_size": CLIENT_SIZE,
     "detection_configs": DETECTION_CONFIG_SECTION,
+    "skills_to_reset": ["Haste", "Meso Up"]
 }
 
 
@@ -49,9 +50,9 @@ async def main():
         mule5 = bots.LeechMuleWithoutBuffs(
             "BCoinFarm", session.metadata, **mule_configs
         )
-        # await session.launch([leecher], [mule1, mule2, mule3, mule4, mule5])
+        await session.launch([leecher], [mule1, mule2, mule3, mule4, mule5])
         # await session.launch([leecher],  [mule1])
-        await session.launch([leecher])
+        # await session.launch([leecher])
 
 
 if __name__ == "__main__":

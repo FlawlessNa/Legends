@@ -111,6 +111,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
             self._set_ready_state()
             if await asyncio.to_thread(self._wait_for_party_at_location):
                 logger.log(LOG_LEVEL, f"{self} confirms all members at location.")
+                # TODO - Change this. If character gets away while attempting to cast, locations are not updated, triggering a timeout.
                 await self._cast_and_confirm(
                     list(self._buffs),
                     self._unique_condition,
@@ -242,7 +243,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
 
     def _own_buff_completed(self) -> bool:
         """
-        Returns True if any other member is still in need of this member's buffs.
+        Returns False if any other member is still in need of this member's buffs.
         :return:
         """
         ident = self.__class__.__name__ + "_rebuffed"

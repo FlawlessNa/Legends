@@ -3,7 +3,6 @@ import numpy as np
 import os
 
 from abc import ABC
-
 from paths import ROOT
 from botting.utilities import (
     Box,
@@ -57,6 +56,19 @@ class Minimap(InGameDynamicVisuals, ABC):
 
     _minimap_area_top_offset_partial: int = 22
     _minimap_area_top_offset_full: int = 65
+
+    def get_minimap_title_img(self, handle: int) -> np.ndarray:
+        path = os.path.join(
+            ROOT, f"royals/assets/detection_images/{self.__class__.__name__}.png"
+        )
+        if os.path.exists(path):
+            return cv2.imread(path)
+        else:
+            region = self.get_minimap_title_box(handle)
+            img = take_screenshot(handle, region)
+            cv2.imwrite(path, img)
+            return img
+
 
     @classmethod
     def is_displayed(

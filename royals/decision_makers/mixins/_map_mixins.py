@@ -141,8 +141,8 @@ class MinimapAttributesMixin:
         ),
         self.data.create_attribute(
             "current_minimap_title_img",
-            lambda: take_screenshot(
-                self.data.handle, self.data.current_minimap_title_box
+            lambda: self.data.current_minimap.get_minimap_title_img(
+                self.data.handle
             ),
         )
         self.data.create_attribute(

@@ -11,7 +11,7 @@ from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
 from royals.actions.movements_v2 import random_jump
 from royals.actions.skills_related_v2 import cast_skill_single_press
 from royals.actions import priorities
-from .mixins import MinimapAttributesMixin, MovementsMixin
+from .mixins import MinimapAttributesMixin, MovementsMixin, RebuffMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.INFO
@@ -72,13 +72,15 @@ class EnsureSafeSpot(MinimapAttributesMixin, DecisionMaker):
         )
 
 
-class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
+class ResetIdleSafeguard(
+    MinimapAttributesMixin, MovementsMixin, RebuffMixin, DecisionMaker
+):
     """
     DecisionMaker that moves character at every interval.
     Used to ensure actions such as rebuffing still go through after some time.
     """
 
-    _TIME_LIMIT = 300.0
+    _TIME_LIMIT = 240.0
     DISTANCE_THRESHOLD = 2
 
     def __init__(
@@ -86,6 +88,7 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         metadata: multiprocessing.managers.DictProxy,
         data: BotData,
         pipe: multiprocessing.connection.Connection,
+        skills_to_reset: list[str] = None,
         movements_duration: float = 1.0,
         **kwargs,
     ) -> None:
@@ -111,13 +114,15 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         self._feature = self.data.current_minimap.get_feature_containing(
             self._target_position
         )
-        self._skill = random.choice(
-            [
-                skill
-                for skill in self.data.character.skills.values()
-                if skill.type in ["Buff"]
-            ]
-        )
+        self._skills = skills_to_reset or [
+            random.choice(
+                [
+                    skill
+                    for skill in self.data.character.skills.values()
+                    if skill.type in ["Buff"]
+                ]
+            )
+        ]
 
     async def _decide(self) -> None:
         try:
@@ -127,7 +132,7 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             logger.log(LOG_LEVEL, f"{self} is idle. Engaging reset.")
 
         await self._jump_out_of_safe_spot()
-        await self._cast_random_buff()
+        await self._cast_skills_to_reset()
         await self._return_to_safe_spot()
 
     async def _ensure_safe_spot(self) -> None:
@@ -155,18 +160,18 @@ class ResetIdleSafeguard(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             )
             await asyncio.sleep(1.0)
 
-    async def _cast_random_buff(self) -> None:
+    async def _cast_skills_to_reset(self) -> None:
         """Required to remove the game safeguard"""
         await asyncio.to_thread(self.lock.acquire)
         self.pipe.send(
             ActionRequest(
                 f"{self} - Casting Random Buff",
-                cast_skill_single_press,
+                self._cast_skills_single_press,
                 ign=self.data.ign,
                 callbacks=[self.lock.release],
                 priority=priorities.MULE_POSITIONING,
                 block_lower_priority=True,
-                args=(self.data.handle, self.data.ign, self._skill),
+                args=(self.data.handle, self.data.ign, self._skills),
                 log=True,
             )
         )
