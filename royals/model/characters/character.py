@@ -16,7 +16,7 @@ from botting.utilities import (
 from paths import ROOT
 from royals.model.mechanics import RoyalsSkill
 
-DEBUG = False
+DEBUG = True
 
 
 class Character(BaseCharacter, ABC):

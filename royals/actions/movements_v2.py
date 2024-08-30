@@ -259,7 +259,6 @@ def telecast(
         if key == teleport_key and event == "keydown":
             structure.keys[idx] = [teleport_key, ultimate_key]
             structure.events[idx] = ["keydown", "keydown"]
-    print(structure.truncate(ultimate_skill.animation_time))
     return structure.truncate(ultimate_skill.animation_time)
 
 

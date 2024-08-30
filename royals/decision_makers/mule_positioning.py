@@ -114,15 +114,19 @@ class ResetIdleSafeguard(
         self._feature = self.data.current_minimap.get_feature_containing(
             self._target_position
         )
-        self._skills = skills_to_reset or [
-            random.choice(
-                [
-                    skill
-                    for skill in self.data.character.skills.values()
-                    if skill.type in ["Buff"]
-                ]
-            )
-        ]
+        if skills_to_reset:
+            self._skills = [
+                self.data.character.skills[skill] for skill in skills_to_reset
+            ]
+        else:
+            self._skills = [
+                random.choice(
+                    [
+                        skill for skill in self.data.character.skills.values()
+                        if skill.type in ["Buff"]
+                    ]
+                )
+            ]
 
     async def _decide(self) -> None:
         try:

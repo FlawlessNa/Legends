@@ -7,7 +7,10 @@
   - Second alert after 2X seconds -> pause everything except necessary maintenance + random reaction
 - [ ] There's a situation where keys are not released properly, leading to a stuck state
 - [ ] Investigate why sometimes the bot spams ultimate. Is it because the ultimate key is not released properly?
+  - Doesn't look like Telecast continue firing. In fact, it looks like it is not firing at all.
+  - Check if it could be the delays being way too long for some reason?
 - [ ] Improve client_handler to avoid need of updating window title on every game update
+- [ ] Improvements of movements, particularly to avoid hitting while character is crouched
 
 ## Performance Branch
 - [ ] Rebuffing:

@@ -13,7 +13,7 @@ from .royals_skill import RoyalsSkill
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.NOTSET
-DEBUG = True
+DEBUG = False
 
 
 class Movements:

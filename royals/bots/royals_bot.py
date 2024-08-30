@@ -33,14 +33,18 @@ class RoyalsBot(Bot, ABC):
         self.client_size = client_size
         self.game_map = game_map
 
-    def child_init(self, pipe: multiprocessing.connection.Connection) -> None:
+    def child_init(
+        self,
+        pipe: multiprocessing.connection.Connection,
+        barrier: multiprocessing.managers.BarrierProxy
+    ) -> None:
         """
         Called by the Engine to create Bot within Child process.
         Since virtually every bot will at some point require to know the character class
         and be made aware of the minimap position, those attributes are created here for
         convenience.
         """
-        super().child_init(pipe)
+        super().child_init(pipe, barrier)
         self.data.create_attribute(
             "character",
             lambda: self.character_class(

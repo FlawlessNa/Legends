@@ -6,7 +6,8 @@ import multiprocessing.managers
 
 from .mixins import RebuffMixin, NextTargetMixin, MinimapAttributesMixin
 from botting import PARENT_LOG
-from botting.core import DecisionMaker, BotData
+from botting.core import ActionRequest, DecisionMaker, BotData
+from royals.actions import priorities
 from royals.model.mechanics import RoyalsSkill
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
@@ -113,12 +114,26 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
             if self._members_all_in_range():
                 logger.log(LOG_LEVEL, f"{self} confirms all members at location.")
                 await asyncio.to_thread(self._unique_lock.acquire)
-                self.pipe.send(
-                    ActionRequest()
-                )
-                ...  # TODO - Single cast for required members only
+                remaining_buffs = self._get_own_buff_remaining()
+                if remaining_buffs:
+                    to_cast = [
+                        self.data.character.skills[buff] for buff in remaining_buffs
+                    ]
+                    self.pipe.send(
+                        ActionRequest(
+                            f"{self} - {remaining_buffs}",
+                            self._cast_skills_single_press,
+                            self.data.ign,
+                            priority=priorities.BUFFS,
+                            block_lower_priority=True,
+                            args=(self.data.handle, self.data.ign, to_cast),
+                            callbacks=[self._unique_lock.release],
+                        )
+                    )
+                else:
+                    self._unique_lock.release()
 
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(3.0)
 
             # with self._condition:
             #     print(
@@ -229,10 +244,13 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         """
         ident = self.__class__.__name__ + "_rebuffed"
         statuses = self.metadata[ident]
-        temp = statuses[f"{self}"].copy()
-        for buff in temp:
-            if self._buff_confirmation(buff):
-                statuses[f"{self}"].remove(buff)
+        print(f"{_CURRENT_TIME()}: {self} updating status: {statuses}")
+        # TODO - Investigate here, it looks like the dictionary is being updated for all members by a single member.
+        temp = statuses.setdefault(f"{self}", self._all_buffs.copy()).copy()
+        for buff in self._all_buffs.copy():
+            if self._buff_confirmation(buff) and buff in temp:
+                temp.remove(buff)
+        statuses[f"{self}"] = temp
         print(f"{_CURRENT_TIME()}: {self} updated status: {statuses}")
         self.metadata[ident] = statuses
 
@@ -271,6 +289,20 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
             f"{_CURRENT_TIME()}: {self} Own Buff Done: {all(not buff_names.intersection(status) for status in statuses.values())}"
         )
         return all(not buff_names.intersection(status) for status in statuses.values())
+
+    def _get_own_buff_remaining(self) -> list[str]:
+        """
+        Get the list of buffs that still need to be cast, which is the intersection
+        with this member's own buffs and all the other member's remaining buffs.
+        :return:
+        """
+
+        ident = self.__class__.__name__ + "_rebuffed"
+        buff_names = {buff.name for buff in self._buffs}
+        statuses = self.metadata[ident]
+        remaining = set([item for sublist in statuses.values() for item in sublist])
+        return list(buff_names.intersection(remaining))
+
 
     def _members_all_in_range(self) -> bool:
         """

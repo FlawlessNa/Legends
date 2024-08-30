@@ -4,7 +4,7 @@ import multiprocessing.connection
 import multiprocessing.managers
 from functools import cached_property
 
-from botting import PARENT_LOG
+from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
 from botting.utilities import (
     Box,
@@ -51,7 +51,7 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
 
         return ActionRequest(
             f"{self}",
-            inputs.send,
+            self._cap_duration,
             ign=self.data.ign,
             priority=2,
             cancel_tasks=[f"Rotation({self.data.ign})"],
@@ -59,7 +59,21 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
             callbacks=[self.lock.release],
             cancels_itself=True,
             log=True,
+            args=(inputs, )
         )
+
+    @staticmethod
+    async def _cap_duration(  # TODO - If this works, cleanup.
+        inputs: controller.KeyboardInputWrapper
+    ) -> None:
+        """
+        Function to use to update the current on screen position of the character.
+        :return:
+        """
+        try:
+            await asyncio.wait_for(inputs.send(), timeout=inputs.duration * 2)
+        except asyncio.TimeoutError:
+            breakpoint()
 
     def _get_skill_from_str(self, skill_str: str) -> RoyalsSkill:
         if skill_str:

@@ -16,7 +16,7 @@ from royals.model.mechanics import RoyalsSkill
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 LOG_LEVEL = logging.WARNING
-DEBUG = False
+DEBUG = True
 
 
 class RebuffMixin:

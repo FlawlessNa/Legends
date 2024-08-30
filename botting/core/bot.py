@@ -26,21 +26,30 @@ class Bot(ABC):
         return client_handler.get_client_handle(ign, cls.ign_finder)
 
     def __init__(
-        self, ign: str, metadata: multiprocessing.managers.DictProxy, **kwargs
+        self,
+        ign: str,
+        metadata: multiprocessing.managers.DictProxy,
+        **kwargs
     ) -> None:
         self.ign = ign
         self.data = None
         self.metadata = metadata
         self.pipe = None
+        self.barrier = None
         self.kwargs = kwargs
 
-    def child_init(self, pipe: multiprocessing.connection.Connection) -> None:
+    def child_init(
+        self,
+        pipe: multiprocessing.connection.Connection,
+        barrier: multiprocessing.managers.BarrierProxy
+    ) -> None:
         """
         Called by the Engine to create Bot within Child process.
         """
         self.data = BotData(self.ign)
         self.data.create_attribute("handle", lambda: self.get_handle_from_ign(self.ign))
         self.pipe = pipe
+        self.barrier = barrier
 
     async def start(self) -> None:
         """
@@ -49,8 +58,10 @@ class Bot(ABC):
         if required.
         """
         async with asyncio.TaskGroup() as tg:
-            for decision_maker in self.decision_makers:
-                tg.create_task(decision_maker.start(tg), name=f"{decision_maker}")
+            decision_makers = self.decision_makers  # Instantiate DecisionMakers.
+            await asyncio.to_thread(self.barrier.wait)
+            for dm in decision_makers:
+                tg.create_task(dm.start(tg), name=f"{dm}")
 
     @cached_property
     def decision_makers(self) -> list[DecisionMaker]:

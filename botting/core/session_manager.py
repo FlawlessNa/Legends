@@ -64,6 +64,7 @@ class SessionManager:
         self.management_task: asyncio.Task | None = None
         self.main_bot = None
         self.bots = []
+        self.barrier = None  # Used to start all tasks simultaneously.
 
     def __enter__(self) -> Self:
         """
@@ -124,10 +125,13 @@ class SessionManager:
         :return:
         """
         self.main_bot = grouped_bots[0][0]
+        self.barrier = self.process_manager.Barrier(
+            sum(len(group) for group in grouped_bots)
+        )
         for group in grouped_bots:
             self.bots.extend(group)
             engine_side, listener_side = multiprocessing.Pipe()
-            engine_proc = Engine.start(engine_side, self.metadata, group)
+            engine_proc = Engine.start(engine_side, self.metadata, group, self.barrier)
             engine_listener = Engine.listener(
                 listener_side,
                 self.task_manager.queue,

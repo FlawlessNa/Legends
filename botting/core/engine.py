@@ -22,6 +22,7 @@ class _ChildProcessEngine:
         pipe: multiprocessing.connection.Connection,
         metadata: multiprocessing.managers.DictProxy,
         bots: list[Bot],
+        barrier: multiprocessing.managers.BarrierProxy
     ) -> None:
         assert multiprocessing.current_process().name != "MainProcess"
         self.pipe = pipe
@@ -29,6 +30,7 @@ class _ChildProcessEngine:
         self.bots = bots
         self.bot_tasks: list[asyncio.Task] = []
         self.main_listener: asyncio.Task | None = None
+        self.barrier = barrier
 
     def __repr__(self):
         return f"{self.__class__.__name__}({', '.join([b.ign for b in self.bots])})"
@@ -39,6 +41,7 @@ class _ChildProcessEngine:
         pipe: multiprocessing.connection.Connection,
         metadata: multiprocessing.managers.DictProxy,
         bots: list[Bot],
+        barrier: multiprocessing.managers.BarrierProxy,
     ) -> None:
         """
         Child Process Entry Point.
@@ -47,10 +50,12 @@ class _ChildProcessEngine:
         :param pipe: a multiprocessing.Connection instance.
         :param metadata: a multiprocessing.Manager.dict() instance.
         :param bots: a list of Bot instances to include.
+        :param barrier: a multiprocessing.Barrier instance, used to start all bots at
+        the same time.
         :return:
         """
         setup_child_proc_logging(metadata["logging_queue"])
-        engine = cls(pipe, metadata, bots)
+        engine = cls(pipe, metadata, bots, barrier)
         logger.info(f"{engine} Started.")
         asyncio.run(engine._cycle_forever())
 
@@ -63,7 +68,7 @@ class _ChildProcessEngine:
         asyncio.current_task().set_name(f"MainTask - {self}")
         try:
             for bot in self.bots:
-                bot.child_init(self.pipe)
+                bot.child_init(self.pipe, self.barrier)
                 self.bot_tasks.append(
                     asyncio.create_task(bot.start(), name=f"Bot({bot.ign})")
                 )
@@ -135,6 +140,7 @@ class Engine(_ChildProcessEngine):
         pipe: multiprocessing.connection.Connection,
         metadata: multiprocessing.managers.DictProxy,
         bots: list[Bot],
+        barrier: multiprocessing.managers.BarrierProxy,
     ) -> multiprocessing.Process:
         """
         Called from the MainProcess.
@@ -142,13 +148,15 @@ class Engine(_ChildProcessEngine):
         :param pipe: a multiprocessing.Connection instance.
         :param metadata: a multiprocessing.Manager.dict() instance.
         :param bots: a list of Bot instances to include.
+        :param barrier: a multiprocessing.Barrier instance, used to start all bots at
+        the same time.
         :return:
         """
         assert multiprocessing.current_process().name == "MainProcess"
         process = multiprocessing.Process(
             target=cls._spawn_engine,
             name=f"Engine({', '.join([b.ign for b in bots])})",
-            args=(pipe, metadata, bots),
+            args=(pipe, metadata, bots, barrier),
         )
         process.start()
         return process
