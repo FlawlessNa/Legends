@@ -97,7 +97,6 @@ class TrainingEngine(DecisionEngine):
     def next_map_rotation(self) -> DecisionGenerator:
         return SmartRotationGenerator(
             self.game_data,
-            self.rotation_lock,
             self._training_skill,
             self._mob_count_threshold,
             teleport=self._teleport_skill,
