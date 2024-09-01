@@ -49,9 +49,6 @@ class Rotation(
 
         # Minimap attributes
         self._create_minimap_attributes()
-        self.data.current_minimap.generate_grid_template(
-            self._teleport_skill is not None
-        )
 
         # Rotation attributes
         self._create_rotation_attributes()
@@ -95,7 +92,7 @@ class Rotation(
             threshold=self.NO_PATH_KILL_SWITCH,
             response=...,  # TODO - Kill switch
         )
-        self._sentinel_starts_at = time.perf_counter() + 20.0
+        self._sentinel_starts_at = time.perf_counter() + 60.0
 
     async def _decide(self) -> None:
         self._failsafe_checks()  # Check each time, no need to wait for lock
@@ -144,9 +141,7 @@ class Rotation(
 
         return ActionRequest(
             f"{self} - Failsafe",
-            random_jump(
-                self.data.handle, controller.key_binds(self.data.ign)["jump"]
-            ).send,
+            self._wait_and_random_jump,
             ign=self.data.ign,
             priority=priorities.FAILSAFE,
             requeue_if_not_scheduled=True,
@@ -154,4 +149,10 @@ class Rotation(
             cancels_itself=True,
             cancel_tasks=[f"{self}"],
             discord_request=alert,
+            args=(self.data.handle, controller.key_binds(self.data.ign)["jump"]),
         )
+
+    @staticmethod
+    async def _wait_and_random_jump(handle: int, jump_key: str) -> None:
+        await asyncio.sleep(3.0)
+        await random_jump(handle, jump_key).send()

@@ -106,30 +106,32 @@ class MovementsMixin:
         self,
         duration: float,
     ) -> None:
-        movement_handler = Movements(
-            self.data.ign,
-            self.data.handle,
-            self.data.character.skills.get("Teleport"),
-            self.data.current_minimap,
-        )
         self.data.create_attribute("action_duration", lambda: duration)
-        self.data.create_attribute("movement_handler", lambda: movement_handler)
+        self.data.create_attribute(
+            "movement_handler",
+            lambda: Movements(
+                self.data.ign,
+                self.data.handle,
+                self.data.character.skills.get("Teleport"),
+                self.data.current_minimap
+            )
+        )
 
         self.data.create_attribute(
             "path",
-            lambda: movement_handler.compute_path(
+            lambda: self.data.movement_handler.compute_path(
                 self.data.current_minimap_position, self.data.next_target
             ),
             threshold=0.1,
         )
         self.data.create_attribute(
             "movements",
-            lambda: movement_handler.path_into_movements(self.data.path),
+            lambda: self.data.movement_handler.path_into_movements(self.data.path),
             threshold=0.1,
         )
         self.data.create_attribute(
             "action",
-            lambda: movement_handler.movements_into_action(
+            lambda: self.data.movement_handler.movements_into_action(
                 self.data.movements, duration
             ),
         )

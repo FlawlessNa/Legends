@@ -11,19 +11,20 @@
   - Check if it could be the delays being way too long for some reason?
 - [ ] Improve client_handler to avoid need of updating window title on every game update
 - [ ] Improvements of movements, particularly to avoid hitting while character is crouched
+- [ ] Looks like there's an existing bug between window switching and key releases
 
 ## Performance Branch
 - [ ] Rebuffing:
   - [ ] Customized icon location threshold and refresh acceptance threshold for each buff individually
   - [ ] Handling of in-game Macros efficiently
   - [ ] Clean up PartyRebuff
-  - [ ] Make sure screenshots are being handled thread-safely
+  - [x] Make sure screenshots are being handled thread-safely
    
 - [ ] InventoryManager:
   - [ ] Confirmation of Door being cast properly
-  - [ ] Confirmation of map change using saved minimap title images
   - [ ] Finalize Procedure
-  - [ ] Make sure screenshots are being handled thread-safely
+  - [ ] Breakdown of the class between interface components and actual decision-making
+
 - [ ] Implement kill switch as part of fail safes and discord commands
 
 ### Inputs

@@ -101,13 +101,17 @@ class MinimapAttributesMixin:
             self.data.ign,
             self.pipe,
             self.data.current_minimap,
-            DecisionMaker.request_proxy(
-                self.metadata,
-                f"{self} Initial Setup",
-                "Condition",
+            getattr(
+                self,
+                '_condition',
+                DecisionMaker.request_proxy(
+                    self.metadata,
+                    f"{self} Initial Setup",
+                    "Condition",
+                )
             ),
             self.ERROR_HANDLING_TIME_LIMIT,
-        )
+            )
         self.data.create_attribute(
             "minimap_currently_displayed",
             lambda: self.data.current_minimap.is_displayed(
@@ -150,5 +154,8 @@ class MinimapAttributesMixin:
             self._get_minimap_pos,
             threshold=self.MINIMAP_POS_REFRESH_RATE,
             error_handler=self._minimap_pos_error_handler,
+        )
+        self.data.current_minimap.generate_grid_template(
+            self.data.character.skills.get("Teleport") is not None
         )
         self.data.create_attribute("has_minimap_attributes", lambda: True)

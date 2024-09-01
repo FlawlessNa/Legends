@@ -160,6 +160,7 @@ class DecisionMaker(ABC):
     def _disabler_task(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
         """
         Listens for a disable request.
+        TODO - Add failsafe to only add back into tg if not already in there?
         :return:
         """
         while True:

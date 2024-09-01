@@ -11,4 +11,5 @@ MAPPING = {
     "Assassin": Assassin,
     "Hermit": Hermit,
     "WizardFirePoison": FPWizard,
+    "MageFirePoison": FPMage,
 }

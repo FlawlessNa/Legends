@@ -20,7 +20,8 @@ _CURRENT_TIME = lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, DecisionMaker):
     _TIME_LIMIT = 120  # An error is triggered after 2 minutes of waiting
     # TODO - Deal with Macros as well.
-    # TODO - Could potentially use nested DictProxy or ListProxy within metadata to facilitate synchronization.
+    # TODO - Figure out a system to reduce sleep time on each iteration while prevent multiple rebuffing from same member.
+    # Could try something like who update the rebuff status last, but it needs to work even if both members in same process.
 
     def __init__(
         self,
@@ -106,11 +107,8 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         while True:
             if self._rebuff_status_all_true():
                 logger.log(LOG_LEVEL, "All have successfully been rebuffed.")
-                # with self._condition:
-                #     self._condition.notify_all()
                 break
 
-            # self._set_ready_state()
             if self._members_all_in_range():
                 logger.log(LOG_LEVEL, f"{self} confirms all members at location.")
                 await asyncio.to_thread(self._unique_lock.acquire)
@@ -134,29 +132,6 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
                     self._unique_lock.release()
 
             await asyncio.sleep(3.0)
-
-            # with self._condition:
-            #     print(
-            #         f"{_CURRENT_TIME()}: {self} has acquired _condition to update rebuff status and check status"
-            #     )
-            #     if self._condition.wait_for(self._rebuff_status_all_true, timeout=1):
-            #         logger.log(LOG_LEVEL, "All have successfully been rebuffed.")
-            #         self._condition.notify_all()
-            #         break
-            # print(
-            #     f"{_CURRENT_TIME()}: {self} has released _condition to update rebuff status and check status"
-            # )
-            #
-            # print(f"{_CURRENT_TIME()}: {self} is setting the event flag")
-            # self._set_ready_state()
-            # if await asyncio.to_thread(self._wait_for_party_at_location):
-            #     logger.log(LOG_LEVEL, f"{self} confirms all members at location.")
-            #     # TODO - Change this. If character gets away while attempting to cast, locations are not updated, triggering a timeout.
-            #     await self._cast_and_confirm(
-            #         list(self._buffs),
-            #         self._unique_condition,
-            #         predicate=self._own_buff_completed,
-            #     )
 
     def _set_ready_state(self) -> None:
         """
@@ -210,24 +185,6 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
             print(f"{_CURRENT_TIME()}: {self}: Time to rebuff")
             self._set_ready_state()
 
-    def _wait_for_party_at_location(self) -> bool:
-        """
-        Wait for the party to be ready to rebuff (e.g. at target location).
-        """
-        # while True:
-        res = False
-        with self._shared_lock:
-            print(
-                f"{_CURRENT_TIME()}: {self} has acquired _condition to update locations and check if all members are in range"
-            )
-            if self._shared_lock.wait_for(self._members_all_in_range, timeout=1):
-                self._shared_lock.notify_all()
-                res = True
-        print(
-            f"{_CURRENT_TIME()}: {self} has released _condition to update locations and check if all members are in range"
-        )
-        return res
-
     def _update_shared_location(self) -> None:
         """
         Update the shared location to the current location.
@@ -245,7 +202,6 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         ident = self.__class__.__name__ + "_rebuffed"
         statuses = self.metadata[ident]
         print(f"{_CURRENT_TIME()}: {self} updating status: {statuses}")
-        # TODO - Investigate here, it looks like the dictionary is being updated for all members by a single member.
         temp = statuses.setdefault(f"{self}", self._all_buffs.copy()).copy()
         for buff in self._all_buffs.copy():
             if self._buff_confirmation(buff) and buff in temp:
@@ -273,23 +229,6 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         self.metadata[ident] = statuses
         print(f"{_CURRENT_TIME()}: {self} reset rebuff status: {statuses}")
 
-    def _own_buff_completed(self) -> bool:
-        """
-        Returns False if any other member is still in need of this member's buffs.
-        :return:
-        """
-        ident = self.__class__.__name__ + "_rebuffed"
-        buff_names = {buff.name for buff in self._buffs}
-        with self._shared_lock:
-            self._update_rebuff_status()
-            # self._update_shared_location()
-            statuses = self.metadata[ident]
-        print(f"{_CURRENT_TIME()}: {self} Own Buff Done: {statuses}")
-        print(
-            f"{_CURRENT_TIME()}: {self} Own Buff Done: {all(not buff_names.intersection(status) for status in statuses.values())}"
-        )
-        return all(not buff_names.intersection(status) for status in statuses.values())
-
     def _get_own_buff_remaining(self) -> list[str]:
         """
         Get the list of buffs that still need to be cast, which is the intersection
@@ -311,7 +250,6 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         """
         ident = self.__class__.__name__ + "_character_locations"
         with self._shared_lock:
-            # self._update_rebuff_status()
             self._update_shared_location()
             locations = self.metadata[ident].values()
         print(
@@ -333,11 +271,9 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         ident = self.__class__.__name__ + "_rebuffed"
         with self._shared_lock:
             self._update_rebuff_status()
-            # self._update_shared_location()
             statuses = self.metadata[ident].values()
         print(f"{_CURRENT_TIME()}: {self} checking rebuff status: {statuses}")
         return all(len(status) == 0 for status in statuses) and len(statuses) > 1
-
 
 class SoloRebuff(RebuffMixin, DecisionMaker):
     # TODO - Deal with Macros as well.

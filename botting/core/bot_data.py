@@ -242,5 +242,7 @@ class BotData:
         self._attributes.setdefault(name, initial_value)
         if error_handler is not None:
             self._error_handlers[name] = error_handler
+        else:
+            self._error_handlers.pop(name, None)
         if not initial_value:
             self.update_attribute(name)
