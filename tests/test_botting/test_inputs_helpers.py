@@ -3,7 +3,7 @@ import string
 import win32gui
 
 from unittest import TestCase
-from botting.core.controller.inputs.inputs_helpers import (
+from botting.controller import (
     _setup_exported_functions,
     _get_virtual_key,
     _keyboard_layout_handle,

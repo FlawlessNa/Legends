@@ -4,11 +4,10 @@ import multiprocessing
 from botting import EngineData, Executor, SessionManager
 from botting.core import DecisionEngine, DecisionGenerator
 from botting.utilities import client_handler
-from royals.engines.generators import TelecastRotationGenerator
-from royals.engines.generators import PartyRebuff, InventoryManager
-from royals.characters import Bishop
+from royals._old.engines import InventoryManager
+from royals.model.characters import Bishop
 from royals import RoyalsData, royals_ign_finder
-from royals.maps import LudiFreeMarket, PathOfTime1, MuddyBanks2, FantasyThemePark1
+from royals.model.maps import FantasyThemePark1
 
 
 IGN = "WrongDoor"
@@ -22,15 +21,11 @@ DATA_INSTANCE = RoyalsData(
     character=Bishop(IGN, "Elephant Cape", "large"),
     # current_minimap_position=CURRENT_MAP().minimap.get_character_positions(HANDLE)
 )
-DATA_INSTANCE.update(
-    'current_minimap_area_box',
-    'current_minimap_position'
-)
+DATA_INSTANCE.update("current_minimap_area_box", "current_minimap_position")
 ENGINE_KWARGS = {}
 # GENERATOR_KWARGS = dict(ultimate=DATA_INSTANCE.character.skills["Genesis"], teleport_skill=DATA_INSTANCE.character.skills["Teleport"], mob_threshold=5)
 GENERATOR_KWARGS = dict(
-    procedure=InventoryManager.PROC_USE_MYSTIC_DOOR,
-    space_left_alert=96
+    procedure=InventoryManager.PROC_USE_MYSTIC_DOOR, space_left_alert=96
 )
 
 
@@ -69,7 +64,7 @@ class MockEngine(DecisionEngine):
 
 async def main(*bots: Executor) -> None:
     with SessionManager(*bots) as session:
-        await session.launch()
+        await session.start()
 
 
 if __name__ == "__main__":

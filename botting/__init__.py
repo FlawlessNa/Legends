@@ -10,9 +10,7 @@ import os
 import pytesseract
 import time
 
-from .core import SessionManager, Executor, EngineData
 from paths import ROOT, TESSERACT
-
 
 PARENT_LOG = __name__
 pytesseract.pytesseract.tesseract_cmd = TESSERACT
@@ -38,9 +36,7 @@ if current_process.name == "MainProcess":
                     record.__dict__[attr] = record.__dict__[attr].removeprefix(
                         "botting."
                     )
-                    record.__dict__[attr] = record.__dict__[attr].removeprefix(
-                        "core."
-                    )
+                    record.__dict__[attr] = record.__dict__[attr].removeprefix("core.")
                     record.__dict__[attr] = record.__dict__[attr].removeprefix(
                         "royals."
                     )
@@ -51,7 +47,10 @@ if current_process.name == "MainProcess":
             return super().format(record)
 
     formatter = CustomFormatter(
-        fmt="{levelname} -- PROCESS {processName} -- MODULE {name} -- {asctime}:::{message}",
+        fmt=(
+            "{levelname} -- PROCESS {processName} -- MODULE {name} -- "
+            "{asctime}:::{message}"
+        ),
         style="{",
         datefmt="%Y.%m.%d. %H:%M:%S",
     )  # TODO - If you ever switch to 3.12, then add TASK %(taskName)s to the formatter

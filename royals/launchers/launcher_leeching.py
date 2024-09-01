@@ -9,22 +9,14 @@ import multiprocessing
 from functools import partial
 
 import botting
-import royals.characters
-import royals.engines
-import royals.maps
 import royals.parsers
 
 
 LEECHER_IGN = "WrongDoor"
 LEECHER_CLASS = royals.characters.Bishop
-LEECHER_BUFFS_TO_USE = ['Invincible']
+LEECHER_BUFFS_TO_USE = ["Magic Guard", "Invincible"]
 LEECHER_NUM_PETS = 3
-BUFFS_TO_SYNCHRONIZE = [
-    "Holy Symbol",
-    "Maple Warrior",
-    "Haste",
-    "Mesos Up"
-]
+BUFFS_TO_SYNCHRONIZE = ["Holy Symbol", "Maple Warrior", "Haste"]
 
 BUFF_MULES_IGN = ["UluLoot", "BCoinFarm", "iYieldMoney", "MoneyEngine", "FinancialWiz"]
 BUFF_MULES_CLASSES = [royals.characters.Hermit] + [royals.characters.Magician] * 4
@@ -45,7 +37,7 @@ DISCORD_PARSER = royals.parsers.single_bot_parser  # TODO - Change to multi_bot_
 async def main(*bots: botting.Executor) -> None:
     botting.Executor.update_discord_parser(DISCORD_PARSER)
     with botting.SessionManager(*bots) as session:
-        await session.launch()
+        await session.start()
 
 
 if __name__ == "__main__":

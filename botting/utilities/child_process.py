@@ -1,72 +1,21 @@
-import logging
 import logging.handlers
-import multiprocessing.connection
+import multiprocessing
 
-import botting
+from botting import PARENT_LOG
 
 
-class ChildProcess:
+def setup_child_proc_logging(log_queue: multiprocessing.Queue) -> None:
     """
-    Base class for any child process (spawned through multiprocessing.Process).
-    Ensures that the child process has a connection to the main process through a pipe.
-    Any log entries created by a child process is sent to a logging.QueueHandler.
-    The Main Process has a QueueListener to retrieve those log entries and handle them.
-    This allows for all logs to be centralized into the same file.
+    Sets up the logging for the child process.
+    :param log_queue: The multiprocessing.Queue instance to which the log entries
+     will be sent by a logging.handlers.QueueHandler.
+    :return: None
     """
+    queue_handler = logging.handlers.QueueHandler(log_queue)
+    queue_handler.setLevel(logging.DEBUG)
 
-    log_queue: multiprocessing.Queue = None
-
-    def __new__(
-        cls,
-        log_queue: multiprocessing.Queue,
-        pipe_end: multiprocessing.connection.Connection,
-        *args,
-        **kwargs
-    ) -> "ChildProcess":
-        """
-        Before creating a new instance, ensure that the class attribute
-         log_queue is not set.
-        This certifies that there is only a single instance of ChildProcess
-         per Python Process.
-        Then, set the log_queue and create a new instance of the class.
-        :param log_queue: The multiprocessing.Queue instance to which the log entries
-         will be sent by a logging.handlers.QueueHandler.
-        :param pipe_end: The end of the pipe that is connected to the main process,
-         used to communicate anything other than log records.
-        :return: The instance of the class.
-        """
-        instance = object.__new__(cls)
-        if cls.log_queue is None:
-            cls.log_queue = log_queue
-        else:
-            raise RuntimeError(
-                "There should only be a single ChildProcess instance per Python Process."
-            )
-        return instance
-
-    def __init__(
-        self,
-        log_queue: multiprocessing.Queue,
-        pipe_end: multiprocessing.connection.Connection,
-    ) -> None:
-        """
-        For each child process, we want to ensure that the log entries are sent
-         to the same queue by a QueueHandler. Therefore, we remove all other handlers
-         from the parent logger and add a QueueHandler instead. That way, any loggers
-         created in child process will only have the QueueHandler and no other handler.
-        :param log_queue: The multiprocessing.Queue instance to which the log entries
-         will be sent by a logging.handlers.QueueHandler.
-        :param pipe_end: ChildProcess end of the pipe, used to communicate with parent.
-        """
-        assert (
-            self.log_queue is log_queue
-        ), "Log Queue must be set before creating any child process."
-        self.pipe_end = pipe_end
-        queue_handler = logging.handlers.QueueHandler(log_queue)
-        queue_handler.setLevel(logging.DEBUG)
-
-        root = logging.getLogger(botting.PARENT_LOG)
-        while root.hasHandlers():
-            root.handlers[0].close()
-            root.removeHandler(root.handlers[0])
-        root.addHandler(queue_handler)
+    root = logging.getLogger(PARENT_LOG)
+    while root.hasHandlers():
+        root.handlers[0].close()
+        root.removeHandler(root.handlers[0])
+    root.addHandler(queue_handler)

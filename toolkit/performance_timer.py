@@ -3,9 +3,9 @@ from timeit import timeit
 from botting.utilities import client_handler
 from royals import royals_ign_finder
 
-from royals.models_implementations.minimaps import LudiFreeMarketTemplateMinimap
-from royals.models_implementations.mechanics.path_into_movements import get_to_target
-from royals.characters import Bishop
+from royals.model.minimaps import LudiFreeMarketTemplateMinimap
+from royals._old.path_into_movements import get_to_target
+from royals.model.characters import Bishop
 
 test = LudiFreeMarketTemplateMinimap()
 test.generate_grid_template(True)

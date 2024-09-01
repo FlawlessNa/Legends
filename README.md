@@ -1,56 +1,61 @@
 # Royals-V2
 
-# Todo before all the rest below
-- [x] Complete stable MB2 and merge onto dev
-- [ ] Upon initialization, compute ALL possible paths from source to target within map. Cache this data and re-use forever during session.
-- [ ] Idea to test: For re-buffing, try converting each buff icon into binary and save those. Then, use as kernels instead of matchTemplate.
-- [ ] Recycle performance-improvements for all components already finished and merge onto dev
-- [ ] Finish core refactoring of performance-improvements
-- [ ] Flexible map movements, speed, jumps, etc.
-- [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
-
-## Bug Fixes (Current Branch)
+## Bug Fixes
 - [ ] Minimap handling between CheckStillInMap and InventoryManager
-- [ ] Cancellation of NPC Selling seems to be problematic because it has a return value
-- [ ] Party Re-buff is broken (casts way too much), for casting non-attack skill (since there's a rebuff validation), can simply cast once.
-  - Split into individual buffs and only re-cast buffs that didn't go through
-- [ ] Fix algo for returning from shop - add prints of horizontal distances and such.
+- [ ] MobCheck:
+  - First alert after X seconds -> disable MobsHitting but keep movements
+  - Second alert after 2X seconds -> pause everything except necessary maintenance + random reaction
+- [ ] There's a situation where keys are not released properly, leading to a stuck state
+- [ ] Investigate why sometimes the bot spams ultimate. Is it because the ultimate key is not released properly?
+  - Doesn't look like Telecast continue firing. In fact, it looks like it is not firing at all.
+  - Check if it could be the delays being way too long for some reason?
+- [ ] Improve client_handler to avoid need of updating window title on every game update
+- [ ] Improvements of movements, particularly to avoid hitting while character is crouched
+- [ ] Looks like there's an existing bug between window switching and key releases
 
 ## Performance Branch
-- [ ] Major Refactoring of Generators - needs to be easier to implement.
-- [ ] Add logging everywhere -> use level 0 to disable thru a CONSTANT for each relevant script
-- [ ] Ability to use Multiple clients within a single Engine
-  - Create a new layer "Client" within each Engine -> Each client has its own data and generators
-  - Engine now groups those "Client" and runs then asynchronously.
-  - Need to have multiple instances of EngineData for 1 engine (1 instance per client)
-  - Blockers/Unblockers need to be work for each client individually
-- [ ] Ability to only retrieve first action in pathfinding parser instead of entire actions
-- [ ] Look into leveraging psutil for performance monitoring of CPU resources by client/process
-- [ ] Look into using Profilers (cProfile, line_profiler) to identify bottlenecks in the code
-- [ ] Look into "blocked" generators could wait on a mp.Event/Condition semaphore to reduce CPU consumption
-- [ ] Convert generators into asynchronous generators? Each becomes an infinite "task" (in child process) that run concurrently
-  - With this framework, perhaps each generator can await on a QueueAction it submits and this "blocks" itself for the duration
-- [ ] Look into using asyncio DEBUG mode (PYTHONASYNCIODEBUG=1) to identify potential issues with the code
+- [ ] Rebuffing:
+  - [ ] Customized icon location threshold and refresh acceptance threshold for each buff individually
+  - [ ] Handling of in-game Macros efficiently
+  - [ ] Clean up PartyRebuff
+  - [x] Make sure screenshots are being handled thread-safely
+   
+- [ ] InventoryManager:
+  - [ ] Confirmation of Door being cast properly
+  - [ ] Finalize Procedure
+  - [ ] Breakdown of the class between interface components and actual decision-making
 
-## Leeching Branch - TODOs
-- [ ] Multi-client blockers
-- [ ] Multi-client parsers
-  - [x] controller revamp for better focus-lock handling
-    - [ ] Release keys on cancellations only when necessary?
-    - [ ] Rotations - More fluidity? -- Idea: using squeezed_movements, translate into callable functions, but those are only keydowns with no duration and/or keyups. keyups are triggered when movement changes or when focus changes.
-    - [ ] Automated Repeat Feature on anything - not just move (aka Ultimate casting during animation time, etc)
-  - [ ] Improve data management - especially when minimap is being toggled.c
-  - [ ] Task cancellation - Refactor how callbacks are triggered, such that if necessary, a callback coroutine is used to await for some time before updating data
-  - [x] Task cancellation for movements - make "controller.move" cancellable, but other functions (tp, telecast, jump rope, etc.) non-cancellable.
-    - A big advantage is that blocking generators will automatically block generators from other characters on the same engine
-  - [ ] Ability to "reset" generator data? - goes with better data management
+- [ ] Implement kill switch as part of fail safes and discord commands
+
+### Inputs
+- [ ] Change SharedResources to remove un-unused methods
+  - Instead, add decorator method ensuring that the focus lock is only acquired within the MainProcess and nothing else
+
+### Pathing
+- [ ] refactoring of movement_mechanics to be cleaner
+- [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases
+- [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
+- [ ] Look into game files to reverse engineer movements for better precision
+  - Can definitely use VRTop, VRLeft, VRBottom, VBRRight to convert minimap coordinates into actual map coordinates
+- [ ] Flexible map movements, speed, jumps, etc.
+- [ ] (least priority) Rotation decision maker cancels itself when stray too far from path
+
+### Other
+- [ ] Kill switches that either:
+    - Stops program
+    - Return to lounge, then stops program
+    - Exit client, then stops program
+- [ ] Complete implementation of discord parser + unit tests
+- [ ] Implement unit tests - use mocking such that test can run without the game environment
+- [ ] Add logging everywhere -> use level 0 to disable thru a CONSTANT for each relevant script
+- [ ] Look into leveraging psutil for performance monitoring of CPU resources by client/process
+  - Also look into managing the Manager Process since it is a new feature that needs to spawn a process
+- [ ] Look into using Profilers (cProfile, line_profiler) to identify bottlenecks in the code
+- [ ] Look into using asyncio DEBUG mode (PYTHONASYNCIODEBUG=1) to identify potential issues with the code
+- [ ] Look into leveraging loop.run_in_executor(concurrent.futures.ProcessPoolExecutor) for CPU-intensive operations?
+- [ ] Make sure to refresh documentation everywhere
 
 ### Inventory Cleanup
-- [ ] Big code clean-up required.
-- [x] Ability to add custom connections (mystic door) from/to current minimap and nearest town
-- [ ] Basic (incomplete) coding of relevant nearest towns - just enough to get to npc
-- [x] NPC selling mechanics
-- [x] CompoundAction implementation
 - [ ] Inventory parsing for godlies?
 - [ ] Storage mechanics
 
@@ -87,7 +92,6 @@
 
 ### Discord
    - [ ] Add a callback on user-messages to confirm action (such as writing to chat) properly made
-   - [ ] Implement multi-bot parser
 
 ### Character detection
   - [ ] Standardize code and transfer detection framework into botting library

@@ -9,7 +9,7 @@ import numpy as np
 
 from paths import ROOT
 from royals import royals_ign_finder
-from royals.interface.dynamic_components.minimap import Minimap
+from royals.model.interface.dynamic_components.minimap import Minimap
 from botting.utilities import client_handler
 from botting.utilities import Box
 
@@ -44,7 +44,7 @@ def write_feature(cont: list) -> None:
             top=math.floor(min(pt1[1], pt2[1])),
             bottom=math.ceil(max(pt1[1], pt2[1])),
             name=feature_name,
-            offset=True
+            offset=True,
         )
         with open(os.path.join(OUTPUT_LOCATION, OUTPUT_NAME), "a") as f:
             f.write(f"\t{feature_name}: MinimapFeature = MinimapFeature(")
@@ -66,12 +66,13 @@ if __name__ == "__main__":
 
     with open(os.path.join(OUTPUT_LOCATION, OUTPUT_NAME), "w") as f:
         f.write(
-"""from royals.models_implementations.mechanics import (
+            """from royals.models_implementations.mechanics import (
     MinimapFeature,
     MinimapConnection,
     MinimapPathingMechanics,
 )
-    """)
+    """
+        )
         f.write("\n")
         f.write("\n")
         f.write(

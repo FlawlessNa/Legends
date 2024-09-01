@@ -65,7 +65,7 @@ class InGameBaseVisuals(ABC):
         """
         img = self._preprocess_img(image)
         result = pytesseract.image_to_data(
-            img, lang="eng", config=config, output_type=pytesseract.Output.DICT
+            img, lang="eng", config=config or "", output_type=pytesseract.Output.DICT
         )
         filtered_res = [
             result["text"][i]
@@ -143,8 +143,9 @@ class InGameDynamicVisuals(InGameToggleableVisuals, ABC):
 
     _menu_icon_detection_needle: np.ndarray
 
+    @classmethod
     def _menu_icon_position(
-        self, handle: int, client_img: np.ndarray | None = None
+        cls, handle: int, client_img: np.ndarray | None = None
     ) -> Box | None:
         """
         Use the detection image to find the menu icon position.
@@ -156,7 +157,7 @@ class InGameDynamicVisuals(InGameToggleableVisuals, ABC):
         """
         if client_img is None:
             client_img = take_screenshot(handle)
-        boxes = find_image(client_img, self._menu_icon_detection_needle)
+        boxes = find_image(client_img, cls._menu_icon_detection_needle)
         if len(boxes) > 1:
             raise ValueError("More than one menu icon detected")
         elif boxes:
