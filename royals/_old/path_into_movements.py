@@ -118,20 +118,13 @@ def _get_path_to_target(
     grid = in_game_minimap.grid
     start = grid.node(int(current[0]), int(current[1]))
     end = grid.node(target[0], target[1])
-<<<<<<< HEAD:royals/_old/path_into_movements.py
     finder = AStarFinder() if not grid.portals else DijkstraFinder()
-=======
-    # finder = AStarFinder()
-    finder = DijkstraFinder()
->>>>>>> dev:royals/models_implementations/mechanics/path_into_movements.py
 
     # Find direct path
     direct_path, runs = finder.find_path(start, end, grid)
     best_path = direct_path
     grid.cleanup()
 
-<<<<<<< HEAD:royals/_old/path_into_movements.py
-=======
     # Find portal path(s)
     # for portal_start, portal_end in grid.portals.items():
     #     indirect_start = grid.node(*portal_start)
@@ -155,7 +148,6 @@ def _get_path_to_target(
     #         min_cost = cost
     #         best_path = path_to_portal + path_from_portal
 
->>>>>>> dev:royals/models_implementations/mechanics/path_into_movements.py
     if DEBUG:
         _debug(in_game_minimap, start, end, best_path)
     print(f"Time to find path {current} -> {target}: {time.time() - start_time}")
