@@ -98,9 +98,6 @@ class ResetIdleSafeguard(
 
         # Minimap attributes
         self._create_minimap_attributes()
-        self.data.current_minimap.generate_grid_template(
-            self._teleport_skill is not None
-        )
 
         # Rotation attributes
         self._target_position = self.data.current_minimap_position

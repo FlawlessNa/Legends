@@ -36,7 +36,8 @@ class NextTargetMixin:
         else:
             self.data.create_attribute(
                 "next_target",
-                self.data.current_minimap.random_point,
+                self._update_next_random_target,
+                initial_value=self.data.current_minimap.random_point(),
             )
             self.data.create_attribute(
                 "next_feature",
@@ -59,6 +60,19 @@ class NextTargetMixin:
         else:
             self.data.update_attribute("next_feature")
             return self.data.next_feature.random()
+
+    def _update_next_target_random(self) -> None:
+        """
+        Updates the next target randomly.
+        :return:
+        """
+        if (
+            math.dist(self.data.current_minimap_position, self.data.next_target)
+            > self.BASE_ROTATION_THRESHOLD
+        ):
+            return self.data.next_target
+        else:
+            return self.data.current_minimap.random_point()
 
     def _converge_towards_mobs(self):
         """
@@ -132,7 +146,9 @@ class MovementsMixin:
         self.data.create_attribute(
             "action",
             lambda: self.data.movement_handler.movements_into_action(
-                self.data.movements, duration
+                self.data.movements,
+                duration,
+                getattr(self.data, 'speed_multiplier', 1.0)
             ),
         )
         self.data.create_attribute("has_pathing_attributes", lambda: True)
