@@ -28,12 +28,16 @@ VRRight = 1170
 # canvas_height = 1672  # Adjust as needed
 canvas_width = VRRight - VRLeft  # Adjust as needed
 canvas_height = VRBottom - VRTop  # Adjust as needed
-canvas = np.zeros((canvas_height, canvas_width, 3), dtype=np.uint8)
+canvas = np.zeros((104, 132, 3), dtype=np.uint8)
 
+scaleX = 132 / canvas_width
+scaleY = 104 / canvas_height
 
 def map_to_canvas(x, y):
-    canvas_x = int((x - VRLeft) / (VRRight - VRLeft) * canvas_width)
-    canvas_y = int((y - VRTop) / (VRBottom - VRTop) * canvas_height)
+    # canvas_x = int((x - VRLeft) / (VRRight - VRLeft) * canvas_width)
+    # canvas_y = int((y - VRTop) / (VRBottom - VRTop) * canvas_height)
+    canvas_x = int((x - VRLeft) * scaleX)
+    canvas_y = int((y - VRTop) * scaleY)
     return canvas_x, canvas_y
 
 
@@ -61,7 +65,7 @@ extract_coordinates(foothold, fh_coords, ['x1', 'y1', 'x2', 'y2'])
 for coord in fh_coords:
     x1, y1 = map_to_canvas(coord['x1'], coord['y1'])
     x2, y2 = map_to_canvas(coord['x2'], coord['y2'])
-    cv2.line(canvas, (x1, y1), (x2, y2), (255, 255, 255), 2)
+    cv2.line(canvas, (x1, y1), (x2, y2), (255, 255, 255), 1)
     cv2.imshow('Canvas', cv2.resize(canvas, None, fx=0.5, fy=0.5))
     cv2.waitKey(1)
 
@@ -71,7 +75,7 @@ extract_coordinates(portals, portals_coords, ['x', 'y'])
 for coord in portals_coords:
     print(coord)
     x, y = map_to_canvas(coord['x'], coord['y'])
-    cv2.circle(canvas, (x, y), 3, (0, 255, 0), 5)
+    cv2.circle(canvas, (x, y), 1, (0, 255, 0), 1)
     cv2.imshow('Canvas', cv2.resize(canvas, None, fx=0.5, fy=0.5))
     # cv2.imshow('Canvas', canvas)
     cv2.waitKey(1)
@@ -82,8 +86,8 @@ extract_coordinates(ropes, rope_coords, ['x', 'y1', 'y2'])
 for coord in rope_coords:
     x, y1 = map_to_canvas(coord['x'], coord['y1'])
     x, y2 = map_to_canvas(coord['x'], coord['y2'])
-    cv2.line(canvas, (x, y1), (x, y2), (0, 0, 255), 2)
-cv2.imshow('Canvas', cv2.resize(canvas, None, fx=0.5, fy=0.5))
+    cv2.line(canvas, (x, y1), (x, y2), (0, 0, 255), 1)
+cv2.imshow('Canvas', cv2.resize(canvas, None, fx=1, fy=1))
 # cv2.imshow('Canvas', canvas)
 cv2.waitKey(1)
 
@@ -110,14 +114,18 @@ def translate_to_vr(minimap_x, minimap_y):
     vr_y = minimap_y / map_area_box.height * vr_height + VRTop
     return vr_x, vr_y
 
-breakpoint()
+gray = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY)
 while True:
+    copied = canvas.copy()
     char_pos = minimap.get_character_positions(HANDLE).pop()
-    translated = translate_to_vr(*char_pos)
-    cv2.circle(canvas, map_to_canvas(*translated), 5, (255, 0, 0), 5)
-    test = translate_to_vr(char_pos[0]-1, char_pos[1]+8)
-    cv2.circle(canvas, map_to_canvas(*test), 5, (0, 0, 255), 5)
-    cv2.imshow('Canvas', cv2.resize(canvas, None, fx=0.5, fy=0.5))
+    # gray[char_pos[1] + 7, char_pos[0]-  2] = 200
+    # breakpoint()
+    # translated = translate_to_vr(*char_pos)
+    cv2.circle(copied, (char_pos[0] - 2, char_pos[1] + 7), 1, (255, 0, 0), 1)
+    cv2.circle(copied, char_pos, 1, (0, 255, 0), 1)
+    # test = translate_to_vr(char_pos[0]-1, char_pos[1]+8)
+    # cv2.circle(canvas, map_to_canvas(*test), 1, (0, 0, 255), 5)
+    cv2.imshow('Test', cv2.resize(copied, None, fx=3, fy=3))
     cv2.waitKey(1)
 
 # Extract coordinates and draw lines

@@ -1,3 +1,4 @@
+from .berserkie import Berserkie
 from .bubblings import Bubbling
 from .dreamy_ghost import DreamyGhost
 from .froscola import Froscola
@@ -7,3 +8,4 @@ from .platoon_chronos import PlatoonChronos
 from .rodeo import Rodeo
 from .selkie_jr import SelkieJr
 from .slimy import Slimy
+from .veetron import Veetron
