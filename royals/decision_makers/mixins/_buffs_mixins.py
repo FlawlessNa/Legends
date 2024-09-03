@@ -124,7 +124,7 @@ class RebuffMixin:
             predicate,
             condition,
             timeout=15.0,
-            max_trials=10,
+            max_trials=15,
         )
         await validator.execute_async(request)
 

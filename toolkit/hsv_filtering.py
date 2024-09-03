@@ -269,8 +269,8 @@ if __name__ == "__main__":
     import win32gui
 
     HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
-    USE_HSV = True
-    USE_COLORS = False
+    USE_HSV = False
+    USE_COLORS = True
 
     if USE_HSV:
         init_control_gui_hsv()

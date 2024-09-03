@@ -73,6 +73,7 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
             priorities.AP_DISTRIBUTION,
             args=(self.data.handle, target.center),
             kwargs={"nbr_times": num_points, "delay": 0.15},
+            log=True
         )
         validated_action = ActionWithValidation(
             self.pipe,
@@ -81,6 +82,6 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
             )
             == 0,
             self.condition,
-            5.0,
+            10.0,
         )
         validated_action.execute_blocking(request)

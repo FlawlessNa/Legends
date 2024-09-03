@@ -7,14 +7,14 @@ import royals.parsers
 
 
 SYNCHRONIZED_BUFFS = ["Holy Symbol", "Maple Warrior", "Haste", "Meso Up"]
-GAME_MAP = maps.UluEstate1
+GAME_MAP = maps.UluEstate2
 CLIENT_SIZE = "large"
 DETECTION_CONFIG_SECTION = "Elephant Cape"
 
 leeching_configs = {
     "num_pets": 3,
     "game_map": GAME_MAP,
-    "mob_count_threshold": 6,
+    "mob_count_threshold": 4,
     "detection_configs": DETECTION_CONFIG_SECTION,
     "client_size": CLIENT_SIZE,
     "anti_detection_mob_threshold": 4,

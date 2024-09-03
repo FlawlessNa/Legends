@@ -4,7 +4,7 @@ import os
 import xml.etree.ElementTree as ElementTree
 from paths import ROOT
 
-tree = ElementTree.parse(os.path.join(ROOT, 'royals/assets/game_files/maps/UluEstate1.xml'))
+tree = ElementTree.parse(os.path.join(ROOT, 'royals/assets/game_files/maps/UluEstate2.xml'))
 root = tree.getroot()
 
 # Find the "foothold" element
@@ -16,10 +16,10 @@ ropes = root.find(".//imgdir[@name='ladderRope']")
 # VRLeft = -375
 # VRBottom = 770
 # VRRight = 5140
-VRTop = -1200
-VRLeft = -830
-VRBottom = 310
-VRRight = 1170
+VRTop = -1000
+VRLeft = -910
+VRBottom = 250
+VRRight = 1080
 
 # Create a blank canvas
 # canvas_width = 5619  # Adjust as needed
@@ -28,10 +28,10 @@ VRRight = 1170
 # canvas_height = 1672  # Adjust as needed
 canvas_width = VRRight - VRLeft  # Adjust as needed
 canvas_height = VRBottom - VRTop  # Adjust as needed
-canvas = np.zeros((104, 132, 3), dtype=np.uint8)
+canvas = np.zeros((81, 132, 3), dtype=np.uint8)
 
 scaleX = 132 / canvas_width
-scaleY = 104 / canvas_height
+scaleY = 81 / canvas_height
 
 def map_to_canvas(x, y):
     # canvas_x = int((x - VRLeft) / (VRRight - VRLeft) * canvas_width)

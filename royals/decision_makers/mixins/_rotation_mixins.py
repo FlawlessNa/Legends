@@ -21,12 +21,17 @@ class NextTargetMixin:
     BASE_ROTATION_THRESHOLD = 10  # Used for basic rotation mechanism
     SMART_ROTATION_THRESHOLD = 2  # Used for "gravitate towards mobs" rotation mechanism
 
-    def _create_rotation_attributes(self) -> None:
+    def _create_rotation_attributes(self, cycle=None) -> None:
         if self.data.current_minimap.feature_cycle:
-            cycle = itertools.cycle(self.data.current_minimap.feature_cycle)
+
+            if cycle is None:
+                self.data.create_attribute(
+                    "feature_cycle",
+                    lambda: itertools.cycle(self.data.current_minimap.feature_cycle),
+                )
             self.data.create_attribute(
                 "next_feature",
-                lambda: next(cycle),
+                lambda: next(self.data.feature_cycle),
             )
             self.data.create_attribute(
                 "next_target",

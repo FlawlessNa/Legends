@@ -15,19 +15,19 @@ from botting.utilities import Box
 
 HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
 OUTPUT_LOCATION = os.path.join(ROOT, "royals/model/minimaps/")
-OUTPUT_NAME = "ulu_estate_1.py"
+OUTPUT_NAME = "ulu_estate_2.py"
 
 # TODO - Automatically read these from game files
 TELEPORT_DISTANCE = 150
 MINIMAP_CANVAS_WIDTH = 132
-MINIMAP_CANVAS_HEIGHT = 104
+MINIMAP_CANVAS_HEIGHT = 81
 PHYSICS_SPEED = 125
 PHYSICS_JUMP_SPEED = 555
 PHYSICS_GRAVITY = 2000
-VRTop = -1200
-VRLeft = -830
-VRBottom = 310
-VRRight = 1170
+VRTop = -1000
+VRLeft = -910
+VRBottom = 250
+VRRight = 1080
 
 VRWidth = VRRight - VRLeft
 VRHeight = VRBottom - VRTop
@@ -105,7 +105,7 @@ if __name__ == "__main__":
         f.write(f"\tminimap_speed = {PHYSICS_SPEED / VRWidth * MINIMAP_CANVAS_WIDTH}\n")
         f.write(f"\tjump_height = {VRJumpHeight / VRHeight * MINIMAP_CANVAS_HEIGHT}\n")
         f.write(f"\tjump_distance = {VRJumpWidth / VRWidth * MINIMAP_CANVAS_WIDTH}\n")
-        f.write(f"\tteleport_distance = {TELEPORT_DISTANCE / VRWidth * MINIMAP_CANVAS_WIDTH}\n")
+        f.write(f"\tteleport_h_dist = {TELEPORT_DISTANCE / VRWidth * MINIMAP_CANVAS_WIDTH}\n")
 
     keyboard.on_press_key("z", lambda _: take_position(minimap))
     keyboard.on_press_key("z", lambda _: write_feature(container))

@@ -138,6 +138,7 @@ class Movements:
 
                 movements.append(MinimapConnection.convert_to_string(connection_type))
             else:
+                breakpoint()
                 raise NotImplementedError("Not supposed to reach this point.")
 
         squeezed_movements = tuple(

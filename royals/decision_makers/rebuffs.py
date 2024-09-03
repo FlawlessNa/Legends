@@ -162,7 +162,8 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
                 logger.log(LOG_LEVEL, f"{self} resets the ready state.")
                 self._event.clear()
         if self._reset_flag:
-            self._create_rotation_attributes()  # Resets the rotation mechanism
+            # Resets the rotation mechanism
+            self._create_rotation_attributes(self.data.feature_cycle)
             self._reset_flag = False
 
     async def _wait_until_ready(self) -> None:

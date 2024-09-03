@@ -28,6 +28,7 @@
   - [ ] Breakdown of the class between interface components and actual decision-making
 
 - [ ] Implement kill switch as part of fail safes and discord commands
+- [ ] Enabling/Disabling of DecisionMakers - implement ability to use class' MRO to enable/disable decision makers
 
 ### Inputs
 - [ ] Change SharedResources to remove un-unused methods
