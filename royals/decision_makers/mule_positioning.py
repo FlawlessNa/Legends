@@ -134,7 +134,9 @@ class ResetIdleSafeguard(
 
         await self._jump_out_of_safe_spot()
         await self._cast_skills_to_reset()
+        self._disable_decision_makers("Rotation")
         await self._return_to_safe_spot()
+        self._enable_decision_makers("Rotation")
 
     async def _ensure_safe_spot(self) -> None:
         while True:

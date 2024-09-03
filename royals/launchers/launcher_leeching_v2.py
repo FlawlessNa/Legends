@@ -35,24 +35,24 @@ mule_configs = {
 async def main():
     with SessionManager(royals.parsers.RoyalsParser) as session:
         leecher = bots.LeechingBot("WrongDoor", session.metadata, **leeching_configs)
-        # mule1 = bots.LeechMuleWithBuffs(
-        #     "UluLoot", session.metadata, character_class="Hermit", **mule_configs
-        # )
-        # mule2 = bots.LeechMuleWithoutBuffs(
-        #     "FinancialWiz", session.metadata, **mule_configs
-        # )
-        # mule3 = bots.LeechMuleWithoutBuffs(
-        #     "MoneyEngine", session.metadata, **mule_configs
-        # )
-        # mule4 = bots.LeechMuleWithoutBuffs(
-        #     "iYieldMoney", session.metadata, **mule_configs
-        # )
-        # mule5 = bots.LeechMuleWithoutBuffs(
-        #     "BCoinFarm", session.metadata, **mule_configs
-        # )
-        # await session.launch([leecher, mule1], [mule2, mule3, mule4, mule5])
+        mule1 = bots.LeechMuleWithBuffs(
+            "UluLoot", session.metadata, character_class="Hermit", **mule_configs
+        )
+        mule2 = bots.LeechMuleWithoutBuffs(
+            "FinancialWiz", session.metadata, **mule_configs
+        )
+        mule3 = bots.LeechMuleWithoutBuffs(
+            "MoneyEngine", session.metadata, **mule_configs
+        )
+        mule4 = bots.LeechMuleWithoutBuffs(
+            "iYieldMoney", session.metadata, **mule_configs
+        )
+        mule5 = bots.LeechMuleWithoutBuffs(
+            "BCoinFarm", session.metadata, **mule_configs
+        )
+        await session.launch([leecher, mule1], [mule2, mule3, mule4, mule5])
         # await session.launch([leecher],  [mule1])
-        await session.launch([leecher])
+        # await session.launch([leecher])
 
 
 if __name__ == "__main__":

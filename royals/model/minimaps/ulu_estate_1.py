@@ -18,11 +18,30 @@ class UluEstate1Minimap(MinimapPathingMechanics):
 
 	@property
 	def feature_cycle(self) -> list[MinimapFeature]:
-		pass
+		return [
+			self.platform_1_section_1,
+			self.platform_1_section_2,
+			self.platform_1_section_3,
+			self.platform_1_section_4,
+			self.platform_1_section_5,
+			self.platform_1_section_6,
+			self.platform_2_section_1,
+			self.platform_2_section_2,
+			self.platform_2_section_3,
+			self.platform_2_section_4,
+			self.platform_2_section_5,
+			self.platform_3_section_1,
+			self.platform_3_rail,
+			self.platform_3_section_2,
+			self.platform_3_section_3,
+			self.bottom_platform_section_3,
+			self.bottom_platform_section_2,
+			self.bottom_platform_section_1
+		]
 
 	@property
 	def central_node(self) -> tuple[int, int]:
-		return 109, 45
+		return 114, 79
 
 	spawning_platform: MinimapFeature = MinimapFeature(
 		left=20,
@@ -38,13 +57,28 @@ class UluEstate1Minimap(MinimapPathingMechanics):
 		bottom=71,
 		name='spawning_platform_tire',
 	)
-	bottom_platform: MinimapFeature = MinimapFeature(
+	bottom_platform_section_1: MinimapFeature = MinimapFeature(
 		left=5,
+		right=45,
+		top=85,
+		bottom=85,
+		name='bottom_platform_section_1',
+	)
+	bottom_platform_section_2: MinimapFeature = MinimapFeature(
+		left=46,
+		right=86,
+		top=85,
+		bottom=85,
+		name='bottom_platform_section_2',
+	)
+	bottom_platform_section_3: MinimapFeature = MinimapFeature(
+		left=87,
 		right=127,
 		top=85,
 		bottom=85,
-		name='bottom_platform',
+		name='bottom_platform_section_3',
 	)
+
 	bottom_platform_rail: MinimapFeature = MinimapFeature(
 		left=74,
 		right=86,
@@ -234,10 +268,17 @@ class UluEstate1Minimap(MinimapPathingMechanics):
 	)
 	platform_3_section_3: MinimapFeature = MinimapFeature(
 		left=72,
-		right=127,
+		right=100,
 		top=25,
 		bottom=25,
 		name='platform_3_section_3',
+	)
+	platform_3_section_4: MinimapFeature = MinimapFeature(
+		left=101,
+		right=127,
+		top=25,
+		bottom=25,
+		name='platform_3_section_4',
 	)
 	platform_3_rail: MinimapFeature = MinimapFeature(
 		left=41,

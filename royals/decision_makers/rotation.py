@@ -92,7 +92,11 @@ class Rotation(
             threshold=self.NO_PATH_KILL_SWITCH,
             response=...,  # TODO - Kill switch
         )
-        self._sentinel_starts_at = time.perf_counter() + 60.0
+        self._sentinel_starts_at = time.perf_counter() + 10.0
+
+    async def start(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
+        self._sentinel_starts_at = time.perf_counter() + 10.0
+        await super().start(tg, *args, **kwargs)
 
     async def _decide(self) -> None:
         self._failsafe_checks()  # Check each time, no need to wait for lock

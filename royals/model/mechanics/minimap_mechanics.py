@@ -97,6 +97,7 @@ class MinimapNode(GridNode):
     """
 
     connections_types: list = field(default_factory=list, init=False)
+    connections: list = field(default_factory=list)
 
     def connect(self, node: "MinimapNode", connection_type: int) -> None:  # noqa
         """
@@ -230,7 +231,7 @@ class MinimapGrid(Grid):
                     node.walkable,
                     node.weight,
                     node.grid_id,
-                    node.connections,
+                    node.connections if node.connections is not None else list(),
                 )
 
     @cached_property

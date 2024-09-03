@@ -12,6 +12,8 @@
 - [ ] Improve client_handler to avoid need of updating window title on every game update
 - [ ] Improvements of movements, particularly to avoid hitting while character is crouched
 - [ ] Looks like there's an existing bug between window switching and key releases
+- [ ] Add failsafe on Rotation for self.data.path on last X values being same or None
+  - Add failsafe reaction resetting all key directions
 
 ## Performance Branch
 - [ ] Rebuffing:
