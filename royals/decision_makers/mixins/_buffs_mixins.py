@@ -1,3 +1,4 @@
+import asyncio
 import cv2
 import logging
 import multiprocessing.connection
@@ -118,20 +119,23 @@ class RebuffMixin:
             priority=priorities.BUFFS,
             block_lower_priority=True,
             args=(self.data.handle, self.data.ign, buffs),
+            log=True
         )
+        self.pipe.send(request)  # Forces the action to be executed immediately
+        await asyncio.sleep(sum(buff.animation_time for buff in buffs) + 0.5)
         validator = ActionWithValidation(
             self.pipe,
             predicate,
             condition,
             timeout=15.0,
-            max_trials=15,
+            max_trials=20,
         )
         await validator.execute_async(request)
 
     @staticmethod
     def _randomized(duration: float) -> float:
         """
-        Pick a random point within 90% and 95% of the buff's duration.
+        Pick a random point within 80% and 85% of the buff's duration.
         :param duration: The duration of the buff.
         :return:
         """

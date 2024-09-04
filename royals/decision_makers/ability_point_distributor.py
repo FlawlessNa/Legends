@@ -82,6 +82,6 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
             )
             == 0,
             self.condition,
-            10.0,
+            60.0,
         )
         validated_action.execute_blocking(request)
