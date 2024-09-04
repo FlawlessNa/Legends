@@ -121,8 +121,6 @@ class RebuffMixin:
             args=(self.data.handle, self.data.ign, buffs),
             log=True
         )
-        self.pipe.send(request)  # Forces the action to be executed immediately
-        await asyncio.sleep(sum(buff.animation_time for buff in buffs) + 0.5)
         validator = ActionWithValidation(
             self.pipe,
             predicate,
