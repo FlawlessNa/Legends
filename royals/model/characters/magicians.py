@@ -1,3 +1,5 @@
+from re import match
+
 from royals.model.mechanics import RoyalsSkill, RoyalsBuff, RoyalsPartyBuff
 from .character import Character
 
@@ -6,7 +8,11 @@ class Magician(Character):
     main_stat = "INT"
     skills = {
             "Magic Guard": RoyalsBuff(
-                "Magic Guard", duration=600, animation_time=0.6
+                "Magic Guard",
+                duration=600,
+                animation_time=0.6,
+                match_template_threshold=0.61,
+                match_icon_threshold=0.80
             ),
             "Magic Claw": RoyalsSkill(
                 "Magic Claw",
@@ -69,7 +75,11 @@ class Cleric(Magician):
                 duration=200,
             ),
             "Invincible": RoyalsBuff(
-                "Invincible", animation_time=0.6, duration=300
+                "Invincible",
+                animation_time=0.6,
+                duration=300,
+                match_template_threshold=0.79,
+                match_icon_threshold=0.89
             ),
         }
 
@@ -84,6 +94,8 @@ class Priest(Cleric):
                 duration=120,
                 horizontal_minimap_distance=10,
                 _use_by_default=True,
+                match_template_threshold=0.69,
+                match_icon_threshold=0.79
             ),
             "Shining Ray": RoyalsSkill(
                 "Shining Ray",
@@ -123,5 +135,7 @@ class Bishop(Priest):
                 _use_by_default=True,
                 horizontal_minimap_distance=10,
                 duration=300,
+                match_template_threshold=0.59,
+                match_icon_threshold=0.80
             ),
         }

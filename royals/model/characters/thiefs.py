@@ -1,4 +1,4 @@
-from royals.model.mechanics import RoyalsSkill
+from royals.model.mechanics import RoyalsSkill, RoyalsPartyBuff, RoyalsBuff
 from .character import Character
 
 
@@ -13,9 +13,8 @@ class Rogue(Character):
 class Assassin(Rogue):
     skills = {
             **Rogue.skills,
-            "Haste": RoyalsSkill(
+            "Haste": RoyalsPartyBuff(
                 "Haste",
-                "Party Buff",
                 animation_time=0.6,  # TODO - Figure this out
                 horizontal_screen_range=100,  # TODO - Figure this out
                 vertical_screen_range=100,  # TODO - Figure this out
@@ -23,10 +22,11 @@ class Assassin(Rogue):
                 vertical_minimap_distance=10,
                 duration=200,
                 unidirectional=False,
+                match_template_threshold=0.5,
+                match_icon_threshold=0.74,
             ),
-            "Claw Booster": RoyalsSkill(
+            "Claw Booster": RoyalsBuff(
                 "Claw Booster",
-                "Buff",
                 animation_time=0.6,  # TODO - Figure this out
                 duration=200,
                 unidirectional=False,
@@ -40,9 +40,8 @@ class Assassin(Rogue):
 class Hermit(Assassin):
     skills = {
             **Assassin.skills,
-            "Meso Up": RoyalsSkill(
+            "Meso Up": RoyalsPartyBuff(
                 "Meso Up",
-                "Party Buff",
                 animation_time=0.6,  # TODO - Figure this out
                 horizontal_screen_range=100,  # TODO - Figure this out
                 vertical_screen_range=100,  # TODO - Figure this out
@@ -50,6 +49,8 @@ class Hermit(Assassin):
                 vertical_minimap_distance=10,
                 duration=120,
                 unidirectional=False,
+                match_template_threshold=0.5,
+                match_icon_threshold=0.75,
             ),
         }
 

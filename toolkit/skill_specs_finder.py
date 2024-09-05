@@ -11,7 +11,7 @@ from royals.model.mechanics import RoyalsSkill
 
 IGN = "WrongDoor"
 HANDLE = client_handler.get_client_handle(IGN, royals_ign_finder)
-SKILL_NAME = "Magic Guard"
+SKILL_NAME = "Meso Up"
 
 skill = ALL_BUFFS[SKILL_NAME]
 l, t, r, b = win32gui.GetClientRect(HANDLE)
@@ -34,13 +34,13 @@ if __name__ == "__main__":
         client_img = take_screenshot(HANDLE)
         # haystack = buff_region.extract_client_img(client_img)
         # processed_haystack = process_img(haystack)
-        processed_haystack = process_img(client_img)
+        processed_haystack = process_img(client_img[:500])
         results = cv2.matchTemplate(
             processed_haystack, processed_icon, cv2.TM_CCOEFF_NORMED
         )
         _, max_val, _, max_loc = cv2.minMaxLoc(results)
         left, top = max_loc
-        width, height = buff_icon.shape[::-1]
+        width, height = processed_icon.shape[::-1]
         cv2.rectangle(
             client_img, (left, top), (left + width, top + height), (0, 0, 255), 2
         )
@@ -49,4 +49,4 @@ if __name__ == "__main__":
         cv2.waitKey(1)
         freshness = (target == processed_icon).sum() / target.size
         print(SKILL_NAME, 'Template Match:', max_val, 'Freshness Score:', freshness)
-        time.sleep(2)
+        time.sleep(1)
