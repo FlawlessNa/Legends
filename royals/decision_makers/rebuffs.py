@@ -127,6 +127,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
                 logger.log(LOG_LEVEL, "All have successfully been rebuffed.")
                 break
 
+            self._event.set()
             if self._members_all_in_range():
                 logger.log(LOG_LEVEL, f"{self} confirms all members at location.")
                 while not self._unique_lock.acquire(blocking=False):

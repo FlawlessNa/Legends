@@ -161,8 +161,10 @@ class RebuffMixin:
             target = haystack[top : top + height, left : left + width]
             score = (target == buff_icon).sum() / target.size
             _skill = ALL_BUFFS[buff]
+            pass_template = max_val > _skill.match_template_threshold
+            pass_icon = score > _skill.match_icon_threshold
             print(
-                f"{self}: {buff} has confidence {max_val:.2f} out of "
-                f"{_skill.match_template_threshold} and score {score:.2f} out of "
-                f"{_skill.match_icon_threshold}"
+                f"{self}: {buff} matches with template: {pass_template} "
+                f"({max_val:.2f}/{_skill.match_template_threshold}) and has sufficient "
+                f"score: {pass_icon} ({score:.2f}/{_skill.match_icon_threshold})"
             )
