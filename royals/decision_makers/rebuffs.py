@@ -13,16 +13,11 @@ from royals.model.mechanics import RoyalsSkill
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 LOG_LEVEL = logging.INFO
-from datetime import datetime
-
-_CURRENT_TIME = lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
 
 class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, DecisionMaker):
     _TIME_LIMIT = 120  # An error is triggered after 2 minutes of waiting
     # TODO - Deal with Macros as well.
-    # TODO - Figure out a system to reduce sleep time on each iteration while prevent multiple rebuffing from same member.
-    # Could try something like who update the rebuff status last, but it needs to work even if both members in same process.
 
     def __init__(
         self,
@@ -152,26 +147,17 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         Set the ready state, shared across all PartyRebuff instances from all processes.
         """
         with self._shared_lock:
-            print(
-                f"{_CURRENT_TIME()}: {self} has acquired _condition to set the event flag"
-            )
             if not self._event.is_set():
                 logger.log(LOG_LEVEL, f"{self} signaled its time to rebuff.")
                 self._event.set()
                 self._reset_shared_location()
                 self._reset_rebuff_status()
-        print(
-            f"{_CURRENT_TIME()}: {self} has released _condition to set the event flag"
-        )
 
     def _reset_state(self) -> None:
         """
         Reset the ready state as well as the rotation mechanism, if necessary.
         """
         with self._shared_lock:
-            print(
-                f"{_CURRENT_TIME()}: {self} has acquired _condition to reset the event flag"
-            )
             if self._event.is_set():
                 logger.log(LOG_LEVEL, f"{self} resets the ready state.")
                 self._event.clear()
@@ -197,7 +183,6 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         # If we're done waiting because this member is ready to cast, then set the ready
         # state to notify other members
         if self_ready in task_done:
-            print(f"{_CURRENT_TIME()}: {self}: Time to rebuff")
             self._set_ready_state()
 
     def _update_shared_location(self) -> None:
@@ -207,7 +192,6 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         ident = self.__class__.__name__ + "_character_locations"
         locations = self.metadata[ident]
         locations[f"{self}"] = self.data.current_minimap_position
-        print(f"{_CURRENT_TIME()}: {self} updated locations: {locations}")
         self.metadata[ident] = locations
 
     def _update_rebuff_status(self) -> None:
@@ -216,13 +200,11 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         """
         ident = self.__class__.__name__ + "_rebuffed"
         statuses = self.metadata[ident]
-        print(f"{_CURRENT_TIME()}: {self} updating status: {statuses}")
         temp = statuses.setdefault(f"{self}", self._all_buffs.copy()).copy()
         for buff in self._all_buffs.copy():
             if self._buff_confirmation(buff) and buff in temp:
                 temp.remove(buff)
         statuses[f"{self}"] = temp
-        print(f"{_CURRENT_TIME()}: {self} updated status: {statuses}")
         self.metadata[ident] = statuses
 
     def _reset_shared_location(self) -> None:
@@ -231,7 +213,6 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         for key in locations:
             locations[key] = (-100, -100)
         self.metadata[ident] = locations
-        print(f"{_CURRENT_TIME()}: {self} reset locations: {locations}")
 
     def _reset_rebuff_status(self) -> None:
         """
@@ -242,7 +223,6 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         for key in statuses:
             statuses[key] = self._all_buffs
         self.metadata[ident] = statuses
-        print(f"{_CURRENT_TIME()}: {self} reset rebuff status: {statuses}")
 
     def _get_own_buff_remaining(self) -> list[str]:
         """
@@ -266,9 +246,6 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         with self._shared_lock:
             self._update_shared_location()
             locations = self.metadata[ident].values()
-        print(
-            f"{_CURRENT_TIME()}: {self} checking members in range: {all(math.dist(location, self._location) <= self._min_range for location in locations) and len(locations) > 1}"
-        )
         return (
             all(
                 math.dist(location, self._location) <= self._min_range
@@ -286,7 +263,6 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         with self._shared_lock:
             self._update_rebuff_status()
             statuses = self.metadata[ident].values()
-        print(f"{_CURRENT_TIME()}: {self} checking rebuff status: {statuses}")
         return all(len(status) == 0 for status in statuses) and len(statuses) > 1
 
 

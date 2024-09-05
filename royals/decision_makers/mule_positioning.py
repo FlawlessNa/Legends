@@ -104,6 +104,7 @@ class ResetIdleSafeguard(
             initial_value=self._target_position,
         )
         self._create_pathing_attributes(movements_duration)
+        self.data.create_attribute("action", self._always_release_keys_on_actions)
 
         self._feature = self.data.current_minimap.get_feature_containing(
             self._target_position

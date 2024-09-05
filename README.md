@@ -16,10 +16,7 @@
 
 ## Improvements
 - [ ] Rebuffing:
-  - [ ] Customized icon location threshold and refresh acceptance threshold for each buff individually
   - [ ] Handling of in-game Macros efficiently
-  - [ ] Clean up PartyRebuff
-    - Lower throttle time (currently 3.0s) and introduce a cooldown on casting instead
    
 - [ ] InventoryManager:
   - [ ] Confirmation of Door being cast properly
@@ -28,14 +25,6 @@
 - [ ] Implement kill switch as part of fail safes and discord commands
  - [ ] Add a callback on user-messages to confirm action (such as writing to chat) properly made
 - [ ] Enabling/Disabling of DecisionMakers - implement ability to use class' MRO to enable/disable decision makers
-
-### Pathing
-- [ ] refactoring of movement_mechanics to be cleaner
-- [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases
-- [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
-- [ ] Look into game files to reverse engineer movements for better precision
-  - Can definitely use VRTop, VRLeft, VRBottom, VBRRight to convert minimap coordinates into actual map coordinates
-- [ ] (least priority) Rotation decision maker cancels itself when stray too far from path
 
 ### Other
 - [ ] Kill switches that either:
@@ -74,12 +63,20 @@
 - [ ] GM Logo detection? (probably not realistic but could try)
     - Would need several screenshots, and threshold confirmed several times in a row.
 - [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs
-- [ ] Nice-to-have, for Ulu only - look into building an "unknown" object detection method, using UNKAD methodology or anomaly detection
+
+### Pathing
+- [ ] refactoring of movement_mechanics to be cleaner
+- [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases
+- [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
+- [ ] Look into game files to reverse engineer movements for better precision
+  - Can definitely use VRTop, VRLeft, VRBottom, VBRRight to convert minimap coordinates into actual map coordinates
+- [ ] (least priority) Rotation decision maker cancels itself when stray too far from path
 
 ### Character detection
   - [ ] Standardize code and transfer detection framework into botting library
 
 ## Nice to have
+  - [ ] for Ulu only - look into building an "unknown" object detection method, using UNKAD methodology or anomaly detection
   - [ ] Chat - Try additional pre-processing: Thresholding (improved?), Denoising (application of Gaussian and/or Median Blur), Contrast Enhancement (Make text more distinguishable from background)
   - [ ] Chat - Pre-trained model for semantic segmentation? Could help distinguish text from the rest.
   - [ ] Chat - Other OCR libraries? OCRopus & EasyOCR in particular.
