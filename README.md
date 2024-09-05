@@ -12,7 +12,8 @@
 - [ ] Improvements of movements, particularly to avoid hitting while character is crouched
 - [ ] Looks like there's an existing bug between window switching and key releases
 - [ ] Add failsafe on Rotation for self.data.path on last X values being same or None
-  - Add failsafe reaction resetting all key directions
+  - third failsafe on rotation should trigger pausing mechanism (disable relevant decision makers)
+- Add failsafe reaction resetting all key directions
 
 ## Improvements
 - [ ] Rebuffing:

@@ -72,7 +72,7 @@ class Rotation(
             attribute="current_minimap_position",
             method=self.data.get_time_since_last_value_change,
             threshold=self.STATIC_POS_KILL_SWITCH,
-            response=...,  # TODO - Kill switch
+            response=...,  # TODO - Trigger Pause mechanism until resumed by user
         )
         self._create_time_based_sentinel(
             attribute="path",
@@ -90,7 +90,7 @@ class Rotation(
             attribute="path",
             method=self.data.get_time_since_last_valid_update,
             threshold=self.NO_PATH_KILL_SWITCH,
-            response=...,  # TODO - Kill switch
+            response=...,  # TODO - Trigger Pause mechanism until resumed by user
         )
         self._sentinel_starts_at = time.perf_counter() + 60.0
 
