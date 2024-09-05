@@ -78,7 +78,6 @@ class RebuffMixin:
         self._debug(results, buff, haystack, buff_icon)
         # Start by finding actual location of the buff icon with reasonable threshold
         if max_val < ALL_BUFFS[buff].match_template_threshold:
-            logger.log(LOG_LEVEL, f"Insufficient confidence {max_val:.4f} for {buff}.")
             return False
         else:
             # Then compare bottom of icon to check if darkened or not
@@ -161,4 +160,9 @@ class RebuffMixin:
             width, height = self._get_buff_icon(buff).shape[::-1]
             target = haystack[top : top + height, left : left + width]
             score = (target == buff_icon).sum() / target.size
-            print(f"{self}: {buff} has confidence {max_val} and score {score}.")
+            _skill = ALL_BUFFS[buff]
+            print(
+                f"{self}: {buff} has confidence {max_val:.2f} out of "
+                f"{_skill.match_template_threshold} and score {score:.2f} out of "
+                f"{_skill.match_icon_threshold}"
+            )

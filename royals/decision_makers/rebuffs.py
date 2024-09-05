@@ -263,6 +263,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         with self._shared_lock:
             self._update_rebuff_status()
             statuses = self.metadata[ident].values()
+            logger.log(LOG_LEVEL, f"Rebuff statuses: {statuses}")
         return all(len(status) == 0 for status in statuses) and len(statuses) > 1
 
 
