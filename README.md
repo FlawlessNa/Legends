@@ -22,9 +22,14 @@
   - [ ] Confirmation of Door being cast properly
   - [ ] Breakdown of the class between interface components and actual decision-making
 
-- [ ] Implement kill switch as part of fail safes and discord commands
- - [ ] Add a callback on user-messages to confirm action (such as writing to chat) properly made
-- [ ] Enabling/Disabling of DecisionMakers - implement ability to use class' MRO to enable/disable decision makers
+- Enabling/Disabling of DecisionMakers 
+  - [ ] implement ability to use class' MRO to enable/disable decision makers
+  - [ ] Implement ability to only target specific Bots (will be useful for Discord requests)
+
+- [ ] DiscordParser
+  - Implement an additional task within each Engine process (ex) that sentinels a specific multiprocessing.Event flag to pause/resume the bot
+  - The mainprocess has an additional task that sentinels a specific keyboard input to set/clear the flag
+  - That same multiprocessing.Event flag can be used for discord requests to pause/resume
 
 ### Other
 - [ ] Kill switches that either:

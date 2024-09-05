@@ -5,7 +5,7 @@ import multiprocessing.connection
 from abc import ABC, abstractmethod
 from enum import Enum
 from functools import cached_property
-from botting.core import ActionRequest
+from botting.core import ActionRequest, DiscordRequest
 
 logger = logging.getLogger(__name__)
 LOG_LEVEL = logging.NOTSET
@@ -127,12 +127,27 @@ class BaseParser(ABC):
         self.pipe.send(f"Confirmation that '{request.identifier}' was requested by user")
         return request
 
-    @abstractmethod
+    @staticmethod
+    def _kill() -> None:
+        raise KeyboardInterrupt("Kill request from Discord confirmed")
+
     def kill(self) -> ActionRequest:
         """
         Called from the MainProcess. Should kill all bots and stop process.
         :return: TBD
         """
+        return ActionRequest(
+            f"Killing all tasks",
+            self._kill,
+            ign='All',
+            priority=999,
+            block_lower_priority=True,
+            discord_request=DiscordRequest("Kill request from Discord confirmed")
+        )
+
+    @property
+    @abstractmethod
+    def decision_makers_to_pause(self) -> list[str]:
         pass
 
     @abstractmethod
@@ -142,7 +157,17 @@ class BaseParser(ABC):
         :param who: The bot to pause. If None, pauses all bots.
         :return: TBD
         """
-        pass
+        if who is None:
+            return ActionRequest(
+                "Pausing all Engines",
+                ...,
+                ign='All',
+                priority=999,
+                block_lower_priority=True,
+                discord_request=DiscordRequest("Pausing all bots confirmed")
+            )
+        else:
+            raise NotImplementedError("Pausing specific bots is not implemented yet.")
 
     @abstractmethod
     def resume(self, who: list[str] = None) -> ActionRequest:
