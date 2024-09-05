@@ -17,7 +17,7 @@ LOG_LEVEL = logging.WARNING
 
 class ThrottleMeta(ABCMeta):
     def __init__(cls, name, bases, dct):
-        if "_throttle" not in dct or dct["_throttle"] is None:
+        if "_throttle" not in [key.lower() for key in dct] or dct.get("_throttle", dct["_THROTTLE"]) is None:
             raise TypeError(f"Class {name} must define a '_throttle' class variable.")
         super().__init__(name, bases, dct)
 

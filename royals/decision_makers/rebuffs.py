@@ -101,7 +101,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
 
         self._reset_state()
 
-    @cooldown(5.0)
+    @cooldown(3.0)
     def cast_buffs(self, remaining_buffs: list) -> None:
         """
         Sends the request but only if the cooldown has passed.
@@ -137,7 +137,9 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
                 await asyncio.to_thread(self._unique_lock.acquire)
                 remaining_buffs = self._get_own_buff_remaining()
                 if remaining_buffs:
-                    self.cast_buffs(remaining_buffs)
+                    if not self.cast_buffs(remaining_buffs):
+                        # Means the cooldown has not passed, so manually release
+                        self._unique_lock.release()
                     # to_cast = [
                     #     self.data.character.skills[buff] for buff in remaining_buffs
                     # ]

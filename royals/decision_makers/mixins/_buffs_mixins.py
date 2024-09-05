@@ -86,7 +86,7 @@ class RebuffMixin:
             left, top = max_loc
             width, height = buff_icon.shape[::-1]
             target = haystack[top : top + height, left : left + width]
-            threshold = ALL_BUFFS[buff].buff_freshness_threshold
+            threshold = ALL_BUFFS[buff].match_icon_threshold
             return self._confirm_buff_freshness(target, buff_icon, threshold)
 
     @staticmethod

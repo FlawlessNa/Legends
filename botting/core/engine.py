@@ -197,7 +197,7 @@ class Engine(_ChildProcessEngine):
                             discord_pipe.send(
                                 f"Exception {request} \n occurred in {engine.name}."
                             )
-                            raise request
+                            # raise request
                         elif isinstance(request, str):
                             logger.info(f"Received {request} from {engine.name}.")
                             discord_pipe.send(request)
