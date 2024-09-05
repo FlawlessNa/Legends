@@ -28,7 +28,7 @@ class RebuffMixin:
     _hsv_upper = np.array([179, 255, 53])
 
     def _get_character_default_buffs(
-            self, buff_type: str
+        self, buff_type: str
     ) -> list[RoyalsBuff | RoyalsPartyBuff]:
         return [
             skill
