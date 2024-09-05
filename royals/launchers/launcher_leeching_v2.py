@@ -50,7 +50,7 @@ async def main():
         mule5 = bots.LeechMuleWithoutBuffs(
             "BCoinFarm", session.metadata, **mule_configs
         )
-        await session.launch([leecher, mule1], [mule2, mule3, mule4, mule5])
+        await session.launch([leecher], [mule1, mule2, mule3, mule4, mule5])
         # await session.launch([leecher],  [mule1])
         # await session.launch([leecher])
 
