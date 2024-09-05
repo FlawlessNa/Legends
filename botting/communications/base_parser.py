@@ -124,7 +124,7 @@ class BaseParser(ABC):
         else:
             raise ValueError(f"Invalid action: {action}")
 
-        self.pipe.send(f"Confirmation: Executing {request}")
+        self.pipe.send(f"Confirmation that '{request.identifier}' was requested by user")
         return request
 
     @abstractmethod
