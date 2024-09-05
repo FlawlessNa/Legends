@@ -145,12 +145,12 @@ class BaseParser(ABC):
             discord_request=DiscordRequest("Kill request from Discord confirmed")
         )
 
-    @property
-    @abstractmethod
-    def decision_makers_to_pause(self) -> list[str]:
-        pass
+    # @property
+    # @abstractmethod
+    # def decision_makers_to_pause(self) -> list[str]:
+    #     pass
 
-    @abstractmethod
+    # @abstractmethod
     def pause(self, who: list[str] = None) -> ActionRequest:
         """
         Called from the MainProcess. Should pause all bots or a specific bot.
