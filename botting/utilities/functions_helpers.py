@@ -12,11 +12,9 @@ def cooldown(seconds: float):
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            elapsed = time.perf_counter() - last_call[0]
             if time.perf_counter() - last_call[0] >= seconds:
                 last_call[0] = time.perf_counter()
-                func(*args, **kwargs)
-                return True
+                return func(*args, **kwargs)
             return False
 
         return wrapper

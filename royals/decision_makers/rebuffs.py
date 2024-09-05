@@ -134,26 +134,14 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
 
             if self._members_all_in_range():
                 logger.log(LOG_LEVEL, f"{self} confirms all members at location.")
-                await asyncio.to_thread(self._unique_lock.acquire)
+                while not self._unique_lock.acquire(blocking=False):
+                    self._update_rebuff_status()
+                    await asyncio.sleep(0.1)
                 remaining_buffs = self._get_own_buff_remaining()
                 if remaining_buffs:
-                    if not self.cast_buffs(remaining_buffs):
+                    if self.cast_buffs(remaining_buffs) is False:
                         # Means the cooldown has not passed, so manually release
                         self._unique_lock.release()
-                    # to_cast = [
-                    #     self.data.character.skills[buff] for buff in remaining_buffs
-                    # ]
-                    # self.pipe.send(
-                    #     ActionRequest(
-                    #         f"{self} - {remaining_buffs}",
-                    #         self._cast_skills_single_press,
-                    #         self.data.ign,
-                    #         priority=priorities.BUFFS,
-                    #         block_lower_priority=True,
-                    #         args=(self.data.handle, self.data.ign, to_cast),
-                    #         callbacks=[self._unique_lock.release],
-                    #     )
-                    # )
                 else:
                     self._unique_lock.release()
 
