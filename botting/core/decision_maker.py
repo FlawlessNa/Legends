@@ -155,7 +155,7 @@ class DecisionMaker(ABC):
             pass  # TODO - see if cleanup is required
         except BaseException as e:
             logger.error(f"Exception occurred in {name}: {e}.")
-            # breakpoint()
+            breakpoint()
             raise e
 
     def _disabler_task(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
