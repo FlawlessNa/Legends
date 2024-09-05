@@ -2,14 +2,13 @@ import asyncio
 import logging
 import math
 import random
-import time
 import multiprocessing.connection
 import multiprocessing.managers
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
+from botting.utilities import cooldown
 from royals.actions.movements_v2 import random_jump
-from royals.actions.skills_related_v2 import cast_skill_single_press
 from royals.actions import priorities
 from .mixins import MinimapAttributesMixin, MovementsMixin, RebuffMixin
 
@@ -25,7 +24,6 @@ class EnsureSafeSpot(MinimapAttributesMixin, DecisionMaker):
     """
 
     _throttle = 2.0
-    _cooldown = 60.0
 
     def __init__(
         self,
@@ -39,20 +37,19 @@ class EnsureSafeSpot(MinimapAttributesMixin, DecisionMaker):
         # Minimap attributes
         self._create_minimap_attributes()
         self._prev_minimap_position = self.data.current_minimap_position
-        self._no_trigger_until = time.perf_counter()
 
     async def _decide(self) -> None:
         self.data.update_attribute("current_minimap_position")
 
-        if time.perf_counter() < self._no_trigger_until:
-            pass
-
-        elif self.data.current_minimap_position != self._prev_minimap_position:
-            logger.log(LOG_LEVEL, f"{self.data.ign} has been moved!")
-            self._no_trigger_until = time.perf_counter() + self._cooldown
-            self.pipe.send(self._discord_alert())
+        if self.data.current_minimap_position != self._prev_minimap_position:
+            self._send_alert()
 
         self._prev_minimap_position = self.data.current_minimap_position
+
+    @cooldown(60)
+    def _send_alert(self):
+        logger.log(LOG_LEVEL, f"{self.data.ign} has been moved!")
+        self.pipe.send(self._discord_alert())
 
     def _discord_alert(self) -> ActionRequest:
         """
@@ -127,7 +124,10 @@ class ResetIdleSafeguard(
 
     async def _decide(self) -> None:
         try:
-            await asyncio.wait_for(self._ensure_safe_spot(), timeout=self._TIME_LIMIT)
+            await asyncio.wait_for(
+                self._ensure_safe_spot(),
+                timeout=random.uniform(0.9, 1.1) * self._TIME_LIMIT
+            )
             logger.log(LOG_LEVEL, f"{self} is not at safe spot. Resetting")
         except asyncio.TimeoutError:
             logger.log(LOG_LEVEL, f"{self} is idle. Engaging reset.")

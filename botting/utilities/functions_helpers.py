@@ -2,7 +2,22 @@ import functools
 import inspect
 import itertools
 import random
+import time
 from typing import Literal
+
+
+def cooldown(seconds: float):
+    def decorator(func):
+        last_call = [0.0]
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if time.perf_counter() - last_call[0] >= seconds:
+                last_call[0] = time.perf_counter()
+                return func(*args, **kwargs)
+
+        return wrapper
+    return decorator
 
 
 def randomize_params(

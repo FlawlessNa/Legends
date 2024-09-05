@@ -12,7 +12,8 @@ from botting.core import ActionRequest, ActionWithValidation, BotData
 from botting.utilities import Box
 from royals.actions.skills_related_v2 import cast_skill_single_press
 from royals.actions import priorities
-from royals.model.mechanics import RoyalsSkill
+from royals.model.characters import ALL_BUFFS
+from royals.model.mechanics import RoyalsSkill, RoyalsBuff, RoyalsPartyBuff
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 LOG_LEVEL = logging.WARNING
@@ -25,10 +26,10 @@ class RebuffMixin:
     _icons_directory = RoyalsSkill.icon_path
     _hsv_lower = np.array([0, 0, 0])
     _hsv_upper = np.array([179, 255, 53])
-    MATCH_TEMPLATE_THRESHOLD = 0.55
-    MATCH_ICON_THRESHOLD = 0.75
 
-    def _get_character_default_buffs(self, buff_type: str) -> list[RoyalsSkill]:
+    def _get_character_default_buffs(
+            self, buff_type: str
+    ) -> list[RoyalsBuff | RoyalsPartyBuff]:
         return [
             skill
             for skill in self.data.character.skills.values()
@@ -76,7 +77,7 @@ class RebuffMixin:
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(results)
         self._debug(results, buff, haystack, buff_icon)
         # Start by finding actual location of the buff icon with reasonable threshold
-        if max_val < self.MATCH_TEMPLATE_THRESHOLD:
+        if max_val < ALL_BUFFS[buff].match_template_threshold:
             logger.log(LOG_LEVEL, f"Insufficient confidence {max_val:.4f} for {buff}.")
             return False
         else:
@@ -85,9 +86,11 @@ class RebuffMixin:
             left, top = max_loc
             width, height = buff_icon.shape[::-1]
             target = haystack[top : top + height, left : left + width]
-            return self._confirm_buff_freshness(target, buff_icon)
+            threshold = ALL_BUFFS[buff].buff_freshness_threshold
+            return self._confirm_buff_freshness(target, buff_icon, threshold)
 
-    def _confirm_buff_freshness(self, target: np.ndarray, icon) -> bool:
+    @staticmethod
+    def _confirm_buff_freshness(target: np.ndarray, icon, threshold) -> bool:
         """
         Given the on-screen icon to check, confirm if the buff is fresh or not.
         To do so, look at the bottom rows within the target image to see if a large
@@ -95,7 +98,7 @@ class RebuffMixin:
         :param target:
         :return:
         """
-        return (target == icon).sum() / target.size > self.MATCH_ICON_THRESHOLD  # noqa
+        return (target == icon).sum() / target.size > threshold  # noqa
 
     async def _cast_and_confirm(
         self,

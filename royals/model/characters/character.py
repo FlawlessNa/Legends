@@ -24,6 +24,7 @@ class Character(BaseCharacter, ABC):
     detection_box_small_client: Box = NotImplemented
     main_skill: str = NotImplemented
     main_stat: str = NotImplemented
+    skills: dict[str, RoyalsSkill] = NotImplemented
 
     def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:
         super().__init__(ign)
@@ -191,11 +192,6 @@ class Character(BaseCharacter, ABC):
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         detection_method = self._preprocessing_functions[self._preprocessing_method]
         return detection_method(image, **self._preprocessing_params)
-
-    @property
-    @abstractmethod
-    def skills(self) -> dict[str, RoyalsSkill]:
-        raise NotImplementedError
 
     @property
     def _preprocessing_functions(self) -> dict[str, callable]:

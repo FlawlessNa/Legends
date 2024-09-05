@@ -4,20 +4,15 @@ from .character import Character
 
 class Rogue(Character):
     main_stat = "LUK"
-
-    @property
-    def skills(self) -> dict[str, RoyalsSkill]:
-        return {}
+    skills = {}
 
     def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:
         super().__init__(ign, detection_configs, client_size)
 
 
 class Assassin(Rogue):
-    @property
-    def skills(self) -> dict[str, RoyalsSkill]:
-        return {
-            **super().skills,
+    skills = {
+            **Rogue.skills,
             "Haste": RoyalsSkill(
                 "Haste",
                 "Party Buff",
@@ -43,10 +38,8 @@ class Assassin(Rogue):
 
 
 class Hermit(Assassin):
-    @property
-    def skills(self) -> dict[str, RoyalsSkill]:
-        return {
-            **super().skills,
+    skills = {
+            **Assassin.skills,
             "Meso Up": RoyalsSkill(
                 "Meso Up",
                 "Party Buff",

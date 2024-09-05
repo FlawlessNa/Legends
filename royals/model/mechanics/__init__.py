@@ -4,5 +4,5 @@ from .minimap_mechanics import (
     MinimapNode,
     MinimapPathingMechanics,
 )
-from .royals_skill import RoyalsSkill
+from .royals_skill import RoyalsSkill, RoyalsBuff, RoyalsPartyBuff
 from .movement_mechanics import Movements

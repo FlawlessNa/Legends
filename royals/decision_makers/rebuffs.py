@@ -7,6 +7,7 @@ import multiprocessing.managers
 from .mixins import RebuffMixin, NextTargetMixin, MinimapAttributesMixin
 from botting import PARENT_LOG
 from botting.core import ActionRequest, DecisionMaker, BotData
+from botting.utilities import cooldown
 from royals.actions import priorities
 from royals.model.mechanics import RoyalsSkill
 
@@ -100,6 +101,28 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
 
         self._reset_state()
 
+    @cooldown(5.0)
+    def cast_buffs(self, remaining_buffs: list) -> None:
+        """
+        Sends the request but only if the cooldown has passed.
+        :param remaining_buffs:
+        :return:
+        """
+        to_cast = [
+            self.data.character.skills[buff] for buff in remaining_buffs
+        ]
+        self.pipe.send(
+            ActionRequest(
+                f"{self} - {remaining_buffs}",
+                self._cast_skills_single_press,
+                self.data.ign,
+                priority=priorities.BUFFS,
+                block_lower_priority=True,
+                args=(self.data.handle, self.data.ign, to_cast),
+                callbacks=[self._unique_lock.release],
+            )
+        )
+
     async def _attempt_party_rebuff(self) -> None:
         """
         Attempt to rebuff the party.
@@ -114,24 +137,25 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
                 await asyncio.to_thread(self._unique_lock.acquire)
                 remaining_buffs = self._get_own_buff_remaining()
                 if remaining_buffs:
-                    to_cast = [
-                        self.data.character.skills[buff] for buff in remaining_buffs
-                    ]
-                    self.pipe.send(
-                        ActionRequest(
-                            f"{self} - {remaining_buffs}",
-                            self._cast_skills_single_press,
-                            self.data.ign,
-                            priority=priorities.BUFFS,
-                            block_lower_priority=True,
-                            args=(self.data.handle, self.data.ign, to_cast),
-                            callbacks=[self._unique_lock.release],
-                        )
-                    )
+                    self.cast_buffs(remaining_buffs)
+                    # to_cast = [
+                    #     self.data.character.skills[buff] for buff in remaining_buffs
+                    # ]
+                    # self.pipe.send(
+                    #     ActionRequest(
+                    #         f"{self} - {remaining_buffs}",
+                    #         self._cast_skills_single_press,
+                    #         self.data.ign,
+                    #         priority=priorities.BUFFS,
+                    #         block_lower_priority=True,
+                    #         args=(self.data.handle, self.data.ign, to_cast),
+                    #         callbacks=[self._unique_lock.release],
+                    #     )
+                    # )
                 else:
                     self._unique_lock.release()
 
-            await asyncio.sleep(3.0)
+            await asyncio.sleep(0.5)
 
     def _set_ready_state(self) -> None:
         """
@@ -243,7 +267,6 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         remaining = set([item for sublist in statuses.values() for item in sublist])
         return list(buff_names.intersection(remaining))
 
-
     def _members_all_in_range(self) -> bool:
         """
         Computes the maximum distance between all shared locations and check if within
@@ -275,6 +298,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
             statuses = self.metadata[ident].values()
         print(f"{_CURRENT_TIME()}: {self} checking rebuff status: {statuses}")
         return all(len(status) == 0 for status in statuses) and len(statuses) > 1
+
 
 class SoloRebuff(RebuffMixin, DecisionMaker):
     # TODO - Deal with Macros as well.

@@ -19,15 +19,11 @@ class BaseCharacter(InGameBaseVisuals, ABC):
     """
 
     detection_box: Box
+    skills: dict[str, Skill]
 
     def __init__(self, ign: str, *args, **kwargs) -> None:
         self.ign = ign
 
     @abstractmethod
     def get_onscreen_position(self, image: np.ndarray | None) -> Sequence[int] | None:
-        pass
-
-    @property
-    @abstractmethod
-    def skills(self) -> dict[str, Skill]:
         pass
