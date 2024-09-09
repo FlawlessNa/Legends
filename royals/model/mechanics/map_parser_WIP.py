@@ -4,6 +4,15 @@ import os
 import xml.etree.ElementTree as ElementTree
 from paths import ROOT
 
+# According to Copilot:
+# x: The x-coordinate of the object in the map.
+# y: The y-coordinate of the object in the map.
+# z: The z-index of the object, which determines the drawing order (higher values are drawn on top of lower values).
+# f: The flip value, which indicates whether the object should be flipped horizontally (1 for flipped, 0 for not flipped).
+# zM: The zoom multiplier, which scales the object (1 means no scaling, values greater than 1 scale up, and values less than 1 scale down).
+# r: The rotation value, which specifies the rotation angle of the object in degrees.
+
+
 tree = ElementTree.parse(os.path.join(ROOT, 'royals/assets/game_files/maps/UluEstate2.xml'))
 root = tree.getroot()
 
