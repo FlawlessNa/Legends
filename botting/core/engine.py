@@ -100,7 +100,7 @@ class _ChildProcessEngine:
         except Exception as e:
             logger.error(f"Exception occurred in {self}: {e}.")
             self.pipe.send(e)
-            raise
+            raise e
 
         finally:
             if not self.pipe.closed:

@@ -14,6 +14,7 @@
 - [ ] Add failsafe on Rotation for self.data.path on last X values being same or None
   - third failsafe on rotation should trigger pausing mechanism (disable relevant decision makers)
 - Add failsafe reaction resetting all key directions
+- Jump on rope mechanics: Add only grid connections for the "peak" of the parabola
 
 ## Improvements
 - [ ] Rebuffing:
