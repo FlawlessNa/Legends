@@ -5,7 +5,7 @@ from paths import ROOT
 import xml.etree.ElementTree as ET
 
 # Load XML file
-tree = ET.parse(os.path.join(ROOT, 'royals/assets/game_files/maps/UluEstate2.xml'))
+tree = ET.parse(os.path.join(ROOT, 'royals/assets/game_files/maps/PathOfTime1.xml'))
 root = tree.getroot()
 
 # Find the info & minimap sections
@@ -40,8 +40,8 @@ def get_obj_image_path(oS, l0, l1, l2):
 
 
 # Function to get image path for tiles
-def get_tile_image_path(u, no):
-    return os.path.join(assets, "jungleSG", f"{u}.{no}.png")
+def get_tile_image_path(tS, u, no):
+    return os.path.join(assets, tS, f"{u}.{no}.png")
 
 
 def paste_image(canvas, image, x, y, f, zM, r):
@@ -95,10 +95,10 @@ for section in root:
                 #     breakpoint()
                 f = int(obj.find("int[@name='f']").get('value'))
                 zM = int(obj.find("int[@name='zM']").get('value'))
-                r = int(obj.find("int[@name='r']").get('value'))
+                # r = int(obj.find("int[@name='r']").get('value'))
                 image_path = get_obj_image_path(oS, l0, l1, l2)
                 image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-                paste_image(canvas, image, x, y, f, zM, r)
+                paste_image(canvas, image, x, y, f, zM, r=0)
                 cv2.imshow('image', cv2.resize(canvas, None, fx=0.5, fy=0.5))
                 cv2.waitKey(1)
 
@@ -109,26 +109,51 @@ for section in root:
         tile_section = section.find("imgdir[@name='tile']")
         if tile_section is not None:
             for tile in tile_section.findall('imgdir'):
+                info_section = section.find("imgdir[@name='info']")
+                tS = info_section.find("string[@name='tS']").get('value')
                 u = tile.find("string[@name='u']").get('value')
                 no = tile.find("int[@name='no']").get('value')
                 x = int(tile.find("int[@name='x']").get('value')) - vr_left
                 y = int(tile.find("int[@name='y']").get('value')) - vr_top
                 zM = int(tile.find("int[@name='zM']").get('value'))
-                image_path = get_tile_image_path(u, no)
+                image_path = get_tile_image_path(tS, u, no)
                 image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
                 h, w = image.shape[:2]
                 if u == 'enH0':
-                    x -= w // 2
+                    x += w // 2
                     y -= h // 2
                 elif u == 'bsc':
                     x += w // 2
                     y += h // 2
                 elif u == 'enH1':
+                    x += w // 2
+                    y += h // 2
+                elif u == 'edD':
+                    y += h // 2
+                elif u == 'edU':
+                    y -= h // 2
+                elif u == 'enV0':
+                    x -= w // 2
+                    y += h // 2
+                elif u == 'enV1':
+                    x += w // 2
+                    y += h // 2
+                elif u == 'slLD':
+                    x -= w // 2
+                    y += h // 2
+                    pass
+                elif u == 'slLU':
                     breakpoint()
-                    continue
+                elif u == 'slRD':
+                    x += w // 2
+                    y += h // 2
+
+                elif u == 'slRU':
+                    breakpoint()
+
                 else:
                     breakpoint()
-                    continue
+                    # pass
                 # if x < 0 or y < 0 or x >= vr_width or y >= vr_height:
                 #     breakpoint()
                 paste_image(canvas, image, x, y, f=0, zM=zM, r=0)

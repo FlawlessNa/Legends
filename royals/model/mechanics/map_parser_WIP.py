@@ -13,7 +13,7 @@ from paths import ROOT
 # r: The rotation value, which specifies the rotation angle of the object in degrees.
 
 
-tree = ElementTree.parse(os.path.join(ROOT, 'royals/assets/game_files/maps/UluEstate2.xml'))
+tree = ElementTree.parse(os.path.join(ROOT, 'royals/assets/game_files/maps/PathOfTime1.xml'))
 root = tree.getroot()
 
 # Find the "foothold" element
@@ -124,7 +124,7 @@ from royals.model.interface.dynamic_components.minimap import Minimap
 from botting.utilities import client_handler
 
 
-HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
+HANDLE = client_handler.get_client_handle("StarBase", royals_ign_finder)
 
 class FakeMinimap(Minimap):
     map_area_width = minimap_canvas_width
@@ -148,13 +148,15 @@ while True:
     char_pos = minimap.get_character_positions(HANDLE).pop()
     gray[char_pos[1], char_pos[0]] = 200
     # breakpoint()
-    # translated = translate_to_vr(*char_pos)
+    translated = translate_to_vr(*char_pos)
+    adjusted = (translated[0] + 5, translated[1] + 60)
     # translated_min = translate_to_vr(*[i - 1 for i in char_pos])
-    translated_plus = translate_to_vr(char_pos[0], char_pos[1] + 1)
+    # translated_plus = translate_to_vr(char_pos[0], char_pos[1] + 1)
     # cv2.circle(copied, (char_pos[0] - 2, char_pos[1] + 7), 1, (255, 0, 0), 1)
-    # cv2.circle(copied, translated, 1, (0, 255, 0), 3)
+    cv2.circle(copied, translated, 1, (0, 255, 0), 3)
+    cv2.circle(copied, adjusted, 1, (0, 0, 255), 3)
     # cv2.circle(copied, translated_min, 1, (255, 255, 0), 3)
-    cv2.circle(copied, translated_plus, 1, (0, 255, 255), 3)
+    # cv2.circle(copied, translated_plus, 1, (0, 255, 255), 3)
     # test = translate_to_vr(char_pos[0]-1, char_pos[1]+8)
     # cv2.circle(canvas, map_to_canvas(*test), 1, (0, 0, 255), 5)
     cv2.imshow('Canvas', cv2.resize(copied, None, fx=1, fy=1))

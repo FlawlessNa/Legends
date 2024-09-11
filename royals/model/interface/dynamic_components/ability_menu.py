@@ -19,9 +19,9 @@ class AbilityMenu(InGameDynamicVisuals):
         os.path.join(ROOT, "royals/assets/detection_images/ability_menu.png")
     )
 
-    ign_box: Box = Box(
-        offset=True, name="IGN", left=54, right=-5, top=26, bottom=28, config="--psm 7"
-    )
+    # ign_box: Box = Box(
+    #     offset=True, name="IGN", left=54, right=-5, top=26, bottom=28, config="--psm 7"
+    # )
     # level_box: Box = Box(offset=True, name='Level', left=37, right=125, top=45, bottom=-90, config=f'--psm 7 -c tessedit_char_whitelist={string.digits}')
     # hp_box: Box = Box(offset=True, name='HP', left=37, right=125, top=81, bottom=-54, config=f'--psm 7 -c tessedit_char_whitelist={string.digits}/ ')
     # add_hp_box: Box = Box(offset=True, name='AddHP', left=166, right=141, top=84, bottom=-55)
@@ -29,53 +29,53 @@ class AbilityMenu(InGameDynamicVisuals):
     # add_mp_box: Box = Box(offset=True, name='AddMP', left=166, right=141, top=102, bottom=-37)
     # exp_box: Box = Box(offset=True, name='EXP', left=37, right=125, top=117, bottom=-18, config=f'--psm 7 -c tessedit_char_whitelist={string.digits}, ')
     # fame_box: Box = Box(offset=True, name='Fame', left=37, right=125, top=135, bottom=0, config=f'--psm 7 -c tessedit_char_whitelist={string.digits},')
-    str_box: Box = Box(
-        offset=True,
-        name="STR",
-        left=54,
-        right=-20,
-        top=223,
-        bottom=223,
-        config=f"--psm 7 -c tessedit_char_whitelist={string.digits}+()",
-    )
-    dex_box: Box = Box(
-        offset=True,
-        name="DEX",
-        left=54,
-        right=-20,
-        top=242,
-        bottom=242,
-        config=f"--psm 7 -c tessedit_char_whitelist={string.digits}+()",
-    )
-    int_box: Box = Box(
-        offset=True,
-        name="INT",
-        left=54,
-        right=-20,
-        top=260,
-        bottom=260,
-        config=f"--psm 7 -c tessedit_char_whitelist={string.digits}+()",
-    )
-    luk_box: Box = Box(
-        offset=True,
-        name="LUK",
-        left=54,
-        right=-20,
-        top=278,
-        bottom=278,
-        config=f"--psm 7 -c tessedit_char_whitelist={string.digits}+()",
-    )
+    # str_box: Box = Box(
+    #     offset=True,
+    #     name="STR",
+    #     left=54,
+    #     right=-20,
+    #     top=223,
+    #     bottom=223,
+    #     config=f"--psm 7 -c tessedit_char_whitelist={string.digits}+()",
+    # )
+    # dex_box: Box = Box(
+    #     offset=True,
+    #     name="DEX",
+    #     left=54,
+    #     right=-20,
+    #     top=242,
+    #     bottom=242,
+    #     config=f"--psm 7 -c tessedit_char_whitelist={string.digits}+()",
+    # )
+    # int_box: Box = Box(
+    #     offset=True,
+    #     name="INT",
+    #     left=54,
+    #     right=-20,
+    #     top=260,
+    #     bottom=260,
+    #     config=f"--psm 7 -c tessedit_char_whitelist={string.digits}+()",
+    # )
+    # luk_box: Box = Box(
+    #     offset=True,
+    #     name="LUK",
+    #     left=54,
+    #     right=-20,
+    #     top=278,
+    #     bottom=278,
+    #     config=f"--psm 7 -c tessedit_char_whitelist={string.digits}+()",
+    # )
     add_str_box: Box = Box(
-        offset=True, name="AddSTR", left=150, right=-8, top=228, bottom=222
+        offset=True, name="AddSTR", left=150, right=-8, top=193, bottom=185
     )
     add_dex_box: Box = Box(
-        offset=True, name="AddDEX", left=150, right=-8, top=247, bottom=241
+        offset=True, name="AddDEX", left=150, right=-8, top=211, bottom=203
     )
     add_int_box: Box = Box(
-        offset=True, name="AddINT", left=150, right=-8, top=265, bottom=259
+        offset=True, name="AddINT", left=150, right=-8, top=229, bottom=221
     )
     add_luk_box: Box = Box(
-        offset=True, name="AddLUK", left=150, right=-8, top=283, bottom=277
+        offset=True, name="AddLUK", left=150, right=-8, top=247, bottom=239
     )
     # attack_box: Box = Box(offset=True, name='Attack', left=225, right=310, top=119, bottom=-16, config=f'--psm 7 -c tessedit_char_whitelist={string.digits}~, ')
     # weapon_def_box: Box = Box(offset=True, name='WeaponDef', left=225, right=310, top=137, bottom=2, config=f'--psm 7 -c tessedit_char_whitelist={string.digits}+-()')
@@ -88,28 +88,28 @@ class AbilityMenu(InGameDynamicVisuals):
         offset=True,
         name='Speed',
         left=241,
-        right=120,
-        top=259,
-        bottom=256,
+        right=115,
+        top=226,
+        bottom=225,
         config=f'--psm 7 -c tessedit_char_whitelist={string.digits}%'
     )
     jump_box: Box = Box(
         offset=True,
         name='Jump',
         left=241,
-        right=120,
-        top=277,
-        bottom=274,
+        right=115,
+        top=243,
+        bottom=242,
         config=f'--psm 7 -c tessedit_char_whitelist={string.digits}%'
     )
     # extended_menu_button_box: Box = Box(offset=True, left=110, right=115, top=293, bottom=156)
     ability_points_box: Box = Box(
         offset=True,
         name="AP",
-        left=91,
-        right=-50,
-        top=197,
-        bottom=193,
+        left=84,
+        right=-54,
+        top=272,
+        bottom=270,
         config=f"--psm 7 -c tessedit_char_whitelist={string.digits}",
     )
 
