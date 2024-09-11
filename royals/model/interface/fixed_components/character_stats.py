@@ -23,7 +23,7 @@ class CharacterStats(InGameBaseVisuals):
     job_box: Box = Box(
         name="Job",
         left=85,
-        right=235,
+        right=185,
         top=760,
         bottom=777,
         config=f"--psm 7 -c tessedit_char_whitelist={string.ascii_letters}",
