@@ -1,7 +1,6 @@
 # Royals-V2
 
 ## Bug Fixes
-- [ ] Minimap handling between CheckStillInMap and InventoryManager
 - [ ] MobCheck:
   - First alert after X seconds -> disable MobsHitting but keep movements
   - Second alert after 2X seconds -> pause everything except necessary maintenance + random reaction
@@ -12,33 +11,27 @@
 - [ ] Improve client_handler to avoid need of updating window title on every game update
 - [ ] Improvements of movements, particularly to avoid hitting while character is crouched
 - [ ] Looks like there's an existing bug between window switching and key releases
+- [ ] Add failsafe on Rotation for self.data.path on last X values being same or None
+  - third failsafe on rotation should trigger pausing mechanism (disable relevant decision makers)
+- Add failsafe reaction resetting all key directions
+- Jump on rope mechanics: Add only grid connections for the "peak" of the parabola
 
-## Performance Branch
+## Improvements
 - [ ] Rebuffing:
-  - [ ] Customized icon location threshold and refresh acceptance threshold for each buff individually
   - [ ] Handling of in-game Macros efficiently
-  - [ ] Clean up PartyRebuff
-  - [x] Make sure screenshots are being handled thread-safely
    
 - [ ] InventoryManager:
   - [ ] Confirmation of Door being cast properly
-  - [ ] Finalize Procedure
   - [ ] Breakdown of the class between interface components and actual decision-making
 
-- [ ] Implement kill switch as part of fail safes and discord commands
+- Enabling/Disabling of DecisionMakers 
+  - [ ] implement ability to use class' MRO to enable/disable decision makers
+  - [ ] Implement ability to only target specific Bots (will be useful for Discord requests)
 
-### Inputs
-- [ ] Change SharedResources to remove un-unused methods
-  - Instead, add decorator method ensuring that the focus lock is only acquired within the MainProcess and nothing else
-
-### Pathing
-- [ ] refactoring of movement_mechanics to be cleaner
-- [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases
-- [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
-- [ ] Look into game files to reverse engineer movements for better precision
-  - Can definitely use VRTop, VRLeft, VRBottom, VBRRight to convert minimap coordinates into actual map coordinates
-- [ ] Flexible map movements, speed, jumps, etc.
-- [ ] (least priority) Rotation decision maker cancels itself when stray too far from path
+- [ ] DiscordParser
+  - Implement an additional task within each Engine process (ex) that sentinels a specific multiprocessing.Event flag to pause/resume the bot
+  - The mainprocess has an additional task that sentinels a specific keyboard input to set/clear the flag
+  - That same multiprocessing.Event flag can be used for discord requests to pause/resume
 
 ### Other
 - [ ] Kill switches that either:
@@ -56,88 +49,41 @@
 - [ ] Make sure to refresh documentation everywhere
 
 ### Inventory Cleanup
-- [ ] Inventory parsing for godlies?
+- [ ] Inventory parsing for godlies
 - [ ] Storage mechanics
 
-### Generators
-  - [ ] MobCheck : 2nd reaction - add full sentences (more elaborate choices)
-  - [ ] MobCheck : Unblock on 2nd reaction IF mobs are detected again
-  - [ ] Check character still alive
-  - [ ] Check Potions, Pet Food (_failsafe to PetFood), Mount Food, Magic Rocks left
-  - [ ] Inventory Management
-    - [ ] Advanced parser to check stats on each item
-    - [ ] Advanced actions to store godlies
-    - [ ] Refactor the NPC Shop UI into its own Visual class
-    - [ ] Refactor InventoryActions into royals.actions functions
-    - [ ] Clean the remainder of InventoryChecks and InventoryManager
-  - [ ] Add failsafe on MobHitting (how??)
-  - [ ] Add failsafe on any Rotation Generators - Movement is expected if action is not cancelled
+### DecisionMakers
+- [ ] Mob Check -> with 2-3 layers reactions?
+- [ ] CheckStillAlive
+- [ ] CheckStrangersInMap
+- [ ] ChatMonitoring
+  - Chat Parsing (try grayscale preprocessing on "general" lines) + GPT Automated Responses
+  - Use dequeue structure
+  - Idea: When detecting relevant lines, minimize chat and scroll up, then read that line without background noise
+- [ ] CheckStillInMap
+- [ ] Check Remaining Potions, Pet Food, Mount Food, Magic Rocks
+- [ ] Abnormal Status Detection (look for gray line types)
+  - Stunned
+  - Seduced
+  - Cursed (reverse directions
+- [ ] Check if straying too far from self.data.path? (Indicative of unexpected movements)
+- [ ] GM Logo detection? (probably not realistic but could try)
+    - Would need several screenshots, and threshold confirmed several times in a row.
+- [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs
 
-### Anti Detection Features
-  - [ ] Chat Parsing (try grayscale preprocessing on "general" lines) + GPT Automated Responses
-    - Idea: When detecting relevant lines, minimize chat and scroll up, then read that line without background noise!!!
-  - [ ] GM Logo detection
-  - [ ] Abnormal Status Detection (look for gray line types)
-    - [ ] Stunned
-    - [ ] Seduced
-    - [ ] Cursed (reverse directions)
-  - [x] Minimap Parsing to ensure still in proper map + random reaction
-  - [ ] Minimap Parsing for strangers + random reaction
-  - [ ] Minimap Parsing for unexpected self movements (stray too far from target?) + random reaction
-  - [ ] Blue Notification detection (chat invite, other invites, etc)
-  - [x] Mob freeze (from a GM) + random reaction
-  - [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs + random reaction
-  - [ ] For complex movements (teleport, telecast, cast skill with attacking skills, etc), use Spy++ to find exact key combinations when done by human, and make sure to properly replicate (should be very easy)
-  - [ ] Nice-to-have, for Ulu only - look into building an "unknown" object detection method, using UNKAD methodology or anomaly detection
-
-### Discord
-   - [ ] Add a callback on user-messages to confirm action (such as writing to chat) properly made
+### Pathing
+- [ ] refactoring of movement_mechanics to be cleaner
+- [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases
+- [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
+- [ ] Look into game files to reverse engineer movements for better precision
+  - Can definitely use VRTop, VRLeft, VRBottom, VBRRight to convert minimap coordinates into actual map coordinates
+- [ ] (least priority) Rotation decision maker cancels itself when stray too far from path
 
 ### Character detection
   - [ ] Standardize code and transfer detection framework into botting library
-  
-### QueueAction
-  - [ ] Implement better handling of QueueAction Priority
-  
-### Mob detection
-  - [ ] Clean the pre-processing to remove the additional layer of the filter function
-  - [ ] Define additional generic detection functions for mobs
-  - [ ] Combine with HP bar
-  
-### RoyalsData Management
-- [ ] Re-split data further into interface/mechanics components instead of generator types (ex: MinimapData, PathingData, MobData, etc)
-- [ ] Add a PerformanceData class for monitoring (mesos/h, exp/h, etc)
-- [x] DecisionEngine should not have to update anything. Each Generator should deal with their own requirements.
-
-### Error Management
-  - [x] Deal with KeyboardInterrupt to ensure all keys are released from all clients
-  - [ ] Ability to close all clients if error occurs
-  - [ ] Ability to send all characters to lounge if error occurs
-
-### Misc
-  - [ ] Ability to combine multiple Engines into a single process (ex: all buff mules together, or mages in same ch together)
-  - [ ] Add Macros + cast_macros which is cancellable in between each cast
-  - [ ] streamline keybindings configs
-  - [ ] Add variable speed/jump management
-  - [ ] Skill Specs Finder
-  - [ ] Finalize Discord communications - Control of which process are to respond to user commands
-  - [ ] UnitTests on the botting library
-
-### Documentation
-- [ ] Botting.core
-  - [x] .bot
-  - [ ] .communications
-  - [x] .controls
-- [ ] Royals (entire package)
-- [ ] Improve relevance of logs
-
-### Game Interface
-  - [ ] Quickslots
-  - [x] Inventory
-  - [x] Level up detection
-  - [ ] HP bar detection (check if still alive)
 
 ## Nice to have
+  - [ ] for Ulu only - look into building an "unknown" object detection method, using UNKAD methodology or anomaly detection
   - [ ] Chat - Try additional pre-processing: Thresholding (improved?), Denoising (application of Gaussian and/or Median Blur), Contrast Enhancement (Make text more distinguishable from background)
   - [ ] Chat - Pre-trained model for semantic segmentation? Could help distinguish text from the rest.
   - [ ] Chat - Other OCR libraries? OCRopus & EasyOCR in particular.

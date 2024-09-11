@@ -37,6 +37,29 @@ class MenusMixin:
                 self.data.handle, self.data.current_client_img
             ),
         )
+        self.data.create_attribute(
+            "speed_multiplier",
+            lambda: menu.get_speed(
+                self.data.handle, self.data.current_client_img
+            )
+        )
+        self.data.create_attribute(
+            "jump_multiplier",
+            lambda: menu.get_jump(
+                self.data.handle, self.data.current_client_img
+            )
+        )
+        # Refresh minimap grid with new speed and jump multipliers
+        if self.data.has_minimap_attributes:
+            self.data.current_minimap.generate_grid_template(
+                self.data.character.skills.get("Teleport") is not None,
+                self.data.speed_multiplier,
+                self.data.jump_multiplier,
+            )
+
+        if self.data.has_pathing_attributes:
+            self.data.update_attribute('action')
+
         ensure_ability_menu_displayed(
             **self._display_kwargs(f"{self} - Ability Menu Setup", 2.0, condition),
             ensure_displayed=False,

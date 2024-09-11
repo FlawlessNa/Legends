@@ -12,6 +12,7 @@ data/
 logs/
 
 .idea/
+.idea/misc.xml
 
 # Distribution / packaging
 .Python

@@ -13,3 +13,7 @@ MAPPING = {
     "WizardFirePoison": FPWizard,
     "MageFirePoison": FPMage,
 }
+
+ALL_BUFFS = dict()
+for char in MAPPING.values():
+    ALL_BUFFS.update(char.skills)

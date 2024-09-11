@@ -70,15 +70,6 @@ class PeripheralsProcess:
                     # TODO - Finish this
                     if action is not None:
                         await async_queue.put(action)
-                    # if action is None:
-                    #     logger.info(f"Received {message} from discord pipe. Exiting.")
-                    #     break
-                    # else:
-                    #     logger.info(
-                    #         f"Performing action {action} as requested by discord user."
-                    #     )
-                    #     new_task = self.all_bots[0].create_task(action)
-                    #     await new_task
         finally:
             if not self.pipe_main_proc.closed:
                 logger.debug("Closing Main pipe to peripherals process.")

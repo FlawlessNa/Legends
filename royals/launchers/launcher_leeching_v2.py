@@ -7,19 +7,19 @@ import royals.parsers
 
 
 SYNCHRONIZED_BUFFS = ["Holy Symbol", "Maple Warrior", "Haste", "Meso Up"]
-GAME_MAP = maps.FantasyThemePark1
+GAME_MAP = maps.UluEstate2
 CLIENT_SIZE = "large"
 DETECTION_CONFIG_SECTION = "Elephant Cape"
 
 leeching_configs = {
     "num_pets": 3,
     "game_map": GAME_MAP,
-    "mob_count_threshold": 6,
+    "mob_count_threshold": 4,
     "detection_configs": DETECTION_CONFIG_SECTION,
     "client_size": CLIENT_SIZE,
     "anti_detection_mob_threshold": 4,
     "anti_detection_time_threshold": 10,
-    "included_buffs": ["Invincible"],
+    "included_buffs": ["Invincible", "Magic Guard"],
     "synchronized_buffs": SYNCHRONIZED_BUFFS,
     "cleanup_procedure": constants.INVENTORY_CLEANUP_WITH_SELF_DOOR,
 }
@@ -50,9 +50,9 @@ async def main():
         mule5 = bots.LeechMuleWithoutBuffs(
             "BCoinFarm", session.metadata, **mule_configs
         )
-        # await session.launch([leecher, mule1], [mule2, mule3, mule4, mule5])
+        await session.launch([leecher], [mule1, mule2, mule3, mule4, mule5])
         # await session.launch([leecher],  [mule1])
-        await session.launch([leecher])
+        # await session.launch([leecher])
 
 
 if __name__ == "__main__":

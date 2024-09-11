@@ -1,6 +1,7 @@
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
+import random
 
 from abc import ABC, ABCMeta
 from botting import PARENT_LOG, controller
@@ -16,7 +17,7 @@ LOG_LEVEL = logging.WARNING
 
 class ThrottleMeta(ABCMeta):
     def __init__(cls, name, bases, dct):
-        if "_throttle" not in dct or dct["_throttle"] is None:
+        if "_throttle" not in [key.lower() for key in dct] or dct.get("_throttle", dct["_THROTTLE"]) is None:
             raise TypeError(f"Class {name} must define a '_throttle' class variable.")
         super().__init__(name, bases, dct)
 
@@ -27,7 +28,11 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
     It also checks for the number of remaining consumables within the QuickSlots.
     """
 
-    _throttle = 3600  # Use this to set the interval at which a consumable is taken.
+    _THROTTLE = 3600  # Use this to set the interval at which a consumable is taken.
+
+    @property
+    def _throttle(self) -> float:
+        return self.__class__._THROTTLE * random.uniform(0.9, 1.1)
 
     def __init__(
         self,
@@ -77,14 +82,14 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
 
 
 class PetFood(UseAndCheckConsumable):
-    _throttle = 900
+    _THROTTLE = 900
 
     def __init__(self, metadata, data, pipe, num_pets: int = 1, **kwargs):
         super().__init__(metadata, data, pipe, "Pet Food", num_usage=num_pets)
 
 
 class MountFood(UseAndCheckConsumable):
-    _throttle = 900
+    _THROTTLE = 900
 
     def __init__(self, metadata, data, pipe, **kwargs):
         super().__init__(metadata, data, pipe, "Mount Food", num_usage=1)

@@ -278,12 +278,12 @@ if __name__ == "__main__":
         init_control_gui_color()
 
     left, top, right, bottom = win32gui.GetClientRect(HANDLE)
-    region = Box(left=right - 250, top=top + 45, right=right, bottom=85)
-    fx = 5
-    fy = 5
+    # region = Box(left=right - 250, top=top + 45, right=right, bottom=85)
+    fx = 1
+    fy = 1
 
     while True:
-        img_hsv = take_screenshot(HANDLE, region)
+        img_hsv = take_screenshot(HANDLE)
         img_color = img_hsv.copy()
 
         if USE_HSV:

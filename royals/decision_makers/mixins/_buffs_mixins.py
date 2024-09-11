@@ -12,7 +12,8 @@ from botting.core import ActionRequest, ActionWithValidation, BotData
 from botting.utilities import Box
 from royals.actions.skills_related_v2 import cast_skill_single_press
 from royals.actions import priorities
-from royals.model.mechanics import RoyalsSkill
+from royals.model.characters import ALL_BUFFS
+from royals.model.mechanics import RoyalsSkill, RoyalsBuff, RoyalsPartyBuff
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 LOG_LEVEL = logging.WARNING
@@ -25,10 +26,10 @@ class RebuffMixin:
     _icons_directory = RoyalsSkill.icon_path
     _hsv_lower = np.array([0, 0, 0])
     _hsv_upper = np.array([179, 255, 53])
-    MATCH_TEMPLATE_THRESHOLD = 0.55
-    MATCH_ICON_THRESHOLD = 0.75
 
-    def _get_character_default_buffs(self, buff_type: str) -> list[RoyalsSkill]:
+    def _get_character_default_buffs(
+        self, buff_type: str
+    ) -> list[RoyalsBuff | RoyalsPartyBuff]:
         return [
             skill
             for skill in self.data.character.skills.values()
@@ -76,8 +77,7 @@ class RebuffMixin:
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(results)
         self._debug(results, buff, haystack, buff_icon)
         # Start by finding actual location of the buff icon with reasonable threshold
-        if max_val < self.MATCH_TEMPLATE_THRESHOLD:
-            logger.log(LOG_LEVEL, f"Insufficient confidence {max_val:.4f} for {buff}.")
+        if max_val < ALL_BUFFS[buff].match_template_threshold:
             return False
         else:
             # Then compare bottom of icon to check if darkened or not
@@ -85,9 +85,11 @@ class RebuffMixin:
             left, top = max_loc
             width, height = buff_icon.shape[::-1]
             target = haystack[top : top + height, left : left + width]
-            return self._confirm_buff_freshness(target, buff_icon)
+            threshold = ALL_BUFFS[buff].match_icon_threshold
+            return self._confirm_buff_freshness(target, buff_icon, threshold)
 
-    def _confirm_buff_freshness(self, target: np.ndarray, icon) -> bool:
+    @staticmethod
+    def _confirm_buff_freshness(target: np.ndarray, icon, threshold) -> bool:
         """
         Given the on-screen icon to check, confirm if the buff is fresh or not.
         To do so, look at the bottom rows within the target image to see if a large
@@ -95,7 +97,7 @@ class RebuffMixin:
         :param target:
         :return:
         """
-        return (target == icon).sum() / target.size > self.MATCH_ICON_THRESHOLD  # noqa
+        return (target == icon).sum() / target.size > threshold  # noqa
 
     async def _cast_and_confirm(
         self,
@@ -118,20 +120,21 @@ class RebuffMixin:
             priority=priorities.BUFFS,
             block_lower_priority=True,
             args=(self.data.handle, self.data.ign, buffs),
+            log=True
         )
         validator = ActionWithValidation(
             self.pipe,
             predicate,
             condition,
             timeout=15.0,
-            max_trials=10,
+            max_trials=20,
         )
         await validator.execute_async(request)
 
     @staticmethod
     def _randomized(duration: float) -> float:
         """
-        Pick a random point within 90% and 95% of the buff's duration.
+        Pick a random point within 80% and 85% of the buff's duration.
         :param duration: The duration of the buff.
         :return:
         """
@@ -157,4 +160,11 @@ class RebuffMixin:
             width, height = self._get_buff_icon(buff).shape[::-1]
             target = haystack[top : top + height, left : left + width]
             score = (target == buff_icon).sum() / target.size
-            print(f"{self}: {buff} has confidence {max_val} and score {score}.")
+            _skill = ALL_BUFFS[buff]
+            pass_template = max_val > _skill.match_template_threshold
+            pass_icon = score > _skill.match_icon_threshold
+            print(
+                f"{self}: {buff} matches with template: {pass_template} "
+                f"({max_val:.2f}/{_skill.match_template_threshold}) and has sufficient "
+                f"score: {pass_icon} ({score:.2f}/{_skill.match_icon_threshold})"
+            )

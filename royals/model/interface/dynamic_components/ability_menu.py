@@ -84,8 +84,24 @@ class AbilityMenu(InGameDynamicVisuals):
     # accuracy_box: Box = Box(offset=True, name='Accuracy', left=225, right=310, top=191, bottom=56, config=f'--psm 7 -c tessedit_char_whitelist={string.digits}+-()')
     # avoidability_box: Box = Box(offset=True, name='Avoidability', left=225, right=310, top=209, bottom=74, config=f'--psm 7 -c tessedit_char_whitelist={string.digits}+-()')
     # hand_box: Box = Box(offset=True, name='Hand', left=225, right=310, top=227, bottom=92, config=f'--psm 7 -c tessedit_char_whitelist={string.digits}')
-    # speed_box: Box = Box(offset=True, name='Speed', left=225, right=310, top=245, bottom=110, config=f'--psm 7 -c tessedit_char_whitelist={string.digits}%')
-    # jump_box: Box = Box(offset=True, name='Jump', left=225, right=310, top=263, bottom=128, config=f'--psm 7 -c tessedit_char_whitelist={string.digits}%')
+    speed_box: Box = Box(
+        offset=True,
+        name='Speed',
+        left=241,
+        right=120,
+        top=259,
+        bottom=256,
+        config=f'--psm 7 -c tessedit_char_whitelist={string.digits}%'
+    )
+    jump_box: Box = Box(
+        offset=True,
+        name='Jump',
+        left=241,
+        right=120,
+        top=277,
+        bottom=274,
+        config=f'--psm 7 -c tessedit_char_whitelist={string.digits}%'
+    )
     # extended_menu_button_box: Box = Box(offset=True, left=110, right=115, top=293, bottom=156)
     ability_points_box: Box = Box(
         offset=True,
@@ -143,3 +159,25 @@ class AbilityMenu(InGameDynamicVisuals):
             "INT": self.add_int_box,
             "LUK": self.add_luk_box,
         }
+
+    def get_speed(self, handle: int, image: np.ndarray = None) -> float:
+        if image is None:
+            image = take_screenshot(handle)
+        icon = self._menu_icon_position(handle, image)
+        box = icon + self.speed_box
+        cropped = box.extract_client_img(image)
+        try:
+            return int(self.read_from_img(cropped, box.config).strip('%')) / 100
+        except ValueError:
+            breakpoint()
+
+    def get_jump(self, handle: int, image: np.ndarray = None) -> float:
+        if image is None:
+            image = take_screenshot(handle)
+        icon = self._menu_icon_position(handle, image)
+        box = icon + self.jump_box
+        cropped = box.extract_client_img(image)
+        try:
+            return int(self.read_from_img(cropped, box.config).strip('%')) / 100
+        except ValueError:
+            breakpoint()

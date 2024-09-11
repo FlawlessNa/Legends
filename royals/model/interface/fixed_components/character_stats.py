@@ -23,7 +23,7 @@ class CharacterStats(InGameBaseVisuals):
     job_box: Box = Box(
         name="Job",
         left=85,
-        right=235,
+        right=185,
         top=760,
         bottom=777,
         config=f"--psm 7 -c tessedit_char_whitelist={string.ascii_letters}",
@@ -79,13 +79,16 @@ class CharacterStats(InGameBaseVisuals):
 
     def get_level(self, handle: int) -> int:
         img = take_screenshot(handle, self.level_box)
-        return int(
-            self.read_from_img(
-                img,
-                config="--psm 7 -c tessedit_char_whitelist=0123456789",
-                confidence_level=0,
+        try:
+            return int(
+                self.read_from_img(
+                    img,
+                    config="--psm 7 -c tessedit_char_whitelist=0123456789",
+                    confidence_level=0,
+                )
             )
-        )
+        except ValueError:
+            return 0
 
     def get_job(self, handle: int) -> str:
         return self.read_from_box(handle, self.job_box, confidence_level=0)

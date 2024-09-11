@@ -138,6 +138,7 @@ class Movements:
 
                 movements.append(MinimapConnection.convert_to_string(connection_type))
             else:
+                breakpoint()
                 raise NotImplementedError("Not supposed to reach this point.")
 
         squeezed_movements = tuple(
@@ -183,15 +184,20 @@ class Movements:
 
     @lru_cache
     def movements_into_action(
-        self, movements: tuple[tuple[str, int], ...], total_duration: float = None
+        self,
+        movements: tuple[tuple[str, int], ...],
+        total_duration: float = None,
+        speed_multiplier: float = 1.0,
     ) -> controller.KeyboardInputWrapper:
         """
         Translates a series of movements into a series of inputs and delays.
         :param movements: series of
             ("movement to do", "number of nodes/times to go through")
         :param total_duration: The maximum duration of the movements.
+        :param speed_multiplier: The speed multiplier to apply to the movements.
         :return: KeyboardInputWrapper containing necessary inputs to execute movement.
         """
+        speed = self.minimap.get_minimap_speed(speed_multiplier)
         structure = None
         direction = None
         for idx, move in enumerate(movements):
@@ -203,18 +209,18 @@ class Movements:
                 "FALL_LEFT",
                 "FALL_RIGHT",
             ]:
-                duration = move[1] / self.minimap.minimap_speed
+                duration = move[1] / speed
                 direction = move[0].removesuffix("_AND_PORTAL").split("_")[-1].lower()
                 secondary_direction = "up" if move[0].endswith("_AND_PORTAL") else None
 
                 if move[0].startswith("FALL"):
                     # Add extra nodes to ensure character goes beyond the edge
-                    duration += 3 / self.minimap.minimap_speed
+                    duration += 3 / speed
                 elif direction in ["up", "down"]:
                     # Check if last movement, meaning target is on the same platform.
                     # If not, add extra nodes to make sure character goes beyond ladder.
                     if not move == movements[-1]:
-                        duration += 3 / self.minimap.minimap_speed
+                        duration += 3 / speed
                 elif direction in ["left", "right"]:
                     # Check if next movement is a simple "up" or "down". If so, add it
                     # as secondary direction, but only if close enough to the ladder.
@@ -224,10 +230,10 @@ class Movements:
                             if move[1] < 5:
                                 # Make sure we reach the ladder portal
                                 secondary_direction = next_move[0]
-                                duration += 5 / self.minimap.minimap_speed
+                                duration += 5 / speed
                             else:
                                 # Otherwise, make sure we stop before ladder/portal
-                                duration -= 5 / self.minimap.minimap_speed
+                                duration -= 5 / speed
                     except IndexError:
                         # If this is last movement and there's only 1 node, cap duration
                         if move[1] == 1:

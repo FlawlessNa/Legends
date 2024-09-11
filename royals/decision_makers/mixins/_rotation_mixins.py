@@ -21,12 +21,17 @@ class NextTargetMixin:
     BASE_ROTATION_THRESHOLD = 10  # Used for basic rotation mechanism
     SMART_ROTATION_THRESHOLD = 2  # Used for "gravitate towards mobs" rotation mechanism
 
-    def _create_rotation_attributes(self) -> None:
+    def _create_rotation_attributes(self, cycle=None) -> None:
         if self.data.current_minimap.feature_cycle:
-            cycle = itertools.cycle(self.data.current_minimap.feature_cycle)
+
+            if cycle is None:
+                self.data.create_attribute(
+                    "feature_cycle",
+                    lambda: itertools.cycle(self.data.current_minimap.feature_cycle),
+                )
             self.data.create_attribute(
                 "next_feature",
-                lambda: next(cycle),
+                lambda: next(self.data.feature_cycle),
             )
             self.data.create_attribute(
                 "next_target",
@@ -36,7 +41,8 @@ class NextTargetMixin:
         else:
             self.data.create_attribute(
                 "next_target",
-                self.data.current_minimap.random_point,
+                self._update_next_random_target,
+                initial_value=self.data.current_minimap.random_point(),
             )
             self.data.create_attribute(
                 "next_feature",
@@ -59,6 +65,19 @@ class NextTargetMixin:
         else:
             self.data.update_attribute("next_feature")
             return self.data.next_feature.random()
+
+    def _update_next_target_random(self) -> None:
+        """
+        Updates the next target randomly.
+        :return:
+        """
+        if (
+            math.dist(self.data.current_minimap_position, self.data.next_target)
+            > self.BASE_ROTATION_THRESHOLD
+        ):
+            return self.data.next_target
+        else:
+            return self.data.current_minimap.random_point()
 
     def _converge_towards_mobs(self):
         """
@@ -132,7 +151,9 @@ class MovementsMixin:
         self.data.create_attribute(
             "action",
             lambda: self.data.movement_handler.movements_into_action(
-                self.data.movements, duration
+                self.data.movements,
+                duration,
+                getattr(self.data, 'speed_multiplier', 1.0)
             ),
         )
         self.data.create_attribute("has_pathing_attributes", lambda: True)

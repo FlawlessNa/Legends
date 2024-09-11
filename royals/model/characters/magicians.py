@@ -1,15 +1,18 @@
-from royals.model.mechanics import RoyalsSkill
+from re import match
+
+from royals.model.mechanics import RoyalsSkill, RoyalsBuff, RoyalsPartyBuff
 from .character import Character
 
 
 class Magician(Character):
     main_stat = "INT"
-
-    @property
-    def skills(self) -> dict[str, RoyalsSkill]:
-        return {
-            "Magic Guard": RoyalsSkill(
-                "Magic Guard", "Buff", duration=600, animation_time=0.6
+    skills = {
+            "Magic Guard": RoyalsBuff(
+                "Magic Guard",
+                duration=600,
+                animation_time=0.6,
+                match_template_threshold=0.61,
+                match_icon_threshold=0.80
             ),
             "Magic Claw": RoyalsSkill(
                 "Magic Claw",
@@ -55,10 +58,8 @@ class FPArchMage(FPMage):
 
 
 class Cleric(Magician):
-    @property
-    def skills(self) -> dict[str, RoyalsSkill]:
-        return {
-            **super().skills,
+    skills = {
+            **Magician.skills,
             "Heal": RoyalsSkill(
                 "Heal",
                 "Attack",
@@ -67,32 +68,34 @@ class Cleric(Magician):
                 vertical_screen_range=125,
                 unidirectional=False,
             ),
-            "Bless": RoyalsSkill(
+            "Bless": RoyalsPartyBuff(
                 "Bless",
-                "Party Buff",
                 animation_time=0.6,
                 unidirectional=False,
                 duration=200,
             ),
-            "Invincible": RoyalsSkill(
-                "Invincible", "Buff", animation_time=0.6, duration=300
+            "Invincible": RoyalsBuff(
+                "Invincible",
+                animation_time=0.6,
+                duration=300,
+                match_template_threshold=0.79,
+                match_icon_threshold=0.89
             ),
         }
 
 
 class Priest(Cleric):
-    @property
-    def skills(self) -> dict[str, RoyalsSkill]:
-        return {
-            **super().skills,
-            "Holy Symbol": RoyalsSkill(
+    skills = {
+            **Cleric.skills,
+            "Holy Symbol": RoyalsPartyBuff(
                 "Holy Symbol",
-                "Party Buff",
                 animation_time=2.2,
                 unidirectional=False,
                 duration=120,
                 horizontal_minimap_distance=10,
                 _use_by_default=True,
+                match_template_threshold=0.69,
+                match_icon_threshold=0.79
             ),
             "Shining Ray": RoyalsSkill(
                 "Shining Ray",
@@ -114,11 +117,8 @@ class Priest(Cleric):
 
 class Bishop(Priest):
     main_skill = "Genesis"
-
-    @property
-    def skills(self) -> dict[str, RoyalsSkill]:
-        return {
-            **super().skills,
+    skills = {
+            **Priest.skills,
             "Genesis": RoyalsSkill(
                 "Genesis",
                 "Attack",
@@ -128,13 +128,14 @@ class Bishop(Priest):
                 horizontal_screen_range=400,
                 vertical_screen_range=375,
             ),
-            "Maple Warrior": RoyalsSkill(
+            "Maple Warrior": RoyalsPartyBuff(
                 "Maple Warrior",
-                "Party Buff",
                 animation_time=1.5,
                 unidirectional=False,
                 _use_by_default=True,
                 horizontal_minimap_distance=10,
                 duration=300,
+                match_template_threshold=0.59,
+                match_icon_threshold=0.80
             ),
         }

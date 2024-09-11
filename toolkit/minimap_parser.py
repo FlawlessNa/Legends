@@ -14,13 +14,34 @@ from botting.utilities import client_handler
 from botting.utilities import Box
 
 HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
-OUTPUT_LOCATION = os.path.join(ROOT, "royals/models_implementations/minimaps/")
-OUTPUT_NAME = "kampung_village.py"
+OUTPUT_LOCATION = os.path.join(ROOT, "royals/model/minimaps/")
+OUTPUT_NAME = "ulu_estate_2.py"
+
+# TODO - Automatically read these from game files
+TELEPORT_DISTANCE = 150
+MINIMAP_CANVAS_WIDTH = 132
+MINIMAP_CANVAS_HEIGHT = 81
+PHYSICS_SPEED = 125
+PHYSICS_JUMP_SPEED = 555
+PHYSICS_GRAVITY = 2000
+VRTop = -1000
+VRLeft = -910
+VRBottom = 250
+VRRight = 1080
+
+VRWidth = VRRight - VRLeft
+VRHeight = VRBottom - VRTop
+
+VRJumpHeight = PHYSICS_JUMP_SPEED ** 2 / (2 * PHYSICS_GRAVITY)
+VRJumpDuration = 2 * PHYSICS_JUMP_SPEED / PHYSICS_GRAVITY
+VRJumpWidth = VRJumpDuration * PHYSICS_SPEED
 
 container = []
 
 
 class FakeMinimap(Minimap):
+    map_area_width = MINIMAP_CANVAS_WIDTH
+    map_area_height = MINIMAP_CANVAS_HEIGHT
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         pass
 
@@ -66,7 +87,7 @@ if __name__ == "__main__":
 
     with open(os.path.join(OUTPUT_LOCATION, OUTPUT_NAME), "w") as f:
         f.write(
-            """from royals.models_implementations.mechanics import (
+            """from royals.model.mechanics import (
     MinimapFeature,
     MinimapConnection,
     MinimapPathingMechanics,
@@ -79,6 +100,12 @@ if __name__ == "__main__":
             f'class {OUTPUT_NAME.removesuffix(".py").replace("_", " ").title().replace(" ", "")}Minimap(MinimapPathingMechanics):\n'
         )
         f.write("\n")
+        f.write(f"\tmap_area_width = {MINIMAP_CANVAS_WIDTH}\n")
+        f.write(f"\tmap_area_height = {MINIMAP_CANVAS_HEIGHT}\n")
+        f.write(f"\tminimap_speed = {PHYSICS_SPEED / VRWidth * MINIMAP_CANVAS_WIDTH}\n")
+        f.write(f"\tjump_height = {VRJumpHeight / VRHeight * MINIMAP_CANVAS_HEIGHT}\n")
+        f.write(f"\tjump_distance = {VRJumpWidth / VRWidth * MINIMAP_CANVAS_WIDTH}\n")
+        f.write(f"\tteleport_h_dist = {TELEPORT_DISTANCE / VRWidth * MINIMAP_CANVAS_WIDTH}\n")
 
     keyboard.on_press_key("z", lambda _: take_position(minimap))
     keyboard.on_press_key("z", lambda _: write_feature(container))

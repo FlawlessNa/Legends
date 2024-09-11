@@ -14,7 +14,7 @@ async def toggle_menu(
     config_name: str,
 ) -> None:
     await controller.press(
-        handle, controller.key_binds(ign)[config_name], silenced=True, delay=0.25
+        handle, controller.key_binds(ign)[config_name], silenced=False, delay=0.25
     )
 
 
