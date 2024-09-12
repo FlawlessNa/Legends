@@ -83,9 +83,11 @@
 
 ### Character detection
 - [ ] Build a toolkit script that continuously saves screenshots of character while training in a map (at 0.5s intervals) and then only extracts the character (these all become templates)
-- [ ] Use ORB feature matching algorithm to initially detect character based on all those templates (very CPU-expensive)
-- [ ] When detected, use optical flow to track character's movement.
-- [ ] When lost, use ORB feature matching again to detect character
+- [ ] Try using YOLOv8 deep-learning model and train it on that dataset
+- [ ] If this fails, try this method instead:
+  - [ ] Use ORB feature matching algorithm to initially detect character based on all those templates (very CPU-expensive)
+  - [ ] Get the best result out of all
+  - [ ] Run this in a ProcessPoolExecutor
 - [ ] Standardize code and transfer detection framework into botting library
 
 ## Nice to have
@@ -95,5 +97,5 @@
   - [ ] Chat - Pre-trained model for semantic segmentation? Could help distinguish text from the rest.
   - [ ] Chat - Other OCR libraries? OCRopus & EasyOCR in particular.
   - [ ] Chat - Otherwise, build a modelling dataset with tons of chat lines and train a model to read text.
-  - [ ] Bossing idea - use "Action Recognition" algorithms to detect boss attacks and react accordingly - Ask GPT about it
+  - [ ] Bossing idea - use "Action Recognition" algorithms to detect boss attacks and react accordingly - Ask GPT about it (YOLOv8 for boss attacks?)
 ![image](https://github.com/FlawlessNa/Royals-V2/assets/106719178/c2620077-d36e-4a8d-b39b-f200a196cd2e)
