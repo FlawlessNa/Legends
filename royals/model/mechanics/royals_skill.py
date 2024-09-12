@@ -22,6 +22,8 @@ class RoyalsSkill(Skill):
         repr=False,
         default=os.path.join(ROOT, f"royals/assets/detection_images"),
     )
+    vertical_up_screen_range: int = field(default=None, repr=False)
+    vertical_down_screen_range: int = field(default=None, repr=False)
 
     @property
     def icon(self) -> np.ndarray:
