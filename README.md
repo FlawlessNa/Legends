@@ -49,15 +49,12 @@
 - [ ] Look into leveraging loop.run_in_executor(concurrent.futures.ProcessPoolExecutor) for CPU-intensive operations?
 - [ ] Make sure to refresh documentation everywhere
 
-### Inventory Cleanup
-- [ ] Inventory parsing for godlies
-- [ ] Storage mechanics
-
 ### DecisionMakers
 - [ ] Mob Check -> with 2-3 layers reactions?
 - [ ] CheckStillAlive
 - [ ] CheckStrangersInMap
 - [ ] ChatMonitoring
+  - When a relevant chat line is detected, minimize chat feed, scroll to that line and read it without any background noise.
 - [ ] Check for WhiteRoom (or any predominent color on-screen?) -> taken from GMS
   - Chat Parsing (try grayscale preprocessing on "general" lines) + GPT Automated Responses
   - Use dequeue structure
@@ -74,7 +71,7 @@
 - [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs
 
 ### Pathing
-- [ ] refactoring of movement_mechanics to be cleaner
+- [ ] Refactoring of movement_mechanics to be cleaner
 - [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases
 - [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
 - [ ] Look into game files to reverse engineer movements for better precision
@@ -82,13 +79,14 @@
 - [ ] (least priority) Rotation decision maker cancels itself when stray too far from path
 
 ### Character detection
-- [ ] Build a toolkit script that continuously saves screenshots of character while training in a map (at 0.5s intervals) and then only extracts the character (these all become templates)
+- [ ] Build an annotated dataset
 - [ ] Try using YOLOv8 deep-learning model and train it on that dataset
-- [ ] If this fails, try this method instead:
-  - [ ] Use ORB feature matching algorithm to initially detect character based on all those templates (very CPU-expensive)
+- [ ] If YOLO model fails, try this method instead:
+  - [ ] Build several "templates" of the character (facing left, right, eyes opened/closed, walking, jumping, on rope, being hit, etc.)
+  - [ ] Extract several templates of relevant skill animations (heal, shining ray, genesis, etc)
+  - [ ] Use ORB feature matching algorithm to initially detect character based on all those templates (very CPU-expensive), can try running on ProcessPoolExecutor
+    - Can also try running for each template until one passes a specific threshold and then stop. If doing so, start with most-likely templates first.
   - [ ] Get the best result out of all
-  - [ ] Run this in a ProcessPoolExecutor
-- [ ] Standardize code and transfer detection framework into botting library
 
 ## Nice to have
   - [ ] for Ulu only - look into building an "unknown" object detection method, using UNKAD methodology or anomaly detection
