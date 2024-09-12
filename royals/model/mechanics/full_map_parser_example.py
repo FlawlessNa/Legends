@@ -11,6 +11,9 @@ root = tree.getroot()
 # Find the info & minimap sections
 info_section = root.find(".//imgdir[@name='info']")
 minimap_section = root.find(".//imgdir[@name='miniMap']")
+foothold = root.find(".//imgdir[@name='foothold']")
+portals = root.find(".//imgdir[@name='portal']")
+ropes = root.find(".//imgdir[@name='ladderRope']")
 
 # Extract VR coordinates
 vr_left = int(info_section.find("int[@name='VRLeft']").attrib['value'])
@@ -27,6 +30,9 @@ minimap_center_y = int(minimap_section.find("int[@name='centerY']").attrib['valu
 
 minimap_canvas_width = int(minimap_section.find("canvas[@name='canvas']").attrib['width'])
 minimap_canvas_height = int(minimap_section.find("canvas[@name='canvas']").attrib['height'])
+
+vr_scale_x = vr_width / minimap_vr_width
+vr_scale_y = vr_height / minimap_vr_height
 
 # Create a blank canvas
 canvas = np.zeros((vr_height, vr_width, 4), dtype=np.uint8)
@@ -159,5 +165,81 @@ for section in root:
                 paste_image(canvas, image, x, y, f=0, zM=zM, r=0)
                 cv2.imshow('image', cv2.resize(canvas, None, fx=0.5, fy=0.5))
                 cv2.waitKey(1)
-                breakpoint()
+
+
+def extract_coordinates(element, coordinates, attribs: list[str]):
+    # Check if the element contains x1, y1, x2, and y2 attributes
+    extraction = {}
+    for attrib in attribs:
+        extraction[attrib] = element.find(f"int[@name='{attrib}']")
+    # x1 = element.find("int[@name='x1']")
+    # y1 = element.find("int[@name='y1']")
+    # x2 = element.find("int[@name='x2']")
+    # y2 = element.find("int[@name='y2']")
+
+    if all(elem is not None for elem in extraction.values()):
+        # Extract the coordinates and add them to the list
+        coordinates.append(
+            {
+                **{k: int(v.get('value')) for k, v in extraction.items()},
+                'name': element.attrib['name']
+            }
+        )
+
+
+    # Recursively call the function for each child element
+    for child in element:
+        extract_coordinates(child, coordinates, attribs)
+
+
+def minimap_to_vr(x, y):
+    return int(x * vr_scale_x - vr_left), int(y * vr_scale_y - vr_top)
+
+
+# canvas = cv2.resize(canvas, (minimap_vr_width, minimap_vr_height))
+
+fh_coords = []
+extract_coordinates(foothold, fh_coords, ['x1', 'y1', 'x2', 'y2', 'prev', 'next'])
+
+for coord in fh_coords:
+    # x1, y1 = coord['x1'] + minimap_center_x, coord['y1'] + minimap_center_y
+    # x2, y2 = coord['x2'] + minimap_center_x, coord['y2'] + minimap_center_y
+    # x1, y1 = minimap_to_vr(x1, y1)
+    # x2, y2 = minimap_to_vr(x2, y2)
+    x1, y1 = coord['x1'] - vr_left, coord['y1'] - vr_top
+    x2, y2 = coord['x2'] - vr_left, coord['y2'] - vr_top
+    if x1 > canvas.shape[1] or x2 > canvas.shape[1] or y1 > canvas.shape[0] or y2 > canvas.shape[0]:
+        breakpoint()
+    elif x1 < 0 or x2 < 0 or y1 < 0 or y2 < 0:
+        breakpoint()
+    prev = coord['prev']
+    next = coord['next']
+    cv2.line(canvas, (x1, y1), (x2, y2), (255, 255, 255), 3)
+    cv2.imshow('Canvas', cv2.resize(canvas, None, fx=0.5, fy=0.5))
+    cv2.waitKey(1)
+    print('Name:', coord['name'], 'Prev:', prev, 'Next:', next)
+portals_coords = []
+extract_coordinates(portals, portals_coords, ['x', 'y'])
+
+for coord in portals_coords:
+    print(coord)
+    # x, y = coord['x'] + minimap_center_x, coord['y'] + minimap_center_y
+    x, y = coord['x'] - vr_left, coord['y'] - vr_top
+    cv2.circle(canvas, (x, y), 1, (0, 255, 0), 15)
+    cv2.imshow('Canvas', cv2.resize(canvas, None, fx=0.5, fy=0.5))
+    # cv2.imshow('Canvas', canvas)
+    cv2.waitKey(1)
+
+rope_coords = []
+extract_coordinates(ropes, rope_coords, ['x', 'y1', 'y2'])
+
+for coord in rope_coords:
+    # x, y1 = coord['x'] + minimap_center_x, coord['y1'] + minimap_center_y
+    # x, y2 = coord['x'] + minimap_center_x, coord['y2'] + minimap_center_y
+    x, y1 = coord['x'] - vr_left, coord['y1'] - vr_top
+    x, y2 = coord['x'] - vr_left, coord['y2'] - vr_top
+    cv2.line(canvas, (x, y1), (x, y2), (0, 0, 255), 5)
+cv2.imshow('Canvas', cv2.resize(canvas, None, fx=0.5, fy=0.5))
+# cv2.imshow('Canvas', canvas)
+cv2.waitKey(1)
 breakpoint()

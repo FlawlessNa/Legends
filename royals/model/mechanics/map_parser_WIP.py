@@ -93,8 +93,8 @@ for coord in fh_coords:
     prev = coord['prev']
     next = coord['next']
     cv2.line(canvas, (x1, y1), (x2, y2), (255, 255, 255), 1)
-    cv2.imshow('Canvas', cv2.resize(canvas, None, fx=1, fy=1))
-    cv2.waitKey(1)
+    cv2.imshow('Canvas', cv2.resize(canvas, None, fx=0.5, fy=0.5))
+    cv2.waitKey(0)
     print('Name:', coord['name'], 'Prev:', prev, 'Next:', next)
 portals_coords = []
 extract_coordinates(portals, portals_coords, ['x', 'y'])
@@ -114,10 +114,10 @@ for coord in rope_coords:
     x, y1 = coord['x'] + minimap_center_x, coord['y1'] + minimap_center_y
     x, y2 = coord['x'] + minimap_center_x, coord['y2'] + minimap_center_y
     cv2.line(canvas, (x, y1), (x, y2), (0, 0, 255), 1)
-cv2.imshow('Canvas', cv2.resize(canvas, None, fx=1, fy=1))
+cv2.imshow('Canvas', cv2.resize(canvas, None, fx=0.5, fy=0.5))
 # cv2.imshow('Canvas', canvas)
 cv2.waitKey(1)
-# breakpoint()
+breakpoint()
 
 from royals import royals_ign_finder
 from royals.model.interface.dynamic_components.minimap import Minimap

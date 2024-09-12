@@ -57,6 +57,7 @@
 - [ ] CheckStillAlive
 - [ ] CheckStrangersInMap
 - [ ] ChatMonitoring
+- [ ] Check for WhiteRoom (or any predominent color on-screen?) -> taken from GMS
   - Chat Parsing (try grayscale preprocessing on "general" lines) + GPT Automated Responses
   - Use dequeue structure
   - Idea: When detecting relevant lines, minimize chat and scroll up, then read that line without background noise
@@ -84,6 +85,7 @@
 
 ## Nice to have
   - [ ] for Ulu only - look into building an "unknown" object detection method, using UNKAD methodology or anomaly detection
+  - [ ] for stationary farming - Can use a "pixel movement" detection instead of mob detection
   - [ ] Chat - Try additional pre-processing: Thresholding (improved?), Denoising (application of Gaussian and/or Median Blur), Contrast Enhancement (Make text more distinguishable from background)
   - [ ] Chat - Pre-trained model for semantic segmentation? Could help distinguish text from the rest.
   - [ ] Chat - Other OCR libraries? OCRopus & EasyOCR in particular.
