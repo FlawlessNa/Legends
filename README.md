@@ -82,7 +82,11 @@
 - [ ] (least priority) Rotation decision maker cancels itself when stray too far from path
 
 ### Character detection
-  - [ ] Standardize code and transfer detection framework into botting library
+- [ ] Build a toolkit script that continuously saves screenshots of character while training in a map (at 0.5s intervals) and then only extracts the character (these all become templates)
+- [ ] Use ORB feature matching algorithm to initially detect character based on all those templates (very CPU-expensive)
+- [ ] When detected, use optical flow to track character's movement.
+- [ ] When lost, use ORB feature matching again to detect character
+- [ ] Standardize code and transfer detection framework into botting library
 
 ## Nice to have
   - [ ] for Ulu only - look into building an "unknown" object detection method, using UNKAD methodology or anomaly detection
