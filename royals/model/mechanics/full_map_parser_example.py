@@ -4,6 +4,10 @@ import os
 from paths import ROOT
 import xml.etree.ElementTree as ET
 
+from royals import royals_ign_finder
+from royals.model.interface.dynamic_components.minimap import Minimap
+from botting.utilities import client_handler
+
 # Load XML file
 tree = ET.parse(os.path.join(ROOT, 'royals/assets/game_files/maps/PathOfTime1.xml'))
 root = tree.getroot()
@@ -192,10 +196,6 @@ def extract_coordinates(element, coordinates, attribs: list[str]):
         extract_coordinates(child, coordinates, attribs)
 
 
-def minimap_to_vr(x, y):
-    return int(x * vr_scale_x - vr_left), int(y * vr_scale_y - vr_top)
-
-
 # canvas = cv2.resize(canvas, (minimap_vr_width, minimap_vr_height))
 
 fh_coords = []
@@ -243,3 +243,14 @@ cv2.imshow('Canvas', cv2.resize(canvas, None, fx=0.5, fy=0.5))
 # cv2.imshow('Canvas', canvas)
 cv2.waitKey(1)
 breakpoint()
+
+HANDLE = client_handler.get_client_handle("StarBase", royals_ign_finder)
+
+class FakeMinimap(Minimap):
+    map_area_width = minimap_canvas_width
+    map_area_height = minimap_canvas_height
+    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
+        pass
+
+minimap = FakeMinimap()
+map_area_box = minimap.get_map_area_box(HANDLE)
