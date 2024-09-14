@@ -78,16 +78,6 @@
   - Can definitely use VRTop, VRLeft, VRBottom, VBRRight to convert minimap coordinates into actual map coordinates
 - [ ] (least priority) Rotation decision maker cancels itself when stray too far from path
 
-### Character detection
-- [ ] Build an annotated dataset
-- [ ] Try using YOLOv8 deep-learning model and train it on that dataset
-- [ ] If YOLO model fails, try this method instead:
-  - [ ] Build several "templates" of the character (facing left, right, eyes opened/closed, walking, jumping, on rope, being hit, etc.)
-  - [ ] Extract several templates of relevant skill animations (heal, shining ray, genesis, etc)
-  - [ ] Use ORB feature matching algorithm to initially detect character based on all those templates (very CPU-expensive), can try running on ProcessPoolExecutor
-    - Can also try running for each template until one passes a specific threshold and then stop. If doing so, start with most-likely templates first.
-  - [ ] Get the best result out of all
-
 ## Nice to have
   - [ ] for Ulu only - look into building an "unknown" object detection method, using UNKAD methodology or anomaly detection
   - [ ] for stationary farming - Can use a "pixel movement" detection instead of mob detection

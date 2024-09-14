@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import os
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Any, Sequence
 
 from numpy import dtype, generic, ndarray
@@ -16,7 +16,7 @@ from botting.utilities import (
 from paths import ROOT
 from royals.model.mechanics import RoyalsSkill
 
-DEBUG = False
+DEBUG = True
 
 
 class Character(BaseCharacter, ABC):
