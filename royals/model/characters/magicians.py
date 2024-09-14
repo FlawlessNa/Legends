@@ -27,8 +27,6 @@ class Magician(Character):
                 animation_time=0.6,
                 horizontal_screen_range=150,
                 vertical_screen_range=150,
-                # horizontal_minimap_distance=9,
-                # vertical_minimap_distance=9,
             ),
         }
 
@@ -94,7 +92,6 @@ class Priest(Cleric):
                 animation_time=18 * 0.085,  # TODO - Confirm
                 unidirectional=False,
                 duration=120,
-                # horizontal_minimap_distance=10,
                 horizontal_screen_range=300,
                 vertical_screen_range=200,
                 _use_by_default=True,
@@ -146,7 +143,6 @@ class Bishop(Priest):
                 animation_time=0.06*24,
                 unidirectional=False,
                 _use_by_default=True,
-                # horizontal_minimap_distance=10,
                 horizontal_screen_range=400,
                 vertical_screen_range=300,
                 duration=300,

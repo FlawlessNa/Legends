@@ -18,8 +18,6 @@ class Assassin(Rogue):
                 animation_time=0.6,  # TODO - Figure this out
                 horizontal_screen_range=100,  # TODO - Figure this out
                 vertical_screen_range=100,  # TODO - Figure this out
-                horizontal_minimap_distance=10,
-                vertical_minimap_distance=10,
                 duration=200,
                 unidirectional=False,
                 match_template_threshold=0.5,
@@ -45,8 +43,6 @@ class Hermit(Assassin):
                 animation_time=0.6,  # TODO - Figure this out
                 horizontal_screen_range=100,  # TODO - Figure this out
                 vertical_screen_range=100,  # TODO - Figure this out
-                horizontal_minimap_distance=10,
-                vertical_minimap_distance=10,
                 duration=120,
                 unidirectional=False,
                 match_template_threshold=0.5,

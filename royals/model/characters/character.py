@@ -1,3 +1,5 @@
+from functools import cached_property
+
 import cv2
 import numpy as np
 import os
@@ -20,13 +22,16 @@ DEBUG = False
 
 
 class Character(BaseCharacter, ABC):
-    detection_box_large_client: Box = Box(left=0, right=1024, top=29, bottom=700)
     detection_box_small_client: Box = NotImplemented
+    detection_box_medium_client: Box = Box(left=0, right=1024, top=29, bottom=700)
+    detection_box_large_client: Box = NotImplemented
     main_skill: str = NotImplemented
     main_stat: str = NotImplemented
     skills: dict[str, RoyalsSkill] = NotImplemented
 
-    def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:
+    def __init__(
+        self, ign: str, detection_configs: str, client_size: str = "medium"
+    ) -> None:
         super().__init__(ign)
         self._preprocessing_method = config_reader(
             "character_detection", detection_configs, "Preprocessing Method"
@@ -51,7 +56,7 @@ class Character(BaseCharacter, ABC):
         self._offset: tuple[int, int] = eval(
             config_reader("character_detection", detection_configs, "Detection Offset")
         )
-        assert client_size.lower() in ("large", "small")
+        assert client_size.lower() in ("large", "medium", "small")
         self._client_size = client_size
 
         _model_path = config_reader(
@@ -70,6 +75,18 @@ class Character(BaseCharacter, ABC):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.ign})"
 
+    @cached_property
+    def detection_box(self) -> Box:
+        if self._client_size == "small":
+            return self.detection_box_small_client
+        elif self._client_size == "medium":
+            return self.detection_box_medium_client
+        elif self._client_size == "large":
+            return self.detection_box_large_client
+        else:
+            raise ValueError(f"Invalid client size: {self._client_size}")
+
+
     def get_onscreen_position(
         self,
         image: np.ndarray | None,
@@ -86,7 +103,7 @@ class Character(BaseCharacter, ABC):
         :return:
         """
         detection_box = (
-            self.detection_box_large_client
+            self.detection_box_medium_client
             if self._client_size.lower() == "large"
             else self.detection_box_small_client
         )
