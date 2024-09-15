@@ -3,6 +3,7 @@ import numpy as np
 import os
 from abc import ABC
 from functools import cached_property
+from ultralytics import YOLO
 
 from botting.models_abstractions import BaseCharacter
 from botting.utilities import (
@@ -46,37 +47,38 @@ class Character(BaseCharacter, ABC):
             assert os.path.exists(model_path), f"Model {model_path} does not exist."
         self._model_path = model_path
 
+        self._preprocessing_method = None
+        self._preprocessing_params = None
+        self._detection_methods = None
+        self._offset = None
         if detection_configs is not None:
-            ...
-        self._preprocessing_method = config_reader(
-            "character_detection", detection_configs, "Preprocessing Method"
-        )
-        self._preprocessing_params = eval(
-            config_reader(
-                "character_detection", detection_configs, "Preprocessing Parameters"
-            )
-        )
-        _detection_methods = eval(
-            config_reader("character_detection", detection_configs, "Detection Methods")
-        )
-        self._detection_methods = {
-            i: eval(
-                config_reader(
-                    "character_detection", detection_configs, f"{i} Parameters"
-                )
-            )
-            for i in _detection_methods
-        }
-
-        self._offset: tuple[int, int] = eval(
-            config_reader("character_detection", detection_configs, "Detection Offset")
-        )
+            self._set_detection_configs(detection_configs)
         assert client_size.lower() in ("large", "medium", "small")
         self._client_size = client_size
 
-
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.ign})"
+
+    def _set_detection_configs(self, section: str) -> None:
+        """
+        Sets the detection configs for the character.
+        """
+        self._preprocessing_method = config_reader(
+            "character_detection", section, "Preprocessing Method"
+        )
+        self._preprocessing_params = eval(
+            config_reader("character_detection", section, "Preprocessing Parameters")
+        )
+        _detection_methods = eval(
+            config_reader("character_detection", section, "Detection Methods")
+        )
+        self._detection_methods = {
+            i: eval(config_reader("character_detection", section, f"{i} Parameters"))
+            for i in _detection_methods
+        }
+        self._offset: tuple[int, int] = eval(
+            config_reader("character_detection", section, "Detection Offset")
+        )
 
     @cached_property
     def detection_box(self) -> Box:
@@ -89,12 +91,17 @@ class Character(BaseCharacter, ABC):
         else:
             raise ValueError(f"Invalid client size: {self._client_size}")
 
+    @cached_property
+    def detection_model(self) -> YOLO | None:
+        if self._model_path is not None:
+            return YOLO(self._model_path, task='detect')
 
     def get_onscreen_position(
         self,
         image: np.ndarray | None,
         handle: int = None,
         regions_to_hide: list[Box] = None,
+        acceptance_threshold: float = None,
     ) -> tuple[int, int] | None:
         """
         Applies detection method specified through user configs.
@@ -103,24 +110,31 @@ class Character(BaseCharacter, ABC):
         :param image:
         :param handle:
         :param regions_to_hide:
+        :param acceptance_threshold: To use with detection model.
         :return:
         """
-        detection_box = (
-            self.detection_box_medium_client
-            if self._client_size.lower() == "large"
-            else self.detection_box_small_client
-        )
+        res = None
         if image is None:
             assert handle is not None
-            image = take_screenshot(handle, detection_box)
+            image = take_screenshot(handle, self.detection_box)
+        else:
+            image = image.copy()
 
+        if regions_to_hide is not None:
+            for region in regions_to_hide:
+                image[region.top : region.bottom, region.left : region.right] = 0
+
+        if self.detection_model is not None:
+            model_res = self._run_detection_model(image, acceptance_threshold)
+
+        if self._detection_methods is not None:
+            detection_res = self._run_detection_methods(image, regions_to_hide)
         processed = self._preprocess_img(image)
 
         if regions_to_hide is not None:
             for region in regions_to_hide:
                 processed[region.top : region.bottom, region.left : region.right] = 0
 
-        res = None
         largest = None
         if "Contour Detection" in self._detection_methods:
             res = self._apply_contour_detection(
@@ -172,27 +186,27 @@ class Character(BaseCharacter, ABC):
         # After all pre-processing + detection, if no result, there should not be any largest either.
         if not len(res):
             largest = None
-
-        # Cross-validate both rectangles, if a model is used
-        if self._model is not None:
-            rects, lvls, weights = self._model.detectMultiScale3(
-                image, 1.1, 6, 0, (50, 50), (90, 90), True
-            )
-            if len(weights) and largest is not None:
-                max_conf = np.argmax(weights)
-                (x, y, w, h) = rects[max_conf]
-                if DEBUG:
-                    cv2.rectangle(image, (x, y), (x + w, y + h), (255, 0, 0), 2)
-
-                cnt_x, cnt_y, cnt_w, cnt_h = largest
-                cnt_x += self._offset[0]
-                cnt_y += self._offset[1]
-                xi = max(x, cnt_x)
-                yi = max(y, cnt_y)
-                wi = min(x + w, cnt_x + cnt_w) - xi
-                hi = min(y + h, cnt_y + cnt_h) - yi
-                if not (wi > 0 and hi > 0):
-                    return None
+        #
+        # # Cross-validate both rectangles, if a model is used
+        # if self._model is not None:
+        #     rects, lvls, weights = self._model.detectMultiScale3(
+        #         image, 1.1, 6, 0, (50, 50), (90, 90), True
+        #     )
+        #     if len(weights) and largest is not None:
+        #         max_conf = np.argmax(weights)
+        #         (x, y, w, h) = rects[max_conf]
+        #         if DEBUG:
+        #             cv2.rectangle(image, (x, y), (x + w, y + h), (255, 0, 0), 2)
+        #
+        #         cnt_x, cnt_y, cnt_w, cnt_h = largest
+        #         cnt_x += self._offset[0]
+        #         cnt_y += self._offset[1]
+        #         xi = max(x, cnt_x)
+        #         yi = max(y, cnt_y)
+        #         wi = min(x + w, cnt_x + cnt_w) - xi
+        #         hi = min(y + h, cnt_y + cnt_h) - yi
+        #         if not (wi > 0 and hi > 0):
+        #             return None
 
         cx = None
         cy = None
@@ -205,13 +219,44 @@ class Character(BaseCharacter, ABC):
 
         if cx is not None and cy is not None:
             return (
-                cx + self._offset[0] + detection_box.left,
-                cy + self._offset[1] + detection_box.top,
+                cx + self._offset[0] + self.detection_box.left,
+                cy + self._offset[1] + self.detection_box.top,
             )
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         detection_method = self._preprocessing_functions[self._preprocessing_method]
         return detection_method(image, **self._preprocessing_params)
+
+    def _run_detection_model(
+        self, image: np.ndarray, acceptance_threshold: float
+    ) -> list[tuple[int, int, int, int]]:
+        """
+        Runs the detection model on the image.
+        """
+        results = self.detection_model(image)
+        res = []
+        breakpoint()
+        for result in results:
+            for box in result.boxes:
+                x1, y1, x2, y2 = box.xyxy.numpy().astype(int).squeeze()
+                cls = box.cls.numpy()[0]
+                conf = box.conf.numpy()[0]
+                if acceptance_threshold is not None and conf < acceptance_threshold:
+                    continue
+                res.append((x1, y1, x2 - x1, y2 - y1))
+        return res
+
+    def _run_detection_methods(
+        self, image: np.ndarray, regions_to_hide: list[Box]
+    ) -> list[tuple[int, int, int, int]]:
+        """
+        Runs the detection methods on the image.
+        """
+        res = []
+        for method, params in self._detection_methods.items():
+            detection_method = self._detection_functions[method]
+            res = detection_method(image, regions_to_hide, **params)
+        return res
 
     @property
     def _preprocessing_functions(self) -> dict[str, callable]:
@@ -229,6 +274,7 @@ class Character(BaseCharacter, ABC):
             "Rectangle Grouping": self._apply_rectangle_grouping,
             "Convex Hull": self._apply_convex_hull,
         }
+
 
 def _debug(image: np.ndarray, rect, cx, cy, offset) -> None:
     # Then draw a rectangle around it
