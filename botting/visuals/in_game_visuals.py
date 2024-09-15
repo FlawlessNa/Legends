@@ -5,8 +5,9 @@ Contains methods for reading text, detecting colors or images in the game window
 import cv2
 import numpy as np
 import pytesseract
-
 from abc import ABC, abstractmethod
+from numpy import dtype, generic, ndarray
+from typing import Any, Sequence
 
 from botting.utilities import Box, take_screenshot, find_image
 
@@ -108,6 +109,55 @@ class InGameBaseVisuals(ABC):
         res = cv2.matchTemplate(detection_img, needle_img, method)
         return np.max(res) > threshold
 
+
+    @staticmethod
+    def _apply_contour_detection(
+        image: np.ndarray, **kwargs
+    ) -> Sequence[ndarray | ndarray[Any, dtype[generic | generic]] | Any]:
+        contours, _ = cv2.findContours(image, **kwargs)
+        return contours
+
+    @staticmethod
+    def _apply_bounding_rectangles(
+        contours: Sequence[ndarray | ndarray[Any, dtype[generic | generic]] | Any],
+        **kwargs,
+    ) -> list[Sequence[int]]:
+        return [cv2.boundingRect(cnt) for cnt in contours]
+
+    @staticmethod
+    def _apply_rectangle_grouping(
+        rects: list[Sequence[int]], **kwargs
+    ) -> Sequence[Sequence[int]]:
+        return cv2.groupRectangles(rects, **kwargs)[0]
+
+    @staticmethod
+    def _apply_convex_hull(contour: Sequence[int], **kwargs) -> Sequence[int]:
+        return cv2.convexHull(contour, **kwargs)
+
+    @staticmethod
+    def _apply_color_filtering(
+        image: np.ndarray,
+        lower: Sequence[int],
+        upper: Sequence[int],
+    ) -> np.ndarray:
+        return cv2.inRange(image, np.array(lower), np.array(upper))
+
+    def _apply_hsv_filtering(
+        self,
+        image: np.ndarray,
+        lower: Sequence[int],
+        upper: Sequence[int],
+    ) -> np.ndarray:
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        return self._apply_color_filtering(hsv, lower, upper)
+
+    def _apply_template_matching(
+        self,
+        image: np.ndarray,
+        template: np.ndarray,
+        threshold: float,
+    ) -> np.ndarray:
+        raise NotImplementedError
 
 class InGameToggleableVisuals(InGameBaseVisuals, ABC):
     """

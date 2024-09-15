@@ -1,13 +1,8 @@
-from functools import cached_property
-
 import cv2
 import numpy as np
 import os
-
 from abc import ABC
-from typing import Any, Sequence
-
-from numpy import dtype, generic, ndarray
+from functools import cached_property
 
 from botting.models_abstractions import BaseCharacter
 from botting.utilities import (
@@ -22,6 +17,13 @@ DEBUG = True
 
 
 class Character(BaseCharacter, ABC):
+    """
+    Base class for all characters.
+    Uses a detection model or a combination of detection methods (specified through
+    config files) to detect the character on screen.
+    If both the model_path and detection_configs are specified, then both are used
+    and the final result is cross-validated.
+    """
     detection_box_small_client: Box = NotImplemented
     detection_box_medium_client: Box = Box(left=0, right=1024, top=29, bottom=700)
     detection_box_large_client: Box = NotImplemented
@@ -30,9 +32,22 @@ class Character(BaseCharacter, ABC):
     skills: dict[str, RoyalsSkill] = NotImplemented
 
     def __init__(
-        self, ign: str, detection_configs: str, client_size: str = "medium"
+        self,
+        ign: str,
+        model_path: str = None,
+        detection_configs: str = None,
+        client_size: str = "medium"
     ) -> None:
         super().__init__(ign)
+
+        if model_path is not None:
+            if not os.path.exists(model_path):
+                _model_path = os.path.join(ROOT, model_path)
+            assert os.path.exists(model_path), f"Model {model_path} does not exist."
+        self._model_path = model_path
+
+        if detection_configs is not None:
+            ...
         self._preprocessing_method = config_reader(
             "character_detection", detection_configs, "Preprocessing Method"
         )
@@ -59,18 +74,6 @@ class Character(BaseCharacter, ABC):
         assert client_size.lower() in ("large", "medium", "small")
         self._client_size = client_size
 
-        _model_path = config_reader(
-            "character_detection", detection_configs, "Detection Model"
-        )
-        if len(_model_path) > 0:
-            if not os.path.exists(_model_path):
-                _model_path = os.path.join(ROOT, _model_path)
-                assert os.path.exists(
-                    _model_path
-                ), f"Model {_model_path} does not exist."
-            self._model = cv2.CascadeClassifier(_model_path)
-        else:
-            self._model = None
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.ign})"
@@ -226,56 +229,6 @@ class Character(BaseCharacter, ABC):
             "Rectangle Grouping": self._apply_rectangle_grouping,
             "Convex Hull": self._apply_convex_hull,
         }
-
-    @staticmethod
-    def _apply_contour_detection(
-        image: np.ndarray, **kwargs
-    ) -> Sequence[ndarray | ndarray[Any, dtype[generic | generic]] | Any]:
-        contours, _ = cv2.findContours(image, **kwargs)
-        return contours
-
-    @staticmethod
-    def _apply_bounding_rectangles(
-        contours: Sequence[ndarray | ndarray[Any, dtype[generic | generic]] | Any],
-        **kwargs,
-    ) -> list[Sequence[int]]:
-        return [cv2.boundingRect(cnt) for cnt in contours]
-
-    @staticmethod
-    def _apply_rectangle_grouping(
-        rects: list[Sequence[int]], **kwargs
-    ) -> Sequence[Sequence[int]]:
-        return cv2.groupRectangles(rects, **kwargs)[0]
-
-    @staticmethod
-    def _apply_convex_hull(contour: Sequence[int], **kwargs) -> Sequence[int]:
-        return cv2.convexHull(contour, **kwargs)
-
-    @staticmethod
-    def _apply_color_filtering(
-        image: np.ndarray,
-        lower: Sequence[int],
-        upper: Sequence[int],
-    ) -> np.ndarray:
-        return cv2.inRange(image, np.array(lower), np.array(upper))
-
-    def _apply_hsv_filtering(
-        self,
-        image: np.ndarray,
-        lower: Sequence[int],
-        upper: Sequence[int],
-    ) -> np.ndarray:
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        return self._apply_color_filtering(hsv, lower, upper)
-
-    def _apply_template_matching(
-        self,
-        image: np.ndarray,
-        template: np.ndarray,
-        threshold: float,
-    ) -> np.ndarray:
-        raise NotImplementedError
-
 
 def _debug(image: np.ndarray, rect, cx, cy, offset) -> None:
     # Then draw a rectangle around it
