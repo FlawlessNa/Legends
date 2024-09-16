@@ -783,7 +783,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         :param grid: Grid to add connections to.
         :return:
         """
-        highest_point = max(trajectory, key=lambda x: x[1])[1]
+        highest_point = min(trajectory, key=lambda x: x[1])[1]
 
         for other_node in trajectory:
             if not grid.node(*other_node).walkable:
