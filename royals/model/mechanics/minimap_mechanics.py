@@ -784,6 +784,8 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         :return:
         """
         highest_point = min(trajectory, key=lambda x: x[1])[1]
+        apogee = list(filter(lambda pos: pos[1] == highest_point, trajectory))
+        nodes_for_rope = apogee[:min(2, len(apogee))]
 
         for other_node in trajectory:
             if not grid.node(*other_node).walkable:
@@ -814,7 +816,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                     # can be bypassed.
 
                     elif other_feature.is_ladder:
-                        if other_node[1] == highest_point:
+                        if other_node in nodes_for_rope:
                         # dx = abs(other_node[0] - node[0])
                         # if feature.is_platform and dx <= 2:
                         #     continue
