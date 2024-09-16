@@ -41,11 +41,15 @@ class Rotation(
         movements_duration: float = 1.0,
         static_position_threshold: float = 10.0,
         no_path_threshold: float = 10.0,
+        disable_teleport: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(metadata, data, pipe)
         self._teleport_skill = self.data.character.skills.get("Teleport")
         self.lock = self.request_proxy(self.metadata, f"{self}", "Lock")
+
+        if disable_teleport:
+            self.data.character.skills.pop('Teleport', None)
 
         # Minimap attributes
         self._create_minimap_attributes()

@@ -75,10 +75,6 @@ class MobsHittingMixin:
         if not hasattr(self, '_last_target_reached_at'):
             self._last_target_reached_at = time.perf_counter()
 
-        current_feature = self.data.current_minimap.get_feature_containing(
-            self.data.current_minimap_position
-        )
-
         if (
             math.dist(
                 self.data.current_minimap_position, self.data.next_target
@@ -129,9 +125,9 @@ class MobsHittingMixin:
                     )
                     minimap_dist = min(int(avg_dist * minimap_width / map_width), 10)
                     minimap_x, minimap_y = self.data.current_minimap_position
-                    minimum_x = current_feature.left
-                    if current_feature.avoid_edges:
-                        minimum_x += current_feature.edge_threshold
+                    minimum_x = self.data.next_feature.left
+                    if self.data.next_feature.avoid_edges:
+                        minimum_x += self.data.next_feature.edge_threshold
                     target = (max(minimap_x - minimap_dist, minimum_x), minimap_y)
                     return target
 
@@ -142,9 +138,9 @@ class MobsHittingMixin:
                     )
                     minimap_dist = min(int(avg_dist * minimap_width / map_width), 10)
                     minimap_x, minimap_y = self.data.current_minimap_position
-                    maximum_x = current_feature.right
-                    if current_feature.avoid_edges:
-                        maximum_x -= current_feature.edge_threshold
+                    maximum_x = self.data.next_feature.right
+                    if self.data.next_feature.avoid_edges:
+                        maximum_x -= self.data.next_feature.edge_threshold
                     target = (min(minimap_x + minimap_dist, maximum_x), minimap_y)
                     return target
 
