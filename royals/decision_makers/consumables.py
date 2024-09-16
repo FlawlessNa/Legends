@@ -96,3 +96,10 @@ class MountFood(UseAndCheckConsumable):
 
     def __init__(self, metadata, data, pipe, **kwargs):
         super().__init__(metadata, data, pipe, "Mount Food", num_usage=1)
+
+
+class SpeedPill(UseAndCheckConsumable):
+    _THROTTLE = 600
+
+    def __init__(self, metadata, data, pipe, **kwargs):
+        super().__init__(metadata, data, pipe, "Speed Pill", num_usage=1)

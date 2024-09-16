@@ -8,7 +8,7 @@ from botting.models_abstractions import BaseMob
 from botting.utilities import Box
 
 
-class MobsHittingMixin:
+class   MobsHittingMixin:
     """
     Utility functions to determine mob count, mob positions, and closest mob direction.
     """
@@ -128,7 +128,10 @@ class MobsHittingMixin:
                     minimum_x = self.data.next_feature.left
                     if self.data.next_feature.avoid_edges:
                         minimum_x += self.data.next_feature.edge_threshold
-                    target = (max(minimap_x - minimap_dist, minimum_x), minimap_y)
+                    target = (
+                        max(minimap_x - minimap_dist, minimum_x),
+                        self.data.next_feature.top
+                    )
                     return target
 
                 # Go towards right
@@ -141,7 +144,10 @@ class MobsHittingMixin:
                     maximum_x = self.data.next_feature.right
                     if self.data.next_feature.avoid_edges:
                         maximum_x -= self.data.next_feature.edge_threshold
-                    target = (min(minimap_x + minimap_dist, maximum_x), minimap_y)
+                    target = (
+                        min(minimap_x + minimap_dist, maximum_x),
+                        self.data.next_feature.top
+                    )
                     return target
 
         self.data.update_attribute('next_feature')

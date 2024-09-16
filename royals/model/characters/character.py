@@ -175,6 +175,7 @@ class Character(BaseCharacter, ABC):
             image,
             conf=acceptance_threshold,
             max_det=1 if mode == "single" else 100,
+            verbose=False
         ):
             result.extend(
                 tuple(dct["box"].values())
