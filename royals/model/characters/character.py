@@ -25,6 +25,7 @@ class Character(BaseCharacter, ABC):
     If both the model_path and detection_configs are specified, then both are used
     and the final result is cross-validated.
     """
+
     detection_box_small_client: Box = NotImplemented
     detection_box_medium_client: Box = Box(left=0, right=1024, top=29, bottom=700)
     detection_box_large_client: Box = NotImplemented
@@ -37,20 +38,20 @@ class Character(BaseCharacter, ABC):
         ign: str,
         model_path: str = None,
         detection_configs: str = None,
-        client_size: str = "medium"
+        client_size: str = "medium",
     ) -> None:
         super().__init__(ign)
 
         if model_path is not None:
             if not os.path.exists(model_path):
-                _model_path = os.path.join(ROOT, model_path)
+                model_path = os.path.join(ROOT, model_path)
             assert os.path.exists(model_path), f"Model {model_path} does not exist."
         self._model_path = model_path
 
         self._preprocessing_method = None
         self._preprocessing_params = None
         self._detection_methods = None
-        self._offset = None
+        self._detection_offset = None
         if detection_configs is not None:
             self._set_detection_configs(detection_configs)
         assert client_size.lower() in ("large", "medium", "small")
@@ -76,7 +77,7 @@ class Character(BaseCharacter, ABC):
             i: eval(config_reader("character_detection", section, f"{i} Parameters"))
             for i in _detection_methods
         }
-        self._offset: tuple[int, int] = eval(
+        self._detection_offset: tuple[int, int] = eval(
             config_reader("character_detection", section, "Detection Offset")
         )
 
@@ -94,7 +95,9 @@ class Character(BaseCharacter, ABC):
     @cached_property
     def detection_model(self) -> YOLO | None:
         if self._model_path is not None:
-            return YOLO(self._model_path, task='detect')
+            return YOLO(
+                os.path.join(self._model_path, "weights/best.pt"), task="detect"
+            )
 
     def get_onscreen_position(
         self,
@@ -102,8 +105,9 @@ class Character(BaseCharacter, ABC):
         handle: int = None,
         regions_to_hide: list[Box] = None,
         acceptance_threshold: float = None,
-    ) -> tuple[int, int] | None:
+    ) -> tuple[int, int, int, int] | None:
         """
+        Method used solely to detect a single character on-screen.
         Applies detection method specified through user configs.
         Optionally hides regions of the image (such as minimap) to prevent false positive.
         Optionally applies offset to the detection, as the detection may not be the character itself.
@@ -111,9 +115,9 @@ class Character(BaseCharacter, ABC):
         :param handle:
         :param regions_to_hide:
         :param acceptance_threshold: To use with detection model.
-        :return:
+        :return: x1, y1, x2, y2 format for a bounding box.
         """
-        res = None
+        res = model_res = detection_res = None
         if image is None:
             assert handle is not None
             image = take_screenshot(handle, self.detection_box)
@@ -125,17 +129,68 @@ class Character(BaseCharacter, ABC):
                 image[region.top : region.bottom, region.left : region.right] = 0
 
         if self.detection_model is not None:
-            model_res = self._run_detection_model(image, acceptance_threshold)
+            assert acceptance_threshold is not None
+            model_res = self._run_detection_model(image, acceptance_threshold, "single")
+            if model_res is not None:
+                model_res = tuple(map(round, model_res[0]))
+                if DEBUG:
+                    x1, y1, x2, y2 = model_res
+                    cv2.rectangle(image, (x1, y1), (x2, y2), (255, 0, 0), 3)
 
         if self._detection_methods is not None:
-            detection_res = self._run_detection_methods(image, regions_to_hide)
+            detection_res = self._run_detection_methods(image, "single")
+            if detection_res is not None:
+                detection_res = detection_res[0]
+                if DEBUG:
+                    x, y, w, h = detection_res
+                    cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 3)
+
+        if self.detection_model is not None and self._detection_methods is not None:
+            res = self._cross_validate_results(model_res, detection_res)  # noqa
+        elif self.detection_model is not None:
+            res = model_res
+        elif self._detection_methods is not None:
+            res = detection_res
+
+        if DEBUG:
+            if res is not None:
+                x1, y1, x2, y2 = res
+                cv2.rectangle(image, (x1, y1), (x2, y2), (255, 255, 255), 3)
+            cv2.imshow("_DEBUG_ Character.get_on_screen_position", image)
+            cv2.waitKey(1)
+        return res
+
+    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
+        detection_method = self._preprocessing_functions[self._preprocessing_method]
+        return detection_method(image, **self._preprocessing_params)
+
+    def _run_detection_model(
+        self, image: np.ndarray, acceptance_threshold: float, mode: str
+    ) -> list[tuple[float, float, float, float]]:
+        """
+        Runs the detection model on the image.
+        """
+        result = []
+        for res in self.detection_model(
+            image,
+            conf=acceptance_threshold,
+            max_det=1 if mode == "single" else 100,
+        ):
+            result.extend(
+                tuple(dct["box"].values())
+                for dct in res.summary()
+                if dct["name"] == "Character"
+            )
+        return result or None
+
+    def _run_detection_methods(
+        self, image: np.ndarray, mode: str
+    ) -> list[tuple[int, int, int, int]] | None:
+        """
+        Runs the detection methods on the image.
+        """
         processed = self._preprocess_img(image)
-
-        if regions_to_hide is not None:
-            for region in regions_to_hide:
-                processed[region.top : region.bottom, region.left : region.right] = 0
-
-        largest = None
+        largest = res = None
         if "Contour Detection" in self._detection_methods:
             res = self._apply_contour_detection(
                 processed, **self._detection_methods["Contour Detection"]
@@ -185,78 +240,34 @@ class Character(BaseCharacter, ABC):
 
         # After all pre-processing + detection, if no result, there should not be any largest either.
         if not len(res):
-            largest = None
-        #
-        # # Cross-validate both rectangles, if a model is used
-        # if self._model is not None:
-        #     rects, lvls, weights = self._model.detectMultiScale3(
-        #         image, 1.1, 6, 0, (50, 50), (90, 90), True
-        #     )
-        #     if len(weights) and largest is not None:
-        #         max_conf = np.argmax(weights)
-        #         (x, y, w, h) = rects[max_conf]
-        #         if DEBUG:
-        #             cv2.rectangle(image, (x, y), (x + w, y + h), (255, 0, 0), 2)
-        #
-        #         cnt_x, cnt_y, cnt_w, cnt_h = largest
-        #         cnt_x += self._offset[0]
-        #         cnt_y += self._offset[1]
-        #         xi = max(x, cnt_x)
-        #         yi = max(y, cnt_y)
-        #         wi = min(x + w, cnt_x + cnt_w) - xi
-        #         hi = min(y + h, cnt_y + cnt_h) - yi
-        #         if not (wi > 0 and hi > 0):
-        #             return None
+            return None
+        return [largest] if mode == "single" else res
 
-        cx = None
-        cy = None
-        if largest is not None:
-            x, y, w, h = largest
-            cx, cy = int(x + w // 2), int(y + h // 2)
-
-        if DEBUG:
-            _debug(image, largest, cx, cy, self._offset)
-
-        if cx is not None and cy is not None:
-            return (
-                cx + self._offset[0] + self.detection_box.left,
-                cy + self._offset[1] + self.detection_box.top,
-            )
-
-    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        detection_method = self._preprocessing_functions[self._preprocessing_method]
-        return detection_method(image, **self._preprocessing_params)
-
-    def _run_detection_model(
-        self, image: np.ndarray, acceptance_threshold: float
-    ) -> list[tuple[int, int, int, int]]:
+    def _cross_validate_results(
+        self,
+        model_res: tuple[int, int, int, int],
+        detection_res: tuple[int, int, int, int],
+    ) -> tuple[int, int, int, int] | None:
         """
-        Runs the detection model on the image.
+        Cross-validates the results from the detection model and detection methods.
         """
-        results = self.detection_model(image)
-        res = []
-        breakpoint()
-        for result in results:
-            for box in result.boxes:
-                x1, y1, x2, y2 = box.xyxy.numpy().astype(int).squeeze()
-                cls = box.cls.numpy()[0]
-                conf = box.conf.numpy()[0]
-                if acceptance_threshold is not None and conf < acceptance_threshold:
-                    continue
-                res.append((x1, y1, x2 - x1, y2 - y1))
-        return res
+        if model_res is None or detection_res is None:
+            return
+        mx1, my1, mx2, my2 = model_res
+        dx1, dy1, dw, dh = detection_res
+        dx1, dy1 = dx1 + self._detection_offset[0], dy1 + self._detection_offset[1]
+        dx2, dy2 = dx1 + dw, dy1 + dh
 
-    def _run_detection_methods(
-        self, image: np.ndarray, regions_to_hide: list[Box]
-    ) -> list[tuple[int, int, int, int]]:
-        """
-        Runs the detection methods on the image.
-        """
-        res = []
-        for method, params in self._detection_methods.items():
-            detection_method = self._detection_functions[method]
-            res = detection_method(image, regions_to_hide, **params)
-        return res
+        # Check if the two rectangles intersect
+        x = max(mx1, dx1)
+        y = max(my1, dy1)
+        w = min(mx2, dx2) - x
+        h = min(my2, dy2) - y
+        if not (w > 0 and h > 0):
+            return None
+        else:
+            # Return the outermost rectangle
+            return min(mx1, dx1), min(my1, dy1), max(mx2, dx2), max(my2, dy2)
 
     @property
     def _preprocessing_functions(self) -> dict[str, callable]:
@@ -274,15 +285,3 @@ class Character(BaseCharacter, ABC):
             "Rectangle Grouping": self._apply_rectangle_grouping,
             "Convex Hull": self._apply_convex_hull,
         }
-
-
-def _debug(image: np.ndarray, rect, cx, cy, offset) -> None:
-    # Then draw a rectangle around it
-    if rect is not None:
-        x, y, w, h = rect
-        x += offset[0]
-        y += offset[1]
-        cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 3)
-        cv2.circle(image, (cx + offset[0], cy + offset[1]), 5, (0, 0, 255), -1)
-    cv2.imshow("_DEBUG_ Character.get_on_screen_position", image)
-    cv2.waitKey(1)

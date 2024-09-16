@@ -22,7 +22,7 @@ class _ChildProcessEngine:
         pipe: multiprocessing.connection.Connection,
         metadata: multiprocessing.managers.DictProxy,
         bots: list[Bot],
-        barrier: multiprocessing.managers.BarrierProxy
+        barrier: multiprocessing.managers.BarrierProxy,
     ) -> None:
         assert multiprocessing.current_process().name != "MainProcess"
         self.pipe = pipe

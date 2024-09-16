@@ -3,6 +3,7 @@ Launcher used for multi-bot Leeching model.
 A leecher bot is the primary process here, but "Mule Buffers" engines can be added to
 better control party buffs as well as automatically distribute AP upon level up.
 """
+
 import asyncio
 import multiprocessing
 

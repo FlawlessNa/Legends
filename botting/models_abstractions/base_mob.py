@@ -8,7 +8,7 @@ from typing import Sequence
 from botting.utilities import Box
 from botting.visuals import InGameBaseVisuals
 
-DEBUG = False
+DEBUG = True
 
 
 class BaseMob(InGameBaseVisuals, ABC):
@@ -30,7 +30,9 @@ class BaseMob(InGameBaseVisuals, ABC):
     _minimal_rect_area: int = NotImplemented
     _maximal_rect_area: int = NotImplemented
 
-    _multiplier: int = NotImplemented  # Used to count mobs on screen, since some mobs are counted as multiple contours.
+    _multiplier: int = (
+        NotImplemented  # Used to count mobs on screen, since some mobs are counted as multiple contours.
+    )
 
     def __init__(self, detection_box: Box):
         self.detection_box = detection_box

@@ -37,9 +37,9 @@ class TestBotData(unittest.TestCase):
 
     def test_getattr_updates_value_if_threshold_exceeded(self):
         self.create_attribute("test_attr", self.mock_update_function, threshold=0.1)
-        self.bot_data._metadata[
-            "test_attr"
-        ].last_update_time = datetime.now() - timedelta(seconds=0.2)
+        self.bot_data._metadata["test_attr"].last_update_time = (
+            datetime.now() - timedelta(seconds=0.2)
+        )
         self.mock_update_function.return_value = "threshold_updated_value"
         _ = self.bot_data.test_attr
         self.assertEqual(self.bot_data.test_attr, "threshold_updated_value")

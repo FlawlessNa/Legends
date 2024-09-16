@@ -86,21 +86,21 @@ class AbilityMenu(InGameDynamicVisuals):
     # hand_box: Box = Box(offset=True, name='Hand', left=225, right=310, top=227, bottom=92, config=f'--psm 7 -c tessedit_char_whitelist={string.digits}')
     speed_box: Box = Box(
         offset=True,
-        name='Speed',
+        name="Speed",
         left=241,
         right=115,
         top=226,
         bottom=225,
-        config=f'--psm 7 -c tessedit_char_whitelist={string.digits}%'
+        config=f"--psm 7 -c tessedit_char_whitelist={string.digits}%",
     )
     jump_box: Box = Box(
         offset=True,
-        name='Jump',
+        name="Jump",
         left=241,
         right=115,
         top=243,
         bottom=242,
-        config=f'--psm 7 -c tessedit_char_whitelist={string.digits}%'
+        config=f"--psm 7 -c tessedit_char_whitelist={string.digits}%",
     )
     # extended_menu_button_box: Box = Box(offset=True, left=110, right=115, top=293, bottom=156)
     ability_points_box: Box = Box(
@@ -167,7 +167,7 @@ class AbilityMenu(InGameDynamicVisuals):
         box = icon + self.speed_box
         cropped = box.extract_client_img(image)
         try:
-            return int(self.read_from_img(cropped, box.config).strip('%')) / 100
+            return int(self.read_from_img(cropped, box.config).strip("%")) / 100
         except ValueError:
             breakpoint()
 
@@ -178,6 +178,6 @@ class AbilityMenu(InGameDynamicVisuals):
         box = icon + self.jump_box
         cropped = box.extract_client_img(image)
         try:
-            return int(self.read_from_img(cropped, box.config).strip('%')) / 100
+            return int(self.read_from_img(cropped, box.config).strip("%")) / 100
         except ValueError:
             breakpoint()

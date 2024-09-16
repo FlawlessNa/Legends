@@ -188,7 +188,7 @@ class InventoryManager(
                 "PartyRebuff",
                 "SoloRebuff",
                 "PetFood",
-                "MountFood"
+                "MountFood",
             )
             if self._cleanup_procedure == INVENTORY_CLEANUP_WITH_TOWN_SCROLL:
                 await self._cleanup_with_town_scroll()
@@ -282,7 +282,7 @@ class InventoryManager(
             "SoloRebuff",
             "PetFood",
             "MountFood",
-            "Rotation"
+            "Rotation",
         )
 
     async def _move_to_town_self_door(self):
@@ -307,7 +307,7 @@ class InventoryManager(
         await self._move_to_door_spot()
         self._connect_door_to_other_map()
         await self._enter_door()
-        self.data.update_attribute('current_map')
+        self.data.update_attribute("current_map")
         await self._confirm_in_map(self.data.current_map)
 
     async def _cleanup_with_party_door(self) -> None:
@@ -319,9 +319,10 @@ class InventoryManager(
 
     async def _wait_until_target_reached(self) -> None:
         while True:
-            if math.dist(
-                self.data.current_minimap_position, self.data.next_target
-            ) < self._DISTANCE_TO_DOOR_THRESHOLD:
+            if (
+                math.dist(self.data.current_minimap_position, self.data.next_target)
+                < self._DISTANCE_TO_DOOR_THRESHOLD
+            ):
                 break
             await asyncio.sleep(0.5)
 
@@ -481,7 +482,7 @@ class InventoryManager(
 
     def active_item_detected(self) -> bool:
         box = self.FIRST_SLOT_SHOP_OFFSET + self._open_shop_box
-        self.data.update_attribute('current_client_img')
+        self.data.update_attribute("current_client_img")
         box_img = box.extract_client_img(self.data.current_client_img)
         binary_img = cv2.inRange(
             box_img, self.SELECTED_ITEM_COLOR, self.SELECTED_ITEM_COLOR
@@ -511,7 +512,7 @@ class InventoryManager(
                 controller.click,
                 priorities.INVENTORY_CLEANUP,
                 block_lower_priority=True,
-                args=(self.data.handle, ),
+                args=(self.data.handle,),
                 kwargs=dict(delay=0.1),
                 callbacks=[self._condition.release],
             )

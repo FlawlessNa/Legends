@@ -37,6 +37,7 @@ class RoyalsBuff(RoyalsSkill):
     properly cast by attempting to match the buff icon in the top-right corner of in-
     game screen.
     """
+
     type: str = field(init=False, default="Buff")
     match_template_threshold: float = field(default=MATCH_TEMPLATE_THRESHOLD)
     match_icon_threshold: float = field(default=MATCH_ICON_THRESHOLD)
@@ -49,6 +50,7 @@ class RoyalsPartyBuff(RoyalsSkill):
     properly cast by attempting to match the buff icon in the top-right corner of in-
     game screen.
     """
+
     type: str = field(init=False, default="Party Buff")
     match_template_threshold: float = field(default=MATCH_TEMPLATE_THRESHOLD)
     match_icon_threshold: float = field(default=MATCH_ICON_THRESHOLD)

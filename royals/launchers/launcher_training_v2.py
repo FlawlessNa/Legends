@@ -12,7 +12,8 @@ training_configs = {
     "anti_detection_time_threshold": 10,
     "included_buffs": [],
     "training_skill": "Heal",
-    "model_path": "data/model_runs/character_detection/ClericChronosTraining - Nano120"
+    "model_path": "data/model_runs/character_detection/ClericChronosTraining - Nano120",
+    "disable_teleport": True,
 }
 
 

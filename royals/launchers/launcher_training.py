@@ -1,6 +1,7 @@
 """
 Launcher used for single-bot training model.
 """
+
 import asyncio
 import botting
 

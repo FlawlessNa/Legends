@@ -2,6 +2,7 @@
 Maps are merely containers in which to find Mobs and a Minimap, along with connections
 to other maps.
 """
+
 from .base import RoyalsMap
 from .buddha_encounter import EncounterWithTheBuddha
 from .fantasy_theme_park_1 import FantasyThemePark1

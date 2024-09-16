@@ -1,6 +1,7 @@
 """
 Low-level module that handles sending inputs to the focused window through SendInput().
 """
+
 import asyncio
 import ctypes
 import logging

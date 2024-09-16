@@ -143,27 +143,33 @@ class TestMinimap(TestCase):
         # Only applicable when minimap is fully displayed.
         _extra_widths = [18, 18, None, None, 0, 0, 0, 0, 10, None, 0, 10, 0, [1, 2]]
         _map_area_box = [
-            Box(
-                left=_map_area_top_left[i][0]
-                + CLIENT_HORIZONTAL_MARGIN_PX
-                + [
-                    _extra_widths[i] // 2
-                    if isinstance(_extra_widths[i], int)
-                    else _extra_widths[i][0]
-                ].pop(),
-                right=_map_area_bot_right[i][0]
-                + CLIENT_HORIZONTAL_MARGIN_PX
-                + 1
-                - [
-                    _extra_widths[i] // 2
-                    if isinstance(_extra_widths[i], int)
-                    else _extra_widths[i][1]
-                ].pop(),
-                top=_map_area_top_left[i][1] + CLIENT_VERTICAL_MARGIN_PX,
-                bottom=_map_area_bot_right[i][1] + CLIENT_VERTICAL_MARGIN_PX + 1,
+            (
+                Box(
+                    left=_map_area_top_left[i][0]
+                    + CLIENT_HORIZONTAL_MARGIN_PX
+                    + [
+                        (
+                            _extra_widths[i] // 2
+                            if isinstance(_extra_widths[i], int)
+                            else _extra_widths[i][0]
+                        )
+                    ].pop(),
+                    right=_map_area_bot_right[i][0]
+                    + CLIENT_HORIZONTAL_MARGIN_PX
+                    + 1
+                    - [
+                        (
+                            _extra_widths[i] // 2
+                            if isinstance(_extra_widths[i], int)
+                            else _extra_widths[i][1]
+                        )
+                    ].pop(),
+                    top=_map_area_top_left[i][1] + CLIENT_VERTICAL_MARGIN_PX,
+                    bottom=_map_area_bot_right[i][1] + CLIENT_VERTICAL_MARGIN_PX + 1,
+                )
+                if _map_area_top_left[i] is not None
+                else None
             )
-            if _map_area_top_left[i] is not None
-            else None
             for i in range(len(_world_icons_top_left))
         ]
         cls._map_area_box = _map_area_box
@@ -185,14 +191,16 @@ class TestMinimap(TestCase):
             (406, 247),
         ]
         cls._entire_minimap_box = [
-            Box(
-                left=_entire_minimap_top_left[i][0] + CLIENT_HORIZONTAL_MARGIN_PX,
-                right=_map_area_bot_right[i][0] + CLIENT_HORIZONTAL_MARGIN_PX + 1,
-                top=_entire_minimap_top_left[i][1] + CLIENT_VERTICAL_MARGIN_PX,
-                bottom=_map_area_bot_right[i][1] + CLIENT_VERTICAL_MARGIN_PX + 1,
+            (
+                Box(
+                    left=_entire_minimap_top_left[i][0] + CLIENT_HORIZONTAL_MARGIN_PX,
+                    right=_map_area_bot_right[i][0] + CLIENT_HORIZONTAL_MARGIN_PX + 1,
+                    top=_entire_minimap_top_left[i][1] + CLIENT_VERTICAL_MARGIN_PX,
+                    bottom=_map_area_bot_right[i][1] + CLIENT_VERTICAL_MARGIN_PX + 1,
+                )
+                if _map_area_top_left[i] is not None
+                else None
             )
-            if _map_area_top_left[i] is not None
-            else None
             for i in range(len(_world_icons_top_left))
         ]
 
@@ -474,14 +482,16 @@ class TestMinimap(TestCase):
 
     def test_get_minimap_title_box(self):
         boxes = [
-            Box(
-                left=entire_box.left,
-                right=entire_box.right,
-                top=entire_box.top,
-                bottom=area_box.top,
+            (
+                Box(
+                    left=entire_box.left,
+                    right=entire_box.right,
+                    top=entire_box.top,
+                    bottom=area_box.top,
+                )
+                if self._minimap_state[idx] == "Full"
+                else None
             )
-            if self._minimap_state[idx] == "Full"
-            else None
             for idx, area_box, entire_box in zip(
                 range(len(self._map_area_box)),
                 self._map_area_box,

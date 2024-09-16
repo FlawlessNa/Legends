@@ -71,7 +71,9 @@ class Minimap(InGameDynamicVisuals, ABC):
         return img
 
     def validate_in_map(self, handle: int) -> bool:
-        return np.array_equal(self.get_minimap_title_img(handle), self._validation_title_img)
+        return np.array_equal(
+            self.get_minimap_title_img(handle), self._validation_title_img
+        )
 
     @classmethod
     def is_displayed(

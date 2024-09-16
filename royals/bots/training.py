@@ -17,5 +17,4 @@ class TrainingBot(RoyalsBot):
             decision_makers.AbilityPointDistributor,
             decision_makers.PetFood,
             decision_makers.SoloRebuff,
-
         ]

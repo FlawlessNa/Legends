@@ -103,15 +103,15 @@ class MinimapAttributesMixin:
             self.data.current_minimap,
             getattr(
                 self,
-                '_condition',
+                "_condition",
                 DecisionMaker.request_proxy(
                     self.metadata,
                     f"{self} Initial Setup",
                     "Condition",
-                )
+                ),
             ),
             self.ERROR_HANDLING_TIME_LIMIT,
-            )
+        )
         self.data.create_attribute(
             "minimap_currently_displayed",
             lambda: self.data.current_minimap.is_displayed(
@@ -145,9 +145,7 @@ class MinimapAttributesMixin:
         ),
         self.data.create_attribute(
             "current_minimap_title_img",
-            lambda: self.data.current_minimap.get_minimap_title_img(
-                self.data.handle
-            ),
+            lambda: self.data.current_minimap.get_minimap_title_img(self.data.handle),
         )
         self.data.create_attribute(
             "current_minimap_position",

@@ -132,8 +132,8 @@ class MovementsMixin:
                 self.data.ign,
                 self.data.handle,
                 self.data.character.skills.get("Teleport"),
-                self.data.current_minimap
-            )
+                self.data.current_minimap,
+            ),
         )
 
         self.data.create_attribute(
@@ -153,7 +153,7 @@ class MovementsMixin:
             lambda: self.data.movement_handler.movements_into_action(
                 self.data.movements,
                 duration,
-                getattr(self.data, 'speed_multiplier', 1.0)
+                getattr(self.data, "speed_multiplier", 1.0),
             ),
         )
         self.data.create_attribute("has_pathing_attributes", lambda: True)

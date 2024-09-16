@@ -19,9 +19,10 @@ class RoyalsBot(Bot, ABC):
         self,
         ign: str,
         metadata: multiprocessing.managers.DictProxy,
-        detection_configs: str,
-        client_size: str,
         game_map: type[RoyalsMap],
+        detection_configs: str = None,
+        client_size: str = "medium",
+        model_path: str = None,
         character_class: str = None,
         **kwargs
     ) -> None:
@@ -31,12 +32,13 @@ class RoyalsBot(Bot, ABC):
         self.character_class = CHARACTER_MAPPING[class_name]
         self.detection_configs = detection_configs
         self.client_size = client_size
+        self.model_path = model_path
         self.game_map = game_map
 
     def child_init(
         self,
         pipe: multiprocessing.connection.Connection,
-        barrier: multiprocessing.managers.BarrierProxy
+        barrier: multiprocessing.managers.BarrierProxy,
     ) -> None:
         """
         Called by the Engine to create Bot within Child process.
@@ -48,7 +50,7 @@ class RoyalsBot(Bot, ABC):
         self.data.create_attribute(
             "character",
             lambda: self.character_class(
-                self.ign, self.detection_configs, self.client_size
+                self.ign, self.model_path, self.detection_configs, self.client_size
             ),
         )
         self.data.create_attribute("current_map", lambda: self.game_map())

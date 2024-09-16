@@ -31,6 +31,8 @@ class AsyncTaskManager:
             if action_request is None:
                 logger.info("Received None from the queue. Exiting Task Manager.")
                 break
+            elif isinstance(action_request, BaseException):
+                break
 
             await self._process_request(action_request)
             self._check_for_event_loop_overflow()

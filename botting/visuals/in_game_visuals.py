@@ -2,6 +2,7 @@
 Base classes for in-game visuals.
 Contains methods for reading text, detecting colors or images in the game window.
 """
+
 import cv2
 import numpy as np
 import pytesseract
@@ -109,7 +110,6 @@ class InGameBaseVisuals(ABC):
         res = cv2.matchTemplate(detection_img, needle_img, method)
         return np.max(res) > threshold
 
-
     @staticmethod
     def _apply_contour_detection(
         image: np.ndarray, **kwargs
@@ -158,6 +158,7 @@ class InGameBaseVisuals(ABC):
         threshold: float,
     ) -> np.ndarray:
         raise NotImplementedError
+
 
 class InGameToggleableVisuals(InGameBaseVisuals, ABC):
     """

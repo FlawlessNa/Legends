@@ -26,10 +26,7 @@ class Bot(ABC):
         return client_handler.get_client_handle(ign, cls.ign_finder)
 
     def __init__(
-        self,
-        ign: str,
-        metadata: multiprocessing.managers.DictProxy,
-        **kwargs
+        self, ign: str, metadata: multiprocessing.managers.DictProxy, **kwargs
     ) -> None:
         self.ign = ign
         self.data = None
@@ -41,7 +38,7 @@ class Bot(ABC):
     def child_init(
         self,
         pipe: multiprocessing.connection.Connection,
-        barrier: multiprocessing.managers.BarrierProxy
+        barrier: multiprocessing.managers.BarrierProxy,
     ) -> None:
         """
         Called by the Engine to create Bot within Child process.

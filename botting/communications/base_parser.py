@@ -124,7 +124,9 @@ class BaseParser(ABC):
         else:
             raise ValueError(f"Invalid action: {action}")
 
-        self.pipe.send(f"Confirmation that '{request.identifier}' was requested by user")
+        self.pipe.send(
+            f"Confirmation that '{request.identifier}' was requested by user"
+        )
         return request
 
     @staticmethod
@@ -139,10 +141,10 @@ class BaseParser(ABC):
         return ActionRequest(
             f"Killing all tasks",
             self._kill,
-            ign='All',
+            ign="All",
             priority=999,
             block_lower_priority=True,
-            discord_request=DiscordRequest("Kill request from Discord confirmed")
+            discord_request=DiscordRequest("Kill request from Discord confirmed"),
         )
 
     # @property
@@ -161,10 +163,10 @@ class BaseParser(ABC):
             return ActionRequest(
                 "Pausing all Engines",
                 ...,
-                ign='All',
+                ign="All",
                 priority=999,
                 block_lower_priority=True,
-                discord_request=DiscordRequest("Pausing all bots confirmed")
+                discord_request=DiscordRequest("Pausing all bots confirmed"),
             )
         else:
             raise NotImplementedError("Pausing specific bots is not implemented yet.")

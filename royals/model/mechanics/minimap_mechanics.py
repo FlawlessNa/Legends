@@ -395,7 +395,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
     npc_shop: tuple[int, int]  # Coordinates of the NPC shop
 
     def get_jump_height(self, multiplier: float = 1.00) -> float:
-        return self.jump_height * (multiplier ** 2)
+        return self.jump_height * (multiplier**2)
 
     def get_jump_distance(
         self, speed_multiplier: float = 1.00, jump_multiplier: float = 1.00
@@ -615,7 +615,9 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         )
         adjusted_speed = self.get_minimap_speed(speed_multiplier)
         adjusted_jump_height = self.get_jump_height(jump_multiplier)
-        adjusted_jump_distance = self.get_jump_distance(speed_multiplier, jump_multiplier)
+        adjusted_jump_distance = self.get_jump_distance(
+            speed_multiplier, jump_multiplier
+        )
 
         for feature in self.features.values():
             for connection in feature.connections:
@@ -637,14 +639,23 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                         base_grid, node, MinimapConnection.JUMP_UP, adjusted_jump_height
                     )
                     self._add_vertical_connection(
-                        base_grid, node, MinimapConnection.JUMP_DOWN, adjusted_jump_height
+                        base_grid,
+                        node,
+                        MinimapConnection.JUMP_DOWN,
+                        adjusted_jump_height,
                     )
                     if base_grid.allow_teleport:
                         self._add_vertical_connection(
-                            base_grid, node, MinimapConnection.TELEPORT_UP, adjusted_jump_height
+                            base_grid,
+                            node,
+                            MinimapConnection.TELEPORT_UP,
+                            adjusted_jump_height,
                         )
                         self._add_vertical_connection(
-                            base_grid, node, MinimapConnection.TELEPORT_DOWN, adjusted_jump_height
+                            base_grid,
+                            node,
+                            MinimapConnection.TELEPORT_DOWN,
+                            adjusted_jump_height,
                         )
                         if node[0] != feature.left:
                             self._find_horizontal_teleport_node(node, "left", base_grid)
@@ -686,7 +697,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                             "left",
                             adjusted_jump_distance,
                             adjusted_jump_height,
-                            fall_only=True
+                            fall_only=True,
                         )
                         self._parse_trajectory(
                             node,
@@ -704,7 +715,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                             "right",
                             adjusted_jump_distance,
                             adjusted_jump_height,
-                            fall_only=True
+                            fall_only=True,
                         )
                         self._parse_trajectory(
                             node,
@@ -727,7 +738,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                         "left",
                         adjusted_jump_distance,
                         adjusted_jump_height,
-                        fall_only=True
+                        fall_only=True,
                     )
                     self._parse_trajectory(
                         node,
@@ -743,7 +754,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                         "right",
                         adjusted_jump_distance,
                         adjusted_jump_height,
-                        fall_only=True
+                        fall_only=True,
                     )
                     self._parse_trajectory(
                         node,

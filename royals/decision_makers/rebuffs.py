@@ -58,9 +58,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
 
         # Unique Lock is used by this instance and NOT shared.
         # Used for buff confirmation
-        self._unique_lock = self.request_proxy(
-            self.metadata, f"{self}", "Lock"
-        )
+        self._unique_lock = self.request_proxy(self.metadata, f"{self}", "Lock")
 
         if not self.data.has_minimap_attributes:
             self._create_minimap_attributes()
@@ -103,9 +101,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         :param remaining_buffs:
         :return:
         """
-        to_cast = [
-            self.data.character.skills[buff] for buff in remaining_buffs
-        ]
+        to_cast = [self.data.character.skills[buff] for buff in remaining_buffs]
         self.pipe.send(
             ActionRequest(
                 f"{self} - {remaining_buffs}",

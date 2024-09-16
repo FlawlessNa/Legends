@@ -21,6 +21,8 @@ LOG_LEVEL = logging.INFO
 
 
 class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
+    ON_SCREEN_THRESHOLD = 0.5
+
     def __init__(
         self,
         metadata: multiprocessing.managers.DictProxy,
@@ -39,7 +41,7 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
             "current_on_screen_position",
             self._get_on_screen_pos,
             threshold=1.0,
-            error_handler=...,  # TODO - Implement error handler
+            # error_handler=...,  # TODO - Implement error handler
         )
 
     def _hit_mobs(self, direction: str | None) -> ActionRequest:
@@ -59,12 +61,12 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
             callbacks=[self.lock.release],
             cancels_itself=True,
             log=True,
-            args=(inputs, )
+            args=(inputs,),
         )
 
     @staticmethod
     async def _cap_duration(  # TODO - If this works, cleanup.
-        inputs: controller.KeyboardInputWrapper
+        inputs: controller.KeyboardInputWrapper,
     ) -> None:
         """
         Function to use to update the current on screen position of the character.
@@ -82,7 +84,7 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
 
     @cached_property
     def _hide_minimap_box(self) -> Box:
-        minimap_box = self.data.current_minimap_area_box
+        minimap_box = self.data.current_entire_minimap_box
         return Box(
             max(
                 0,
@@ -98,7 +100,7 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
 
     @cached_property
     def _hide_tv_smega_box(self) -> Box:
-        return Box(left=700, right=1024, top=0, bottom=300)
+        return Box(left=800, right=1024, top=0, bottom=200)
 
     def _get_on_screen_pos(self) -> tuple[int, int]:
         """
@@ -111,7 +113,8 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
             [
                 self._hide_minimap_box,
                 self._hide_tv_smega_box,
-            ],  # TODO - Add Chat Box as well into hiding
+            ],  # TODO - Add Chat Box  + fixed UI as well into hiding
+            acceptance_threshold=self.ON_SCREEN_THRESHOLD,
         )
 
     async def _decide(self) -> None:
@@ -128,17 +131,32 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
         closest_mob_direction = None
 
         if on_screen_pos:
-            x, y = on_screen_pos
+            x1, y1, x2, y2 = on_screen_pos
             if (
                 self.training_skill.horizontal_screen_range
-                and self.training_skill.vertical_screen_range
+                and (
+                    self.training_skill.vertical_screen_range
+                    or (
+                        self.training_skill.vertical_up_screen_range
+                        and self.training_skill.vertical_down_screen_range
+                    )
+                )
             ):
-                region = Box(
-                    left=x - self.training_skill.horizontal_screen_range,
-                    right=x + self.training_skill.horizontal_screen_range,
-                    top=y - self.training_skill.vertical_screen_range,
+                horizontal = self.training_skill.horizontal_screen_range
+                vertical_up = (
+                    self.training_skill.vertical_up_screen_range
+                    or self.training_skill.vertical_screen_range
+                )
+                vertical_down = (
+                    self.training_skill.vertical_down_screen_range
+                    or self.training_skill.vertical_screen_range
+                )
+                region = Box(  # TODO - finetune the region better? (Right now it uses smallest region)
+                    left=x1 - horizontal // 2,
+                    right=x2 + horizontal // 2,
+                    top=y2 - vertical_up // 2,
                     bottom=min(
-                        y + self.training_skill.vertical_screen_range,
+                        y2 + vertical_down // 2,
                         LargeClientChatFeed._chat_typing_area.top,  # noqa
                     ),
                 )
@@ -153,6 +171,7 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
 
             if nbr_mobs >= self.mob_threshold:
                 if self.training_skill.unidirectional:
+                    breakpoint()  # TODO
                     mobs_locations = self.get_mobs_positions_in_img(
                         cropped_img, self.data.current_mobs
                     )

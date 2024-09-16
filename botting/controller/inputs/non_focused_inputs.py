@@ -1,6 +1,7 @@
 """
 Low-level module that handles sending inputs to any window through PostMessage().
 """
+
 import asyncio
 import logging
 import win32con

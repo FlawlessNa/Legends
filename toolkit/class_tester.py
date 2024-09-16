@@ -19,7 +19,9 @@ img_dir = os.path.join(ROOT, "royals/assets/detection_images")
 
 if __name__ == "__main__":
     door_img = cv2.imread(os.path.join(img_dir, "ActiveDoor.png"), cv2.IMREAD_GRAYSCALE)
-    door_frame_img = cv2.imread(os.path.join(img_dir, "ActiveDoorFrame.png"), cv2.IMREAD_GRAYSCALE)
+    door_frame_img = cv2.imread(
+        os.path.join(img_dir, "ActiveDoorFrame.png"), cv2.IMREAD_GRAYSCALE
+    )
     mask_frame = np.ones(door_frame_img.shape, dtype=np.uint8)
     mask_frame[door_frame_img == 0] = 0
     masked_door_frame = cv2.bitwise_and(door_frame_img, door_frame_img, mask=mask_frame)
@@ -63,18 +65,34 @@ if __name__ == "__main__":
         # cv2.imshow('Detected', client_img)
         # cv2.waitKey(1)
         gray = cv2.cvtColor(client_img, cv2.COLOR_BGR2GRAY)
-        frame_res = cv2.matchTemplate(gray, door_frame_img, cv2.TM_CCOEFF_NORMED, mask=mask_frame)
+        frame_res = cv2.matchTemplate(
+            gray, door_frame_img, cv2.TM_CCOEFF_NORMED, mask=mask_frame
+        )
         door_res = cv2.matchTemplate(gray, door_img, cv2.TM_CCOEFF_NORMED)
 
         _, max_frame_val, _, max_frame_loc = cv2.minMaxLoc(frame_res)
         _, max_door_val, _, max_door_loc = cv2.minMaxLoc(door_res)
 
-        print('Frame', max_frame_val)
-        print('Door', max_door_val)
+        print("Frame", max_frame_val)
+        print("Door", max_door_val)
 
         # Draw the rectangles
-        cv2.rectangle(client_img, max_frame_loc, (max_frame_loc[0] + door_frame_img.shape[1], max_frame_loc[1] + door_frame_img.shape[0]), (255, 0, 0), 2)
-        cv2.rectangle(client_img, max_door_loc, (max_door_loc[0] + door_img.shape[1], max_door_loc[1] + door_img.shape[0]), (0, 0, 255), 2)
-        cv2.imshow('Client', client_img)
+        cv2.rectangle(
+            client_img,
+            max_frame_loc,
+            (
+                max_frame_loc[0] + door_frame_img.shape[1],
+                max_frame_loc[1] + door_frame_img.shape[0],
+            ),
+            (255, 0, 0),
+            2,
+        )
+        cv2.rectangle(
+            client_img,
+            max_door_loc,
+            (max_door_loc[0] + door_img.shape[1], max_door_loc[1] + door_img.shape[0]),
+            (0, 0, 255),
+            2,
+        )
+        cv2.imshow("Client", client_img)
         cv2.waitKey(1)
-
