@@ -8,3 +8,5 @@ pytweening>=1.0.7
 keyboard>=0.13.5
 fuzzywuzzy>=0.18.0
 levenshtein>=0.25.0
+ultralytics>=8.2.94
+
