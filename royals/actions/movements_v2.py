@@ -152,6 +152,8 @@ def jump_on_rope(
     """
     if structure is None:
         structure = _create_initial_input(handle, direction, None)
+        if len(structure.delays):
+            structure.delays[0] *= 4
     for key in structure.keys_held:
         if key == direction:
             continue
