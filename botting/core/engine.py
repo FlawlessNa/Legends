@@ -57,7 +57,10 @@ class _ChildProcessEngine:
         setup_child_proc_logging(metadata["logging_queue"])
         engine = cls(pipe, metadata, bots, barrier)
         logger.info(f"{engine} Started.")
-        asyncio.run(engine._cycle_forever())
+        try:
+            asyncio.run(engine._cycle_forever())
+        except BaseException as e:
+            raise e
 
     async def _cycle_forever(self) -> None:
         """

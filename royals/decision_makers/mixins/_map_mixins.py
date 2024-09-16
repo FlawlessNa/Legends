@@ -6,7 +6,7 @@ import win32gui
 from royals.actions import ensure_minimap_displayed
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
-from botting.utilities import Box, take_screenshot
+from botting.utilities import Box
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.WARNING

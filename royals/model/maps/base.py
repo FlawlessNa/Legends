@@ -16,3 +16,15 @@ class RoyalsMap(BaseMap, ABC):
     mobs: tuple[BaseMob]
     minimap: MinimapPathingMechanics
     path_to_shop: "RoyalsMap" = field(default=None)
+    vr_left: int = field(default=None)
+    vr_right: int = field(default=None)
+    vr_top: int = field(default=None)
+    vr_bottom: int = field(default=None)
+
+    @property
+    def vr_width(self) -> int:
+        return self.vr_right - self.vr_left
+
+    @property
+    def vr_height(self) -> int:
+        return self.vr_bottom - self.vr_top

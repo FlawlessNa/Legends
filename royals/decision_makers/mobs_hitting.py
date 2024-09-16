@@ -14,13 +14,15 @@ from botting.utilities import (
 from royals.actions.skills_related_v2 import cast_skill
 from royals.model.interface import LargeClientChatFeed
 from royals.model.mechanics import RoyalsSkill
-from .mixins import MobsHittingMixin, MinimapAttributesMixin
+from .mixins import MobsHittingMixin, MinimapAttributesMixin, NextTargetMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.INFO
 
 
-class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
+class MobsHitting(
+    MobsHittingMixin, MinimapAttributesMixin, NextTargetMixin, DecisionMaker
+):
     ON_SCREEN_THRESHOLD = 0.5
 
     def __init__(
@@ -40,8 +42,11 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
         self.data.create_attribute(
             "current_on_screen_position",
             self._get_on_screen_pos,
-            threshold=1.0,
+            threshold=0.25,
             # error_handler=...,  # TODO - Implement error handler
+        )
+        self._create_rotation_attributes(
+            custom_next_target=lambda: self._smart_rotation_target(self.mob_threshold),
         )
 
     def _hit_mobs(self, direction: str | None) -> ActionRequest:

@@ -184,7 +184,8 @@ class Minimap(InGameDynamicVisuals, ABC):
 
             eroded_detection = cv2.erode(mask, kernel)
             y_x_list = list(zip(*np.where(eroded_detection == 255)))
-            return [(x, y) for y, x in y_x_list]
+            # return [(x, y) for y, x in y_x_list]
+            return [(x, y+1) for y, x in y_x_list]
 
     def get_map_area_box(
         self,

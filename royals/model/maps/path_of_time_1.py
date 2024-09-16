@@ -16,3 +16,7 @@ class PathOfTime1(RoyalsMap):
         PlatoonChronos(Box(left=0, right=1024, top=29, bottom=700)),
     )
     path_to_shop: RoyalsMap = field(default_factory=Ludibrium)
+    vr_top: int = -600
+    vr_left: int = -885
+    vr_bottom: int = 1240
+    vr_right: int = 894

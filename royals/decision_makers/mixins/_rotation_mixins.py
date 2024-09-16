@@ -19,11 +19,22 @@ class NextTargetMixin:
 
     data: BotData
     BASE_ROTATION_THRESHOLD = 10  # Used for basic rotation mechanism
-    SMART_ROTATION_THRESHOLD = 2  # Used for "gravitate towards mobs" rotation mechanism
 
-    def _create_rotation_attributes(self, cycle=None) -> None:
+    def _create_rotation_attributes(
+        self, cycle=None, custom_next_target: callable = None
+    ) -> None:
+        if custom_next_target is not None:
+            self.data.create_attribute(
+                'next_target_custom',
+                lambda: custom_next_target,
+                initial_value = custom_next_target
+            )
+            self.data.create_attribute(
+                'has_next_target_custom',
+                lambda: True
+            )
+
         if self.data.current_minimap.feature_cycle:
-
             if cycle is None:
                 self.data.create_attribute(
                     "feature_cycle",
@@ -33,17 +44,31 @@ class NextTargetMixin:
                 "next_feature",
                 lambda: next(self.data.feature_cycle),
             )
-            self.data.create_attribute(
-                "next_target",
-                self._update_next_target_from_cycle,
-                initial_value=self.data.next_feature.random(),
-            )
+            if not self.data.has_next_target_custom:
+                self.data.create_attribute(
+                    "next_target",
+                    self._update_next_target_from_cycle,
+                    initial_value=self.data.next_feature.random(),
+                )
+            else:
+                self.data.create_attribute(
+                    "next_target",
+                    self.data.next_target_custom,
+                    initial_value=self.data.next_feature.random(),
+                )
         else:
-            self.data.create_attribute(
-                "next_target",
-                self._update_next_random_target,
-                initial_value=self.data.current_minimap.random_point(),
-            )
+            if not self.data.has_next_target_custom:
+                self.data.create_attribute(
+                    "next_target",
+                    self._update_next_random_target,
+                    initial_value=self.data.current_minimap.random_point(),
+                )
+            else:
+                self.data.create_attribute(
+                    "next_target",
+                    self.data.next_target_custom,
+                    initial_value=self.data.current_minimap.random_point(),
+                )
             self.data.create_attribute(
                 "next_feature",
                 lambda: self.data.current_minimap.get_feature_containing(
