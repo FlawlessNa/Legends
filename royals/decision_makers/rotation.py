@@ -96,6 +96,12 @@ class Rotation(
             threshold=self.NO_PATH_KILL_SWITCH,
             response=...,  # TODO - Trigger Pause mechanism until resumed by user
         )
+        self._create_bool_sentinel(
+            attribute="movements",
+            method=self.data.check_if_values_have_changed,
+            trigger_when_true=False,
+            response=self._failsafe_request(),
+        )
         self._sentinel_starts_at = time.perf_counter() + 60.0
 
     async def _task(self, *args, **kwargs) -> None:
@@ -162,5 +168,7 @@ class Rotation(
 
     @staticmethod
     async def _wait_and_random_jump(handle: int, jump_key: str) -> None:
+        for key in ['left', 'right']:
+            await controller.press(handle, key, down_or_up='keyup')
         await asyncio.sleep(3.0)
         await random_jump(handle, jump_key).send()

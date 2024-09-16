@@ -19,7 +19,8 @@ class TimeBasedFailsafeMixin:
 
     data: BotData
     pipe: multiprocessing.connection.Connection
-    _sentinels: list[dict]
+    _tb_sentinels: list[dict]
+    _bool_sentinels: list[dict]
     _sentinel_starts_at: float
 
     def _create_time_based_sentinel(
@@ -36,12 +37,32 @@ class TimeBasedFailsafeMixin:
             "response": response,
             "triggered": False,
         }
-        self._sentinels.append(sentinel)
+        self._tb_sentinels.append(sentinel)
+
+    def _create_bool_sentinel(
+        self,
+        attribute: str,
+        method: callable,
+        trigger_when_true: bool,
+        response: ActionRequest,
+    ) -> None:
+        sentinel = {
+            "attribute": attribute,
+            "method": method,
+            "trigger_when_true": trigger_when_true,
+            "response": response,
+            "triggered": False,
+        }
+        self._bool_sentinels.append(sentinel)
 
     def _failsafe_checks(self) -> None:
         if time.perf_counter() < self._sentinel_starts_at:
             return
-        for sentinel in self._sentinels:
+        self._check_time_based_sentinels()
+        self._check_bool_sentinels()
+
+    def _check_time_based_sentinels(self) -> None:
+        for sentinel in self._tb_sentinels:
             attribute = sentinel["attribute"]
             method = sentinel["method"]
             threshold = sentinel["threshold"]
@@ -51,6 +72,27 @@ class TimeBasedFailsafeMixin:
                     logger.warning(
                         f"{self.data.ign} - {attribute} has been static for > "
                         f"{threshold:.2f}s."
+                    )
+                    self.pipe.send(sentinel["response"])
+            else:
+                sentinel["triggered"] = False
+
+    def _check_bool_sentinels(self) -> None:
+        for sentinel in self._bool_sentinels:
+            attribute = sentinel["attribute"]
+            method = sentinel["method"]
+            if sentinel["trigger_when_true"] and method(attribute):
+                if not sentinel["triggered"]:
+                    sentinel["triggered"] = True
+                    logger.warning(
+                        f"{self.data.ign} - {attribute} Failsafe triggered."
+                    )
+                    self.pipe.send(sentinel["response"])
+            elif not sentinel["trigger_when_true"] and not method(attribute):
+                if not sentinel["triggered"]:
+                    sentinel["triggered"] = True
+                    logger.warning(
+                        f"{self.data.ign} - {attribute} Failsafe triggered."
                     )
                     self.pipe.send(sentinel["response"])
             else:

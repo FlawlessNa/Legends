@@ -115,6 +115,17 @@ class BotData:
             ).total_seconds()
         raise AttributeError(f"{name} not found in {self}")
 
+    def check_if_values_have_changed(self, name: str) -> bool:
+        """
+        Checks in the last known value to see if there was any change.
+        """
+        if name in self._metadata:
+            prev_values = self._metadata[name].prev_values
+            if all(val == prev_values[-1] or val is None for val in prev_values):
+                return False
+            else:
+                return True
+
     def __getattr__(self, name: str) -> Any:
         """
         Returns the value of an attribute if it exists, and also updates the metadata

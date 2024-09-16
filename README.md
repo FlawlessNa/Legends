@@ -11,11 +11,9 @@
 - [ ] Improve client_handler to avoid need of updating window title on every game update
 - [ ] Improvements of movements, particularly to avoid hitting while character is crouched
 - [ ] Looks like there's an existing bug between window switching and key releases
-- [ ] Add failsafe on Rotation for self.data.path on last X values being same or None
-  - third failsafe on rotation should trigger pausing mechanism (disable relevant decision makers)
-- Add failsafe reaction resetting all key directions
+- [ ] third failsafe on rotation sentinels should trigger pausing mechanism (disable relevant decision makers)
 - Jump on rope mechanics: 
-  - [ ] Add only grid connections for the "peak" of the parabola
+  - [x] Add only grid connections for the "peak" of the parabola
   - [ ] Enter "release all keys" mode when near the ladder/rope for improved precision
 - Re-do smartRotation mechanics into new framework
 
