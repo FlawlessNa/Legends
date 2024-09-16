@@ -59,7 +59,8 @@ class Rotation(
         self._create_pathing_attributes(movements_duration)
 
         # Fail safes
-        self._sentinels = []
+        self._tb_sentinels = []
+        self._bool_sentinels = []
         self._create_time_based_sentinel(
             attribute="current_minimap_position",
             method=self.data.get_time_since_last_value_change,
