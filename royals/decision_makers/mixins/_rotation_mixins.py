@@ -27,7 +27,7 @@ class NextTargetMixin:
             self.data.create_attribute(
                 'next_target_custom',
                 lambda: custom_next_target,
-                initial_value = custom_next_target
+                initial_value=custom_next_target
             )
             self.data.create_attribute(
                 'has_next_target_custom',

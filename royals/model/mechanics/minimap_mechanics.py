@@ -349,7 +349,7 @@ class MinimapFeature(Box):
         :return:
         """
         if self.is_platform and not self.is_irregular:
-            for x in range(self.left, self.right + 1):
+            for x in range(self.xrange[0], self.xrange[1] + 1):
                 yield x, self.top
         elif self.is_ladder:
             for y in range(self.top, self.bottom + 1):
