@@ -5,16 +5,13 @@
   - First alert after X seconds -> disable MobsHitting but keep movements
   - Second alert after 2X seconds -> pause everything except necessary maintenance + random reaction
 - [ ] There's a situation where keys are not released properly, leading to a stuck state
-- [ ] Investigate why sometimes the bot spams ultimate. Is it because the ultimate key is not released properly?
-  - Doesn't look like Telecast continue firing. In fact, it looks like it is not firing at all.
-  - Check if it could be the delays being way too long for some reason?
 - [ ] Improve client_handler to avoid need of updating window title on every game update
 - [ ] Improvements of movements, particularly to avoid hitting while character is crouched
 - [ ] Looks like there's an existing bug between window switching and key releases
 - [ ] third failsafe on rotation sentinels should trigger pausing mechanism (disable relevant decision makers)
 - Jump on rope mechanics: 
   - [x] Add only grid connections for the "peak" of the parabola
-  - [ ] Enter "release all keys" mode when near the ladder/rope for improved precision
+  - [x] Enter "release all keys" mode when near the ladder/rope for improved precision
 - Re-do smartRotation mechanics into new framework
 
 ## Improvements
