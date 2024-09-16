@@ -316,6 +316,15 @@ class Movements:
                 breakpoint()
                 raise NotImplementedError("Not supposed to reach this point.")
 
+            if idx == len(movements) - 1:
+                # If we get all the way to the last movement within the path, then
+                # We release directional keys but not enforced.
+                to_release = list(structure.keys_held)
+                structure.append(
+                    to_release,
+                    ['keyup'] * len(to_release),  # noqa
+                    next(controller.random_delay)
+                )
             if (
                 total_duration is not None
                 and structure is not None
