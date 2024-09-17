@@ -125,12 +125,15 @@ class   MobsHittingMixin:
                     )
                     minimap_dist = min(int(avg_dist * minimap_width / map_width), 10)
                     minimap_x, minimap_y = self.data.current_minimap_position
-                    minimum_x = self.data.next_feature.left
-                    if self.data.next_feature.avoid_edges:
-                        minimum_x += self.data.next_feature.edge_threshold
+                    curr_feature = self.data.current_minimap.get_feature_containing(
+                        self.data.next_target
+                    )
+                    minimum_x = curr_feature.left
+                    if curr_feature.avoid_edges:
+                        minimum_x += curr_feature.edge_threshold
                     target = (
                         max(minimap_x - minimap_dist, minimum_x),
-                        self.data.next_feature.top
+                        curr_feature.top
                     )
                     return target
 
@@ -141,12 +144,15 @@ class   MobsHittingMixin:
                     )
                     minimap_dist = min(int(avg_dist * minimap_width / map_width), 10)
                     minimap_x, minimap_y = self.data.current_minimap_position
-                    maximum_x = self.data.next_feature.right
-                    if self.data.next_feature.avoid_edges:
-                        maximum_x -= self.data.next_feature.edge_threshold
+                    curr_feature = self.data.current_minimap.get_feature_containing(
+                        self.data.next_target
+                    )
+                    maximum_x = curr_feature.right
+                    if curr_feature.avoid_edges:
+                        maximum_x -= curr_feature.edge_threshold
                     target = (
                         min(minimap_x + minimap_dist, maximum_x),
-                        self.data.next_feature.top
+                        curr_feature.top
                     )
                     return target
 

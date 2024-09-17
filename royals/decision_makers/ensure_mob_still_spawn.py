@@ -150,8 +150,8 @@ class CheckMobsStillSpawn(MobsHittingMixin, UIMixin, NextTargetMixin, DecisionMa
                 f"No mobs detected after {self.FAILSAFE_TIMER // 2} seconds"
             )
 
-        # Keep trying until this is cancelled by the failsafe procedure
-        await self._rotate_until_mobs_detected()
+            # Keep trying until this is cancelled by the failsafe procedure
+            await self._rotate_until_mobs_detected()
 
     async def _rotate_until_mobs_detected(self) -> None:
         while True:
