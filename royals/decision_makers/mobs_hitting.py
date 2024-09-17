@@ -32,7 +32,6 @@ class MobsHitting(
         pipe: multiprocessing.connection.Connection,
         mob_count_threshold: int,
         training_skill: str = None,
-        smart_rotation_enabled: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(metadata, data, pipe)
@@ -46,12 +45,6 @@ class MobsHitting(
             threshold=0.25,
             # error_handler=...,  # TODO - Implement error handler
         )
-        if smart_rotation_enabled:
-            self._create_rotation_attributes(
-                custom_next_target=lambda: self._smart_rotation_target(
-                    self.mob_threshold
-                ),
-            )
 
     def _hit_mobs(self, direction: str | None) -> ActionRequest:
         """

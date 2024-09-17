@@ -20,10 +20,10 @@ LOG_LEVEL = logging.NOTSET
 
 
 class Rotation(
-    NextTargetMixin,
+    FailsafeMixin,
     MinimapAttributesMixin,
     MovementsMixin,
-    FailsafeMixin,
+    NextTargetMixin,
     DecisionMaker,
 ):
     # TODO - Implement logic to continuously check if character strayed too far from
@@ -42,6 +42,8 @@ class Rotation(
         static_position_threshold: float = 10.0,
         no_path_threshold: float = 10.0,
         disable_teleport: bool = False,
+        smart_rotation_enabled: bool = False,
+        mob_count_threshold: int = None,
         **kwargs,
     ) -> None:
         super().__init__(metadata, data, pipe)
@@ -55,7 +57,10 @@ class Rotation(
         self._create_minimap_attributes()
 
         # Rotation attributes
-        self._create_rotation_attributes()
+        self._create_rotation_attributes(
+            smart_rotation=smart_rotation_enabled,
+            mob_count_threshold=mob_count_threshold
+        )
         self._create_pathing_attributes(movements_duration)
 
         # Fail safes

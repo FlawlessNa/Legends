@@ -1,13 +1,9 @@
 # Royals-V2
 
 ## Bug Fixes
-- [ ] MobCheck:
-  - First alert after X seconds -> disable MobsHitting but keep movements
-  - Second alert after 2X seconds -> pause everything except necessary maintenance + random reaction
 - [ ] Improve client_handler to avoid need of updating window title on every game update
 - [ ] Improvements of movements, particularly to avoid hitting while character is crouched
 - [ ] Looks like there's an existing bug between window switching and key releases
-- [ ] third failsafe on rotation sentinels should trigger pausing mechanism (disable relevant decision makers)
 
 ## Improvements
 - [ ] Rebuffing:
@@ -17,6 +13,7 @@
   - [ ] Confirmation of Door being cast properly
   - [ ] Breakdown of the class between interface components and actual decision-making
 
+- [ ] third failsafe on rotation sentinels should trigger pausing mechanism (disable relevant decision makers)
 - Enabling/Disabling of DecisionMakers 
   - [ ] implement ability to use class' MRO to enable/disable decision makers
   - [ ] Implement ability to only target specific Bots (will be useful for Discord requests)
