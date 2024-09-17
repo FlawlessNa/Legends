@@ -136,8 +136,7 @@ class UIMixin:
         feed = LargeClientChatFeed()
         self.data.create_attribute("chat_feed", LargeClientChatFeed, initial_value=feed)
         self.data.create_attribute(
-            "chat_feed_displayed",
-            lambda: feed.is_displayed(self.data.handle, self.data.current_client_img),
+            "chat_feed_displayed", lambda: feed.is_displayed(self.data.handle)
         )
         # TODO - Finish creating other attributes
         self.data.create_attribute("has_chat_feed_attributes", lambda: True)

@@ -100,9 +100,7 @@ class CheckMobsStillSpawn(MobsHittingMixin, UIMixin, NextTargetMixin, DecisionMa
         )
         await self._validate_request_async(
             self._toggle_chat_request(),
-            lambda: not self.data.chat_feed.is_displayed(
-                self.data.handle, self.data.current_client_img
-            ),
+            lambda: not self.data.chat_feed.is_displayed(self.data.handle),
             timeout=5.0,
         )
         if self.data.current_minimap.feature_cycle:
@@ -119,9 +117,7 @@ class CheckMobsStillSpawn(MobsHittingMixin, UIMixin, NextTargetMixin, DecisionMa
     async def _clear_failsafe_procedure(self) -> None:
         await self._validate_request_async(
             self._toggle_chat_request(),
-            lambda: self.data.chat_feed.is_displayed(
-                self.data.handle, self.data.current_client_img
-            ),
+            lambda: self.data.chat_feed.is_displayed(self.data.handle),
             timeout=5.0,
         )
         self._enable_decision_makers(
