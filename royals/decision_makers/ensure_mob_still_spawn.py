@@ -125,6 +125,7 @@ class CheckMobsStillSpawn(MobsHittingMixin, UIMixin, NextTargetMixin, DecisionMa
             "TelecastMobsHitting",
             "PartyRebuff"
         )
+        self._last_valid_detection = time.perf_counter()
         self._create_rotation_attributes()  # This resets the next_target procedure
 
     async def _failsafe_procedure(self) -> None:

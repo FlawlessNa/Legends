@@ -169,6 +169,9 @@ class DecisionMaker(ABC):
                 # When notified, cancel the task
                 self._disabler.wait()
                 self._decision_task.cancel()
+                if hasattr(self, 'lock'):
+                    self.lock.acquire(blocking=False)
+                    self.lock.release()
 
                 # Upon next notification, re-enable the task
                 self._disabler.wait()

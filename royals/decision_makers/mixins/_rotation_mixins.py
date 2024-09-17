@@ -5,16 +5,16 @@ import time
 
 from botting import PARENT_LOG
 from botting.core import BotData
+from botting.utilities import Box
 from royals.model.mechanics import (
     Movements,
 )
-from ._mob_mixins import MobsHittingMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.WARNING
 
 
-class NextTargetMixin(MobsHittingMixin):
+class NextTargetMixin:
     """
     Utility function to set next target.
     """
@@ -32,15 +32,12 @@ class NextTargetMixin(MobsHittingMixin):
         mob_count_threshold: int = None,
     ) -> None:
 
-        if not hasattr(self, '_smart_enabled'):
-            self._smart_enabled = False
-
         if smart_rotation is True:
+            self.data.create_attribute('has_smart_rotation', lambda: True)
             assert mob_count_threshold is not None, (
                 "Mob count threshold must be provided for smart rotation."
             )
-            self._smart_enabled = True
-            self._mob_threshold = mob_count_threshold
+            self.data.create_attribute('mob_threshold', lambda: mob_count_threshold)
 
         # If the map has a cycle provided for features, use it
         if self.data.current_minimap.feature_cycle:
@@ -53,7 +50,7 @@ class NextTargetMixin(MobsHittingMixin):
                 "next_feature",
                 lambda: next(self.data.feature_cycle),
             )
-            if not self._smart_enabled:
+            if not self.data.has_smart_rotation:
                 self.data.create_attribute(
                     "next_target",
                     self._update_next_target_from_cycle,
@@ -67,7 +64,7 @@ class NextTargetMixin(MobsHittingMixin):
                 )
         # If not cycle provided for current map, rotate at random
         else:
-            if not self._smart_enabled:
+            if not self.data.has_smart_rotation:
                 self.data.create_attribute(
                     "next_target",
                     self._update_next_random_target,
@@ -151,7 +148,10 @@ class NextTargetMixin(MobsHittingMixin):
         where there are most. Otherwise, move towards the next feature in the cycle.
         :return:
         """
-        assert hasattr(self, '_mob_threshold'), "_mob_threshold attribute must be set."
+        assert hasattr(self.data, 'mob_threshold'), "_mob_threshold attribute must be set."
+        assert hasattr(self, 'get_mobs_positions_in_img'), (
+            f"MobsHittingMixin must be inherited by {self} for smart rotation"
+        )
         if not hasattr(self, '_first_time_on_target'):
             self._first_time_on_target = True
         if not hasattr(self, '_last_target_reached_at'):
@@ -191,7 +191,7 @@ class NextTargetMixin(MobsHittingMixin):
                 cropped_img, self.data.current_mobs
             )
 
-            if len(mobs_locations) >= self._mob_threshold:
+            if len(mobs_locations) >= self.data.   mob_threshold:
                 # Compute "center of mass" of mobs at the character's left and right
                 center_x = [rect[0] + rect[2] / 2 for rect in mobs_locations]
                 left_x = [rect_x for rect_x in center_x if rect_x < cx]

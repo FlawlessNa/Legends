@@ -12,7 +12,7 @@ from .mixins import (
     MinimapAttributesMixin,
     MovementsMixin,
     NextTargetMixin,
-    FailsafeMixin,
+    FailsafeMixin, MobsHittingMixin,
 )
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -24,6 +24,7 @@ class Rotation(
     MinimapAttributesMixin,
     MovementsMixin,
     NextTargetMixin,
+    MobsHittingMixin,
     DecisionMaker,
 ):
     # TODO - Implement logic to continuously check if character strayed too far from
