@@ -39,6 +39,10 @@ class CheckMobsStillSpawn(MobsHittingMixin, UIMixin, NextTargetMixin, DecisionMa
         if not self.data.has_chat_feed_attributes:
             self._create_chat_feed_attributes()
 
+    async def _task(self, *args, **kwargs) -> None:
+        self._last_valid_detection = time.perf_counter() + 10.0
+        await super()._task(*args, **kwargs)
+
     async def _decide(self) -> None:
         mob_count = self.mob_count_in_img(
             self.data.current_client_img,
@@ -68,7 +72,7 @@ class CheckMobsStillSpawn(MobsHittingMixin, UIMixin, NextTargetMixin, DecisionMa
             except asyncio.TimeoutError:
                 # Failsafe procedure failed. Pause bot and send final chat reaction
                 # TODO - Additional final chat reaction + pause + discord alert
-                self._disable_decision_makers("Rotation")
+                self._disable_decision_makers("Rotation", "CheckMobsStillSpawn")
                 self.pipe.send(
                     ActionRequest(
                         f"{self} - Final Writing to chat",

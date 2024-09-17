@@ -16,7 +16,7 @@ training_configs = {
     "smart_rotation_enabled": True,
     "disable_teleport": True,
     "mob_spawn_alert_timer": 10,
-    "mob_spawn_alert_threshold": 5,
+    "mob_spawn_alert_threshold": 3,
 }
 
 
