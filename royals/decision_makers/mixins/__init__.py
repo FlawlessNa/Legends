@@ -4,4 +4,4 @@ from ._map_mixins import MinimapAttributesMixin
 from ._mob_mixins import MobsHittingMixin
 from ._multi_bots_mixins import SharedProxyMixin
 from ._rotation_mixins import MovementsMixin, NextTargetMixin
-from ._failsafe import TimeBasedFailsafeMixin
+from ._failsafe import FailsafeMixin

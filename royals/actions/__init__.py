@@ -5,5 +5,6 @@ from .menus import (
     toggle_ability_menu,
     toggle_inventory,
     toggle_minimap,
+    toggle_menu
 )
 from .writing import write_in_chat, random_chat_response

@@ -4,15 +4,10 @@
 - [ ] MobCheck:
   - First alert after X seconds -> disable MobsHitting but keep movements
   - Second alert after 2X seconds -> pause everything except necessary maintenance + random reaction
-- [ ] There's a situation where keys are not released properly, leading to a stuck state
 - [ ] Improve client_handler to avoid need of updating window title on every game update
 - [ ] Improvements of movements, particularly to avoid hitting while character is crouched
 - [ ] Looks like there's an existing bug between window switching and key releases
 - [ ] third failsafe on rotation sentinels should trigger pausing mechanism (disable relevant decision makers)
-- Jump on rope mechanics: 
-  - [x] Add only grid connections for the "peak" of the parabola
-  - [x] Enter "release all keys" mode when near the ladder/rope for improved precision
-- Re-do smartRotation mechanics into new framework
 
 ## Improvements
 - [ ] Rebuffing:
@@ -25,11 +20,17 @@
 - Enabling/Disabling of DecisionMakers 
   - [ ] implement ability to use class' MRO to enable/disable decision makers
   - [ ] Implement ability to only target specific Bots (will be useful for Discord requests)
+  - [ ] Better handling of the pausing system and disabling of decision makers. Those might be two different systems altogether.
+    - Disabling/Enabling would be for normal course of bot operations.
+    - Ability to use self_only params, but not for all decision makers (Ex: PartyRebuff cannot be disabled for a single char)
+    - Pausing would be specifically for user-requests
 
 - [ ] DiscordParser
-  - Implement an additional task within each Engine process (ex) that sentinels a specific multiprocessing.Event flag to pause/resume the bot
+  - Implement an additional task within each Engine process (for each bot individually) (ex) that sentinels a specific multiprocessing.Event flag to pause/resume the bot
+  - use keyboard.add_hotkey + keyboard.wait to set/clear the flag
   - The mainprocess has an additional task that sentinels a specific keyboard input to set/clear the flag
   - That same multiprocessing.Event flag can be used for discord requests to pause/resume
+  - Convert _disable_decision_makers (and _enable) into staticmethods that can be used from mainProcess as well
 
 ### Other
 - [ ] Kill switches that either:
@@ -37,7 +38,7 @@
     - Return to lounge, then stops program
     - Exit client, then stops program
 - [ ] Complete implementation of discord parser + unit tests
-- [ ] Implement unit tests - use mocking such that test can run without the game environment
+- [ ] Implement unit tests on entire botting library - use mocking such that test can run without the game environment
 - [ ] Add logging everywhere -> use level 0 to disable thru a CONSTANT for each relevant script
 - [ ] Look into leveraging psutil for performance monitoring of CPU resources by client/process
   - Also look into managing the Manager Process since it is a new feature that needs to spawn a process

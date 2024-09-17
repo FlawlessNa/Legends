@@ -189,4 +189,5 @@ class LargeClientChatFeed(ChatFeed):
 
 
 class SmallClientChatFeed(ChatFeed):
-    pass
+    def __init__(self):
+        raise NotImplementedError

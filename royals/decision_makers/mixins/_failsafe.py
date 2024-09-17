@@ -9,7 +9,7 @@ logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.WARNING
 
 
-class TimeBasedFailsafeMixin:
+class FailsafeMixin:
     """
     Use this DecisionMaker to implement time-based fail safes for the bot.
     Each failsafe should monitor a specific condition, usually related to a BotData

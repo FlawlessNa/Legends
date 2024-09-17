@@ -169,14 +169,12 @@ class MobsHitting(
                         LargeClientChatFeed._chat_typing_area.top,  # noqa
                     ),
                 )
-                x, y = region.width / 2, region.height / 2
+                # x, y = region.width / 2, region.height / 2
             else:
                 region = self.data.current_map.detection_box
             cropped_img = region.extract_client_img(self.data.current_client_img)
             mobs = self.data.current_mobs
-            nbr_mobs = 0
-            for mob in mobs:
-                nbr_mobs += mob.get_mob_count(cropped_img)
+            nbr_mobs = self.mob_count_in_img(cropped_img, mobs)
 
             if nbr_mobs >= self.mob_threshold:
                 if self.training_skill.unidirectional:

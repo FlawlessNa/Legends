@@ -110,7 +110,7 @@ class DecisionMaker(ABC):
             if condition_proxy is not None:
                 logger.log(LOG_LEVEL, f"{self} is re-enabling {class_name}.")
                 with condition_proxy:
-                    condition_proxy.notify_all()  # noqa1
+                    condition_proxy.notify_all()  # noqa
 
     async def _validate_request_async(
         self,

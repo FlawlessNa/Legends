@@ -17,7 +17,7 @@ class   MobsHittingMixin:
     TIME_ON_TARGET = 1.5  # Used for "smart rotation" mechanism
 
     @staticmethod
-    def mob_count_in_img(img: np.ndarray, mobs: list[BaseMob]) -> int:
+    def mob_count_in_img(img: np.ndarray, mobs: list[BaseMob], **kwargs) -> int:
         """
         Given an image of arbitrary size, return the mob count of a specific mob found
         within that image.
@@ -25,7 +25,7 @@ class   MobsHittingMixin:
         :param mobs: The mobs to look for.
         :return: Total number of mobs detected in the image
         """
-        return sum([mob.get_mob_count(img) for mob in mobs])
+        return sum([mob.get_mob_count(img, **kwargs) for mob in mobs])
 
     @staticmethod
     def get_mobs_positions_in_img(

@@ -7,10 +7,10 @@ async def write_in_chat(
     message: str,
     channel: str = "general",
     whisper_to: str | None = None,
-    silenced: bool = True,
+    silenced: bool = False,
     **kwargs,
 ) -> None:
-    mapping = {
+    mapping = {  # TODO - Change these to configs
         "general": "1",
         "party": "2",
         "buddy": "3",
@@ -38,14 +38,3 @@ async def write_in_chat(
     await controller.press(handle, "enter", silenced=silenced)
     await asyncio.sleep(0.25)
     await controller.press(handle, "enter", silenced=silenced)
-
-
-async def random_chat_response(handle: int, msg: str, silenced: bool = True):
-    """
-    Selects a random response from a list and writes it in general chat.
-    :param handle:
-    :param msg:
-    :param silenced:
-    :return:
-    """
-    await write_in_chat(handle, msg, silenced=silenced)
