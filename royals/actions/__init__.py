@@ -7,4 +7,4 @@ from .menus import (
     toggle_minimap,
     toggle_menu
 )
-from .writing import write_in_chat, random_chat_response
+from .writing import write_in_chat
