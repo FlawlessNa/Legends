@@ -273,7 +273,9 @@ class InventoryManager(
     def _reset_all(self):
         self._door_spot = self._npc_positions = self._open_shop_box = None
         self._create_pathing_attributes(self.data.action_duration)
-        self._create_rotation_attributes(cycle=self.data.feature_cycle)
+        self._create_rotation_attributes(
+            cycle=getattr(self.data, 'feature_cycle', None)
+        )
         self.data.next_target = self.data.current_minimap_position
         self._enable_decision_makers(
             "MobsHitting",
