@@ -266,6 +266,7 @@ class Movements:
                     controller.key_binds(self.ign)["jump"],
                     structure=structure,
                 )
+                print('Jump on Rope Structure\n', structure.keys, '\n', structure.events, '\n', structure.delays)
             elif move[0] == "PORTAL":
                 primary = direction or "up"
                 secondary = "up" if primary != "up" else None

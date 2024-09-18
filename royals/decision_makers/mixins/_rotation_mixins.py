@@ -272,7 +272,10 @@ class MovementsMixin:
 
     def _always_release_keys_on_actions(self):
         actions = self.data.movement_handler.movements_into_action(
-            self.data.movements, self.data.action_duration
+            self.data.movements,
+            self.data.action_duration,
+            getattr(self.data, "speed_multiplier", 1.0),
+
         )
         if actions is not None:
             for key in actions.keys_held:
