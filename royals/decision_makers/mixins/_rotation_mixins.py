@@ -98,19 +98,6 @@ class NextTargetMixin:
             self.data.update_attribute("next_feature")
             return self.data.next_feature.random()
 
-    # def _update_next_target_random(self) -> None:
-    #     """
-    #     Updates the next target randomly.
-    #     :return:
-    #     """
-    #     if (
-    #         math.dist(self.data.current_minimap_position, self.data.next_target)
-    #         > self.BASE_ROTATION_THRESHOLD
-    #     ):
-    #         return self.data.next_target
-    #     else:
-    #         return self.data.current_minimap.random_point()
-
     def _update_next_random_target(self):
         """
         Sets the next target from the feature cycle.
@@ -191,7 +178,7 @@ class NextTargetMixin:
                 cropped_img, self.data.current_mobs
             )
 
-            if len(mobs_locations) >= self.data.   mob_threshold:
+            if len(mobs_locations) >= self.data.mob_threshold:
                 # Compute "center of mass" of mobs at the character's left and right
                 center_x = [rect[0] + rect[2] / 2 for rect in mobs_locations]
                 left_x = [rect_x for rect_x in center_x if rect_x < cx]
