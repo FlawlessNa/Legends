@@ -283,6 +283,8 @@ class MinimapFeature(Box):
         Returns a random point inside the box.
         :return:
         """
+        if self.avoid_edges and self.width > 2 * self.edge_threshold:
+            return random.choice(list(self)[self.edge_threshold:-self.edge_threshold])
         return random.choice(list(self))
 
     @property
@@ -292,12 +294,6 @@ class MinimapFeature(Box):
     @property
     def is_ladder(self) -> bool:
         return self.width == 0
-
-    @property
-    def xrange(self) -> tuple[int, int]:
-        if self.avoid_edges and self.width > 2 * self.edge_threshold:
-            return self.left + self.edge_threshold, self.right - self.edge_threshold
-        return super().xrange
 
     @property
     def left_edge(self) -> tuple[int, int]:
@@ -349,7 +345,7 @@ class MinimapFeature(Box):
         :return:
         """
         if self.is_platform and not self.is_irregular:
-            for x in range(self.xrange[0], self.xrange[1] + 1):
+            for x in range(self.left, self.right + 1):
                 yield x, self.top
         elif self.is_ladder:
             for y in range(self.top, self.bottom + 1):
@@ -633,6 +629,8 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                     breakpoint()
 
             for node in feature:
+                if node in [(x, 54) for x in range(6, 10)]:
+                    breakpoint()
                 # Build default connections from 'standard' mechanics
                 if feature.is_platform:
                     self._add_vertical_connection(
@@ -785,7 +783,11 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         """
         highest_point = min(trajectory, key=lambda x: x[1])[1]
         apogee = list(filter(lambda pos: pos[1] == highest_point, trajectory))
-        nodes_for_rope = apogee[:min(2, len(apogee))]
+        mid = len(apogee) // 2
+        if len(apogee) % 2 == 0:
+            nodes_for_rope = apogee[mid - 1: mid + 1]
+        else:
+            nodes_for_rope = apogee[mid: mid + 1]
 
         for other_node in trajectory:
             if not grid.node(*other_node).walkable:
