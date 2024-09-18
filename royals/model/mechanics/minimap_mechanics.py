@@ -867,11 +867,10 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
             )
 
         for other_node in (grid.node(node[0], y) for y in rng):
-            if (
-                other_node.walkable
-                and self.get_feature_containing(
-                    (other_node.x, other_node.y)
-                ).is_platform
-            ):
-                grid.node(*node).connect(other_node, connection_type)
-                break
+            if other_node.walkable:
+                other_feature = self.get_feature_containing((other_node.x, other_node.y))
+                if other_feature.is_platform and other_node not in [
+                    other_feature.left, other_feature.right
+                ]:
+                    grid.node(*node).connect(other_node, connection_type)
+                    break

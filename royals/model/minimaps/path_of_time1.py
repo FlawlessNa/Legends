@@ -29,13 +29,21 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
     @property
     def feature_cycle(self) -> list[MinimapFeature]:
         return [
-            self.first_platform,
-            self.second_platform,
             self.third_platform,
             self.fourth_platform,
             self.fifth_platform,
             self.fourth_platform,
             self.third_platform,
+            self.fourth_platform,
+            self.fifth_platform,
+            self.fourth_platform,
+            self.third_platform,
+            self.fourth_platform,
+            self.fifth_platform,
+            self.fourth_platform,
+            self.third_platform,
+            self.second_platform,
+            self.first_platform,
             self.second_platform,
         ]
 
