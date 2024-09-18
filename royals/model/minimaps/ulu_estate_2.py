@@ -17,7 +17,7 @@ class UluEstate2Minimap(MinimapPathingMechanics):
     )  # TODO - Change this value (most likely decrease)
     teleport_v_down_dist = int(
         9.949748743718592
-    )  # TODO - Change this value (most likely decrease)
+    )  # TODO - Change this value (most likely increase)
 
     @property
     def central_node(self) -> tuple[int, int]:

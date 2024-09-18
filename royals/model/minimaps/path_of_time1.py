@@ -8,15 +8,13 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
     map_area_width = 116
     map_area_height = 88
 
-    # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
-    # minimap_speed: float = 7.686336000692184
-    minimap_speed: float = 8.5
-    jump_height: int = 5
-    jump_distance: int = 7
+    minimap_speed: float = 8.150646430578977
+    jump_height = 3.6829076086956523
+    jump_distance: int = 4.523608768971332
 
-    teleport_h_dist = 10
-    teleport_v_up_dist = 8
-    teleport_v_down_dist = 15
+    teleport_h_dist = int(9.780775716694773)
+    teleport_v_up_dist = int(9.780775716694773)  # TODO - Change this value (most likely decrease)
+    teleport_v_down_dist = int(9.780775716694773)  # TODO - Change this value (most likely decrease)
 
     door_spot = [(65, 54), (66, 54), (67, 54), (68, 54), (69, 54), (70, 54)]
 

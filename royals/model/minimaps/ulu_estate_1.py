@@ -13,7 +13,7 @@ class UluEstate1Minimap(MinimapPathingMechanics):
     jump_distance = 4.57875
     teleport_h_dist = int(9.9)  # Real number is 9.9, needs to be converted into int
     teleport_v_up_dist = int(9.9)  # TODO - Change this value (most likely decrease)
-    teleport_v_down_dist = int(9.9)  # TODO - Change this value (most likely decrease)
+    teleport_v_down_dist = int(9.9)  # TODO - Change this value (most likely increase)
 
     @property
     def feature_cycle(self) -> list[MinimapFeature]:

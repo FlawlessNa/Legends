@@ -847,7 +847,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         :return:
         """
         if connection_type == MinimapConnection.JUMP_UP:
-            rng = range(node[1] - int(jump_height), node[1])
+            rng = range(node[1] - round(jump_height), node[1])
 
         elif connection_type == MinimapConnection.JUMP_DOWN:
             rng = range(
