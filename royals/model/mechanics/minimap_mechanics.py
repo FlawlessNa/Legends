@@ -629,8 +629,6 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                     breakpoint()
 
             for node in feature:
-                if node in [(x, 54) for x in range(6, 10)]:
-                    breakpoint()
                 # Build default connections from 'standard' mechanics
                 if feature.is_platform:
                     self._add_vertical_connection(
