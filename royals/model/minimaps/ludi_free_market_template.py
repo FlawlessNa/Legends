@@ -7,14 +7,14 @@ from royals.model.mechanics import (
 class LudiFreeMarketTemplateMinimap(MinimapPathingMechanics):
     map_area_width = 116
     map_area_height = 57
-    jump_height = 5
-    jump_distance = 5
-    minimap_speed: float = (
-        7.891176807337812  # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
-    )
-    teleport_v_up_dist = 8
-    teleport_h_dist = 10
-    teleport_v_down_dist = 10
+    # jump_height = 5
+    # jump_distance = 5
+    # minimap_speed: float = (
+    #     7.891176807337812  # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
+    # )
+    # teleport_v_up_dist = 8
+    # teleport_h_dist = 10
+    # teleport_v_down_dist = 10
 
     @property
     def feature_cycle(self) -> list[MinimapFeature]:
