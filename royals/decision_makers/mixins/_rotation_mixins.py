@@ -23,6 +23,7 @@ class NextTargetMixin:
     BASE_ROTATION_THRESHOLD = 10  # Used for basic rotation mechanism
     SMART_ROTATION_THRESHOLD = 4  # Used for "gravitate towards mobs" rotation mechanism
     TIME_ON_TARGET = 1.5  # Used for "smart rotation" mechanism
+    MIN_MOBS_THRESHOLD = 2
 
     def _create_rotation_attributes(
         self,
@@ -163,6 +164,7 @@ class NextTargetMixin:
         # Reach this code once you've been on target for > time_limit seconds.
         self._first_time_on_target = True
         # Check for mobs in the vicinity
+        self.data.update_attribute('current_client_img')
         on_screen_pos = self.data.get_last_known_value("current_on_screen_position")
         if on_screen_pos is not None:
             x1, y1, x2, y2 = on_screen_pos
@@ -178,7 +180,9 @@ class NextTargetMixin:
                 cropped_img, self.data.current_mobs
             )
 
-            if len(mobs_locations) >= self.data.mob_threshold:
+            if len(mobs_locations) >= max(
+                self.data.mob_threshold, self.MIN_MOBS_THRESHOLD
+            ):
                 # Compute "center of mass" of mobs at the character's left and right
                 center_x = [rect[0] + rect[2] / 2 for rect in mobs_locations]
                 left_x = [rect_x for rect_x in center_x if rect_x < cx]

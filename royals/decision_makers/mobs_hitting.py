@@ -125,6 +125,15 @@ class MobsHitting(
             acceptance_threshold=self.ON_SCREEN_THRESHOLD,
         )
 
+    def _currently_on_ladder(self) -> bool:
+        return getattr(
+            self.data.current_minimap.get_feature_containing(
+                self.data.current_minimap_position
+            ),
+            'is_ladder',
+            False
+        )
+
     async def _decide(self) -> None:
         """
         Looks for the character on-screen, or use the last known location.
@@ -134,6 +143,9 @@ class MobsHitting(
         :return:
         """
         await asyncio.to_thread(self.lock.acquire)
+        if self._currently_on_ladder():
+            await asyncio.to_thread(self.lock.release)
+            return
 
         on_screen_pos = self.data.get_last_known_value("current_on_screen_position")
         closest_mob_direction = None
