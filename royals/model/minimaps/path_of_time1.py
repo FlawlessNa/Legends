@@ -12,9 +12,9 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
     jump_height = 3.6829076086956523
     jump_distance: int = 4.523608768971332
 
-    teleport_h_dist = int(9.780775716694773)
-    teleport_v_up_dist = int(9.780775716694773)  # TODO - Change this value (most likely decrease)
-    teleport_v_down_dist = int(9.780775716694773)  # TODO - Change this value (most likely decrease)
+    teleport_h_dist = int(9.780775716694773) - 1
+    teleport_v_up_dist = int(9.780775716694773) - 1  # TODO - Change this value (most likely decrease)
+    teleport_v_down_dist = round(9.780775716694773)  # TODO - Change this value (most likely decrease)
 
     door_spot = [(65, 54), (66, 54), (67, 54), (68, 54), (69, 54), (70, 54)]
 

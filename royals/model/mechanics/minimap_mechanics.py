@@ -859,7 +859,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
             rng = range(node[1] - self.teleport_v_up_dist - 1, node[1])
 
         elif connection_type == MinimapConnection.TELEPORT_DOWN:
-            rng = range(node[1] + 1, node[1] + self.teleport_v_down_dist + 1)
+            rng = range(node[1] + 3, node[1] + self.teleport_v_down_dist + 1)
 
         else:
             raise NotImplementedError(
