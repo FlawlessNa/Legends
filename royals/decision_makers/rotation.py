@@ -119,8 +119,7 @@ class Rotation(
         self._failsafe_checks()  # Check each time, no need to wait for lock
 
         # Only send standard request when lock is acquired, otherwise wait for lock
-        acquired = self.lock.acquire(blocking=False)
-        if acquired:
+        if self.lock.acquire(blocking=False):
             logger.log(LOG_LEVEL, f"{self} is deciding.")
             self.data.update_attribute("next_target")
             self.data.update_attribute("action")
