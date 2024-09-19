@@ -25,7 +25,7 @@ Movements._debug = False
 # Insert nodes that lead to "difficult" transitions in-game.
 # The goal is simply to be able to inspect the path, the movements & the action.
 # Then, you can fine-tune the Movements parsing to improve this.
-START_POS = [20, 38]
+START_POS = [4, 54]
 TARGET_POS = [20, 24]
 
 
