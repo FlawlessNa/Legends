@@ -317,6 +317,11 @@ if __name__ == "__main__":
             "x": -28,
             "y": 532,
         },
+        "14": {
+            "path": r"C:\Users\nassi\Games\MapleRoyals\Legends\royals\assets\game_files\maps\images\acc4\toyCastle2.b2.1.0.png",
+            "x": -276,
+            "y": 292,
+        }
     }
 
     class FakeMinimap(Minimap):
