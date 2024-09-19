@@ -6,8 +6,8 @@
 - [ ] Looks like there's an existing bug between window switching and key releases
 - [ ] For keys dependent on keyboard layout, such as "'", this can cause issues as the key doesn't do what it is intended to do in case of wrong layout
   - This is because the _keyboard_layout_handle is decorated with lru_cache
-  - Can remove decorator, but function is somewhat slower (it is extremely minimal though)
-  - Still, it doesn't solve issue because if layout is wrong, the "'" should become "è" (as an example) and configs are therefore wrong in such  a case
+  - Can remove decorator, but function is somewhat slower (it is minimal though)
+  - Still, it doesn't solve issue because if layout is wrong, the "'" should become "è" (as an example) and configs are therefore wrong in such a case
 - [ ] Movement_mechanics (original system):
   - Try adding back left and right nodes as part of the jump trajectory connections
 
@@ -37,8 +37,12 @@
 
 - [ ] Movement mechanics (new system):
   - Find objects and potentially tiles on the screen that can be used as reference points for movement
-  - Can either use ORB feature matching or template matching to find them
-  - Can use optical flow to track movement of these objects
+  - Solution 1:
+    - Can either use ORB feature matching or template matching to find them
+    - Can use optical flow to track movement of these objects
+  - Solution 2:
+    - Re-build an annotated dataset with each objects, use tracking mode to track them
+    - Try using GPU for faster processing?
   - Use known on-screen location of objects, combined with known VR coordinates, and known on-screen location of character, to determine VR coordinates of character
   - Refactor pathing/movements/actions to use VR coordinates instead of minimap coordinates
   - Note: This might require to properly code all physics standard kinetic equations as well
