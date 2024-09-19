@@ -14,13 +14,14 @@ from royals.model.mechanics.movement_mechanics import Movements
 from royals.actions.skills_related_v2 import cast_skill
 from royals.actions.movements_v2 import telecast
 
-# HANDLE = client_handler.get_client_handle("StarBase", royals_ign_finder)
+HANDLE = client_handler.get_client_handle("StarBase", royals_ign_finder)
 img_dir = os.path.join(ROOT, "royals/assets/detection_images")
 
 if __name__ == "__main__":
     minimap = PathOfTime1Minimap()
-    minimap.generate_grid_template(False)
+    minimap.generate_grid_template(True)
     moves = Movements("StarBase", HANDLE, None, minimap)
     while True:
         char_pos = minimap.get_character_positions(HANDLE).pop()
+        print(char_pos)
         moves.compute_path(char_pos, (20, 20))

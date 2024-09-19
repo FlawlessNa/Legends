@@ -15,6 +15,14 @@ from botting.utilities import client_handler, take_screenshot
 # 3. subtract minimap_centers to this, then subtract actual VR coordinates
 # 4. Draw result on VR canvas
 
+# According to Copilot:
+# x: The x-coordinate of the object in the map.
+# y: The y-coordinate of the object in the map.
+# z: The z-index of the object, which determines the drawing order (higher values are drawn on top of lower values).
+# f: The flip value, which indicates whether the object should be flipped horizontally (1 for flipped, 0 for not flipped).
+# zM: The zoom multiplier, which scales the object (1 means no scaling, values greater than 1 scale up, and values less than 1 scale down).
+# r: The rotation value, which specifies the rotation angle of the object in degrees.
+
 
 class MapParser:
     _ASSETS = os.path.join(ROOT, "royals/assets/game_files/maps")
@@ -72,8 +80,8 @@ class MapParser:
         self.minimap_scale_y = self.minimap_vr_height / self.minimap_canvas_height
 
     def draw_vr_canvas(self):
-        self._draw_objs()
         self._draw_tiles()
+        self._draw_objs()
         self._draw_footholds()
         self._draw_portals()
         self._draw_ropes()
@@ -246,11 +254,75 @@ class MapParser:
         return x, y
 
 
+    # This was suggested by Copilot -> Using "anchors", or ref points to map screen coordinates to VR coordinates
+    @staticmethod
+    def map_to_vr_coordinates(screen_pos, reference_points_screen, reference_points_vr):
+        """
+        # TODO - > test this properly??
+        Maps screen coordinates to VR coordinates using reference points.
+
+        :param screen_pos: Tuple (x, y) of the character's screen position.
+        :param reference_points_screen: List of tuples [(x1, y1), (x2, y2), ...] of screen coordinates of reference points.
+        :param reference_points_vr: List of tuples [(vx1, vy1), (vx2, vy2), ...] of VR coordinates of reference points.
+        :return: Tuple (vx, vy) of the character's VR coordinates.
+        """
+        # Convert to numpy arrays
+        screen_points = np.array(reference_points_screen)
+        vr_points = np.array(reference_points_vr)
+
+        # Calculate the transformation matrix
+        A = np.vstack([screen_points.T, np.ones(len(screen_points))]).T
+        transformation_matrix, _, _, _ = np.linalg.lstsq(A, vr_points, rcond=None)
+
+        # Apply the transformation to the character's screen position
+        screen_pos_homogeneous = np.array([screen_pos[0], screen_pos[1], 1])
+        vr_pos = screen_pos_homogeneous @ transformation_matrix
+
+        return tuple(vr_pos)
+
+        # Alternative to maybe try out?
+        #
+        # import numpy as np
+        #
+        # # Reference points
+        # screen_coords = np.array([[x1, y1], [x2, y2]])
+        # vr_coords = np.array([[X1, Y1], [X2, Y2]])
+        #
+        # # Calculate the transformation matrix A and translation vector b
+        # A = np.linalg.lstsq(screen_coords, vr_coords, rcond=None)[0]
+        #
+        # # Function to transform on-screen coordinates to VR coordinates
+        # def transform_coords(screen_point):
+        #     return np.dot(A, screen_point)
+        #
+        # # Example usage
+        # screen_point = np.array([x, y])
+        # vr_point = transform_coords(screen_point)
+        # print(vr_point)
+
+
 if __name__ == "__main__":
     map_name = "PathOfTime1"
     map_parser = MapParser(map_name)
     map_parser.draw_vr_canvas()
     HANDLE = client_handler.get_client_handle("StarBase", royals_ign_finder)
+    objects = {
+        "16": {
+            "path": r"C:\Users\nassi\Games\MapleRoyals\Legends\royals\assets\game_files\maps\images\acc4\toyCastle2.b2.6.0.png",
+            "x": -608,
+            "y": 532,
+        },
+        "17": {
+            "path": r"C:\Users\nassi\Games\MapleRoyals\Legends\royals\assets\game_files\maps\images\acc4\toyCastle2.b2.4.0.png",
+            "x": -28,
+            "y": 532,
+        },
+        "14": {
+            "path": r"C:\Users\nassi\Games\MapleRoyals\Legends\royals\assets\game_files\maps\images\acc4\toyCastle2.b2.1.0.png",
+            "x": -276,
+            "y": 292,
+        }
+    }
 
     class FakeMinimap(Minimap):
         map_area_width = map_parser.minimap_canvas_width
@@ -261,10 +333,80 @@ if __name__ == "__main__":
 
     minimap = FakeMinimap()
     map_area_box = minimap.get_map_area_box(HANDLE)
+
+    from royals.model.characters import Bishop
+    from botting.utilities import take_screenshot
+    # client_img = take_screenshot(HANDLE)
+    char = Bishop("StarBase", "data/model_runs/character_detection/ClericChronosTraining - Nano120")
+    # on_screen_pos = char.get_onscreen_position(client_img, acceptance_threshold=0.5)
+    # cv2.rectangle(client_img, (on_screen_pos[0], on_screen_pos[1]), (on_screen_pos[2], on_screen_pos[3]), 255, 2)
+    # cx, cy = (on_screen_pos[0] + on_screen_pos[2]) / 2, (on_screen_pos[1] + on_screen_pos[3]) / 2
+    # cv2.circle(client_img, (int(cx), int(cy)), 5, (0, 255, 0), -1)
+    # ref_pts_screen = []
+    # ref_pts_vr = []
+    # for obj in objects:
+    #     image = cv2.imread(objects[obj]["path"])
+    #     # Match object on client image and draw rectangle
+    #     match = cv2.matchTemplate(client_img, image, cv2.TM_CCOEFF_NORMED)
+    #     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(match)
+    #     top_left = max_loc
+    #     bottom_right = (top_left[0] + image.shape[1], top_left[1] + image.shape[0])
+    #     center_screen_x = top_left[0] + image.shape[1] // 2
+    #     center_screen_y = top_left[1] + image.shape[0] // 2
+    #     ref_pts_screen.append((center_screen_x, center_screen_y))
+    #     # center_vr_x = objects[obj]["x"] - map_parser.vr_left
+    #     # center_vr_y = objects[obj]["y"] - map_parser.vr_top
+    #     center_vr_x = objects[obj]["x"]
+    #     center_vr_y = objects[obj]["y"]
+    #     ref_pts_vr.append((center_vr_x, center_vr_y))
+    #     cv2.rectangle(client_img, top_left, bottom_right, 255, 2)
+    #     cv2.circle(client_img, (center_screen_x, center_screen_y), 5, (0, 255, 0), -1)
+    #     cv2.imshow("Client", client_img)
+    #     cv2.waitKey(1)
+
+    # vr_pos = MapParser.map_to_vr_coordinates((cx, cy), ref_pts_screen, ref_pts_vr)
+    # cv2.circle(map_parser.vr_canvas, (int(vr_pos[0] - map_parser.vr_left), int(vr_pos[1] - map_parser.vr_top)), 5, (255, 255, 255), 5)
+    # Test coordiantes of objects by drawing white on the VR canvas
+    for obj in objects:
+        x, y = objects[obj]["x"] - map_parser.vr_left, objects[obj]["y"] - map_parser.vr_top
+        cv2.circle(map_parser.vr_canvas, (x, y), 5, (255, 255, 255), 5)
     while True:
+        # TODO - Try using a new ref point that is not horizontally aligned!
         copied = map_parser.vr_canvas.copy()
-        pos = minimap.get_character_positions(HANDLE).pop()
-        pos = map_parser.translate_to_vr(pos)
-        cv2.circle(copied, pos, 1, (0, 255, 0), 3)
+        client_img = take_screenshot(HANDLE)
+        on_screen_pos = char.get_onscreen_position(client_img, acceptance_threshold=0.5)
+        cv2.rectangle(client_img, (on_screen_pos[0], on_screen_pos[1]),
+                      (on_screen_pos[2], on_screen_pos[3]), 255, 2)
+        cx, cy = (on_screen_pos[0] + on_screen_pos[2]) / 2, (
+                on_screen_pos[1] + on_screen_pos[3]) / 2
+        cv2.circle(client_img, (int(cx), int(cy)), 5, (0, 255, 0), -1)
+        ref_pts_screen = []
+        ref_pts_vr = []
+        for obj in objects:
+            image = cv2.imread(objects[obj]["path"])
+            # Match object on client image and draw rectangle
+            match = cv2.matchTemplate(client_img, image, cv2.TM_CCOEFF_NORMED)
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(match)
+            top_left = max_loc
+            bottom_right = (top_left[0] + image.shape[1], top_left[1] + image.shape[0])
+            center_screen_x = top_left[0] + image.shape[1] // 2
+            center_screen_y = top_left[1] + image.shape[0] // 2
+            ref_pts_screen.append((center_screen_x, center_screen_y))
+            # center_vr_x = objects[obj]["x"] - map_parser.vr_left
+            # center_vr_y = objects[obj]["y"] - map_parser.vr_top
+            center_vr_x = objects[obj]["x"]
+            center_vr_y = objects[obj]["y"]
+            ref_pts_vr.append((center_vr_x, center_vr_y))
+            cv2.rectangle(client_img, top_left, bottom_right, 255, 2)
+            cv2.circle(client_img, (center_screen_x, center_screen_y), 5, (0, 255, 0),
+                       -1)
+            cv2.imshow("Client", client_img)
+            cv2.waitKey(1)
+        vr_pos = MapParser.map_to_vr_coordinates((cx, cy), ref_pts_screen, ref_pts_vr)
+        cv2.circle(map_parser.vr_canvas, (int(vr_pos[0] - map_parser.vr_left), int(vr_pos[1] - map_parser.vr_top)), 5, (255, 255, 255), 5)
+        # pos = minimap.get_character_positions(HANDLE).pop()
+        # pos = map_parser.translate_to_vr(pos)
+        # cv2.circle(copied, pos, 1, (0, 255, 0), 3)
         cv2.imshow("Canvas", cv2.resize(copied, None, fx=0.5, fy=0.5))
         cv2.waitKey(1)
+        # breakpoint()
