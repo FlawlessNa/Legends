@@ -73,6 +73,9 @@ class AsyncTaskManager:
                 logging.INFO,
                 f"{request.identifier} has been blocked by higher priority tasks.",
             )
+            if request.callbacks:
+                for cb in request.callbacks:
+                    cb()
 
     def _get_priority_blocking(self) -> int:
         """

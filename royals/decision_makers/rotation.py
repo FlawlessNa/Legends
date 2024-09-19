@@ -136,7 +136,7 @@ class Rotation(
             f"{self}",
             inputs.send,
             ign=self.data.ign,
-            requeue_if_not_scheduled=True,
+            requeue_if_not_scheduled=False,
             callbacks=[self.lock.release],
             cancel_callback=partial(self._release_left_right, self.data.handle),
         )
