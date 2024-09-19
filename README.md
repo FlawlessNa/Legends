@@ -8,6 +8,8 @@
   - This is because the _keyboard_layout_handle is decorated with lru_cache
   - Can remove decorator, but function is somewhat slower (it is extremely minimal though)
   - Still, it doesn't solve issue because if layout is wrong, the "'" should become "è" (as an example) and configs are therefore wrong in such  a case
+- [ ] Movement_mechanics (original system):
+  - Try adding back left and right nodes as part of the jump trajectory connections
 
 ## Improvements
 - [ ] Rebuffing:
@@ -32,6 +34,15 @@
   - The mainprocess has an additional task that sentinels a specific keyboard input to set/clear the flag
   - That same multiprocessing.Event flag can be used for discord requests to pause/resume
   - Convert _disable_decision_makers (and _enable) into staticmethods that can be used from mainProcess as well
+
+- [ ] Movement mechanics (new system):
+  - Find objects and potentially tiles on the screen that can be used as reference points for movement
+  - Can either use ORB feature matching or template matching to find them
+  - Can use optical flow to track movement of these objects
+  - Use known on-screen location of objects, combined with known VR coordinates, and known on-screen location of character, to determine VR coordinates of character
+  - Refactor pathing/movements/actions to use VR coordinates instead of minimap coordinates
+  - Note: This might require to properly code all physics standard kinetic equations as well
+- [ ] Code the movement calibration toolkit to help improvement transitions from path into movements into actions
 
 ### Other
 - [ ] Kill switches that either:

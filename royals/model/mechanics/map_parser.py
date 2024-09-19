@@ -253,12 +253,30 @@ class MapParser:
         y = int(scaled_y - self.minimap_scale_y - self.vr_top)
         return x, y
 
+    @staticmethod
+    def are_collinear(points):
+        # Convert points to a NumPy array
+        points = np.array(points)
 
-    # This was suggested by Copilot -> Using "anchors", or ref points to map screen coordinates to VR coordinates
+        # Check if there are at least 3 points
+        if len(points) < 3:
+            return True  # Less than 3 points are always collinear
+
+        # Calculate the differences
+        x_diff = points[:, 0] - points[0, 0]
+        y_diff = points[:, 1] - points[0, 1]
+
+        # Calculate the cross product
+        cross_product = np.cross(x_diff, y_diff)
+
+        # If all cross products are zero, points are collinear
+        return np.all(cross_product == 0)
+
     @staticmethod
     def map_to_vr_coordinates(screen_pos, reference_points_screen, reference_points_vr):
         """
         # TODO - > test this properly??
+        # Only works if points are not collinear
         Maps screen coordinates to VR coordinates using reference points.
 
         :param screen_pos: Tuple (x, y) of the character's screen position.
