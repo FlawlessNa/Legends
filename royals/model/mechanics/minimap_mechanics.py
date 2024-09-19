@@ -187,17 +187,22 @@ class MinimapGrid(Grid):
                 dx = abs(node_a.x - node_b.x)
                 dy = abs(node_a.y - node_b.y)
                 ng += math.sqrt(dx**2 + dy**2) / 8
-            elif conn_type not in [
-                MinimapConnection.TELEPORT_UP,
-                MinimapConnection.TELEPORT_DOWN,
-                MinimapConnection.TELEPORT_LEFT,
-                MinimapConnection.TELEPORT_RIGHT,
-            ]:
-                dx = abs(node_a.x - node_b.x)
-                ng += dx
             else:
                 dx = abs(node_a.x - node_b.x)
-                ng += dx / 2
+                dy = abs(node_a.y - node_b.y)
+                unweighted_cost = math.sqrt(dx**2 + dy**2) / 2
+                ng += unweighted_cost * node_b.weight
+            # elif conn_type not in [
+            #     MinimapConnection.TELEPORT_UP,
+            #     MinimapConnection.TELEPORT_DOWN,
+            #     MinimapConnection.TELEPORT_LEFT,
+            #     MinimapConnection.TELEPORT_RIGHT,
+            # ]:
+            #     dx = abs(node_a.x - node_b.x)
+            #     ng += dx
+            # else:
+            #     dx = abs(node_a.x - node_b.x)
+            #     ng += dx / 2
         return ng
 
     def neighbors(
@@ -271,6 +276,7 @@ class MinimapFeature(Box):
     edge_threshold: int = field(default=5)
     is_irregular: bool = field(default=False)
     backward: bool = field(default=False)
+    weight: int = field(default=1)
 
     def __post_init__(self):
         super().__post_init__()
@@ -606,8 +612,15 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         canvas = np.zeros((height, width), dtype=np.uint8)
         canvas = self._preprocess_img(canvas)
 
+        unweighted_matrix = np.where(canvas == 255, 1, 0)
+        weighted_matrix = unweighted_matrix.copy()
+        for feature in self.features.values():
+            if feature.weight != 1:
+                for node in feature:
+                    weighted_matrix[node[1], node[0]] = feature.weight
+
         base_grid = MinimapGrid(
-            matrix=np.where(canvas == 255, 1, 0), allow_teleport=allow_teleport
+            matrix=weighted_matrix, allow_teleport=allow_teleport
         )
         adjusted_speed = self.get_minimap_speed(speed_multiplier)
         adjusted_jump_height = self.get_jump_height(jump_multiplier)
@@ -661,30 +674,30 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                             )
 
                     # Compute jump trajectories for both directions
-                    if node[0] != feature.left:
-                        left_trajectory = self._jump_trajectory(
-                            node, "left", adjusted_jump_distance, adjusted_jump_height
-                        )
-                        self._parse_trajectory(
-                            node,
-                            feature,
-                            left_trajectory,
-                            MinimapConnection.JUMP_LEFT,
-                            MinimapConnection.JUMP_LEFT_AND_UP,
-                            base_grid,
-                        )
-                    if node[0] != feature.right:
-                        right_trajectory = self._jump_trajectory(
-                            node, "right", adjusted_jump_distance, adjusted_jump_height
-                        )
-                        self._parse_trajectory(
-                            node,
-                            feature,
-                            right_trajectory,
-                            MinimapConnection.JUMP_RIGHT,
-                            MinimapConnection.JUMP_RIGHT_AND_UP,
-                            base_grid,
-                        )
+                    # if node[0] != feature.left:
+                    left_trajectory = self._jump_trajectory(
+                        node, "left", adjusted_jump_distance, adjusted_jump_height
+                    )
+                    self._parse_trajectory(
+                        node,
+                        feature,
+                        left_trajectory,
+                        MinimapConnection.JUMP_LEFT,
+                        MinimapConnection.JUMP_LEFT_AND_UP,
+                        base_grid,
+                    )
+                    # if node[0] != feature.right:
+                    right_trajectory = self._jump_trajectory(
+                        node, "right", adjusted_jump_distance, adjusted_jump_height
+                    )
+                    self._parse_trajectory(
+                        node,
+                        feature,
+                        right_trajectory,
+                        MinimapConnection.JUMP_RIGHT,
+                        MinimapConnection.JUMP_RIGHT_AND_UP,
+                        base_grid,
+                    )
 
                     # Check for FALL_LEFT connection
                     if node == (feature.left, feature.top):
@@ -786,6 +799,8 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
             nodes_for_rope = apogee[mid - 1: mid + 1]
         else:
             nodes_for_rope = apogee[mid: mid + 1]
+        idx = trajectory.index(nodes_for_rope[-1])
+        nodes_for_rope = trajectory[idx:idx+3]
 
         for other_node in trajectory:
             if not grid.node(*other_node).walkable:
@@ -869,7 +884,7 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
         for other_node in (grid.node(node[0], y) for y in rng):
             if other_node.walkable:
                 other_feature = self.get_feature_containing((other_node.x, other_node.y))
-                if other_feature.is_platform and other_node not in [
+                if other_feature.is_platform and other_node.x not in [
                     other_feature.left, other_feature.right
                 ]:
                     grid.node(*node).connect(other_node, connection_type)
