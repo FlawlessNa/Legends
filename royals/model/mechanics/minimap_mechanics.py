@@ -661,30 +661,30 @@ class MinimapPathingMechanics(BaseMinimapFeatures, Minimap, ABC):
                             )
 
                     # Compute jump trajectories for both directions
-                    if node[0] != feature.left:
-                        left_trajectory = self._jump_trajectory(
-                            node, "left", adjusted_jump_distance, adjusted_jump_height
-                        )
-                        self._parse_trajectory(
-                            node,
-                            feature,
-                            left_trajectory,
-                            MinimapConnection.JUMP_LEFT,
-                            MinimapConnection.JUMP_LEFT_AND_UP,
-                            base_grid,
-                        )
-                    if node[0] != feature.right:
-                        right_trajectory = self._jump_trajectory(
-                            node, "right", adjusted_jump_distance, adjusted_jump_height
-                        )
-                        self._parse_trajectory(
-                            node,
-                            feature,
-                            right_trajectory,
-                            MinimapConnection.JUMP_RIGHT,
-                            MinimapConnection.JUMP_RIGHT_AND_UP,
-                            base_grid,
-                        )
+                    # if node[0] != feature.left:
+                    left_trajectory = self._jump_trajectory(
+                        node, "left", adjusted_jump_distance, adjusted_jump_height
+                    )
+                    self._parse_trajectory(
+                        node,
+                        feature,
+                        left_trajectory,
+                        MinimapConnection.JUMP_LEFT,
+                        MinimapConnection.JUMP_LEFT_AND_UP,
+                        base_grid,
+                    )
+                    # if node[0] != feature.right:
+                    right_trajectory = self._jump_trajectory(
+                        node, "right", adjusted_jump_distance, adjusted_jump_height
+                    )
+                    self._parse_trajectory(
+                        node,
+                        feature,
+                        right_trajectory,
+                        MinimapConnection.JUMP_RIGHT,
+                        MinimapConnection.JUMP_RIGHT_AND_UP,
+                        base_grid,
+                    )
 
                     # Check for FALL_LEFT connection
                     if node == (feature.left, feature.top):

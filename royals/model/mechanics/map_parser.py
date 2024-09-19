@@ -284,6 +284,10 @@ class MapParser:
         :param reference_points_vr: List of tuples [(vx1, vy1), (vx2, vy2), ...] of VR coordinates of reference points.
         :return: Tuple (vx, vy) of the character's VR coordinates.
         """
+        if len(reference_points_screen) == 1:
+            dx = screen_pos[0] - reference_points_screen[0][0]
+            dy = screen_pos[1] - reference_points_screen[0][1]
+            return reference_points_vr[0][0] + dx, reference_points_vr[0][1] + dy
         # Convert to numpy arrays
         screen_points = np.array(reference_points_screen)
         vr_points = np.array(reference_points_vr)
@@ -330,16 +334,16 @@ if __name__ == "__main__":
             "x": -608,
             "y": 532,
         },
-        "17": {
-            "path": r"C:\Users\nassi\Games\MapleRoyals\Legends\royals\assets\game_files\maps\images\acc4\toyCastle2.b2.4.0.png",
-            "x": -28,
-            "y": 532,
-        },
-        "14": {
-            "path": r"C:\Users\nassi\Games\MapleRoyals\Legends\royals\assets\game_files\maps\images\acc4\toyCastle2.b2.1.0.png",
-            "x": -276,
-            "y": 292,
-        }
+        # "17": {
+        #     "path": r"C:\Users\nassi\Games\MapleRoyals\Legends\royals\assets\game_files\maps\images\acc4\toyCastle2.b2.4.0.png",
+        #     "x": -28,
+        #     "y": 532,
+        # },
+        # "14": {
+        #     "path": r"C:\Users\nassi\Games\MapleRoyals\Legends\royals\assets\game_files\maps\images\acc4\toyCastle2.b2.1.0.png",
+        #     "x": -276,
+        #     "y": 292,
+        # }
     }
 
     class FakeMinimap(Minimap):

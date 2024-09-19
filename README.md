@@ -37,6 +37,7 @@
 
 - [ ] Movement mechanics (new system):
   - Find objects and potentially tiles on the screen that can be used as reference points for movement
+  - Modify map parser translation into vr coordinates function -> no need for a transfo matrix, just a simple translation.
   - Solution 1:
     - Can either use ORB feature matching or template matching to find them
     - Can use optical flow to track movement of these objects
