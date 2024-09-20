@@ -132,6 +132,31 @@ class KeyboardInputWrapper:
     delays: list[float] = field(default_factory=list)
     forced_key_releases: list[str] = field(default_factory=list)
 
+    def __str__(self) -> str:
+        result = []
+        current_key = None
+        current_event = None
+        total_delay = 0.0
+        for key, event, delay in zip(self.keys, self.events, self.delays):
+            if key != current_key or event != current_event:
+                if current_key is not None:
+                    result.append(
+                        f"{current_key} {current_event} for {total_delay:.3f}s"
+                    )
+                current_key = key
+                current_event = event
+                total_delay = delay
+            else:
+                total_delay += delay + OVERHEAD
+        if current_key is not None:
+            result.append(f"{current_key} {current_event} for {total_delay:.3f}s")
+        return "\n".join(
+            result + [
+                f'Total Duration: {self.duration:.3f}s',
+                f'Forced Key Releases: {self.forced_key_releases}',
+            ],
+        )
+
     @property
     def c_input(self) -> list[tuple]:
         return input_constructor(self.handle, self.keys, self.events)
@@ -187,13 +212,6 @@ class KeyboardInputWrapper:
             self.handle, self.c_input, self.delays, self.forced_key_releases
         )
 
-    # def cancelled_callback(self, future):
-    #     breakpoint()
-    #     if future.cancelled():
-    #         logger.debug(f"Cancelled callback called for {self}")
-    #         forced_key_releases = list(self.keys_held)
-    #         logger.debug(f"Keys to release: {forced_key_releases}")
-    #
     def truncate(self, limit: float) -> "KeyboardInputWrapper":
         result = KeyboardInputWrapper(
             self.handle, forced_key_releases=self.forced_key_releases
@@ -250,7 +268,7 @@ def release_all(hwnd: int = None) -> None:
 def release_directions(hwnd: int = None) -> None:
     if hwnd is None:
         hwnd = GetForegroundWindow()
-    release_keys = []
+    _release_keys = []
     for key in ["left", "right"]:
         if (
             HIBYTE(
@@ -260,10 +278,10 @@ def release_directions(hwnd: int = None) -> None:
             )
             != 0
         ):
-            release_keys.append(key)
-    if release_keys:
-        logger.debug(f"Releasing keys {release_keys} from window {hwnd}")
-    release_keys(release_keys)
+            _release_keys.append(key)
+    if _release_keys:
+        logger.debug(f"Releasing keys {_release_keys} from window {hwnd}")
+    release_keys(_release_keys)
 
 
 def input_constructor(
@@ -386,7 +404,7 @@ async def focused_inputs(
     finally:
         if forced_key_releases:
             keys_to_release = []
-            for key in forced_key_releases:
+            for key in set(forced_key_releases):
                 if (
                     HIBYTE(
                         GetAsyncKeyState(

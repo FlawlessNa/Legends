@@ -220,7 +220,7 @@ class Movements:
                     # Check if last movement, meaning target is on the same platform.
                     # If not, add extra nodes to make sure character goes beyond ladder.
                     if not move == movements[-1]:
-                        duration += 3 / speed
+                        duration += 5 / speed
                 elif direction in ["left", "right"]:
                     # Check if next movement is a simple "up" or "down". If so, add it
                     # as secondary direction, but only if close enough to the ladder.

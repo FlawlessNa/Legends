@@ -8,8 +8,6 @@
   - This is because the _keyboard_layout_handle is decorated with lru_cache
   - Can remove decorator, but function is somewhat slower (it is minimal though)
   - Still, it doesn't solve issue because if layout is wrong, the "'" should become "è" (as an example) and configs are therefore wrong in such a case
-- [ ] Movement_mechanics (original system):
-  - Try adding back left and right nodes as part of the jump trajectory connections
 
 ## Improvements
 - [ ] Rebuffing:
@@ -35,6 +33,9 @@
   - That same multiprocessing.Event flag can be used for discord requests to pause/resume
   - Convert _disable_decision_makers (and _enable) into staticmethods that can be used from mainProcess as well
 
+- [ ] Movement_mechanics (original system):
+  - Ability for each MinimapGrid to fine-tune the calc_cost function
+  - 
 - [ ] Movement mechanics (new system):
   - Find objects and potentially tiles on the screen that can be used as reference points for movement
   - Modify map parser translation into vr coordinates function -> no need for a transfo matrix, just a simple translation.

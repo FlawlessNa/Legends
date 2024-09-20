@@ -157,13 +157,12 @@ def jump_on_rope(
     """
     if structure is None:
         structure = _create_initial_input(handle, direction, None)
-        if len(structure.delays):
-            structure.delays[0] *= 8
+
     for key in structure.keys_held:
-        # if key == direction:
-        #     continue
+        if key == direction:
+            continue
         # Longer delay to try preventing "static" jumps
-        structure.append(key, "keyup", next(controller.random_delay) * 8)
+        structure.append(key, "keyup", next(controller.random_delay))
 
     if direction in structure.keys_held:
         structure.append([jump_key, "up"], ["keydown", "keydown"], 0.75)
@@ -172,7 +171,7 @@ def jump_on_rope(
         )
 
     else:
-        structure.append(direction, "keydown", next(controller.random_delay) * 2)
+        structure.append(direction, "keydown", next(controller.random_delay) * 5)
         structure.append([jump_key, "up"], ["keydown", "keydown"], 0.75)
         structure.append(
             [jump_key, direction], ["keyup", "keyup"], next(controller.random_delay) * 2

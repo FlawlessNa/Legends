@@ -54,6 +54,7 @@ def refresh_all(start: list[int], end: list[int]):
     movements = moves.path_into_movements(path)
     print(movements)
     structure = moves.movements_into_action(movements)
+    print(structure)
 
 
 def update_start_pos(dx, dy):
