@@ -5,8 +5,8 @@ from botting.models_abstractions import Skill
 
 from .skills_related_v2 import cast_skill
 
-# FIRST_DELAY = 0.5
-FIRST_DELAY = controller.random_delay
+FIRST_DELAY = 0.5
+
 
 def _create_initial_input(
     handle: int,
@@ -78,8 +78,7 @@ def move(
         structure.append(key, "keyup", next(controller.random_delay))
 
     first_delay = (
-        # FIRST_DELAY
-        next(FIRST_DELAY)
+        FIRST_DELAY
         if repeated_key not in list(structure.keys_held) + ["up"]
         else next(controller.random_delay)
     )
