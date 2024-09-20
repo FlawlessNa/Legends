@@ -162,7 +162,7 @@ def jump_on_rope(
         if key == direction:
             continue
         # Longer delay to try preventing "static" jumps
-        structure.append(key, "keyup", next(controller.random_delay))
+        structure.append(key, "keyup", next(controller.random_delay) * 5)
 
     if direction in structure.keys_held:
         structure.append([jump_key, "up"], ["keydown", "keydown"], 0.75)
