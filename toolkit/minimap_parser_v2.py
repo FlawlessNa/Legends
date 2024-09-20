@@ -1,5 +1,7 @@
 """
-Helper script to continuously record minimap positioning and record platform endpoints, portals, ladders, etc. based on key presses.
+Helper script to code new minimap features seamlessly.
+These features are transcribed to a file, which can later be fine-tuned as needed.
+
 """
 # According to Copilot:
 # x: The x-coordinate of the object in the map.
