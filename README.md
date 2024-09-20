@@ -43,7 +43,7 @@
     - Can either use ORB feature matching or template matching to find them
     - Can use optical flow to track movement of these objects
   - Solution 2:
-    - Re-build an annotated dataset with each objects, use tracking mode to track them
+    - Re-build an annotated dataset with each objects, use YOLO model tracking mode to track them
     - Try using GPU for faster processing?
   - Use known on-screen location of objects, combined with known VR coordinates, and known on-screen location of character, to determine VR coordinates of character
   - Refactor pathing/movements/actions to use VR coordinates instead of minimap coordinates
@@ -66,16 +66,15 @@
 - [ ] Make sure to refresh documentation everywhere
 
 ### DecisionMakers
-- [ ] Mob Check -> with 2-3 layers reactions?
 - [ ] CheckStillAlive
 - [ ] CheckStrangersInMap
 - [ ] ChatMonitoring
   - When a relevant chat line is detected, minimize chat feed, scroll to that line and read it without any background noise.
-- [ ] Check for WhiteRoom (or any predominent color on-screen?) -> taken from GMS
   - Chat Parsing (try grayscale preprocessing on "general" lines) + GPT Automated Responses
   - Use dequeue structure
   - Idea: When detecting relevant lines, minimize chat and scroll up, then read that line without background noise
 - [ ] CheckStillInMap
+- [ ] Check for WhiteRoom (or any predominent color on-screen?) -> taken from GMS
 - [ ] Check Remaining Potions, Pet Food, Mount Food, Magic Rocks
 - [ ] Abnormal Status Detection (look for gray line types)
   - Stunned
