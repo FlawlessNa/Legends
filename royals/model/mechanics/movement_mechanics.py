@@ -266,6 +266,10 @@ class Movements:
                     controller.key_binds(self.ign)["jump"],
                     structure=structure,
                 )
+                # Attempting to force all key releases when jump on rope is part of structure
+                for key in structure.keys_held:
+                    if key not in structure.forced_key_releases:
+                        structure.forced_key_releases.append(key)
             elif move[0] == "PORTAL":
                 primary = direction or "up"
                 secondary = "up" if primary != "up" else None
