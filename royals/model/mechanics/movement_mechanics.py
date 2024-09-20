@@ -260,16 +260,20 @@ class Movements:
                 if move[1] > 1:
                     breakpoint()
                     raise NotImplementedError("Not supposed to reach this point.")
+                # Attempting to force all key releases when jump on rope is part of structure
+                if structure is not None:
+                    for key in structure.keys_held:
+                        structure.append(
+                            key,
+                            "keyup",
+                            next(controller.random_delay)
+                        )
                 structure = movements_v2.jump_on_rope(
                     self.handle,
                     direction,  # noqa
                     controller.key_binds(self.ign)["jump"],
                     structure=structure,
                 )
-                # Attempting to force all key releases when jump on rope is part of structure
-                for key in structure.keys_held:
-                    if key not in structure.forced_key_releases:
-                        structure.forced_key_releases.append(key)
             elif move[0] == "PORTAL":
                 primary = direction or "up"
                 secondary = "up" if primary != "up" else None
