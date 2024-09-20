@@ -5,19 +5,22 @@ import multiprocessing.managers
 import time
 
 from botting import PARENT_LOG
-from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
-from royals.actions import priorities, toggle_menu, write_in_chat
+from botting.core import ActionRequest, BotData, DecisionMaker
+from royals.actions import priorities, toggle_menu
 from .mixins import (
     UIMixin,
     MobsHittingMixin,
-    NextTargetMixin
+    NextTargetMixin,
+    ReactionsMixin
 )
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.WARNING
 
 
-class CheckMobsStillSpawn(MobsHittingMixin, UIMixin, NextTargetMixin, DecisionMaker):
+class CheckMobsStillSpawn(
+    MobsHittingMixin, UIMixin, NextTargetMixin, ReactionsMixin, DecisionMaker
+):
     _throttle = 3.0
     FAILSAFE_TIMER = 30.0
 
@@ -71,22 +74,8 @@ class CheckMobsStillSpawn(MobsHittingMixin, UIMixin, NextTargetMixin, DecisionMa
 
             except asyncio.TimeoutError:
                 # Failsafe procedure failed. Pause bot and send final chat reaction
-                # TODO - Additional final chat reaction + pause + discord alert
                 self._disable_decision_makers("Rotation", "CheckMobsStillSpawn")
-                self.pipe.send(
-                    ActionRequest(
-                        f"{self} - Final Writing to chat",
-                        write_in_chat,
-                        self.data.ign,
-                        priorities.ANTI_DETECTION,
-                        block_lower_priority=True,
-                        args=(self.data.handle, '...'),  # TODO - randomized msg
-                        discord_request=DiscordRequest(
-                            msg="Looks like no mobs are spawning. Pausing bot.",
-                            img=self.data.current_client_img
-                        )
-                    )
-                )
+                self._react("advanced")
                 logger.critical(
                     f"Failed to ensure mobs still spawn after {self.FAILSAFE_TIMER} "
                     f"seconds"
@@ -138,16 +127,7 @@ class CheckMobsStillSpawn(MobsHittingMixin, UIMixin, NextTargetMixin, DecisionMa
             )
         except asyncio.TimeoutError:
             # Still no mobs.
-            self.pipe.send(
-                ActionRequest(
-                    f"{self} - Interim Writing to chat",
-                    write_in_chat,
-                    self.data.ign,
-                    priorities.ANTI_DETECTION,
-                    block_lower_priority=True,
-                    args=(self.data.handle, 'wtf'),  # TODO - randomized msg
-                )
-            )
+            self._react("light")
             logger.log(
                 LOG_LEVEL,
                 f"No mobs detected after {self.FAILSAFE_TIMER // 2} seconds"
