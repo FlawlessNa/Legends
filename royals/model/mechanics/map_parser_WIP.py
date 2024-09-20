@@ -165,6 +165,7 @@ gray = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY)
 while True:
     copied = canvas.copy()
     char_pos = minimap.get_character_positions(HANDLE).pop()
+    print('Char pos:', char_pos)
     gray[char_pos[1], char_pos[0]] = 200
     # breakpoint()
     translated = translate_to_vr(*char_pos)
