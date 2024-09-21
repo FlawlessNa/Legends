@@ -8,7 +8,8 @@
   - This is because the _keyboard_layout_handle is decorated with lru_cache
   - Can remove decorator, but function is somewhat slower (it is minimal though)
   - Still, it doesn't solve issue because if layout is wrong, the "'" should become "è" (as an example) and configs are therefore wrong in such a case
-
+- [ ] Re test CheckStillInMap and CheckMobSpawn with the new ReactionMixin
+- [ ] Test the pauser/resumer for various scenarios (keep MobsHitting, Rebuffs, for testing purposes etc)
 ## Improvements
 - [ ] Rebuffing:
   - [ ] Handling of in-game Macros efficiently

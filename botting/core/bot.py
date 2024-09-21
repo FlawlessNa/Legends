@@ -35,6 +35,10 @@ class Bot(ABC):
         self.barrier = None
         self.kwargs = kwargs
 
+        self._bot: asyncio.Task | None = None
+        self._tg: asyncio.TaskGroup | None = None
+        self._dm_tasks: list[asyncio.Task] = []
+
     def child_init(
         self,
         pipe: multiprocessing.connection.Connection,
@@ -54,11 +58,36 @@ class Bot(ABC):
         Passes the TaskGroup to each DecisionMaker, such that they can define sub-tasks
         if required.
         """
+        self._bot = asyncio.current_task()
+
         async with asyncio.TaskGroup() as tg:
+            self._tg = tg
             decision_makers = self.decision_makers  # Instantiate DecisionMakers.
+
+            # Synchronizes the start of all bots at the same time.
             await asyncio.to_thread(self.barrier.wait)
+
             for dm in decision_makers:
-                tg.create_task(dm.start(tg), name=f"{dm}")
+                dm_task = tg.create_task(dm.start(tg), name=f"{dm}")
+                self._dm_tasks.append(dm_task)
+
+    def pause(self) -> None:
+        """
+        Pauses all DecisionMakers tasks.
+        This can be overridden to provide custom behavior.
+        """
+        for task in self._dm_tasks.copy():
+            task.cancel()
+            self._dm_tasks.remove(task)
+
+    def resume(self) -> None:
+        """
+        Resumes the DecisionMakers tasks.
+        # TODO - Safeguards to prevent re-scheduling of already running tasks.
+        """
+        for dm in self.decision_makers:
+            dm_task = self._tg.create_task(dm.start(self._tg), name=f"{dm}")
+            self._dm_tasks.append(dm_task)
 
     @cached_property
     def decision_makers(self) -> list[DecisionMaker]:
