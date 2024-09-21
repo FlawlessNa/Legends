@@ -147,11 +147,6 @@ class BaseParser(ABC):
             discord_request=DiscordRequest("Kill request from Discord confirmed"),
         )
 
-    # @property
-    # @abstractmethod
-    # def decision_makers_to_pause(self) -> list[str]:
-    #     pass
-
     # @abstractmethod
     def pause(self, who: list[str] = None) -> ActionRequest:
         """

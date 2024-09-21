@@ -111,9 +111,9 @@ class Rotation(
         )
         self._sentinel_starts_at = time.perf_counter() + 60.0
 
-    async def _task(self, *args, **kwargs) -> None:
+    async def task(self, *args, **kwargs) -> None:
         self._sentinel_starts_at = time.perf_counter() + 10.0
-        await super()._task(*args, **kwargs)
+        await super().task(*args, **kwargs)
 
     async def _decide(self) -> None:
         self._failsafe_checks()  # Check each time, no need to wait for lock

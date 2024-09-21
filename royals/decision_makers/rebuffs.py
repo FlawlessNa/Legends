@@ -299,11 +299,15 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
             ident = f"{self} - {buff.name}"
             condition = self.request_proxy(self.metadata, ident, "Condition")
             tg.create_task(
+                asyncio.to_thread(self._enabler_task, tg, buff, condition),
+                name=f"{ident} - Enabler",
+            )
+            tg.create_task(
                 asyncio.to_thread(self._disabler_task, tg, buff, condition),
                 name=f"{ident} - Disabler",
             )
             self._decision_task[ident] = tg.create_task(
-                self._task(buff, condition), name=ident
+                self.task(buff, condition), name=ident
             )
 
     def _disabler_task(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
@@ -317,13 +321,21 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
             with self._disabler:
                 # When notified, cancel the task
                 self._disabler.wait()
-                self._decision_task[ident].cancel()
+                if self._enabled:
+                    self._decision_task[ident].cancel()
+                    self._enabled = False
 
+    def _enabler_task(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
+        ident = f"{self} - {args[0].name}"
+        while True:
+            with self._enabler:
                 # Upon next notification, re-enable the task
-                self._disabler.wait()
-                self._decision_task[ident] = tg.create_task(
-                    self._task(*args, **kwargs), name=f"{self}"
-                )
+                self._enabler.wait()
+                if not self._enabled:
+                    self._decision_task[ident] = tg.create_task(
+                        self.task(*args, **kwargs), name=f"{self}"
+                    )
+                    self._enabled = True
 
     async def _decide(
         self, buff: RoyalsSkill, condition: multiprocessing.managers.ConditionProxy

@@ -86,7 +86,7 @@ class Bot(ABC):
         # TODO - Safeguards to prevent re-scheduling of already running tasks.
         """
         for dm in self.decision_makers:
-            dm_task = self._tg.create_task(dm.start(self._tg), name=f"{dm}")
+            dm_task = self._tg.create_task(dm.task(self._tg), name=f"{dm}")
             self._dm_tasks.append(dm_task)
 
     @cached_property

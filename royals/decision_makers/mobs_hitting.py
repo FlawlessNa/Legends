@@ -46,11 +46,11 @@ class MobsHitting(
             # error_handler=...,  # TODO - Implement error handler
         )
 
-    async def _task(self, *args, **kwargs) -> None:
+    async def task(self, *args, **kwargs) -> None:
         # Ensures the lock is actually released before task is started, no matter what.
         self.lock.acquire(blocking=False)
         self.lock.release()
-        await super()._task(*args, **kwargs)
+        await super().task(*args, **kwargs)
 
     def _hit_mobs(self, direction: str | None) -> ActionRequest:
         """

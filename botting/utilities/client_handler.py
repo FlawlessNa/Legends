@@ -6,17 +6,20 @@ from .config_reader import config_reader
 
 
 def get_open_clients(
-    window_titles: list[str] = eval(config_reader("game", "Client", "Window Titles")),
+    window_title: str = config_reader("game", "Client", "Window Titles"),
 ) -> list[int]:
     """
     Get all the windows that are titled with the provided titles.
     By default, the titles are read from the config file.
-    :param window_titles: List of strings representing the window titles to look for.
+    :param window_title: String representing the window titles to look for.
     :return: List of handles for each window.
     """
 
     def _enum_window_callback(hwnd, window_list):
-        if win32gui.GetWindowText(hwnd) in window_titles:
+        if (
+            window_title in win32gui.GetWindowText(hwnd)
+            and win32gui.GetClassName(hwnd) == "MapleStoryClass"
+        ):
             window_list.append(hwnd)
 
     result = []

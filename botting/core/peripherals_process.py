@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import multiprocessing.connection
-
+from typing import Any
 from botting.screen_recorder import Recorder
 from botting.communications import DiscordIO, BaseParser
 from botting.utilities import setup_child_proc_logging
@@ -27,6 +27,7 @@ class PeripheralsProcess:
         self.process = None
         self.pipe_main_proc, self.pipe_spawned_proc = multiprocessing.Pipe()
         self.discord_parser = parser(self.pipe_main_proc)
+        self.engine_pipes: list[multiprocessing.connection.Connection] = []
 
     def start(self) -> None:
         """
@@ -66,16 +67,29 @@ class PeripheralsProcess:
             while True:
                 if await asyncio.to_thread(self.pipe_main_proc.poll):
                     message: str = self.pipe_main_proc.recv()
-                    action: ActionRequest = self.discord_parser.parse_message(message)
-                    # TODO - Finish this
-                    if action is not None:
+                    action: Any = self.discord_parser.parse_message(message)
+
+                    if isinstance(action, ActionRequest):
                         await async_queue.put(action)
+                    else:
+                        self._dispatch_to_engines(action)
+
         finally:
             if not self.pipe_main_proc.closed:
                 logger.debug("Closing Main pipe to peripherals process.")
                 self.pipe_main_proc.send(None)
                 self.pipe_main_proc.close()
             async_queue.put_nowait(None)
+
+    def _dispatch_to_engines(self, action: Any) -> None:
+        """
+        Main Process task.
+        Dispatches the action to all engines.
+        :param action: The action to dispatch.
+        :return: None
+        """
+        for engine_pipe in self.engine_pipes:
+            engine_pipe.send(action)
 
     def _spawn_child(self) -> None:
         """

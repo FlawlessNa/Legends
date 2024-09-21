@@ -104,7 +104,7 @@ class SessionManager:
         self.log_receiver.stop()
 
         for engine in self.engines:
-            engine.join(timeout=5)
+            engine.join(timeout=2)
             if engine.is_alive():
                 engine.terminate()
             logger.info(f"Engine {engine.name} has been stopped.")
@@ -130,6 +130,7 @@ class SessionManager:
         for group in grouped_bots:
             self.bots.extend(group)
             engine_side, listener_side = multiprocessing.Pipe()
+            self.peripherals.engine_pipes.append(listener_side)
             engine_proc = Engine.start(engine_side, self.metadata, group, self.barrier)
             engine_listener = Engine.listener(
                 listener_side,
