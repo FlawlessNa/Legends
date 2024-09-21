@@ -74,7 +74,11 @@ class CheckMobsStillSpawn(
 
             except asyncio.TimeoutError:
                 # Failsafe procedure failed. Pause bot and send final chat reaction
-                self._disable_decision_makers("Rotation", "CheckMobsStillSpawn")
+                self._disable_decision_makers(
+                    "Rotation",
+                    "CheckMobsStillSpawn",
+                    "CheckStillInMap"
+                )
                 self._react("advanced")
                 logger.critical(
                     f"Failed to ensure mobs still spawn after {self.FAILSAFE_TIMER} "

@@ -190,7 +190,10 @@ class BotData:
         except Exception as e:
             if name in self._error_handlers:
                 self._error_handlers[name]()
-                self._update_value(name)
+                try:
+                    self._update_value(name)
+                except Exception as e:
+                    self._attributes[name] = None
             else:
                 raise e
 

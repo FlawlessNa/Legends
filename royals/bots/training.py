@@ -19,4 +19,5 @@ class TrainingBot(RoyalsBot):
             decision_makers.SoloRebuff,
             decision_makers.SpeedPill,
             decision_makers.CheckMobsStillSpawn,
+            decision_makers.CheckStillInMap
         ]
