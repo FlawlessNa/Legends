@@ -28,14 +28,18 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
             self._create_minimap_attributes()
 
     async def _decide(self) -> None:
-        if not self.data.current_minimap.validate_in_map(self.data.handle):
+        still_in_map = self._perform_check()
+        if not still_in_map:
 
             # Reset minimap attributes and move mouse away
             logger.log(LOG_LEVEL, "Suspected Not in map. Toggling minimap.")
-            self._minimap_pos_error_handler()
+            try:
+                self._minimap_pos_error_handler()
+            except :
+                pass
 
             # Re-try
-            if not self.data.current_minimap.validate_in_map(self.data.handle):
+            if not self._perform_check():
                 logger.critical("Confirmed Not in map. Pausing bot.")
                 self._disable_decision_makers(
                     "Rotation",
@@ -45,3 +49,14 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
                     "PartyRebuff",
                 )
                 self._react("advanced")
+                return
+
+        if not still_in_map:
+            # If we reach this point and there was an issue originally
+            logger.log(LOG_LEVEL, "Problem solved, still in map.")
+
+    def _perform_check(self) -> bool:
+        try:
+            return self.data.current_minimap.validate_in_map(self.data.handle)
+        except:
+            return False
