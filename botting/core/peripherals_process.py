@@ -71,7 +71,7 @@ class PeripheralsProcess:
 
                     if isinstance(action, ActionRequest):
                         await async_queue.put(action)
-                    else:
+                    elif action is not None:
                         self._dispatch_to_engines(action)
 
         finally:
