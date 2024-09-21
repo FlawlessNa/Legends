@@ -49,6 +49,11 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
                     "PartyRebuff",
                 )
                 self._react("advanced")
+                return
+
+        if not still_in_map:
+            # If we reach this point and there was an issue originally
+            logger.log(LOG_LEVEL, "Problem solved, still in map.")
 
     def _perform_check(self) -> bool:
         try:

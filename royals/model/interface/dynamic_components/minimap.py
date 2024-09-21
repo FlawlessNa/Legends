@@ -244,8 +244,11 @@ class Minimap(InGameDynamicVisuals, ABC):
                         left_offset = extra_width // 2
                         right_offset = -left_offset
                     else:
-                        left_offset = self.full_map_area_left_offset
-                        right_offset = -self.full_map_area_right_offset
+                        if self.full_map_area_left_offset is NotImplemented:
+                            left_offset = right_offset = 0
+                        else:
+                            left_offset = self.full_map_area_left_offset
+                            right_offset = -self.full_map_area_right_offset
             else:
                 top_offset = self._minimap_area_top_offset_partial
                 left_offset = 0
