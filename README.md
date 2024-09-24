@@ -9,6 +9,9 @@
   - Still, it doesn't solve issue because if layout is wrong, the "'" should become "è" (as an example) and configs are therefore wrong in such a case
 - [ ] Test the pauser/resumer for various scenarios (keep MobsHitting, Rebuffs, for testing purposes etc)
 - [ ] Improve error management and handling for appropriate breakpoints and tracebacks
+- [ ] 150 new annotated images from MP3
+- [ ] Try annotating mob images for a model as well?
+
 
 ## Improvements
 - [ ] Rebuffing:
