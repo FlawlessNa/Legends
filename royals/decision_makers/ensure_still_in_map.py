@@ -58,5 +58,7 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
     def _perform_check(self) -> bool:
         try:
             return self.data.current_minimap.validate_in_map(self.data.handle)
-        except:
+        except FileNotFoundError as e:
+            raise e
+        except BaseException as e:
             return False

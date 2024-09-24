@@ -4,6 +4,7 @@ import multiprocessing.managers
 from abc import ABC, abstractmethod
 from functools import cached_property
 
+from botting.controller import release_keys
 from botting.utilities import client_handler
 from .bot_data import BotData
 from .decision_maker import DecisionMaker
@@ -37,7 +38,6 @@ class Bot(ABC):
 
         self._bot: asyncio.Task | None = None
         self._tg: asyncio.TaskGroup | None = None
-        self._dm_tasks: list[asyncio.Task] = []
 
     def child_init(
         self,
@@ -68,26 +68,28 @@ class Bot(ABC):
             await asyncio.to_thread(self.barrier.wait)
 
             for dm in decision_makers:
-                dm_task = tg.create_task(dm.start(tg), name=f"{dm}")
-                self._dm_tasks.append(dm_task)
+                tg.create_task(dm.start(tg), name=f"{dm}")
 
     def pause(self) -> None:
         """
         Pauses all DecisionMakers tasks.
         This can be overridden to provide custom behavior.
         """
-        for task in self._dm_tasks.copy():
-            task.cancel()
-            self._dm_tasks.remove(task)
+        for dm_class in self._decision_makers():
+            for task in asyncio.all_tasks():
+                name = task.get_name()
+                if 'Enabler' in name or 'Disabler' in name:
+                    continue
+                elif name.startswith(dm_class.__name__):
+                    task.cancel()
+        release_keys(['left', 'up', 'down', 'right'], self.data.handle)
 
     def resume(self) -> None:
         """
         Resumes the DecisionMakers tasks.
-        # TODO - Safeguards to prevent re-scheduling of already running tasks.
         """
         for dm in self.decision_makers:
-            dm_task = self._tg.create_task(dm.task(self._tg), name=f"{dm}")
-            self._dm_tasks.append(dm_task)
+            self._tg.create_task(dm.task(), name=f"{dm}")
 
     @cached_property
     def decision_makers(self) -> list[DecisionMaker]:

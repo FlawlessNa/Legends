@@ -6,9 +6,9 @@ import royals.parsers
 
 training_configs = {
     "num_pets": 1,
-    "game_map": maps.PathOfTime1,
+    "game_map": maps.MysteriousPath3,
     "mob_count_threshold": 1,
-    "included_buffs": [],
+    "included_buffs": ["Invincible"],
     "training_skill": "Heal",
     "model_path": "data/model_runs/character_detection/ClericChronosTraining - Nano120",
     "smart_rotation_enabled": True,

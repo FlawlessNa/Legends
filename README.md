@@ -8,6 +8,8 @@
   - Can remove decorator, but function is somewhat slower (it is minimal though)
   - Still, it doesn't solve issue because if layout is wrong, the "'" should become "è" (as an example) and configs are therefore wrong in such a case
 - [ ] Test the pauser/resumer for various scenarios (keep MobsHitting, Rebuffs, for testing purposes etc)
+- [ ] Improve error management and handling for appropriate breakpoints and tracebacks
+
 ## Improvements
 - [ ] Rebuffing:
   - [ ] Handling of in-game Macros efficiently

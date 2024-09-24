@@ -324,9 +324,12 @@ class MapParser:
 
 
 if __name__ == "__main__":
-    map_name = "PathOfTime1"
+    map_name = "MysteriousPath3"
     map_parser = MapParser(map_name)
     map_parser.draw_vr_canvas()
+    cv2.imshow("VR Canvas", cv2.resize(map_parser.vr_canvas, None, fx=0.5, fy=0.5))
+    cv2.waitKey(1)
+    breakpoint()
     HANDLE = client_handler.get_client_handle("StarBase", royals_ign_finder)
     objects = {
         "16": {

@@ -1,5 +1,4 @@
 import cv2
-import math
 import numpy as np
 
 from abc import ABC, abstractmethod
@@ -67,7 +66,7 @@ class BaseMob(InGameBaseVisuals, ABC):
         """
         Returns the number of mobs found on-screen.
         """
-        return math.ceil(
+        return round(
             len(self.get_onscreen_mobs(image, **kwargs)) / self._multiplier
         )
 

@@ -101,8 +101,8 @@ class _ChildProcessEngine:
             pass
 
         except Exception as e:
-            logger.error(f"Exception occurred in {self}: {e}.")
-            self.pipe.send(e)
+            import traceback
+            logger.error("".join(traceback.format_exception(e)))
             raise e
 
         finally:
@@ -122,8 +122,12 @@ class _ChildProcessEngine:
                 if data is None:
                     logger.info(f"{self} received None from MainProcess. Exiting.")
                     break
-                else:
-                    breakpoint()  # TODO
+                elif isinstance(data, str):
+                    action = data.split()[0].lower()
+                    targets = data.split()[1:]
+                    for bot in self.bots:
+                        if bot.ign in targets or targets == ["All"]:
+                            getattr(bot, action)()
 
 
 class Engine(_ChildProcessEngine):
