@@ -67,7 +67,7 @@ class MobsHitting(
             cancel_tasks=[f"Rotation({self.data.ign})"],
             block_lower_priority=True,
             callbacks=[self.lock.release],
-            cancels_itself=True,
+            # cancels_itself=True,
             log=True,
             args=(inputs,),
         )

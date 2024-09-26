@@ -89,7 +89,8 @@ class Bot(ABC):
         Resumes the DecisionMakers tasks.
         """
         for dm in self.decision_makers:
-            self._tg.create_task(dm.task(), name=f"{dm}")
+            task = self._tg.create_task(dm.task(), name=f"{dm}")
+            dm.decision_task = task
 
     @cached_property
     def decision_makers(self) -> list[DecisionMaker]:

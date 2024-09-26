@@ -11,6 +11,7 @@
 - [ ] Improve error management and handling for appropriate breakpoints and tracebacks
 - [ ] 150 new annotated images from MP3
 - [ ] Try annotating mob images for a model as well?
+- [ ] Why does minimap error handler trigger more than once simultaneously??
 
 
 ## Improvements

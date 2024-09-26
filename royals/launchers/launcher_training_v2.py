@@ -13,7 +13,7 @@ training_configs = {
     "model_path": "data/model_runs/character_detection/ClericChronosTraining - Nano120",
     "smart_rotation_enabled": True,
     # "disable_teleport": True,
-    "mob_spawn_alert_timer": 10,
+    "mob_spawn_alert_timer": 15,
     "mob_spawn_alert_threshold": 3,
 }
 

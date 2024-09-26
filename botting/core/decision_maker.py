@@ -39,7 +39,7 @@ class DecisionMaker(ABC):
         self._enabler = self.request_proxy(
             self.metadata, f"{self.__class__.__name__} - Enabler", "Condition", True
         )
-        self._decision_task = None
+        self.decision_task = None
         self._enabled = True
 
     def __repr__(self) -> str:
@@ -142,7 +142,7 @@ class DecisionMaker(ABC):
             asyncio.to_thread(self._enabler_task, tg, *args, **kwargs),
             name=f"{self} - Enabler",
         )
-        self._decision_task = tg.create_task(
+        self.decision_task = tg.create_task(
             self.task(*args, **kwargs), name=f"{self}"
         )
 
@@ -171,7 +171,7 @@ class DecisionMaker(ABC):
             with self._enabler:
                 self._enabler.wait()
                 if not self._enabled:
-                    self._decision_task = tg.create_task(
+                    self.decision_task = tg.create_task(
                         self.task(*args, **kwargs), name=f"{self}"
                     )
                     self._enabled = True
@@ -186,5 +186,5 @@ class DecisionMaker(ABC):
                 # When notified, cancel the task
                 self._disabler.wait()
                 if self._enabled:
-                    self._decision_task.cancel()
+                    self.decision_task.cancel()
                     self._enabled = False
