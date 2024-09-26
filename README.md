@@ -10,7 +10,7 @@
 - [ ] Test the pauser/resumer for various scenarios (keep MobsHitting, Rebuffs, for testing purposes etc)
   - Keys are not necessarily released when paused; because release_keys is called too soon.
   - Streamline both pause/resume and disable/enable mechanism -> should only really be one. Make sure ref to tasks are properly updated too.
-
+- [ ] Improve error management and handling for appropriate breakpoints and tracebacks
 - [ ] 150 new annotated images from MP3
 - [ ] Re-annotate first 150 images for Chronos?
 - [ ] Try annotating mob images for a model as well?
@@ -22,6 +22,7 @@
 - [ ] third failsafe on rotation sentinels should trigger pausing mechanism (disable relevant decision makers)
 - [ ] there's clearly a "preference" to jump on rope from the right side, might want to figure out why?
   - Unless work on the new framework instead
+
 
 
 ## Improvements

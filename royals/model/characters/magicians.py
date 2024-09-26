@@ -77,9 +77,9 @@ class Cleric(Magician):
         "Invincible": RoyalsBuff(
             "Invincible",
             animation_time=0.6,
-            duration=300,
-            match_template_threshold=0.79,
-            match_icon_threshold=0.89,
+            duration=180,
+            match_template_threshold=0.68,
+            match_icon_threshold=0.81,
         ),
     }
 

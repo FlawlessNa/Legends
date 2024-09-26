@@ -9,14 +9,14 @@ class MysteriousPath3Minimap(MinimapPathingMechanics):
     map_area_height = 87
 
     # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
-    # minimap_speed: float = 6.9642265749772365
-    # jump_height: int = 5
-    # jump_distance: int = 5
+    minimap_speed: float = 7.7439024390243905
+    jump_height: int = 4.926135110294117
+    jump_distance: int = 4.297865853658537
     jump_down_limit: int = 30
 
-    # teleport_h_dist = 9
-    # teleport_v_up_dist = 5
-    # teleport_v_down_dist = 9
+    teleport_h_dist = int(9.292682926829269)
+    teleport_v_up_dist = int(9.292682926829269) - 1
+    teleport_v_down_dist = int(9.292682926829269) + 2
 
     @property
     def feature_cycle(self) -> list[MinimapFeature]:

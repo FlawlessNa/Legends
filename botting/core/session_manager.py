@@ -124,6 +124,7 @@ class SessionManager:
         :return:
         """
         self.main_bot = grouped_bots[0][0]
+        self.peripherals.discord_parser.main_ign = self.main_bot.ign
         self.barrier = self.process_manager.Barrier(
             sum(len(group) for group in grouped_bots)
         )

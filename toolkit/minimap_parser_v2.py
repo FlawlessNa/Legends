@@ -27,8 +27,8 @@ from botting.utilities import Box
 
 HANDLE = client_handler.get_client_handle("StarBase", royals_ign_finder)
 OUTPUT_LOCATION = os.path.join(ROOT, "royals/model/minimaps/")
-OUTPUT_NAME = "path_of_time_test.py"
-MAP_FILENAME = "PathOfTime1.xml"
+OUTPUT_NAME = "test.py"
+MAP_FILENAME = "MysteriousPath3.xml"
 BRIGHTNESS_THRESH = 10  # After reducing to minimap size, the threshold for binary conversion
 
 tree = ElementTree.parse(
@@ -208,6 +208,7 @@ if __name__ == "__main__":
         x, y, w, h = cv2.boundingRect(contour)
         vertical_lines.append((x, y, x, y + h - 1))
 
+    # breakpoint()
     while True:
         colored = cv2.cvtColor(binary, cv2.COLOR_GRAY2BGR)
         pos = take_position(minimap)

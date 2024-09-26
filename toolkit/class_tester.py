@@ -7,7 +7,7 @@ from botting import controller
 from botting.utilities import client_handler, Box, take_screenshot, find_image
 from royals import royals_ign_finder
 from paths import ROOT
-from royals.model.minimaps import PathOfTime1Minimap
+from royals.model.minimaps import PathOfTime1Minimap, MysteriousPath3Minimap
 
 from royals.model.characters import Bishop
 from royals.model.mechanics.movement_mechanics import Movements
@@ -18,7 +18,7 @@ HANDLE = client_handler.get_client_handle("StarBase", royals_ign_finder)
 img_dir = os.path.join(ROOT, "royals/assets/detection_images")
 
 if __name__ == "__main__":
-    minimap = PathOfTime1Minimap()
+    minimap = MysteriousPath3Minimap()
     minimap.generate_grid_template(True)
     moves = Movements("StarBase", HANDLE, None, minimap)
     while True:

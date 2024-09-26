@@ -287,7 +287,8 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
         if excluded_buffs:
             buffs = list(filter(lambda buff: buff.name not in excluded_buffs, buffs))
         self._buffs = buffs
-        self._decision_task: dict[str, asyncio.Task] = dict()
+        self._sub_tasks: dict[str, asyncio.Task] = dict()
+        self._tg = None
 
     async def start(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
         """
@@ -295,47 +296,18 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
         each buff individually.
         :return:
         """
+        self._tg = tg
+        await super().start(tg, *args, **kwargs)
+
+    async def task(self, *args, **kwargs) -> None:
         for buff in self._buffs:
             ident = f"{self} - {buff.name}"
-            condition = self.request_proxy(self.metadata, ident, "Condition")
-            tg.create_task(
-                asyncio.to_thread(self._enabler_task, tg, buff, condition),
-                name=f"{ident} - Enabler",
+            condition = self.request_proxy(
+                self.metadata, f"{ident}", "Condition"
             )
-            tg.create_task(
-                asyncio.to_thread(self._disabler_task, tg, buff, condition),
-                name=f"{ident} - Disabler",
+            self._sub_tasks[ident] = self._tg.create_task(
+                super().task(buff, condition), name=ident
             )
-            self._decision_task[ident] = tg.create_task(
-                self.task(buff, condition), name=ident
-            )
-
-    def _disabler_task(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
-        """
-        Overwrites the DecisionMaker start method such that there is one disabler per
-        individual buff.
-        :return:
-        """
-        ident = f"{self} - {args[0].name}"
-        while True:
-            with self._disabler:
-                # When notified, cancel the task
-                self._disabler.wait()
-                if self._enabled:
-                    self._decision_task[ident].cancel()
-                    self._enabled = False
-
-    def _enabler_task(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
-        ident = f"{self} - {args[0].name}"
-        while True:
-            with self._enabler:
-                # Upon next notification, re-enable the task
-                self._enabler.wait()
-                if not self._enabled:
-                    self._decision_task[ident] = tg.create_task(
-                        self.task(*args, **kwargs), name=f"{self}"
-                    )
-                    self._enabled = True
 
     async def _decide(
         self, buff: RoyalsSkill, condition: multiprocessing.managers.ConditionProxy

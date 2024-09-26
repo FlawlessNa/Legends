@@ -5,6 +5,7 @@ import multiprocessing.connection
 from abc import ABC, abstractmethod
 from enum import Enum
 from functools import cached_property
+from typing import Any
 from botting.core import ActionRequest, DiscordRequest
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,7 @@ class BaseParser(ABC):
 
     def __init__(self, pipe: multiprocessing.connection.Connection) -> None:
         self.pipe = pipe
+        self.main_ign = None
 
     @cached_property
     def parser(self) -> argparse.ArgumentParser:
@@ -50,23 +52,30 @@ class BaseParser(ABC):
             choices=self.action_choices,
         )
         parser.add_argument(
-            "--ign",
+            "-ign",
             type=str,
             help="The IGN of the bot to perform the action on.",
             required=False,
             nargs="+",
         )
         parser.add_argument(
+            "-message",
             "-m",
-            "--message",
             type=str,
             help="The message to write.",
             nargs="+",
             required=False,
         )
+        parser.add_argument(
+            "positional_message",
+            type=str,
+            help="The message to write (positional argument).",
+            nargs="*",
+            default=None,
+        )
         return parser
 
-    def parse_message(self, message: str) -> ActionRequest | None:
+    def parse_message(self, message: str) -> Any:
         """
         Parses a message from the user and fires the appropriate actions.
         :param message: The message to parse.
@@ -83,7 +92,7 @@ class BaseParser(ABC):
         action = args.action.upper()
 
         if action == "KILL":
-            if args.ign or args.message:
+            if args.ign or args.message or args.positional_message:
                 msg = (
                     "KILL action does not accept --ign or --message arguments. "
                     "They will be ignored."
@@ -93,7 +102,7 @@ class BaseParser(ABC):
             request = self.kill()
 
         elif action == "PAUSE":
-            if args.message:
+            if args.message or args.positional_message:
                 msg = (
                     "PAUSE action does not accept --message argument. "
                     "It will be ignored."
@@ -103,7 +112,7 @@ class BaseParser(ABC):
             request = self.pause(args.ign)
 
         elif action == "RESUME":
-            if args.message:
+            if args.message or args.positional_message:
                 msg = (
                     "RESUME action does not accept --message argument. "
                     "It will be ignored."
@@ -113,19 +122,37 @@ class BaseParser(ABC):
             request = self.resume(args.ign)
 
         elif action == "WRITE":
-            if not args.message:
+            if not args.message and not args.positional_message:
                 msg = (
                     "WRITE action requires a --message argument. " "Please provide one."
                 )
-                logger.error(msg)
+                logger.warning(msg)
                 self.pipe.send(msg)
                 return
-            request = self.write(" ".join(args.message), args.ign)
+            if args.ign is None:
+                ign = self.main_ign
+                self.pipe.send(
+                    f"No --ign argument provided. Writing to {ign} by default, which was"
+                    f"the first bot defined within this Session."
+                )
+            else:
+                if len(args.ign) > 1:
+                    msg = (
+                        f"WRITE action only accepts one -ign argument. "
+                        f"Please provide only one, {args.ign} is not valid."
+                    )
+                    logger.warning(msg)
+                    self.pipe.send(msg)
+                    return
+                ign = args.ign[0]
+            content = args.message or args.positional_message
+            request = self.write(" ".join(content), ign)
         else:
             raise ValueError(f"Invalid action: {action}")
 
         self.pipe.send(
-            f"Confirmation that '{request.identifier}' was requested by user"
+            f"Confirmation that '{getattr(request, 'identifier', request)}' was "
+            f"requested by user"
         )
         return request
 
@@ -147,27 +174,17 @@ class BaseParser(ABC):
             discord_request=DiscordRequest("Kill request from Discord confirmed"),
         )
 
-    # @abstractmethod
-    def pause(self, who: list[str] = None) -> ActionRequest:
+    @abstractmethod
+    def pause(self, who: list[str] = None) -> Any:
         """
         Called from the MainProcess. Should pause all bots or a specific bot.
         :param who: The bot to pause. If None, pauses all bots.
         :return: TBD
         """
-        if who is None:
-            return ActionRequest(
-                "Pausing all Engines",
-                ...,
-                ign="All",
-                priority=999,
-                block_lower_priority=True,
-                discord_request=DiscordRequest("Pausing all bots confirmed"),
-            )
-        else:
-            raise NotImplementedError("Pausing specific bots is not implemented yet.")
+        pass
 
     @abstractmethod
-    def resume(self, who: list[str] = None) -> ActionRequest:
+    def resume(self, who: list[str] = None) -> Any:
         """
         Called from the MainProcess. Should resume all bots or a specific bot.
         :param who: The bot to resume. If None, resumes all bots.
@@ -176,7 +193,7 @@ class BaseParser(ABC):
         pass
 
     @abstractmethod
-    def write(self, message: str, who: str = None) -> ActionRequest:
+    def write(self, message: str, who: str = None) -> Any:
         """
         Called from the MainProcess. Should write a message to a specific bot.
         :param message: The message to write.

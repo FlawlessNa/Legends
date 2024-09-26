@@ -109,6 +109,13 @@ class Movements:
                 and (current_feature.is_ladder or next_feature.is_ladder)
             ):
                 movements.append("up")
+            elif (
+                current_feature.is_platform
+                and next_feature.is_platform
+                and dx == 0
+                and dy == 1
+            ):
+                continue
 
             # Otherwise, Nodes are connected. Need to determine connection type.
             elif next_node in current_node.connections:
