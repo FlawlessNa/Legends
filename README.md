@@ -8,11 +8,21 @@
   - Can remove decorator, but function is somewhat slower (it is minimal though)
   - Still, it doesn't solve issue because if layout is wrong, the "'" should become "è" (as an example) and configs are therefore wrong in such a case
 - [ ] Test the pauser/resumer for various scenarios (keep MobsHitting, Rebuffs, for testing purposes etc)
+  - Keys are not necessarily released when paused; because release_keys is called too soon.
+  - Streamline both pause/resume and disable/enable mechanism -> should only really be one. Make sure ref to tasks are properly updated too.
 - [ ] Improve error management and handling for appropriate breakpoints and tracebacks
 - [ ] 150 new annotated images from MP3
+- [ ] Re-annotate first 150 images for Chronos?
 - [ ] Try annotating mob images for a model as well?
 - [ ] Why does minimap error handler trigger more than once simultaneously??
-
+- [ ] Once MOB YOLO detection setup, try a new "smart" rotation algorithm based on scoring
+  - score of 100 if 5 mobs in range of skill
+  - score of 0 if no mobs in vision
+  - user enters score which is then used to determine if hit mobs or rotate
+  - score lowers as more distance with mobs
+- [ ] third failsafe on rotation sentinels should trigger pausing mechanism (disable relevant decision makers)
+- [ ] there's clearly a "preference" to jump on rope from the right side, might want to figure out why?
+  - Unless work on the new framework instead
 
 ## Improvements
 - [ ] Rebuffing:
@@ -22,21 +32,17 @@
   - [ ] Confirmation of Door being cast properly
   - [ ] Breakdown of the class between interface components and actual decision-making
 
-- [ ] third failsafe on rotation sentinels should trigger pausing mechanism (disable relevant decision makers)
-- Enabling/Disabling of DecisionMakers 
+- Enabling/Disabling of DecisionMakers
+- [ ] implement keyboard sentinel for ability to pause all bots from keyboard
+- [ ] See if the pausing/resuming mechanism can leverage _disable and _enable_decision_makers functions.
+  - They might need to be made staticmethods
+  - They might need to be revamped to target specific bots
   - [ ] implement ability to use class' MRO to enable/disable decision makers
   - [ ] Implement ability to only target specific Bots (will be useful for Discord requests)
   - [ ] Better handling of the pausing system and disabling of decision makers. Those might be two different systems altogether.
     - Disabling/Enabling would be for normal course of bot operations.
     - Ability to use self_only params, but not for all decision makers (Ex: PartyRebuff cannot be disabled for a single char)
     - Pausing would be specifically for user-requests
-
-- [ ] DiscordParser
-  - Implement an additional task within each Engine process (for each bot individually) (ex) that sentinels a specific multiprocessing.Event flag to pause/resume the bot
-  - use keyboard.add_hotkey + keyboard.wait to set/clear the flag
-  - The mainprocess has an additional task that sentinels a specific keyboard input to set/clear the flag
-  - That same multiprocessing.Event flag can be used for discord requests to pause/resume
-  - Convert _disable_decision_makers (and _enable) into staticmethods that can be used from mainProcess as well
 
 - [ ] Movement_mechanics (original system):
   - Ability for each MinimapGrid to fine-tune the calc_cost function
@@ -54,6 +60,7 @@
   - Refactor pathing/movements/actions to use VR coordinates instead of minimap coordinates
   - Note: This might require to properly code all physics standard kinetic equations as well
 - [ ] Code the movement calibration toolkit to help improvement transitions from path into movements into actions
+- [ ] transfer to GS2 under new framework?
 
 ### Other
 - [ ] Kill switches that either:
