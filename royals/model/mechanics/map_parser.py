@@ -4,8 +4,8 @@ import os
 from paths import ROOT
 import xml.etree.ElementTree as ET
 
-from royals import royals_ign_finder
-from royals.model.interface.dynamic_components.minimap import Minimap
+# from royals import royals_ign_finder
+# from royals.model.interface.dynamic_components.minimap import Minimap
 from botting.utilities import client_handler, take_screenshot
 
 
@@ -88,11 +88,11 @@ class MapParser:
 
     @staticmethod
     def get_obj_image_path(oS, l0, l1, l2):
-        return os.path.join(MapParser._ASSETS, "images", oS, f"{l0}.{l1}.{l2}.0.png")
+        return os.path.join(MapParser._ASSETS, "images", "objects", oS, f"{l0}.{l1}.{l2}.0.png")
 
     @staticmethod
     def get_tile_image_path(tS, u, no):
-        return os.path.join(MapParser._ASSETS, "images", tS, f"{u}.{no}.png")
+        return os.path.join(MapParser._ASSETS, "images", "tiles", tS, f"{u}.{no}.png")
 
     def paste_image(self, canvas, image, x, y, f, zM, r):
         h, w = image.shape[:2]

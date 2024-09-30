@@ -4,8 +4,7 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import Sequence
 
-from botting.utilities import Box
-from botting.visuals import InGameBaseVisuals
+from botting.visuals import InGameBaseVisuals, InGameDetectionVisuals
 
 DEBUG = True
 
@@ -32,9 +31,6 @@ class BaseMob(InGameBaseVisuals, ABC):
     _multiplier: int = (
         NotImplemented  # Used to count mobs on screen, since some mobs are counted as multiple contours.
     )
-
-    def __init__(self, detection_box: Box):
-        self.detection_box = detection_box
 
     @classmethod
     @abstractmethod
@@ -69,7 +65,6 @@ class BaseMob(InGameBaseVisuals, ABC):
         return round(
             len(self.get_onscreen_mobs(image, **kwargs)) / self._multiplier
         )
-
 
 def _debug(image: np.ndarray, contours) -> None:
     # Draw all contours

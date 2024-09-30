@@ -14,17 +14,18 @@ TEST_PROP = 0.1
 
 # The images must be saved into the same path as where the ANNOTATOR OUTPUT is saved
 ANNOTATOR_OUTPATH = os.path.join(
-    ROOT, "data/character_detection_images/ChronosClericTraining"
+    ROOT, "data/character_detection_images/ChronosAndMp3WithCharacter"
 )
 
 # Make sure to Ctrl+R the paths within the txt files to the images folder
 TRAIN_TXT_FILE = os.path.join(
-    ROOT, "data/character_detection_images/ChronosClericTraining/train.txt"
+    ROOT, "data/character_detection_images/ChronosAndMp3WithCharacter/train.txt"
 )
 
 with open(TRAIN_TXT_FILE, "r") as f:
     lines = f.readlines()
 
+assert all(os.path.exists(os.path.join(ROOT, line.strip())) for line in lines)
 random.shuffle(lines)
 
 total_lines = len(lines)

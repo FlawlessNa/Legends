@@ -10,7 +10,9 @@ training_configs = {
     "mob_count_threshold": 1,
     "included_buffs": ["Invincible"],
     "training_skill": "Heal",
-    "model_path": "data/model_runs/character_detection/ClericChronosTraining - Nano120",
+    "models_path": {
+        "All": "data/model_runs/character_detection/ChronosAndMp3WithCharacter - Nano"
+    },
     "smart_rotation_enabled": True,
     # "disable_teleport": True,
     "mob_spawn_alert_timer": 15,

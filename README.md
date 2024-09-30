@@ -7,22 +7,34 @@
   - This is because the _keyboard_layout_handle is decorated with lru_cache
   - Can remove decorator, but function is somewhat slower (it is minimal though)
   - Still, it doesn't solve issue because if layout is wrong, the "'" should become "è" (as an example) and configs are therefore wrong in such a case
+
 - [ ] Test the pauser/resumer for various scenarios (keep MobsHitting, Rebuffs, for testing purposes etc)
   - Keys are not necessarily released when paused; because release_keys is called too soon.
+  - [ ] third failsafe on rotation sentinels should trigger pausing mechanism (disable relevant decision makers)
   - Streamline both pause/resume and disable/enable mechanism -> should only really be one. Make sure ref to tasks are properly updated too.
-- [ ] Improve error management and handling for appropriate breakpoints and tracebacks
-- [x] 200 new annotated images from MP3
-- [x] Re-annotate first 150 images for Chronos?
-- [x] Try annotating mob images for a model as well?
-- [ ] Why does minimap error handler trigger more than once simultaneously??
+
+- [ ] Improve error management and handling for appropriate breakpoints and tracebacks (when error are somewhere else than within an engine)
 - [ ] Once MOB YOLO detection setup, try a new "smart" rotation algorithm based on scoring
   - score of 100 if 5 mobs in range of skill
   - score of 0 if no mobs in vision
   - user enters score which is then used to determine if hit mobs or rotate
   - score lowers as more distance with mobs
-- [ ] third failsafe on rotation sentinels should trigger pausing mechanism (disable relevant decision makers)
 - [ ] there's clearly a "preference" to jump on rope from the right side, might want to figure out why?
   - Unless work on the new framework instead
+
+## Model usage
+- For Debug mode, use the result.plot() to show class name and confidence score as well.
+- Transfer the model loading (from Character class) into InGameDetectionVisuals base class (and make sure characters as well as Mobs inherit from that new class).
+- Add a method that parses each models_path and checks the available detection classes.
+- models_path can be specified as a list or dict. Dict allows user to force a model for a given python class.
+- List uses the parse method and returns the first model that is able to predict the python class (based on its class name) 
+- Detection model for a given instance should be loaded only once, and then shared across all instances of the same class (classmethod)
+  - This allows multi-bots to share same model instance (if they live in same Engine).
+- [ ] Ability for each bot to share predictions through bot.data, for the usage of multiple decision makers
+  - Add a auto-refreshing bot data attribute that runs each model after a threshold, and decision makers can use that data.
+  - Relevant when multiple detected objects share the same model; since using model.predict() for all classes or only a subset takes roughly same exec. time
+- [ ] Character detection: Remove the single detection param and instead return all positions.
+  - Then, cross-validate with map objects to get each VR position, and compare with VR position estimated from minimap. Extract closest match.
 
 ## Improvements
 - [ ] Rebuffing:
@@ -96,6 +108,11 @@
 - [ ] GM Logo detection? (probably not realistic but could try)
     - Would need several screenshots, and threshold confirmed several times in a row.
 - [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs
+
+### Card Farming
+- [ ] Once new game-file parser is done, make a launcher for card farming
+  - Launcher requires a map, then use cv2 to show map. User can click on couple of points that will set the rotation.
+  - At each point, the character will cast ult. and then move to the next point. Rince and repeat until all cards done.
 
 ### Pathing
 - [ ] Refactoring of movement_mechanics to be cleaner

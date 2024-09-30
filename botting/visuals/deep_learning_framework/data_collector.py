@@ -5,11 +5,11 @@ from paths import ROOT
 from botting.utilities import take_screenshot, Box
 
 REGION_OF_INTEREST: Box | None = None
-HANDLE: int = 22677668
-DESIRED_NUMBER_OF_IMAGES: int = 150
-DELAY_BETWEEN_IMAGES: float = 0.5
-OUTPUT_FOLDER: str = "data/character_detection_images/ChronosClericTraining/images"
-PREFIX: str = "character"
+HANDLE: int = 0x004B0DE2
+DESIRED_NUMBER_OF_IMAGES: int = 200
+DELAY_BETWEEN_IMAGES: float = 1.0
+OUTPUT_FOLDER: str = "data/character_detection_images/ChronosAndMp3WithCharacter/images"
+PREFIX: str = "char_and_mobs"
 
 if __name__ == "__main__":
     os.makedirs(os.path.join(ROOT, OUTPUT_FOLDER), exist_ok=True)
