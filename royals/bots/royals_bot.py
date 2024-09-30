@@ -22,7 +22,7 @@ class RoyalsBot(Bot, ABC):
         game_map: type[RoyalsMap],
         detection_configs: str = None,
         client_size: str = "medium",
-        model_path: str = None,
+        models_path: dict[str, str] = None,
         character_class: str = None,
         **kwargs
     ) -> None:
@@ -32,7 +32,7 @@ class RoyalsBot(Bot, ABC):
         self.character_class = CHARACTER_MAPPING[class_name]
         self.detection_configs = detection_configs
         self.client_size = client_size
-        self.model_path = model_path
+        self.models_path = models_path
         self.game_map = game_map
 
     def child_init(
@@ -63,3 +63,4 @@ class RoyalsBot(Bot, ABC):
             lambda: take_screenshot(self.data.handle),
             threshold=0.1,
         )
+        breakpoint()

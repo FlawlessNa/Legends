@@ -14,7 +14,7 @@ async def toggle_menu(
     config_name: str,
 ) -> None:
     await controller.press(
-        handle, controller.key_binds(ign)[config_name], silenced=False, delay=0.25
+        handle, controller.key_binds(ign)[config_name], silenced=False, delay=0.15
     )
 
 
@@ -75,6 +75,8 @@ def ensure_minimap_displayed(
         priority,
         block_lower_priority=True,
         args=(handle, ign),
+        log=True,
+        cancels_itself=True,
     )
     validated_action = ActionWithValidation(
         pipe,

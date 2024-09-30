@@ -36,17 +36,11 @@ class Character(BaseCharacter, ABC):
     def __init__(
         self,
         ign: str,
-        model_path: str = None,
+        models_path: dict[str, str] = None,
         detection_configs: str = None,
         client_size: str = "medium",
     ) -> None:
-        super().__init__(ign)
-
-        if model_path is not None:
-            if not os.path.exists(model_path):
-                model_path = os.path.join(ROOT, model_path)
-            assert os.path.exists(model_path), f"Model {model_path} does not exist."
-        self._model_path = model_path
+        super().__init__(ign, models_path)
 
         self._preprocessing_method = None
         self._preprocessing_params = None

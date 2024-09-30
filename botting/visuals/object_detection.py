@@ -31,7 +31,17 @@ templates += [cv2.flip(template, 1) for template in templates]
 # template_height, template_width = template.shape[:2]
 
 # Initialize ORB detector
-orb = cv2.ORB_create()
+orb = cv2.ORB_create(
+    nfeatures=1000,
+    scaleFactor=1.2,
+    nlevels=8,
+    edgeThreshold=31,
+    firstLevel=0,
+    WTA_K=2,
+    scoreType=cv2.ORB_HARRIS_SCORE,
+    patchSize=31,
+    fastThreshold=20
+)
 
 # Compute keypoints and descriptors for the template
 # kp_template, des_template = orb.detectAndCompute(template, None)
@@ -45,49 +55,67 @@ def detect_template_orb(game_window, templates):
     # Compute keypoints and descriptors for the game window
     kp_window, des_window = orb.detectAndCompute(gray_window, None)
     # Match descriptors using BFMatcher
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    # bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING)
 
     for template in templates:
         # Compute keypoints and descriptors for the template
         kp_template, des_template = orb.detectAndCompute(template, None)
-        matches = bf.match(des_template, des_window)
-        # Sort matches by distance
-        matches = sorted(matches, key=lambda x: x.distance)
-        # Draw matches (for visualization)
-        # result = cv2.drawMatches(template, kp_template, game_window, kp_window,
-        #                          matches[:10], None,
-        #                          flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-        # cv2.imshow('result', result)
-        # cv2.waitKey(1)
+        matches = bf.knnMatch(des_template, des_window, k=2)
+        # matches = bf.match(des_template, des_window)
+        # min_distance = min(m.distance for m in matches)
+        # good_matches = [m for m in matches if m.distance < 1.2 * min_distance]
+        good_matches = []
+        for m, n in matches:
+            if m.distance < 0.75 * n.distance:
+                good_matches.append(m)
+        matched_image = cv2.drawMatches(template, kp_template, game_window, kp_window, good_matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
 
-        if len(matches) > 20:
-            points_template = np.float32(
-                [kp_template[m.queryIdx].pt for m in matches]
-            ).reshape(-1, 1, 2)
-            points_window = np.float32(
-                [kp_window[m.trainIdx].pt for m in matches]
-            ).reshape(-1, 1, 2)
+        for m in good_matches:
+            x, y = kp_window[m.trainIdx].pt
+            w, h = template.shape[::-1]
+            cv2.rectangle(game_window, (int(x), int(y)), (int(x + w), int(y + h)), (0, 255, 0), 2)
 
-            # Find homography
-            M, mask = cv2.findHomography(points_template, points_window, cv2.RANSAC, 5.0)
-            if M is not None:
-                # Use homography to find the bounding box of the detected template
-                h, w = template.shape
-                pts = np.float32([[0, 0], [0, h], [w, h], [w, 0]]).reshape(-1, 1, 2)
-                dst = cv2.perspectiveTransform(pts, M)
-
-                game_window = cv2.polylines(
-                    game_window,
-                    [np.int32(dst)],
-                    True,
-                    (0, 255, 0),
-                    3,
-                    cv2.LINE_AA
-                )
-    cv2.imshow('Detected Template', game_window)
+    cv2.imshow('Matched Image', game_window)
     cv2.waitKey(1)
 
-    return dst
+        # # Sort matches by distance
+        # matches = sorted(matches, key=lambda x: x.distance)
+        # # Draw matches (for visualization)
+        # # result = cv2.drawMatches(template, kp_template, game_window, kp_window,
+        # #                          matches[:10], None,
+        # #                          flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+        # # cv2.imshow('result', result)
+        # # cv2.waitKey(1)
+        #
+        # if len(matches) > 20:
+        #     points_template = np.float32(
+        #         [kp_template[m.queryIdx].pt for m in matches]
+        #     ).reshape(-1, 1, 2)
+        #     points_window = np.float32(
+        #         [kp_window[m.trainIdx].pt for m in matches]
+        #     ).reshape(-1, 1, 2)
+        #
+        #     # Find homography
+        #     M, mask = cv2.findHomography(points_template, points_window, cv2.RANSAC, 5.0)
+        #     if M is not None:
+        #         # Use homography to find the bounding box of the detected template
+        #         h, w = template.shape
+        #         pts = np.float32([[0, 0], [0, h], [w, h], [w, 0]]).reshape(-1, 1, 2)
+        #         dst = cv2.perspectiveTransform(pts, M)
+        #
+        #         game_window = cv2.polylines(
+        #             game_window,
+        #             [np.int32(dst)],
+        #             True,
+        #             (0, 255, 0),
+        #             3,
+        #             cv2.LINE_AA
+        #         )
+    # cv2.imshow('Detected Template', game_window)
+    # cv2.waitKey(1)
+
+    # return dst
 
 
 # Example usage

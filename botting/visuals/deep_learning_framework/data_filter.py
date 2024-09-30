@@ -1,0 +1,2 @@
+# Use this script to "filter" annotations of certain classes
+# For example, useful to use ALL existing character annotations while ignoring all mob annotations (which are usually specific to a few maps only)

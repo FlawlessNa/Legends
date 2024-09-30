@@ -4,10 +4,10 @@ from paths import ROOT
 
 PRETRAINED_MODEL_PATH = "yolov8n.pt"
 PATH_TO_DATA = (
-    "data/character_detection_images/ChronosClericTraining/data.yaml"  # yaml file
+    "data/character_detection_images/ChronosAndMp3WithCharacter/data.yaml"  # yaml file
 )
 TRAINING_PROJECT_ROOT = "data/model_runs/character_detection"
-NAME = "ClericChronosTraining - Nano"
+NAME = "ChronosAndMp3WithCharacter - Nano"
 
 model = YOLO(PRETRAINED_MODEL_PATH, task="detect")
 result = model.train(
@@ -16,6 +16,5 @@ result = model.train(
     imgsz=640,
     project=os.path.join(ROOT, TRAINING_PROJECT_ROOT),
     name=NAME,
-    exists_ok=True,
+    exist_ok=True,
 )
-breakpoint()

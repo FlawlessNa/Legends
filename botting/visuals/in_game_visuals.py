@@ -5,11 +5,14 @@ Contains methods for reading text, detecting colors or images in the game window
 
 import cv2
 import numpy as np
+import os
 import pytesseract
 from abc import ABC, abstractmethod
 from numpy import dtype, generic, ndarray
 from typing import Any, Sequence
+from ultralytics import YOLO
 
+from paths import ROOT
 from botting.utilities import Box, take_screenshot, find_image
 
 
@@ -230,3 +233,44 @@ class InGameDynamicVisuals(InGameToggleableVisuals, ABC):
         if self.is_displayed(handle, image):
             icon = self._menu_icon_position(handle, image)
             return icon + relative_box
+
+
+class InGameDetectionVisuals(InGameBaseVisuals, ABC):
+    """
+    Base class for in-game objects for which a YOLO detection model may be used)
+    """
+    detection_model: YOLO = None
+
+    def __init__(self, models_path: dict[str, str]=None) -> None:
+        self._model_path = self.get_model_for_self(models_path)
+        if self._model_path is not None:
+            if not os.path.exists(self._model_path):
+                self._model_path = os.path.join(ROOT, self._model_path)
+            assert os.path.exists(self._model_path), (
+                f"Model {self._model_path} does not exist."
+            )
+
+
+    @classmethod
+    def get_model_for_self(cls, models_path: dict[str, str]) -> str | None:
+        """
+        Returns the model path for the current class. If the class name is not in the
+        dictionary, look for the parent class recursively until found.
+        If not found and "All" is in dictionary, then use that path.
+        Otherwise, return None.
+        """
+        if cls.__name__ in models_path:
+            return models_path[cls.__name__]
+        for parent in cls.__bases__:
+            if issubclass(parent, InGameDetectionVisuals):
+                return parent.get_model_for_self(models_path)
+        if "All" in models_path:
+            return models_path["All"]
+
+    @classmethod
+    def load_model(cls, ...):
+        """
+        Sets the YOLO model for the current class.
+        """
+        if cls.detection_model is None:
+            ...
