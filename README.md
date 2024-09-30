@@ -11,9 +11,9 @@
   - Keys are not necessarily released when paused; because release_keys is called too soon.
   - Streamline both pause/resume and disable/enable mechanism -> should only really be one. Make sure ref to tasks are properly updated too.
 - [ ] Improve error management and handling for appropriate breakpoints and tracebacks
-- [ ] 150 new annotated images from MP3
-- [ ] Re-annotate first 150 images for Chronos?
-- [ ] Try annotating mob images for a model as well?
+- [x] 200 new annotated images from MP3
+- [x] Re-annotate first 150 images for Chronos?
+- [x] Try annotating mob images for a model as well?
 - [ ] Why does minimap error handler trigger more than once simultaneously??
 - [ ] Once MOB YOLO detection setup, try a new "smart" rotation algorithm based on scoring
   - score of 100 if 5 mobs in range of skill
