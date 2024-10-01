@@ -86,14 +86,31 @@ class MapParser:
         self._draw_objs()
         self._draw_tiles()
         all_items = self.objects + self.tiles
-        all_items.sort(key=lambda item: sum(item[-2:]))
-        # all_items.sort(key=lambda item: (item[-1], item[-2]))
+        all_items.sort(
+            key=lambda item: (
+                item['Section'],
+                item['z'] if item['Type'] == 'Object' else item['zM'],
+                item['zM'] if item['Type'] == 'Object' else item['z'],
+                item['ID']
+            )
+        )
+
         for item in all_items:
-            _, image, x, y, f, zM, z = item
+            type_ = item['Type']
+            section = item['Section']
+            order = item['Order']
+            id_ = item['ID']
+            desc = item['Desc']
+            image = item['Image']
+            x = item['x']
+            y = item['y']
+            f = item['f']
+            zM = item['zM']
+            z = item['z']
             self.paste_image(self.vr_canvas, image, x, y, f, zM, r=0)
-            # print(f"x={x}, y={y}, z={z}, zM={zM}, f={f}")
-            # cv2.imshow("VR Canvas", cv2.resize(self.vr_canvas, None, fx=0.5, fy=0.5))
-            # cv2.waitKey(0)
+            print(desc, f"Type={type_}, Section={section}, Order={order}, ID={id_}, x={x}, y={y}, z={z}, zM={zM}, f={f}")
+            cv2.imshow("VR Canvas", cv2.resize(self.vr_canvas, None, fx=0.5, fy=0.5))
+            cv2.waitKey(0)
         # self._draw_footholds()
         # self._draw_portals()
         # self._draw_ropes()
@@ -140,12 +157,12 @@ class MapParser:
         return int(res["x"]), int(res["y"])
 
     def paste_image(self, canvas, image, x, y, f, zM, r):
+        if f == 1:
+            image = cv2.flip(image, 1)
+
         h, w = image.shape[:2]
         alpha_s = image[:, :, 3] / 255.0
         alpha_l = 1.0 - alpha_s
-
-        if f == 1:
-            image = cv2.flip(image, 1)
         x_start = max(x, 0)
         y_start = max(y, 0)
         x_end = min(x + w, self.vr_width)
@@ -155,6 +172,9 @@ class MapParser:
         image_y_start = y_start - y
         image_x_end = image_x_start + (x_end - x_start)
         image_y_end = image_y_start + (y_end - y_start)
+
+        if r != 0:
+            breakpoint()
 
         for c in range(0, 3):
             canvas[y_start:y_end, x_start:x_end, c] = (
@@ -170,7 +190,7 @@ class MapParser:
             if section_name.isdigit():
                 obj_section = section.find("imgdir[@name='obj']")
                 if obj_section is not None:
-                    for obj in obj_section.findall("imgdir"):
+                    for idx, obj in enumerate(obj_section.findall("imgdir")):
                         oS = obj.find("string[@name='oS']").get("value")
                         l0 = obj.find("string[@name='l0']").get("value")
                         l1 = obj.find("string[@name='l1']").get("value")
@@ -187,7 +207,22 @@ class MapParser:
                         offset_x, offset_y = self._get_obj_offset(xml_path, l0, l1, l2)
                         x -= offset_x
                         y -= offset_y
-                        self.objects.append(('Obj', image, x, y, f, zM, z))
+                        self.objects.append(
+                            {
+                                'Type': 'Object',
+                                'Section': section_name,
+                                'Order': idx,
+                                'ID': obj.attrib['name'],
+                                'Desc': (oS, l0, l1, l2),
+                                'Image': image,
+                                'x': x,
+                                'y': y,
+                                'f': f,
+                                'zM': zM,
+                                'z': z,
+                                'r': r
+                            }
+                        )
         # self.objects.sort(key=lambda item: sum(item[-2:]))
         # for obj in self.objects:
         #     image, x, y, f, zM, z = obj
@@ -199,7 +234,7 @@ class MapParser:
             if section_name.isdigit():
                 tile_section = section.find("imgdir[@name='tile']")
                 if tile_section is not None:
-                    for tile in tile_section.findall("imgdir"):
+                    for idx, tile in enumerate(tile_section.findall("imgdir")):
                         info_section = section.find("imgdir[@name='info']")
                         tS = info_section.find("string[@name='tS']").get("value")
                         u = tile.find("string[@name='u']").get("value")
@@ -213,7 +248,23 @@ class MapParser:
                         x -= offset_x
                         y -= offset_y
                         image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-                        self.tiles.append(('Tile', image, x, y, 0, zM, z))
+                        self.tiles.append(
+                            {
+                                'Type': 'Tile',
+                                'Section': section_name,
+                                'Order': idx,
+                                'ID': tile.attrib['name'],
+                                'Desc': (tS, u, no),
+                                'Image': image,
+                                'x': x,
+                                'y': y,
+                                'f': 0,
+                                'zM': zM,
+                                'z': z,
+                                'r': 0
+                            }
+                        )
+                        # self.tiles.append((('Tile', tS, u, no), image, x, y, 0, zM, z))
             # self.tiles.sort(key=lambda item: item[-1])
             # for tile in self.tiles:
             #     image, x, y, f, zM, z = tile
