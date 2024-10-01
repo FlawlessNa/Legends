@@ -4,8 +4,8 @@ import os
 from paths import ROOT
 import xml.etree.ElementTree as ET
 
-# from royals import royals_ign_finder
-# from royals.model.interface.dynamic_components.minimap import Minimap
+from royals import royals_ign_finder
+from royals.model.interface.dynamic_components.minimap import Minimap
 from botting.utilities import client_handler, take_screenshot
 
 
@@ -79,12 +79,24 @@ class MapParser:
         self.minimap_scale_x = self.minimap_vr_width / self.minimap_canvas_width
         self.minimap_scale_y = self.minimap_vr_height / self.minimap_canvas_height
 
+        self.tiles = []
+        self.objects = []
+
     def draw_vr_canvas(self):
-        self._draw_tiles()
         self._draw_objs()
-        self._draw_footholds()
-        self._draw_portals()
-        self._draw_ropes()
+        self._draw_tiles()
+        all_items = self.objects + self.tiles
+        all_items.sort(key=lambda item: sum(item[-2:]))
+        # all_items.sort(key=lambda item: (item[-1], item[-2]))
+        for item in all_items:
+            _, image, x, y, f, zM, z = item
+            self.paste_image(self.vr_canvas, image, x, y, f, zM, r=0)
+            # print(f"x={x}, y={y}, z={z}, zM={zM}, f={f}")
+            # cv2.imshow("VR Canvas", cv2.resize(self.vr_canvas, None, fx=0.5, fy=0.5))
+            # cv2.waitKey(0)
+        # self._draw_footholds()
+        # self._draw_portals()
+        # self._draw_ropes()
 
     @staticmethod
     def get_obj_image_path(oS, l0, l1, l2):
@@ -94,6 +106,39 @@ class MapParser:
     def get_tile_image_path(tS, u, no):
         return os.path.join(MapParser._ASSETS, "images", "tiles", tS, f"{u}.{no}.png")
 
+    @staticmethod
+    def get_tile_xml_path(tS):
+        return os.path.join(MapParser._ASSETS, "specs", "tiles", f"{tS}.img.xml")
+
+    @staticmethod
+    def get_obj_xml_path(oS):
+        return os.path.join(MapParser._ASSETS, "specs", "objects", f"{oS}.img.xml")
+
+    @staticmethod
+    def _get_tile_offset(xml_path, u, no):
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+        # Extract the section that correspond to "u"
+        section = root.find(f".//imgdir[@name='{u}']")
+        # Then extract the subsection that corresponds to "no"
+        subsection = section.find(f".//canvas[@name='{no}']")
+        # Lastly, extract the "name" = origin values x and y
+        res = subsection.find(".//vector[@name='origin']").attrib
+
+        z = subsection.find("int[@name='z']").attrib['value']
+        return int(res["x"]), int(res["y"]), int(z)
+
+    @staticmethod
+    def _get_obj_offset(xml_path, *args):
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+        for arg in args:
+            root = root.find(f"imgdir[@name='{arg}']")
+
+        root = root.find(f"canvas[@name='0']")
+        res = root.find(f"vector[@name='origin']").attrib
+        return int(res["x"]), int(res["y"])
+
     def paste_image(self, canvas, image, x, y, f, zM, r):
         h, w = image.shape[:2]
         alpha_s = image[:, :, 3] / 255.0
@@ -101,8 +146,6 @@ class MapParser:
 
         if f == 1:
             image = cv2.flip(image, 1)
-        x -= w // 2
-        y -= h // 2
         x_start = max(x, 0)
         y_start = max(y, 0)
         x_end = min(x + w, self.vr_width)
@@ -136,9 +179,19 @@ class MapParser:
                         y = int(obj.find("int[@name='y']").get("value")) - self.vr_top
                         f = int(obj.find("int[@name='f']").get("value"))
                         zM = int(obj.find("int[@name='zM']").get("value"))
+                        z = int(obj.find("int[@name='z']").get("value"))
+                        r = int(obj.find("int[@name='r']").get("value"))
                         image_path = self.get_obj_image_path(oS, l0, l1, l2)
                         image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-                        self.paste_image(self.vr_canvas, image, x, y, f, zM, r=0)
+                        xml_path = self.get_obj_xml_path(oS)
+                        offset_x, offset_y = self._get_obj_offset(xml_path, l0, l1, l2)
+                        x -= offset_x
+                        y -= offset_y
+                        self.objects.append(('Obj', image, x, y, f, zM, z))
+        # self.objects.sort(key=lambda item: sum(item[-2:]))
+        # for obj in self.objects:
+        #     image, x, y, f, zM, z = obj
+        #     self.paste_image(self.vr_canvas, image, x, y, f, zM, r=r)
 
     def _draw_tiles(self):
         for section in self.root:
@@ -155,43 +208,16 @@ class MapParser:
                         y = int(tile.find("int[@name='y']").get("value")) - self.vr_top
                         zM = int(tile.find("int[@name='zM']").get("value"))
                         image_path = self.get_tile_image_path(tS, u, no)
+                        xml_path = self.get_tile_xml_path(tS)
+                        offset_x, offset_y, z = self._get_tile_offset(xml_path, u, no)
+                        x -= offset_x
+                        y -= offset_y
                         image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-                        h, w = image.shape[:2]
-                        if u == "enH0":
-                            x += w // 2
-                            y -= h // 2
-                        elif u == "bsc":
-                            x += w // 2
-                            y += h // 2
-                        elif u == "enH1":
-                            x += w // 2
-                            y += h // 2
-                        elif u == "edD":
-                            y += h // 2
-                        elif u == "edU":
-                            y -= h // 2
-                        elif u == "enV0":
-                            x -= w // 2
-                            y += h // 2
-                        elif u == "enV1":
-                            x += w // 2
-                            y += h // 2
-                        elif u == "slLD":
-                            x -= w // 2
-                            y += h // 2
-                            pass
-                        elif u == "slLU":
-                            breakpoint()
-                        elif u == "slRD":
-                            x += w // 2
-                            y += h // 2
-
-                        elif u == "slRU":
-                            breakpoint()
-
-                        else:
-                            breakpoint()
-                        self.paste_image(self.vr_canvas, image, x, y, f=0, zM=zM, r=0)
+                        self.tiles.append(('Tile', image, x, y, 0, zM, z))
+            # self.tiles.sort(key=lambda item: item[-1])
+            # for tile in self.tiles:
+            #     image, x, y, f, zM, z = tile
+            #     self.paste_image(self.vr_canvas, image, x, y, 0, zM, r=0)
 
     @staticmethod
     def _extract_coordinates(element, attribs: list[str]):
