@@ -9,21 +9,6 @@ from royals.model.interface.dynamic_components.minimap import Minimap
 from botting.utilities import client_handler, take_screenshot
 
 
-# Strategy:
-# 1. Draw on the Minimap Canvas
-# 2. Extract character position on minimap, translate into minimap VR coordinates
-# 3. subtract minimap_centers to this, then subtract actual VR coordinates
-# 4. Draw result on VR canvas
-
-# According to Copilot:
-# x: The x-coordinate of the object in the map.
-# y: The y-coordinate of the object in the map.
-# z: The z-index of the object, which determines the drawing order (higher values are drawn on top of lower values).
-# f: The flip value, which indicates whether the object should be flipped horizontally (1 for flipped, 0 for not flipped).
-# zM: The zoom multiplier, which scales the object (1 means no scaling, values greater than 1 scale up, and values less than 1 scale down).
-# r: The rotation value, which specifies the rotation angle of the object in degrees.
-
-
 class MapParser:
     _ASSETS = os.path.join(ROOT, "royals/assets/game_files/maps")
 
@@ -74,69 +59,249 @@ class MapParser:
         self.minimap_scale_x = self.minimap_vr_width / self.minimap_canvas_width
         self.minimap_scale_y = self.minimap_vr_height / self.minimap_canvas_height
 
-        # self.vr_canvas = np.zeros((self.vr_height, self.vr_width, 4), dtype=np.uint8)
-        # self.minimap_canvas = np.zeros(
-        #     (self.minimap_vr_height, self.minimap_vr_width, 3), dtype=np.uint8
-        # )
+        self.vr_canvas = np.zeros((self.vr_height, self.vr_width, 4), dtype=np.uint8)
+        self.fh_canvas = np.zeros((self.vr_height, self.vr_width, 3), dtype=np.uint8)
+        self.minimap_canvas = np.zeros(
+            (self.minimap_vr_height, self.minimap_vr_width, 3), dtype=np.uint8
+        )
+        self.minimap = np.zeros(
+            (self.minimap_canvas_height, self.minimap_canvas_width, 3), dtype=np.uint8
+        )
+        self._tiles_images = {}
+        self._object_images = {}
 
         self.footholds = self._extract_all_footholds()
+        self.ropes = self._extract_all_ropes()
         self.tiles = self._extract_all_tiles()
         self.objects = self._extract_all_objects()
         self.portals = self._extract_all_portals()
-        self.ropes = self._extract_all_ropes()
+        self._draw_footholds()
+        self._draw_ropes()
+        self._draw_portals()
+        # cv2.waitKey(0)
+        self._draw_minimap()
 
-    def _extract_all_footholds(self):
+    def _extract_all_footholds(self) -> list:
         """
         Extracts all footholds from the map .xml file.
         Additional footholds may be added later on by the tile and object parsers.
         """
-        pass
+        res = []
+        for layer_id in self._foothold_section:
+            for fh_group in layer_id:
+                for fh in fh_group:
+                    data = {
+                        elem.attrib['name']: int(elem.attrib['value']) for elem in fh
+                    }
+                    assert all(
+                        key in data for key in ['x1', 'y1', 'x2', 'y2', 'prev', 'next']
+                    )
+                    res.append(
+                        {
+                            'x': (data['x1'], data['x2']),
+                            'y': (data['y1'], data['y2']),
+                            'prev': data['prev'],
+                            'next': data['next']
+                        }
+                    )
+        return res
 
-    def _extract_all_tiles(self):
+    def _extract_all_ropes(self) -> list:
+        """
+        Extracts all ropes/ladders from the map .xml file.
+        Additional ropes/ladders may be added later on by the tile and object parsers.
+        https://mapleref.fandom.com/wiki/Ladders
+        l - Whether the ladderRope is a ladder (1) or a rope (0)
+        page - The depth of the player when they are on the ladderRope
+        uf - Whether the player can climb off the top of the ladderRope
+        """
+        res = []
+        for rope in self._rope_section:
+            data = {
+                elem.attrib['name']: int(elem.attrib['value']) for elem in rope
+            }
+            assert set(data.keys()) == {'x', 'y1', 'y2', 'l', 'page', 'uf'}
+            res.append(
+                {
+                    'x': (data['x'], data['x']),
+                    'y': (data['y1'], data['y2']),
+                    'l': data['l'],
+                    'page': data['page'],
+                    'uf': data['uf']
+                }
+            )
+        return res
+
+    def _extract_all_tiles(self) -> dict:
         """
         Parses the map .xml file to extract all tile specifications.
         Also extracts the tiles .png and .xml specifications to get all information.
+        Adds any footholds tied to tiles into the footholds list.
         """
-        pass
-        # result = {}
-        # for section in self.root:
-        #     section_name = section.get("name")
-        #     if section_name.isdigit():
-        #         tile_section = section.find("imgdir[@name='tile']")
-        #         if tile_section is not None:
-        #             for idx, tile in enumerate(tile_section.findall("imgdir")):
-        #                 info_section = section.find("imgdir[@name='info']")
-        #                 tS = info_section.find("string[@name='tS']").get("value")
-        #                 u = tile.find("string[@name='u']").get("value")
-        #                 no = tile.find("int[@name='no']").get("value")
-        #                 x = int(tile.find("int[@name='x']").get("value")) - self.vr_left
-        #                 y = int(tile.find("int[@name='y']").get("value")) - self.vr_top
-        #                 zM = int(tile.find("int[@name='zM']").get("value"))
-        #                 image_path = self.get_tile_image_path(tS, u, no)
-        #                 xml_path = self.get_tile_xml_path(tS)
-        #                 offset_x, offset_y, z, fh = self._get_tile_offset(xml_path, u, no)
-        #                 if fh is not None:
-        #                     fh = [(i[0] + x, i[1] + y) for i in fh]
-        #                 x -= offset_x
-        #                 y -= offset_y
-        #                 image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-        #                 self.tiles.append(
-        #                     {
-        #                         'Type': 'Tile',
-        #                         'Section': section_name,
-        #                         'Order': idx,
-        #                         'ID': tile.attrib['name'],
-        #                         'Desc': (tS, u, no),
-        #                         'Image': image,
-        #                         'x': x,
-        #                         'y': y,
-        #                         'f': 0,
-        #                         'zM': zM,
-        #                         'z': z,
-        #                         'r': 0,
-        #                         'footholds': fh
-        #                     }
-        #                 )
+        res = {}
+        for section in self.root:
+            section_name = section.get("name")
+            if section_name.isdigit():
+                info_section = section.find("imgdir[@name='info']")
+                tile_section = section.find("imgdir[@name='tile']")
+                for idx, tile in enumerate(tile_section.findall("imgdir")):
+                    tS = info_section.find("string[@name='tS']").get("value")
+                    u, no, x, y, zM = self._extract_tile_info(tile)
+
+                    image_path = self.get_tile_image_path(tS, u, no)
+                    image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+                    self._tiles_images.setdefault(image_path, image)
+
+                    tile_data = res.setdefault((tS, u, no), [])
+                    xml_path = self.get_tile_xml_path(tS)
+                    offset_x, offset_y, z, fh = self._get_tile_data(xml_path, u, no)
+                    if fh:
+                        self.footholds.append(
+                            {
+                                'x': tuple(i + x for i in fh['x']),
+                                'y': tuple(i + y for i in fh['y'])
+                            }
+                        )
+                    x -= offset_x
+                    y -= offset_y
+                    tile_data.append(
+                        {
+                            'Section': section_name,
+                            'ID': tile.attrib['name'],
+                            'x': x,
+                            'y': y,
+                            'zM': zM,
+                            'z': z,
+                            'f': 0,
+                            'r': 0,
+                        }
+                    )
+        return res
+
+    def _extract_all_objects(self) -> dict:
+        """
+        Parses the map .xml file to extract all objects specifications.
+        Also extracts the objects .png and .xml specifications to get all information.
+        Adds any footholds tied to objects into the footholds list.
+        """
+        res = {}
+        for section in self.root:
+            section_name = section.get("name")
+            if section_name.isdigit():
+                obj_section = section.find("imgdir[@name='obj']")
+                for idx, obj in enumerate(obj_section.findall("imgdir")):
+                    oS, l0, l1, l2, x, y, z, zM, f, r = self._extract_object_info(obj)
+
+                    image_path = self.get_obj_image_path(oS, l0, l1, l2)
+                    image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+                    self._object_images.setdefault(image_path, image)
+
+                    object_data = res.setdefault((oS, l0, l1, l2), [])
+                    xml_path = self.get_obj_xml_path(oS)
+                    offset_x, offset_y, fh, ropes = self._get_obj_data(
+                        xml_path, l0, l1, l2
+                    )
+                    if fh:
+                        self.footholds.append(
+                            {
+                                'x': tuple(i + x for i in fh['x']),
+                                'y': tuple(i + y for i in fh['y'])
+                            }
+                        )
+                    if ropes:
+                        self.ropes.append(
+                            {
+                                'x': tuple(i + x for i in ropes['x']),
+                                'y': tuple(i + y for i in ropes['y'])
+                            }
+                        )
+                    x -= offset_x
+                    y -= offset_y
+                    object_data.append(
+                        {
+                            'Section': section_name,
+                            'ID': obj.attrib['name'],
+                            'x': x,
+                            'y': y,
+                            'f': f,
+                            'zM': zM,
+                            'z': z,
+                            'r': r,
+                        }
+                    )
+        return res
+
+    def _extract_all_portals(self) -> list:
+        """
+        Extracts all portals from the map .xml file, provided they are linked to
+        some other portal and not just spawn points.
+        https://mapleref.fandom.com/wiki/Portal
+        pn: name of the portal (other portals points to a portal by its name)
+        pt: type of portal
+        tm: target map (ID)
+        tn: name of the portal (located in the target map) linked to this portal
+
+        Types of portals:
+            - (0, sp) -> Starting Point
+            - (1, pi) -> Portal Invisible
+            - (2, pv) -> Portal Visible (default portals)
+            - (3, pc) -> Portal Collision (invokes whenever it has collision with char)
+            - (4, pg) -> Portal Changeable
+            - (5, pgi) -> Portal Changeable Invisible
+            - (6, tp) -> Town Portal Point (portals created from Mystic Door)
+            - (7, ps) -> Portal Script, executes a script when a player enters it
+            - (8, psi) -> Portal Script Invisible
+            - (9, pcs) -> Portal Collision Script
+            - (10, ph) -> Portal Hidden (appears when character is near)
+            - (11, psh) -> Portal Script Hidden
+
+        """
+        res = []
+        for portal in self._portal_section:
+            portal_name = portal.find('string[@name="pn"]').get("value")
+            portal_type = portal.find('int[@name="pt"]').get("value")
+            if portal_name == 'sp' and portal_type == '0':
+                continue
+            elif portal_name == 'sp' or portal_type == '0':
+                breakpoint()  # This should not happen
+            target_map = portal.find('int[@name="tm"]').get("value")
+            target_portal = portal.find('string[@name="tn"]').get("value")
+            x = int(portal.find('int[@name="x"]').get("value"))
+            y = int(portal.find('int[@name="y"]').get("value"))
+            res.append(
+                {
+                    'name': portal_name,
+                    'type': portal_type,
+                    'target_map': target_map,
+                    'target_name': target_portal,
+                    'x': x,
+                    'y': y
+                }
+            )
+        return res
+
+    @staticmethod
+    def _extract_tile_info(tile: ET.Element) -> tuple:
+        u = tile.find("string[@name='u']").get("value")
+        no = tile.find("int[@name='no']").get("value")
+        x = int(tile.find("int[@name='x']").get("value"))
+        y = int(tile.find("int[@name='y']").get("value"))
+        zM = int(tile.find("int[@name='zM']").get("value"))
+        return u, no, x, y, zM
+
+    @staticmethod
+    def _extract_object_info(obj: ET.Element) -> tuple:
+        oS = obj.find("string[@name='oS']").get("value")
+        l0 = obj.find("string[@name='l0']").get("value")
+        l1 = obj.find("string[@name='l1']").get("value")
+        l2 = obj.find("string[@name='l2']").get("value")
+        x = int(obj.find("int[@name='x']").get("value"))
+        y = int(obj.find("int[@name='y']").get("value"))
+        z = int(obj.find("int[@name='z']").get("value"))
+        zM = int(obj.find("int[@name='zM']").get("value"))
+        f = int(obj.find("int[@name='f']").get("value"))
+        r = int(obj.find("int[@name='r']").get("value"))
+        return oS, l0, l1, l2, x, y, z, zM, f, r
 
     def draw_vr_canvas(self):
         self._draw_objs()
@@ -178,7 +343,9 @@ class MapParser:
 
     @staticmethod
     def get_obj_image_path(oS, l0, l1, l2):
-        return os.path.join(MapParser._ASSETS, "images", "objects", oS, f"{l0}.{l1}.{l2}.0.png")
+        return os.path.join(
+            MapParser._ASSETS, "images", "objects", oS, f"{l0}.{l1}.{l2}.0.png"
+        )
 
     @staticmethod
     def get_tile_image_path(tS, u, no):
@@ -193,45 +360,52 @@ class MapParser:
         return os.path.join(MapParser._ASSETS, "specs", "objects", f"{oS}.img.xml")
 
     @staticmethod
-    def _get_tile_offset(xml_path, u, no):
+    def _get_tile_data(xml_path, u, no) -> tuple:
         tree = ET.parse(xml_path)
         root = tree.getroot()
-        # Extract the section that correspond to "u"
         section = root.find(f".//imgdir[@name='{u}']")
-        # Then extract the subsection that corresponds to "no"
         subsection = section.find(f".//canvas[@name='{no}']")
-        # Lastly, extract the "name" = origin values x and y
         res = subsection.find(".//vector[@name='origin']").attrib
         z = subsection.find("int[@name='z']").attrib['value']
         extended = subsection.find('extended')
-        if extended is not None:
-            footholds = [
-                (int(elem.attrib['x']), int(elem.attrib['y']))
-                for elem in extended.findall('vector')
-            ]
-        else:
-            footholds = None
+        fh = {}
+        rope = {}
+        if extended is not None and extended.get('name') == 'foothold':
+            fh = {
+                'x': tuple(int(elem.attrib['x']) for elem in extended.findall('vector')),
+                'y': tuple(int(elem.attrib['y']) for elem in extended.findall('vector'))
+            }
+        elif extended is not None:
+            breakpoint()
 
-        return int(res["x"]), int(res["y"]), int(z), footholds
+        return int(res["x"]), int(res["y"]), int(z), fh
 
     @staticmethod
-    def _get_obj_offset(xml_path, *args):
+    def _get_obj_data(xml_path, *args):
         tree = ET.parse(xml_path)
         root = tree.getroot()
         for arg in args:
             root = root.find(f"imgdir[@name='{arg}']")
 
         root = root.find(f"canvas[@name='0']")
-        extended = root.find('extended')
-        if extended is not None:
-            footholds = [
-                (int(elem.attrib['x']), int(elem.attrib['y']))
-                for elem in extended.findall('vector')
-            ]
-        else:
-            footholds = None
+        extended = root.findall('extended')
+        assert len(extended) <= 1
+        fh = {}
+        rope = {}
+        if extended and extended[0].get('name') == 'foothold':
+            fh = {
+                'x': tuple(int(i.attrib['x']) for i in extended[0].findall('vector')),
+                'y': tuple(int(i.attrib['y']) for i in extended[0].findall('vector'))
+            }
+        elif extended and extended[0].get('name') in ['rope', 'ladder']:
+            rope = {
+                'x': tuple(int(i.attrib['x']) for i in extended[0].findall('vector')),
+                'y': tuple(int(i.attrib['y']) for i in extended[0].findall('vector'))
+            }
+        elif extended:
+            breakpoint()
         res = root.find(f"vector[@name='origin']").attrib
-        return int(res["x"]), int(res["y"]), footholds
+        return int(res["x"]), int(res["y"]), fh, rope
 
     def paste_image(self, canvas, image, x, y, f, zM, r):
         if f == 1:
@@ -261,166 +435,84 @@ class MapParser:
                 * canvas[y_start:y_end, x_start:x_end, c]
             )
 
-    def _draw_objs(self):
-        for section in self.root:
-            section_name = section.get("name")
-            if section_name.isdigit():
-                obj_section = section.find("imgdir[@name='obj']")
-                if obj_section is not None:
-                    for idx, obj in enumerate(obj_section.findall("imgdir")):
-                        oS = obj.find("string[@name='oS']").get("value")
-                        l0 = obj.find("string[@name='l0']").get("value")
-                        l1 = obj.find("string[@name='l1']").get("value")
-                        l2 = obj.find("string[@name='l2']").get("value")
-                        x = int(obj.find("int[@name='x']").get("value")) - self.vr_left
-                        y = int(obj.find("int[@name='y']").get("value")) - self.vr_top
-                        f = int(obj.find("int[@name='f']").get("value"))
-                        zM = int(obj.find("int[@name='zM']").get("value"))
-                        z = int(obj.find("int[@name='z']").get("value"))
-                        r = int(obj.find("int[@name='r']").get("value"))
-                        image_path = self.get_obj_image_path(oS, l0, l1, l2)
-                        image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-                        xml_path = self.get_obj_xml_path(oS)
-                        offset_x, offset_y, fh = self._get_obj_offset(xml_path, l0, l1, l2)
-                        if fh is not None:
-                            fh = [(i[0] + x, i[1] + y) for i in fh]
-                        x -= offset_x
-                        y -= offset_y
-                        self.objects.append(
-                            {
-                                'Type': 'Object',
-                                'Section': section_name,
-                                'Order': idx,
-                                'ID': obj.attrib['name'],
-                                'Desc': (oS, l0, l1, l2),
-                                'Image': image,
-                                'x': x,
-                                'y': y,
-                                'f': f,
-                                'zM': zM,
-                                'z': z,
-                                'r': r,
-                                'footholds': fh
-                            }
-                        )
-        # self.objects.sort(key=lambda item: sum(item[-2:]))
-        # for obj in self.objects:
-        #     image, x, y, f, zM, z = obj
-        #     self.paste_image(self.vr_canvas, image, x, y, f, zM, r=r)
+    def _draw_lines(
+        self,
+        lines,
+        x_offset: int = None,
+        y_offset: int = None,
+        color = (255, 255, 255),
+        show: bool = False
+    ) -> None:
+        if x_offset is None and y_offset is None:
+            target = self.fh_canvas
+            x_offset = -self.vr_left
+            y_offset = -self.vr_top
+            name="Map Lines"
+        elif x_offset == self.minimap_center_x and y_offset == self.minimap_center_y:
+            target = self.minimap_canvas
+            name="Minimap Lines"
+        else:
+            raise ValueError("Invalid offsets provided.")
 
-    def _draw_tiles(self):
-        for section in self.root:
-            section_name = section.get("name")
-            if section_name.isdigit():
-                tile_section = section.find("imgdir[@name='tile']")
-                if tile_section is not None:
-                    for idx, tile in enumerate(tile_section.findall("imgdir")):
-                        info_section = section.find("imgdir[@name='info']")
-                        tS = info_section.find("string[@name='tS']").get("value")
-                        u = tile.find("string[@name='u']").get("value")
-                        no = tile.find("int[@name='no']").get("value")
-                        x = int(tile.find("int[@name='x']").get("value")) - self.vr_left
-                        y = int(tile.find("int[@name='y']").get("value")) - self.vr_top
-                        zM = int(tile.find("int[@name='zM']").get("value"))
-                        image_path = self.get_tile_image_path(tS, u, no)
-                        xml_path = self.get_tile_xml_path(tS)
-                        offset_x, offset_y, z, fh = self._get_tile_offset(xml_path, u, no)
-                        if fh is not None:
-                            fh = [(i[0] + x, i[1] + y) for i in fh]
-                        x -= offset_x
-                        y -= offset_y
-                        image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-                        self.tiles.append(
-                            {
-                                'Type': 'Tile',
-                                'Section': section_name,
-                                'Order': idx,
-                                'ID': tile.attrib['name'],
-                                'Desc': (tS, u, no),
-                                'Image': image,
-                                'x': x,
-                                'y': y,
-                                'f': 0,
-                                'zM': zM,
-                                'z': z,
-                                'r': 0,
-                                'footholds': fh
-                            }
-                        )
-                        # self.tiles.append((('Tile', tS, u, no), image, x, y, 0, zM, z))
-            # self.tiles.sort(key=lambda item: item[-1])
-            # for tile in self.tiles:
-            #     image, x, y, f, zM, z = tile
-            #     self.paste_image(self.vr_canvas, image, x, y, 0, zM, r=0)
+        for line in lines:
+            x, y = line['x'], line['y']
+            if isinstance(x, int) and isinstance(y, int):
+                cv2.circle(target, (x + x_offset, y + y_offset), 1, color, 3)
+            else:
+                assert len(x) == len(y)
+                for i in range(0, len(x) - 1):
+                    adj_x1, adj_y1 = x[i] + x_offset, y[i] + y_offset
+                    adj_x2, adj_y2 = x[i + 1] + x_offset, y[i + 1] + y_offset
+                    cv2.line(
+                        target, (adj_x1, adj_y1), (adj_x2, adj_y2), color, 1
+                    )
+        if show:
+            cv2.imshow(name, target)
+            cv2.waitKey(1)
 
-    @staticmethod
-    def _extract_coordinates(element, attribs: list[str]):
-        # Check if the element contains x1, y1, x2, and y2 attributes
-        result = []
+    def _draw_footholds(self, show: bool = False):
+        self._draw_lines(self.footholds, show=show)
 
-        def _recursive_extract(element, extraction, attribs):
-            for attrib in attribs:
-                extraction[attrib] = element.find(f"int[@name='{attrib}']")
-            if all(elem is not None for elem in extraction.values()):
-                result.append(
-                    {
-                        **{k: int(v.get("value")) for k, v in extraction.items()},
-                        "name": element.attrib["name"],
-                    }
-                )
-            for child in element:
-                _recursive_extract(child, extraction, attribs)
+    def _draw_portals(self, show: bool = False):
+        self._draw_lines(self.portals, color=(0, 255, 0), show=show)
 
-        _recursive_extract(element, {}, attribs)
-        return result
+    def _draw_ropes(self, show: bool = False):
+        self._draw_lines(self.ropes, color=(255, 0, 0), show=show)
 
-    def _draw_footholds(self):
-        fh_coords = self._extract_coordinates(self._foothold, ["x1", "y1", "x2", "y2"])
-        for coord in fh_coords:
-            x1, y1 = coord["x1"] - self.vr_left, coord["y1"] - self.vr_top
-            x2, y2 = coord["x2"] - self.vr_left, coord["y2"] - self.vr_top
-            if (
-                x1 > self.vr_canvas.shape[1]
-                or x2 > self.vr_canvas.shape[1]
-                or y1 > self.vr_canvas.shape[0]
-                or y2 > self.vr_canvas.shape[0]
-            ):
-                breakpoint()
-            elif x1 < 0 or x2 < 0 or y1 < 0 or y2 < 0:
-                breakpoint()
-            cv2.line(self.vr_canvas, (x1, y1), (x2, y2), (255, 255, 255), 3)
+    def _draw_minimap(self):
+        self._draw_lines(self.footholds, self.minimap_center_x, self.minimap_center_y)
+        self._draw_lines(
+            self.portals, self.minimap_center_x, self.minimap_center_y, color=(0, 255, 0)
+        )
+        self._draw_lines(
+            self.ropes, self.minimap_center_x, self.minimap_center_y, color=(255, 0, 0)
+        )
+        for y in range(self.minimap_vr_height):
+            for x in range(self.minimap_vr_width):
+                pixel = self.minimap_canvas[y, x]
+                if not np.array_equal(pixel, (0, 0, 0)):
+                    small_x = int(x / self.minimap_scale_x)
+                    small_y = int(y / self.minimap_scale_y)
+                    self.minimap[small_y, small_x] = pixel
+        cv2.imshow('test', cv2.resize(self.minimap, None, fx=5, fy=5))
+        cv2.waitKey(1)
 
-    def _draw_portals(self):
-        portal_coords = self._extract_coordinates(self._portals, ["x", "y"])
-        for coord in portal_coords:
-            x, y = coord["x"] - self.vr_left, coord["y"] - self.vr_top
-            cv2.circle(self.vr_canvas, (x, y), 1, (0, 255, 0), 5)
-
-    def _draw_ropes(self):
-        rope_coords = self._extract_coordinates(self._ropes, ["x", "y1", "y2"])
-        for coord in rope_coords:
-            x, y1, y2 = (
-                coord["x"] - self.vr_left,
-                coord["y1"] - self.vr_top,
-                coord["y2"] - self.vr_top,
-            )
-            cv2.line(self.vr_canvas, (x, y1), (x, y2), (0, 0, 255), 3)
 
 
 if __name__ == "__main__":
     map_name = "MysteriousPath3"
     map_parser = MapParser(map_name)
-    map_parser.draw_vr_canvas()
-    cv2.imshow("VR Canvas", cv2.resize(map_parser.vr_canvas, None, fx=0.5, fy=0.5))
-    cv2.waitKey(1)
-    breakpoint()
+    # map_parser.draw_vr_canvas()
+    # cv2.imshow("VR Canvas", cv2.resize(map_parser.vr_canvas, None, fx=0.5, fy=0.5))
+    # cv2.waitKey(1)
+    # breakpoint()
     HANDLE = client_handler.get_client_handle("StarBase", royals_ign_finder)
-    objects = {
-        "16": {
-            "path": r"C:\Users\nassi\Games\MapleRoyals\Legends\royals\assets\game_files\maps\images\acc4\toyCastle2.b2.6.0.png",
-            "x": -608,
-            "y": 532,
-        },
+    # objects = {
+    #     "16": {
+    #         "path": r"C:\Users\nassi\Games\MapleRoyals\Legends\royals\assets\game_files\maps\images\acc4\toyCastle2.b2.6.0.png",
+    #         "x": -608,
+    #         "y": 532,
+    #     },
         # "17": {
         #     "path": r"C:\Users\nassi\Games\MapleRoyals\Legends\royals\assets\game_files\maps\images\acc4\toyCastle2.b2.4.0.png",
         #     "x": -28,
@@ -431,7 +523,7 @@ if __name__ == "__main__":
         #     "x": -276,
         #     "y": 292,
         # }
-    }
+    # }
 
     class FakeMinimap(Minimap):
         map_area_width = map_parser.minimap_canvas_width
@@ -444,9 +536,8 @@ if __name__ == "__main__":
     map_area_box = minimap.get_map_area_box(HANDLE)
 
     from royals.model.characters import Bishop
-    from botting.utilities import take_screenshot
     # client_img = take_screenshot(HANDLE)
-    char = Bishop("StarBase", "data/model_runs/character_detection/ClericChronosTraining - Nano120")
+    # char = Bishop("StarBase", "data/model_runs/character_detection/ClericChronosTraining - Nano120")
     # on_screen_pos = char.get_onscreen_position(client_img, acceptance_threshold=0.5)
     # cv2.rectangle(client_img, (on_screen_pos[0], on_screen_pos[1]), (on_screen_pos[2], on_screen_pos[3]), 255, 2)
     # cx, cy = (on_screen_pos[0] + on_screen_pos[2]) / 2, (on_screen_pos[1] + on_screen_pos[3]) / 2
@@ -476,46 +567,51 @@ if __name__ == "__main__":
     # vr_pos = MapParser.map_to_vr_coordinates((cx, cy), ref_pts_screen, ref_pts_vr)
     # cv2.circle(map_parser.vr_canvas, (int(vr_pos[0] - map_parser.vr_left), int(vr_pos[1] - map_parser.vr_top)), 5, (255, 255, 255), 5)
     # Test coordiantes of objects by drawing white on the VR canvas
-    for obj in objects:
-        x, y = objects[obj]["x"] - map_parser.vr_left, objects[obj]["y"] - map_parser.vr_top
-        cv2.circle(map_parser.vr_canvas, (x, y), 5, (255, 255, 255), 5)
+    # for obj in objects:
+    #     x, y = objects[obj]["x"] - map_parser.vr_left, objects[obj]["y"] - map_parser.vr_top
+    #     cv2.circle(map_parser.vr_canvas, (x, y), 5, (255, 255, 255), 5)
     while True:
-        # TODO - Try using a new ref point that is not horizontally aligned!
-        copied = map_parser.vr_canvas.copy()
-        client_img = take_screenshot(HANDLE)
-        on_screen_pos = char.get_onscreen_position(client_img, acceptance_threshold=0.5)
-        cv2.rectangle(client_img, (on_screen_pos[0], on_screen_pos[1]),
-                      (on_screen_pos[2], on_screen_pos[3]), 255, 2)
-        cx, cy = (on_screen_pos[0] + on_screen_pos[2]) / 2, (
-                on_screen_pos[1] + on_screen_pos[3]) / 2
-        cv2.circle(client_img, (int(cx), int(cy)), 5, (0, 255, 0), -1)
-        ref_pts_screen = []
-        ref_pts_vr = []
-        for obj in objects:
-            image = cv2.imread(objects[obj]["path"])
-            # Match object on client image and draw rectangle
-            match = cv2.matchTemplate(client_img, image, cv2.TM_CCOEFF_NORMED)
-            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(match)
-            top_left = max_loc
-            bottom_right = (top_left[0] + image.shape[1], top_left[1] + image.shape[0])
-            center_screen_x = top_left[0] + image.shape[1] // 2
-            center_screen_y = top_left[1] + image.shape[0] // 2
-            ref_pts_screen.append((center_screen_x, center_screen_y))
-            # center_vr_x = objects[obj]["x"] - map_parser.vr_left
-            # center_vr_y = objects[obj]["y"] - map_parser.vr_top
-            center_vr_x = objects[obj]["x"]
-            center_vr_y = objects[obj]["y"]
-            ref_pts_vr.append((center_vr_x, center_vr_y))
-            cv2.rectangle(client_img, top_left, bottom_right, 255, 2)
-            cv2.circle(client_img, (center_screen_x, center_screen_y), 5, (0, 255, 0),
-                       -1)
-            cv2.imshow("Client", client_img)
-            cv2.waitKey(1)
-        vr_pos = MapParser.map_to_vr_coordinates((cx, cy), ref_pts_screen, ref_pts_vr)
-        cv2.circle(map_parser.vr_canvas, (int(vr_pos[0] - map_parser.vr_left), int(vr_pos[1] - map_parser.vr_top)), 5, (255, 255, 255), 5)
-        # pos = minimap.get_character_positions(HANDLE).pop()
-        # pos = map_parser.translate_to_vr(pos)
-        # cv2.circle(copied, pos, 1, (0, 255, 0), 3)
-        cv2.imshow("Canvas", cv2.resize(copied, None, fx=0.5, fy=0.5))
+        copied = map_parser.minimap.copy()
+        pos = minimap.get_character_positions(HANDLE, map_area_box=map_area_box).pop()
+        cv2.circle(copied, pos, 1, (0, 255, 0), 1)
+        cv2.imshow("Test Pos", cv2.resize(copied, None, fx=5, fy=5))
         cv2.waitKey(1)
-        # breakpoint()
+        # TODO - Try using a new ref point that is not horizontally aligned!
+        # copied = map_parser.vr_canvas.copy()
+        # client_img = take_screenshot(HANDLE)
+        # on_screen_pos = char.get_onscreen_position(client_img, acceptance_threshold=0.5)
+        # cv2.rectangle(client_img, (on_screen_pos[0], on_screen_pos[1]),
+        #               (on_screen_pos[2], on_screen_pos[3]), 255, 2)
+        # cx, cy = (on_screen_pos[0] + on_screen_pos[2]) / 2, (
+        #         on_screen_pos[1] + on_screen_pos[3]) / 2
+        # cv2.circle(client_img, (int(cx), int(cy)), 5, (0, 255, 0), -1)
+        # ref_pts_screen = []
+        # ref_pts_vr = []
+        # for obj in objects:
+        #     image = cv2.imread(objects[obj]["path"])
+        #     # Match object on client image and draw rectangle
+        #     match = cv2.matchTemplate(client_img, image, cv2.TM_CCOEFF_NORMED)
+        #     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(match)
+        #     top_left = max_loc
+        #     bottom_right = (top_left[0] + image.shape[1], top_left[1] + image.shape[0])
+        #     center_screen_x = top_left[0] + image.shape[1] // 2
+        #     center_screen_y = top_left[1] + image.shape[0] // 2
+        #     ref_pts_screen.append((center_screen_x, center_screen_y))
+        #     # center_vr_x = objects[obj]["x"] - map_parser.vr_left
+        #     # center_vr_y = objects[obj]["y"] - map_parser.vr_top
+        #     center_vr_x = objects[obj]["x"]
+        #     center_vr_y = objects[obj]["y"]
+        #     ref_pts_vr.append((center_vr_x, center_vr_y))
+        #     cv2.rectangle(client_img, top_left, bottom_right, 255, 2)
+        #     cv2.circle(client_img, (center_screen_x, center_screen_y), 5, (0, 255, 0),
+        #                -1)
+        #     cv2.imshow("Client", client_img)
+        #     cv2.waitKey(1)
+        # vr_pos = MapParser.map_to_vr_coordinates((cx, cy), ref_pts_screen, ref_pts_vr)
+        # cv2.circle(map_parser.vr_canvas, (int(vr_pos[0] - map_parser.vr_left), int(vr_pos[1] - map_parser.vr_top)), 5, (255, 255, 255), 5)
+        # # pos = minimap.get_character_positions(HANDLE).pop()
+        # # pos = map_parser.translate_to_vr(pos)
+        # # cv2.circle(copied, pos, 1, (0, 255, 0), 3)
+        # cv2.imshow("Canvas", cv2.resize(copied, None, fx=0.5, fy=0.5))
+        # cv2.waitKey(1)
+        # # breakpoint()
