@@ -237,58 +237,61 @@ class InGameDynamicVisuals(InGameToggleableVisuals, ABC):
 
 class InGameDetectionVisuals(InGameBaseVisuals, ABC):
     """
-    Base class for in-game objects for which a YOLO detection model may be used)
+    Base class for in-game objects for which a YOLO detection model may be used
     """
-    _model_path: str = None
+    _models: dict = {}
     detection_model: YOLO = None
 
-    def __init__(self, models_path: dict[str, str]=None) -> None:
-        self._set_model_for_cls(models_path)
+    def __init__(self, models_path: dict[str, str] = None) -> None:
+        self._register_models(models_path)
+        self._set_model_for_cls()
+
+    @staticmethod
+    def _register_models(models_path: dict[str, str]) -> None:
+        """
+        Register models based on their path specifications, if not already registered.
+        All models are registered to the base class InGameDetectionVisuals.
+        """
+        if models_path is None:
+            return
+        for class_, path in models_path.items():
+            if class_ not in InGameDetectionVisuals._models:
+                if not os.path.exists(path):
+                    path = os.path.join(ROOT, path)
+                assert os.path.exists(path), (
+                    f"Model {path} does not exist."
+                )
+                model = YOLO(os.path.join(path, "weights/best.pt"), task="detect")
+                InGameDetectionVisuals._models[class_] = model
 
     @classmethod
-    def _set_model_for_cls(cls, models_path: dict[str, str]) -> None:
+    def _set_model_for_cls(cls) -> None:
         """
         Returns the model path for the current class.
         """
-        path = cls._get_path_for_cls(models_path)
-        if path is not None:
-            if not os.path.exists(path):
-                path = os.path.join(ROOT, path)
-            assert os.path.exists(path), (
-                f"Model {path} does not exist."
-            )
-            cls._model_path = path
-        cls.load_model()
+        if cls.detection_model is None:
+            model = cls._get_model_for_cls()
+            if model is not None:
+                assert cls._is_detectable_by_model(model.names.values()), (  # type: ignore
+                    f"Model {model} is not suitable for detection for {cls.__name__}."
+                )
+                cls.detection_model = model
 
     @classmethod
-    def _get_path_for_cls(cls, models_path: dict[str, str]) -> str | None:
+    def _get_model_for_cls(cls) -> YOLO | None:
         """
-        Returns the model path for the current class. If the class name is not in the
-        dictionary, look for the parent class recursively until found.
-        If not found and "All" is in dictionary, then use that path.
+        Returns the model for the current class. If the class name is not in the
+        registered models, look for the parent class recursively until found.
+        If not found and "All" is in dictionary of models, then use that.
         Otherwise, return None.
         """
-        if cls.__name__ in models_path:
-            return models_path[cls.__name__]
+        if cls.__name__ in InGameDetectionVisuals._models:
+            return InGameDetectionVisuals._models[cls.__name__]
         for parent in cls.__bases__:
             if issubclass(parent, InGameDetectionVisuals):
-                return parent._get_path_for_cls(models_path)
-        if "All" in models_path:
-            return models_path["All"]
-
-    @classmethod
-    def load_model(cls):
-        """
-        Sets the YOLO model for the current class.
-        """
-        if cls.detection_model is None and cls._model_path is not None:
-            cls.detection_model = YOLO(
-                os.path.join(cls._model_path, "weights/best.pt"), task="detect"
-            )
-            assert cls._is_detectable_by_model(cls.detection_model.names.values()), (
-                f"Model {cls._model_path} is not suitable for detection for "
-                f"{cls.__name__}."
-            )
+                return parent._get_model_for_cls()
+        if "All" in InGameDetectionVisuals._models:
+            return InGameDetectionVisuals._models["All"]
 
     @classmethod
     def _is_detectable_by_model(cls, detectable_classes: list[str]) -> bool:
