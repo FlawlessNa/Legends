@@ -16,57 +16,39 @@ class MapParser:
         self.tree = ET.parse(os.path.join(self._ASSETS, f"{map_name}.xml"))
         self.root = self.tree.getroot()
 
-        self._info_section = self.root.find(".//imgdir[@name='info']")
-        self._minimap_section = self.root.find(".//imgdir[@name='miniMap']")
-        self._foothold_section = self.root.find(".//imgdir[@name='foothold']")
-        self._portal_section = self.root.find(".//imgdir[@name='portal']")
-        self._rope_section = self.root.find(".//imgdir[@name='ladderRope']")
+        self._info_tree = self.root.find(".//imgdir[@name='info']")
+        self._minimap_tree = self.root.find(".//imgdir[@name='miniMap']")
+        self._foothold_tree = self.root.find(".//imgdir[@name='foothold']")
+        self._portal_tree = self.root.find(".//imgdir[@name='portal']")
+        self._rope_tree = self.root.find(".//imgdir[@name='ladderRope']")
 
         # Extract VR coordinates
-        self.vr_left = int(
-            self._info_section.find("int[@name='VRLeft']").attrib["value"]
-        )
-        self.vr_top = int(self._info_section.find("int[@name='VRTop']").attrib["value"])
-        self.vr_right = int(
-            self._info_section.find("int[@name='VRRight']").attrib["value"]
-        )
-        self.vr_bottom = int(
-            self._info_section.find("int[@name='VRBottom']").attrib["value"]
-        )
+        self.vr_left = int(self._info_tree.find("int[@name='VRLeft']").get("value"))
+        self.vr_top = int(self._info_tree.find("int[@name='VRTop']").get("value"))
+        self.vr_right = int(self._info_tree.find("int[@name='VRRight']").get("value"))
+        self.vr_bottom = int(self._info_tree.find("int[@name='VRBottom']").get("value"))
         self.vr_width = self.vr_right - self.vr_left
         self.vr_height = self.vr_bottom - self.vr_top
 
         # Extract minimap section
-        self.minimap_vr_width = int(
-            self._minimap_section.find("int[@name='width']").attrib["value"]
+        self.mini_vr_w = int(self._minimap_tree.find("int[@name='width']").get("value"))
+        self.mini_vr_h = int(self._minimap_tree.find("int[@name='height']").get("value"))
+        self.mini_cx = int(self._minimap_tree.find("int[@name='centerX']").get("value"))
+        self.mini_cy = int(self._minimap_tree.find("int[@name='centerY']").get("value"))
+        self.mini_cv_w = int(
+            self._minimap_tree.find("canvas[@name='canvas']").get("width")
         )
-        self.minimap_vr_height = int(
-            self._minimap_section.find("int[@name='height']").attrib["value"]
+        self.mini_cv_h = int(
+            self._minimap_tree.find("canvas[@name='canvas']").get("height")
         )
-        self.minimap_center_x = int(
-            self._minimap_section.find("int[@name='centerX']").attrib["value"]
-        )
-        self.minimap_center_y = int(
-            self._minimap_section.find("int[@name='centerY']").attrib["value"]
-        )
+        self.minimap_scale_x = self.mini_vr_w / self.mini_cv_w
+        self.minimap_scale_y = self.mini_vr_h / self.mini_cv_h
 
-        self.minimap_canvas_width = int(
-            self._minimap_section.find("canvas[@name='canvas']").attrib["width"]
-        )
-        self.minimap_canvas_height = int(
-            self._minimap_section.find("canvas[@name='canvas']").attrib["height"]
-        )
-        self.minimap_scale_x = self.minimap_vr_width / self.minimap_canvas_width
-        self.minimap_scale_y = self.minimap_vr_height / self.minimap_canvas_height
+        self.vr_canvas = np.zeros((self.vr_height, self.vr_width, 4), np.uint8)
+        self.fh_canvas = np.zeros((self.vr_height, self.vr_width, 3), np.uint8)
+        self.mini_vr_canvas = np.zeros((self.mini_vr_h, self.mini_vr_w, 3), np.uint8)
+        self.mini_canvas = np.zeros((self.mini_cv_h, self.mini_cv_w, 3), np.uint8)
 
-        self.vr_canvas = np.zeros((self.vr_height, self.vr_width, 4), dtype=np.uint8)
-        self.fh_canvas = np.zeros((self.vr_height, self.vr_width, 3), dtype=np.uint8)
-        self.minimap_canvas = np.zeros(
-            (self.minimap_vr_height, self.minimap_vr_width, 3), dtype=np.uint8
-        )
-        self.minimap = np.zeros(
-            (self.minimap_canvas_height, self.minimap_canvas_width, 3), dtype=np.uint8
-        )
         self._tiles_images = {}
         self._object_images = {}
 
@@ -75,11 +57,18 @@ class MapParser:
         self.tiles = self._extract_all_tiles()
         self.objects = self._extract_all_objects()
         self.portals = self._extract_all_portals()
+
+        # Draws lines on the foothold canvas
         self._draw_footholds()
         self._draw_ropes()
-        self._draw_portals()
-        # cv2.waitKey(0)
+        self._draw_portals(True)
+
+        # Draws lines on the minimap-VR coordinates canvas and actual mini-canvas
         self._draw_minimap()
+        cv2.waitKey(0)
+
+        # Draws everything on the map VR canvas
+        self._draw_map()
 
     def _extract_all_footholds(self) -> list:
         """
@@ -87,7 +76,7 @@ class MapParser:
         Additional footholds may be added later on by the tile and object parsers.
         """
         res = []
-        for layer_id in self._foothold_section:
+        for layer_id in self._foothold_tree:
             for fh_group in layer_id:
                 for fh in fh_group:
                     data = {
@@ -116,7 +105,7 @@ class MapParser:
         uf - Whether the player can climb off the top of the ladderRope
         """
         res = []
-        for rope in self._rope_section:
+        for rope in self._rope_tree:
             data = {
                 elem.attrib['name']: int(elem.attrib['value']) for elem in rope
             }
@@ -257,7 +246,7 @@ class MapParser:
 
         """
         res = []
-        for portal in self._portal_section:
+        for portal in self._portal_tree:
             portal_name = portal.find('string[@name="pn"]').get("value")
             portal_type = portal.find('int[@name="pt"]').get("value")
             if portal_name == 'sp' and portal_type == '0':
@@ -448,8 +437,8 @@ class MapParser:
             x_offset = -self.vr_left
             y_offset = -self.vr_top
             name="Map Lines"
-        elif x_offset == self.minimap_center_x and y_offset == self.minimap_center_y:
-            target = self.minimap_canvas
+        elif x_offset == self.mini_cx and y_offset == self.mini_cy:
+            target = self.mini_vr_canvas
             name="Minimap Lines"
         else:
             raise ValueError("Invalid offsets provided.")
@@ -479,24 +468,55 @@ class MapParser:
     def _draw_ropes(self, show: bool = False):
         self._draw_lines(self.ropes, color=(255, 0, 0), show=show)
 
-    def _draw_minimap(self):
-        self._draw_lines(self.footholds, self.minimap_center_x, self.minimap_center_y)
+    def _draw_minimap(self, show: bool = False):
+        self._draw_lines(self.footholds, self.mini_cx, self.mini_cy)
         self._draw_lines(
-            self.portals, self.minimap_center_x, self.minimap_center_y, color=(0, 255, 0)
+            self.portals, self.mini_cx, self.mini_cy, color=(0, 255, 0)
         )
         self._draw_lines(
-            self.ropes, self.minimap_center_x, self.minimap_center_y, color=(255, 0, 0)
+            self.ropes, self.mini_cx, self.mini_cy, color=(255, 0, 0)
         )
-        for y in range(self.minimap_vr_height):
-            for x in range(self.minimap_vr_width):
-                pixel = self.minimap_canvas[y, x]
-                if not np.array_equal(pixel, (0, 0, 0)):
-                    small_x = int(x / self.minimap_scale_x)
-                    small_y = int(y / self.minimap_scale_y)
-                    self.minimap[small_y, small_x] = pixel
-        cv2.imshow('test', cv2.resize(self.minimap, None, fx=5, fy=5))
-        cv2.waitKey(1)
+        non_zero_idx = np.where(~np.all(self.mini_vr_canvas == [0, 0, 0], axis=-1))
+        small_x = (non_zero_idx[1] / self.minimap_scale_x).astype(int)
+        small_y = (non_zero_idx[0] / self.minimap_scale_y).astype(int)
+        self.mini_canvas[small_y, small_x] = self.mini_vr_canvas[non_zero_idx]
+        if show:
+            cv2.imshow('Minimap', cv2.resize(self.mini_canvas, None, fx=5, fy=5))
+            cv2.waitKey(1)
 
+    def create_minimap_py_file(self):
+        """
+        Creates a .py file which describes all minimap features (as contours??)
+        The user can then fine-tune some of these as desired (Ex: higher weights on some
+        feature to avoid them as much as possible in pathing algorithm)
+        """
+        pass
+
+    def get_approx_vr_coord_from_minimap(
+        self, minimap_position: tuple[int, int]
+    ) -> tuple[float, float, float, float]:
+        """
+        Based on current minimap position, returns a bounding box, in VR coordinates,
+        of the character's possible location.
+        :return: x1, y1, x2, y2
+        """
+        cx, cy = minimap_position
+        min_vr_x = (cx - 0.5) * self.minimap_scale_x
+        max_vr_x = (cx + 0.5) * self.minimap_scale_x
+        min_vr_y = (cy - 0.5) * self.minimap_scale_y
+        max_vr_y = (cy + 0.5) * self.minimap_scale_y
+        return min_vr_x, min_vr_y, max_vr_x, max_vr_y
+
+    def get_vr_coord_from_on_screen_position(
+        self, on_screen_position: tuple[int, int]
+    ) -> tuple[float, float]:
+        """
+        Based on current on-screen position, returns the VR coordinates.
+        To do so, we need to find any object/tile on-screen and extract their known VR
+        coordinates. From there, we calculate the distance of the object with the
+        character, and we infer the character's VR coordinates.
+        """
+        pass
 
 
 if __name__ == "__main__":
@@ -526,8 +546,8 @@ if __name__ == "__main__":
     # }
 
     class FakeMinimap(Minimap):
-        map_area_width = map_parser.minimap_canvas_width
-        map_area_height = map_parser.minimap_canvas_height
+        map_area_width = map_parser.mini_cv_w
+        map_area_height = map_parser.mini_cv_h
 
         def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
             pass
@@ -571,11 +591,16 @@ if __name__ == "__main__":
     #     x, y = objects[obj]["x"] - map_parser.vr_left, objects[obj]["y"] - map_parser.vr_top
     #     cv2.circle(map_parser.vr_canvas, (x, y), 5, (255, 255, 255), 5)
     while True:
-        copied = map_parser.minimap.copy()
+        copied_mini = map_parser.mini_canvas.copy()
+        copied_vr_mini = map_parser.mini_vr_canvas.copy()
         pos = minimap.get_character_positions(HANDLE, map_area_box=map_area_box).pop()
-        cv2.circle(copied, pos, 1, (0, 255, 0), 1)
-        cv2.imshow("Test Pos", cv2.resize(copied, None, fx=5, fy=5))
+        vr_coord = map_parser.get_approx_vr_coord_from_minimap(pos)
+        cv2.circle(copied_mini, pos, 1, (0, 255, 0), 1)
+        cv2.rectangle(copied_vr_mini, (int(vr_coord[0]), int(vr_coord[1])), (int(vr_coord[2]), int(vr_coord[3])), (0, 0, 255), 1)
+        cv2.imshow("Test Pos", cv2.resize(copied_mini, None, fx=5, fy=5))
+        cv2.imshow("Test VR", cv2.resize(copied_vr_mini, None, fx=0.5, fy=0.5))
         cv2.waitKey(1)
+
         # TODO - Try using a new ref point that is not horizontally aligned!
         # copied = map_parser.vr_canvas.copy()
         # client_img = take_screenshot(HANDLE)
