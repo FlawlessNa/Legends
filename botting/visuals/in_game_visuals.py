@@ -239,20 +239,29 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
     """
     Base class for in-game objects for which a YOLO detection model may be used)
     """
+    _model_path: str = None
     detection_model: YOLO = None
 
     def __init__(self, models_path: dict[str, str]=None) -> None:
-        self._model_path = self.get_model_for_self(models_path)
-        if self._model_path is not None:
-            if not os.path.exists(self._model_path):
-                self._model_path = os.path.join(ROOT, self._model_path)
-            assert os.path.exists(self._model_path), (
-                f"Model {self._model_path} does not exist."
-            )
-
+        self._set_model_for_cls(models_path)
 
     @classmethod
-    def get_model_for_self(cls, models_path: dict[str, str]) -> str | None:
+    def _set_model_for_cls(cls, models_path: dict[str, str]) -> None:
+        """
+        Returns the model path for the current class.
+        """
+        path = cls._get_path_for_cls(models_path)
+        if path is not None:
+            if not os.path.exists(path):
+                path = os.path.join(ROOT, path)
+            assert os.path.exists(path), (
+                f"Model {path} does not exist."
+            )
+            cls._model_path = path
+        cls.load_model()
+
+    @classmethod
+    def _get_path_for_cls(cls, models_path: dict[str, str]) -> str | None:
         """
         Returns the model path for the current class. If the class name is not in the
         dictionary, look for the parent class recursively until found.
@@ -263,7 +272,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
             return models_path[cls.__name__]
         for parent in cls.__bases__:
             if issubclass(parent, InGameDetectionVisuals):
-                return parent.get_model_for_self(models_path)
+                return parent._get_path_for_cls(models_path)
         if "All" in models_path:
             return models_path["All"]
 
@@ -272,5 +281,24 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         """
         Sets the YOLO model for the current class.
         """
-        if cls.detection_model is None:
-            ...
+        if cls.detection_model is None and cls._model_path is not None:
+            cls.detection_model = YOLO(
+                os.path.join(cls._model_path, "weights/best.pt"), task="detect"
+            )
+            assert cls._is_detectable_by_model(cls.detection_model.names.values()), (
+                f"Model {cls._model_path} is not suitable for detection for "
+                f"{cls.__name__}."
+            )
+
+    @classmethod
+    def _is_detectable_by_model(cls, detectable_classes: list[str]) -> bool:
+        """
+        Returns whether the model is suitable for detection for the current class.
+        """
+        if cls.__name__ in detectable_classes:
+            return True
+        else:
+            for parent in cls.__bases__:
+                if issubclass(parent, InGameDetectionVisuals):
+                    return parent._is_detectable_by_model(detectable_classes)
+        return False

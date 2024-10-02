@@ -86,12 +86,12 @@ class Character(BaseCharacter, ABC):
         else:
             raise ValueError(f"Invalid client size: {self._client_size}")
 
-    @cached_property
-    def detection_model(self) -> YOLO | None:
-        if self._model_path is not None:
-            return YOLO(
-                os.path.join(self._model_path, "weights/best.pt"), task="detect"
-            )
+    # @cached_property
+    # def detection_model(self) -> YOLO | None:
+    #     if self._model_path is not None:
+    #         return YOLO(
+    #             os.path.join(self._model_path, "weights/best.pt"), task="detect"
+    #         )
 
     def get_onscreen_position(
         self,

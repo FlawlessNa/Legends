@@ -50,7 +50,7 @@ class RoyalsBot(Bot, ABC):
         self.data.create_attribute(
             "character",
             lambda: self.character_class(
-                self.ign, self.model_path, self.detection_configs, self.client_size
+                self.ign, self.models_path, self.detection_configs, self.client_size
             ),
         )
         self.data.create_attribute("current_map", lambda: self.game_map())

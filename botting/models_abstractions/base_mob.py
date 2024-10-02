@@ -4,12 +4,12 @@ import numpy as np
 from abc import ABC, abstractmethod
 from typing import Sequence
 
-from botting.visuals import InGameBaseVisuals, InGameDetectionVisuals
+from botting.visuals import InGameDetectionVisuals
 
 DEBUG = True
 
 
-class BaseMob(InGameBaseVisuals, ABC):
+class BaseMob(InGameDetectionVisuals, ABC):
     """
     Base class for all in-game Mobs.
     Defines contour detection method used for on-screen mob detection.

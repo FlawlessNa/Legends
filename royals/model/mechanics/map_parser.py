@@ -61,14 +61,14 @@ class MapParser:
         # Draws lines on the foothold canvas
         self._draw_footholds()
         self._draw_ropes()
-        self._draw_portals(True)
+        self._draw_portals()
 
         # Draws lines on the minimap-VR coordinates canvas and actual mini-canvas
         self._draw_minimap()
-        cv2.waitKey(0)
+        # cv2.waitKey(0)
 
         # Draws everything on the map VR canvas
-        self._draw_map()
+        # self._draw_map()
 
     def _extract_all_footholds(self) -> list:
         """
