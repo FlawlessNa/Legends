@@ -33,9 +33,9 @@ class MapParser:
 
         self._info_section = self.root.find(".//imgdir[@name='info']")
         self._minimap_section = self.root.find(".//imgdir[@name='miniMap']")
-        self._foothold = self.root.find(".//imgdir[@name='foothold']")
-        self._portals = self.root.find(".//imgdir[@name='portal']")
-        self._ropes = self.root.find(".//imgdir[@name='ladderRope']")
+        self._foothold_section = self.root.find(".//imgdir[@name='foothold']")
+        self._portal_section = self.root.find(".//imgdir[@name='portal']")
+        self._rope_section = self.root.find(".//imgdir[@name='ladderRope']")
 
         # Extract VR coordinates
         self.vr_left = int(
@@ -71,16 +71,72 @@ class MapParser:
         self.minimap_canvas_height = int(
             self._minimap_section.find("canvas[@name='canvas']").attrib["height"]
         )
-
-        self.vr_canvas = np.zeros((self.vr_height, self.vr_width, 4), dtype=np.uint8)
-        self.minimap_canvas = np.zeros(
-            (self.minimap_vr_height, self.minimap_vr_width, 3), dtype=np.uint8
-        )
         self.minimap_scale_x = self.minimap_vr_width / self.minimap_canvas_width
         self.minimap_scale_y = self.minimap_vr_height / self.minimap_canvas_height
 
-        self.tiles = []
-        self.objects = []
+        # self.vr_canvas = np.zeros((self.vr_height, self.vr_width, 4), dtype=np.uint8)
+        # self.minimap_canvas = np.zeros(
+        #     (self.minimap_vr_height, self.minimap_vr_width, 3), dtype=np.uint8
+        # )
+
+        self.footholds = self._extract_all_footholds()
+        self.tiles = self._extract_all_tiles()
+        self.objects = self._extract_all_objects()
+        self.portals = self._extract_all_portals()
+        self.ropes = self._extract_all_ropes()
+
+    def _extract_all_footholds(self):
+        """
+        Extracts all footholds from the map .xml file.
+        Additional footholds may be added later on by the tile and object parsers.
+        """
+        pass
+
+    def _extract_all_tiles(self):
+        """
+        Parses the map .xml file to extract all tile specifications.
+        Also extracts the tiles .png and .xml specifications to get all information.
+        """
+        pass
+        # result = {}
+        # for section in self.root:
+        #     section_name = section.get("name")
+        #     if section_name.isdigit():
+        #         tile_section = section.find("imgdir[@name='tile']")
+        #         if tile_section is not None:
+        #             for idx, tile in enumerate(tile_section.findall("imgdir")):
+        #                 info_section = section.find("imgdir[@name='info']")
+        #                 tS = info_section.find("string[@name='tS']").get("value")
+        #                 u = tile.find("string[@name='u']").get("value")
+        #                 no = tile.find("int[@name='no']").get("value")
+        #                 x = int(tile.find("int[@name='x']").get("value")) - self.vr_left
+        #                 y = int(tile.find("int[@name='y']").get("value")) - self.vr_top
+        #                 zM = int(tile.find("int[@name='zM']").get("value"))
+        #                 image_path = self.get_tile_image_path(tS, u, no)
+        #                 xml_path = self.get_tile_xml_path(tS)
+        #                 offset_x, offset_y, z, fh = self._get_tile_offset(xml_path, u, no)
+        #                 if fh is not None:
+        #                     fh = [(i[0] + x, i[1] + y) for i in fh]
+        #                 x -= offset_x
+        #                 y -= offset_y
+        #                 image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        #                 self.tiles.append(
+        #                     {
+        #                         'Type': 'Tile',
+        #                         'Section': section_name,
+        #                         'Order': idx,
+        #                         'ID': tile.attrib['name'],
+        #                         'Desc': (tS, u, no),
+        #                         'Image': image,
+        #                         'x': x,
+        #                         'y': y,
+        #                         'f': 0,
+        #                         'zM': zM,
+        #                         'z': z,
+        #                         'r': 0,
+        #                         'footholds': fh
+        #                     }
+        #                 )
 
     def draw_vr_canvas(self):
         self._draw_objs()
@@ -107,13 +163,18 @@ class MapParser:
             f = item['f']
             zM = item['zM']
             z = item['z']
+            fh = item['footholds']
             self.paste_image(self.vr_canvas, image, x, y, f, zM, r=0)
-            print(desc, f"Type={type_}, Section={section}, Order={order}, ID={id_}, x={x}, y={y}, z={z}, zM={zM}, f={f}")
-            cv2.imshow("VR Canvas", cv2.resize(self.vr_canvas, None, fx=0.5, fy=0.5))
-            cv2.waitKey(0)
-        # self._draw_footholds()
-        # self._draw_portals()
-        # self._draw_ropes()
+            if fh is not None:
+                for i in range(0, len(fh) - 1):
+                    cv2.line(self.vr_canvas, fh[i], fh[i + 1], (255, 255, 255), 3)
+
+            # print(desc, f"Type={type_}, Section={section}, Order={order}, ID={id_}, x={x}, y={y}, z={z}, zM={zM}, f={f}")
+                cv2.imshow("VR Canvas", cv2.resize(self.vr_canvas, None, fx=0.5, fy=0.5))
+                cv2.waitKey(0)
+        self._draw_footholds()
+        self._draw_portals()
+        self._draw_ropes()
 
     @staticmethod
     def get_obj_image_path(oS, l0, l1, l2):
@@ -141,9 +202,17 @@ class MapParser:
         subsection = section.find(f".//canvas[@name='{no}']")
         # Lastly, extract the "name" = origin values x and y
         res = subsection.find(".//vector[@name='origin']").attrib
-
         z = subsection.find("int[@name='z']").attrib['value']
-        return int(res["x"]), int(res["y"]), int(z)
+        extended = subsection.find('extended')
+        if extended is not None:
+            footholds = [
+                (int(elem.attrib['x']), int(elem.attrib['y']))
+                for elem in extended.findall('vector')
+            ]
+        else:
+            footholds = None
+
+        return int(res["x"]), int(res["y"]), int(z), footholds
 
     @staticmethod
     def _get_obj_offset(xml_path, *args):
@@ -153,8 +222,16 @@ class MapParser:
             root = root.find(f"imgdir[@name='{arg}']")
 
         root = root.find(f"canvas[@name='0']")
+        extended = root.find('extended')
+        if extended is not None:
+            footholds = [
+                (int(elem.attrib['x']), int(elem.attrib['y']))
+                for elem in extended.findall('vector')
+            ]
+        else:
+            footholds = None
         res = root.find(f"vector[@name='origin']").attrib
-        return int(res["x"]), int(res["y"])
+        return int(res["x"]), int(res["y"]), footholds
 
     def paste_image(self, canvas, image, x, y, f, zM, r):
         if f == 1:
@@ -204,7 +281,9 @@ class MapParser:
                         image_path = self.get_obj_image_path(oS, l0, l1, l2)
                         image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
                         xml_path = self.get_obj_xml_path(oS)
-                        offset_x, offset_y = self._get_obj_offset(xml_path, l0, l1, l2)
+                        offset_x, offset_y, fh = self._get_obj_offset(xml_path, l0, l1, l2)
+                        if fh is not None:
+                            fh = [(i[0] + x, i[1] + y) for i in fh]
                         x -= offset_x
                         y -= offset_y
                         self.objects.append(
@@ -220,7 +299,8 @@ class MapParser:
                                 'f': f,
                                 'zM': zM,
                                 'z': z,
-                                'r': r
+                                'r': r,
+                                'footholds': fh
                             }
                         )
         # self.objects.sort(key=lambda item: sum(item[-2:]))
@@ -244,7 +324,9 @@ class MapParser:
                         zM = int(tile.find("int[@name='zM']").get("value"))
                         image_path = self.get_tile_image_path(tS, u, no)
                         xml_path = self.get_tile_xml_path(tS)
-                        offset_x, offset_y, z = self._get_tile_offset(xml_path, u, no)
+                        offset_x, offset_y, z, fh = self._get_tile_offset(xml_path, u, no)
+                        if fh is not None:
+                            fh = [(i[0] + x, i[1] + y) for i in fh]
                         x -= offset_x
                         y -= offset_y
                         image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
@@ -261,7 +343,8 @@ class MapParser:
                                 'f': 0,
                                 'zM': zM,
                                 'z': z,
-                                'r': 0
+                                'r': 0,
+                                'footholds': fh
                             }
                         )
                         # self.tiles.append((('Tile', tS, u, no), image, x, y, 0, zM, z))
@@ -322,82 +405,6 @@ class MapParser:
                 coord["y2"] - self.vr_top,
             )
             cv2.line(self.vr_canvas, (x, y1), (x, y2), (0, 0, 255), 3)
-
-    def translate_to_vr(self, pos):
-        x, y = pos
-        scaled_x, scaled_y = x * self.minimap_scale_x, y * self.minimap_scale_y
-        x = int(scaled_x - self.minimap_center_x - self.vr_left)
-        y = int(scaled_y - self.minimap_scale_y - self.vr_top)
-        return x, y
-
-    @staticmethod
-    def are_collinear(points):
-        # Convert points to a NumPy array
-        points = np.array(points)
-
-        # Check if there are at least 3 points
-        if len(points) < 3:
-            return True  # Less than 3 points are always collinear
-
-        # Calculate the differences
-        x_diff = points[:, 0] - points[0, 0]
-        y_diff = points[:, 1] - points[0, 1]
-
-        # Calculate the cross product
-        cross_product = np.cross(x_diff, y_diff)
-
-        # If all cross products are zero, points are collinear
-        return np.all(cross_product == 0)
-
-    @staticmethod
-    def map_to_vr_coordinates(screen_pos, reference_points_screen, reference_points_vr):
-        """
-        # TODO - > test this properly??
-        # Only works if points are not collinear
-        Maps screen coordinates to VR coordinates using reference points.
-
-        :param screen_pos: Tuple (x, y) of the character's screen position.
-        :param reference_points_screen: List of tuples [(x1, y1), (x2, y2), ...] of screen coordinates of reference points.
-        :param reference_points_vr: List of tuples [(vx1, vy1), (vx2, vy2), ...] of VR coordinates of reference points.
-        :return: Tuple (vx, vy) of the character's VR coordinates.
-        """
-        if len(reference_points_screen) == 1:
-            dx = screen_pos[0] - reference_points_screen[0][0]
-            dy = screen_pos[1] - reference_points_screen[0][1]
-            return reference_points_vr[0][0] + dx, reference_points_vr[0][1] + dy
-        # Convert to numpy arrays
-        screen_points = np.array(reference_points_screen)
-        vr_points = np.array(reference_points_vr)
-
-        # Calculate the transformation matrix
-        A = np.vstack([screen_points.T, np.ones(len(screen_points))]).T
-        transformation_matrix, _, _, _ = np.linalg.lstsq(A, vr_points, rcond=None)
-
-        # Apply the transformation to the character's screen position
-        screen_pos_homogeneous = np.array([screen_pos[0], screen_pos[1], 1])
-        vr_pos = screen_pos_homogeneous @ transformation_matrix
-
-        return tuple(vr_pos)
-
-        # Alternative to maybe try out?
-        #
-        # import numpy as np
-        #
-        # # Reference points
-        # screen_coords = np.array([[x1, y1], [x2, y2]])
-        # vr_coords = np.array([[X1, Y1], [X2, Y2]])
-        #
-        # # Calculate the transformation matrix A and translation vector b
-        # A = np.linalg.lstsq(screen_coords, vr_coords, rcond=None)[0]
-        #
-        # # Function to transform on-screen coordinates to VR coordinates
-        # def transform_coords(screen_point):
-        #     return np.dot(A, screen_point)
-        #
-        # # Example usage
-        # screen_point = np.array([x, y])
-        # vr_point = transform_coords(screen_point)
-        # print(vr_point)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@
 
 ## Model usage
 - For Debug mode, use the result.plot() to show class name and confidence score as well.
+- The attack range around character should be a square drawn on the debug screen.
 - Transfer the model loading (from Character class) into InGameDetectionVisuals base class (and make sure characters as well as Mobs inherit from that new class).
 - Add a method that parses each models_path and checks the available detection classes.
 - models_path can be specified as a list or dict. Dict allows user to force a model for a given python class.
@@ -35,6 +36,7 @@
   - Relevant when multiple detected objects share the same model; since using model.predict() for all classes or only a subset takes roughly same exec. time
 - [ ] Character detection: Remove the single detection param and instead return all positions.
   - Then, cross-validate with map objects to get each VR position, and compare with VR position estimated from minimap. Extract closest match.
+  - Draw square around "expected region" of VR coordinates based on minimap coordinates.
 
 ## Improvements
 - [ ] Rebuffing:
@@ -112,7 +114,7 @@
 ### Card Farming
 - [ ] Once new game-file parser is done, make a launcher for card farming
   - Launcher requires a map, then use cv2 to show map. User can click on couple of points that will set the rotation.
-  - At each point, the character will cast ult. and then move to the next point. Rince and repeat until all cards done.
+  - At each point, the character will cast ult. and then move to the next point. Rinse and repeat until all cards done.
 
 ### Pathing
 - [ ] Refactoring of movement_mechanics to be cleaner
