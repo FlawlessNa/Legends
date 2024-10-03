@@ -49,6 +49,7 @@ class RoyalsBot(Bot, ABC):
         """
         super().child_init(pipe, barrier)
         InGameDetectionVisuals.register_models(self.models_path)
+        InGameDetectionVisuals.register_cache_id(self.data.handle)
         self.data.create_attribute(
             "character",
             lambda: self.character_class(

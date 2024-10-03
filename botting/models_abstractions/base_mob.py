@@ -41,22 +41,35 @@ class BaseMob(InGameDetectionVisuals, ABC):
         pass
 
     def get_onscreen_mobs(
-        self, image: np.ndarray, debug: bool = True
+        self,
+        image: np.ndarray,
+        handle: int,  # must be provided if detection model is used
+        threshold: float = None,
+        debug: bool = True
     ) -> list[Sequence[int]]:
         """
         Returns a list of tuples of the coordinates for each mob found on-screen.
+        If a detection model exists for the current mob, it is used by default.
         :return: Coordinates are, in order, x, y, width, height.
         """
-        processed = self._preprocess_img(image)
-        contours, _ = cv2.findContours(
-            processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
-        try:
-            if DEBUG and debug:
-                _debug(image, list(self._filter(contours)))
-            return [cv2.boundingRect(cnt) for cnt in self._filter(contours)]
-        except Exception as e:
+        if self.detection_model is not None:
+            res = self.run_detection_model(
+                handle,
+                image,
+                threshold
+            )
             breakpoint()
+        else:
+            processed = self._preprocess_img(image)
+            contours, _ = cv2.findContours(
+                processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+            try:
+                if DEBUG and debug:
+                    _debug(image, list(self._filter(contours)))
+                return [cv2.boundingRect(cnt) for cnt in self._filter(contours)]
+            except Exception as e:
+                breakpoint()
 
     def get_mob_count(self, image: np.ndarray, **kwargs) -> int:
         """
@@ -65,6 +78,7 @@ class BaseMob(InGameDetectionVisuals, ABC):
         return round(
             len(self.get_onscreen_mobs(image, **kwargs)) / self._multiplier
         )
+
 
 def _debug(image: np.ndarray, contours) -> None:
     # Draw all contours

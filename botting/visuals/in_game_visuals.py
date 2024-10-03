@@ -250,6 +250,14 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         self._set_model_for_cls()
 
     @staticmethod
+    def register_cache_id(cache_id: int) -> None:
+        """
+        Register a cache_id for the prediction cache.
+        """
+        InGameDetectionVisuals._prediction_cache[cache_id] = None  # type: ignore
+        InGameDetectionVisuals._arg_cache[cache_id] = None  # type: ignore
+
+    @staticmethod
     def register_models(models_path: dict[str, str]) -> None:
         """
         Register models based on their path specifications, if not already registered.
@@ -274,10 +282,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         """
         if cls.detection_model is None:
             model = cls._get_model_for_cls()
-            if model is not None:
-                assert cls._is_detectable_by_model(model.names.values()), (  # type: ignore
-                    f"Model {model} is not suitable for detection for {cls.__name__}."
-                )
+            if cls._is_detectable_by_model(model):
                 cls.detection_model = model
 
     @classmethod
@@ -297,10 +302,11 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
             return InGameDetectionVisuals._models["All"]
 
     @classmethod
-    def _is_detectable_by_model(cls, detectable_classes: list[str]) -> bool:
+    def _is_detectable_by_model(cls, model: YOLO) -> bool:
         """
         Returns whether the model is suitable for detection for the current class.
         """
+        detectable_classes = model.names.values()  # type: ignore
         if cls.__name__ in detectable_classes:
             return True
         else:
@@ -321,8 +327,9 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         # TODO - Transfer regions_to_hide (from character) here, before hashing.
         # TODO - Consider debugging mode here with res.plot()
         """
+        threshold = threshold or cls.DEFAULT_THRESHOLD
         hashed_args = hash((image.tobytes(), threshold))
-        if cls._arg_cache[cache_id] != hashed_args:
+        if InGameDetectionVisuals._arg_cache[cache_id] != hashed_args:
             res_list = cls.detection_model(
                 image,
                 conf=threshold,
@@ -331,8 +338,9 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
             assert len(res_list) == 1, (
                 f"Expected only one YOLO detection result, got {len(res_list)}."
             )
-            cls._prediction_cache[cache_id] = res_list.pop()
-            cls._arg_cache[cache_id] = hashed_args
+            InGameDetectionVisuals._prediction_cache[cache_id] = res_list.pop()
+            InGameDetectionVisuals._arg_cache[cache_id] = hashed_args
         else:
             print(f"{cls.__name__} using cached predictions.")
-            return cls._prediction_cache[cache_id]
+
+        return cls._prediction_cache[cache_id]
