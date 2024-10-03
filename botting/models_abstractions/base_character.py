@@ -19,9 +19,9 @@ class BaseCharacter(InGameDetectionVisuals, ABC):
     skills: dict[str, Skill]
 
     def __init__(
-        self, ign: str, models_path: dict[str, str] = None, *args, **kwargs
+        self, ign: str, *args, **kwargs
     ) -> None:
-        super().__init__(models_path)
+        super().__init__()
         self.ign = ign
 
     @abstractmethod

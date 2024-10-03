@@ -10,15 +10,14 @@
 ## Model Usage
 - For Debug mode, use result.plot() to show class name and confidence score as well.
 - For Debug mode, the attack range around character should be a square drawn on the debug screen.
-- Transfer the model loading (from Character class) into InGameDetectionVisuals base class (and make sure characters as well as Mobs inherit from that new class).
-- Add a method that parses each models_path and checks the available detection classes.
-- models_path is specified as a dict, where keys correspond to class names (python objects) and values correspond to the path of the model.
-- special "All" key that automatically loads that path for any class requiring a model
-- Detection model for a given instance should be loaded only once, and then shared across all instances of the same class (classmethod)
-  - This allows multi-bots to share same model instance (if they live in same Engine).
-- [ ] Ability for each bot to share predictions through bot.data, for the usage of multiple decision makers
-  - Add a auto-refreshing bot data attribute that runs each model after a threshold, and decision makers can use that data.
-  - Relevant when multiple detected objects share the same model; since using model.predict() for all classes or only a subset takes roughly same exec. time
+- [ ] Ability for each bot to share predictions
+  - Idea: use a custom caching system, where a cache is established for each bot individually (such that one bot predictions is independent of another bot predictions)
+  - For caching, can either use id() on the image or np.array_equal, whatever is fastest
+  - The cache is split by handles, and of size=1 for each handle, where the only input is the image.
+  - When predicting for same handle and same image, retrieve cache prediction instead of running model.predict()
+  - When predicting for same handle but different image, run model.predict() and update cache
+  - Predictions for different handles are never shared between handles
+  - No need to auto-refresh based on timer; auto-refresh based on new image being passed
 - [ ] Character detection: Remove the single detection param and instead return all positions.
   - Then, cross-validate with map objects to get each VR position, and compare with VR position estimated from minimap. Extract closest match.
 

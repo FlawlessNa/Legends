@@ -1,9 +1,7 @@
 import cv2
 import numpy as np
-import os
 from abc import ABC
 from functools import cached_property
-from ultralytics import YOLO
 
 from botting.models_abstractions import BaseCharacter
 from botting.utilities import (
@@ -11,7 +9,6 @@ from botting.utilities import (
     take_screenshot,
     config_reader,
 )
-from paths import ROOT
 from royals.model.mechanics import RoyalsSkill
 
 DEBUG = True
@@ -36,11 +33,10 @@ class Character(BaseCharacter, ABC):
     def __init__(
         self,
         ign: str,
-        models_path: dict[str, str] = None,
         detection_configs: str = None,
         client_size: str = "medium",
     ) -> None:
-        super().__init__(ign, models_path)
+        super().__init__(ign)
 
         self._preprocessing_method = None
         self._preprocessing_params = None

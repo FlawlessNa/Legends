@@ -8,6 +8,7 @@ import numpy as np
 import os
 import pytesseract
 from abc import ABC, abstractmethod
+from functools import lru_cache
 from numpy import dtype, generic, ndarray
 from typing import Any, Sequence
 from ultralytics import YOLO
@@ -242,12 +243,11 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
     _models: dict = {}
     detection_model: YOLO = None
 
-    def __init__(self, models_path: dict[str, str] = None) -> None:
-        self._register_models(models_path)
+    def __init__(self) -> None:
         self._set_model_for_cls()
 
     @staticmethod
-    def _register_models(models_path: dict[str, str]) -> None:
+    def register_models(models_path: dict[str, str]) -> None:
         """
         Register models based on their path specifications, if not already registered.
         All models are registered to the base class InGameDetectionVisuals.

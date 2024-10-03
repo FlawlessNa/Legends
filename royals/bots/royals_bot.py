@@ -3,6 +3,7 @@ import multiprocessing.managers
 from abc import ABC
 from botting.core import Bot
 from botting.utilities import take_screenshot
+from botting.visuals import InGameDetectionVisuals
 from royals import royals_ign_finder, royals_job_finder
 from royals.model.characters import MAPPING as CHARACTER_MAPPING
 from royals.model.maps import RoyalsMap
@@ -47,10 +48,11 @@ class RoyalsBot(Bot, ABC):
         convenience.
         """
         super().child_init(pipe, barrier)
+        InGameDetectionVisuals.register_models(self.models_path)
         self.data.create_attribute(
             "character",
             lambda: self.character_class(
-                self.ign, self.models_path, self.detection_configs, self.client_size
+                self.ign, self.detection_configs, self.client_size
             ),
         )
         self.data.create_attribute("current_map", lambda: self.game_map())
