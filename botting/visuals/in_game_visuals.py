@@ -8,11 +8,10 @@ import numpy as np
 import os
 import pytesseract
 from abc import ABC, abstractmethod
-from functools import lru_cache
 from numpy import dtype, generic, ndarray
 from typing import Any, Sequence
 from ultralytics import YOLO
-
+from ultralytics.engine.results import Results
 from paths import ROOT
 from botting.utilities import Box, take_screenshot, find_image
 
@@ -242,6 +241,10 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
     """
     _models: dict = {}
     detection_model: YOLO = None
+    _prediction_cache: dict[int, Results] = {}
+    _arg_cache: dict[int, int] = {}
+
+    DEFAULT_THRESHOLD = 0.5
 
     def __init__(self) -> None:
         self._set_model_for_cls()
@@ -305,3 +308,31 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
                 if issubclass(parent, InGameDetectionVisuals):
                     return parent._is_detectable_by_model(detectable_classes)
         return False
+
+    @classmethod
+    def run_detection_model(
+        cls,
+        cache_id: int,
+        image: np.ndarray,
+        threshold: float = DEFAULT_THRESHOLD
+    ) -> Results:
+        """
+        Run the detection model on the image, and cache the result.
+        # TODO - Transfer regions_to_hide (from character) here, before hashing.
+        # TODO - Consider debugging mode here with res.plot()
+        """
+        hashed_args = hash((image.tobytes(), threshold))
+        if cls._arg_cache[cache_id] != hashed_args:
+            res_list = cls.detection_model(
+                image,
+                conf=threshold,
+                verbose=False
+            )
+            assert len(res_list) == 1, (
+                f"Expected only one YOLO detection result, got {len(res_list)}."
+            )
+            cls._prediction_cache[cache_id] = res_list.pop()
+            cls._arg_cache[cache_id] = hashed_args
+        else:
+            print(f"{cls.__name__} using cached predictions.")
+            return cls._prediction_cache[cache_id]

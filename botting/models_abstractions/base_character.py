@@ -25,5 +25,7 @@ class BaseCharacter(InGameDetectionVisuals, ABC):
         self.ign = ign
 
     @abstractmethod
-    def get_onscreen_position(self, image: np.ndarray | None) -> Sequence[int] | None:
+    def get_onscreen_position(
+        self, image: np.ndarray | None, handle: int
+    ) -> Sequence[int] | None:
         pass

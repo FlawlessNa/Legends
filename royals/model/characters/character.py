@@ -82,17 +82,10 @@ class Character(BaseCharacter, ABC):
         else:
             raise ValueError(f"Invalid client size: {self._client_size}")
 
-    # @cached_property
-    # def detection_model(self) -> YOLO | None:
-    #     if self._model_path is not None:
-    #         return YOLO(
-    #             os.path.join(self._model_path, "weights/best.pt"), task="detect"
-    #         )
-
     def get_onscreen_position(
         self,
         image: np.ndarray | None,
-        handle: int = None,
+        handle: int,
         regions_to_hide: list[Box] = None,
         acceptance_threshold: float = None,
     ) -> tuple[int, int, int, int] | None:
@@ -119,8 +112,10 @@ class Character(BaseCharacter, ABC):
                 image[region.top : region.bottom, region.left : region.right] = 0
 
         if self.detection_model is not None:
-            assert acceptance_threshold is not None
-            model_res = self._run_detection_model(image, acceptance_threshold, "single")
+            if acceptance_threshold is None:
+                acceptance_threshold = self.DEFAULT_THRESHOLD
+            model_res = self.run_detection_model(handle, image, acceptance_threshold)
+            breakpoint()  # TODO - Fix model_res and debugging mode (merge debugs into base Visual class).
             if model_res is not None:
                 model_res = tuple(map(round, model_res[0]))
                 if DEBUG:

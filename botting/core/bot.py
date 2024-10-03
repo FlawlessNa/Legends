@@ -42,7 +42,7 @@ class Bot(ABC):
     def child_init(
         self,
         pipe: multiprocessing.connection.Connection,
-        barrier: multiprocessing.managers.BarrierProxy,
+        barrier: multiprocessing.managers.BarrierProxy,  # type: ignore
     ) -> None:
         """
         Called by the Engine to create Bot within Child process.
