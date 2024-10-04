@@ -312,7 +312,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         else:
             for parent in cls.__bases__:
                 if issubclass(parent, InGameDetectionVisuals):
-                    return parent._is_detectable_by_model(detectable_classes)
+                    return parent._is_detectable_by_model(model)
         return False
 
     @classmethod
@@ -320,7 +320,8 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         cls,
         cache_id: int,
         image: np.ndarray,
-        threshold: float = DEFAULT_THRESHOLD
+        threshold: float = DEFAULT_THRESHOLD,
+        debug: bool = False,
     ) -> Results:
         """
         Run the detection model on the image, and cache the result.
@@ -343,4 +344,10 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         else:
             print(f"{cls.__name__} using cached predictions.")
 
-        return cls._prediction_cache[cache_id]
+        if debug:
+            cv2.imshow(
+                'Detection Model',
+                InGameDetectionVisuals._prediction_cache[cache_id].plot()
+            )
+            cv2.waitKey(1)
+        return InGameDetectionVisuals._prediction_cache[cache_id]

@@ -114,13 +114,21 @@ class Character(BaseCharacter, ABC):
         if self.detection_model is not None:
             if acceptance_threshold is None:
                 acceptance_threshold = self.DEFAULT_THRESHOLD
-            model_res = self.run_detection_model(handle, image, acceptance_threshold)
-            breakpoint()  # TODO - Fix model_res and debugging mode (merge debugs into base Visual class).
-            if model_res is not None:
+            detections = self.run_detection_model(handle, image, acceptance_threshold)
+            model_res = tuple(
+                [
+                    dct["box"].values() for dct in detections.summary()
+                    if dct["name"] == "Character"
+                ]
+            )
+            if len(model_res) > 1:
+                breakpoint()  # Multiple characters detected, will need to handle this.
+
+            elif len(model_res) == 1:
                 model_res = tuple(map(round, model_res[0]))
-                if DEBUG:
-                    x1, y1, x2, y2 = model_res
-                    cv2.rectangle(image, (x1, y1), (x2, y2), (255, 0, 0), 3)
+                # if DEBUG:
+                #     x1, y1, x2, y2 = model_res
+                #     cv2.rectangle(image, (x1, y1), (x2, y2), (255, 0, 0), 3)
 
         if self._detection_methods is not None:
             detection_res = self._run_detection_methods(image, "single")
@@ -137,12 +145,12 @@ class Character(BaseCharacter, ABC):
         elif self._detection_methods is not None:
             res = detection_res
 
-        if DEBUG:
-            if res is not None:
-                x1, y1, x2, y2 = res
-                cv2.rectangle(image, (x1, y1), (x2, y2), (255, 255, 255), 3)
-            cv2.imshow("_DEBUG_ Character.get_on_screen_position", image)
-            cv2.waitKey(1)
+        # if DEBUG:
+        #     if res is not None:
+        #         x1, y1, x2, y2 = res
+        #         cv2.rectangle(image, (x1, y1), (x2, y2), (255, 255, 255), 3)
+        #     cv2.imshow("_DEBUG_ Character.get_on_screen_position", image)
+        #     cv2.waitKey(1)
         return res
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:

@@ -66,4 +66,3 @@ class RoyalsBot(Bot, ABC):
             lambda: take_screenshot(self.data.handle),
             threshold=0.1,
         )
-        breakpoint()

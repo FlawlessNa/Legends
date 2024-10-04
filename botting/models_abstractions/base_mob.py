@@ -46,19 +46,25 @@ class BaseMob(InGameDetectionVisuals, ABC):
         handle: int,  # must be provided if detection model is used
         threshold: float = None,
         debug: bool = True
-    ) -> list[Sequence[int]]:
+    ) -> tuple[Sequence[int]]:
         """
         Returns a list of tuples of the coordinates for each mob found on-screen.
         If a detection model exists for the current mob, it is used by default.
         :return: Coordinates are, in order, x, y, width, height.
         """
         if self.detection_model is not None:
-            res = self.run_detection_model(
+            detections = self.run_detection_model(
                 handle,
                 image,
                 threshold
             )
-            breakpoint()
+            res = tuple(
+                [
+                    dct["box"].values() for dct in detections.summary()
+                    if dct["name"] == self.__class__.__name__
+                ]
+            )
+            return tuple(map(lambda vals: tuple(map(round, vals)), res))  # noqa
         else:
             processed = self._preprocess_img(image)
             contours, _ = cv2.findContours(
@@ -71,12 +77,12 @@ class BaseMob(InGameDetectionVisuals, ABC):
             except Exception as e:
                 breakpoint()
 
-    def get_mob_count(self, image: np.ndarray, **kwargs) -> int:
+    def get_mob_count(self, handle: int, image: np.ndarray, **kwargs) -> int:
         """
         Returns the number of mobs found on-screen.
         """
         return round(
-            len(self.get_onscreen_mobs(image, **kwargs)) / self._multiplier
+            len(self.get_onscreen_mobs(image, handle, **kwargs)) / self._multiplier
         )
 
 
