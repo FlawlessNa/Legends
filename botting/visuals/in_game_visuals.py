@@ -4,8 +4,10 @@ Contains methods for reading text, detecting colors or images in the game window
 """
 
 import cv2
+import logging
 import numpy as np
 import os
+import torch.cuda
 import pytesseract
 from abc import ABC, abstractmethod
 from numpy import dtype, generic, ndarray
@@ -14,6 +16,9 @@ from ultralytics import YOLO
 from ultralytics.engine.results import Results
 from paths import ROOT
 from botting.utilities import Box, take_screenshot, find_image
+
+
+logger = logging.getLogger(__name__)
 
 
 class InGameBaseVisuals(ABC):
@@ -243,6 +248,12 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
     detection_model: YOLO = None
     _prediction_cache: dict[int, Results] = {}
     _arg_cache: dict[int, int] = {}
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    if device == torch.device('cpu'):
+        logger.warning(
+            "No CUDA device found. "
+            "Using CPU for detection. Detections will be ~3x slower."
+        )
 
     DEFAULT_THRESHOLD = 0.5
 
