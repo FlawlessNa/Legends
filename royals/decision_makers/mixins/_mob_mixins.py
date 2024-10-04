@@ -20,10 +20,10 @@ class MobsHittingMixin:
         :param mobs: The mobs to look for.
         :return: Total number of mobs detected in the image
         """
-        return sum([mob.get_mob_count(self.data.handle, img, **kwargs) for mob in mobs])
+        return sum([mob.get_mob_count(img, self.data.handle, **kwargs) for mob in mobs])
 
     def get_mobs_positions_in_img(
-        self, img: np.ndarray, mobs: list[BaseMob]
+        self, img: np.ndarray, mobs: list[BaseMob], **kwargs
     ) -> list[Sequence[int]]:
         """
         Given an image of arbitrary size, return the positions of a specific mob
@@ -34,7 +34,8 @@ class MobsHittingMixin:
         :return: List of mob positions found in the image.
         """
         return [
-            pos for mob in mobs for pos in mob.get_onscreen_mobs(img, self.data.handle)
+            pos for mob in mobs
+            for pos in mob.get_onscreen_mobs(img, self.data.handle, **kwargs)
         ]
 
     @staticmethod

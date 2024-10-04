@@ -243,6 +243,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
     detection_model: YOLO = None
     _prediction_cache: dict[int, Results] = {}
     _arg_cache: dict[int, int] = {}
+    _model_cls_name: str = None
 
     DEFAULT_THRESHOLD = 0.5
 
@@ -308,6 +309,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         """
         detectable_classes = model.names.values()  # type: ignore
         if cls.__name__ in detectable_classes:
+            cls._model_cls_name = cls.__name__
             return True
         else:
             for parent in cls.__bases__:
@@ -351,3 +353,31 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
             )
             cv2.waitKey(1)
         return InGameDetectionVisuals._prediction_cache[cache_id]
+
+    @classmethod
+    def extract_results(
+        cls,
+        res: Results,
+        *,
+        name: str = None,
+        hide: list[Box] = None
+    ) -> tuple[Sequence[int], ...]:
+        """
+        Extract the results from the YOLO detection model.
+        When hide is provided, any results fully contained within any of the hide
+        regions are removed.
+        """
+        if name is None:
+            name = cls._model_cls_name
+        vals = [
+            tuple(map(round, dct['box'].values())) for dct in res.summary()
+            if dct['name'] == name
+        ]
+
+        if hide is not None:
+            breakpoint()
+            for idx, (x1, y1, x2, y2) in enumerate(vals.copy()):
+                for box in hide:
+                    if (x1, y1) in box and (x2, y2) in box:
+                        vals.pop(idx)
+        return tuple(vals)
