@@ -107,28 +107,26 @@ class Character(BaseCharacter, ABC):
         else:
             image = image.copy()
 
-        if regions_to_hide is not None:
-            for region in regions_to_hide:
-                image[region.top : region.bottom, region.left : region.right] = 0
+        # if regions_to_hide is not None:
+        #     for region in regions_to_hide:
+        #         image[region.top : region.bottom, region.left : region.right] = 0
 
         if self.detection_model is not None:
-            if acceptance_threshold is None:
-                acceptance_threshold = self.DEFAULT_THRESHOLD
             detections = self.run_detection_model(handle, image, acceptance_threshold)
-            model_res = tuple(
-                [
-                    dct["box"].values() for dct in detections.summary()
-                    if dct["name"] == "Character"
-                ]
-            )
+            model_res = self.extract_results(detections, hide=regions_to_hide)
+            # model_res = tuple(
+            #     [
+            #         dct["box"].values() for dct in detections.summary()
+            #         if dct["name"] == "Character"
+            #     ]
+            # )
             if len(model_res) > 1:
                 breakpoint()  # Multiple characters detected, will need to handle this.
-
-            elif len(model_res) == 1:
-                model_res = tuple(map(round, model_res[0]))
                 # if DEBUG:
                 #     x1, y1, x2, y2 = model_res
                 #     cv2.rectangle(image, (x1, y1), (x2, y2), (255, 0, 0), 3)
+            elif len(model_res) == 1:
+                model_res = model_res[0]
 
         if self._detection_methods is not None:
             detection_res = self._run_detection_methods(image, "single")

@@ -8,6 +8,10 @@
   - Still, it doesn't solve issue because if layout is wrong, the "'" should become "è" (as an example) and configs are therefore wrong in such a case
 
 ## Model Usage
+- [ ] Refactor model storage structure 
+  - remove from .gitignore
+  - instead of using models_paths, specify model name
+  - make consistent structure for when we'll have lots of models
 - For Debug mode, use result.plot() to show class name and confidence score as well.
 - For Debug mode, the attack range around character should be a square drawn on the debug screen.
 - [ ] Ability for each bot to share predictions

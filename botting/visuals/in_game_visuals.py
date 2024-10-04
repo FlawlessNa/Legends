@@ -254,7 +254,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
             "No CUDA device found. "
             "Using CPU for detection. Detections will be ~3x slower."
         )
-
+    _model_cls_name: str = None
     DEFAULT_THRESHOLD = 0.5
 
     def __init__(self) -> None:
@@ -319,6 +319,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         """
         detectable_classes = model.names.values()  # type: ignore
         if cls.__name__ in detectable_classes:
+            cls._model_cls_name = cls.__name__
             return True
         else:
             for parent in cls.__bases__:
@@ -336,8 +337,8 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
     ) -> Results:
         """
         Run the detection model on the image, and cache the result.
-        # TODO - Transfer regions_to_hide (from character) here, before hashing.
         # TODO - Consider debugging mode here with res.plot()
+        # TODO - Try to reduce iou for less overlapping.
         """
         threshold = threshold or cls.DEFAULT_THRESHOLD
         hashed_args = hash((image.tobytes(), threshold))
@@ -345,7 +346,8 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
             res_list = cls.detection_model(
                 image,
                 conf=threshold,
-                verbose=False
+                verbose=False,
+                iou=0.3,
             )
             assert len(res_list) == 1, (
                 f"Expected only one YOLO detection result, got {len(res_list)}."
@@ -362,3 +364,31 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
             )
             cv2.waitKey(1)
         return InGameDetectionVisuals._prediction_cache[cache_id]
+
+    @classmethod
+    def extract_results(
+        cls,
+        res: Results,
+        *,
+        name: str = None,
+        hide: list[Box] = None
+    ) -> tuple[Sequence[int], ...]:
+        """
+        Extract the results from the YOLO detection model.
+        When hide is provided, any results fully contained within any of the hide
+        regions are removed.
+        """
+        if name is None:
+            name = cls._model_cls_name
+        vals = [
+            tuple(map(round, dct['box'].values())) for dct in res.summary()
+            if dct['name'] == name
+        ]
+
+        if hide is not None:
+            for idx, (x1, y1, x2, y2) in enumerate(vals.copy()):
+                for box in hide:
+                    if (x1, y1) in box and (x2, y2) in box:
+                        breakpoint()
+                        vals.pop(idx)
+        return tuple(vals)
