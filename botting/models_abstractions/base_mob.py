@@ -45,7 +45,7 @@ class BaseMob(InGameDetectionVisuals, ABC):
         image: np.ndarray,
         handle: int,  # must be provided if detection model is used
         threshold: float = None,
-        regions_to_hide: list[Box] = None,
+        mask: np.ndarray = None,
         debug: bool = True
     ) -> tuple[Sequence[int], ...]:
         """
@@ -54,8 +54,8 @@ class BaseMob(InGameDetectionVisuals, ABC):
         :return: Coordinates are, in order, x, y, width, height.
         """
         if self.detection_model is not None:
-            detections = self.run_detection_model(handle, image, threshold)
-            res = self.extract_results(detections, hide=regions_to_hide)
+            detections = self.run_detection_model(handle, image, threshold, debug=DEBUG)
+            res = self.extract_results(detections, mask=mask)
             return res
 
         else:
@@ -66,7 +66,7 @@ class BaseMob(InGameDetectionVisuals, ABC):
             try:
                 if DEBUG and debug:
                     _debug(image, list(self._filter(contours)))
-                return [cv2.boundingRect(cnt) for cnt in self._filter(contours)]
+                return tuple([cv2.boundingRect(cnt) for cnt in self._filter(contours)])
             except Exception as e:
                 breakpoint()
 
@@ -74,8 +74,9 @@ class BaseMob(InGameDetectionVisuals, ABC):
         """
         Returns the number of mobs found on-screen.
         """
+        multiplier = self._multiplier if self.detection_model is None else 1
         return round(
-            len(self.get_onscreen_mobs(image, handle, **kwargs)) / self._multiplier
+            len(self.get_onscreen_mobs(image, handle, **kwargs)) / multiplier
         )
 
 

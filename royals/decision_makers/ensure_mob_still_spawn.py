@@ -50,7 +50,7 @@ class CheckMobsStillSpawn(
         mob_count = self.mob_count_in_img(
             self.data.current_client_img,
             self.data.current_mobs,
-            debug=False
+            debug=True
         )
 
         # Enough mobs, reset timer

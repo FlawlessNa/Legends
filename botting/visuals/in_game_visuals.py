@@ -255,7 +255,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
             "Using CPU for detection. Detections will be ~3x slower."
         )
     _model_cls_name: str = None
-    DEFAULT_THRESHOLD = 0.5
+    DEFAULT_THRESHOLD = 0.65
 
     def __init__(self) -> None:
         self._set_model_for_cls()
@@ -340,6 +340,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         # TODO - Consider debugging mode here with res.plot()
         # TODO - Try to reduce iou for less overlapping.
         """
+        from datetime import datetime
         threshold = threshold or cls.DEFAULT_THRESHOLD
         hashed_args = hash((image.tobytes(), threshold))
         if InGameDetectionVisuals._arg_cache[cache_id] != hashed_args:
@@ -354,15 +355,16 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
             )
             InGameDetectionVisuals._prediction_cache[cache_id] = res_list.pop()
             InGameDetectionVisuals._arg_cache[cache_id] = hashed_args
+            print(f"{cls.__name__} ran detection model at {datetime.now()}.")
+            if debug:
+                cv2.imshow(
+                    'Detection Model',
+                    InGameDetectionVisuals._prediction_cache[cache_id].plot()
+                )
+                cv2.waitKey(1)
         else:
-            print(f"{cls.__name__} using cached predictions.")
+            print(f"{cls.__name__} using cached predictions at {datetime.now()}.")
 
-        if debug:
-            cv2.imshow(
-                'Detection Model',
-                InGameDetectionVisuals._prediction_cache[cache_id].plot()
-            )
-            cv2.waitKey(1)
         return InGameDetectionVisuals._prediction_cache[cache_id]
 
     @classmethod
@@ -371,7 +373,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         res: Results,
         *,
         name: str = None,
-        hide: list[Box] = None
+        mask: np.ndarray
     ) -> tuple[Sequence[int], ...]:
         """
         Extract the results from the YOLO detection model.
@@ -385,10 +387,16 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
             if dct['name'] == name
         ]
 
-        if hide is not None:
-            for idx, (x1, y1, x2, y2) in enumerate(vals.copy()):
-                for box in hide:
-                    if (x1, y1) in box and (x2, y2) in box:
-                        breakpoint()
-                        vals.pop(idx)
+        if mask is not None:
+            assert mask.shape == res.orig_img.shape, (
+                f"Mask shape {mask.shape} does not match image shape {res.orig_shape}."
+            )
+            # Remove any results if it is fully contained in a masked region
+            # To do so, calculate the intersection of the result with the mask
+            # if it is equal to the result, then it is fully contained in the mask
+            intersection = cv2.bitwise_and(mask, res.orig_img)
+            for pos in vals.copy():
+                x1, y1, x2, y2 = pos
+                if np.all(intersection[y1:y2, x1:x2] == 0):
+                    vals.remove(pos)
         return tuple(vals)

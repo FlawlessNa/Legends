@@ -100,35 +100,42 @@ class Character(BaseCharacter, ABC):
         :param acceptance_threshold: To use with detection model.
         :return: x1, y1, x2, y2 format for a bounding box.
         """
-        res = model_res = detection_res = None
+        res = model_res = detection_res = mask = None
         if image is None:
             assert handle is not None
             image = take_screenshot(handle, self.detection_box)
         else:
             image = image.copy()
 
-        # if regions_to_hide is not None:
-        #     for region in regions_to_hide:
-        #         image[region.top : region.bottom, region.left : region.right] = 0
+        if regions_to_hide is not None:
+            mask = np.ones(image.shape, np.uint8) * 255
+            for region in regions_to_hide:
+                mask[region.top : region.bottom, region.left : region.right] = 0
 
         if self.detection_model is not None:
-            detections = self.run_detection_model(handle, image, acceptance_threshold)
-            model_res = self.extract_results(detections, hide=regions_to_hide)
-            # model_res = tuple(
-            #     [
-            #         dct["box"].values() for dct in detections.summary()
-            #         if dct["name"] == "Character"
-            #     ]
-            # )
+            detections = self.run_detection_model(
+                handle, image, acceptance_threshold, debug=DEBUG
+            )
+            model_res = self.extract_results(detections, mask=mask)
+
             if len(model_res) > 1:
-                breakpoint()  # Multiple characters detected, will need to handle this.
-                # if DEBUG:
-                #     x1, y1, x2, y2 = model_res
-                #     cv2.rectangle(image, (x1, y1), (x2, y2), (255, 0, 0), 3)
+                cv2.imshow('Multiple Characters Detected', detections.plot())
+                cv2.waitKey(1)
+                # TODO - Cross validate with VR coordinates and take closest.
+                # For now, just return the one with highest confidence.
+                model_res = max(
+                    list(
+                        filter(
+                            lambda dct: dct["name"] == "Character", detections.summary()
+                        )
+                    ), key= lambda dct: dct["confidence"])["box"].values()
+                model_res = tuple(map(round, model_res))
+
             elif len(model_res) == 1:
                 model_res = model_res[0]
 
         if self._detection_methods is not None:
+            image = cv2.bitwise_and(image, mask)
             detection_res = self._run_detection_methods(image, "single")
             if detection_res is not None:
                 detection_res = detection_res[0]
@@ -142,13 +149,6 @@ class Character(BaseCharacter, ABC):
             res = model_res
         elif self._detection_methods is not None:
             res = detection_res
-
-        # if DEBUG:
-        #     if res is not None:
-        #         x1, y1, x2, y2 = res
-        #         cv2.rectangle(image, (x1, y1), (x2, y2), (255, 255, 255), 3)
-        #     cv2.imshow("_DEBUG_ Character.get_on_screen_position", image)
-        #     cv2.waitKey(1)
         return res
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:

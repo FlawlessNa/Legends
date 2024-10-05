@@ -15,13 +15,6 @@
 - For Debug mode, use result.plot() to show class name and confidence score as well.
 - For Debug mode, the attack range around character should be a square drawn on the debug screen.
 - [ ] Ability for each bot to share predictions
-  - Idea: use a custom caching system, where a cache is established for each bot individually (such that one bot predictions is independent of another bot predictions)
-  - For caching, can either use id() on the image or np.array_equal, whatever is fastest
-  - The cache is split by handles, and of size=1 for each handle, where the only input is the image.
-  - When predicting for same handle and same image, retrieve cache prediction instead of running model.predict()
-  - When predicting for same handle but different image, run model.predict() and update cache
-  - Predictions for different handles are never shared between handles
-  - No need to auto-refresh based on timer; auto-refresh based on new image being passed
 - [ ] Character detection: Remove the single detection param and instead return all positions.
   - Then, cross-validate with map objects to get each VR position, and compare with VR position estimated from minimap. Extract closest match.
 

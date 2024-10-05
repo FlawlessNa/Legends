@@ -1,6 +1,7 @@
 import itertools
 import logging
 import math
+import numpy as np
 import time
 
 from botting import PARENT_LOG
@@ -168,23 +169,22 @@ class NextTargetMixin:
         on_screen_pos = self.data.get_last_known_value("current_on_screen_position")
         if on_screen_pos is not None:
             x1, y1, x2, y2 = on_screen_pos
-            region = Box(
-                left=max(0, x1 - 500),
-                right=min(1024, x2 + 500),
-                top=max(0, y1 - 100),
-                bottom=min(768, y2 + 100),
-            )
-            cx = (x1 + x2) / 2
-            cropped_img = region.extract_client_img(self.data.current_client_img)
+            shape = self.data.current_client_img.shape
+            mask = np.zeros(shape, np.uint8)
+            mask[
+                max(0, y1 - 100): min(shape[0], y2 + 100),
+                max(0, x1 - 500): min(shape[1], x2 + 500)
+            ] = 255
             mobs_locations = self.get_mobs_positions_in_img(
-                cropped_img, self.data.current_mobs
+                self.data.current_client_img, self.data.current_mobs, mask=mask
             )
 
+            cx = (x1 + x2) / 2
             if len(mobs_locations) >= max(
                 self.data.mob_threshold, self.MIN_MOBS_THRESHOLD
             ):
                 # Compute "center of mass" of mobs at the character's left and right
-                center_x = [rect[0] + rect[2] / 2 for rect in mobs_locations]
+                center_x = [(rect[0] + rect[2]) / 2 for rect in mobs_locations]
                 left_x = [rect_x for rect_x in center_x if rect_x < cx]
                 right_x = [rect_x for rect_x in center_x if rect_x >= cx]
 
