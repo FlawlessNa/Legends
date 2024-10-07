@@ -355,15 +355,12 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
             )
             InGameDetectionVisuals._prediction_cache[cache_id] = res_list.pop()
             InGameDetectionVisuals._arg_cache[cache_id] = hashed_args
-            print(f"{cls.__name__} ran detection model at {datetime.now()}.")
             if debug:
                 cv2.imshow(
                     'Detection Model',
                     InGameDetectionVisuals._prediction_cache[cache_id].plot()
                 )
                 cv2.waitKey(1)
-        else:
-            print(f"{cls.__name__} using cached predictions at {datetime.now()}.")
 
         return InGameDetectionVisuals._prediction_cache[cache_id]
 

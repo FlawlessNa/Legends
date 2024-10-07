@@ -119,8 +119,8 @@ class Character(BaseCharacter, ABC):
             model_res = self.extract_results(detections, mask=mask)
 
             if len(model_res) > 1:
-                cv2.imshow('Multiple Characters Detected', detections.plot())
-                cv2.waitKey(1)
+                # cv2.imshow('Multiple Characters Detected', detections.plot())
+                # cv2.waitKey(1)
                 # TODO - Cross validate with VR coordinates and take closest.
                 # For now, just return the one with highest confidence.
                 model_res = max(
@@ -133,6 +133,8 @@ class Character(BaseCharacter, ABC):
 
             elif len(model_res) == 1:
                 model_res = model_res[0]
+            elif len(model_res) == 0:
+                model_res = None
 
         if self._detection_methods is not None:
             image = cv2.bitwise_and(image, mask)

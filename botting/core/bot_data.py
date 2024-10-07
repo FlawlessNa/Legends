@@ -82,7 +82,7 @@ class BotData:
                 (
                     value
                     for value in reversed(self._metadata[name].prev_values)
-                    if value not in [None, "", [], {}]
+                    if value not in [None, "", [], {}, ()]
                 ),
                 None,
             )
