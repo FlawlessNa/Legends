@@ -31,15 +31,10 @@
 - [ ] It can attempt to estimate the character's VR coordinates as well
 
 ## Movements
+- [ ] Finetune translation of path -> movements -> actions + Rotation DM using Ludi FM map?
 - [ ] When jump on rope is involved, ensure keys are forced released on all transitions up to jump on rope
 - [ ] there's clearly a "preference" to jump on rope from the right side, might want to figure out why?
 - [ ] Ability for each MinimapGrid to fine-tune the calc_cost function
-- [ ] Once MOB YOLO detection setup, try a new "smart" rotation algorithm based on scoring
-  - score of 100 if 5 mobs in range of skill
-  - score of 0 if no mobs in vision
-  - user enters score which is then used to determine if hit mobs or rotate
-  - score lowers as more distance with mobs
-  - Determine an on-screen point to rotate to. Convert this into approximate Minimap VR location, then into minimap location.
 - [ ] Movement mechanics (new system):
   - Find objects and potentially tiles on the screen that can be used as reference points for movement
   - Solution 1:
@@ -52,6 +47,14 @@
 - [ ] Refactoring of movement_mechanics to be cleaner
 - [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases
 - [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
+
+## Rotation
+- [ ] Once MOB YOLO detection setup, try a new "smart" rotation algorithm based on scoring
+  - score of 100 if 5 mobs in range of skill
+  - score of 0 if no mobs in vision
+  - user enters score which is then used to determine if hit mobs or rotate
+  - score lowers as more distance with mobs
+  - Determine an on-screen point to rotate to. Convert this into approximate Minimap VR location, then into minimap location.
 
 ## Pause/Resume
 - [ ] Streamline both pause/resume and disable/enable mechanism -> should only really be one. Make sure ref to tasks are properly updated too.
