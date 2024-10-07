@@ -140,7 +140,7 @@ class Character(BaseCharacter, ABC):
             image = cv2.bitwise_and(image, mask)
             detection_res = self._run_detection_methods(image, "single")
             if detection_res is not None:
-                     detection_res = detection_res[0]
+                detection_res = detection_res[0]
                 if DEBUG:
                     x, y, w, h = detection_res
                     cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 3)
