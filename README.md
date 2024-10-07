@@ -6,8 +6,10 @@
   - This is because the _keyboard_layout_handle is decorated with lru_cache
   - Can remove decorator, but function is somewhat slower (it is minimal though)
   - Still, it doesn't solve issue because if layout is wrong, the "'" should become "è" (as an example) and configs are therefore wrong in such a case
+- [ ] Current movements failsafe contradicts MobsHitting, needs to be fixed. Should MobsHitting cancel Rotation altogether?
 
 ## Model Usage
+- [ ] For comparison, try removing the caching feature and assess which option is best (will need to wait until server stable)
 - [ ] Refactor model storage structure 
   - remove from .gitignore
   - instead of using models_paths, specify model name

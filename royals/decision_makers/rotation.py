@@ -103,12 +103,12 @@ class Rotation(
             threshold=self.NO_PATH_KILL_SWITCH,
             response=...,  # TODO - Trigger Pause mechanism until resumed by user
         )
-        self._create_bool_sentinel(
-            attribute="movements",
-            method=self.data.check_if_values_have_changed,
-            trigger_when_true=False,
-            response=self._failsafe_request(),
-        )
+        # self._create_bool_sentinel(
+        #     attribute="movements",
+        #     method=self.data.check_if_values_have_changed,
+        #     trigger_when_true=False,
+        #     response=self._failsafe_request(),
+        # )
         self._sentinel_starts_at = time.perf_counter() + 60.0
 
     async def task(self, *args, **kwargs) -> None:
