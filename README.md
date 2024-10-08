@@ -14,9 +14,7 @@
   - remove from .gitignore
   - instead of using models_paths, specify model name
   - make consistent structure for when we'll have lots of models
-- For Debug mode, use result.plot() to show class name and confidence score as well.
 - For Debug mode, the attack range around character should be a square drawn on the debug screen.
-- [ ] Ability for each bot to share predictions
 - [ ] Character detection: Remove the single detection param and instead return all positions.
   - Then, cross-validate with map objects to get each VR position, and compare with VR position estimated from minimap. Extract closest match.
 
@@ -29,6 +27,14 @@
 - [ ] It also extracts objects/tiles
 - [ ] It can write a .py file that describes a minimap. This can be loaded and used when fine-tuning of weights/costs is necessary
   - Requires interactive window where user enters feature names for interesting features
+  - Try using tkinter? cv2 alone is not enough
+  - Need to think of how to store revamped minimap objects
+    - save raw matrix from game files as .npy files
+    - save modified features as MinimapFeatures within the class
+      - Features are list of points
+      - With optional weights
+      - edge avoidance attributes and such
+      - Features can be used to modify original matrix (How?)
   - Unnecessary features are given sequential generic names
 - [ ] It can attempt to estimate the character's VR coordinates as well
 

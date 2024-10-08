@@ -522,8 +522,18 @@ class MapParser:
 if __name__ == "__main__":
     map_name = "MysteriousPath3"
     map_parser = MapParser(map_name)
+    orig_mini = cv2.threshold(cv2.cvtColor(map_parser.mini_canvas.copy(), cv2.COLOR_BGR2GRAY), 1, 255, cv2.THRESH_BINARY)[1]
+    cnt, _ = cv2.findContours(orig_mini, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    copied = np.zeros(orig_mini.shape, np.uint8)
+    cv2.drawContours(copied, cnt, -1, 255, 1)
+    cv2.imshow("Contours", cv2.resize(copied, None, fx=5, fy=5))
+    cv2.imshow('Orig', cv2.resize(orig_mini, None, fx=5, fy=5))
+    print("Equal", np.array_equal(orig_mini, copied))
+    cv2.waitKey(0)
     # map_parser.draw_vr_canvas()
-    # cv2.imshow("VR Canvas", cv2.resize(map_parser.vr_canvas, None, fx=0.5, fy=0.5))
+    # cv2.imshow("FH Canvas", cv2.resize(map_parser.fh_canvas, None, fx=0.5, fy=0.5))
+    # cv2.imshow('Mini VR Canvas', cv2.resize(map_parser.mini_vr_canvas, None, fx=0.5, fy=0.5))
+    # cv2.imshow('Mini Canvas', cv2.resize(map_parser.mini_canvas, None, fx=5, fy=5))
     # cv2.waitKey(1)
     # breakpoint()
     HANDLE = client_handler.get_client_handle("StarBase", royals_ign_finder)
