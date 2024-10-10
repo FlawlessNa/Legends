@@ -369,8 +369,9 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         cls,
         res: Results,
         *,
+        mask: np.ndarray,
+        debug: bool = False,
         name: str = None,
-        mask: np.ndarray
     ) -> tuple[Sequence[int], ...]:
         """
         Extract the results from the YOLO detection model.
@@ -396,4 +397,13 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
                 x1, y1, x2, y2 = pos
                 if np.all(intersection[y1:y2, x1:x2] == 0):
                     vals.remove(pos)
+
+            if debug:
+                # Crop the res.plot() detections by the mask and show the cropped res
+                cropped_res = cv2.bitwise_and(res.plot(), mask)
+                cv2.imshow(
+                    'Masked Detection',
+                    cropped_res
+                )
+                cv2.waitKey(1)
         return tuple(vals)

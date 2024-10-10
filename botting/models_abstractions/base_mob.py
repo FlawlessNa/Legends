@@ -3,7 +3,6 @@ import numpy as np
 
 from abc import ABC, abstractmethod
 from typing import Sequence
-from botting.utilities import Box
 from botting.visuals import InGameDetectionVisuals
 
 DEBUG = True
@@ -55,7 +54,7 @@ class BaseMob(InGameDetectionVisuals, ABC):
         """
         if self.detection_model is not None:
             detections = self.run_detection_model(handle, image, threshold, debug=DEBUG)
-            res = self.extract_results(detections, mask=mask)
+            res = self.extract_results(detections, mask=mask, debug=debug)
             return res
 
         else:

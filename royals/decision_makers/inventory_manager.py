@@ -35,18 +35,18 @@ class InventoryManager(
     _TIME_LIMIT = 300
     _DISTANCE_TO_DOOR_THRESHOLD = 2
     TABS_OFFSETS = {
-        "Equip": Box(left=84, right=55, top=90, bottom=35, offset=True),
-        "Use": Box(left=128, right=99, top=90, bottom=35, offset=True),
-        "Set-up": Box(left=172, right=143, top=90, bottom=35, offset=True),
-        "Etc": Box(left=216, right=187, top=90, bottom=35, offset=True),
-        "Cash": Box(left=260, right=231, top=90, bottom=35, offset=True),
+        "Equip": Box(left=84, right=55, top=90, bottom=35, relative=True),
+        "Use": Box(left=128, right=99, top=90, bottom=35, relative=True),
+        "Set-up": Box(left=172, right=143, top=90, bottom=35, relative=True),
+        "Etc": Box(left=216, right=187, top=90, bottom=35, relative=True),
+        "Cash": Box(left=260, right=231, top=90, bottom=35, relative=True),
     }
     ACTIVE_TAB_COLOR = np.array([136, 102, 238])
     SELECTED_ITEM_COLOR = np.array([34, 153, 238])
     FIRST_SLOT_SHOP_OFFSET: Box = Box(
-        left=135, right=160, top=124, bottom=80, offset=True
+        left=135, right=160, top=124, bottom=80, relative=True
     )
-    SELL_BUTTON_OFFSET: Box = Box(left=268, right=227, top=34, bottom=-30, offset=True)
+    SELL_BUTTON_OFFSET: Box = Box(left=268, right=227, top=34, bottom=-30, relative=True)
 
     def __init__(
         self,

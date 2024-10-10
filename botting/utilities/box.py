@@ -20,19 +20,19 @@ class Box:
     When a Box is randomized, a random point inside the box is returned.
     """
 
-    left: int = field()
+    left: int
     right: int
     top: int
     bottom: int
     name: str | None = field(default=None, compare=False)
-    offset: bool = field(default=False, compare=False, repr=False)
+    relative: bool = field(default=False, compare=False, repr=False)
     config: str | None = field(default=None, compare=False, repr=False)
 
     def __post_init__(self):
         """
         Ensures that non-offset boxes have positive dimensions.
         """
-        if not self.offset:
+        if not self.relative:
             assert (
                 self.width >= 0
             ), f"Box initialized with negative Width. Left is {self.left} whereas right is {self.right}"
@@ -64,14 +64,14 @@ class Box:
 
         name = self.name if self.name else other.name
         config = self.config if self.config else other.config
-        offset = self.offset and other.offset
+        offset = self.relative and other.relative
         return Box(
             left=self.left + other.left,
             right=self.right + other.right,
             top=self.top + other.top,
             bottom=self.bottom + other.bottom,
             name=name,
-            offset=offset,
+            relative=offset,
             config=config,
         )
 

@@ -66,16 +66,16 @@ class AbilityMenu(InGameDynamicVisuals):
     #     config=f"--psm 7 -c tessedit_char_whitelist={string.digits}+()",
     # )
     add_str_box: Box = Box(
-        offset=True, name="AddSTR", left=150, right=-8, top=193, bottom=185
+        relative=True, name="AddSTR", left=150, right=-8, top=193, bottom=185
     )
     add_dex_box: Box = Box(
-        offset=True, name="AddDEX", left=150, right=-8, top=211, bottom=203
+        relative=True, name="AddDEX", left=150, right=-8, top=211, bottom=203
     )
     add_int_box: Box = Box(
-        offset=True, name="AddINT", left=150, right=-8, top=229, bottom=221
+        relative=True, name="AddINT", left=150, right=-8, top=229, bottom=221
     )
     add_luk_box: Box = Box(
-        offset=True, name="AddLUK", left=150, right=-8, top=247, bottom=239
+        relative=True, name="AddLUK", left=150, right=-8, top=247, bottom=239
     )
     # attack_box: Box = Box(offset=True, name='Attack', left=225, right=310, top=119, bottom=-16, config=f'--psm 7 -c tessedit_char_whitelist={string.digits}~, ')
     # weapon_def_box: Box = Box(offset=True, name='WeaponDef', left=225, right=310, top=137, bottom=2, config=f'--psm 7 -c tessedit_char_whitelist={string.digits}+-()')
@@ -85,7 +85,7 @@ class AbilityMenu(InGameDynamicVisuals):
     # avoidability_box: Box = Box(offset=True, name='Avoidability', left=225, right=310, top=209, bottom=74, config=f'--psm 7 -c tessedit_char_whitelist={string.digits}+-()')
     # hand_box: Box = Box(offset=True, name='Hand', left=225, right=310, top=227, bottom=92, config=f'--psm 7 -c tessedit_char_whitelist={string.digits}')
     speed_box: Box = Box(
-        offset=True,
+        relative=True,
         name="Speed",
         left=241,
         right=115,
@@ -94,7 +94,7 @@ class AbilityMenu(InGameDynamicVisuals):
         config=f"--psm 7 -c tessedit_char_whitelist={string.digits}%",
     )
     jump_box: Box = Box(
-        offset=True,
+        relative=True,
         name="Jump",
         left=241,
         right=115,
@@ -104,7 +104,7 @@ class AbilityMenu(InGameDynamicVisuals):
     )
     # extended_menu_button_box: Box = Box(offset=True, left=110, right=115, top=293, bottom=156)
     ability_points_box: Box = Box(
-        offset=True,
+        relative=True,
         name="AP",
         left=84,
         right=-54,

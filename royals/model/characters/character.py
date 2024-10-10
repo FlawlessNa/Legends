@@ -116,7 +116,7 @@ class Character(BaseCharacter, ABC):
             detections = self.run_detection_model(
                 handle, image, acceptance_threshold, debug=DEBUG
             )
-            model_res = self.extract_results(detections, mask=mask)
+            model_res = self.extract_results(detections, mask=mask, debug=DEBUG)
 
             if len(model_res) > 1:
                 # cv2.imshow('Multiple Characters Detected', detections.plot())
@@ -128,7 +128,7 @@ class Character(BaseCharacter, ABC):
                         filter(
                             lambda dct: dct["name"] == "Character", detections.summary()
                         )
-                    ), key= lambda dct: dct["confidence"])["box"].values()
+                    ), key=lambda dct: dct["confidence"])["box"].values()
                 model_res = tuple(map(round, model_res))
 
             elif len(model_res) == 1:
@@ -144,6 +144,8 @@ class Character(BaseCharacter, ABC):
                 if DEBUG:
                     x, y, w, h = detection_res
                     cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 3)
+                    cv2.imshow("Detection", image)
+                    cv2.waitKey(1)
 
         if self.detection_model is not None and self._detection_methods is not None:
             res = self._cross_validate_results(model_res, detection_res)  # noqa

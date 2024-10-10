@@ -7,6 +7,7 @@
   - Can remove decorator, but function is somewhat slower (it is minimal though)
   - Still, it doesn't solve issue because if layout is wrong, the "'" should become "è" (as an example) and configs are therefore wrong in such a case
 - [ ] Current movements failsafe contradicts MobsHitting, needs to be fixed. Should MobsHitting cancel Rotation altogether?
+- [ ] Add a "log dump" from AttributeMetadata for each BotData instance upon engine shutdown
 
 ## Model Usage
 - [ ] For comparison, try removing the caching feature and assess which option is best (will need to wait until server stable)
@@ -15,6 +16,7 @@
   - instead of using models_paths, specify model name
   - make consistent structure for when we'll have lots of models
 - For Debug mode, the attack range around character should be a square drawn on the debug screen.
+- For Debug mode, the mobs in range around character should be in black rectangles?
 - [ ] Character detection: Remove the single detection param and instead return all positions.
   - Then, cross-validate with map objects to get each VR position, and compare with VR position estimated from minimap. Extract closest match.
 
