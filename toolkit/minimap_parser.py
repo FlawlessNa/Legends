@@ -67,7 +67,7 @@ def write_feature(cont: list) -> None:
             top=math.floor(min(pt1[1], pt2[1])),
             bottom=math.ceil(max(pt1[1], pt2[1])),
             name=feature_name,
-            offset=True,
+            relative=True,
         )
         with open(os.path.join(OUTPUT_LOCATION, OUTPUT_NAME), "a") as f:
             f.write(f"\t{feature_name}: MinimapFeature = MinimapFeature(")

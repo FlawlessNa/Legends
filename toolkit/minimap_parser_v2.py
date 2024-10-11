@@ -117,7 +117,7 @@ def write_feature(f, x1, y1, x2, y2, name) -> None:
         top=y1,
         bottom=y2,
         name=name,
-        offset=True,
+        relative=True,
     )
     f.write(f"\t{name}: MinimapFeature = MinimapFeature(")
     f.write("\n")

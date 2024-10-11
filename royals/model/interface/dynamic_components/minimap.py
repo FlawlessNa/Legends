@@ -112,7 +112,7 @@ class Minimap(InGameDynamicVisuals, ABC):
             world_icon_box = cls._menu_icon_position(handle, client_img)
         if world_icon_box:
             detection_box = world_icon_box + Box(
-                offset=True,
+                relative=True,
                 left=cls._menu_icon_left_offset,
                 right=cls._menu_icon_right_offset,
                 top=0,
