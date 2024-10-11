@@ -116,7 +116,7 @@ class Character(BaseCharacter, ABC):
             detections = self.run_detection_model(
                 handle, image, acceptance_threshold, debug=DEBUG
             )
-            model_res = self.extract_results(detections, mask=mask, debug=DEBUG)
+            model_res = self.extract_results(detections, mask=mask)
 
             if len(model_res) > 1:
                 # cv2.imshow('Multiple Characters Detected', detections.plot())
@@ -158,26 +158,6 @@ class Character(BaseCharacter, ABC):
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         detection_method = self._preprocessing_functions[self._preprocessing_method]
         return detection_method(image, **self._preprocessing_params)
-
-    def _run_detection_model(
-        self, image: np.ndarray, acceptance_threshold: float, mode: str
-    ) -> list[tuple[float, float, float, float]]:
-        """
-        Runs the detection model on the image.
-        """
-        result = []
-        for res in self.detection_model(
-            image,
-            conf=acceptance_threshold,
-            max_det=1 if mode == "single" else 100,
-            verbose=False
-        ):
-            result.extend(
-                tuple(dct["box"].values())
-                for dct in res.summary()
-                if dct["name"] == "Character"
-            )
-        return result or None
 
     def _run_detection_methods(
         self, image: np.ndarray, mode: str
