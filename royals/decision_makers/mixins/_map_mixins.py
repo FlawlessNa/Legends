@@ -49,8 +49,11 @@ class MinimapAttributesMixin:
             condition,
             self.ERROR_HANDLING_TIME_LIMIT,
         )
+        logger.info("Minimap fully displayed confirmed")
 
         self._ensure_mouse_not_on_minimap(identifier)
+        logger.info("Mouse not on minimap confirmed")
+
         self.data.update_attributes(
             "current_client_img",
             "minimap_currently_displayed",
@@ -91,6 +94,7 @@ class MinimapAttributesMixin:
             controller.mouse_move,
             self.data.ign,
             args=(self.data.handle, (x, y)),
+            cancels_itself=True
         )
         self.pipe.send(request)
 
