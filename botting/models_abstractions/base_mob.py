@@ -53,8 +53,10 @@ class BaseMob(InGameDetectionVisuals, ABC):
         :return: Coordinates are, in order, x, y, width, height.
         """
         if self.detection_model is not None:
-            detections = self.run_detection_model(handle, image, threshold, debug=DEBUG)
-            res = self.extract_results(detections, mask=mask, debug=debug)
+            detections = self.run_detection_model(
+                handle, image, threshold, debug=DEBUG, mask=mask
+            )
+            res = self.extract_results(detections, mask=mask)
             return res
 
         else:

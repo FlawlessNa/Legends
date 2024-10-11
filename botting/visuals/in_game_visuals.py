@@ -334,13 +334,13 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         image: np.ndarray,
         threshold: float = DEFAULT_THRESHOLD,
         debug: bool = False,
+        mask: np.ndarray = None,
     ) -> Results:
         """
         Run the detection model on the image, and cache the result.
         # TODO - Consider debugging mode here with res.plot()
         # TODO - Try to reduce iou for less overlapping.
         """
-        from datetime import datetime
         threshold = threshold or cls.DEFAULT_THRESHOLD
         hashed_args = hash((image.tobytes(), threshold))
         if InGameDetectionVisuals._arg_cache[cache_id] != hashed_args:
@@ -355,12 +355,21 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
             )
             InGameDetectionVisuals._prediction_cache[cache_id] = res_list.pop()
             InGameDetectionVisuals._arg_cache[cache_id] = hashed_args
-            if debug:
-                cv2.imshow(
-                    'Detection Model',
-                    InGameDetectionVisuals._prediction_cache[cache_id].plot()
+        if debug:
+            res = InGameDetectionVisuals._prediction_cache[cache_id].plot()
+            if mask is not None:
+                # Find contours in the mask
+                contours, _ = cv2.findContours(
+                    mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
                 )
-                cv2.waitKey(1)
+                if contours:
+                    # Get the bounding box of the largest contour
+                    x, y, w, h = cv2.boundingRect(max(contours, key=cv2.contourArea))
+                    # Draw a rectangle on res using the bounding box coordinates
+                    cv2.rectangle(res, (x, y), (x + w, y + h), (0, 0, 0), 2)
+
+            cv2.imshow('Detection Model', res)
+            cv2.waitKey(1)
 
         return InGameDetectionVisuals._prediction_cache[cache_id]
 
@@ -370,7 +379,6 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         res: Results,
         *,
         mask: np.ndarray,
-        debug: bool = False,
         name: str = None,
     ) -> tuple[Sequence[int], ...]:
         """
@@ -398,12 +406,4 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
                 if np.all(intersection[y1:y2, x1:x2] == 0):
                     vals.remove(pos)
 
-            if debug:
-                # Crop the res.plot() detections by the mask and show the cropped res
-                cropped_res = cv2.bitwise_and(res.plot(), mask)
-                cv2.imshow(
-                    'Masked Detection',
-                    cropped_res
-                )
-                cv2.waitKey(1)
         return tuple(vals)
