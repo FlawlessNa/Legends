@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from pathfinding.core.grid import Grid, DiagonalMovement
+from pathfinding.core.grid import Grid
 from pathfinding.core.node import GridNode
 
-from botting.utilities import Box
+from .minimap_edits import MinimapEdits
 
 
 class ConnectionTypes(Enum):
@@ -46,33 +46,8 @@ class MinimapGrid(Grid):
     Wrapper around Grid that replaces all GridNodes with MinimapNodes.
     It additionally applies MinimapEdits onto the grid, if provided.
     """
-    pass
-
-
-@dataclass(frozen=True, kw_only=True)
-class MinimapFeature(Box):
-    """
-    Represents a bounding Box that groups all MinimapNodes within bounds.
-    It may define specific attributes for the nodes it contains. Each node will inherit
-    from those attributes unless they explicitly define their own.
-    """
-    offset: tuple[int, int] = field(default=(0, 0))
-    walkable: bool = field(default=True)
-    weight: int = field(default=1)
-    avoid_staying_on_edges: bool = field(default=True)
-
-    # Endpoints won't be connected with jumps
-    no_jump_connections_from_endpoints: bool = field(default=False)
-
-
-@dataclass(frozen=True)
-class MinimapEdits(ABC):
-    """
-    Def
-    """
-    features: list[MinimapFeature] = field(default_factory=list)
-    modified_nodes: list[MinimapNode] = field(default_factory=list)
-
-    @abstractmethod
-    def feature_cycle(self) -> list[MinimapFeature]:
+    def apply_edits(self, edits: MinimapEdits):
+        """
+        Apply the edits to the grid.
+        """
         pass
