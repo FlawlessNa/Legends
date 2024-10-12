@@ -3,7 +3,7 @@ import numpy as np
 import tkinter.ttk as ttk
 import tkinter as tk
 
-from .minimap_grid import MinimapEdits, MinimapFeature
+from .minimap_edits import MinimapEdits
 
 
 class ModeFrame(ttk.Frame, ABC):
@@ -47,8 +47,10 @@ class FeatureSelectionFrame(ModeFrame):
         self.offset_y_entry = tk.Entry(self.offset_frame, width=5)
         self.offset_y_label = tk.Label(self.offset_frame, text='Y:')
         self.offset_y_entry.pack(side=tk.RIGHT)
+        self.offset_y_entry.bind("<KeyRelease>", self.draw_box_from_entries)
         self.offset_y_label.pack(side=tk.RIGHT)
         self.offset_x_entry.pack(side=tk.RIGHT)
+        self.offset_x_entry.bind("<KeyRelease>", self.draw_box_from_entries)
         self.offset_x_label.pack(side=tk.RIGHT)
 
         self.weight_label = tk.Label(self, text='Weight:')
@@ -91,21 +93,35 @@ class FeatureSelectionFrame(ModeFrame):
         self.feature_dropdown.set('<new>')
 
     def draw_box_from_entries(self, event):
+        print(event)
         left = int(self.left_entry.get())
         right = int(self.right_entry.get())
         top = int(self.top_entry.get())
         bottom = int(self.bottom_entry.get())
-        feature = MinimapFeature(left=left, right=right, top=top, bottom=bottom)
-        self.editor.current_feature = feature
-        if self.editor.rect:
-            self.editor.canvas.delete(self.editor.rect)
-        self.editor.rect = self.editor.canvas.create_rectangle(
-            left * self.editor.scale, top * self.editor.scale,
-            right * self.editor.scale, bottom * self.editor.scale,
-            outline='red', fill='red'
-        )
+        offset_x = int(self.offset_x_entry.get() or 0)
+        offset_y = int(self.offset_y_entry.get() or 0)
+        try:
+            feature = MinimapEdits(
+                left=left,
+                right=right,
+                top=top,
+                bottom=bottom,
+                offset=(offset_x, offset_y)
+            )
+            self.editor.current_feature = feature
+            if self.editor.rect:
+                self.editor.canvas.delete(self.editor.rect)
+            self.editor.rect = self.editor.canvas.create_rectangle(
+                (left + offset_x) * self.editor.scale,
+                (top + offset_y) * self.editor.scale,
+                (right + offset_x) * self.editor.scale,
+                (bottom + offset_y) * self.editor.scale,
+                outline='red', fill='red'
+            )
+        except AssertionError:
+            pass
 
-    def update_entries(self, feature: MinimapFeature):
+    def update_entries(self, feature: MinimapEdits):
         self.left_entry.delete(0, tk.END)
         self.left_entry.insert(0, str(feature.left))
 
@@ -117,6 +133,12 @@ class FeatureSelectionFrame(ModeFrame):
 
         self.bottom_entry.delete(0, tk.END)
         self.bottom_entry.insert(0, str(feature.bottom))
+
+        self.offset_x_entry.delete(0, tk.END)
+        self.offset_x_entry.insert(0, str(feature.offset[0]))
+
+        self.offset_y_entry.delete(0, tk.END)
+        self.offset_y_entry.insert(0, str(feature.offset[1]))
 
 
 class MinimapEditor:
@@ -266,7 +288,7 @@ class MinimapEditor:
         end_x = int(max(self.start_x, end_x))
         start_y = int(min(self.start_y, end_y))
         end_y = int(max(self.start_y, end_y))
-        self.current_feature = MinimapFeature(
+        self.current_feature = MinimapEdits(
             left=start_x, right=end_x, top=start_y, bottom=end_y
         )
         print(f"Feature created: {self.current_feature}")

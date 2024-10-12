@@ -15,8 +15,6 @@
   - remove from .gitignore
   - instead of using models_paths, specify model name
   - make consistent structure for when we'll have lots of models
-- For Debug mode, the attack range around character should be a square drawn on the debug screen.
-- For Debug mode, the mobs in range around character should be in black rectangles?
 - [ ] Character detection: Remove the single detection param and instead return all positions.
   - Then, cross-validate with map objects to get each VR position, and compare with VR position estimated from minimap. Extract closest match.
 
