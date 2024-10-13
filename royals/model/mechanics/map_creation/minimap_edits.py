@@ -1,4 +1,5 @@
 import itertools
+import numpy as np
 from dataclasses import dataclass, field
 
 from botting.utilities import Box
@@ -31,14 +32,14 @@ class MinimapEdits(Box):
 
 
 @dataclass
-class EditsManager:
+class MinimapEditsManager:
     """
     Manages the features of a Minimap.
     """
     features: list[MinimapEdits] = field(default_factory=list)
 
     @classmethod
-    def from_json(cls, json_path: str) -> "EditsManager":
+    def from_json(cls, json_path: str) -> "MinimapEditsManager":
         """
         Load the EditsManager from a JSON file.
         """
@@ -48,4 +49,7 @@ class EditsManager:
         """
         Save the EditsManager to a JSON file.
         """
+        pass
+
+    def apply_edits(self, raw_canvas: np.ndarray) -> np.ndarray:
         pass

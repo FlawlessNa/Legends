@@ -1,9 +1,15 @@
+import cv2
 from abc import ABC, abstractmethod
 import numpy as np
 import tkinter.ttk as ttk
 import tkinter as tk
+from PIL import Image, ImageTk
+from .minimap_edits import MinimapEditsManager, MinimapEdits
+from royals.model.interface import Minimap
+from royals import royals_ign_finder
+from botting.utilities import client_handler
 
-from .minimap_edits import MinimapEdits
+IGN = 'StarBase'
 
 
 class ModeFrame(ttk.Frame, ABC):
@@ -153,7 +159,8 @@ class MinimapEditor:
     def __init__(
         self,
         raw_minimap: np.ndarray,
-        edits: MinimapEdits = None,
+        edits: MinimapEditsManager = None,
+        include_character_position: bool = True,
         scale: int = 5
     ):
         self.raw_minimap = self.modified_minimap = raw_minimap
@@ -208,14 +215,7 @@ class MinimapEditor:
             rb.pack(anchor=tk.W)
 
         # Draw each pixel as a larger rectangle
-        for y in range(self.modified_minimap.shape[0]):
-            for x in range(self.modified_minimap.shape[1]):
-                color = 'black' if (self.modified_minimap[y, x] == 0).all() else 'white'
-                self.canvas.create_rectangle(
-                    x * self.scale, y * self.scale,
-                    (x + 1) * self.scale, (y + 1) * self.scale,
-                    fill=color, outline=color
-                )
+        self.update_canvas(self.modified_minimap)
 
         self.start_x = self.start_y = 0
         self.rect = None
@@ -229,11 +229,44 @@ class MinimapEditor:
         self.coord_label = tk.Label(self.root, text="Coordinates: (0, 0)")
         self.coord_label.pack()
 
+        if include_character_position:
+            class FakeMinimap(Minimap):
+                def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
+                    pass
+
+                map_area_width = self.modified_minimap.shape[1]
+                map_area_height = self.modified_minimap.shape[0]
+
+
+            self.handle = client_handler.get_client_handle(IGN, royals_ign_finder)
+            self._mini_pos_retrieve = FakeMinimap()
+            self._map_area_box = self._mini_pos_retrieve.get_map_area_box(self.handle)
+            self.update_character_position()
+            self.root.after(100, self.update_character_position)
+
         self.root.mainloop()
 
     def change_mode(self):
         print(f"Mode changed to: {self.mode.get()}")
         self.update_mode_dependent_frame()
+
+    def update_character_position(self):
+        pos = self._mini_pos_retrieve.get_character_positions(
+            self.handle, map_area_box=self._map_area_box
+        ).pop()
+        modified_img = self.modified_minimap.copy()
+        cv2.circle(modified_img, pos, 1, (0, 255, 255), 1)
+        self.update_canvas(modified_img)
+
+        self.root.after(100, self.update_character_position)
+
+    def update_canvas(self, img: np.ndarray):
+        pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        scaled = pil_img.resize(
+            (img.shape[1] * self.scale, img.shape[0] * self.scale), Image.NEAREST
+        )
+        self.tk_img = ImageTk.PhotoImage(scaled)
+        self.canvas.create_image(0, 0, image=self.tk_img, anchor=tk.NW)
 
     def update_mode_dependent_frame(self):
         for widget in self.mode_dependent_frame.winfo_children():

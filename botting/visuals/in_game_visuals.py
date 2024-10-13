@@ -359,8 +359,10 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
             res = InGameDetectionVisuals._prediction_cache[cache_id].plot()
             if mask is not None:
                 # Find contours in the mask
+                mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+                thresh = cv2.threshold(mask, 0, 255, cv2.THRESH_BINARY)[1]
                 contours, _ = cv2.findContours(
-                    mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+                    thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
                 )
                 if contours:
                     # Get the bounding box of the largest contour
