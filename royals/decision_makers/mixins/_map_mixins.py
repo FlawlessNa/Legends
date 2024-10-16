@@ -17,7 +17,7 @@ class MinimapAttributesMixin:
     metadata: multiprocessing.managers.DictProxy
     pipe: multiprocessing.connection.Connection
     MINIMAP_POS_REFRESH_RATE = 0.1
-    ERROR_HANDLING_TIME_LIMIT = 5.0
+    ERROR_HANDLING_TIME_LIMIT = 7.5
 
     def _get_minimap_pos(self) -> tuple[int, int]:
         return self.data.current_minimap.get_character_positions(

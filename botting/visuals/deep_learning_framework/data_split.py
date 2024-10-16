@@ -14,12 +14,12 @@ TEST_PROP = 0.1
 
 # The images must be saved into the same path as where the ANNOTATOR OUTPUT is saved
 ANNOTATOR_OUTPATH = os.path.join(
-    ROOT, "data/character_detection_images/ChronosAndMp3WithCharacter"
+    ROOT, "data/character_detection_images/GS2MobsAndChar"
 )
 
 # Make sure to Ctrl+R the paths within the txt files to the images folder
 TRAIN_TXT_FILE = os.path.join(
-    ROOT, "data/character_detection_images/ChronosAndMp3WithCharacter/train.txt"
+    ROOT, "data/character_detection_images/GS2MobsAndChar/train.txt"
 )
 
 with open(TRAIN_TXT_FILE, "r") as f:

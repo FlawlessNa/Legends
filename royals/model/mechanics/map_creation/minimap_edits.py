@@ -52,4 +52,5 @@ class MinimapEditsManager:
         pass
 
     def apply_edits(self, raw_canvas: np.ndarray) -> np.ndarray:
-        pass
+        # TODO: Implement this
+        return raw_canvas

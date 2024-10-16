@@ -62,6 +62,26 @@ class FeatureSelectionFrame(ModeFrame):
         self.weight_label = tk.Label(self, text='Weight:')
         self.weight_entry = tk.Entry(self, width=5)
 
+        self.rotation_label = tk.Label(self, text='Rotation Indexes:')
+        self.rotation_entry = tk.Entry(self, width=15)
+
+        self.avoid_right_edge_var = tk.BooleanVar(value=True)
+        self.avoid_left_edge_var = tk.BooleanVar(value=True)
+        self.avoid_right_edge_cb = ttk.Checkbutton(
+            self, text='Avoid Right Edge', variable=self.avoid_right_edge_var
+        )
+        self.avoid_left_edge_cb = ttk.Checkbutton(
+            self, text='Avoid Left Edge', variable=self.avoid_left_edge_var
+        )
+        self.edge_threshold_label = tk.Label(self, text='Edge Threshold:')
+        self.edge_threshold_entry = tk.Entry(self, width=5)
+
+        self.no_jump_connections_var = tk.BooleanVar(value=False)
+        self.no_jump_connections_cb = ttk.Checkbutton(
+            self, text='No Jump Connections from Endpoints', variable=self.no_jump_connections_var
+        )
+
+
     def create_widgets(self):
         self.dropdown_label.grid(row=0, column=0, sticky=tk.W)
         self.feature_dropdown.grid(row=0, column=1, sticky=tk.EW)
@@ -89,7 +109,18 @@ class FeatureSelectionFrame(ModeFrame):
         self.weight_label.grid(row=6, column=0, sticky=tk.W)
         self.weight_entry.grid(row=6, column=1, sticky=tk.W)
 
-        self.offset_frame.grid(row=7, column=0, columnspan=2, sticky=tk.EW)
+        self.rotation_label.grid(row=7, column=0, sticky=tk.W)
+        self.rotation_entry.grid(row=7, column=1, sticky=tk.W)
+
+        self.offset_frame.grid(row=8, column=0, columnspan=2, sticky=tk.EW)
+
+        self.avoid_right_edge_cb.grid(row=9, column=0, sticky=tk.W)
+        self.avoid_left_edge_cb.grid(row=9, column=1, sticky=tk.W)
+        self.edge_threshold_label.grid(row=10, column=0, sticky=tk.W)
+        self.edge_threshold_entry.grid(row=10, column=1, sticky=tk.W)
+
+        self.no_jump_connections_cb.grid(row=11, column=0, columnspan=2, sticky=tk.W)
+
 
     def update_feature_dropdown(self):
         features = []
@@ -164,10 +195,9 @@ class MinimapEditor:
         scale: int = 5
     ):
         self.raw_minimap = self.modified_minimap = raw_minimap
-        self.edits = edits
+        self.edits = edits or MinimapEditsManager()
         self.scale = scale
-        if self.edits is not None:
-            self.modified_minimap = edits.apply_edits(self.raw_minimap)
+        self.modified_minimap = self.edits.apply_edits(self.raw_minimap)
 
         self.root = tk.Tk()
         self.root.title("Minimap Editor")

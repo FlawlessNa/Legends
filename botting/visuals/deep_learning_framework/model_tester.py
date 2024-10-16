@@ -5,8 +5,8 @@ from botting.utilities import take_screenshot
 from paths import ROOT
 
 # Define the path to the saved model
-TRAINING_PROJECT_ROOT = "data/model_runs/character_detection"
-NAME = "ChronosAndMp3WithCharacter - Nano"
+TRAINING_PROJECT_ROOT = "data/model_runs/detection"
+NAME = "Full Model up to GS2 - Nano"
 MODEL_PATH = os.path.join(ROOT, TRAINING_PROJECT_ROOT, NAME, "weights", "best.pt")
 
 # Load the model
@@ -15,7 +15,7 @@ i = 0
 total_time = 0
 import time
 while True:
-    img = take_screenshot(0)
+    img = take_screenshot(0x01290906)
     start = time.time()
     results = model(img)
     total_time += time.time() - start
@@ -25,6 +25,6 @@ while True:
         cv2.imshow('Predictions', res.plot())
         cv2.waitKey(1)
     print(i)
-    if i == 1000:
-        break
+    # if i == 1000:
+    #     break
 print('avg time', total_time / i)
