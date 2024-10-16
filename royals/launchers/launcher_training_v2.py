@@ -8,7 +8,7 @@ training_configs = {
     "num_pets": 1,
     "game_map": maps.MysteriousPath3,
     "mob_count_threshold": 1,
-    "included_buffs": ["Invincible"],
+    "included_buffs": ["Invincible", "Holy Symbol"],
     "training_skill": "Heal",
     "models_path": {
         "All": "data/model_runs/character_detection/ChronosAndMp3WithCharacter - Nano"

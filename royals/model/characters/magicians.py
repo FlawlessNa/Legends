@@ -95,7 +95,7 @@ class Priest(Cleric):
             horizontal_screen_range=300,
             vertical_screen_range=200,
             _use_by_default=True,
-            match_template_threshold=0.69,
+            match_template_threshold=0.675,
             match_icon_threshold=0.79,
         ),
         "Shining Ray": RoyalsSkill(
