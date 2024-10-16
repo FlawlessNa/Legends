@@ -8,6 +8,7 @@
   - Still, it doesn't solve issue because if layout is wrong, the "'" should become "è" (as an example) and configs are therefore wrong in such a case
 - [ ] Current movements failsafe contradicts MobsHitting, needs to be fixed. Should MobsHitting cancel Rotation altogether?
 - [ ] Add a "log dump" from AttributeMetadata for each BotData instance upon engine shutdown
+- [ ] There's a bug with the rotation cycle, could be caused by Mob Check failsafe, but rotation sometimes resets?
 
 ## Model Usage
 - [ ] For comparison, try removing the caching feature and assess which option is best (will need to wait until server stable)
@@ -40,6 +41,7 @@
 
 ## Movements
 - [ ] Finetune translation of path -> movements -> actions + Rotation DM using Ludi FM map?
+- [ ] custom-code for each "transition" from one movement to another
 - [ ] When jump on rope is involved, ensure keys are forced released on all transitions up to jump on rope
 - [ ] there's clearly a "preference" to jump on rope from the right side, might want to figure out why?
 - [ ] Ability for each MinimapGrid to fine-tune the calc_cost function
