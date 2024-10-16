@@ -11,7 +11,7 @@ training_configs = {
     "included_buffs": ["Invincible", "Holy Symbol"],
     "training_skill": "Heal",
     "models_path": {
-        "All": "data/model_runs/character_detection/ChronosAndMp3WithCharacter - Nano"
+        "All": "data/model_runs/detection/Full Model up to GS2 - Nano"
     },
     "smart_rotation_enabled": True,
     # "disable_teleport": True,
