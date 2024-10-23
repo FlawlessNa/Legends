@@ -12,13 +12,6 @@ from botting.utilities import (
 )
 from botting.visuals import InGameDynamicVisuals
 
-SELF_YOFFSET = 1
-STRANGER_YOFFSET = 0
-PARTY_YOFFSET = 0
-BUDDY_YOFFSET = 0
-GUILDIE_YOFFSET = 0
-NPC_YOFFSET = 0
-
 
 class Minimap(InGameDynamicVisuals, ABC):
     """
@@ -39,6 +32,7 @@ class Minimap(InGameDynamicVisuals, ABC):
     )
     _self_color = [((136, 255, 255), (136, 255, 255))]
     _self_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    _self_y_offset = 1
 
     _stranger_color = [
         ((0, 0, 255), (0, 0, 255)),
@@ -46,14 +40,19 @@ class Minimap(InGameDynamicVisuals, ABC):
         ((0, 0, 221), (0, 0, 221)),
     ]
     _stranger_kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (5, 5))
+    _stranger_y_offset = 0
     _party_color = [((0, 119, 255), (0, 153, 255))]  # TODO
     _party_kernel = None  # TODO
+    _party_y_offset = 0
     _buddy_color = [((1, 1, 1), (0, 0, 0))]  # TODO
     _buddy_kernel = None  # TODO
+    _buddy_y_offset = 0
     _guildie_color = [((1, 1, 1), (0, 0, 0))]  # TODO
     _guildie_kernel = None  # TODO
+    _guildie_y_offset = 0
     _npc_color = [((0, 221, 0), (0, 221, 0))]
     _npc_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 3))
+    _npc_y_offset = 0
 
     _menu_icon_left_offset: int = -27
     _menu_icon_right_offset: int = -38
@@ -183,12 +182,12 @@ class Minimap(InGameDynamicVisuals, ABC):
                 "Npc": self._npc_kernel,
             }[character_type.capitalize()]
             y_offset = {
-                "Self": SELF_YOFFSET,
-                "Stranger": STRANGER_YOFFSET,
-                "Party": PARTY_YOFFSET,
-                "Buddy": BUDDY_YOFFSET,
-                "Guildie": GUILDIE_YOFFSET,
-                "Npc": NPC_YOFFSET,
+                "Self": self._self_y_offset,
+                "Stranger": self._stranger_y_offset,
+                "Party": self._party_y_offset,
+                "Buddy": self._buddy_y_offset,
+                "Guildie": self._guildie_y_offset,
+                "Npc": self._npc_y_offset,
             }[character_type.capitalize()]
 
             # Loop over each color and detect it. Combine the results before eroding.
