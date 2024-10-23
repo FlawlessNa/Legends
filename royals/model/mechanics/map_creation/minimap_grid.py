@@ -46,8 +46,4 @@ class MinimapGrid(Grid):
     Wrapper around Grid that replaces all GridNodes with MinimapNodes.
     It additionally applies MinimapEdits onto the grid, if provided.
     """
-    def apply_edits(self, edits: MinimapEdits):
-        """
-        Apply the edits to the grid.
-        """
-        pass
+    pass

@@ -14,6 +14,7 @@ class EditorView(ttk.Frame):
         self,
         root: tk.Tk,
         edited_minimap: np.ndarray,
+        register: callable,
         save: callable,
         scale: int = 5,
         *args,
@@ -23,7 +24,7 @@ class EditorView(ttk.Frame):
         super().__init__(root)
         self.pack(fill=tk.BOTH, expand=True)
 
-        self.controls_frame = ControlsFrame(self, save)
+        self.controls_frame = ControlsFrame(self, register, save)
         self.canvas = EditableCanvas(
             self,
             scale,
@@ -131,9 +132,10 @@ class EditableCanvas(tk.Canvas):
 class ControlsFrame(ttk.Frame):
     master: EditorView
 
-    def __init__(self, parent, feature_saver: callable):
+    def __init__(self, parent, feature_saver: callable, edits_saver: callable):
         super().__init__(parent)
         self.feature_saver = feature_saver
+        self.edits_saver = edits_saver
         self.pack(side=tk.RIGHT, fill=tk.Y)
         self.selector_subframe = _ModeSelectionSubFrame(self)
         self.mode_specific_subframe = None
@@ -150,7 +152,9 @@ class ControlsFrame(ttk.Frame):
             print('destroying', widget)
             widget.destroy()
 
-        frame: _ModeDependentFrame = mode_class(self, self.feature_saver)
+        frame: _ModeDependentFrame = mode_class(
+            self, self.feature_saver, self.edits_saver
+        )
         frame.create_widgets()
         return frame
 
@@ -199,7 +203,12 @@ class _ModeDependentFrame(ttk.Frame, ABC):
 
 
 class FeatureSelectionFrame(_ModeDependentFrame):
-    def __init__(self, parent: ControlsFrame, register_procedure: callable):
+    def __init__(
+        self,
+        parent: ControlsFrame,
+        register_procedure: callable,
+        save_edits: callable
+    ):
         super().__init__(parent)
         self.feature_selector = tk.StringVar(value='<new>')
         self.dropdown_label = tk.Label(self, text='Select Feature:')
@@ -262,6 +271,7 @@ class FeatureSelectionFrame(_ModeDependentFrame):
         self.register_button = tk.Button(
             self, text="Register Feature", command=lambda: register_procedure(self)
         )
+        self.save_button = tk.Button(self, text="Save Edits", command=save_edits)
 
     def create_widgets(self):
         self.dropdown_label.grid(row=0, column=0, sticky=tk.W)
@@ -305,6 +315,7 @@ class FeatureSelectionFrame(_ModeDependentFrame):
         self.no_jump_connections_cb.grid(row=12, column=0, columnspan=2, sticky=tk.W)
 
         self.register_button.grid(row=13, column=0, columnspan=2, sticky=tk.EW)
+        self.save_button.grid(row=14, column=0, columnspan=2, sticky=tk.EW)
 
     def update_feature_dropdown(self, names: list[str]):
         self.feature_dropdown['values'] = ['<new>'] + names

@@ -39,6 +39,7 @@
       - Features can be used to modify original matrix (How?)
   - Unnecessary features are given sequential generic names
 - [ ] It can attempt to estimate the character's VR coordinates as well
+- [ ] Should be able to draw proper background as well
 
 ## Movements
 - [ ] Finetune translation of path -> movements -> actions + Rotation DM using Ludi FM map?

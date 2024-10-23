@@ -1,10 +1,11 @@
-import itertools
 import json
 import numpy as np
 import os
 from dataclasses import asdict, dataclass, field
 from paths import ROOT
 from botting.utilities import Box
+
+_EDITS_ROOT = os.path.join(ROOT, 'royals/model/maps')
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -46,21 +47,30 @@ class MinimapEditsManager:
         return [f.name for f in self.features]
 
     @classmethod
-    def from_json(cls, map_name: str) -> "MinimapEditsManager":
+    def from_json(cls, map_name: str) -> "MinimapEditsManager" or None:
         """
         Load the EditsManager from a JSON file.
         """
-        pass
+        path = os.path.join(_EDITS_ROOT, f'{map_name}.json')
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                data = json.load(f)
+                features = [
+                    MinimapEdits(name=name, **dct) for name, dct in data.items()
+                ]
+                return cls(features)
 
     def to_json(self, map_name: str):
         """
         Save the EditsManager to a JSON file.
         """
-        features = asdict(self)['features']
+        features = asdict(self)['features']  # noqa
         data = {
             dct.pop('name'): dct for dct in features
         }
-        with open(os.path.join(ROOT, 'royals/model/maps', f'{map_name}.json'), 'w') as f:
+        data.pop('config', None)
+        data.pop('relative', None)
+        with open(os.path.join(_EDITS_ROOT, f'{map_name}.json'), 'w') as f:
             json.dump(data, f, indent=4)
 
     def apply_minimap_edits(self, raw_minimap: np.ndarray) -> np.ndarray:
@@ -85,5 +95,5 @@ class MinimapEditsManager:
 
         return modified
 
-    def apply_grid_edits(self):
+    def apply_grid_edits(self, grid: MinimapGrid):
         pass

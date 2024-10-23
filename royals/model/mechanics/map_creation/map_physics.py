@@ -30,8 +30,15 @@ class _PhysicsValues(Enum):
     FLY_JUMP_DEC = PHYS["flyJumpDec"]
 
 
-class Physics:
+class VRPhysics:
     """
     Implements traditional kinetic physics.
+    """
+    pass
+
+
+class MinimapPhysics:
+    """
+    Implements physics for the minimap.
     """
     pass

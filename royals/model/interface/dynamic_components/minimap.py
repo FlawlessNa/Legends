@@ -12,6 +12,13 @@ from botting.utilities import (
 )
 from botting.visuals import InGameDynamicVisuals
 
+SELF_YOFFSET = 1
+STRANGER_YOFFSET = 0
+PARTY_YOFFSET = 0
+BUDDY_YOFFSET = 0
+GUILDIE_YOFFSET = 0
+NPC_YOFFSET = 0
+
 
 class Minimap(InGameDynamicVisuals, ABC):
     """
@@ -175,6 +182,14 @@ class Minimap(InGameDynamicVisuals, ABC):
                 "Guildie": self._guildie_kernel,
                 "Npc": self._npc_kernel,
             }[character_type.capitalize()]
+            y_offset = {
+                "Self": SELF_YOFFSET,
+                "Stranger": STRANGER_YOFFSET,
+                "Party": PARTY_YOFFSET,
+                "Buddy": BUDDY_YOFFSET,
+                "Guildie": GUILDIE_YOFFSET,
+                "Npc": NPC_YOFFSET,
+            }[character_type.capitalize()]
 
             # Loop over each color and detect it. Combine the results before eroding.
             mask = np.zeros_like(map_area_img[:, :, 0])
@@ -185,7 +200,7 @@ class Minimap(InGameDynamicVisuals, ABC):
             eroded_detection = cv2.erode(mask, kernel)
             y_x_list = list(zip(*np.where(eroded_detection == 255)))
             # return [(x, y) for y, x in y_x_list]
-            return [(x, y+1) for y, x in y_x_list]
+            return [(x, y+y_offset) for y, x in y_x_list]
 
     def get_map_area_box(
         self,

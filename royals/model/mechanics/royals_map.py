@@ -1,6 +1,9 @@
-from .map_creation.map_game_file_extractor import MapParser
+import numpy as np
+
+from .game_file_extraction.map_parser import MapParser
 from .map_creation.minimap_edits_controller import MinimapEditor
 from .map_creation.minimap_edits_model import MinimapEditsManager
+from .map_creation.minimap_grid import MinimapGrid
 
 
 class RoyalsMinimap:
@@ -16,7 +19,11 @@ class RoyalsMinimap:
     ):
         self.raw_minimap = raw_canvas
         self.features_manager = features_manager
-        self.modified_minimap = self.features_manager.apply_edits(self.raw_minimap)
+        self.modified_minimap = self.features_manager.apply_minimap_edits(
+            self.raw_minimap
+        )
+        self.raw_grid = MinimapGrid(matrix=self.modified_minimap)
+        self.modified_grid = self.features_manager.apply_grid_edits(self.raw_grid)
 
 
 class RoyalsMap:
@@ -28,16 +35,16 @@ class RoyalsMap:
     ) -> None:
         self.map_name = map_name
         self.parser = MapParser(map_name)
-        self.vr_canvas = self.parser.get_vr_canvas()
-        orig_minimap_canvas = self.parser.get_minimap_canvas()
+        # self.vr_canvas = self.parser.get_vr_canvas()
+        orig_minimap_canvas = self.parser.mini_canvas()
         self.edits = MinimapEditsManager.from_json(map_name)
         if open_minimap_editor:
             # This will block until the editor's mainloop is closed
-            editor = MinimapEditor(orig_minimap_canvas, self.edits, **kwargs)
+            editor = MinimapEditor(map_name, orig_minimap_canvas, self.edits, **kwargs)
             self.edits = editor.edits
 
         self.minimap = RoyalsMinimap(orig_minimap_canvas, self.edits)
 
-        mob_ids = self.parser.get_mobs_ids()
-        self.mobs = tuple(BaseMob(mob_id) for mob_id in mob_ids)
+        # mob_ids = self.parser.get_mobs_ids()
+        # self.mobs = tuple(BaseMob(mob_id) for mob_id in mob_ids)
 

@@ -6,10 +6,6 @@ import numpy as np
 import tkinter as tk
 from dataclasses import asdict
 
-from royals import royals_ign_finder
-from royals.model.interface import Minimap
-from botting.utilities import client_handler
-
 from .minimap_edits_model import MinimapEditsManager, MinimapEdits
 from .minimap_edits_view import EditorView, FeatureSelectionFrame
 
@@ -27,39 +23,54 @@ class MinimapEditor:
     """
     def __init__(
         self,
+        map_name: str,
         raw_minimap: np.ndarray,
         edits: MinimapEditsManager = None,
         include_character_position: bool = True,
         scale: int = 5
     ):
+        self.map_name = map_name
         self.raw_minimap = self.modified_minimap = raw_minimap
         self.edits = edits or MinimapEditsManager()
         self.scale = scale
         self.modified_minimap = self.edits.apply_minimap_edits(self.raw_minimap)
         self.root = tk.Tk()
         self.view = EditorView(
-            self.root, self.modified_minimap, self.register_feature, scale)
-        #
-        # # Draw each pixel as a larger rectangle and bounding boxes on the existing edits
+            self.root,
+            self.modified_minimap,
+            self.register_feature,
+            self.save_edits,
+            scale
+        )
+        # Draw each pixel as a larger rectangle and bounding boxes on the existing edits
         self.rectangles = {}
         self.refresh_canvas(self.modified_minimap)
         self.refresh_mode_specific_frame()
-        #z
-        # if include_character_position:
-        #     class FakeMinimap(Minimap):
-        #         def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        #             pass
-        #
-        #         map_area_width = self.modified_minimap.shape[1]
-        #         map_area_height = self.modified_minimap.shape[0]
-        #
-        #     self.handle = client_handler.get_client_handle(IGN, royals_ign_finder)
-        #     self._mini_pos_retrieve = FakeMinimap()
-        #     self._map_area_box = self._mini_pos_retrieve.get_map_area_box(self.handle)
-        #     self.update_character_position()
-        #     self.root.after(100, self.update_character_position)
+
+        self.character_marker = None
+        self.update_char_pos = include_character_position
+        if include_character_position:
+            from royals import royals_ign_finder
+            from royals.model.interface import Minimap
+            from botting.utilities import client_handler
+
+            class FakeMinimap(Minimap):
+                def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
+                    pass
+
+                map_area_width = self.modified_minimap.shape[1]
+                map_area_height = self.modified_minimap.shape[0]
+
+            self.handle = client_handler.get_client_handle(IGN, royals_ign_finder)
+            self._mini_pos_retrieve = FakeMinimap()
+            self._map_area_box = self._mini_pos_retrieve.get_map_area_box(self.handle)
+            self.update_character_position()
+            self.root.after(100, self.update_character_position)
 
         self.root.mainloop()
+
+    def save_edits(self) -> None:
+        self.edits.to_json(self.map_name)
 
     def refresh_canvas(self, modified_minimap: np.ndarray) -> None:
         self.view.canvas.delete('all')
@@ -67,9 +78,6 @@ class MinimapEditor:
         self.draw_rectangles_from_features()
 
     def refresh_mode_specific_frame(self) -> None:
-        # self.view.controls_frame.update_mode_dependent_frame(
-        #     self.view.get_current_mode()
-        # )
         if self.view.get_current_mode() == 'Feature Selection':
             sub: FeatureSelectionFrame = self.view.controls_frame.mode_specific_subframe
             sub.update_feature_dropdown(self.edits.names)
@@ -87,6 +95,7 @@ class MinimapEditor:
             self.draw_rectangle_in_construction(feature_name)
             feature = next(f for f in self.edits.features if f.name == feature_name)
             sub.update_entries(**asdict(feature))
+        self.character_marker = None
 
     def register_feature(self, frame: FeatureSelectionFrame) -> None:
         try:
@@ -105,6 +114,7 @@ class MinimapEditor:
             self.refresh_mode_specific_frame()
             frame.feature_dropdown.set(feature.name)
             self.draw_rectangle_in_construction(feature.name)
+            self.character_marker = None
 
         except BaseException as e:
             print(f"Error saving feature: {e}")
@@ -147,9 +157,20 @@ class MinimapEditor:
         pos = self._mini_pos_retrieve.get_character_positions(
             self.handle, map_area_box=self._map_area_box
         ).pop()
-        modified_img = self.modified_minimap.copy()
-        cv2.circle(modified_img, pos, 1, (0, 255, 255), 1)
-        self.update_canvas(modified_img)
+        coords = (
+            pos[0] * self.scale,
+            pos[1] * self.scale,
+            (pos[0] + 1) * self.scale,
+            (pos[1] + 1) * self.scale
+        )
+
+        # If the character position marker exists, update its position
+        if self.character_marker is None:
+            self.character_marker = self.view.canvas.create_rectangle(
+                *coords, fill='yellow'
+            )
+        else:
+            self.view.canvas.coords(self.character_marker, *coords)
 
         self.root.after(100, self.update_character_position)
 
