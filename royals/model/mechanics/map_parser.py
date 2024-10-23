@@ -155,7 +155,7 @@ class MapParser:
                     y -= offset_y
                     tile_data.append(
                         {
-                            'Section': section_name,
+                            'Layer': section_name,
                             'ID': tile.attrib['name'],
                             'x': x,
                             'y': y,
@@ -208,7 +208,7 @@ class MapParser:
                     y -= offset_y
                     object_data.append(
                         {
-                            'Section': section_name,
+                            'Layer': section_name,
                             'ID': obj.attrib['name'],
                             'x': x,
                             'y': y,
@@ -298,7 +298,7 @@ class MapParser:
         all_items = self.objects + self.tiles
         all_items.sort(
             key=lambda item: (
-                item['Section'],
+                item['Layer'],
                 item['z'] if item['Type'] == 'Object' else item['zM'],
                 item['zM'] if item['Type'] == 'Object' else item['z'],
                 item['ID']

@@ -10,3 +10,6 @@ fuzzywuzzy>=0.18.0
 levenshtein>=0.25.0
 ultralytics>=8.2.94
 
+
+pillow>=10.4.0
+torch>=2.4.1

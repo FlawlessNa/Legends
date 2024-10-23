@@ -1,7 +1,9 @@
 import itertools
+import json
 import numpy as np
-from dataclasses import dataclass, field
-
+import os
+from dataclasses import asdict, dataclass, field
+from paths import ROOT
 from botting.utilities import Box
 
 
@@ -12,6 +14,7 @@ class MinimapEdits(Box):
     It may define specific attributes for the nodes it contains. Each node will inherit
     from those attributes unless they explicitly define their own.
     """
+    name: str
     offset: tuple[int, int] = field(default=(0, 0))  # Applied to nodes within feature
     walkable: bool = field(default=True)  # To disable pathfinding through the feature
 
@@ -38,19 +41,49 @@ class MinimapEditsManager:
     """
     features: list[MinimapEdits] = field(default_factory=list)
 
+    @property
+    def names(self) -> list[str]:
+        return [f.name for f in self.features]
+
     @classmethod
-    def from_json(cls, json_path: str) -> "MinimapEditsManager":
+    def from_json(cls, map_name: str) -> "MinimapEditsManager":
         """
         Load the EditsManager from a JSON file.
         """
         pass
 
-    def to_json(self, json_path: str):
+    def to_json(self, map_name: str):
         """
         Save the EditsManager to a JSON file.
         """
-        pass
+        features = asdict(self)['features']
+        data = {
+            dct.pop('name'): dct for dct in features
+        }
+        with open(os.path.join(ROOT, 'royals/model/maps', f'{map_name}.json'), 'w') as f:
+            json.dump(data, f, indent=4)
 
-    def apply_edits(self, raw_canvas: np.ndarray) -> np.ndarray:
-        # TODO: Implement this
-        return raw_canvas
+    def apply_minimap_edits(self, raw_minimap: np.ndarray) -> np.ndarray:
+        """
+        Applies the walkable property of the feature onto each pixel contained within.
+        Then, applies the offset to any remaining walkable node contained within.
+        """
+        modified = raw_minimap.copy()
+        for feature in self.features:
+            offset_x, offset_y = feature.offset
+            vals = modified[
+                feature.top:feature.bottom, feature.left:feature.right
+            ].copy()
+            modified[
+                feature.top:feature.bottom, feature.left:feature.right
+            ] = 0
+
+            modified[
+                feature.top + offset_y:feature.bottom + offset_y,
+                feature.left + offset_x:feature.right + offset_x
+            ] = vals
+
+        return modified
+
+    def apply_grid_edits(self):
+        pass

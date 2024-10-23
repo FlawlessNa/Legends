@@ -4,7 +4,7 @@ from enum import Enum
 from pathfinding.core.grid import Grid
 from pathfinding.core.node import GridNode
 
-from .minimap_edits import MinimapEdits
+from .minimap_edits_model import MinimapEdits
 
 
 class ConnectionTypes(Enum):
