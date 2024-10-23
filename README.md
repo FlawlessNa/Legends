@@ -8,6 +8,7 @@
   - Still, it doesn't solve issue because if layout is wrong, the "'" should become "è" (as an example) and configs are therefore wrong in such a case
 - [ ] Current movements failsafe contradicts MobsHitting, needs to be fixed. Should MobsHitting cancel Rotation altogether?
 - [ ] Add a "log dump" from AttributeMetadata for each BotData instance upon engine shutdown
+- [ ] There's a bug with the rotation cycle, could be caused by Mob Check failsafe, but rotation sometimes resets?
 
 ## Model Usage
 - [ ] For comparison, try removing the caching feature and assess which option is best (will need to wait until server stable)
@@ -24,6 +25,7 @@
   - VR Foothold Canvas
   - VR Minimap Canvas
   - Minimap Canvas
+  - Full Canvas (incl background)
 - [ ] It also extracts objects/tiles
 - [ ] It can write a .py file that describes a minimap. This can be loaded and used when fine-tuning of weights/costs is necessary
   - Requires interactive window where user enters feature names for interesting features
@@ -40,6 +42,7 @@
 
 ## Movements
 - [ ] Finetune translation of path -> movements -> actions + Rotation DM using Ludi FM map?
+- [ ] custom-code for each "transition" from one movement to another
 - [ ] When jump on rope is involved, ensure keys are forced released on all transitions up to jump on rope
 - [ ] there's clearly a "preference" to jump on rope from the right side, might want to figure out why?
 - [ ] Ability for each MinimapGrid to fine-tune the calc_cost function
@@ -51,18 +54,12 @@
   - Use known on-screen location of objects, combined with known VR coordinates, and known on-screen location of character, to determine VR coordinates of character
   - Refactor pathing/movements/actions to use VR coordinates instead of minimap coordinates
   - Note: This might require to properly code all physics standard kinetic equations as well
-- [ ] Code the movement calibration toolkit to help improvement transitions from path into movements into actions
 - [ ] Refactoring of movement_mechanics to be cleaner
 - [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases
 - [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
 
 ## Rotation
-- [ ] Once MOB YOLO detection setup, try a new "smart" rotation algorithm based on scoring
-  - score of 100 if 5 mobs in range of skill
-  - score of 0 if no mobs in vision
-  - user enters score which is then used to determine if hit mobs or rotate
-  - score lowers as more distance with mobs
-  - Determine an on-screen point to rotate to. Convert this into approximate Minimap VR location, then into minimap location.
+- [ ] Prevent attacking while close to a feature's edge
 
 ## Pause/Resume
 - [ ] Streamline both pause/resume and disable/enable mechanism -> should only really be one. Make sure ref to tasks are properly updated too.
@@ -116,6 +113,7 @@
 - [ ] Inventory (mesos) parsing to ensure loot is still dropping from mobs
 
 ## Card Farming
+- [ ] Draw each maps from game files (including backgrounds), then create synthetic by adding mobs at random (but reasonable) locations for their respective maps, then train a global "Mob" detection YOLO model (with 1 class for each mob)
 - [ ] Once new game-file parser is done, make a launcher for card farming
   - Launcher requires a map, then use cv2 to show map. User can click on couple of points that will set the rotation.
   - At each point, the character will cast ult. and then move to the next point. Rinse and repeat until all cards done.

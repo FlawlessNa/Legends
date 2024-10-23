@@ -1,6 +1,6 @@
 from .map_creation.map_game_file_extractor import MapParser
-from .map_creation.minimap_editor import MinimapEditor
-from .map_creation.minimap_edits import MinimapEditsManager
+from .map_creation.minimap_edits_controller import MinimapEditor
+from .map_creation.minimap_edits_model import MinimapEditsManager
 
 
 class RoyalsMinimap:
