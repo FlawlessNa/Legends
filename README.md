@@ -44,7 +44,9 @@
 ## Movements
 - [ ] Finetune translation of path -> movements -> actions + Rotation DM using Ludi FM map?
 - [ ] custom-code for each "transition" from one movement to another
+  - IDEA: Try using structural pattern matching (match-case statements) for more clarity
 - [ ] When jump on rope is involved, ensure keys are forced released on all transitions up to jump on rope
+- [ ] When target is reached (end of movement), force release keys
 - [ ] there's clearly a "preference" to jump on rope from the right side, might want to figure out why?
 - [ ] Ability for each MinimapGrid to fine-tune the calc_cost function
 - [ ] Movement mechanics (new system):
