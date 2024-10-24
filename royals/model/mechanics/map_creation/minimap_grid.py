@@ -1,10 +1,8 @@
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+import numpy as np
+from dataclasses import dataclass
 from enum import Enum
 from pathfinding.core.grid import Grid
 from pathfinding.core.node import GridNode
-
-from .minimap_edits_model import MinimapEdits
 
 
 class ConnectionTypes(Enum):
@@ -44,6 +42,7 @@ class MinimapNode(GridNode):
 class MinimapGrid(Grid):
     """
     Wrapper around Grid that replaces all GridNodes with MinimapNodes.
-    It additionally applies MinimapEdits onto the grid, if provided.
     """
-    pass
+    def __init__(self, canvas: np.ndarray, grid_id: str = None):
+        super().__init__(matrix=canvas, grid_id=grid_id)
+        self.grid_id = grid_id

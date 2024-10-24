@@ -33,7 +33,9 @@ class MinimapEditor:
         self.raw_minimap = self.modified_minimap = raw_minimap
         self.edits = edits or MinimapEditsManager()
         self.scale = scale
-        self.modified_minimap = self.edits.apply_minimap_edits(self.raw_minimap)
+        self.modified_minimap = self.edits.apply_minimap_edits(
+            self.raw_minimap, apply_weights=False
+        )
         self.root = tk.Tk()
         self.view = EditorView(
             self.root,
@@ -109,7 +111,9 @@ class MinimapEditor:
             else:
                 self.edits.features.append(feature)
             print(f"Feature saved: {feature}")
-            self.modified_minimap = self.edits.apply_minimap_edits(self.raw_minimap)
+            self.modified_minimap = self.edits.apply_minimap_edits(
+                self.raw_minimap, apply_weights=False
+            )
             self.refresh_canvas(self.modified_minimap)
             self.refresh_mode_specific_frame()
             frame.feature_dropdown.set(feature.name)

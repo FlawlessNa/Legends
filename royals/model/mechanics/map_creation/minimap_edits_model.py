@@ -5,6 +5,8 @@ from dataclasses import asdict, dataclass, field
 from paths import ROOT
 from botting.utilities import Box
 
+from .minimap_grid import MinimapGrid
+
 _EDITS_ROOT = os.path.join(ROOT, 'royals/model/maps')
 
 
@@ -71,12 +73,15 @@ class MinimapEditsManager:
         data.pop('config', None)
         data.pop('relative', None)
         with open(os.path.join(_EDITS_ROOT, f'{map_name}.json'), 'w') as f:
-            json.dump(data, f, indent=4)
+            json.dump(data, f, indent=4)  # noqa
 
-    def apply_minimap_edits(self, raw_minimap: np.ndarray) -> np.ndarray:
+    def apply_minimap_edits(
+        self,
+        raw_minimap: np.ndarray,
+        apply_weights: bool = True
+    ) -> np.ndarray:
         """
-        Applies the walkable property of the feature onto each pixel contained within.
-        Then, applies the offset to any remaining walkable node contained within.
+        Applies all feature's offset and optionally weights to the minimap.
         """
         modified = raw_minimap.copy()
         for feature in self.features:
@@ -87,13 +92,24 @@ class MinimapEditsManager:
             modified[
                 feature.top:feature.bottom, feature.left:feature.right
             ] = 0
-
-            modified[
-                feature.top + offset_y:feature.bottom + offset_y,
-                feature.left + offset_x:feature.right + offset_x
-            ] = vals
+            if apply_weights:
+                modified[
+                    feature.top + offset_y:feature.bottom + offset_y,
+                    feature.left + offset_x:feature.right + offset_x
+                ] = feature.weight
+            else:
+                modified[
+                    feature.top + offset_y:feature.bottom + offset_y,
+                    feature.left + offset_x:feature.right + offset_x
+                ] = vals
 
         return modified
 
-    def apply_grid_edits(self, grid: MinimapGrid):
+    def generate_grid(
+        self,
+        modified_minimap: np.ndarray,
+        allow_teleport: bool,
+        speed_multiplier: float,
+        jump_multiplier: float
+    ) -> MinimapGrid:
         pass

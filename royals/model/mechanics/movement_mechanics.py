@@ -197,6 +197,7 @@ class Movements:
         speed_multiplier: float = 1.0,
     ) -> controller.KeyboardInputWrapper:
         """
+        # TODO - When refactoring this (and for each transition movement pairs), try using structural pattern matching
         Translates a series of movements into a series of inputs and delays.
         :param movements: series of
             ("movement to do", "number of nodes/times to go through")
