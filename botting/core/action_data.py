@@ -172,13 +172,16 @@ class ActionWithValidation:
     @staticmethod
     async def _conditional_procedure(procedure: callable, condition, *args, **kwargs):
         while True:
+            logger.info(f"Attempting to acquire condition ID {id(condition)}")
             if not condition.acquire(timeout=0.1):
                 await asyncio.sleep(0.1)
             else:
+                logger.info(f"Acquired condition ID {id(condition)}")
                 try:
                     res = await procedure(*args, **kwargs)
-                    condition.notify()
+                    condition.notify_all()
                     break
                 finally:
                     condition.release()
+                    logger.info(f"Released condition ID {id(condition)}")
         return res
