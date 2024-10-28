@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import IntEnum
 
 
-class MovementTypes(Enum):
+class MovementTypes(IntEnum):
     """
     Enum to hold the different types of movements.
     """

@@ -1,11 +1,11 @@
 import numpy as np
 from dataclasses import dataclass
-from enum import Enum
+from enum import IntEnum
 from pathfinding.core.grid import Grid
 from pathfinding.core.node import GridNode
 
 
-class ConnectionTypes(Enum):
+class ConnectionTypes(IntEnum):
     """
     Enum to hold the different types of connections nodes.
     """
