@@ -61,7 +61,6 @@ class MinimapAttributesMixin:
             "current_minimap_area_box",
             "current_entire_minimap_box",
             "current_minimap_title_box",
-            "current_minimap_position",
         )
 
     def _ensure_mouse_not_on_minimap(self, identifier: str) -> None:
