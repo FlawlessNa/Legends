@@ -20,6 +20,7 @@
   - Then, cross-validate with map objects to get each VR position, and compare with VR position estimated from minimap. Extract closest match.
 
 ## Map Parser
+- [ ] Should be able to group footholds/ladders by actual "platforms" and "ladders" for pathfinding
 - [ ] Class that can be used to draw canvas for ANY map (provided the .xml files are available)
   - VR Map Canvas
   - VR Foothold Canvas
@@ -27,21 +28,14 @@
   - Minimap Canvas
   - Full Canvas (incl background)
 - [ ] It also extracts objects/tiles
-- [ ] It can write a .py file that describes a minimap. This can be loaded and used when fine-tuning of weights/costs is necessary
-  - Requires interactive window where user enters feature names for interesting features
-  - Try using tkinter? cv2 alone is not enough
-  - Need to think of how to store revamped minimap objects
-    - save raw matrix from game files as .npy files
-    - save modified features as MinimapFeatures within the class
-      - Features are list of points
-      - With optional weights
-      - edge avoidance attributes and such
-      - Features can be used to modify original matrix (How?)
-  - Unnecessary features are given sequential generic names
+- [ ] Can extract mobs and their "expected" locations to create synthetic data
 - [ ] It can attempt to estimate the character's VR coordinates as well
-- [ ] Should be able to draw proper background as well
+- [ ] Should be able to draw proper background as well for synthetic data
+- [ ] Apply edits on grid
+- [ ] EditorView 2nd mob to show pathfinding and better finetuning with those
 
 ## Movements
+- [ ] Add step to convert current minimap pos towards closest walkable node, up to a small acceptable dist threshold
 - [ ] Finetune translation of path -> movements -> actions + Rotation DM using Ludi FM map?
 - [ ] custom-code for each "transition" from one movement to another
   - IDEA: Try using structural pattern matching (match-case statements) for more clarity
@@ -49,14 +43,6 @@
 - [ ] When target is reached (end of movement), force release keys
 - [ ] there's clearly a "preference" to jump on rope from the right side, might want to figure out why?
 - [ ] Ability for each MinimapGrid to fine-tune the calc_cost function
-- [ ] Movement mechanics (new system):
-  - Find objects and potentially tiles on the screen that can be used as reference points for movement
-  - Solution 1:
-    - Can either use ORB feature matching or template matching to find them
-    - Can use optical flow to track movement of these objects
-  - Use known on-screen location of objects, combined with known VR coordinates, and known on-screen location of character, to determine VR coordinates of character
-  - Refactor pathing/movements/actions to use VR coordinates instead of minimap coordinates
-  - Note: This might require to properly code all physics standard kinetic equations as well
 - [ ] Refactoring of movement_mechanics to be cleaner
 - [ ] Finetune pathfinding weights/costs by looking at computed paths between source-target and adjust until it is optimal in most cases
 - [ ] Connect map pathfinding Grid objects directly (see pathfinding docs/ documentation)
@@ -120,7 +106,8 @@
 - [ ] Once new game-file parser is done, make a launcher for card farming
   - Launcher requires a map, then use cv2 to show map. User can click on couple of points that will set the rotation.
   - At each point, the character will cast ult. and then move to the next point. Rinse and repeat until all cards done.
-
+- [ ] Ultimately leverage the usual rotation/mobs-hitting decision-maker with a "global" mob-detection model
+ 
 ## Nice to have
   - [ ] for Ulu only - look into building an "unknown" object detection method, using UNKAD methodology or anomaly detection
   - [ ] for stationary farming - Can use a "pixel movement" detection instead of mob detection
