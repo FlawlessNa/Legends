@@ -63,7 +63,7 @@
   - [ ] Handling of in-game Macros efficiently
    
 - [ ] InventoryManager:
-  - [ ] Confirmation of Door being cast properly
+  - [ ] Confirmation of Door being cast properly (very easy in legends since there's an icon)
   - [ ] Breakdown of the class between interface components and actual decision-making
 - [ ] transfer to GS2 under new framework?
 

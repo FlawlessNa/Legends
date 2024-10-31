@@ -190,10 +190,15 @@ class BotData:
         except Exception as e:
             if name in self._error_handlers:
                 self._error_handlers[name]()
-                try:
-                    self._update_value(name)
-                except Exception as e:
-                    self._attributes[name] = None
+                logger.info(f"Finished error handling for {name}.")
+                self.update_attribute(name)
+                logger.info(f"Successfully updated {name} after error handling.")
+                # try:
+                #     self._update_value(name)
+                #     logger.info(f"Successfully updated {name} after error handling.")
+                # except Exception as e:
+                #     logger.error(f"Failed to update {name} after error handling.")
+                #     self._attributes[name] = None
             else:
                 raise e
 

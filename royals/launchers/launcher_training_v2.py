@@ -6,7 +6,8 @@ import royals.parsers
 
 training_configs = {
     "num_pets": 1,
-    "game_map": maps.MysteriousPath3,
+    "game_map": 'MysteriousPath3',
+    "open_minimap_editor": False,
     "mob_count_threshold": 1,
     "included_buffs": ["Invincible", "Holy Symbol"],
     "training_skill": "Heal",

@@ -24,10 +24,10 @@ class ConnectionTypes(IntEnum):
     TELEPORT_RIGHT = 13
     TELEPORT_UP = 14
     TELEPORT_DOWN = 15
-    FLASH_JUMP_LEFT = NotImplemented
-    FLASH_JUMP_RIGHT = NotImplemented
-    FLASH_JUMP_LEFT_AND_UP = NotImplemented
-    FLASH_JUMP_RIGHT_AND_UP = NotImplemented
+    # FLASH_JUMP_LEFT = NotImplemented
+    # FLASH_JUMP_RIGHT = NotImplemented
+    # FLASH_JUMP_LEFT_AND_UP = NotImplemented
+    # FLASH_JUMP_RIGHT_AND_UP = NotImplemented
 
 
 @dataclass

@@ -6,7 +6,7 @@ from botting.utilities import take_screenshot
 from botting.visuals import InGameDetectionVisuals
 from royals import royals_ign_finder, royals_job_finder
 from royals.model.characters import MAPPING as CHARACTER_MAPPING
-from royals.model.maps import RoyalsMap
+from royals.model.mechanics import MapleMap
 
 
 class RoyalsBot(Bot, ABC):
@@ -20,11 +20,12 @@ class RoyalsBot(Bot, ABC):
         self,
         ign: str,
         metadata: multiprocessing.managers.DictProxy,
-        game_map: type[RoyalsMap],
+        game_map: str,
         detection_configs: str = None,
         client_size: str = "medium",
         models_path: dict[str, str] = None,
         character_class: str = None,
+        open_minimap_editor: bool = False,
         **kwargs
     ) -> None:
         super().__init__(ign, metadata, **kwargs)
@@ -34,7 +35,9 @@ class RoyalsBot(Bot, ABC):
         self.detection_configs = detection_configs
         self.client_size = client_size
         self.models_path = models_path
-        self.game_map = game_map
+        self.game_map = game_map.replace("_", "").replace(" ", "")
+        self.open_minimap_editor = open_minimap_editor
+        self.kwargs = kwargs
 
     def child_init(
         self,
@@ -56,7 +59,10 @@ class RoyalsBot(Bot, ABC):
                 self.ign, self.detection_configs, self.client_size
             ),
         )
-        self.data.create_attribute("current_map", lambda: self.game_map())
+        self.data.create_attribute(
+            "current_map",
+            lambda: MapleMap(self.game_map, self.open_minimap_editor, **self.kwargs)
+        )
         self.data.create_attribute(
             "current_minimap", lambda: self.data.current_map.minimap
         )
