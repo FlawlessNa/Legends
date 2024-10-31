@@ -4,6 +4,8 @@ import os
 from paths import ROOT
 import xml.etree.ElementTree as ET
 
+from .footholds import _FootholdExtractor
+from .objects import _ObjectsExtractor
 
 class MapParser:
     _ASSETS = os.path.join(ROOT, "royals/assets/game_files/maps")
@@ -11,13 +13,27 @@ class MapParser:
     def __init__(self, map_name: str):
         self.tree = ET.parse(os.path.join(self._ASSETS, f"{map_name}.xml"))
         self.root = self.tree.getroot()
-        # super().__init__(self.root)
 
         self._info_tree = self.root.find(".//imgdir[@name='info']")
-        self._minimap_tree = self.root.find(".//imgdir[@name='miniMap']")
+        self._bg_tree = self.root.find(".//imgdir[@name='back']")
+        self._life_tree = self.root.find(".//imgdir[@name='life']")
         self._foothold_tree = self.root.find(".//imgdir[@name='foothold']")
-        self._portal_tree = self.root.find(".//imgdir[@name='portal']")
         self._rope_tree = self.root.find(".//imgdir[@name='ladderRope']")
+        self._minimap_tree = self.root.find(".//imgdir[@name='miniMap']")
+        self._portal_tree = self.root.find(".//imgdir[@name='portal']")
+
+        self.objects = _ObjectsExtractor(self.root)
+        self.tiles = _TilesExtractor(...)
+        self.footholds = _FootholdExtractor(
+            fh_tree=self._foothold_tree,
+            fh_from_obj=self.objects.get_footholds(),
+            fh_from_tiles=self.tiles.get_footholds(),
+        )
+        self.ropes = _LadderExtractor(
+            rope_tree=self._rope_tree,
+            ropes_from_obj=self.objects.get_ropes(),
+            ropes_from_tiles=self.tiles.get_ropes(),
+        )
 
         # Extract VR coordinates
         self.vr_left = int(self._info_tree.find("int[@name='VRLeft']").get("value"))
@@ -55,7 +71,7 @@ class MapParser:
 
         self.ropes = self._extract_all_ropes()
         self.tiles = self._extract_all_tiles()
-        self.objects = self._extract_all_objects()
+        # self.objects = self._extract_all_objects()
         self.portals = self._extract_all_portals()
 
         # Draws lines on the foothold canvas
@@ -170,58 +186,58 @@ class MapParser:
                     )
         return res
 
-    def _extract_all_objects(self) -> dict:
-        """
-        Parses the map .xml file to extract all objects specifications.
-        Also extracts the objects .png and .xml specifications to get all information.
-        Adds any footholds tied to objects into the footholds list.
-        """
-        res = {}
-        for section in self.root:
-            section_name = section.get("name")
-            if section_name.isdigit():
-                obj_section = section.find("imgdir[@name='obj']")
-                for idx, obj in enumerate(obj_section.findall("imgdir")):
-                    oS, l0, l1, l2, x, y, z, zM, f, r = self._extract_object_info(obj)
-
-                    image_path = self.get_obj_image_path(oS, l0, l1, l2)
-                    image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-                    self._object_images.setdefault(image_path, image)
-
-                    object_data = res.setdefault((oS, l0, l1, l2), [])
-                    xml_path = self.get_obj_xml_path(oS)
-                    offset_x, offset_y, fh, ropes = self._get_obj_data(
-                        xml_path, l0, l1, l2
-                    )
-                    if fh:
-                        self.obj_footholds.append(
-                            {
-                                'x': tuple(i + x for i in fh['x']),
-                                'y': tuple(i + y for i in fh['y'])
-                            }
-                        )
-                    if ropes:
-                        self.ropes.append(
-                            {
-                                'x': tuple(i + x for i in ropes['x']),
-                                'y': tuple(i + y for i in ropes['y'])
-                            }
-                        )
-                    x -= offset_x
-                    y -= offset_y
-                    object_data.append(
-                        {
-                            'Layer': section_name,
-                            'ID': obj.attrib['name'],
-                            'x': x,
-                            'y': y,
-                            'f': f,
-                            'zM': zM,
-                            'z': z,
-                            'r': r,
-                        }
-                    )
-        return res
+    # def _extract_all_objects(self) -> dict:
+    #     """
+    #     Parses the map .xml file to extract all objects specifications.
+    #     Also extracts the objects .png and .xml specifications to get all information.
+    #     Adds any footholds tied to objects into the footholds list.
+    #     """
+    #     res = {}
+    #     for section in self.root:
+    #         section_name = section.get("name")
+    #         if section_name.isdigit():
+    #             obj_section = section.find("imgdir[@name='obj']")
+    #             for idx, obj in enumerate(obj_section.findall("imgdir")):
+    #                 oS, l0, l1, l2, x, y, z, zM, f, r = self._extract_object_info(obj)
+    #
+    #                 image_path = self.get_obj_image_path(oS, l0, l1, l2)
+    #                 image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+    #                 self._object_images.setdefault(image_path, image)
+    #
+    #                 object_data = res.setdefault((oS, l0, l1, l2), [])
+    #                 xml_path = self.get_obj_xml_path(oS)
+    #                 offset_x, offset_y, fh, ropes = self._get_obj_data(
+    #                     xml_path, l0, l1, l2
+    #                 )
+    #                 if fh:
+    #                     self.obj_footholds.append(
+    #                         {
+    #                             'x': tuple(i + x for i in fh['x']),
+    #                             'y': tuple(i + y for i in fh['y'])
+    #                         }
+    #                     )
+    #                 if ropes:
+    #                     self.ropes.append(
+    #                         {
+    #                             'x': tuple(i + x for i in ropes['x']),
+    #                             'y': tuple(i + y for i in ropes['y'])
+    #                         }
+    #                     )
+    #                 x -= offset_x
+    #                 y -= offset_y
+    #                 object_data.append(
+    #                     {
+    #                         'Layer': section_name,
+    #                         'ID': obj.attrib['name'],
+    #                         'x': x,
+    #                         'y': y,
+    #                         'f': f,
+    #                         'zM': zM,
+    #                         'z': z,
+    #                         'r': r,
+    #                     }
+    #                 )
+    #     return res
 
     def _extract_all_portals(self) -> list:
         """
@@ -281,19 +297,19 @@ class MapParser:
         zM = int(tile.find("int[@name='zM']").get("value"))
         return u, no, x, y, zM
 
-    @staticmethod
-    def _extract_object_info(obj: ET.Element) -> tuple:
-        oS = obj.find("string[@name='oS']").get("value")
-        l0 = obj.find("string[@name='l0']").get("value")
-        l1 = obj.find("string[@name='l1']").get("value")
-        l2 = obj.find("string[@name='l2']").get("value")
-        x = int(obj.find("int[@name='x']").get("value"))
-        y = int(obj.find("int[@name='y']").get("value"))
-        z = int(obj.find("int[@name='z']").get("value"))
-        zM = int(obj.find("int[@name='zM']").get("value"))
-        f = int(obj.find("int[@name='f']").get("value"))
-        r = int(obj.find("int[@name='r']").get("value"))
-        return oS, l0, l1, l2, x, y, z, zM, f, r
+    # @staticmethod
+    # def _extract_object_info(obj: ET.Element) -> tuple:
+    #     oS = obj.find("string[@name='oS']").get("value")
+    #     l0 = obj.find("string[@name='l0']").get("value")
+    #     l1 = obj.find("string[@name='l1']").get("value")
+    #     l2 = obj.find("string[@name='l2']").get("value")
+    #     x = int(obj.find("int[@name='x']").get("value"))
+    #     y = int(obj.find("int[@name='y']").get("value"))
+    #     z = int(obj.find("int[@name='z']").get("value"))
+    #     zM = int(obj.find("int[@name='zM']").get("value"))
+    #     f = int(obj.find("int[@name='f']").get("value"))
+    #     r = int(obj.find("int[@name='r']").get("value"))
+    #     return oS, l0, l1, l2, x, y, z, zM, f, r
 
     def draw_vr_canvas(self):
         self._draw_objs()
@@ -333,11 +349,11 @@ class MapParser:
         self._draw_portals()
         self._draw_ropes()
 
-    @staticmethod
-    def get_obj_image_path(oS, l0, l1, l2):
-        return os.path.join(
-            MapParser._ASSETS, "images", "objects", oS, f"{l0}.{l1}.{l2}.0.png"
-        )
+    # @staticmethod
+    # def get_obj_image_path(oS, l0, l1, l2):
+    #     return os.path.join(
+    #         MapParser._ASSETS, "images", "objects", oS, f"{l0}.{l1}.{l2}.0.png"
+    #     )
 
     @staticmethod
     def get_tile_image_path(tS, u, no):
@@ -347,9 +363,9 @@ class MapParser:
     def get_tile_xml_path(tS):
         return os.path.join(MapParser._ASSETS, "specs", "tiles", f"{tS}.img.xml")
 
-    @staticmethod
-    def get_obj_xml_path(oS):
-        return os.path.join(MapParser._ASSETS, "specs", "objects", f"{oS}.img.xml")
+    # @staticmethod
+    # def get_obj_xml_path(oS):
+    #     return os.path.join(MapParser._ASSETS, "specs", "objects", f"{oS}.img.xml")
 
     @staticmethod
     def _get_tile_data(xml_path, u, no) -> tuple:
@@ -372,32 +388,32 @@ class MapParser:
 
         return int(res["x"]), int(res["y"]), int(z), fh
 
-    @staticmethod
-    def _get_obj_data(xml_path, *args):
-        tree = ET.parse(xml_path)
-        root = tree.getroot()
-        for arg in args:
-            root = root.find(f"imgdir[@name='{arg}']")
-
-        root = root.find(f"canvas[@name='0']")
-        extended = root.findall('extended')
-        assert len(extended) <= 1
-        fh = {}
-        rope = {}
-        if extended and extended[0].get('name') == 'foothold':
-            fh = {
-                'x': tuple(int(i.attrib['x']) for i in extended[0].findall('vector')),
-                'y': tuple(int(i.attrib['y']) for i in extended[0].findall('vector'))
-            }
-        elif extended and extended[0].get('name') in ['rope', 'ladder']:
-            rope = {
-                'x': tuple(int(i.attrib['x']) for i in extended[0].findall('vector')),
-                'y': tuple(int(i.attrib['y']) for i in extended[0].findall('vector'))
-            }
-        elif extended:
-            breakpoint()
-        res = root.find(f"vector[@name='origin']").attrib
-        return int(res["x"]), int(res["y"]), fh, rope
+    # @staticmethod
+    # def _get_obj_data(xml_path, *args):
+    #     tree = ET.parse(xml_path)
+    #     root = tree.getroot()
+    #     for arg in args:
+    #         root = root.find(f"imgdir[@name='{arg}']")
+    #
+    #     root = root.find(f"canvas[@name='0']")
+    #     extended = root.findall('extended')
+    #     assert len(extended) <= 1
+    #     fh = {}
+    #     rope = {}
+    #     if extended and extended[0].get('name') == 'foothold':
+    #         fh = {
+    #             'x': tuple(int(i.attrib['x']) for i in extended[0].findall('vector')),
+    #             'y': tuple(int(i.attrib['y']) for i in extended[0].findall('vector'))
+    #         }
+    #     elif extended and extended[0].get('name') in ['rope', 'ladder']:
+    #         rope = {
+    #             'x': tuple(int(i.attrib['x']) for i in extended[0].findall('vector')),
+    #             'y': tuple(int(i.attrib['y']) for i in extended[0].findall('vector'))
+    #         }
+    #     elif extended:
+    #         breakpoint()
+    #     res = root.find(f"vector[@name='origin']").attrib
+    #     return int(res["x"]), int(res["y"]), fh, rope
 
     def paste_image(self, canvas, image, x, y, f, zM, r):
         if f == 1:
