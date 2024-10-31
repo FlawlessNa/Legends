@@ -4,10 +4,6 @@ import os
 from paths import ROOT
 import xml.etree.ElementTree as ET
 
-from royals import royals_ign_finder
-from royals.model.interface.dynamic_components.minimap import Minimap
-from botting.utilities import client_handler, take_screenshot
-
 
 class MapParser:
     _ASSETS = os.path.join(ROOT, "royals/assets/game_files/maps")
@@ -15,6 +11,7 @@ class MapParser:
     def __init__(self, map_name: str):
         self.tree = ET.parse(os.path.join(self._ASSETS, f"{map_name}.xml"))
         self.root = self.tree.getroot()
+        # super().__init__(self.root)
 
         self._info_tree = self.root.find(".//imgdir[@name='info']")
         self._minimap_tree = self.root.find(".//imgdir[@name='miniMap']")
@@ -52,7 +49,10 @@ class MapParser:
         self._tiles_images = {}
         self._object_images = {}
 
-        self.footholds = self._extract_all_footholds()
+        self.reg_footholds = self._extract_all_footholds()
+        self.tile_footholds = []
+        self.obj_footholds = []
+
         self.ropes = self._extract_all_ropes()
         self.tiles = self._extract_all_tiles()
         self.objects = self._extract_all_objects()
@@ -87,6 +87,9 @@ class MapParser:
                     )
                     res.append(
                         {
+                            'Layer ID': layer_id.attrib['name'],
+                            'Group ID': fh_group.attrib['name'],
+                            'ID': fh.attrib['name'],
                             'x': (data['x1'], data['x2']),
                             'y': (data['y1'], data['y2']),
                             'prev': data['prev'],
@@ -145,7 +148,7 @@ class MapParser:
                     xml_path = self.get_tile_xml_path(tS)
                     offset_x, offset_y, z, fh = self._get_tile_data(xml_path, u, no)
                     if fh:
-                        self.footholds.append(
+                        self.tile_footholds.append(
                             {
                                 'x': tuple(i + x for i in fh['x']),
                                 'y': tuple(i + y for i in fh['y'])
@@ -191,7 +194,7 @@ class MapParser:
                         xml_path, l0, l1, l2
                     )
                     if fh:
-                        self.footholds.append(
+                        self.obj_footholds.append(
                             {
                                 'x': tuple(i + x for i in fh['x']),
                                 'y': tuple(i + y for i in fh['y'])
@@ -460,7 +463,9 @@ class MapParser:
             cv2.waitKey(1)
 
     def _draw_footholds(self, show: bool = False):
-        self._draw_lines(self.footholds, show=show)
+        self._draw_lines(self.reg_footholds, show=show)
+        self._draw_lines(self.tile_footholds, show=show, color=(255, 0, 255))
+        self._draw_lines(self.obj_footholds, show=show, color=(0, 0, 255))
 
     def _draw_portals(self, show: bool = False):
         self._draw_lines(self.portals, color=(0, 255, 0), show=show)
@@ -469,7 +474,9 @@ class MapParser:
         self._draw_lines(self.ropes, color=(255, 0, 0), show=show)
 
     def _draw_minimap(self, show: bool = False):
-        self._draw_lines(self.footholds, self.mini_cx, self.mini_cy)
+        self._draw_lines(self.reg_footholds, self.mini_cx, self.mini_cy, show=show)
+        self._draw_lines(self.tile_footholds, self.mini_cx, self.mini_cy, show=show)
+        self._draw_lines(self.obj_footholds, self.mini_cx, self.mini_cy, show=show)
         self._draw_lines(
             self.portals, self.mini_cx, self.mini_cy, color=(0, 255, 0)
         )
@@ -522,131 +529,3 @@ class MapParser:
 if __name__ == "__main__":
     map_name = "MysteriousPath3"
     map_parser = MapParser(map_name)
-    orig_mini = cv2.threshold(cv2.cvtColor(map_parser.mini_canvas.copy(), cv2.COLOR_BGR2GRAY), 1, 255, cv2.THRESH_BINARY)[1]
-    cnt, _ = cv2.findContours(orig_mini, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    copied = np.zeros(orig_mini.shape, np.uint8)
-    cv2.drawContours(copied, cnt, -1, 255, 1)
-    cv2.imshow("Contours", cv2.resize(copied, None, fx=5, fy=5))
-    cv2.imshow('Orig', cv2.resize(orig_mini, None, fx=5, fy=5))
-    print("Equal", np.array_equal(orig_mini, copied))
-    cv2.waitKey(0)
-    # map_parser.draw_vr_canvas()
-    # cv2.imshow("FH Canvas", cv2.resize(map_parser.fh_canvas, None, fx=0.5, fy=0.5))
-    # cv2.imshow('Mini VR Canvas', cv2.resize(map_parser.mini_vr_canvas, None, fx=0.5, fy=0.5))
-    # cv2.imshow('Mini Canvas', cv2.resize(map_parser.mini_canvas, None, fx=5, fy=5))
-    # cv2.waitKey(1)
-    # breakpoint()
-    HANDLE = client_handler.get_client_handle("StarBase", royals_ign_finder)
-    # objects = {
-    #     "16": {
-    #         "path": r"C:\Users\nassi\Games\MapleRoyals\Legends\royals\assets\game_files\maps\images\acc4\toyCastle2.b2.6.0.png",
-    #         "x": -608,
-    #         "y": 532,
-    #     },
-        # "17": {
-        #     "path": r"C:\Users\nassi\Games\MapleRoyals\Legends\royals\assets\game_files\maps\images\acc4\toyCastle2.b2.4.0.png",
-        #     "x": -28,
-        #     "y": 532,
-        # },
-        # "14": {
-        #     "path": r"C:\Users\nassi\Games\MapleRoyals\Legends\royals\assets\game_files\maps\images\acc4\toyCastle2.b2.1.0.png",
-        #     "x": -276,
-        #     "y": 292,
-        # }
-    # }
-
-    class FakeMinimap(Minimap):
-        map_area_width = map_parser.mini_cv_w
-        map_area_height = map_parser.mini_cv_h
-
-        def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-            pass
-
-    minimap = FakeMinimap()
-    map_area_box = minimap.get_map_area_box(HANDLE)
-
-    from royals.model.characters import Bishop
-    # client_img = take_screenshot(HANDLE)
-    # char = Bishop("StarBase", "data/model_runs/character_detection/ClericChronosTraining - Nano120")
-    # on_screen_pos = char.get_onscreen_position(client_img, acceptance_threshold=0.5)
-    # cv2.rectangle(client_img, (on_screen_pos[0], on_screen_pos[1]), (on_screen_pos[2], on_screen_pos[3]), 255, 2)
-    # cx, cy = (on_screen_pos[0] + on_screen_pos[2]) / 2, (on_screen_pos[1] + on_screen_pos[3]) / 2
-    # cv2.circle(client_img, (int(cx), int(cy)), 5, (0, 255, 0), -1)
-    # ref_pts_screen = []
-    # ref_pts_vr = []
-    # for obj in objects:
-    #     image = cv2.imread(objects[obj]["path"])
-    #     # Match object on client image and draw rectangle
-    #     match = cv2.matchTemplate(client_img, image, cv2.TM_CCOEFF_NORMED)
-    #     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(match)
-    #     top_left = max_loc
-    #     bottom_right = (top_left[0] + image.shape[1], top_left[1] + image.shape[0])
-    #     center_screen_x = top_left[0] + image.shape[1] // 2
-    #     center_screen_y = top_left[1] + image.shape[0] // 2
-    #     ref_pts_screen.append((center_screen_x, center_screen_y))
-    #     # center_vr_x = objects[obj]["x"] - map_parser.vr_left
-    #     # center_vr_y = objects[obj]["y"] - map_parser.vr_top
-    #     center_vr_x = objects[obj]["x"]
-    #     center_vr_y = objects[obj]["y"]
-    #     ref_pts_vr.append((center_vr_x, center_vr_y))
-    #     cv2.rectangle(client_img, top_left, bottom_right, 255, 2)
-    #     cv2.circle(client_img, (center_screen_x, center_screen_y), 5, (0, 255, 0), -1)
-    #     cv2.imshow("Client", client_img)
-    #     cv2.waitKey(1)
-
-    # vr_pos = MapParser.map_to_vr_coordinates((cx, cy), ref_pts_screen, ref_pts_vr)
-    # cv2.circle(map_parser.vr_canvas, (int(vr_pos[0] - map_parser.vr_left), int(vr_pos[1] - map_parser.vr_top)), 5, (255, 255, 255), 5)
-    # Test coordiantes of objects by drawing white on the VR canvas
-    # for obj in objects:
-    #     x, y = objects[obj]["x"] - map_parser.vr_left, objects[obj]["y"] - map_parser.vr_top
-    #     cv2.circle(map_parser.vr_canvas, (x, y), 5, (255, 255, 255), 5)
-    while True:
-        copied_mini = map_parser.mini_canvas.copy()
-        copied_vr_mini = map_parser.mini_vr_canvas.copy()
-        pos = minimap.get_character_positions(HANDLE, map_area_box=map_area_box).pop()
-        vr_coord = map_parser.get_approx_vr_coord_from_minimap(pos)
-        cv2.circle(copied_mini, pos, 1, (0, 255, 0), 1)
-        cv2.rectangle(copied_vr_mini, (int(vr_coord[0]), int(vr_coord[1])), (int(vr_coord[2]), int(vr_coord[3])), (0, 0, 255), 1)
-        cv2.imshow("Test Pos", cv2.resize(copied_mini, None, fx=5, fy=5))
-        cv2.imshow("Test VR", cv2.resize(copied_vr_mini, None, fx=0.5, fy=0.5))
-        cv2.waitKey(1)
-
-        # TODO - Try using a new ref point that is not horizontally aligned!
-        # copied = map_parser.vr_canvas.copy()
-        # client_img = take_screenshot(HANDLE)
-        # on_screen_pos = char.get_onscreen_position(client_img, acceptance_threshold=0.5)
-        # cv2.rectangle(client_img, (on_screen_pos[0], on_screen_pos[1]),
-        #               (on_screen_pos[2], on_screen_pos[3]), 255, 2)
-        # cx, cy = (on_screen_pos[0] + on_screen_pos[2]) / 2, (
-        #         on_screen_pos[1] + on_screen_pos[3]) / 2
-        # cv2.circle(client_img, (int(cx), int(cy)), 5, (0, 255, 0), -1)
-        # ref_pts_screen = []
-        # ref_pts_vr = []
-        # for obj in objects:
-        #     image = cv2.imread(objects[obj]["path"])
-        #     # Match object on client image and draw rectangle
-        #     match = cv2.matchTemplate(client_img, image, cv2.TM_CCOEFF_NORMED)
-        #     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(match)
-        #     top_left = max_loc
-        #     bottom_right = (top_left[0] + image.shape[1], top_left[1] + image.shape[0])
-        #     center_screen_x = top_left[0] + image.shape[1] // 2
-        #     center_screen_y = top_left[1] + image.shape[0] // 2
-        #     ref_pts_screen.append((center_screen_x, center_screen_y))
-        #     # center_vr_x = objects[obj]["x"] - map_parser.vr_left
-        #     # center_vr_y = objects[obj]["y"] - map_parser.vr_top
-        #     center_vr_x = objects[obj]["x"]
-        #     center_vr_y = objects[obj]["y"]
-        #     ref_pts_vr.append((center_vr_x, center_vr_y))
-        #     cv2.rectangle(client_img, top_left, bottom_right, 255, 2)
-        #     cv2.circle(client_img, (center_screen_x, center_screen_y), 5, (0, 255, 0),
-        #                -1)
-        #     cv2.imshow("Client", client_img)
-        #     cv2.waitKey(1)
-        # vr_pos = MapParser.map_to_vr_coordinates((cx, cy), ref_pts_screen, ref_pts_vr)
-        # cv2.circle(map_parser.vr_canvas, (int(vr_pos[0] - map_parser.vr_left), int(vr_pos[1] - map_parser.vr_top)), 5, (255, 255, 255), 5)
-        # # pos = minimap.get_character_positions(HANDLE).pop()
-        # # pos = map_parser.translate_to_vr(pos)
-        # # cv2.circle(copied, pos, 1, (0, 255, 0), 3)
-        # cv2.imshow("Canvas", cv2.resize(copied, None, fx=0.5, fy=0.5))
-        # cv2.waitKey(1)
-        # # breakpoint()
