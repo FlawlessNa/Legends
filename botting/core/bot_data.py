@@ -193,12 +193,6 @@ class BotData:
                 logger.info(f"Finished error handling for {name}.")
                 self.update_attribute(name)
                 logger.info(f"Successfully updated {name} after error handling.")
-                # try:
-                #     self._update_value(name)
-                #     logger.info(f"Successfully updated {name} after error handling.")
-                # except Exception as e:
-                #     logger.error(f"Failed to update {name} after error handling.")
-                #     self._attributes[name] = None
             else:
                 raise e
 

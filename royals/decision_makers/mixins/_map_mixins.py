@@ -1,6 +1,7 @@
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
+import time
 import win32gui
 
 from royals.actions import ensure_minimap_displayed
@@ -39,20 +40,30 @@ class MinimapAttributesMixin:
             identifier,
             "Condition",
         )
+        attempt = 0
+        while True:
+            time.sleep(1.5)
+            ensure_minimap_displayed(
+                identifier,
+                self.data.handle,
+                self.data.ign,
+                self.pipe,
+                self.data.current_minimap,
+                condition,
+                self.ERROR_HANDLING_TIME_LIMIT,
+            )
+            logger.info("Minimap fully displayed confirmed")
 
-        ensure_minimap_displayed(
-            identifier,
-            self.data.handle,
-            self.data.ign,
-            self.pipe,
-            self.data.current_minimap,
-            condition,
-            self.ERROR_HANDLING_TIME_LIMIT,
-        )
-        logger.info("Minimap fully displayed confirmed")
-
-        self._ensure_mouse_not_on_minimap(identifier)
-        logger.info("Mouse not on minimap confirmed")
+            self._ensure_mouse_not_on_minimap(identifier)
+            logger.info("Mouse not on minimap confirmed")
+            try:
+                self._get_minimap_pos()
+                break
+            except Exception as e:
+                attempt += 1
+                logger.error(f"{identifier} Attempt {attempt} failed")
+                if attempt >= 5:
+                    raise e
 
         self.data.update_attributes(
             "current_client_img",
