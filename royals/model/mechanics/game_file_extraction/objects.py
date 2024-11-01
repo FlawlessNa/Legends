@@ -24,6 +24,7 @@ class _ObjectsExtractor:
             section_name = section.get("name")
             obj_section = section.find("imgdir[@name='obj']")
             for obj in obj_section.findall("imgdir"):
+                # Object data specified within map file
                 oS, l0, l1, l2, x, y, z, zM, f, r = self._extract_object_specs_in_map(
                     obj
                 )
@@ -34,6 +35,8 @@ class _ObjectsExtractor:
                 self.images.setdefault(image_path, image)
 
                 object_data = res.setdefault(key, [])
+                # Object data (by object; regardless of map)
+                # x-y are offset by the origin of the object
                 x, y, fh, ropes = self._extract_object_specs_general(
                     *key, map_x=x, map_y=y
                 )
@@ -53,8 +56,17 @@ class _ObjectsExtractor:
                 )
         return res
 
-    def get_footholds(self):
-        pass
+    def get_footholds(self) -> list[dict]:
+        return [
+            obj['footholds'] for obj_lst in self.res.values() for obj in obj_lst
+            if obj['footholds']
+        ]
+
+    def get_ropes(self) -> list[dict]:
+        return [
+            obj['ropes'] for obj_lst in self.res.values() for obj in obj_lst
+            if obj['ropes']
+        ]
 
     @staticmethod
     def _extract_object_specs_in_map(obj: ET.Element) -> tuple:
@@ -73,39 +85,56 @@ class _ObjectsExtractor:
     @staticmethod
     def _extract_object_specs_general(oS, *args, map_x, map_y) -> tuple:
         xml_path = _ObjectsExtractor._get_obj_xml_path(oS)
+        root = _ObjectsExtractor._get_root_element(xml_path, *args)
+        extended = root.findall('extended')
+        assert len(extended) <= 1
+
+        fh, rope = _ObjectsExtractor._extract_extended_data(extended, map_x, map_y)
+
+        origin = root.find(f"vector[@name='origin']").attrib
+        return map_x - int(origin["x"]), map_y - int(origin["y"]), fh, rope
+
+    @staticmethod
+    def _get_root_element(xml_path, *args) -> ET.Element:
         tree = ET.parse(xml_path)
         root = tree.getroot()
         for arg in args:
             root = root.find(f"imgdir[@name='{arg}']")
+        return root.find(f"canvas[@name='0']")
 
-        root = root.find(f"canvas[@name='0']")
-        extended = root.findall('extended')
-        assert len(extended) <= 1
+    @staticmethod
+    def _extract_extended_data(
+        extended: list, map_x: int, map_y: int
+    ) -> tuple[dict, dict]:
+        """
+        Extracts the extended data from the .xml file.
+        :param extended: The extended element from the .xml file.
+        :param map_x: The x-coordinate of the object on the map.
+        :param map_y: The y-coordinate of the object on the map.
+        :return: A tuple containing the map positions of footholds and ropes data,
+            offset by their origin.
+        """
         fh = {}
         rope = {}
-        if extended and extended[0].get('name') == 'foothold':
-            fh = {
-                'x': tuple(
-                    int(i.attrib['x']) + map_x for i in extended[0].findall('vector')
-                ),
-                'y': tuple(
-                    int(i.attrib['y']) + map_y for i in extended[0].findall('vector')
-                )
-            }
-        elif extended and extended[0].get('name') in ['rope', 'ladder']:
-            rope = {
-                'x': tuple(
-                    int(i.attrib['x']) + map_x for i in extended[0].findall('vector')
-                ),
-                'y': tuple(
-                    int(i.attrib['y']) + map_y for i in extended[0].findall('vector')
-                )
-            }
-        elif extended:
-            raise NotImplementedError
 
-        res = root.find(f"vector[@name='origin']").attrib
-        return map_x - int(res["x"]), map_y - int(res["y"]), fh, rope
+        def _extract(ext: ET.Element, pos_x: int, pos_y: int) -> dict:
+            return {
+                'x': tuple(
+                    int(i.attrib['x']) + pos_x for i in ext.findall('vector')
+                ),
+                'y': tuple(
+                    int(i.attrib['y']) + pos_y for i in ext.findall('vector')
+                )
+            }
+
+        if extended:
+            if extended[0].get('name') == 'foothold':
+                fh = _extract(extended[0], map_x, map_y)
+            elif extended[0].get('name') in ['rope', 'ladder']:
+                rope = _extract(extended[0], map_x, map_y)
+            else:
+                raise NotImplementedError
+        return fh, rope
 
     @classmethod
     def _get_obj_image_path(cls, oS, l0, l1, l2) -> str:

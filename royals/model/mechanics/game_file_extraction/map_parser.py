@@ -4,8 +4,14 @@ import os
 from paths import ROOT
 import xml.etree.ElementTree as ET
 
+from .background import _BackgroundExtractor
 from .footholds import _FootholdExtractor
+from .ladder_rope import _LadderExtractor
+from .life import _LifeExtractor
 from .objects import _ObjectsExtractor
+from .portals import _PortalsExtractor
+from .tiles import _TilesExtractor
+
 
 class MapParser:
     _ASSETS = os.path.join(ROOT, "royals/assets/game_files/maps")
@@ -22,17 +28,19 @@ class MapParser:
         self._minimap_tree = self.root.find(".//imgdir[@name='miniMap']")
         self._portal_tree = self.root.find(".//imgdir[@name='portal']")
 
+        self.background = _BackgroundExtractor(self._bg_tree)
+        self.life = _LifeExtractor(self._life_tree)
         self.objects = _ObjectsExtractor(self.root)
-        self.tiles = _TilesExtractor(...)
+        self.portals = _PortalsExtractor(self._portal_tree)
+        self.tiles = _TilesExtractor(self.root)
         self.footholds = _FootholdExtractor(
             fh_tree=self._foothold_tree,
-            fh_from_obj=self.objects.get_footholds(),
-            fh_from_tiles=self.tiles.get_footholds(),
+            object_fh=self.objects.get_footholds(),
+            tile_fh=self.tiles.get_footholds(),
         )
         self.ropes = _LadderExtractor(
             rope_tree=self._rope_tree,
-            ropes_from_obj=self.objects.get_ropes(),
-            ropes_from_tiles=self.tiles.get_ropes(),
+            object_ropes=self.objects.get_ropes(),
         )
 
         # Extract VR coordinates
@@ -86,105 +94,105 @@ class MapParser:
         # Draws everything on the map VR canvas
         # self._draw_map()
 
-    def _extract_all_footholds(self) -> list:
-        """
-        Extracts all footholds from the map .xml file.
-        Additional footholds may be added later on by the tile and object parsers.
-        """
-        res = []
-        for layer_id in self._foothold_tree:
-            for fh_group in layer_id:
-                for fh in fh_group:
-                    data = {
-                        elem.attrib['name']: int(elem.attrib['value']) for elem in fh
-                    }
-                    assert all(
-                        key in data for key in ['x1', 'y1', 'x2', 'y2', 'prev', 'next']
-                    )
-                    res.append(
-                        {
-                            'Layer ID': layer_id.attrib['name'],
-                            'Group ID': fh_group.attrib['name'],
-                            'ID': fh.attrib['name'],
-                            'x': (data['x1'], data['x2']),
-                            'y': (data['y1'], data['y2']),
-                            'prev': data['prev'],
-                            'next': data['next']
-                        }
-                    )
-        return res
+    # def _extract_all_footholds(self) -> list:
+    #     """
+    #     Extracts all footholds from the map .xml file.
+    #     Additional footholds may be added later on by the tile and object parsers.
+    #     """
+    #     res = []
+    #     for layer_id in self._foothold_tree:
+    #         for fh_group in layer_id:
+    #             for fh in fh_group:
+    #                 data = {
+    #                     elem.attrib['name']: int(elem.attrib['value']) for elem in fh
+    #                 }
+    #                 assert all(
+    #                     key in data for key in ['x1', 'y1', 'x2', 'y2', 'prev', 'next']
+    #                 )
+    #                 res.append(
+    #                     {
+    #                         'Layer ID': layer_id.attrib['name'],
+    #                         'Group ID': fh_group.attrib['name'],
+    #                         'ID': fh.attrib['name'],
+    #                         'x': (data['x1'], data['x2']),
+    #                         'y': (data['y1'], data['y2']),
+    #                         'prev': data['prev'],
+    #                         'next': data['next']
+    #                     }
+    #                 )
+    #     return res
 
-    def _extract_all_ropes(self) -> list:
-        """
-        Extracts all ropes/ladders from the map .xml file.
-        Additional ropes/ladders may be added later on by the tile and object parsers.
-        https://mapleref.fandom.com/wiki/Ladders
-        l - Whether the ladderRope is a ladder (1) or a rope (0)
-        page - The depth of the player when they are on the ladderRope
-        uf - Whether the player can climb off the top of the ladderRope
-        """
-        res = []
-        for rope in self._rope_tree:
-            data = {
-                elem.attrib['name']: int(elem.attrib['value']) for elem in rope
-            }
-            assert set(data.keys()) == {'x', 'y1', 'y2', 'l', 'page', 'uf'}
-            res.append(
-                {
-                    'x': (data['x'], data['x']),
-                    'y': (data['y1'], data['y2']),
-                    'l': data['l'],
-                    'page': data['page'],
-                    'uf': data['uf']
-                }
-            )
-        return res
+    # def _extract_all_ropes(self) -> list:
+    #     """
+    #     Extracts all ropes/ladders from the map .xml file.
+    #     Additional ropes/ladders may be added later on by the tile and object parsers.
+    #     https://mapleref.fandom.com/wiki/Ladders
+    #     l - Whether the ladderRope is a ladder (1) or a rope (0)
+    #     page - The depth of the player when they are on the ladderRope
+    #     uf - Whether the player can climb off the top of the ladderRope
+    #     """
+    #     res = []
+    #     for rope in self._rope_tree:
+    #         data = {
+    #             elem.attrib['name']: int(elem.attrib['value']) for elem in rope
+    #         }
+    #         assert set(data.keys()) == {'x', 'y1', 'y2', 'l', 'page', 'uf'}
+    #         res.append(
+    #             {
+    #                 'x': (data['x'], data['x']),
+    #                 'y': (data['y1'], data['y2']),
+    #                 'l': data['l'],
+    #                 'page': data['page'],
+    #                 'uf': data['uf']
+    #             }
+    #         )
+    #     return res
 
-    def _extract_all_tiles(self) -> dict:
-        """
-        Parses the map .xml file to extract all tile specifications.
-        Also extracts the tiles .png and .xml specifications to get all information.
-        Adds any footholds tied to tiles into the footholds list.
-        """
-        res = {}
-        for section in self.root:
-            section_name = section.get("name")
-            if section_name.isdigit():
-                info_section = section.find("imgdir[@name='info']")
-                tile_section = section.find("imgdir[@name='tile']")
-                for idx, tile in enumerate(tile_section.findall("imgdir")):
-                    tS = info_section.find("string[@name='tS']").get("value")
-                    u, no, x, y, zM = self._extract_tile_info(tile)
-
-                    image_path = self.get_tile_image_path(tS, u, no)
-                    image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-                    self._tiles_images.setdefault(image_path, image)
-
-                    tile_data = res.setdefault((tS, u, no), [])
-                    xml_path = self.get_tile_xml_path(tS)
-                    offset_x, offset_y, z, fh = self._get_tile_data(xml_path, u, no)
-                    if fh:
-                        self.tile_footholds.append(
-                            {
-                                'x': tuple(i + x for i in fh['x']),
-                                'y': tuple(i + y for i in fh['y'])
-                            }
-                        )
-                    x -= offset_x
-                    y -= offset_y
-                    tile_data.append(
-                        {
-                            'Layer': section_name,
-                            'ID': tile.attrib['name'],
-                            'x': x,
-                            'y': y,
-                            'zM': zM,
-                            'z': z,
-                            'f': 0,
-                            'r': 0,
-                        }
-                    )
-        return res
+    # def _extract_all_tiles(self) -> dict:
+    #     """
+    #     Parses the map .xml file to extract all tile specifications.
+    #     Also extracts the tiles .png and .xml specifications to get all information.
+    #     Adds any footholds tied to tiles into the footholds list.
+    #     """
+    #     res = {}
+    #     for section in self.root:
+    #         section_name = section.get("name")
+    #         if section_name.isdigit():
+    #             info_section = section.find("imgdir[@name='info']")
+    #             tile_section = section.find("imgdir[@name='tile']")
+    #             for idx, tile in enumerate(tile_section.findall("imgdir")):
+    #                 tS = info_section.find("string[@name='tS']").get("value")
+    #                 u, no, x, y, zM = self._extract_tile_info(tile)
+    #
+    #                 image_path = self.get_tile_image_path(tS, u, no)
+    #                 image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+    #                 self._tiles_images.setdefault(image_path, image)
+    #
+    #                 tile_data = res.setdefault((tS, u, no), [])
+    #                 xml_path = self.get_tile_xml_path(tS)
+    #                 offset_x, offset_y, z, fh = self._get_tile_data(xml_path, u, no)
+    #                 if fh:
+    #                     self.tile_footholds.append(
+    #                         {
+    #                             'x': tuple(i + x for i in fh['x']),
+    #                             'y': tuple(i + y for i in fh['y'])
+    #                         }
+    #                     )
+    #                 x -= offset_x
+    #                 y -= offset_y
+    #                 tile_data.append(
+    #                     {
+    #                         'Layer': section_name,
+    #                         'ID': tile.attrib['name'],
+    #                         'x': x,
+    #                         'y': y,
+    #                         'zM': zM,
+    #                         'z': z,
+    #                         'f': 0,
+    #                         'r': 0,
+    #                     }
+    #                 )
+    #     return res
 
     # def _extract_all_objects(self) -> dict:
     #     """
@@ -239,63 +247,63 @@ class MapParser:
     #                 )
     #     return res
 
-    def _extract_all_portals(self) -> list:
-        """
-        Extracts all portals from the map .xml file, provided they are linked to
-        some other portal and not just spawn points.
-        https://mapleref.fandom.com/wiki/Portal
-        pn: name of the portal (other portals points to a portal by its name)
-        pt: type of portal
-        tm: target map (ID)
-        tn: name of the portal (located in the target map) linked to this portal
+    # def _extract_all_portals(self) -> list:
+    #     """
+    #     Extracts all portals from the map .xml file, provided they are linked to
+    #     some other portal and not just spawn points.
+    #     https://mapleref.fandom.com/wiki/Portal
+    #     pn: name of the portal (other portals points to a portal by its name)
+    #     pt: type of portal
+    #     tm: target map (ID)
+    #     tn: name of the portal (located in the target map) linked to this portal
+    #
+    #     Types of portals:
+    #         - (0, sp) -> Starting Point
+    #         - (1, pi) -> Portal Invisible
+    #         - (2, pv) -> Portal Visible (default portals)
+    #         - (3, pc) -> Portal Collision (invokes whenever it has collision with char)
+    #         - (4, pg) -> Portal Changeable
+    #         - (5, pgi) -> Portal Changeable Invisible
+    #         - (6, tp) -> Town Portal Point (portals created from Mystic Door)
+    #         - (7, ps) -> Portal Script, executes a script when a player enters it
+    #         - (8, psi) -> Portal Script Invisible
+    #         - (9, pcs) -> Portal Collision Script
+    #         - (10, ph) -> Portal Hidden (appears when character is near)
+    #         - (11, psh) -> Portal Script Hidden
+    #
+    #     """
+    #     res = []
+    #     for portal in self._portal_tree:
+    #         portal_name = portal.find('string[@name="pn"]').get("value")
+    #         portal_type = portal.find('int[@name="pt"]').get("value")
+    #         if portal_name == 'sp' and portal_type == '0':
+    #             continue
+    #         elif portal_name == 'sp' or portal_type == '0':
+    #             breakpoint()  # This should not happen
+    #         target_map = portal.find('int[@name="tm"]').get("value")
+    #         target_portal = portal.find('string[@name="tn"]').get("value")
+    #         x = int(portal.find('int[@name="x"]').get("value"))
+    #         y = int(portal.find('int[@name="y"]').get("value"))
+    #         res.append(
+    #             {
+    #                 'name': portal_name,
+    #                 'type': portal_type,
+    #                 'target_map': target_map,
+    #                 'target_name': target_portal,
+    #                 'x': x,
+    #                 'y': y
+    #             }
+    #         )
+    #     return res
 
-        Types of portals:
-            - (0, sp) -> Starting Point
-            - (1, pi) -> Portal Invisible
-            - (2, pv) -> Portal Visible (default portals)
-            - (3, pc) -> Portal Collision (invokes whenever it has collision with char)
-            - (4, pg) -> Portal Changeable
-            - (5, pgi) -> Portal Changeable Invisible
-            - (6, tp) -> Town Portal Point (portals created from Mystic Door)
-            - (7, ps) -> Portal Script, executes a script when a player enters it
-            - (8, psi) -> Portal Script Invisible
-            - (9, pcs) -> Portal Collision Script
-            - (10, ph) -> Portal Hidden (appears when character is near)
-            - (11, psh) -> Portal Script Hidden
-
-        """
-        res = []
-        for portal in self._portal_tree:
-            portal_name = portal.find('string[@name="pn"]').get("value")
-            portal_type = portal.find('int[@name="pt"]').get("value")
-            if portal_name == 'sp' and portal_type == '0':
-                continue
-            elif portal_name == 'sp' or portal_type == '0':
-                breakpoint()  # This should not happen
-            target_map = portal.find('int[@name="tm"]').get("value")
-            target_portal = portal.find('string[@name="tn"]').get("value")
-            x = int(portal.find('int[@name="x"]').get("value"))
-            y = int(portal.find('int[@name="y"]').get("value"))
-            res.append(
-                {
-                    'name': portal_name,
-                    'type': portal_type,
-                    'target_map': target_map,
-                    'target_name': target_portal,
-                    'x': x,
-                    'y': y
-                }
-            )
-        return res
-
-    @staticmethod
-    def _extract_tile_info(tile: ET.Element) -> tuple:
-        u = tile.find("string[@name='u']").get("value")
-        no = tile.find("int[@name='no']").get("value")
-        x = int(tile.find("int[@name='x']").get("value"))
-        y = int(tile.find("int[@name='y']").get("value"))
-        zM = int(tile.find("int[@name='zM']").get("value"))
-        return u, no, x, y, zM
+    # @staticmethod
+    # def _extract_tile_info(tile: ET.Element) -> tuple:
+    #     u = tile.find("string[@name='u']").get("value")
+    #     no = tile.find("int[@name='no']").get("value")
+    #     x = int(tile.find("int[@name='x']").get("value"))
+    #     y = int(tile.find("int[@name='y']").get("value"))
+    #     zM = int(tile.find("int[@name='zM']").get("value"))
+    #     return u, no, x, y, zM
 
     # @staticmethod
     # def _extract_object_info(obj: ET.Element) -> tuple:
@@ -355,38 +363,38 @@ class MapParser:
     #         MapParser._ASSETS, "images", "objects", oS, f"{l0}.{l1}.{l2}.0.png"
     #     )
 
-    @staticmethod
-    def get_tile_image_path(tS, u, no):
-        return os.path.join(MapParser._ASSETS, "images", "tiles", tS, f"{u}.{no}.png")
-
-    @staticmethod
-    def get_tile_xml_path(tS):
-        return os.path.join(MapParser._ASSETS, "specs", "tiles", f"{tS}.img.xml")
+    # @staticmethod
+    # def get_tile_image_path(tS, u, no):
+    #     return os.path.join(MapParser._ASSETS, "images", "tiles", tS, f"{u}.{no}.png")
+    #
+    # @staticmethod
+    # def get_tile_xml_path(tS):
+    #     return os.path.join(MapParser._ASSETS, "specs", "tiles", f"{tS}.img.xml")
 
     # @staticmethod
     # def get_obj_xml_path(oS):
     #     return os.path.join(MapParser._ASSETS, "specs", "objects", f"{oS}.img.xml")
 
-    @staticmethod
-    def _get_tile_data(xml_path, u, no) -> tuple:
-        tree = ET.parse(xml_path)
-        root = tree.getroot()
-        section = root.find(f".//imgdir[@name='{u}']")
-        subsection = section.find(f".//canvas[@name='{no}']")
-        res = subsection.find(".//vector[@name='origin']").attrib
-        z = subsection.find("int[@name='z']").attrib['value']
-        extended = subsection.find('extended')
-        fh = {}
-        rope = {}
-        if extended is not None and extended.get('name') == 'foothold':
-            fh = {
-                'x': tuple(int(elem.attrib['x']) for elem in extended.findall('vector')),
-                'y': tuple(int(elem.attrib['y']) for elem in extended.findall('vector'))
-            }
-        elif extended is not None:
-            breakpoint()
-
-        return int(res["x"]), int(res["y"]), int(z), fh
+    # @staticmethod
+    # def _get_tile_data(xml_path, u, no) -> tuple:
+    #     tree = ET.parse(xml_path)
+    #     root = tree.getroot()
+    #     section = root.find(f".//imgdir[@name='{u}']")
+    #     subsection = section.find(f".//canvas[@name='{no}']")
+    #     res = subsection.find(".//vector[@name='origin']").attrib
+    #     z = subsection.find("int[@name='z']").attrib['value']
+    #     extended = subsection.find('extended')
+    #     fh = {}
+    #     rope = {}
+    #     if extended is not None and extended.get('name') == 'foothold':
+    #         fh = {
+    #             'x': tuple(int(elem.attrib['x']) for elem in extended.findall('vector')),
+    #             'y': tuple(int(elem.attrib['y']) for elem in extended.findall('vector'))
+    #         }
+    #     elif extended is not None:
+    #         breakpoint()
+    #
+    #     return int(res["x"]), int(res["y"]), int(z), fh
 
     # @staticmethod
     # def _get_obj_data(xml_path, *args):
