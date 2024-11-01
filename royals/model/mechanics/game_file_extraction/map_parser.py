@@ -4,13 +4,13 @@ import os
 from paths import ROOT
 import xml.etree.ElementTree as ET
 
-from .background import _BackgroundExtractor
-from .footholds import _FootholdExtractor
-from .ladder_rope import _LadderExtractor
-from .life import _LifeExtractor
-from .objects import _ObjectsExtractor
-from .portals import _PortalsExtractor
-from .tiles import _TilesExtractor
+from ._background import _BackgroundExtractor
+from ._footholds import _FootholdExtractor
+from ._ladder_rope import _LadderExtractor
+from ._life import _LifeExtractor
+from ._objects import _ObjectsExtractor
+from ._portals import _PortalsExtractor
+from ._tiles import _TilesExtractor
 
 
 class MapParser:
@@ -65,31 +65,122 @@ class MapParser:
         self.minimap_scale_x = self.mini_vr_w / self.mini_cv_w
         self.minimap_scale_y = self.mini_vr_h / self.mini_cv_h
 
-        self.vr_canvas = np.zeros((self.vr_height, self.vr_width, 4), np.uint8)
-        self.fh_canvas = np.zeros((self.vr_height, self.vr_width, 3), np.uint8)
-        self.mini_vr_canvas = np.zeros((self.mini_vr_h, self.mini_vr_w, 3), np.uint8)
-        self.mini_canvas = np.zeros((self.mini_cv_h, self.mini_cv_w, 3), np.uint8)
-
-        self._tiles_images = {}
-        self._object_images = {}
-
-        self.reg_footholds = self._extract_all_footholds()
-        self.tile_footholds = []
-        self.obj_footholds = []
-
-        self.ropes = self._extract_all_ropes()
-        self.tiles = self._extract_all_tiles()
-        # self.objects = self._extract_all_objects()
-        self.portals = self._extract_all_portals()
-
-        # Draws lines on the foothold canvas
-        self._draw_footholds()
-        self._draw_ropes()
-        self._draw_portals()
+        # self.vr_canvas = np.zeros((self.vr_height, self.vr_width, 4), np.uint8)
+        # self.fh_canvas = np.zeros((self.vr_height, self.vr_width, 3), np.uint8)
+        # self.mini_vr_canvas = np.zeros((self.mini_vr_h, self.mini_vr_w, 3), np.uint8)
+        # self.mini_canvas = np.zeros((self.mini_cv_h, self.mini_cv_w, 3), np.uint8)
+        #
+        # # Draws lines on the foothold canvas
+        # self._draw_footholds()
+        # self._draw_ropes()
+        # self._draw_portals()
 
         # Draws lines on the minimap-VR coordinates canvas and actual mini-canvas
-        self._draw_minimap()
+        # self._draw_minimap()
         # cv2.waitKey(0)
+
+    def get_raw_minimap_grid(self, binary_mode: bool = False) -> np.ndarray:
+        """
+        Draws footholds, ropes and portals on a minimap grid.
+        If binary_mode is True, the grid will be binary (0 or 255).
+        Otherwise,
+            - Regular footholds are (255, 255, 255) (white)
+            - Footholds from tiles are (255, 0, 0) (blue)
+            - Footholds from objects are (0, 255, 0) (green)
+            - Portals are (0, 0, 255) (red)
+            - Regular Ropes are (255, 255, 0) (yellow)
+            - Ropes from objects are (0, 255, 255) (cyan)
+        """
+        if binary_mode:
+            canvas = np.zeros((self.mini_vr_h, self.mini_vr_w), np.uint8)
+            mini_canvas = np.zeros((self.mini_cv_h, self.mini_cv_w), np.uint8)
+            comparator = 0
+        else:
+            canvas = np.zeros((self.mini_vr_h, self.mini_vr_w, 3), np.uint8)
+            mini_canvas = np.zeros((self.mini_cv_h, self.mini_cv_w, 3), np.uint8)
+            comparator = (0, 0, 0)
+
+        self._draw_lines(canvas, self.footholds.res, (255, 255, 255))
+        self._draw_lines(canvas, self.footholds.tile_res, (255, 0, 0))
+        self._draw_lines(canvas, self.footholds.object_res, (0, 255, 0))
+        self._draw_lines(canvas, self.ropes.res, (255, 255, 0))
+        self._draw_lines(canvas, self.ropes.object_res, (0, 255, 255))
+        self._draw_circles(canvas, self.portals.res, (0, 0, 255))
+
+        if binary_mode:
+            non_zero_idx = np.where(canvas != comparator)
+        else:
+            non_zero_idx = np.where(~np.all(canvas == comparator, axis=-1))
+        small_x = (non_zero_idx[1] / self.minimap_scale_x).astype(int)
+        small_y = (non_zero_idx[0] / self.minimap_scale_y).astype(int)
+        mini_canvas[small_y, small_x] = canvas[non_zero_idx]
+
+        return mini_canvas
+
+    def get_raw_virtual_grid(self, binary_mode: bool = False) -> np.ndarray:
+        """
+        Draws footholds, ropes and portals on a virtual grid.
+        If binary_mode is True, the grid will be binary (0 or 255).
+        Otherwise,
+            - Regular footholds are (255, 255, 255) (white)
+            - Footholds from tiles are (255, 0, 0) (blue)
+            - Footholds from objects are (0, 255, 0) (green)
+            - Portals are (0, 0, 255) (red)
+            - Regular Ropes are (255, 255, 0) (yellow)
+            - Ropes from objects are (0, 255, 255) (cyan)
+        """
+        if binary_mode:
+            canvas = np.zeros((self.vr_height, self.vr_width), np.uint8)
+        else:
+            canvas = np.zeros((self.vr_height, self.vr_width, 3), np.uint8)
+
+        self._draw_lines(canvas, self.footholds.res, (255, 255, 255))
+        self._draw_lines(canvas, self.footholds.tile_res, (255, 0, 0))
+        self._draw_lines(canvas, self.footholds.object_res, (0, 255, 0))
+        self._draw_lines(canvas, self.ropes.res, (255, 255, 0))
+        self._draw_lines(canvas, self.ropes.object_res, (0, 255, 255))
+        self._draw_circles(canvas, self.portals.res, (0, 0, 255))
+
+        return canvas
+
+    def get_raw_virtual_map(self) -> np.ndarray:
+        pass
+
+    def _draw_lines(self, canvas: np.ndarray, lines: list, color: tuple) -> None:
+        offset_x, offset_y = self._get_offsets_from_canvas(canvas)
+        if len(canvas.shape) == 2:
+            color = (255, )
+        for line in lines:
+            x, y = line['x'], line['y']
+            for i in range(0, len(x) - 1):
+                cv2.line(
+                    canvas,
+                    (x[i] + offset_x, y[i] + offset_y),
+                    (x[i + 1] + offset_x, y[i + 1] + offset_y),
+                    color,
+                    1
+                )
+
+    def _draw_circles(self, canvas: np.ndarray, circles: list, color: tuple) -> None:
+        offset_x, offset_y = self._get_offsets_from_canvas(canvas)
+        if len(canvas.shape) == 2:
+            color = (255 // 2, )
+        for circle in circles:
+            x, y = circle['x'], circle['y']
+            cv2.circle(
+                canvas,
+                (x + offset_x, y + offset_y),
+                3,
+                color,
+                -1
+            )
+
+    def _get_offsets_from_canvas(self, canvas: np.ndarray) -> tuple:
+        h, w = canvas.shape[:2]
+        if (h, w) == (self.mini_vr_h, self.mini_vr_w):
+            return self.mini_cx, self.mini_cy
+        elif (h, w) == (self.vr_height, self.vr_width):
+            return -self.vr_left, -self.vr_top
 
         # Draws everything on the map VR canvas
         # self._draw_map()
@@ -451,78 +542,6 @@ class MapParser:
                 * canvas[y_start:y_end, x_start:x_end, c]
             )
 
-    def _draw_lines(
-        self,
-        lines,
-        x_offset: int = None,
-        y_offset: int = None,
-        color = (255, 255, 255),
-        show: bool = False
-    ) -> None:
-        if x_offset is None and y_offset is None:
-            target = self.fh_canvas
-            x_offset = -self.vr_left
-            y_offset = -self.vr_top
-            name="Map Lines"
-        elif x_offset == self.mini_cx and y_offset == self.mini_cy:
-            target = self.mini_vr_canvas
-            name="Minimap Lines"
-        else:
-            raise ValueError("Invalid offsets provided.")
-
-        for line in lines:
-            x, y = line['x'], line['y']
-            if isinstance(x, int) and isinstance(y, int):
-                cv2.circle(target, (x + x_offset, y + y_offset), 1, color, 3)
-            else:
-                assert len(x) == len(y)
-                for i in range(0, len(x) - 1):
-                    adj_x1, adj_y1 = x[i] + x_offset, y[i] + y_offset
-                    adj_x2, adj_y2 = x[i + 1] + x_offset, y[i + 1] + y_offset
-                    cv2.line(
-                        target, (adj_x1, adj_y1), (adj_x2, adj_y2), color, 1
-                    )
-        if show:
-            cv2.imshow(name, target)
-            cv2.waitKey(1)
-
-    def _draw_footholds(self, show: bool = False):
-        self._draw_lines(self.reg_footholds, show=show)
-        self._draw_lines(self.tile_footholds, show=show, color=(255, 0, 255))
-        self._draw_lines(self.obj_footholds, show=show, color=(0, 0, 255))
-
-    def _draw_portals(self, show: bool = False):
-        self._draw_lines(self.portals, color=(0, 255, 0), show=show)
-
-    def _draw_ropes(self, show: bool = False):
-        self._draw_lines(self.ropes, color=(255, 0, 0), show=show)
-
-    def _draw_minimap(self, show: bool = False):
-        self._draw_lines(self.reg_footholds, self.mini_cx, self.mini_cy, show=show)
-        self._draw_lines(self.tile_footholds, self.mini_cx, self.mini_cy, show=show)
-        self._draw_lines(self.obj_footholds, self.mini_cx, self.mini_cy, show=show)
-        self._draw_lines(
-            self.portals, self.mini_cx, self.mini_cy, color=(0, 255, 0)
-        )
-        self._draw_lines(
-            self.ropes, self.mini_cx, self.mini_cy, color=(255, 0, 0)
-        )
-        non_zero_idx = np.where(~np.all(self.mini_vr_canvas == [0, 0, 0], axis=-1))
-        small_x = (non_zero_idx[1] / self.minimap_scale_x).astype(int)
-        small_y = (non_zero_idx[0] / self.minimap_scale_y).astype(int)
-        self.mini_canvas[small_y, small_x] = self.mini_vr_canvas[non_zero_idx]
-        if show:
-            cv2.imshow('Minimap', cv2.resize(self.mini_canvas, None, fx=5, fy=5))
-            cv2.waitKey(1)
-
-    def create_minimap_py_file(self):
-        """
-        Creates a .py file which describes all minimap features (as contours??)
-        The user can then fine-tune some of these as desired (Ex: higher weights on some
-        feature to avoid them as much as possible in pathing algorithm)
-        """
-        pass
-
     def get_approx_vr_coord_from_minimap(
         self, minimap_position: tuple[int, int]
     ) -> tuple[float, float, float, float]:
@@ -548,8 +567,3 @@ class MapParser:
         character, and we infer the character's VR coordinates.
         """
         pass
-
-
-if __name__ == "__main__":
-    map_name = "MysteriousPath3"
-    map_parser = MapParser(map_name)

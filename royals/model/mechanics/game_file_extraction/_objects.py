@@ -79,7 +79,7 @@ class _ObjectsExtractor:
         z = int(obj.find("int[@name='z']").get("value"))
         zM = int(obj.find("int[@name='zM']").get("value"))
         f = int(obj.find("int[@name='f']").get("value"))
-        r = int(obj.find("int[@name='r']").get("value"))
+        r = int((obj.find("int[@name='r']") or {'value': '0'}).get("value"))
         return oS, l0, l1, l2, x, y, z, zM, f, r
 
     @staticmethod
