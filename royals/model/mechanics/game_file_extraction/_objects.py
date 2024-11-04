@@ -32,7 +32,7 @@ class _ObjectsExtractor:
 
                 image_path = self._get_obj_image_path(*key)
                 image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-                self.images.setdefault(image_path, image)
+                self.images.setdefault(key, image)
 
                 object_data = res.setdefault(key, [])
                 # Object data (by object; regardless of map)
@@ -52,6 +52,7 @@ class _ObjectsExtractor:
                         'r': r,
                         'footholds': fh,
                         'ropes': ropes,
+                        'Type': 'Object'
                     }
                 )
         return res

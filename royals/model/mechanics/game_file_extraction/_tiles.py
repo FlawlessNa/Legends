@@ -31,7 +31,7 @@ class _TilesExtractor:
 
                 image_path = self._get_tile_image_path(*key)
                 image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-                self.images.setdefault(image_path, image)
+                self.images.setdefault(key, image)
 
                 tile_data = res.setdefault(key, [])
                 # Tile data (by tile; regardless of map)
@@ -49,7 +49,8 @@ class _TilesExtractor:
                         'z': z,
                         'f': 0,
                         'r': 0,
-                        'footholds': fh
+                        'footholds': fh,
+                        'Type': 'Tile'
                     }
                 )
         return res

@@ -131,7 +131,35 @@ class MapParser:
 
     def get_raw_virtual_map(self) -> np.ndarray:
         vr_canvas = np.zeros((self.vr_height, self.vr_width, 4), np.uint8)
-        breakpoint()
+        offset_x, offset_y = self._get_offsets_from_canvas(vr_canvas)
+        objects = [
+            {'Image': self.objects.images[k], **elem}
+            for k, val in self.objects.res.items() for elem in val
+        ]
+        tiles = [
+            {'Image': self.tiles.images[k], **elem}
+            for k, val in self.tiles.res.items() for elem in val
+        ]
+        all_ = [*objects, *tiles]
+        all_.sort(
+            key=lambda item: (
+                item['Layer'],
+                item['z'] if item['Type'] == 'Object' else item['zM'],
+                item['zM'] if item['Type'] == 'Object' else item['z'],
+                item['ID']
+            )
+        )
+
+        for item in all_:
+            image = item['Image']
+            x = item['x'] + offset_x
+            y = item['y'] + offset_y
+            f = item['f']
+            zM = item['zM']
+            z = item['z']
+            fh = item['footholds']
+            self.paste_image(vr_canvas, image, x, y, f, zM, r=0)
+        return vr_canvas
 
     def _draw_lines(self, canvas: np.ndarray, lines: list, color: tuple) -> None:
         offset_x, offset_y = self._get_offsets_from_canvas(canvas)
@@ -168,44 +196,6 @@ class MapParser:
             return self.mini_cx, self.mini_cy
         elif (h, w) == (self.vr_height, self.vr_width):
             return -self.vr_left, -self.vr_top
-
-    def draw_vr_canvas(self):
-        self._draw_objs()
-        self._draw_tiles()
-        all_items = self.objects + self.tiles
-        all_items.sort(
-            key=lambda item: (
-                item['Layer'],
-                item['z'] if item['Type'] == 'Object' else item['zM'],
-                item['zM'] if item['Type'] == 'Object' else item['z'],
-                item['ID']
-            )
-        )
-
-        for item in all_items:
-            type_ = item['Type']
-            section = item['Section']
-            order = item['Order']
-            id_ = item['ID']
-            desc = item['Desc']
-            image = item['Image']
-            x = item['x']
-            y = item['y']
-            f = item['f']
-            zM = item['zM']
-            z = item['z']
-            fh = item['footholds']
-            self.paste_image(self.vr_canvas, image, x, y, f, zM, r=0)
-            if fh is not None:
-                for i in range(0, len(fh) - 1):
-                    cv2.line(self.vr_canvas, fh[i], fh[i + 1], (255, 255, 255), 3)
-
-            # print(desc, f"Type={type_}, Section={section}, Order={order}, ID={id_}, x={x}, y={y}, z={z}, zM={zM}, f={f}")
-                cv2.imshow("VR Canvas", cv2.resize(self.vr_canvas, None, fx=0.5, fy=0.5))
-                cv2.waitKey(0)
-        self._draw_footholds()
-        self._draw_portals()
-        self._draw_ropes()
 
     def paste_image(self, canvas, image, x, y, f, zM, r):
         if f == 1:
