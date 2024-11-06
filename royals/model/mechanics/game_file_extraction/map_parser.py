@@ -179,7 +179,7 @@ class MapParser:
     def _draw_circles(self, canvas: np.ndarray, circles: list, color: tuple) -> None:
         offset_x, offset_y = self._get_offsets_from_canvas(canvas)
         if len(canvas.shape) == 2:
-            color = (255 // 2, )
+            color = (255, )
         for circle in circles:
             x, y = circle['x'], circle['y']
             cv2.circle(

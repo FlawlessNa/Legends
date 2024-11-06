@@ -75,7 +75,7 @@ class MinimapEditsManager:
         with open(os.path.join(_EDITS_ROOT, f'{map_name}.json'), 'w') as f:
             json.dump(data, f, indent=4)  # noqa
 
-    def apply_minimap_edits(
+    def apply_grid_edits(
         self,
         raw_minimap: np.ndarray,
         apply_weights: bool = True
@@ -105,11 +105,19 @@ class MinimapEditsManager:
 
         return modified
 
+    def apply_pathfinding_edits(self, grid: MinimapGrid) -> MinimapGrid:
+        """
+        Applies all feature's walkable attribute to the grid.
+        """
+        pass
+
     def generate_grid(
         self,
         modified_minimap: np.ndarray,
+        map_name: str,
         allow_teleport: bool,
         speed_multiplier: float,
         jump_multiplier: float
     ) -> MinimapGrid:
-        pass
+
+        raw_grid = MinimapGrid(modified_minimap, map_name)

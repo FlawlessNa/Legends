@@ -15,16 +15,18 @@ class MapleMinimap:
     """
     def __init__(
         self,
+        map_name: str,
         raw_canvas: np.ndarray,
         features_manager: MinimapEditsManager
     ):
         self.raw_minimap = self._preprocess_canvas(raw_canvas)
         self.features_manager = features_manager
-        self.modified_minimap = self.features_manager.apply_minimap_edits(
-            self.raw_minimap
+        self.modified_minimap = self.features_manager.apply_grid_edits(
+            self.raw_minimap, apply_weights=True
         )
-        # self.raw_grid = MinimapGrid(canvas=self.modified_minimap)
-        # self.modified_grid = self.features_manager.apply_grid_edits(self.raw_grid)
+
+    def generate_grid(self) -> MinimapGrid:
+        grid = MinimapGrid(self.modified_minimap, grid_id=self.map_name)
 
     @staticmethod
     def _preprocess_canvas(canvas: np.ndarray) -> np.ndarray:
@@ -48,12 +50,17 @@ class MapleMap:
     ) -> None:
         self.map_name = map_name
         self.parser = MapParser(map_name)
-        # self.vr_canvas = self.parser.get_vr_canvas()
         orig_minimap_canvas = self.parser.get_raw_minimap_grid(True)
-        self.edits = MinimapEditsManager.from_json(map_name)
+        self.edits = MinimapEditsManager.from_json(map_name) or MinimapEditsManager()
         if open_minimap_editor:
             # This will block until the editor's mainloop is closed
-            editor = MinimapEditor(map_name, orig_minimap_canvas, self.edits, **kwargs)
+            editor = MinimapEditor(
+                map_name,
+                orig_minimap_canvas,
+                self.edits,
+                include_character_position=kwargs.get('include_character_position', True),
+                scale=kwargs.get('scale', 5),
+            )
             self.edits = editor.edits
 
         self.minimap = MapleMinimap(orig_minimap_canvas, self.edits)
