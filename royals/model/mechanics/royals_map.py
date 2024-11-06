@@ -49,7 +49,7 @@ class MapleMap:
         self.map_name = map_name
         self.parser = MapParser(map_name)
         # self.vr_canvas = self.parser.get_vr_canvas()
-        orig_minimap_canvas = self.parser.mini_canvas
+        orig_minimap_canvas = self.parser.get_raw_minimap_grid(True)
         self.edits = MinimapEditsManager.from_json(map_name)
         if open_minimap_editor:
             # This will block until the editor's mainloop is closed
