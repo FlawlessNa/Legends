@@ -57,3 +57,9 @@ class _PortalsExtractor:
                 }
             )
         return res
+
+    def get_portal(self, portal_name: str) -> dict:
+        for portal in self.res:
+            if portal['name'] == portal_name:
+                return portal
+        return {}

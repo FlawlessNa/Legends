@@ -66,6 +66,19 @@ class RoyalsBot(Bot, ABC):
         self.data.create_attribute(
             "current_minimap", lambda: self.data.current_map.minimap
         )
+        self.data.create_attribute(
+            "current_grid", lambda: self.data.current_minimap.generate_grid(
+                allow_teleport=self.data.character.skills.get("Teleport") is not None,
+                speed_multiplier=(
+                    self.data.speed_multiplier if self.data.has_ap_menu_attributes
+                    else 1.00
+                ),
+                jump_multiplier=(
+                    self.data.jump_multiplier if self.data.has_ap_menu_attributes
+                    else 1.00
+                )
+            )
+        )
         self.data.create_attribute("current_mobs", lambda: self.data.current_map.mobs)
         self.data.create_attribute(
             "current_client_img",

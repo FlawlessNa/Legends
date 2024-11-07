@@ -17,8 +17,10 @@ class MapParser:
     _ASSETS = os.path.join(ROOT, "royals/assets/game_files/maps")
 
     def __init__(self, map_name: str):
+        self.map_name = map_name
         self.tree = ET.parse(os.path.join(self._ASSETS, f"{map_name}.xml"))
         self.root = self.tree.getroot()
+        self.map_id = self.root.attrib['name'].removesuffix('.img')
 
         self._info_tree = self.root.find(".//imgdir[@name='info']")
         self._bg_tree = self.root.find(".//imgdir[@name='back']")
@@ -185,7 +187,7 @@ class MapParser:
             cv2.circle(
                 canvas,
                 (x + offset_x, y + offset_y),
-                3,
+                2,
                 color,
                 -1
             )
@@ -250,3 +252,12 @@ class MapParser:
         character, and we infer the character's VR coordinates.
         """
         pass
+
+    def get_minimap_coords(self, x: int, y: int) -> tuple[int, int]:
+        """
+        Returns the minimap coordinates of a given x, y position.
+        """
+        offset_x, offset_y = self.mini_cx, self.mini_cy
+        x += offset_x
+        y += offset_y
+        return int(x / self.minimap_scale_x), int(y / self.minimap_scale_y)

@@ -28,24 +28,29 @@ class _PhysicsValues(Enum):
     MIN_FRICTION = PHYS["minFriction"]
     SWIM_SPEED_DEC = PHYS["swimSpeedDec"]
     FLY_JUMP_DEC = PHYS["flyJumpDec"]
+    TELEPORT_DISTANCE = 150
+
+_CONSTANTS = _PhysicsValues
 
 
 class VRPhysics:
     """
     Implements traditional kinetic physics.
     """
-    pass
+    JUMP_HEIGHT = _CONSTANTS.JUMP_SPEED.value ** 2 / (2 * _CONSTANTS.GRAVITY_ACC.value)
+    JUMP_DURATION = 2 * _CONSTANTS.JUMP_SPEED.value / _CONSTANTS.GRAVITY_ACC.value
+    JUMP_WIDTH = JUMP_DURATION * _CONSTANTS.WALK_SPEED.value
 
 
 class MinimapPhysics:
     """
     Implements physics for the minimap.
     """
-    def __init__(self, minimap: ...):
-        self.minimap_speed = ...
-        self.jump_height = ...
-        self.jump_distance = ...
-        self.teleport_h_dist = ...
+    def __init__(self, scale_x: float, scale_y: float):
+        self.minimap_speed = _CONSTANTS.WALK_SPEED.value * scale_x
+        self.jump_height = VRPhysics.JUMP_HEIGHT * scale_y
+        self.jump_distance = VRPhysics.JUMP_WIDTH * scale_x
+        self.teleport_h_dist = _CONSTANTS.TELEPORT_DISTANCE.value * scale_x
         self.teleport_v_up_dist = ...
         self.teleport_v_down_dist = ...
 
