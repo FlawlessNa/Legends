@@ -19,14 +19,18 @@ class MapleMinimap:
         raw_canvas: np.ndarray,
         features_manager: MinimapEditsManager
     ):
+        self.map_name = map_name
         self.raw_minimap = self._preprocess_canvas(raw_canvas)
         self.features_manager = features_manager
         self.modified_minimap = self.features_manager.apply_grid_edits(
             self.raw_minimap, apply_weights=True
         )
+        self.grid = self.generate_grid()
 
     def generate_grid(self) -> MinimapGrid:
         grid = MinimapGrid(self.modified_minimap, grid_id=self.map_name)
+
+        return self.features_manager.apply_pathfinding_edits(grid)
 
     @staticmethod
     def _preprocess_canvas(canvas: np.ndarray) -> np.ndarray:
@@ -63,7 +67,7 @@ class MapleMap:
             )
             self.edits = editor.edits
 
-        self.minimap = MapleMinimap(orig_minimap_canvas, self.edits)
+        self.minimap = MapleMinimap(self.map_name, orig_minimap_canvas, self.edits)
 
         # mob_ids = self.parser.get_mobs_ids()
         # self.mobs = tuple(BaseMob(mob_id) for mob_id in mob_ids)

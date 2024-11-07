@@ -41,4 +41,21 @@ class MinimapPhysics:
     """
     Implements physics for the minimap.
     """
-    pass
+    def __init__(self, minimap: ...):
+        self.minimap_speed = ...
+        self.jump_height = ...
+        self.jump_distance = ...
+        self.teleport_h_dist = ...
+        self.teleport_v_up_dist = ...
+        self.teleport_v_down_dist = ...
+
+    def get_jump_height(self, multiplier: float = 1.00) -> float:
+        return self.jump_height * (multiplier ** 2)
+
+    def get_jump_distance(
+        self, speed_multiplier: float = 1.00, jump_multiplier: float = 1.00
+    ) -> float:
+        return self.jump_distance * speed_multiplier * jump_multiplier
+
+    def get_minimap_speed(self, speed_multiplier: float = 1.00) -> float:
+        return self.minimap_speed * speed_multiplier

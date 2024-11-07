@@ -43,6 +43,23 @@ class MinimapGrid(Grid):
     """
     Wrapper around Grid that replaces all GridNodes with MinimapNodes.
     """
+
+    nodes: list[list[MinimapNode]]
+
     def __init__(self, canvas: np.ndarray, grid_id: str = None):
         super().__init__(matrix=canvas, grid_id=grid_id)
         self.grid_id = grid_id
+        self._replace_nodes()
+
+    def _replace_nodes(self):
+        for y, row in enumerate(self.nodes):
+            for x, node in enumerate(row):
+                self.nodes[y][x] = MinimapNode(
+                    node.x,
+                    node.y,
+                    node.walkable,
+                    node.weight,
+                    node.grid_id,
+                    node.connections or list()
+                )
+

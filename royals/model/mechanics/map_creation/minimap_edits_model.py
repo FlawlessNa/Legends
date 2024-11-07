@@ -111,13 +111,3 @@ class MinimapEditsManager:
         """
         pass
 
-    def generate_grid(
-        self,
-        modified_minimap: np.ndarray,
-        map_name: str,
-        allow_teleport: bool,
-        speed_multiplier: float,
-        jump_multiplier: float
-    ) -> MinimapGrid:
-
-        raw_grid = MinimapGrid(modified_minimap, map_name)
