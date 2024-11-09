@@ -30,6 +30,7 @@ class _PhysicsValues(Enum):
     FLY_JUMP_DEC = PHYS["flyJumpDec"]
     TELEPORT_DISTANCE = 150
 
+
 _CONSTANTS = _PhysicsValues
 
 

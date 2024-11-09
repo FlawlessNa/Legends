@@ -48,8 +48,17 @@ class MapleMinimap(Minimap):
             f"{speed_multiplier=}, {jump_multiplier=}, {include_portals=}"
         )
         grid = MinimapGrid(self.modified_minimap, grid_id=self.map_name)
+        self._add_vertical_connections(grid, ...)
+        self._add_jump_connections(grid, 'left')
+        self._add_jump_connections(grid, 'right')
+        self._add_fall_connections(grid, 'left')
+        self._add_fall_connections(grid, 'right')
         if include_portals:
             self._add_portals(grid)
+
+        if allow_teleport:
+            self._add_vertical_connections(grid, ...)
+            self._add_horizontal_teleport_connections(grid, ...)
         return self.features_manager.apply_pathfinding_edits(grid)
 
     @staticmethod
@@ -67,11 +76,11 @@ class MapleMinimap(Minimap):
     _preprocess_img = _preprocess_canvas
 
     def _add_portals(self, grid: MinimapGrid) -> None:
-        offset_x, offset_y = self.parser.mini_cx, self.parser.mini_cy
         for portal in self.parser.portals.res:
             source = self.parser.get_minimap_coords(portal['x'], portal['y'])
             if not grid.node(*source).walkable:
                 breakpoint()
+
             if self.parser.map_id == portal['target_map']:
                 target_portal = self.parser.portals.get_portal(portal['target_name'])
                 target = self.parser.get_minimap_coords(
@@ -80,9 +89,9 @@ class MapleMinimap(Minimap):
                 grid.node(*source).connect(
                     grid.node(*target), ConnectionTypes.IN_MAP_PORTAL
                 )
+                print(grid.node(*source))
             else:
-                breakpoint()
-
+                pass  # TODO - Connect to out-of-map portals
 
 
 class MapleMap:
