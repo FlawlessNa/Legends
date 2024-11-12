@@ -57,7 +57,7 @@ class MinimapNode(GridNode):
         return (
             f"MinimapNode(x={self.x}, y={self.y}, walkable={self.walkable}, "
             f"weight={self.weight}, grid_id={self.grid_id}, "
-            f"connections={', '.join(conn_str)})"
+            f"connections={', '.join(conn_str) or []})"
         )
 
     def __repr__(self) -> str:

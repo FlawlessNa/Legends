@@ -19,6 +19,7 @@ class MapleMinimap(Minimap):
     If a minimap subclass exists for the current minimap, it loads in the specified
     modifications and modifies the raw minimap based on those.
     """
+    jump_down_limit: int = 30  # TODO - Make this a parameter or fine-tune
 
     def __init__(
         self,
@@ -48,9 +49,9 @@ class MapleMinimap(Minimap):
             f"{speed_multiplier=}, {jump_multiplier=}, {include_portals=}"
         )
         grid = MinimapGrid(self.modified_minimap, grid_id=self.map_name)
-        self._add_vertical_connections(grid, ...)
-        self._add_jump_connections(grid, 'left')
-        self._add_jump_connections(grid, 'right')
+        self._add_vertical_jump_connections(grid, jump_multiplier)
+        self._add_parabolic_jump_connections(grid, 'left')
+        self._add_parabolic_jump_connections(grid, 'right')
         self._add_fall_connections(grid, 'left')
         self._add_fall_connections(grid, 'right')
         if include_portals:
@@ -74,6 +75,35 @@ class MapleMinimap(Minimap):
             return np.where(canvas > 0, 1, 0).astype(np.uint8)
 
     _preprocess_img = _preprocess_canvas
+
+    def _add_vertical_jump_connections(self, grid: MinimapGrid, jump_mul: float) -> None:
+        jump_height = self.physics.get_jump_height(jump_mul)
+        for y, row in enumerate(grid.nodes):
+            for x, node in enumerate(row):
+                if not node.walkable:
+                    continue
+                up_range = range(node.y - round(jump_height), node.y)
+                down_range = range(
+                    node.y + 1,
+                    min(node.y + self.jump_down_limit + 1, grid.height)
+                )
+                for other_node in (grid.node(x, k) for k in up_range):
+                    if other_node.walkable:
+                        features = ...  # Get all features for which other_node belongs
+                        # Then, extract any custom-defined features (if any)
+                        avoid_edges = ...
+                        is_ladder = ...  # Make sure it's not a ladder
+                        if ...:
+                            node.connect(other_node, ConnectionTypes.JUMP_UP)
+
+                for other_node in (grid.node(x, k) for k in down_range):
+                    if other_node.walkable:
+                        features = ...  # Get all features for which other_node belongs
+                        # Then, extract any custom-defined features (if any)
+                        avoid_edges = ...
+                        is_ladder = ...  # Make sure it's not a ladder
+                        if ...:
+                            node.connect(other_node, ConnectionTypes.JUMP_DOWN)
 
     def _add_portals(self, grid: MinimapGrid) -> None:
         for portal in self.parser.portals.res:
