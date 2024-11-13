@@ -128,3 +128,13 @@ class MinimapEditsManager:
         """
         pass
 
+    def get_features_containing(self, mini_x: int, mini_y: int) -> list[MinimapEdits]:
+        """
+        Returns the features that contain the given coordinates.
+        """
+        return [
+            feature for feature in self.features
+            if feature.left <= mini_x <= feature.right
+            and feature.top <= mini_y <= feature.bottom
+        ]
+

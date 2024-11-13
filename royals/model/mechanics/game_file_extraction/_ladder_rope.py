@@ -9,7 +9,7 @@ class _LadderExtractor:
     ):
         self.tree = rope_tree
         self.res = self.extract_all()
-        self.object_res = object_ropes
+        self.object_res = [{**dct, 'Type': 'Ladder'} for dct in (object_ropes or [])]
 
     def extract_all(self) -> list:
         """
@@ -32,7 +32,8 @@ class _LadderExtractor:
                     'y': (data['y1'], data['y2']),
                     'l': data['l'],
                     'page': data['page'],
-                    'uf': data['uf']
+                    'uf': data['uf'],
+                    'Type': 'Ladder'
                 }
             )
         return res

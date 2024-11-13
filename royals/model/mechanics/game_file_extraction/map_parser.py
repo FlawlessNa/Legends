@@ -66,6 +66,7 @@ class MapParser:
         )
         self.minimap_scale_x = self.mini_vr_w / self.mini_cv_w
         self.minimap_scale_y = self.mini_vr_h / self.mini_cv_h
+        self._add_minimap_coordinates()
 
     def get_raw_minimap_grid(self, binary_mode: bool = False) -> np.ndarray:
         """
@@ -261,3 +262,53 @@ class MapParser:
         x += offset_x
         y += offset_y
         return int(x / self.minimap_scale_x), int(y / self.minimap_scale_y)
+
+    def _add_minimap_coordinates(self) -> None:
+        """
+        Adds a list of coordinates (x, y) to each foothold dictionary.
+        Those coordinates are based on the minimap canvas.
+        """
+        canvas = np.zeros((self.mini_vr_h, self.mini_vr_w), np.uint8)
+        offset_x, offset_y = self._get_offsets_from_canvas(canvas)
+        for lst in (
+            self.footholds.res,
+            self.footholds.object_res,
+            self.footholds.tile_res,
+            self.ropes.res,
+            self.ropes.object_res
+        ):
+            for dct in lst:
+                dct['mini_coordinates'] = set()
+                vr_x, vr_y = dct['x'], dct['y']
+                copied = canvas.copy()
+                assert (copied == 0).all()  # noqa
+                for i in range(0, len(vr_x) - 1):
+                    cv2.line(
+                        copied,
+                        (vr_x[i] + offset_x, vr_y[i] + offset_y),
+                        (vr_x[i + 1] + offset_x, vr_y[i + 1] + offset_y),
+                        (255, ),
+                        1
+                    )
+                non_zeros = np.nonzero(copied)
+                for y, x in zip(*non_zeros):
+                    adj_x, adj_y = x - offset_x, y - offset_y
+                    dct['mini_coordinates'].add(self.get_minimap_coords(adj_x, adj_y))
+
+    def get_features_containing(self, mini_x: int, mini_y: int) -> list[dict]:
+        """
+        Checks all footholds/ropes to see if they contain the minimap coordinates.
+        Extracts these.
+        """
+        res = []
+        for lst in (
+            self.footholds.res,
+            self.footholds.object_res,
+            self.footholds.tile_res,
+            self.ropes.res,
+            self.ropes.object_res
+        ):
+            for dct in lst:
+                if (mini_x, mini_y) in dct['mini_coordinates']:
+                    res.append(dct)
+        return res
