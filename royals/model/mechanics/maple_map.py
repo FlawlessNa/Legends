@@ -54,10 +54,8 @@ class MapleMinimap(Minimap):
         grid = MinimapGrid(self.modified_minimap, grid_id=self.map_name)
         self._add_vertical_connections(grid, ConnectionTypes.JUMP_UP, height)
         self._add_vertical_connections(grid, ConnectionTypes.JUMP_DOWN)
-        self._add_parabolic_jump_connections(grid, "left", distance, height)
-        self._add_parabolic_jump_connections(grid, "right", distance, height)
-        self._add_fall_connections(grid, "left")
-        self._add_fall_connections(grid, "right")
+        self._add_parabolic_jump_connections(grid, distance, height)
+        self._add_fall_connections(grid)
         if include_portals:
             self._add_portals(grid)
 
@@ -135,27 +133,32 @@ class MapleMinimap(Minimap):
                         break
 
     def _add_parabolic_jump_connections(
-        self, grid: MinimapGrid, direction: str, jump_dist: float, jump_height: float
+        self, grid: MinimapGrid, jump_dist: float, jump_height: float
     ) -> None:
         """
         Adds connections for parabolic jumps (e.g jumps in a direction).
-        TODO - Only block desired blocked endpoints for "jumps", NOT for "falls"
         """
-        assert direction in ("left", "right"), "Invalid direction for parabolic jump"
         for row in grid.nodes:
             for node in row:
                 if not node.walkable:
                     continue
 
                 node_info = self.get_node_info(node)
-                trajectory = self.physics.get_jump_trajectory(
-                    node.x, node.y, direction, jump_dist, jump_height, grid.width, grid.height
-                )
-                if node_info.is_ladder:
-                    fall_trajectory = self.physics.get_jump_trajectory(node.x, node.y)
-                else:
-                    jump_trajectory = self.physics.get_jump_trajectory(node.x, node.y)
-                    fall_trajectory = self.physics.get_jump_trajectory(node.x, node.y)
+
+                if node_info.is_platform:
+                    if node_info.is_a_blocked_endpoint(node.x, node.y):
+                        continue
+
+                    left_jump = self.physics.get_jump_trajectory(
+                        node.x, node.y, 'left', jump_dist, jump_height, grid.width,
+                        grid.height
+                    )
+                    right_jump = self.physics.get_jump_trajectory(
+                        node.x, node.y, 'right', jump_dist, jump_height, grid.width,
+                        grid.height
+                    )
+                    self._parse_trajectory(grid, node, left_jump)
+                    self._parse_trajectory(grid, node, right_jump)
 
 
     def _add_portals(self, grid: MinimapGrid) -> None:

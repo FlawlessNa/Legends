@@ -1,6 +1,10 @@
+from typing import List
+
 import numpy as np
 from dataclasses import dataclass, field
 from enum import IntEnum
+
+from pathfinding.core.diagonal_movement import DiagonalMovement
 from pathfinding.core.grid import Grid
 from pathfinding.core.node import GridNode
 
@@ -68,6 +72,8 @@ class MinimapGrid(Grid):
     """
     Wrapper around Grid that replaces all GridNodes with MinimapNodes.
     """
+    ALL_DIAGONAL_NEIGHBORS = 1
+    NO_DIAGONAL_NEIGHBORS = 2
 
     nodes: list[list[MinimapNode]]
 
@@ -93,3 +99,34 @@ class MinimapGrid(Grid):
                     node.grid_id,
                     node.connections or list()
                 )
+
+    def neighbors(
+        self, node: GridNode,
+        diagonal_movement: DiagonalMovement = DiagonalMovement.never,
+        include_connections: bool = True
+    ) -> List[MinimapNode]:
+        """
+        Overwrites signature to return a list of MinimapNodes.
+        Allows to exclude connections from the neighbors.
+        """
+        neighbors = super().neighbors(node, diagonal_movement)
+        if not include_connections:
+            for connection in node.connections:
+                neighbors.remove(connection)
+        return neighbors  # noqa
+
+    def is_left_edge(self, node: MinimapNode) -> bool:
+        neighbors = self.neighbors(
+            node,
+            diagonal_movement=self.ALL_DIAGONAL_NEIGHBORS,  # noqa
+            include_connections=False
+        )
+        return not any(n.x < node.x for n in neighbors)
+
+    def is_right_edge(self, node: MinimapNode) -> bool:
+        neighbors = self.neighbors(
+            node,
+            diagonal_movement=self.ALL_DIAGONAL_NEIGHBORS,  # noqa
+            include_connections=False
+        )
+        return not any(n.x > node.x for n in neighbors)
