@@ -51,7 +51,18 @@ class MapleMinimap(Minimap):
         )
         height = self.physics.get_jump_height(jump_multiplier)
         distance = self.physics.get_jump_distance(speed_multiplier, jump_multiplier)
+
+        # Create the grid and set walkable nodes with weights
+        # TODO - This needs to be corrected for custom edits with offsets
         grid = MinimapGrid(self.modified_minimap, grid_id=self.map_name)
+        walkable_nodes = self.modified_minimap.nonzero()
+        y_coords, x_coords = walkable_nodes
+        for x, y in zip(x_coords, y_coords):
+            node = grid.node(x, y)
+            info = self.get_node_info(node)
+            node.walkable = info.walkable
+            node.weight = info.weight
+
         self._add_vertical_connections(grid, ConnectionTypes.JUMP_UP, height)
         self._add_vertical_connections(grid, ConnectionTypes.JUMP_DOWN)
         self._add_parabolic_jump_connections(grid, distance, height)
@@ -63,7 +74,7 @@ class MapleMinimap(Minimap):
             self._add_vertical_connections(grid, ConnectionTypes.TELEPORT_UP)
             self._add_vertical_connections(grid, ConnectionTypes.TELEPORT_DOWN)
             self._add_horizontal_teleport_connections(grid, ...)
-        return self.features_manager.apply_pathfinding_edits(grid)
+        return grid
 
     @staticmethod
     def _preprocess_canvas(canvas: np.ndarray) -> np.ndarray:
@@ -159,6 +170,46 @@ class MapleMinimap(Minimap):
                     )
                     self._parse_trajectory(grid, node, left_jump)
                     self._parse_trajectory(grid, node, right_jump)
+
+    def _parse_trajectory(
+        self, grid: MinimapGrid, node: MinimapNode, trajectory: list[tuple[int, int]]
+    ) -> None:
+        highest_y = min(trajectory, key=lambda i: i[1])[1]
+        apogee = list(filter(lambda pos: pos[1] == highest_y, trajectory))
+        apogee_idx = trajectory.index(apogee[0])
+        mid = len(apogee) // 2
+        if len(apogee) % 2 == 0:
+            nodes_for_rope = apogee[mid - 1: mid + 1]
+        else:
+            nodes_for_rope = apogee[mid: mid + 1]
+        idx = trajectory.index(nodes_for_rope[-1])
+        nodes_for_rope = trajectory[idx:idx+3]
+
+        # connection = into_rope = None
+        if max(trajectory, key=lambda i: (i[0], i[1])) == trajectory[0]:
+            connection = ConnectionTypes.JUMP_LEFT
+            into_rope = ConnectionTypes.JUMP_LEFT_AND_UP
+        elif max(trajectory, key=lambda i: (i[0], i[1])) == trajectory[-1]:
+            connection = ConnectionTypes.JUMP_RIGHT
+            into_rope = ConnectionTypes.JUMP_RIGHT_AND_UP
+
+        neighbors = grid.neighbors(node, MinimapGrid.ALL_DIAGONAL_NEIGHBORS, False)
+        node_info = self.get_node_info(node)
+
+        for x, y in trajectory:
+            other_node = grid.node(x, y)
+            if other_node == node or not other_node.walkable or other_node in neighbors:
+                continue
+            other_info = self.get_node_info(other_node)
+            if other_info == node_info:
+                break
+            # If other node is a platform, this will stop the motion so break loop
+            elif other_info.is_platform and trajectory.index((x, y)) >= apogee_idx:
+                node.connect(other_node, connection)  # noqa
+                break
+            # If other node is ladder, we can connect to it and keep going
+            elif other_info.is_ladder and (other_node.x, other_node.y) in nodes_for_rope:
+                node.connect(other_node, into_rope)  # noqa
 
 
     def _add_portals(self, grid: MinimapGrid) -> None:

@@ -26,6 +26,10 @@
 - [ ] Should be able to draw proper background as well for synthetic data
 - [ ] Apply edits on grid
 - [ ] EditorView 2nd mob to show pathfinding and better finetuning with those
+  - [ ] Ability to toggle jump/fall trajectories
+  - [ ] Ability to show all connections for the current source node
+  - [ ] Ability to print the path, movements and actions between source and dest nodes
+  - [ ] mouse click to change source node, ctrl + click for target node
 - [ ] New grid system: for jump connections, if needed, use VR physics/coordinates to determine if jump reaches other platform instead of approx minimap coordinates
 
 ## Movements
