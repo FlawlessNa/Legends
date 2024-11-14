@@ -9,6 +9,7 @@
 - [ ] Add a "log dump" from AttributeMetadata for each BotData instance upon engine shutdown
 - [ ] There's a bug with the rotation cycle, could be caused by Mob Check failsafe, but rotation sometimes resets?
 - [ ] Fix minimap error handling bug.
+- [ ] Add ability to specify speed/jump from launcher
 
 ## Model Usage
 - [ ] For comparison, try removing the caching feature and assess which option is best (will need to wait until server stable)
