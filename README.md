@@ -21,18 +21,12 @@
 
 ## Map Parser
 - [ ] Should be able to group footholds/ladders by actual "platforms" and "ladders" for pathfinding
-- [ ] Class that can be used to draw canvas for ANY map (provided the .xml files are available)
-  - VR Map Canvas
-  - VR Foothold Canvas
-  - VR Minimap Canvas
-  - Minimap Canvas
-  - Full Canvas (incl background)
-- [ ] It also extracts objects/tiles
 - [ ] Can extract mobs and their "expected" locations to create synthetic data
 - [ ] It can attempt to estimate the character's VR coordinates as well
 - [ ] Should be able to draw proper background as well for synthetic data
 - [ ] Apply edits on grid
 - [ ] EditorView 2nd mob to show pathfinding and better finetuning with those
+- [ ] New grid system: for jump connections, if needed, use VR physics/coordinates to determine if jump reaches other platform instead of approx minimap coordinates
 
 ## Movements
 - [ ] Add step to convert current minimap pos towards closest walkable node, up to a small acceptable dist threshold

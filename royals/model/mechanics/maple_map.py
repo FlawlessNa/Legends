@@ -1,4 +1,3 @@
-import cv2
 import logging
 import numpy as np
 from functools import lru_cache
@@ -20,7 +19,8 @@ class MapleMinimap(Minimap):
     modifications and modifies the raw minimap based on those.
     """
 
-    jump_down_limit: int = 30  # TODO - Make this a parameter or fine-tune
+    JUMP_DOWN_LIMIT: int = 30  # TODO - Make this a parameter or fine-tune (probably in physics?)
+    TELEPORT_DOWN_MIN_DIST: int = 3  # TODO - Make this a parameter or fine-tune
 
     def __init__(
         self,
@@ -49,11 +49,13 @@ class MapleMinimap(Minimap):
             f"Generating grid for {self.map_name}, {allow_teleport=}, "
             f"{speed_multiplier=}, {jump_multiplier=}, {include_portals=}"
         )
+        height = self.physics.get_jump_height(jump_multiplier)
+        distance = self.physics.get_jump_distance(speed_multiplier, jump_multiplier)
         grid = MinimapGrid(self.modified_minimap, grid_id=self.map_name)
-        self._add_vertical_connections(grid, ConnectionTypes.JUMP_UP, jump_multiplier)
+        self._add_vertical_connections(grid, ConnectionTypes.JUMP_UP, height)
         self._add_vertical_connections(grid, ConnectionTypes.JUMP_DOWN)
-        self._add_parabolic_jump_connections(grid, "left")
-        self._add_parabolic_jump_connections(grid, "right")
+        self._add_parabolic_jump_connections(grid, "left", distance, height)
+        self._add_parabolic_jump_connections(grid, "right", distance, height)
         self._add_fall_connections(grid, "left")
         self._add_fall_connections(grid, "right")
         if include_portals:
@@ -92,22 +94,21 @@ class MapleMinimap(Minimap):
         ) or self.parser.parse_node(x, y)
 
     def _add_vertical_connections(
-        self, grid: MinimapGrid, conn_type: int, jump_mul: float = None
+        self, grid: MinimapGrid, conn_type: int, jump_height: float = None
     ) -> None:
 
         def _get_range(start: MinimapNode) -> range:
             if conn_type == ConnectionTypes.JUMP_UP:
-                jump_height = self.physics.get_jump_height(jump_mul)
                 return range(start.y - round(jump_height), start.y)
             elif conn_type == ConnectionTypes.JUMP_DOWN:
                 return range(
-                    start.y + 1, min(start.y + self.jump_down_limit + 1, grid.height)
+                    start.y + 1, min(start.y + self.JUMP_DOWN_LIMIT + 1, grid.height)
                 )
             elif conn_type == ConnectionTypes.TELEPORT_UP:
                 return range(start.y - self.physics.teleport_v_up_dist - 1, start.y)
             elif conn_type == ConnectionTypes.TELEPORT_DOWN:
                 return range(
-                    start.y + 3,
+                    start.y + self.TELEPORT_DOWN_MIN_DIST,
                     min(start.y + self.physics.teleport_v_down_dist + 1, grid.height),
                 )
 
@@ -118,22 +119,44 @@ class MapleMinimap(Minimap):
             ConnectionTypes.TELEPORT_DOWN,
         )
 
-        for y, row in enumerate(grid.nodes):
-            for x, node in enumerate(row):
-                node_feature = self.get_node_info(node)
-                if not node.walkable or node_feature.is_ladder:
+        for row in grid.nodes:
+            for node in row:
+                if not node.walkable or self.get_node_info(node).is_ladder:
                     continue
 
-                rng = _get_range(node)
-                for other_node in (grid.node(x, k) for k in rng):
+                for other_node in (grid.node(node.x, k) for k in _get_range(node)):
                     x2, y2 = other_node.x, other_node.y
                     other_feature = self.get_node_info(other_node)
                     cond1 = other_node.walkable
                     cond2 = other_feature.is_platform
-                    cond3 = not other_feature.block_node_from_vertical_connections(x2, y2)
+                    cond3 = not other_feature.is_a_blocked_endpoint(x2, y2)
                     if cond1 and cond2 and cond3:
                         node.connect(other_node, conn_type)
                         break
+
+    def _add_parabolic_jump_connections(
+        self, grid: MinimapGrid, direction: str, jump_dist: float, jump_height: float
+    ) -> None:
+        """
+        Adds connections for parabolic jumps (e.g jumps in a direction).
+        TODO - Only block desired blocked endpoints for "jumps", NOT for "falls"
+        """
+        assert direction in ("left", "right"), "Invalid direction for parabolic jump"
+        for row in grid.nodes:
+            for node in row:
+                if not node.walkable:
+                    continue
+
+                node_info = self.get_node_info(node)
+                trajectory = self.physics.get_jump_trajectory(
+                    node.x, node.y, direction, jump_dist, jump_height, grid.width, grid.height
+                )
+                if node_info.is_ladder:
+                    fall_trajectory = self.physics.get_jump_trajectory(node.x, node.y)
+                else:
+                    jump_trajectory = self.physics.get_jump_trajectory(node.x, node.y)
+                    fall_trajectory = self.physics.get_jump_trajectory(node.x, node.y)
+
 
     def _add_portals(self, grid: MinimapGrid) -> None:
         for portal in self.parser.portals.res:

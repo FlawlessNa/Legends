@@ -1,3 +1,4 @@
+import numpy as np
 import os
 import xml.etree.ElementTree as ET
 from enum import Enum
@@ -65,3 +66,64 @@ class MinimapPhysics:
 
     def get_minimap_speed(self, speed_multiplier: float = 1.00) -> float:
         return self.minimap_speed * speed_multiplier
+
+    def get_jump_trajectory(
+        self,
+        x_start: int,
+        y_start: int,
+        direction: str,
+        jump_dist: float,
+        jump_height: float,
+        map_width: int,
+        map_height: int
+    ) -> list[tuple[int, int]]:
+        assert direction in ["left", "right"], "Invalid direction for trajectory."
+        x_values = np.arange(x_start, map_width, 0.01)
+        y_values = y_start - self._jump_parabola_y(
+            x_values - x_start,
+            jump_dist,
+            jump_height
+        )
+        if direction == 'left':
+            x_values = np.linspace(
+                x_start,
+                x_start - (x_values[-1] - x_start),
+                len(y_values)
+            )
+        # Now truncate the arrays such that they only contain points within the map area
+        mask = (
+            (x_values >= 0)
+            & (x_values <= map_width)
+            & (y_values >= 0)
+            & (y_values <= map_height)
+        )
+        x_values = x_values[mask].astype(int)
+        y_values = y_values[mask].astype(int)
+
+        # The rounding may cause adjacent cells to be only connected diagonally.
+        # Add buffer in such cases.
+        buffered_x_values = []
+        buffered_y_values = []
+        for i in range(len(x_values) - 1):
+            buffered_x_values.append(x_values[i])
+            buffered_y_values.append(y_values[i])
+            dx = x_values[i + 1] - x_values[i]
+            dy = y_values[i + 1] - y_values[i]
+            if abs(dx) == abs(dy) == 1:
+                buffered_x_values.append(x_values[i] + np.sign(dx))
+                buffered_y_values.append(y_values[i])
+                buffered_x_values.append(x_values[i])
+                buffered_y_values.append(y_values[i] + np.sign(dy))
+        buffered_x_values.append(x_values[-1])
+        buffered_y_values.append(y_values[-1])
+        x_values = np.array(buffered_x_values)
+        y_values = np.array(buffered_y_values)
+
+        trajectory = list(zip(x_values.astype(int), y_values.astype(int)))
+        return sorted(set(trajectory), key=trajectory.index)
+
+    @staticmethod
+    def _jump_parabola_y(x, jump_distance: float, jump_height: float):
+        h, k = jump_distance / 2, jump_height
+        a = k / h ** 2
+        return -a * (x - h) ** 2 + k

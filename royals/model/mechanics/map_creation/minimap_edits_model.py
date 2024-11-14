@@ -50,7 +50,7 @@ class MinimapEdits(Box):
     def is_ladder(self) -> bool:
         return 0 <= self.width <= 1
 
-    def block_node_from_vertical_connections(self, x: int, y: int) -> bool:
+    def is_a_blocked_endpoint(self, x: int, y: int) -> bool:
         """
         Returns whether the given node should block vertical connections.
         """
