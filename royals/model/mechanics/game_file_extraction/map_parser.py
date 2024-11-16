@@ -335,6 +335,13 @@ class MapParser:
             else:
                 breakpoint()
 
+        # Check for "walls" -> footholds (NOT ropes) that have 0 width
+        for feature in raw_features.copy():
+            coords = feature['mini_coordinates']
+            x_vals = {x for x, y in coords}
+            if feature['Type'] == 'Foothold' and len(x_vals) == 1:
+                raw_features.remove(feature)
+
         all_nodes = set().union(*[feat['mini_coordinates'] for feat in raw_features])
         left = min(all_nodes, key=lambda x: x[0], default=(mini_x, mini_y))[0]
         right = max(all_nodes, key=lambda x: x[0], default=(mini_x, mini_y))[0]

@@ -53,8 +53,8 @@ class MinimapPhysics:
         self.jump_height = VRPhysics.JUMP_HEIGHT * scale_y
         self.jump_distance = VRPhysics.JUMP_WIDTH * scale_x
         self.teleport_h_dist = _CONSTANTS.TELEPORT_DISTANCE.value * scale_x
-        self.teleport_v_up_dist = ...
-        self.teleport_v_down_dist = ...
+        self.teleport_v_up_dist = self.teleport_h_dist - 1  # TODO FIGURE THIS OUT
+        self.teleport_v_down_dist = self.teleport_h_dist + 2  # TODO FIGURE THIS OUT
 
     def get_jump_height(self, multiplier: float = 1.00) -> float:
         return self.jump_height * (multiplier ** 2)
@@ -75,15 +75,23 @@ class MinimapPhysics:
         jump_dist: float,
         jump_height: float,
         map_width: int,
-        map_height: int
+        map_height: int,
+        fall: bool = False
     ) -> list[tuple[int, int]]:
         assert direction in ["left", "right"], "Invalid direction for trajectory."
         x_values = np.arange(x_start, map_width, 0.01)
-        y_values = y_start - self._jump_parabola_y(
-            x_values - x_start,
-            jump_dist,
-            jump_height
-        )
+        if fall:
+            y_values = y_start - self._jump_parabola_y(
+                x_values - x_start + jump_dist / 2,
+                jump_dist,
+                jump_height,
+            )
+        else:
+            y_values = y_start - self._jump_parabola_y(
+                x_values - x_start,
+                jump_dist,
+                jump_height
+            )
         if direction == 'left':
             x_values = np.linspace(
                 x_start,
