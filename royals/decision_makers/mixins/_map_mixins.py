@@ -169,7 +169,9 @@ class MinimapAttributesMixin:
         )
         self.data.current_minimap.generate_grid_template(
             self.data.character.skills.get("Teleport") is not None,
-            self.data.speed_multiplier if self.data.has_ap_menu_attributes else 1.00,
-            self.data.jump_multiplier if self.data.has_ap_menu_attributes else 1.00,
+            # self.data.speed_multiplier if self.data.has_ap_menu_attributes else 1.00,
+            # self.data.jump_multiplier if self.data.has_ap_menu_attributes else 1.00,
+            getattr(self.data, "speed_multiplier", 1.00),
+            getattr(self.data, "jump_multiplier", 1.00),
         )
         self.data.create_attribute("has_minimap_attributes", lambda: True)

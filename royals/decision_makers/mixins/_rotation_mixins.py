@@ -23,7 +23,7 @@ class NextTargetMixin:
     data: BotData
     BASE_ROTATION_THRESHOLD = 10  # Used for basic rotation mechanism
     SMART_ROTATION_THRESHOLD = 4  # Used for "gravitate towards mobs" rotation mechanism
-    TIME_ON_TARGET = 1.5  # Used for "smart rotation" mechanism
+    TIME_ON_TARGET = 0.75  # Used for "smart rotation" mechanism
     MIN_MOBS_THRESHOLD = 2
 
     def _create_rotation_attributes(

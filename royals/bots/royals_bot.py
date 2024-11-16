@@ -35,6 +35,7 @@ class RoyalsBot(Bot, ABC):
         self.client_size = client_size
         self.models_path = models_path
         self.game_map = game_map
+        self.kwargs = kwargs
 
     def child_init(
         self,
@@ -66,3 +67,11 @@ class RoyalsBot(Bot, ABC):
             lambda: take_screenshot(self.data.handle),
             threshold=0.1,
         )
+        if self.kwargs.get('speed_multiplier'):
+            self.data.create_attribute(
+                'speed_multiplier', lambda: self.kwargs['speed_multiplier']
+            )
+        if self.kwargs.get('jump_multiplier'):
+            self.data.create_attribute(
+                'jump_multiplier', lambda: self.kwargs['jump_multiplier']
+            )
