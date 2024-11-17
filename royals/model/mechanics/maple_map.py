@@ -19,7 +19,9 @@ class MapleMinimap(Minimap):
     modifications and modifies the raw minimap based on those.
     """
 
-    JUMP_DOWN_LIMIT: int = 30  # TODO - Make this a parameter or fine-tune (probably in physics?)
+    JUMP_DOWN_LIMIT: int = (
+        30  # TODO - Make this a parameter or fine-tune (probably in physics?)
+    )
     TELEPORT_DOWN_MIN_DIST: int = 3  # TODO - Make this a parameter or fine-tune
 
     def __init__(
@@ -73,7 +75,7 @@ class MapleMinimap(Minimap):
         if allow_teleport:
             self._add_vertical_connections(grid, ConnectionTypes.TELEPORT_UP)
             self._add_vertical_connections(grid, ConnectionTypes.TELEPORT_DOWN)
-            self._add_horizontal_teleport_connections(grid, ...)
+            self._add_horizontal_teleport_connections(grid)
         return grid
 
     @staticmethod
@@ -115,15 +117,14 @@ class MapleMinimap(Minimap):
                 )
             elif conn_type == ConnectionTypes.TELEPORT_UP:
                 return range(
-                    start.y - round(self.physics.teleport_v_up_dist) - 1,
-                    start.y
+                    start.y - round(self.physics.teleport_v_up_dist) - 1, start.y
                 )
             elif conn_type == ConnectionTypes.TELEPORT_DOWN:
                 return range(
                     start.y + self.TELEPORT_DOWN_MIN_DIST,
                     min(
                         start.y + round(self.physics.teleport_v_down_dist) + 1,
-                        grid.height
+                        grid.height,
                     ),
                 )
 
@@ -167,24 +168,46 @@ class MapleMinimap(Minimap):
                         continue
 
                     left_jump = self.physics.get_jump_trajectory(
-                        node.x, node.y, 'left', jump_dist, jump_height, grid.width,
-                        grid.height
+                        node.x,
+                        node.y,
+                        "left",
+                        jump_dist,
+                        jump_height,
+                        grid.width,
+                        grid.height,
                     )
                     right_jump = self.physics.get_jump_trajectory(
-                        node.x, node.y, 'right', jump_dist, jump_height, grid.width,
-                        grid.height
+                        node.x,
+                        node.y,
+                        "right",
+                        jump_dist,
+                        jump_height,
+                        grid.width,
+                        grid.height,
                     )
                     self._parse_trajectory(grid, node, right_jump)
                     self._parse_trajectory(grid, node, left_jump)
 
                 elif node_info.is_ladder:
                     left_jump = self.physics.get_jump_trajectory(
-                        node.x, node.y, 'left', jump_dist, jump_height, grid.width,
-                        grid.height, True
+                        node.x,
+                        node.y,
+                        "left",
+                        jump_dist,
+                        jump_height,
+                        grid.width,
+                        grid.height,
+                        True,
                     )
                     right_jump = self.physics.get_jump_trajectory(
-                        node.x, node.y, 'right', jump_dist, jump_height, grid.width,
-                        grid.height, True
+                        node.x,
+                        node.y,
+                        "right",
+                        jump_dist,
+                        jump_height,
+                        grid.width,
+                        grid.height,
+                        True,
                     )
                     self._parse_trajectory(grid, node, right_jump)
                     self._parse_trajectory(grid, node, left_jump)
@@ -194,18 +217,18 @@ class MapleMinimap(Minimap):
         grid: MinimapGrid,
         node: MinimapNode,
         trajectory: list[tuple[int, int]],
-        fall: bool = False
+        fall: bool = False,
     ) -> None:
         highest_y = min(trajectory, key=lambda i: i[1])[1]
         apogee = list(filter(lambda pos: pos[1] == highest_y, trajectory))
         apogee_idx = trajectory.index(apogee[0])
         mid = len(apogee) // 2
         if len(apogee) % 2 == 0:
-            nodes_for_rope = apogee[mid - 1: mid + 1]
+            nodes_for_rope = apogee[mid - 1 : mid + 1]
         else:
-            nodes_for_rope = apogee[mid: mid + 1]
+            nodes_for_rope = apogee[mid : mid + 1]
         idx = trajectory.index(nodes_for_rope[-1])
-        nodes_for_rope = trajectory[idx:idx+3]
+        nodes_for_rope = trajectory[idx : idx + 3]
 
         # connection = into_rope = None
         if max(trajectory, key=lambda i: (i[0], i[1])) == trajectory[0]:
@@ -239,11 +262,13 @@ class MapleMinimap(Minimap):
                 node.connect(other_node, connection)  # noqa
                 break
             # If other node is ladder, we can connect to it and keep going
-            elif other_info.is_ladder and (other_node.x, other_node.y) in nodes_for_rope:
+            elif (
+                other_info.is_ladder and (other_node.x, other_node.y) in nodes_for_rope
+            ):
                 node.connect(other_node, into_rope)  # noqa
 
     def _add_fall_connections(
-            self, grid: MinimapGrid, jump_dist: float, jump_height: float
+        self, grid: MinimapGrid, jump_dist: float, jump_height: float
     ) -> None:
         for row in grid.nodes:
             for node in row:
@@ -254,9 +279,9 @@ class MapleMinimap(Minimap):
                 direction = []
 
                 if node_info.is_platform and grid.is_left_edge(node):
-                    direction.append('left')
+                    direction.append("left")
                 elif node_info.is_platform and grid.is_right_edge(node):
-                    direction.append('right')
+                    direction.append("right")
 
                 for d in direction:
                     traj = self.physics.get_jump_trajectory(
@@ -267,7 +292,7 @@ class MapleMinimap(Minimap):
                         jump_height,
                         grid.width,
                         grid.height,
-                        fall=True
+                        fall=True,
                     )
                     self._parse_trajectory(grid, node, traj, fall=True)
 
@@ -296,31 +321,42 @@ class MapleMinimap(Minimap):
         and within a small vertical range.
         Priority to upward nodes, otherwise look downwards.
         """
-        vertical_up = round(self.physics.teleport_v_up_dist / 2)
+
+        def _parse_range(x: int, y_start: int, y_rng: int, conn_type: int) -> None:
+            for y in range(y_start, y_start - y_rng - 1, -1):
+                other_node = grid.node(x, y)
+                if other_node.walkable and self.get_node_info(other_node).is_platform:
+                    node.connect(other_node, conn_type)
+                    return
+
+            for y in range(y_start + 1, y_start + y_rng + 1):
+                other_node = grid.node(x, y)
+                if other_node.walkable and self.get_node_info(other_node).is_platform:
+                    node.connect(other_node, conn_type)
+                    return
+
+        vertical_rng = round(self.physics.teleport_v_up_dist / 2)
         for row in grid.nodes:
             for node in row:
                 node_info = self.get_node_info(node)
                 if (
-                        not node.walkable
-                        or node_info.is_ladder
-                        or node_info.is_a_blocked_endpoint(node.x, node.y)
+                    not node.walkable
+                    or node_info.is_ladder
+                    or node_info.is_a_blocked_endpoint(node.x, node.y)
                 ):
                     continue
 
-                left_x = node.x - self.physics.teleport_h_dist
-                right_x = node.x + self.physics.teleport_h_dist
+                left_x = max(0, round(node.x - self.physics.teleport_h_dist))
+                right_x = min(
+                    round(node.x + self.physics.teleport_h_dist), grid.width - 1
+                )
 
-                # Left
-                if 0 <= left_x <= self.map_area_width - 1:
-                    # Upwards
-                    for y_val in range(node.y, node.y - vertical_rng - 1, -1):
-                        ...
-
-                    # Downwards - only if upwards has no connections. TODO use a function.
-
-                # Right
-                if 0 <= right_x <= self.map_area_width - 1:
-                    ...
+                _parse_range(
+                    left_x, node.y, vertical_rng, ConnectionTypes.TELEPORT_LEFT
+                )
+                _parse_range(
+                    right_x, node.y, vertical_rng, ConnectionTypes.TELEPORT_RIGHT
+                )
 
 
 class MapleMap:

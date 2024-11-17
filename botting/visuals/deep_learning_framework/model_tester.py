@@ -15,7 +15,7 @@ i = 0
 total_time = 0
 import time
 while True:
-    img = take_screenshot(0x01290906)
+    img = take_screenshot(0x014D09C0)
     start = time.time()
     results = model(img)
     total_time += time.time() - start
