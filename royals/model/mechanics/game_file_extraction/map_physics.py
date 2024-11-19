@@ -85,7 +85,7 @@ class MinimapPhysics:
                 x_values - x_start + jump_dist / 2,
                 jump_dist,
                 jump_height,
-            )
+            ) + jump_height
         else:
             y_values = y_start - self._jump_parabola_y(
                 x_values - x_start,
