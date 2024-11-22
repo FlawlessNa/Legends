@@ -138,7 +138,7 @@ class ControlsFrame(ttk.Frame):
         self.edits_saver = edits_saver
         self.pack(side=tk.RIGHT, fill=tk.Y)
         self.selector_subframe = _ModeSelectionSubFrame(self)
-        self.mode_specific_subframe = None
+        # self.mode_specific_subframe = None
         self.mode_specific_subframe = self.update_mode_dependent_frame(
             self.selector_subframe.current_mode.get()
         )
@@ -146,7 +146,7 @@ class ControlsFrame(ttk.Frame):
     def update_mode_dependent_frame(self, curr_mode: str) -> "_ModeDependentFrame":
         mode_class = {
             "Feature Selection": FeatureSelectionFrame,
-            "Pathfinding Exploration": ...,
+            "Pathfinding Exploration": PathfindingFrame,
         }[curr_mode]
         for widget in getattr(self.mode_specific_subframe, 'winfo_children', list)():
             print('destroying', widget)
@@ -379,3 +379,11 @@ class FeatureSelectionFrame(_ModeDependentFrame):
         self.avoid_left_edge_var.set(True)
         self.edge_threshold_entry.delete(0, tk.END)
         self.no_jump_connections_var.set(False)
+
+
+class PathfindingFrame(_ModeDependentFrame):
+    def __init__(self, ...):
+        pass
+
+    def create_widgets(self):
+        pass

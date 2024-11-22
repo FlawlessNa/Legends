@@ -5,8 +5,6 @@ from dataclasses import asdict, dataclass, field
 from paths import ROOT
 from botting.utilities import Box
 
-from .minimap_grid import MinimapGrid
-
 _EDITS_ROOT = os.path.join(ROOT, 'royals/model/maps')
 
 
