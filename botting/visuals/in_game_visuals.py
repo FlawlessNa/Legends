@@ -317,6 +317,8 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         """
         Returns whether the model is suitable for detection for the current class.
         """
+        if model is None:
+            return False
         detectable_classes = model.names.values()  # type: ignore
         if cls.__name__ in detectable_classes:
             cls._model_cls_name = cls.__name__
