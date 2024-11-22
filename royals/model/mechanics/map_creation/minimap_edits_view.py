@@ -1,6 +1,7 @@
 """
 GUI/View class & components for the Editor.
 """
+
 from abc import ABC, abstractmethod
 from PIL import Image, ImageTk
 import cv2
@@ -18,7 +19,7 @@ class EditorView(ttk.Frame):
         save: callable,
         scale: int = 5,
         *args,
-        **kwargs
+        **kwargs,
     ):
         root.title("Minimap Editor")
         super().__init__(root)
@@ -31,7 +32,7 @@ class EditorView(ttk.Frame):
             *args,
             width=edited_minimap.shape[1] * scale,
             height=edited_minimap.shape[0] * scale,
-            **kwargs
+            **kwargs,
         )
 
         self.coord_label = tk.Label(root, text="Coordinates: (0, 0)")
@@ -41,14 +42,16 @@ class EditorView(ttk.Frame):
         return self.controls_frame.selector_subframe.current_mode.get()
 
     def update_box_entries(self, x1, y1, x2, y2):
-        assert self.get_current_mode() == 'Feature Selection', (
-            f"Cannot update Box entries under mode {self.get_current_mode()}"
-        )
+        assert (
+            self.get_current_mode() == "Feature Selection"
+        ), f"Cannot update Box entries under mode {self.get_current_mode()}"
         left = int(min(x1, x2))
         right = int(max(x1, x2))
         top = int(min(y1, y2))
         bottom = int(max(y1, y2))
-        subframe: FeatureSelectionFrame = self.controls_frame.mode_specific_subframe  # noqa
+        subframe: FeatureSelectionFrame = (
+            self.controls_frame.mode_specific_subframe
+        )  # noqa
         subframe.left_entry.delete(0, tk.END)
         subframe.left_entry.insert(0, str(left))
 
@@ -77,8 +80,11 @@ class EditableCanvas(tk.Canvas):
         self.bind("<B1-Motion>", self.on_mouse_drag)
         self.bind("<ButtonRelease-1>", self.on_button_release)
         self.bind("<Motion>", self.on_mouse_move)
+        self.bind_all("<KeyPress>", self.on_key_press)
 
         self.start_x = self.start_y = self.temp_rect = self.image_displayed = None
+        self.start_point = self.end_point = None
+        self.start_point_id = self.end_point_id = None
 
     def get_current_mode(self) -> str:
         return self.master.get_current_mode()
@@ -90,7 +96,7 @@ class EditableCanvas(tk.Canvas):
         pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         scaled = pil_img.resize(
             (img.shape[1] * self.scale, img.shape[0] * self.scale),
-            Image.NEAREST  # noqa
+            Image.NEAREST,  # noqa
         )
         self.image_displayed = ImageTk.PhotoImage(scaled)
         self.create_image(0, 0, image=self.image_displayed, anchor=tk.NW)
@@ -100,25 +106,53 @@ class EditableCanvas(tk.Canvas):
             self.delete(self.temp_rect)
         scale = self.scale
         self.temp_rect = self.create_rectangle(
-            x1 * scale, y1 * scale, x2 * scale, y2 * scale, outline='red'
+            x1 * scale, y1 * scale, x2 * scale, y2 * scale, outline="red"
+        )
+
+    def draw_point(self, x, y, color):
+        return self.create_oval(
+            x * self.scale - 2,
+            y * self.scale - 2,
+            x * self.scale + 2,
+            y * self.scale + 2,
+            fill=color,
+            outline=color,
         )
 
     def on_button_press(self, event):
-        if self.get_current_mode() == 'Feature Selection':
+        if self.get_current_mode() == "Feature Selection":
             self.start_x, self.start_y = self.get_cursor_pos(event)
             self.draw_temp_rectangle(
                 self.start_x, self.start_y, self.start_x, self.start_y
             )
+        elif self.get_current_mode() == "Pathfinding Exploration":
+            x, y = self.get_cursor_pos(event)
+            if event.state & 0x0004:  # Check if Ctrl key is pressed
+                if self.end_point_id is not None:
+                    self.delete(self.end_point_id)
+                self.end_point = (x, y)
+                self.end_point_id = self.draw_point(x, y, "blue")
+                self.master.controls_frame.mode_specific_subframe.update_end_pos_label(
+                    x, y
+                )
+            else:
+                if self.start_point_id is not None:
+                    self.delete(self.start_point_id)
+                self.start_point = (x, y)
+                self.start_point_id = self.draw_point(x, y, "red")
+                self.master.controls_frame.mode_specific_subframe.update_start_pos_label(
+                    x, y
+                )
 
     def on_mouse_drag(self, event):
         self.on_mouse_move(event)
         cur_x, cur_y = self.get_cursor_pos(event)
-        if self.get_current_mode() == 'Feature Selection':
+        if self.get_current_mode() == "Feature Selection":
             self.draw_temp_rectangle(self.start_x, self.start_y, cur_x, cur_y)
             self.master.update_box_entries(self.start_x, self.start_y, cur_x, cur_y)
 
     def on_button_release(self, event):
-        if self.get_current_mode() == 'Feature Selection':
+        if self.get_current_mode() == "Feature Selection":
             end_x, end_y = self.get_cursor_pos(event)
             self.draw_temp_rectangle(self.start_x, self.start_y, end_x, end_y)
             self.master.update_box_entries(self.start_x, self.start_y, end_x, end_y)
@@ -127,6 +161,45 @@ class EditableCanvas(tk.Canvas):
         cur_x = self.canvasx(event.x) // self.scale
         cur_y = self.canvasy(event.y) // self.scale
         self.master.coord_label.config(text=f"Coordinates: ({cur_x}, {cur_y})")
+
+    def on_key_press(self, event):
+        if self.get_current_mode() == 'Pathfinding Exploration':
+            if event.keysym in ['Left', 'Right', 'Up', 'Down']:
+                if event.state & 0x0004:  # Check if Ctrl key is pressed
+                    if self.end_point is not None:
+                        self.move_point(event.keysym, 'blue', 'end')
+                else:
+                    if self.start_point is not None:
+                        self.move_point(event.keysym, 'red', 'start')
+
+    def move_point(self, direction, color, point_type):
+        if point_type == 'start':
+            x, y = self.start_point
+            point_id = self.start_point_id
+        else:
+            x, y = self.end_point
+            point_id = self.end_point_id
+        if direction == 'Left':
+            x -= 1
+        elif direction == 'Right':
+            x += 1
+        elif direction == 'Up':
+            y -= 1
+        elif direction == 'Down':
+            y += 1
+        self.delete(point_id)
+        if point_type == 'start':
+            self.start_point = (x, y)
+            self.start_point_id = self.draw_point(x, y, color)
+            self.master.controls_frame.mode_specific_subframe.update_start_pos_label(
+                x, y
+            )
+        else:
+            self.end_point = (x, y)
+            self.end_point_id = self.draw_point(x, y, color)
+            self.master.controls_frame.mode_specific_subframe.update_end_pos_label(
+                x, y
+            )
 
 
 class ControlsFrame(ttk.Frame):
@@ -138,25 +211,27 @@ class ControlsFrame(ttk.Frame):
         self.edits_saver = edits_saver
         self.pack(side=tk.RIGHT, fill=tk.Y)
         self.selector_subframe = _ModeSelectionSubFrame(self)
-        # self.mode_specific_subframe = None
-        self.mode_specific_subframe = self.update_mode_dependent_frame(
-            self.selector_subframe.current_mode.get()
-        )
+        self.mode_specific_subframe = None
+        self.update_mode_dependent_frame(self.selector_subframe.current_mode.get())
+        # self.mode_specific_subframe = self.update_mode_dependent_frame(
+        #     self.selector_subframe.current_mode.get()
+        # )
 
-    def update_mode_dependent_frame(self, curr_mode: str) -> "_ModeDependentFrame":
+    def update_mode_dependent_frame(self, curr_mode: str) -> None:
+        if self.mode_specific_subframe is not None:
+            for widget in self.mode_specific_subframe.winfo_children():
+                widget.destroy()
+            self.mode_specific_subframe.destroy()
+
         mode_class = {
             "Feature Selection": FeatureSelectionFrame,
             "Pathfinding Exploration": PathfindingFrame,
         }[curr_mode]
-        for widget in getattr(self.mode_specific_subframe, 'winfo_children', list)():
-            print('destroying', widget)
-            widget.destroy()
 
-        frame: _ModeDependentFrame = mode_class(
+        self.mode_specific_subframe: _ModeDependentFrame = mode_class(
             self, self.feature_saver, self.edits_saver
         )
-        frame.create_widgets()
-        return frame
+        self.mode_specific_subframe.create_widgets()
 
     def draw_temp_rectangle(self, x1, y1, x2, y2):
         self.master.draw_temp_rectangle(x1, y1, x2, y2)
@@ -181,7 +256,7 @@ class _ModeSelectionSubFrame(ttk.Frame):
                 text=mode,
                 variable=self.current_mode,
                 value=mode,
-                command=self.on_mode_change
+                command=self.on_mode_change,
             )
             rb.pack(anchor=tk.W)
 
@@ -207,66 +282,70 @@ class FeatureSelectionFrame(_ModeDependentFrame):
         self,
         parent: ControlsFrame,
         register_procedure: callable,
-        save_edits: callable
+        save_edits: callable,
+        *args,
+        **kwargs,
     ):
         super().__init__(parent)
-        self.feature_selector = tk.StringVar(value='<new>')
-        self.dropdown_label = tk.Label(self, text='Select Feature:')
+        self.feature_selector = tk.StringVar(value="<new>")
+        self.dropdown_label = tk.Label(self, text="Select Feature:")
         self.feature_dropdown = ttk.Combobox(self, textvariable=self.feature_selector)
 
         # Inputs
-        self.name_label = tk.Label(self, text='Feature Name:')
+        self.name_label = tk.Label(self, text="Feature Name:")
         self.name_entry = tk.Entry(self)
 
-        self.left_label = tk.Label(self, text='Left:')
+        self.left_label = tk.Label(self, text="Left:")
         self.left_entry = tk.Entry(self, width=5)
 
-        self.right_label = tk.Label(self, text='Right:')
+        self.right_label = tk.Label(self, text="Right:")
         self.right_entry = tk.Entry(self, width=5)
 
-        self.top_label = tk.Label(self, text='Top:')
+        self.top_label = tk.Label(self, text="Top:")
         self.top_entry = tk.Entry(self, width=5)
 
-        self.bottom_label = tk.Label(self, text='Bottom:')
+        self.bottom_label = tk.Label(self, text="Bottom:")
         self.bottom_entry = tk.Entry(self, width=5)
 
         self.offset_frame = ttk.Frame(self)
-        self.offset_label = tk.Label(self.offset_frame, text='Offset Nodes by:')
+        self.offset_label = tk.Label(self.offset_frame, text="Offset Nodes by:")
         self.offset_label.pack(side=tk.LEFT)
-        self.offset_x_label = tk.Label(self.offset_frame, text='X:')
+        self.offset_x_label = tk.Label(self.offset_frame, text="X:")
         self.offset_x_entry = tk.Entry(self.offset_frame, width=5)
         self.offset_y_entry = tk.Entry(self.offset_frame, width=5)
-        self.offset_y_label = tk.Label(self.offset_frame, text='Y:')
+        self.offset_y_label = tk.Label(self.offset_frame, text="Y:")
         self.offset_y_entry.pack(side=tk.RIGHT)
         self.offset_y_label.pack(side=tk.RIGHT)
         self.offset_x_entry.pack(side=tk.RIGHT)
         self.offset_x_label.pack(side=tk.RIGHT)
 
-        self.weight_label = tk.Label(self, text='Weight:')
+        self.weight_label = tk.Label(self, text="Weight:")
         self.weight_entry = tk.Entry(self, width=5)
 
-        self.rotation_label = tk.Label(self, text='Rotation Indexes:')
+        self.rotation_label = tk.Label(self, text="Rotation Indexes:")
         self.rotation_entry = tk.Entry(self, width=15)
 
         self.walkable_var = tk.BooleanVar(value=True)
         self.walkable_cb = ttk.Checkbutton(
-            self, text='Walkable', variable=self.walkable_var
+            self, text="Walkable", variable=self.walkable_var
         )
 
         self.avoid_right_edge_var = tk.BooleanVar(value=True)
         self.avoid_left_edge_var = tk.BooleanVar(value=True)
         self.avoid_right_edge_cb = ttk.Checkbutton(
-            self, text='Avoid Right Edge', variable=self.avoid_right_edge_var
+            self, text="Avoid Right Edge", variable=self.avoid_right_edge_var
         )
         self.avoid_left_edge_cb = ttk.Checkbutton(
-            self, text='Avoid Left Edge', variable=self.avoid_left_edge_var
+            self, text="Avoid Left Edge", variable=self.avoid_left_edge_var
         )
-        self.edge_threshold_label = tk.Label(self, text='Edge Threshold:')
+        self.edge_threshold_label = tk.Label(self, text="Edge Threshold:")
         self.edge_threshold_entry = tk.Entry(self, width=5)
 
         self.no_jump_connections_var = tk.BooleanVar(value=False)
         self.no_jump_connections_cb = ttk.Checkbutton(
-            self, text='No Jump Connections from Endpoints', variable=self.no_jump_connections_var
+            self,
+            text="No Jump Connections from Endpoints",
+            variable=self.no_jump_connections_var,
         )
         self.register_button = tk.Button(
             self, text="Register Feature", command=lambda: register_procedure(self)
@@ -276,7 +355,7 @@ class FeatureSelectionFrame(_ModeDependentFrame):
     def create_widgets(self):
         self.dropdown_label.grid(row=0, column=0, sticky=tk.W)
         self.feature_dropdown.grid(row=0, column=1, sticky=tk.EW)
-        self.feature_dropdown.set('<new>')
+        self.feature_dropdown.set("<new>")
 
         self.name_label.grid(row=1, column=0, sticky=tk.W)
         self.name_entry.grid(row=1, column=1, sticky=tk.EW)
@@ -318,7 +397,7 @@ class FeatureSelectionFrame(_ModeDependentFrame):
         self.save_button.grid(row=14, column=0, columnspan=2, sticky=tk.EW)
 
     def update_feature_dropdown(self, names: list[str]):
-        self.feature_dropdown['values'] = ['<new>'] + names
+        self.feature_dropdown["values"] = ["<new>"] + names
 
     def on_coord_entry_change(self, event):
         try:
@@ -347,7 +426,7 @@ class FeatureSelectionFrame(_ModeDependentFrame):
         edge_threshold: int,
         no_jump_connections_from_endpoints: bool,
         rotation_indexes: list[int],
-        **kwargs
+        **kwargs,
     ):
         self.name_entry.insert(0, name)
         self.left_entry.insert(0, str(left))
@@ -382,8 +461,53 @@ class FeatureSelectionFrame(_ModeDependentFrame):
 
 
 class PathfindingFrame(_ModeDependentFrame):
-    def __init__(self, ...):
-        pass
+    def __init__(self, parent: ControlsFrame, *args, **kwargs):
+        super().__init__(parent)
+        self.start_pos_label = None
+        self.end_pos_label = None
+        self.checkbox1 = None
+        self.checkbox2 = None
+        self.checkbox3 = None
 
     def create_widgets(self):
-        pass
+        self.start_pos_label = tk.Label(self, text="Start Position: (0, 0)")
+        self.start_pos_label.grid(row=0, column=0, sticky=tk.W)
+
+        self.end_pos_label = tk.Label(self, text="End Position: (0, 0)")
+        self.end_pos_label.grid(row=1, column=0, sticky=tk.W)
+
+        self.checkbox1_var = tk.BooleanVar()
+        self.checkbox1 = ttk.Checkbutton(
+            self, text="Option 1", variable=self.checkbox1_var, command=self.on_checkbox1_toggle
+        )
+        self.checkbox1.grid(row=2, column=0, sticky=tk.W)
+
+        self.checkbox2_var = tk.BooleanVar()
+        self.checkbox2 = ttk.Checkbutton(
+            self, text="Option 2", variable=self.checkbox2_var, command=self.on_checkbox2_toggle
+        )
+        self.checkbox2.grid(row=3, column=0, sticky=tk.W)
+
+        self.checkbox3_var = tk.BooleanVar()
+        self.checkbox3 = ttk.Checkbutton(
+            self, text="Option 3", variable=self.checkbox3_var, command=self.on_checkbox3_toggle
+        )
+        self.checkbox3.grid(row=4, column=0, sticky=tk.W)
+
+    def update_start_pos_label(self, x, y):
+        self.start_pos_label.config(text=f"Start Position: ({x}, {y})")
+
+    def update_end_pos_label(self, x, y):
+        self.end_pos_label.config(text=f"End Position: ({x}, {y})")
+
+    def on_checkbox1_toggle(self):
+        if self.checkbox1_var.get():
+            print("Option 1 toggled on")
+
+    def on_checkbox2_toggle(self):
+        if self.checkbox2_var.get():
+            print("Option 2 toggled on")
+
+    def on_checkbox3_toggle(self):
+        if self.checkbox3_var.get():
+            print("Option 3 toggled on")
