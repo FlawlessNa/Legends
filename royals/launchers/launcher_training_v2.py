@@ -6,9 +6,9 @@ import royals.parsers
 
 training_configs = {
     "num_pets": 1,
-    "game_map": maps.MysteriousPath3,
+    "game_map": maps.EncounterWithTheBuddha,
     "mob_count_threshold": 1,
-    "included_buffs": ["Invincible", "Holy Symbol"],
+    "included_buffs": ["Invincible"],
     "training_skill": "Heal",
     "models_path": {
         "All": "data/model_runs/detection/Full Model up to GS2 - Nano"
@@ -16,7 +16,7 @@ training_configs = {
     "smart_rotation_enabled": True,
     # "disable_teleport": True,
     "mob_spawn_alert_timer": 15,
-    "mob_spawn_alert_threshold": 5,
+    "mob_spawn_alert_threshold": 2,
     'speed_multiplier': 1.3,
     'jump_multiplier': 1.15,
 
