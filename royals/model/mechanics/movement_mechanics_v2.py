@@ -1,4 +1,14 @@
+import logging
 from enum import IntEnum
+from pathfinding.finder.a_star import AStarFinder
+from pathfinding.finder.dijkstra import DijkstraFinder
+
+from botting import PARENT_LOG
+from .map_creation.minimap_grid import MinimapNode, MinimapGrid
+
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
+LOG_LEVEL = logging.NOTSET
+DEBUG = True
 
 
 class MovementTypes(IntEnum):
@@ -20,3 +30,18 @@ class MovementTypes(IntEnum):
     TELEPORT_DOWN = 13
     FLASH_JUMP_LEFT = 14
     FLASH_JUMP_RIGHT = 15
+
+
+class MovementHandler:
+    def __init__(self) -> None:
+        pass
+
+    def compute_path(
+        self, start: tuple[int, int], end: tuple[int, int], grid: MinimapGrid
+    ) -> tuple[MinimapNode, ...]:
+        finder = DijkstraFinder() if grid.has_portals else AStarFinder()
+        start_node = grid.node(*start)
+        end_node = grid.node(*end)
+        path = finder.find_path(start_node, end_node, grid)
+        grid.cleanup()
+        return path

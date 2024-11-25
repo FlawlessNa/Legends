@@ -6,8 +6,10 @@ import numpy as np
 import tkinter as tk
 from dataclasses import asdict
 
+from royals.model.mechanics.maple_map import MapleMinimap
 from .minimap_edits_model import MinimapEditsManager, MinimapEdits
-from .minimap_edits_view import EditorView, FeatureSelectionFrame
+from .minimap_edits_view import EditorView, FeatureSelectionFrame, PathfindingFrame
+from ..movement_mechanics_v2 import MovementHandler
 
 IGN = 'StarBase'
 
@@ -23,25 +25,26 @@ class MinimapEditor:
     """
     def __init__(
         self,
-        map_name: str,
-        raw_minimap: np.ndarray,
+        minimap: MapleMinimap,
         edits: MinimapEditsManager = None,
         include_character_position: bool = True,
         scale: int = 5
     ):
-        self.map_name = map_name
-        self.raw_minimap = self.modified_minimap = raw_minimap
+        self.minimap = minimap
+        self.raw_minimap = self.minimap.parser.get_raw_minimap_grid(binary_mode=True)
         self.edits = edits or MinimapEditsManager()
         self.scale = scale
         self.modified_minimap = self.edits.apply_grid_edits(
             self.raw_minimap, apply_weights=False
         )
+        self.movement_handler = MovementHandler()
         self.root = tk.Tk()
         self.view = EditorView(
-            self.root,
+            self,
             self.modified_minimap,
             self.register_feature,
             self.save_edits,
+            self.movement_handler,
             scale
         )
         # Draw each pixel as a larger rectangle and bounding boxes on the existing edits
@@ -51,20 +54,18 @@ class MinimapEditor:
 
         self.character_marker = None
         self.update_char_pos = include_character_position
+        self.start_point = self.end_point = None
         if include_character_position:
             from royals import royals_ign_finder
-            from royals.model.interface import Minimap
+            from royals.model.mechanics.maple_map import MapleMinimap
             from botting.utilities import client_handler
 
-            class FakeMinimap(Minimap):
-                def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-                    pass
-
-                map_area_width = self.modified_minimap.shape[1]
-                map_area_height = self.modified_minimap.shape[0]
-
             self.handle = client_handler.get_client_handle(IGN, royals_ign_finder)
-            self._mini_pos_retrieve = FakeMinimap()
+            self._mini_pos_retrieve = MapleMinimap(
+                self.parser,
+                self.raw_minimap,
+                self.edits,
+            )
             self._map_area_box = self._mini_pos_retrieve.get_map_area_box(self.handle)
             self.update_character_position()
             self.root.after(100, self.update_character_position)
@@ -72,7 +73,7 @@ class MinimapEditor:
         self.root.mainloop()
 
     def save_edits(self) -> None:
-        self.edits.to_json(self.map_name)
+        self.edits.to_json(self.parser.map_name)
 
     def refresh_canvas(self, modified_minimap: np.ndarray) -> None:
         self.view.canvas.delete('all')
@@ -197,3 +198,24 @@ class MinimapEditor:
         for rect in self.rectangles.values():
             self.view.canvas.delete(rect)
         self.rectangles = {}
+
+    def update_start_point(self, x, y) -> None:
+        self.start_point = (x, y)
+        self.calculate_and_display_path()
+
+    def update_end_point(self, x, y) -> None:
+        self.end_point = (x, y)
+        self.calculate_and_display_path()
+
+    def calculate_and_display_path(self) -> None:
+        if self.start_point is not None and self.end_point is not None:
+            frame: PathfindingFrame = self.view.controls_frame.mode_specific_subframe
+            assert isinstance(frame, PathfindingFrame)
+            kwargs = frame.get_grid_kwargs()
+
+            path = self.movement_handler.compute_path(
+                self.start_point, self.end_point, self.minimap.generate_grid(**kwargs)
+            )
+            print(f"Path: \n{'\n'.join(path)}")  # noqa
+            for node in path:
+                self.view.canvas.draw_point(node.x, node.y, 'green')

@@ -1,8 +1,8 @@
-from typing import List
-
 import numpy as np
 from dataclasses import dataclass, field
 from enum import IntEnum
+from functools import cached_property
+from typing import List
 
 from pathfinding.core.diagonal_movement import DiagonalMovement
 from pathfinding.core.grid import Grid
@@ -132,3 +132,11 @@ class MinimapGrid(Grid):
             include_connections=False
         )
         return not any(n.x > node.x for n in neighbors)
+
+    @cached_property
+    def has_portals(self) -> bool:
+        breakpoint()
+        return any(
+            ConnectionTypes(conn) == ConnectionTypes.IN_MAP_PORTAL
+            for row in self.nodes for node in row for conn in node.connections
+        )

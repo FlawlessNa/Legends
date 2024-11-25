@@ -4,7 +4,6 @@ from functools import lru_cache
 from botting import PARENT_LOG
 from .game_file_extraction.map_parser import MapParser
 from .game_file_extraction.map_physics import MinimapPhysics
-from .map_creation.minimap_edits_controller import MinimapEditor
 from .map_creation.minimap_edits_model import MinimapEditsManager, MinimapEdits
 from .map_creation.minimap_grid import MinimapNode, MinimapGrid, ConnectionTypes
 from ..interface import Minimap
@@ -27,18 +26,19 @@ class MapleMinimap(Minimap):
     def __init__(
         self,
         parser: MapParser,
-        raw_canvas: np.ndarray,
         features_manager: MinimapEditsManager,
-        physics: MinimapPhysics,
     ):
         self.map_name = parser.map_name
         self.parser = parser
+        self.physics = MinimapPhysics(
+            1 / self.parser.minimap_scale_x, 1 / self.parser.minimap_scale_y
+        )
+        raw_canvas = self.parser.get_raw_minimap_grid(binary_mode=True)
         self.raw_minimap = self._preprocess_canvas(raw_canvas)
         self.features_manager = features_manager
         self.modified_minimap = self.features_manager.apply_grid_edits(
             self.raw_minimap, apply_weights=True
         )
-        self.physics = physics
 
     def generate_grid(
         self,
@@ -369,13 +369,15 @@ class MapleMap:
     ) -> None:
         self.map_name = map_name
         self.parser = MapParser(map_name)
-        orig_minimap_canvas = self.parser.get_raw_minimap_grid(True)
         self.edits = MinimapEditsManager.from_json(map_name) or MinimapEditsManager()
+        self.minimap = MapleMinimap(
+            self.parser, self.edits
+        )
         if open_minimap_editor:
             # This will block until the editor's mainloop is closed
+            from .map_creation.minimap_edits_controller import MinimapEditor
             editor = MinimapEditor(
-                map_name,
-                orig_minimap_canvas,
+                self.minimap,
                 self.edits,
                 include_character_position=kwargs.get(
                     "include_character_position", True
@@ -383,12 +385,5 @@ class MapleMap:
                 scale=kwargs.get("scale", 5),
             )
             self.edits = editor.edits
-
-        physics = MinimapPhysics(
-            1 / self.parser.minimap_scale_x, 1 / self.parser.minimap_scale_y
-        )
-        self.minimap = MapleMinimap(
-            self.parser, orig_minimap_canvas, self.edits, physics
-        )
         # mob_ids = self.parser.get_mobs_ids()
         # self.mobs = tuple(BaseMob(mob_id) for mob_id in mob_ids)
