@@ -85,14 +85,14 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
 
 
 class PetFood(UseAndCheckConsumable):
-    _THROTTLE = 900
+    _THROTTLE = 720
 
     def __init__(self, metadata, data, pipe, num_pets: int = 1, **kwargs):
         super().__init__(metadata, data, pipe, "Pet Food", num_usage=num_pets)
 
 
 class MountFood(UseAndCheckConsumable):
-    _THROTTLE = 900
+    _THROTTLE = 720
 
     def __init__(self, metadata, data, pipe, **kwargs):
         super().__init__(metadata, data, pipe, "Mount Food", num_usage=1)
