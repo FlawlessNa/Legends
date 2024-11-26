@@ -17,8 +17,8 @@ training_configs = {
     # "disable_teleport": True,
     "mob_spawn_alert_timer": 15,
     "mob_spawn_alert_threshold": 4,
-    'speed_multiplier': 1.3,
-    'jump_multiplier': 1.15,
+    'speed_multiplier': 1.4,
+    'jump_multiplier': 1.23,
 
 }
 
