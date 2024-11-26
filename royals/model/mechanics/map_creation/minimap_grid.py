@@ -135,8 +135,7 @@ class MinimapGrid(Grid):
 
     @cached_property
     def has_portals(self) -> bool:
-        breakpoint()
         return any(
             ConnectionTypes(conn) == ConnectionTypes.IN_MAP_PORTAL
-            for row in self.nodes for node in row for conn in node.connections
+            for row in self.nodes for node in row for conn in node.connections_types
         )

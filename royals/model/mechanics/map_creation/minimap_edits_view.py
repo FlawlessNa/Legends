@@ -166,7 +166,7 @@ class EditableCanvas(tk.Canvas):
     def on_mouse_move(self, event):
         cur_x = self.canvasx(event.x) // self.scale
         cur_y = self.canvasy(event.y) // self.scale
-        self.master.coord_label.config(text=f"Coordinates: ({cur_x}, {cur_y})")
+        self.master.coord_label.config(text=f"Coordinates: ({cur_x:.0f}, {cur_y:.0f})")
 
     def on_key_press(self, event):
         if self.get_current_mode() == "Pathfinding Exploration":
@@ -474,60 +474,72 @@ class PathfindingFrame(_ModeDependentFrame):
         self.start_pos_label = tk.Label(self, text="Start Position: (0, 0)")
         self.end_pos_label = tk.Label(self, text="End Position: (0, 0)")
 
-        self.checkbox1_var = tk.BooleanVar()
-        self.checkbox1 = ttk.Checkbutton(
+        self.allow_teleport_var = tk.BooleanVar(value=True)
+        self.allow_teleport_cb = ttk.Checkbutton(
             self,
             text="Allow Teleport",
-            variable=self.checkbox1_var,
-            command=self.on_checkbox1_toggle,
+            variable=self.allow_teleport_var,
+            command=self.on_allow_teleport_toggle,
         )
-        self.checkbox2_var = tk.BooleanVar()
-        self.checkbox2 = ttk.Checkbutton(
+        self.include_portals_var = tk.BooleanVar(value=True)
+        self.include_portals_cb = ttk.Checkbutton(
             self,
             text="Include Portals",
-            variable=self.checkbox2_var,
-            command=self.on_checkbox2_toggle,
+            variable=self.include_portals_var,
+            command=self.on_include_portals_toggle,
         )
-        self.checkbox3_var = tk.BooleanVar()
-        self.checkbox3 = ttk.Checkbutton(
-            self,
-            text="Option 3",
-            variable=self.checkbox3_var,
-            command=self.on_checkbox3_toggle,
-        )
+        self.speed_multiplier_label = tk.Label(self, text="Speed Multiplier:")
+        self.speed_multiplier_entry = tk.Entry(self)
+        self.speed_multiplier_entry.insert(0, "1.00")
+
+        self.jump_multiplier_label = tk.Label(self, text="Jump Multiplier:")
+        self.jump_multiplier_entry = tk.Entry(self)
+        self.jump_multiplier_entry.insert(0, "1.00")
 
     def create_widgets(self):
         self.start_pos_label.grid(row=0, column=0, sticky=tk.W)
         self.end_pos_label.grid(row=1, column=0, sticky=tk.W)
-        self.checkbox1.grid(row=2, column=0, sticky=tk.W)
-        self.checkbox2.grid(row=3, column=0, sticky=tk.W)
-
-        self.checkbox3.grid(row=4, column=0, sticky=tk.W)
+        self.allow_teleport_cb.grid(row=2, column=0, sticky=tk.W)
+        self.include_portals_cb.grid(row=3, column=0, sticky=tk.W)
+        self.speed_multiplier_label.grid(row=4, column=0, sticky=tk.W)
+        self.speed_multiplier_entry.grid(row=4, column=1, sticky=tk.W)
+        self.jump_multiplier_label.grid(row=5, column=0, sticky=tk.W)
+        self.jump_multiplier_entry.grid(row=5, column=1, sticky=tk.W)
 
     def update_start_pos_label(self, x, y):
         self.start_pos_label.config(text=f"Start Position: ({x:.0f}, {y:.0f})")
-        self.master.master.editor.update_start_point(x, y)
+        self.master.master.editor.update_start_point(int(x), int(y))
 
     def update_end_pos_label(self, x, y):
         self.end_pos_label.config(text=f"End Position: ({x:.0f}, {y:.0f})")
-        self.master.master.editor.update_end_point(x, y)
+        self.master.master.editor.update_end_point(int(x), int(y))
 
-    def on_checkbox1_toggle(self):
-        if self.checkbox1_var.get():
+    def on_allow_teleport_toggle(self):
+        if self.allow_teleport_var.get():
             print("Option 1 toggled on")
 
-    def on_checkbox2_toggle(self):
-        if self.checkbox2_var.get():
+    def on_include_portals_toggle(self):
+        if self.include_portals_var.get():
             print("Option 2 toggled on")
 
-    def on_checkbox3_toggle(self):
-        if self.checkbox3_var.get():
-            print("Option 3 toggled on")
-
     def get_grid_kwargs(self) -> dict:
+        try:
+            speed_multiplier = float(self.speed_multiplier_entry.get())
+            if not (1.00 <= speed_multiplier <= 2.00):
+                raise ValueError("Speed multiplier must be between 1.00 and 2.00")
+        except ValueError:
+            speed_multiplier = 1.00
+
+        try:
+            jump_multiplier = float(self.jump_multiplier_entry.get())
+            if not (1.00 <= jump_multiplier <= 2.00):
+                raise ValueError("Jump multiplier must be between 1.00 and 2.00")
+        except ValueError:
+            jump_multiplier = 1.00
+
         return dict(
-            allow_teleport=...,
-            speed_multiplier=...,
-            jump_multiplier=...,
-            include_portals=...,
+            allow_teleport=self.allow_teleport_var.get(),
+            speed_multiplier=speed_multiplier,
+            jump_multiplier=jump_multiplier,
+            include_portals=self.include_portals_var.get(),
         )

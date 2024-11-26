@@ -1,5 +1,6 @@
 import logging
 from enum import IntEnum
+from functools import lru_cache
 from pathfinding.finder.a_star import AStarFinder
 from pathfinding.finder.dijkstra import DijkstraFinder
 
@@ -39,9 +40,20 @@ class MovementHandler:
     def compute_path(
         self, start: tuple[int, int], end: tuple[int, int], grid: MinimapGrid
     ) -> tuple[MinimapNode, ...]:
-        finder = DijkstraFinder() if grid.has_portals else AStarFinder()
+        path = self._compute_path(start, end, grid)
+        self._run_debug(start, end, path)
+        return tuple(path)
+
+    @lru_cache
+    def _compute_path(
+        self, start: tuple[int, int], end: tuple[int, int], grid: MinimapGrid
+    ) -> list[MinimapNode]:
         start_node = grid.node(*start)
         end_node = grid.node(*end)
-        path = finder.find_path(start_node, end_node, grid)
+        finder = DijkstraFinder() if grid.has_portals else AStarFinder()
+        path, _ = finder.find_path(start_node, end_node, grid)
         grid.cleanup()
         return path
+
+    def _run_debug(self, start, end, path):
+        pass

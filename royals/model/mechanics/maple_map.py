@@ -40,6 +40,7 @@ class MapleMinimap(Minimap):
             self.raw_minimap, apply_weights=True
         )
 
+    @lru_cache
     def generate_grid(
         self,
         allow_teleport: bool,

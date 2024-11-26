@@ -1,7 +1,6 @@
 """
 This script handles the Controller, which relays the GUI and the Model together.
 """
-import cv2
 import numpy as np
 import tkinter as tk
 from dataclasses import asdict
@@ -55,18 +54,13 @@ class MinimapEditor:
         self.character_marker = None
         self.update_char_pos = include_character_position
         self.start_point = self.end_point = None
+        self.previous_path = []
         if include_character_position:
             from royals import royals_ign_finder
-            from royals.model.mechanics.maple_map import MapleMinimap
             from botting.utilities import client_handler
 
             self.handle = client_handler.get_client_handle(IGN, royals_ign_finder)
-            self._mini_pos_retrieve = MapleMinimap(
-                self.parser,
-                self.raw_minimap,
-                self.edits,
-            )
-            self._map_area_box = self._mini_pos_retrieve.get_map_area_box(self.handle)
+            self._map_area_box = self.minimap.get_map_area_box(self.handle)
             self.update_character_position()
             self.root.after(100, self.update_character_position)
 
@@ -159,7 +153,7 @@ class MinimapEditor:
         }
 
     def update_character_position(self):
-        pos = self._mini_pos_retrieve.get_character_positions(
+        pos = self.minimap.get_character_positions(
             self.handle, map_area_box=self._map_area_box
         ).pop()
         coords = (
@@ -213,9 +207,18 @@ class MinimapEditor:
             assert isinstance(frame, PathfindingFrame)
             kwargs = frame.get_grid_kwargs()
 
+            for node in self.previous_path:
+                if (node.x, node.y) in {self.start_point, self.end_point}:
+                    continue
+                self.view.canvas.draw_point(node.x, node.y, 'white')
+
             path = self.movement_handler.compute_path(
                 self.start_point, self.end_point, self.minimap.generate_grid(**kwargs)
             )
-            print(f"Path: \n{'\n'.join(path)}")  # noqa
+            print(f"Path: \n{'\n'.join(map(str, path))}")  # noqa
             for node in path:
+                if (node.x, node.y) in {self.start_point, self.end_point}:
+                    continue
                 self.view.canvas.draw_point(node.x, node.y, 'green')
+
+            self.previous_path = path
