@@ -6,6 +6,7 @@ __pycache__/
 # Data folder
 data/
 runs/
+configs/
 
 # C extensions
 *.so
