@@ -34,19 +34,13 @@ class MinimapEdits(Box):
     rotation_indexes: list[int] = field(default_factory=list)
     relative: bool = field(default=False, init=False, repr=False)
 
-    # def __post_init__(self):
-    #     super().__post_init__()
-    #     assert (
-    #         self.width <= 1 or self.height <= 1
-    #     ), "Minimap Features should be 1-dimensional"
-
     @property
     def is_platform(self) -> bool:
-        return not self.is_ladder
+        return not self.is_ladder and self.walkable
 
     @property
     def is_ladder(self) -> bool:
-        return 0 <= self.width <= 1
+        return 0 <= self.width < 1 and self.walkable
 
     def is_a_blocked_endpoint(self, x: int, y: int) -> bool:
         """

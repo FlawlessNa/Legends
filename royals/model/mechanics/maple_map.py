@@ -54,10 +54,13 @@ class MapleMinimap(Minimap):
         )
         height = self.physics.get_jump_height(jump_multiplier)
         distance = self.physics.get_jump_distance(speed_multiplier, jump_multiplier)
+        displacement_speed = self.physics.get_minimap_speed(speed_multiplier)
 
         # Create the grid and set walkable nodes with weights
         # TODO - This needs to be corrected for custom edits with offsets
-        grid = MinimapGrid(self.modified_minimap, grid_id=self.map_name)
+        grid = MinimapGrid(
+            self.modified_minimap, speed=displacement_speed, grid_id=self.map_name
+        )
         walkable_nodes = self.modified_minimap.nonzero()
         y_coords, x_coords = walkable_nodes
         for x, y in zip(x_coords, y_coords):
@@ -65,8 +68,10 @@ class MapleMinimap(Minimap):
             info = self.get_node_info(node)
             node.walkable = info.walkable
             node.weight = info.weight
+            if not info.walkable:
+                self.modified_minimap[y, x] = 0
 
-        self._add_vertical_connections(grid, ConnectionTypes.JUMP_UP, height)
+        self._add_vertical_connections(grid, ConnectionTypes.JUMP, height)
         self._add_vertical_connections(grid, ConnectionTypes.JUMP_DOWN)
         self._add_parabolic_jump_connections(grid, distance, height)
         self._add_fall_connections(grid, distance, height)
@@ -97,6 +102,10 @@ class MapleMinimap(Minimap):
         Otherwise, returns the auto-generated feature.
         """
         x, y = node.x, node.y
+        assert node.grid_id == self.map_name, (
+            f"Cannot retrieve info for a node from another map:"
+            f"{node.grid_id=} != {self.map_name=}"
+        )
         return self._get_node_info(x, y)
 
     @lru_cache
@@ -106,15 +115,15 @@ class MapleMinimap(Minimap):
         ) or self.parser.parse_node(x, y)
 
     def _add_vertical_connections(
-        self, grid: MinimapGrid, conn_type: int, jump_height: float = None
+        self, grid: MinimapGrid, conn_type: ConnectionTypes, jump_height: float = None
     ) -> None:
 
         def _get_range(start: MinimapNode) -> range:
-            if conn_type == ConnectionTypes.JUMP_UP:
+            if conn_type == ConnectionTypes.JUMP:
                 return range(start.y - round(jump_height), start.y)
             elif conn_type == ConnectionTypes.JUMP_DOWN:
                 return range(
-                    start.y + 1, min(start.y + self.JUMP_DOWN_LIMIT + 1, grid.height)
+                    start.y + 1, min(start.y + self.JUMP_DOWN_LIMIT + 1, grid.height - 1)
                 )
             elif conn_type == ConnectionTypes.TELEPORT_UP:
                 return range(
@@ -122,15 +131,16 @@ class MapleMinimap(Minimap):
                 )
             elif conn_type == ConnectionTypes.TELEPORT_DOWN:
                 return range(
-                    start.y + self.TELEPORT_DOWN_MIN_DIST,
                     min(
                         start.y + round(self.physics.teleport_v_down_dist) + 1,
-                        grid.height,
+                        grid.height - 1
                     ),
+                    start.y + self.TELEPORT_DOWN_MIN_DIST,
+                    -1
                 )
 
         assert conn_type in (
-            ConnectionTypes.JUMP_UP,
+            ConnectionTypes.JUMP,
             ConnectionTypes.JUMP_DOWN,
             ConnectionTypes.TELEPORT_UP,
             ConnectionTypes.TELEPORT_DOWN,
@@ -231,22 +241,17 @@ class MapleMinimap(Minimap):
         idx = trajectory.index(nodes_for_rope[-1])
         nodes_for_rope = trajectory[idx : idx + 3]
 
-        # connection = into_rope = None
         if max(trajectory, key=lambda i: (i[0], i[1])) == trajectory[0]:
             if not fall:
                 connection = ConnectionTypes.JUMP_LEFT
-                into_rope = ConnectionTypes.JUMP_LEFT_AND_UP
             else:
                 connection = ConnectionTypes.FALL_LEFT
-                into_rope = ConnectionTypes.FALL_LEFT_AND_UP
 
         elif max(trajectory, key=lambda i: (i[0], i[1])) == trajectory[-1]:
             if not fall:
                 connection = ConnectionTypes.JUMP_RIGHT
-                into_rope = ConnectionTypes.JUMP_RIGHT_AND_UP
             else:
                 connection = ConnectionTypes.FALL_RIGHT
-                into_rope = ConnectionTypes.FALL_RIGHT_AND_UP
 
         neighbors = grid.neighbors(node, MinimapGrid.ALL_DIAGONAL_NEIGHBORS, False)
         node_info = self.get_node_info(node)
@@ -266,7 +271,7 @@ class MapleMinimap(Minimap):
             elif (
                 other_info.is_ladder and (other_node.x, other_node.y) in nodes_for_rope
             ):
-                node.connect(other_node, into_rope)  # noqa
+                node.connect(other_node, connection)  # noqa
 
     def _add_fall_connections(
         self, grid: MinimapGrid, jump_dist: float, jump_height: float
@@ -311,7 +316,6 @@ class MapleMinimap(Minimap):
                 grid.node(*source).connect(
                     grid.node(*target), ConnectionTypes.IN_MAP_PORTAL
                 )
-                print(grid.node(*source))
             else:
                 pass  # TODO - Connect to out-of-map portals
 
@@ -323,7 +327,9 @@ class MapleMinimap(Minimap):
         Priority to upward nodes, otherwise look downwards.
         """
 
-        def _parse_range(x: int, y_start: int, y_rng: int, conn_type: int) -> None:
+        def _parse_range(
+            x: int, y_start: int, y_rng: int, conn_type: ConnectionTypes
+        ) -> None:
             for y in range(y_start, y_start - y_rng - 1, -1):
                 other_node = grid.node(x, y)
                 if other_node.walkable and self.get_node_info(other_node).is_platform:

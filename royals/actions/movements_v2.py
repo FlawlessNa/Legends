@@ -7,40 +7,40 @@ from .skills_related_v2 import cast_skill
 
 FIRST_DELAY = 0.5
 
-
-def _create_initial_input(
-    handle: int,
-    direction: str,
-    secondary_direction: str | None,
-) -> controller.KeyboardInputWrapper:
-    """
-    Creates a FocusedInput structure to initiate a series of movements.
-    Looks into currently held movement keys that may have been sent from previous
-    instances and ensures that they are released.
-    :param handle: The handle of the window to send the input to.
-    :param direction: The primary direction of the movement.
-    :param secondary_direction: The secondary direction of the movement.
-    :return: The FocusedInput structure that will simultaneously release all movement
-    keys aside from direction and secondary_direction.
-    """
-    held_keys = controller.get_held_movement_keys(handle)
-    _initial_structure = controller.KeyboardInputWrapper(handle)
-    if direction in held_keys:
-        held_keys.remove(direction)
-    if secondary_direction in held_keys:
-        held_keys.remove(secondary_direction)
-
-    # ALWAYS release opposite key on directional movement - should prevent being stuck
-    # but also causes unnecessary key releases
-    if direction == 'right' and 'left' not in held_keys:
-        held_keys.append('left')
-    elif direction == 'left' and 'right' not in held_keys:
-        held_keys.append('right')
-    if held_keys:
-        _initial_structure.append(
-            held_keys, ["keyup"] * len(held_keys), next(controller.random_delay)  # noqa
-        )
-    return _initial_structure
+#
+# def _create_initial_input(
+#     handle: int,
+#     direction: str,
+#     secondary_direction: str | None,
+# ) -> controller.KeyboardInputWrapper:
+#     """
+#     Creates a FocusedInput structure to initiate a series of movements.
+#     Looks into currently held movement keys that may have been sent from previous
+#     instances and ensures that they are released.
+#     :param handle: The handle of the window to send the input to.
+#     :param direction: The primary direction of the movement.
+#     :param secondary_direction: The secondary direction of the movement.
+#     :return: The FocusedInput structure that will simultaneously release all movement
+#     keys aside from direction and secondary_direction.
+#     """
+#     held_keys = controller.get_held_movement_keys(handle)
+#     _initial_structure = controller.KeyboardInputWrapper(handle)
+#     if direction in held_keys:
+#         held_keys.remove(direction)
+#     if secondary_direction in held_keys:
+#         held_keys.remove(secondary_direction)
+#
+#     # ALWAYS release opposite key on directional movement - should prevent being stuck
+#     # but also causes unnecessary key releases
+#     if direction == 'right' and 'left' not in held_keys:
+#         held_keys.append('left')
+#     elif direction == 'left' and 'right' not in held_keys:
+#         held_keys.append('right')
+#     if held_keys:
+#         _initial_structure.append(
+#             held_keys, ["keyup"] * len(held_keys), next(controller.random_delay)  # noqa
+#         )
+#     return _initial_structure
 
 
 def move(
@@ -49,7 +49,8 @@ def move(
     secondary_direction: Literal["up", "down"] = None,
     *,
     duration: float,
-    structure: controller.KeyboardInputWrapper = None
+    structure: controller.KeyboardInputWrapper = None,
+    release_keys: str | list[str] = None,
 ) -> controller.KeyboardInputWrapper:
     """
     Creates the input structures and delays to describe the movement.
@@ -60,29 +61,47 @@ def move(
     :param secondary_direction:
     :param duration:
     :param structure:
+    :param release_keys: If specified, release events are inserted before the movement,
+        provided the release_keys are held.
     :return:
     """
     initial_duration = getattr(structure, "duration", 0)
-    limit = initial_duration + duration
-    if structure is None:
-        structure = _create_initial_input(handle, direction, secondary_direction)
-
+    keys_held = getattr(structure, "keys_held", controller.get_held_movement_keys(handle))
     repeated_key: str = secondary_direction or direction  # noqa
+    limit = initial_duration + duration
+    if isinstance(release_keys, str):
+        release_keys = [release_keys]
+
 
     first_keys = [direction]
     if secondary_direction:
         first_keys.append(secondary_direction)
-    for key in structure.keys_held:
-        if key in [direction, secondary_direction]:
-            continue
-        structure.append(key, "keyup", next(controller.random_delay))
-
     first_delay = (
-        FIRST_DELAY
-        if repeated_key not in list(structure.keys_held) + ["up"]
-        else next(controller.random_delay)
+        # TODO - see if "not in keys_held + ["up"]" is necessary and if so, document why
+        # if repeated_key not in list(structure.keys_held) + ["up"]
+        FIRST_DELAY if repeated_key not in keys_held else next(controller.random_delay)
     )
-    structure.append(first_keys, ["keydown"] * len(first_keys), first_delay)  # noqa
+    if structure is None:
+        release_index = 0
+        structure = controller.KeyboardInputWrapper(
+            handle, first_keys, ["keydown"] * len(first_keys) , [first_delay] # noqa
+        )
+    else:
+        release_index = len(structure.keys)
+        if not all(key in keys_held for key in first_keys):
+            structure.append(
+                first_keys, ["keydown"] * len(first_keys), first_delay  # noqa
+            )
+
+    if release_keys:
+        actual_releases = list(set(release_keys).intersection(keys_held))
+        if actual_releases:
+            structure.insert(
+                release_index,
+                release_keys,
+                ["keyup"] * len(release_keys) if isinstance(release_keys, list) else "keyup",
+                next(controller.random_delay),
+            )
     structure.fill(repeated_key, "keydown", controller.random_delay, limit=limit)
     return structure
 
@@ -95,49 +114,47 @@ def single_jump(
     repeat_key: str = None,
 ) -> controller.KeyboardInputWrapper:
     # TODO - Adjust the hard-coded 0.75 delay appropriately
+    keys_held = getattr(structure, 'keys_held', controller.get_held_movement_keys(handle))
+    first_keys = [direction, jump_key] if direction not in keys_held else [jump_key]
     if structure is None:
-        structure = _create_initial_input(handle, direction, None)
-    for key in structure.keys_held:
-        if key == direction:
-            continue
-        structure.append(key, "keyup", next(controller.random_delay))
-
-    if direction in ["left", "right"]:
-        if direction in structure.keys_held:
-            structure.append(jump_key, "keydown", next(controller.random_delay) * 2)
-            if repeat_key is not None:
-                structure.fill(
-                    repeat_key,
-                    "keydown",
-                    controller.random_delay,
-                    limit=0.75 + structure.duration,
-                )
-        else:
-            structure.append(direction, "keydown", next(controller.random_delay) * 2)
-            structure.append(jump_key, "keydown", next(controller.random_delay) * 2)
-            if repeat_key is not None:
-                structure.fill(
-                    repeat_key,
-                    "keydown",
-                    controller.random_delay,
-                    limit=0.75 + structure.duration,
-                )
-    elif direction == "down":
-        # Special case where we voluntarily trigger the automatic repeat feature
-        # to avoid static position.
-        initial_duration = structure.duration
-        structure.append(direction, "keydown", next(controller.random_delay) * 2)
-        structure.append(jump_key, "keydown", next(controller.random_delay) * 2)
-        structure.append(jump_key, "keyup", next(controller.random_delay) * 2)
-        while structure.duration - initial_duration < 0.75:
-            structure.append(jump_key, "keydown", next(controller.random_delay) * 2)
-            structure.append(jump_key, "keyup", next(controller.random_delay) * 2)
+        structure = controller.KeyboardInputWrapper(
+            handle,
+            first_keys,
+            ["keydown"] * len(first_keys),  # noqa
+            [next(controller.random_delay) * 2] * len(first_keys)
+        )
     else:
-        structure.append(direction, "keydown", next(controller.random_delay) * 2)
-        structure.append(jump_key, "keydown", next(controller.random_delay) * 2)
-        structure.append(jump_key, "keyup", 0.75)
+        for key in first_keys:
+            structure.append(
+                key,
+                "keydown",  # noqa
+                next(controller.random_delay)
+            )
+    if repeat_key is not None:
+        structure.fill(
+            repeat_key,
+            "keydown",
+            controller.random_delay,
+            limit=0.75 + structure.duration
+        )
+    structure.append(jump_key, "keyup", 0.75)
+    #
+    # elif direction == "down":
+    #     # Special case where we voluntarily trigger the automatic repeat feature
+    #     # to avoid static position.
+    #     initial_duration = structure.duration
+    #     structure.append(direction, "keydown", next(controller.random_delay) * 2)
+    #     structure.append(jump_key, "keydown", next(controller.random_delay) * 2)
+    #     structure.append(jump_key, "keyup", next(controller.random_delay) * 2)
+    #     while structure.duration - initial_duration < 0.75:
+    #         structure.append(jump_key, "keydown", next(controller.random_delay) * 2)
+    #         structure.append(jump_key, "keyup", next(controller.random_delay) * 2)
+    # else:
+    #     structure.append(direction, "keydown", next(controller.random_delay) * 2)
+    #     structure.append(jump_key, "keydown", next(controller.random_delay) * 2)
+    #     structure.append(jump_key, "keyup", 0.75)
 
-    structure.forced_key_releases.append(jump_key)
+    # structure.forced_key_releases.append(jump_key)
     return structure
 
 
@@ -178,6 +195,7 @@ def jump_on_rope(
         )
 
     structure.forced_key_releases.append(jump_key)
+    structure.force_all_releases = True
     return structure
 
 

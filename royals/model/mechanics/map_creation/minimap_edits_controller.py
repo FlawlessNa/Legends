@@ -10,8 +10,6 @@ from .minimap_edits_model import MinimapEditsManager, MinimapEdits
 from .minimap_edits_view import EditorView, FeatureSelectionFrame, PathfindingFrame
 from ..movement_mechanics_v2 import MovementHandler
 
-IGN = 'StarBase'
-
 
 class MinimapEditor:
     """
@@ -27,16 +25,25 @@ class MinimapEditor:
         minimap: MapleMinimap,
         edits: MinimapEditsManager = None,
         include_character_position: bool = True,
+        ign: str = None,
         scale: int = 5
     ):
         self.minimap = minimap
         self.raw_minimap = self.minimap.parser.get_raw_minimap_grid(binary_mode=True)
         self.edits = edits or MinimapEditsManager()
         self.scale = scale
+        self.ign = ign
         self.modified_minimap = self.edits.apply_grid_edits(
             self.raw_minimap, apply_weights=False
         )
-        self.movement_handler = MovementHandler()
+        try:
+            from royals import royals_ign_finder
+            from botting.utilities import client_handler
+            self.handle = client_handler.get_client_handle(self.ign, royals_ign_finder)
+        except ValueError:
+            self.handle = 0
+
+        self.movement_handler = MovementHandler(self.handle, self.minimap)
         self.root = tk.Tk()
         self.view = EditorView(
             self,
@@ -56,10 +63,6 @@ class MinimapEditor:
         self.start_point = self.end_point = None
         self.previous_path = []
         if include_character_position:
-            from royals import royals_ign_finder
-            from botting.utilities import client_handler
-
-            self.handle = client_handler.get_client_handle(IGN, royals_ign_finder)
             self._map_area_box = self.minimap.get_map_area_box(self.handle)
             self.update_character_position()
             self.root.after(100, self.update_character_position)
@@ -67,7 +70,7 @@ class MinimapEditor:
         self.root.mainloop()
 
     def save_edits(self) -> None:
-        self.edits.to_json(self.parser.map_name)
+        self.edits.to_json(self.minimap.map_name)
 
     def refresh_canvas(self, modified_minimap: np.ndarray) -> None:
         self.view.canvas.delete('all')
@@ -212,10 +215,18 @@ class MinimapEditor:
                     continue
                 self.view.canvas.draw_point(node.x, node.y, 'white')
 
+            grid = self.minimap.generate_grid(**kwargs)
             path = self.movement_handler.compute_path(
-                self.start_point, self.end_point, self.minimap.generate_grid(**kwargs)
+                self.start_point, self.end_point, grid
             )
-            print(f"Path: \n{'\n'.join(map(str, path))}")  # noqa
+            movements = self.movement_handler.path_into_movements(path, grid)
+            actions = self.movement_handler.movements_into_action(movements, grid)
+            if frame.print_path:
+                print(f"Path: \n{'\n'.join(map(str, path))}")  # noqa
+            if frame.print_movements:
+                print(f"Movements: \n{'\n'.join(map(str, movements))}")
+            if frame.print_actions:
+                print(f"Actions: \n {actions}")
             for node in path:
                 if (node.x, node.y) in {self.start_point, self.end_point}:
                     continue

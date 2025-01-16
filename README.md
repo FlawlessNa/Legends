@@ -12,7 +12,8 @@
 - [ ] When firing automated chat reaction, need to properly cancel all pending rotation/mobs hitting action, otherwise keystrokes in chat get mixed
 
 ## Model Usage
-- [ ] For comparison, try removing the caching feature and assess which option is best (will need to wait until server stable)
+- [ ] For comparison, try removing the caching feature and assess which option is best
+  - Use the BotData monitoring mechanism to do so
 - [ ] Refactor model storage structure 
   - remove from .gitignore
   - instead of using models_paths, specify model name

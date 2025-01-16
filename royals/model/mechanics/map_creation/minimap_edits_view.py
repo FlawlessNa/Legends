@@ -469,7 +469,6 @@ class FeatureSelectionFrame(_ModeDependentFrame):
 class PathfindingFrame(_ModeDependentFrame):
     def __init__(self, parent: ControlsFrame, path_handler: ..., **kwargs):
         super().__init__(parent)
-        self.path_handler = path_handler
 
         self.start_pos_label = tk.Label(self, text="Start Position: (0, 0)")
         self.end_pos_label = tk.Label(self, text="End Position: (0, 0)")
@@ -495,6 +494,26 @@ class PathfindingFrame(_ModeDependentFrame):
         self.jump_multiplier_label = tk.Label(self, text="Jump Multiplier:")
         self.jump_multiplier_entry = tk.Entry(self)
         self.jump_multiplier_entry.insert(0, "1.00")
+        self.path_handler = path_handler
+        grid = self.path_handler.minimap.generate_grid(**self.get_grid_kwargs())
+        modified = self.path_handler.minimap.modified_minimap.copy()
+        modified[modified.nonzero()] = 255
+        self.master.master.canvas.refresh_canvas(modified)
+
+        self.print_path_var = tk.BooleanVar(value=False)
+        self.print_path_cb = ttk.Checkbutton(
+            self, text="Print Path", variable=self.print_path_var
+        )
+
+        self.print_movements_var = tk.BooleanVar(value=False)
+        self.print_movements_cb = ttk.Checkbutton(
+            self, text="Print Movements", variable=self.print_movements_var
+        )
+
+        self.print_actions_var = tk.BooleanVar(value=False)
+        self.print_actions_cb = ttk.Checkbutton(
+            self, text="Print Actions", variable=self.print_actions_var
+        )
 
     def create_widgets(self):
         self.start_pos_label.grid(row=0, column=0, sticky=tk.W)
@@ -505,6 +524,22 @@ class PathfindingFrame(_ModeDependentFrame):
         self.speed_multiplier_entry.grid(row=4, column=1, sticky=tk.W)
         self.jump_multiplier_label.grid(row=5, column=0, sticky=tk.W)
         self.jump_multiplier_entry.grid(row=5, column=1, sticky=tk.W)
+
+        self.print_path_cb.grid(row=6, column=0, sticky=tk.W)
+        self.print_movements_cb.grid(row=7, column=0, sticky=tk.W)
+        self.print_actions_cb.grid(row=8, column=0, sticky=tk.W)
+
+    @property
+    def print_path(self) -> bool:
+        return self.print_path_var.get()
+
+    @property
+    def print_movements(self) -> bool:
+        return self.print_movements_var.get()
+
+    @property
+    def print_actions(self) -> bool:
+        return self.print_actions_var.get()
 
     def update_start_pos_label(self, x, y):
         self.start_pos_label.config(text=f"Start Position: ({x:.0f}, {y:.0f})")

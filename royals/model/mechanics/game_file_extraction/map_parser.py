@@ -346,7 +346,7 @@ class MapParser:
         left = min(all_nodes, key=lambda x: x[0], default=(mini_x, mini_y))[0]
         right = max(all_nodes, key=lambda x: x[0], default=(mini_x, mini_y))[0]
         walkable = len(raw_features) > 0
-        if walkable and 0 <= right - left <= 1 and types != {'Ladder'}:
+        if walkable and 0 <= right - left < 1 and types != {'Ladder'}:
             # The feature is essentially a wall in this case, so it is not walkable.
             walkable = False
 
