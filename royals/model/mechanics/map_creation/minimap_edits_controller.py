@@ -43,7 +43,7 @@ class MinimapEditor:
         except ValueError:
             self.handle = 0
 
-        self.movement_handler = MovementHandler(self.handle, self.minimap)
+        self.movement_handler = MovementHandler(self.handle, self.minimap, self.ign)
         self.root = tk.Tk()
         self.view = EditorView(
             self,
@@ -219,14 +219,17 @@ class MinimapEditor:
             path = self.movement_handler.compute_path(
                 self.start_point, self.end_point, grid
             )
-            movements = self.movement_handler.path_into_movements(path, grid)
-            actions = self.movement_handler.movements_into_action(movements, grid)
             if frame.print_path:
                 print(f"Path: \n{'\n'.join(map(str, path))}")  # noqa
+
+            movements = self.movement_handler.path_into_movements(path, grid)
             if frame.print_movements:
                 print(f"Movements: \n{'\n'.join(map(str, movements))}")
+
+            actions = self.movement_handler.movements_into_action(movements, grid)
             if frame.print_actions:
                 print(f"Actions: \n {actions}")
+
             for node in path:
                 if (node.x, node.y) in {self.start_point, self.end_point}:
                     continue

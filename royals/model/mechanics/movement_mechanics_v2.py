@@ -7,7 +7,7 @@ from pathfinding.finder.dijkstra import DijkstraFinder
 from typing import NamedTuple
 
 from botting import PARENT_LOG
-from botting.controller import KeyboardInputWrapper
+from botting.controller import KeyboardInputWrapper, key_binds
 from royals.actions import movements_v2
 from .map_creation.minimap_grid import ConnectionTypes, MinimapNode, MinimapGrid
 from .maple_map import MapleMinimap
@@ -54,9 +54,10 @@ class MovementHandler:
     _MAX_WALK_SIZE = 5
     _FALL_LEN_EXT = 3
 
-    def __init__(self, handle: int, minimap: MapleMinimap) -> None:
+    def __init__(self, handle: int, minimap: MapleMinimap, ign: str) -> None:
         self.handle = handle
         self.minimap = minimap
+        self.ign = ign
 
     def compute_path(
         self, start: tuple[int, int], end: tuple[int, int], grid: MinimapGrid
@@ -214,7 +215,7 @@ class MovementHandler:
                     kwargs = dict(
                         handle=self.handle,
                         direction=direction,
-                        jump_key=...,
+                        jump_key=key_binds(self.ign)['jump'],
                         structure=structure
                     )
                     for _ in range(move_length - 1):

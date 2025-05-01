@@ -390,6 +390,7 @@ class MapleMap:
                     "include_character_position", True
                 ),
                 scale=kwargs.get("scale", 5),
+                ign=kwargs.get("ign", None),
             )
             self.edits = editor.edits
         # mob_ids = self.parser.get_mobs_ids()
