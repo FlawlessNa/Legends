@@ -77,9 +77,10 @@ class Minimap(InGameDynamicVisuals, ABC):
         return img
 
     def validate_in_map(self, handle: int) -> bool:
-        return np.array_equal(
-            self.get_minimap_title_img(handle), self._validation_title_img
-        )
+        # Check that at least 99.9% equal
+        diff = self.get_minimap_title_img(handle) - self._validation_title_img
+        similarity = np.count_nonzero(diff) / (self._validation_title_img.size // 3)
+        return similarity < 0.001
 
     @classmethod
     def is_displayed(
