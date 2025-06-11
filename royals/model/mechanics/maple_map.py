@@ -30,8 +30,6 @@ class MapleMinimap(Minimap):
     ):
         self.map_name = parser.map_name
         self.parser = parser
-        self.map_area_width = parser.mini_cv_w
-        self.map_area_height = parser.mini_cv_h
         self.physics = MinimapPhysics(
             1 / self.parser.minimap_scale_x, 1 / self.parser.minimap_scale_y
         )
@@ -41,6 +39,14 @@ class MapleMinimap(Minimap):
         self.modified_minimap = self.features_manager.apply_grid_edits(
             self.raw_minimap, apply_weights=True
         )
+
+    @property
+    def map_area_width(self) -> int:
+        return self.parser.mini_cv_w
+
+    @property
+    def map_area_height(self) -> int:
+        return self.parser.mini_cv_h
 
     @lru_cache
     def generate_grid(
