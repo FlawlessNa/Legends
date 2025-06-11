@@ -18,5 +18,5 @@ if __name__ == '__main__':
     img = minimap.get_minimap_title_img(HANDLE)
     cv2.imshow('Minimap Title', img)
     cv2.imwrite(
-        os.path.join(ROOT, 'royals/assets/detection_images', f'{MAP_NAME}.png'), img
+        os.path.join(ROOT, 'maple/assets/detection_images', f'{MAP_NAME}.png'), img
     )

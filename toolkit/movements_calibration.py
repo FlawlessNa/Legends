@@ -1,4 +1,4 @@
-from royals.model.mechanics.maple_map import MapleMap
+from maple.model.mechanics import MapleMap
 
 MAP_NAME: str = 'MysteriousPath3'
 IGN: str = 'StarBase'

@@ -56,7 +56,7 @@ for idx, img_path in enumerate(os.listdir(os.path.join(ROOT, "tests", "images"))
     #         continue
     #     char_filename = f'{img_path.removesuffix(".png")}_{id_rect}'
     #     cv2.imwrite(os.path.join(
-    #         ROOT, 'royals/assets/detection_characters', char_filename ),
+    #         ROOT, 'maple/assets/detection_characters', char_filename ),
     #         char
     #     )
     #     if result.get(char) is None:
@@ -68,6 +68,6 @@ for idx, img_path in enumerate(os.listdir(os.path.join(ROOT, "tests", "images"))
 
 
 with open(
-    os.path.join(ROOT, "royals/assets/detection_characters", OUTPUT_FILENAME), "w"
+    os.path.join(ROOT, "maple/assets/detection_characters", OUTPUT_FILENAME), "w"
 ) as fp:
     json.dump(result, fp, indent=4)

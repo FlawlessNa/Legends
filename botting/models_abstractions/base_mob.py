@@ -15,6 +15,7 @@ class BaseMob(InGameDetectionVisuals, ABC):
     This behavior can be overridden by the inheriting class.
     """
 
+    # Subclass responsibilities
     _hsv_lower: np.ndarray = NotImplemented
     _hsv_upper: np.ndarray = NotImplemented
     _color_lower: np.ndarray = NotImplemented
@@ -27,9 +28,8 @@ class BaseMob(InGameDetectionVisuals, ABC):
     _minimal_rect_area: int = NotImplemented
     _maximal_rect_area: int = NotImplemented
 
-    _multiplier: int = (
-        NotImplemented  # Used to count mobs on screen, since some mobs are counted as multiple contours.
-    )
+    # Used to count mobs on screen, since some mobs are counted as multiple contours.
+    _multiplier: int = NotImplemented
 
     @classmethod
     @abstractmethod
@@ -70,6 +70,9 @@ class BaseMob(InGameDetectionVisuals, ABC):
                 return tuple([cv2.boundingRect(cnt) for cnt in self._filter(contours)])
             except Exception as e:
                 breakpoint()
+                raise RuntimeError(
+                    f"Error processing contours for {self.__class__.__name__}: {e}"
+                )
 
     def get_mob_count(self, image: np.ndarray, handle: int, **kwargs) -> int:
         """

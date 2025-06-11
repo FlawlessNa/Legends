@@ -15,7 +15,7 @@ from botting.utilities import client_handler
 from botting.utilities import Box
 
 HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
-OUTPUT_LOCATION = os.path.join(ROOT, "royals/model/minimaps/")
+OUTPUT_LOCATION = os.path.join(ROOT, "maple/model/minimaps/")
 OUTPUT_NAME = "ulu_estate_2.py"
 
 # TODO - Automatically read these from game files
@@ -89,7 +89,7 @@ if __name__ == "__main__":
 
     with open(os.path.join(OUTPUT_LOCATION, OUTPUT_NAME), "w") as f:
         f.write(
-            """from royals.model.mechanics import (
+            """from maple.model.mechanics import (
     MinimapFeature,
     MinimapConnection,
     MinimapPathingMechanics,
