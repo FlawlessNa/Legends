@@ -7,6 +7,6 @@ if __name__ == '__main__':
     MapleMap(
         MAP_NAME,
         True,
-        include_character_position=True,
+        include_character_position=False,
         ign=IGN
     )

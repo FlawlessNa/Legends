@@ -183,7 +183,7 @@ class MovementHandler:
                         secondary,
                         duration=duration,
                         structure=structure,
-                        release_keys=release_keys
+                        release_keys=release_keys,
                     )
 
                 case MovementTypes.CLIMB_UP | MovementTypes.CLIMB_DOWN:
@@ -234,14 +234,28 @@ class MovementHandler:
                     structure = movements_v2.move(
                         self.handle, "up", duration=duration, structure=structure
                     )
-                case MovementTypes.TELEPORT_LEFT:
-                    pass
-                case MovementTypes.TELEPORT_RIGHT:
-                    pass
-                case MovementTypes.TELEPORT_UP:
-                    pass
-                case MovementTypes.TELEPORT_DOWN:
-                    pass
+
+                case (
+                    MovementTypes.TELEPORT_LEFT
+                    | MovementTypes.TELEPORT_RIGHT
+                    | MovementTypes.TELEPORT_UP
+                    | MovementTypes.TELEPORT_DOWN
+                ):
+                    repeat_key = None
+                    if upcoming_move.movement_type in (
+                            MovementTypes.ENTER_PORTAL,
+                            MovementTypes.CLIMB_UP,
+                    ):
+                        repeat_key='up'
+                    structure = movements_v2.teleport(
+                        self.handle,
+                        ...,
+                        direction,
+                        ...,
+                        move_length,
+                        structure=structure,
+                        repeat_key=repeat_key
+                    )
                 case (
                     MovementTypes.FLASH_JUMP_LEFT
                     | MovementTypes.FLASH_JUMP_RIGHT

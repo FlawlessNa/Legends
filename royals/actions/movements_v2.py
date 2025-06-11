@@ -219,21 +219,22 @@ def teleport(
     :param repeat_key:
     :return:
     """
-    if structure is None:
-        structure = _create_initial_input(handle, direction, None)
-
-    initial_duration = structure.duration
+    initial_duration = getattr(structure, 'duration', 0)
+    keys_held = getattr(structure, 'keys_held', controller.get_held_movement_keys(handle))
     limit = initial_duration + teleport_skill.animation_time * num_times
-    for key in structure.keys_held:
-        if key == direction:
-            continue
-        elif key == "up" and direction in ["left", "right"]:
-            # TODO - Hardcodings to improve/remove
-            structure.append(key, "keyup", 0.1)
-        else:
-            structure.append(key, "keyup", next(controller.random_delay))
+    # if structure is None:
+    #     structure = _create_initial_input(handle, direction, None)
 
-    if direction not in structure.keys_held:
+    # for key in structure.keys_held:
+    #     if key == direction:
+    #         continue
+    #     elif key == "up" and direction in ["left", "right"]:
+    #         # TODO - Hardcodings to improve/remove
+    #         structure.append(key, "keyup", 0.1)
+    #     else:
+    #         structure.append(key, "keyup", next(controller.random_delay))
+
+    if direction not in keys_held:
         structure.append(direction, "keydown", next(controller.random_delay))
     if repeat_key is None:
         structure.fill(
@@ -256,35 +257,35 @@ def teleport(
         structure.forced_key_releases.append(teleport_skill.key_bind(ign))
     return structure
 
-
-def telecast(
-    structure: controller.KeyboardInputWrapper,
-    ign: str,
-    teleport_key: str,
-    ultimate_skill: Skill,
-) -> controller.KeyboardInputWrapper:
-    """
-    This function does not extend the structure like other functions in this module.
-    Instead, it introspects that structure and adds ultimate cast keystrokes in
-    combination to the teleport keystrokes.
-    :param structure:
-    :param ign:
-    :param teleport_key:
-    :param ultimate_skill:
-    :return:
-    """
-    if teleport_key not in structure.keys:
-        print("No telecast possible. Casting ultimate instead")
-        return cast_skill(structure.handle, ign, ultimate_skill)
-
-    # Modify the structure such that teleports are combined with ultimate casts
-    ultimate_key = ultimate_skill.key_bind(ign)
-    structure.forced_key_releases.append(ultimate_key)
-    for idx, (key, event) in enumerate(zip(structure.keys, structure.events)):
-        if key == teleport_key and event == "keydown":
-            structure.keys[idx] = [teleport_key, ultimate_key]
-            structure.events[idx] = ["keydown", "keydown"]
-    return structure.truncate(ultimate_skill.animation_time)
+#
+# def telecast(
+#     structure: controller.KeyboardInputWrapper,
+#     ign: str,
+#     teleport_key: str,
+#     ultimate_skill: Skill,
+# ) -> controller.KeyboardInputWrapper:
+#     """
+#     This function does not extend the structure like other functions in this module.
+#     Instead, it introspects that structure and adds ultimate cast keystrokes in
+#     combination to the teleport keystrokes.
+#     :param structure:
+#     :param ign:
+#     :param teleport_key:
+#     :param ultimate_skill:
+#     :return:
+#     """
+#     if teleport_key not in structure.keys:
+#         print("No telecast possible. Casting ultimate instead")
+#         return cast_skill(structure.handle, ign, ultimate_skill)
+#
+#     # Modify the structure such that teleports are combined with ultimate casts
+#     ultimate_key = ultimate_skill.key_bind(ign)
+#     structure.forced_key_releases.append(ultimate_key)
+#     for idx, (key, event) in enumerate(zip(structure.keys, structure.events)):
+#         if key == teleport_key and event == "keydown":
+#             structure.keys[idx] = [teleport_key, ultimate_key]
+#             structure.events[idx] = ["keydown", "keydown"]
+#     return structure.truncate(ultimate_skill.animation_time)
 
 
 def random_jump(handle: int, jump_key: str) -> controller.KeyboardInputWrapper:
