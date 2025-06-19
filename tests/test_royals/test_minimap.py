@@ -11,7 +11,7 @@ from botting.utilities import (
     CLIENT_VERTICAL_MARGIN_PX,
 )
 from paths import ROOT
-from royals.model.interface import Minimap
+from maple.model.interface import Minimap
 
 
 class MinimapTester(Minimap):

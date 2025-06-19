@@ -6,9 +6,8 @@ import time
 
 from botting import PARENT_LOG
 from botting.core import BotData
-from botting.utilities import Box
 from maple.model.mechanics import (
-    Movements,
+    MovementHandler,
 )
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -34,7 +33,7 @@ class NextTargetMixin:
         mob_count_threshold: int = None,
     ) -> None:
 
-        if smart_rotation is True:
+        if smart_rotation:
             self.data.create_attribute('has_smart_rotation', lambda: True)
             assert mob_count_threshold is not None, (
                 "Mob count threshold must be provided for smart rotation."
@@ -244,7 +243,7 @@ class MovementsMixin:
         self.data.create_attribute("action_duration", lambda: duration)
         self.data.create_attribute(
             "movement_handler",
-            lambda: Movements(
+            lambda: MovementHandler(
                 self.data.ign,
                 self.data.handle,
                 self.data.character.skills.get("Teleport"),

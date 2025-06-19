@@ -10,7 +10,7 @@ import numpy as np
 
 from paths import ROOT
 from royals import royals_ign_finder
-from royals.model.interface.dynamic_components.minimap import Minimap
+from maple.model.interface.dynamic_components.minimap import Minimap
 from botting.utilities import client_handler
 from botting.utilities import Box
 

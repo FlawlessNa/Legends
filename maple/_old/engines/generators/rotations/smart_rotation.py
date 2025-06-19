@@ -7,7 +7,7 @@ import time
 from botting import PARENT_LOG
 from botting.utilities import Box
 from maple._old.engines.generators.base_rotation import RotationGenerator
-from maple.model.mechanics import RoyalsSkill
+from maple.model.mechanics import MapleSkill
 from maple._old.game_data import RotationData
 
 
@@ -18,9 +18,9 @@ class SmartRotationGenerator(RotationGenerator):
     def __init__(
         self,
         data: RotationData,
-        training_skill: RoyalsSkill,
+        training_skill: MapleSkill,
         mob_threshold: int,
-        teleport: RoyalsSkill = None,
+        teleport: MapleSkill = None,
         time_limit: float = 2,
     ) -> None:
         super().__init__(data, training_skill, mob_threshold, teleport)

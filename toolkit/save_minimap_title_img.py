@@ -2,7 +2,7 @@ import cv2
 import os
 from botting.utilities import client_handler
 from royals import royals_ign_finder
-from royals.model.interface import Minimap
+from maple.model.interface import Minimap
 from paths import ROOT
 
 

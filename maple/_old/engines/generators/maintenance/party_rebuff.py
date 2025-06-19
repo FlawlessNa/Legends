@@ -15,7 +15,7 @@ from botting.utilities import Box
 from maple.actions import cast_skill
 from maple._old.engines.generators.interval_based import IntervalBasedGenerator
 from maple._old.game_data import MaintenanceData, MinimapData
-from maple.model.mechanics import RoyalsSkill
+from maple.model.mechanics import MapleSkill
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
@@ -253,7 +253,7 @@ class PartyRebuff(IntervalBasedGenerator):
 
     @staticmethod
     async def cast_all(
-        ready_at: float, handle: int, ign: str, skills: list[RoyalsSkill], *args
+        ready_at: float, handle: int, ign: str, skills: list[MapleSkill], *args
     ):
         for skill in skills:
             await cast_skill(handle, ign, skill, ready_at, single_press=True)

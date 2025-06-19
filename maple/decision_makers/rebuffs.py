@@ -9,7 +9,7 @@ from botting import PARENT_LOG
 from botting.core import ActionRequest, DecisionMaker, BotData
 from botting.utilities import cooldown
 from maple.actions import priorities
-from maple.model.mechanics import RoyalsSkill
+from maple.model.characters import MapleSkill
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 LOG_LEVEL = logging.INFO
@@ -310,7 +310,7 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
             )
 
     async def _decide(
-        self, buff: RoyalsSkill, condition: multiprocessing.managers.ConditionProxy
+        self, buff: MapleSkill, condition: multiprocessing.managers.ConditionProxy
     ) -> None:
         await self._cast_and_confirm([buff], condition)
         await asyncio.sleep(self._randomized(buff.duration))

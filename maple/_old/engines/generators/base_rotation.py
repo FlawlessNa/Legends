@@ -13,7 +13,7 @@ from maple._old.game_data import RotationData
 from maple.actions import random_jump
 from maple._old.engines.generators.rotations import MobsHitting
 from maple._old.path_into_movements import get_to_target
-from maple.model.mechanics import RoyalsSkill
+from maple.model.mechanics import MapleSkill
 
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
@@ -29,9 +29,9 @@ class RotationGenerator(DecisionGenerator, MobsHitting, ABC):
     def __init__(
         self,
         data: RotationData,
-        training_skill: RoyalsSkill,
+        training_skill: MapleSkill,
         mob_threshold: int,
-        teleport: RoyalsSkill = None,
+        teleport: MapleSkill = None,
     ) -> None:
         super().__init__(data)
         self.training_skill = training_skill

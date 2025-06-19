@@ -10,20 +10,20 @@ import multiprocessing
 from functools import partial
 
 import botting
-import royals.parsers
+import maple.parsers
 
 
 LEECHER_IGN = "WrongDoor"
-LEECHER_CLASS = royals.characters.Bishop
+LEECHER_CLASS = maple.characters.Bishop
 LEECHER_BUFFS_TO_USE = ["Magic Guard", "Invincible"]
 LEECHER_NUM_PETS = 3
 BUFFS_TO_SYNCHRONIZE = ["Holy Symbol", "Maple Warrior", "Haste"]
 
 BUFF_MULES_IGN = ["UluLoot", "BCoinFarm", "iYieldMoney", "MoneyEngine", "FinancialWiz"]
-BUFF_MULES_CLASSES = [royals.characters.Hermit] + [royals.characters.Magician] * 4
+BUFF_MULES_CLASSES = [maple.characters.Hermit] + [maple.characters.Magician] * 4
 
 NUM_BOTS = 6
-TRAINING_MAP = royals.maps.FantasyThemePark1
+TRAINING_MAP = maple.maps.FantasyThemePark1
 MOB_COUNT_THRESHOLD = 6
 
 DETECTION_CONFIG_SECTION = "Elephant Cape"
@@ -32,7 +32,7 @@ CLIENT_SIZE = "large"
 ANTI_DETECTION_MOB_THRESHOLD = 4
 ANTI_DETECTION_TIME_THRESHOLD = 10
 
-DISCORD_PARSER = royals.parsers.single_bot_parser  # TODO - Change to multi_bot_parser
+DISCORD_PARSER = maple.parsers.single_bot_parser  # TODO - Change to multi_bot_parser
 
 
 async def main(*bots: botting.Executor) -> None:
@@ -65,7 +65,7 @@ if __name__ == "__main__":
         num_pets=LEECHER_NUM_PETS,
     )
     leecher = botting.Executor(
-        engine=royals.engines.LeechingEngine, ign=LEECHER_IGN, **leecher_engine_kwargs
+        engine=maple.engines.LeechingEngine, ign=LEECHER_IGN, **leecher_engine_kwargs
     )
 
     mules_char = [
@@ -84,7 +84,7 @@ if __name__ == "__main__":
         for char in mules_char
     ]
     mules = [
-        botting.Executor(engine=royals.engines.BuffMule, ign=name, **kwargs)
+        botting.Executor(engine=maple.engines.BuffMule, ign=name, **kwargs)
         for name, kwargs in zip(BUFF_MULES_IGN, mules_engine_kwargs)
     ]
 

@@ -11,7 +11,7 @@ from botting.core import QueueAction, GeneratorUpdate
 from maple._old.engines.generators.base_rotation import RotationGenerator
 from maple import RoyalsData
 from maple.actions import telecast
-from maple.model.mechanics import RoyalsSkill
+from maple.model.mechanics import MapleSkill
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
@@ -22,8 +22,8 @@ class TelecastRotationGenerator(RotationGenerator):
     def __init__(
         self,
         data: RoyalsData,
-        teleport_skill: RoyalsSkill,
-        ultimate: RoyalsSkill,
+        teleport_skill: MapleSkill,
+        ultimate: MapleSkill,
         mob_threshold: int = 5,
     ) -> None:
         super().__init__(data, ultimate, mob_threshold, teleport_skill)

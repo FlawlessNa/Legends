@@ -1,7 +1,7 @@
 import asyncio
 from botting.core.session_manager import SessionManager
-import royals.bots as bots
-import royals.parsers
+import maple.bots as bots
+import maple.parsers
 
 training_configs = {
     "num_pets": 1,
@@ -21,7 +21,7 @@ training_configs = {
 
 
 async def main():
-    with SessionManager(royals.parsers.RoyalsParser) as session:
+    with SessionManager(maple.parsers.RoyalsParser) as session:
         leecher = bots.TrainingBot("StarBase", session.metadata, **training_configs)
         # mule1 = bots.TestBot('UluLoot', session.metadata)
         # mule2 = bots.TestBot('FinancialWiz', session.metadata)

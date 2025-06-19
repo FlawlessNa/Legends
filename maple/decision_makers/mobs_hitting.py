@@ -14,7 +14,7 @@ from botting.utilities import (
 )
 from maple.actions.skills_related_v2 import cast_skill
 from maple.model.interface import LargeClientChatFeed
-from maple.model.mechanics import RoyalsSkill
+from maple.model.characters import MapleSkill
 from .mixins import MobsHittingMixin, MinimapAttributesMixin, NextTargetMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -86,7 +86,7 @@ class MobsHitting(
         except asyncio.TimeoutError:
             breakpoint()
 
-    def _get_skill_from_str(self, skill_str: str) -> RoyalsSkill:
+    def _get_skill_from_str(self, skill_str: str) -> MapleSkill:
         if skill_str:
             return self.data.character.skills[skill_str]
         return self.data.character.skills[self.data.character.main_skill]

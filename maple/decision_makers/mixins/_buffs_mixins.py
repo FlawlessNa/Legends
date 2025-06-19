@@ -12,8 +12,7 @@ from botting.core import ActionRequest, ActionWithValidation, BotData
 from botting.utilities import Box
 from maple.actions.skills_related_v2 import cast_skill_single_press
 from maple.actions import priorities
-from maple.model.characters import ALL_BUFFS
-from maple.model.mechanics import RoyalsSkill, RoyalsBuff, RoyalsPartyBuff
+from maple.model.characters import ALL_BUFFS, MapleSkill, MapleBuff, MaplePartyBuff
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 LOG_LEVEL = logging.WARNING
@@ -23,13 +22,13 @@ DEBUG = True
 class RebuffMixin:
     data: BotData
     pipe: multiprocessing.connection.Connection
-    _icons_directory = RoyalsSkill.icon_path
+    _icons_directory = MapleSkill.icon_path
     _hsv_lower = np.array([0, 0, 0])
     _hsv_upper = np.array([179, 255, 53])
 
     def _get_character_default_buffs(
         self, buff_type: str
-    ) -> list[RoyalsBuff | RoyalsPartyBuff]:
+    ) -> list[MapleBuff | MaplePartyBuff]:
         return [
             skill
             for skill in self.data.character.skills.values()
@@ -101,7 +100,7 @@ class RebuffMixin:
 
     async def _cast_and_confirm(
         self,
-        buffs: list[RoyalsSkill],
+        buffs: list[MapleSkill],
         condition: multiprocessing.managers.ConditionProxy,  # noqa
         predicate: callable = None,
     ) -> None:
@@ -142,7 +141,7 @@ class RebuffMixin:
 
     @staticmethod
     async def _cast_skills_single_press(
-        handle: int, ign: str, skills: list[RoyalsSkill]
+        handle: int, ign: str, skills: list[MapleSkill]
     ) -> None:
         for skill in skills:
             await cast_skill_single_press(handle, ign, skill)

@@ -1,7 +1,7 @@
 import time
 import math
 
-from royals._old.minimaps import MuddyBanks2Minimap
+from maple._old.minimaps import MuddyBanks2Minimap
 from botting.utilities import client_handler
 from royals import royals_ign_finder
 

@@ -2,10 +2,10 @@ import os
 from botting.utilities import client_handler
 from royals import royals_ign_finder
 from paths import ROOT
-from royals._old.minimaps import MysteriousPath3Minimap
+from maple._old.minimaps import MysteriousPath3Minimap
 
-from royals._old.movement_mechanics import Movements
-from royals.actions.movements_v2 import telecast
+from maple._old.movement_mechanics import Movements
+from maple.actions.movements_v2 import telecast
 
 HANDLE = client_handler.get_client_handle("StarBase", royals_ign_finder)
 img_dir = os.path.join(ROOT, "maple/assets/detection_images")

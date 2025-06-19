@@ -3,7 +3,7 @@ import json
 import os
 
 from paths import ROOT
-from royals.model.interface.fixed_components.in_game_chat.chat_lines import General
+from maple.model.interface.fixed_components.in_game_chat.chat_lines import General
 
 OUTPUT_FILENAME = "general_characters.json"
 result = {}

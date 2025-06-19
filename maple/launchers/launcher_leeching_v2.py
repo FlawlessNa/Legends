@@ -1,9 +1,9 @@
 import asyncio
 from botting.core.session_manager import SessionManager
-import royals.bots as bots
-import royals.constants as constants
-import royals._old.maps as maps
-import royals.parsers
+import maple.bots as bots
+import maple.constants as constants
+import maple._old.maps as maps
+import maple.parsers
 
 
 SYNCHRONIZED_BUFFS = ["Holy Symbol", "Maple Warrior", "Haste", "Meso Up"]
@@ -33,7 +33,7 @@ mule_configs = {
 
 
 async def main():
-    with SessionManager(royals.parsers.RoyalsParser) as session:
+    with SessionManager(maple.parsers.RoyalsParser) as session:
         leecher = bots.LeechingBot("WrongDoor", session.metadata, **leeching_configs)
         mule1 = bots.LeechMuleWithBuffs(
             "UluLoot", session.metadata, character_class="Hermit", **mule_configs

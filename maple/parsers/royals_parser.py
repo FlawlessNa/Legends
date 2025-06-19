@@ -2,7 +2,7 @@ from botting.communications import BaseParser
 from botting.utilities import take_screenshot
 from botting.core.action_data import ActionRequest
 from maple.actions import write_in_chat, priorities
-from maple.bots.royals_bot import RoyalsBot
+from maple.bots.royals_bot import MapleBot
 
 
 class RoyalsParser(BaseParser):
@@ -24,7 +24,7 @@ class RoyalsParser(BaseParser):
         return f"RESUME {" ".join(who)}"
 
     def write(self, message: str, who: str = None) -> ActionRequest:
-        handle = RoyalsBot.get_handle_from_ign(who)
+        handle = MapleBot.get_handle_from_ign(who)
         return ActionRequest(
             f"Writing Message received from Discord",
             write_in_chat,

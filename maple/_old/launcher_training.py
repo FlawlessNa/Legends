@@ -7,13 +7,13 @@ import botting
 
 from functools import partial
 
-import royals.parsers
+import maple.parsers
 
 
 CHARACTER_NAME = "WrongDoor"
-CHARACTER_CLASS = royals.characters.Priest
+CHARACTER_CLASS = maple.characters.Priest
 TRAINING_SKILL = "Shining Ray"
-TRAINING_MAP = royals.maps.EncounterWithTheBuddha
+TRAINING_MAP = maple.maps.EncounterWithTheBuddha
 MOB_COUNT_THRESHOLD = 1
 TIME_LIMIT_ON_TARGET = 1
 
@@ -25,7 +25,7 @@ CLIENT_SIZE = "large"
 
 DISABLE_TELEPORT = False
 
-DISCORD_PARSER = royals.parsers.single_bot_parser
+DISCORD_PARSER = maple.parsers.single_bot_parser
 
 ANTI_DETECTION_MOB_THRESHOLD = 2
 ANTI_DETECTION_TIME_THRESHOLD = 10
@@ -58,6 +58,6 @@ if __name__ == "__main__":
     )
 
     bot = botting.Executor(
-        engine=royals.engines.TrainingEngine, ign=CHARACTER_NAME, **engine_kwargs
+        engine=maple.engines.TrainingEngine, ign=CHARACTER_NAME, **engine_kwargs
     )
     asyncio.run(main(bot))

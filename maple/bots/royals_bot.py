@@ -9,7 +9,7 @@ from maple.model.characters import MAPPING as CHARACTER_MAPPING
 from maple.model.mechanics import MapleMap
 
 
-class RoyalsBot(Bot, ABC):
+class MapleBot(Bot, ABC):
     """
     A Bot subclass that defines the ign_finder callable and extends the init behavior.
     """

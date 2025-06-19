@@ -5,7 +5,7 @@ import pstats
 
 def profile_main():
     # Import the main script of your project
-    import royals.launchers.launcher_leeching_v2 as main_script
+    import maple.launchers.launcher_leeching_v2 as main_script
 
     # Create a profiler
     profiler = cProfile.Profile()

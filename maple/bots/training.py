@@ -1,15 +1,15 @@
 import logging
-import royals.decision_makers as decision_makers
+import maple.decision_makers as decision_makers
 
 from botting import PARENT_LOG
 from botting.core import DecisionMaker
-from .royals_bot import RoyalsBot
+from .royals_bot import MapleBot
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.NOTSET
 
 
-class TrainingBot(RoyalsBot):
+class TrainingBot(MapleBot):
     def _decision_makers(self) -> list[type[DecisionMaker]]:
         return [
             decision_makers.MobsHitting,
