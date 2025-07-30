@@ -1,6 +1,6 @@
 import logging
 import numpy as np
-from functools import lru_cache
+from functools import lru_cache, cached_property
 from botting import PARENT_LOG
 from botting.models_abstractions import BaseMap
 from .game_file_extraction.map_parser import MapParser
@@ -41,6 +41,16 @@ class MapleMinimap(Minimap):
         self.modified_minimap = self.features_manager.apply_grid_edits(
             self.raw_minimap, apply_weights=True
         )
+
+    @cached_property
+    def feature_cycle(self) -> list[MinimapEdits]:
+        features = [f for f in self.features_manager.features if f.is_in_rotation]
+        indexed = []
+        for feature in features:
+            for idx in feature.rotation_indexes:
+                indexed.append((idx, feature))
+        indexed.sort(key=lambda x: x[0])
+        return [feature for _, feature in indexed]
 
     @property
     def map_area_width(self) -> int:
@@ -403,5 +413,9 @@ class MapleMap(BaseMap):
                 ign=kwargs.get("ign", None),
             )
             self.edits = editor.edits
+            # If edits were made, we need to reinitialize the minimap
+            self.minimap = MapleMinimap(
+                self.parser, self.edits
+            )
         mob_ids = self.parser.get_mobs_ids()
         self.mobs = tuple(MapleMob(mob_id) for mob_id in mob_ids)

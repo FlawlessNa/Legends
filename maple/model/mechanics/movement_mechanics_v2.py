@@ -209,7 +209,7 @@ class MovementHandler:
                     | MovementTypes.JUMP_DOWN
                 ):
                     direction = (
-                        None if move_type is MovementTypes.JUMP
+                        'up' if move_type is MovementTypes.JUMP
                         else move_type.name.split("_")[-1].lower()
                     )
                     kwargs = dict(

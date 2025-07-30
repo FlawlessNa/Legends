@@ -71,6 +71,7 @@ class MinimapEditor:
 
     def save_edits(self) -> None:
         self.edits.to_json(self.minimap.map_name)
+        print(f"Edits saved for map: {self.minimap.map_name}")
 
     def refresh_canvas(self, modified_minimap: np.ndarray) -> None:
         self.view.canvas.delete('all')

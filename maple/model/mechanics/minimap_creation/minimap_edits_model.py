@@ -5,7 +5,7 @@ from dataclasses import asdict, dataclass, field
 from paths import ROOT
 from botting.utilities import Box
 
-_EDITS_ROOT = os.path.join(ROOT, 'maple/model/maps')
+_EDITS_ROOT = os.path.join(ROOT, 'configs/maps')
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -33,6 +33,10 @@ class MinimapEdits(Box):
     # If specified, the feature will be part of the rotation cycle
     rotation_indexes: list[int] = field(default_factory=list)
     relative: bool = field(default=False, init=False, repr=False)
+
+    @property
+    def is_in_rotation(self) -> bool:
+        return len(self.rotation_indexes) > 0
 
     @property
     def is_platform(self) -> bool:
@@ -99,8 +103,11 @@ class MinimapEditsManager:
         data = {
             dct.pop('name'): dct for dct in features
         }
-        data.pop('config', None)
-        data.pop('relative', None)
+        # Remove all config and relative keys from subdicts
+        for dct in data.values():
+            dct.pop('config', None)
+            dct.pop('relative', None)
+        os.makedirs(_EDITS_ROOT, exist_ok=True)
         with open(os.path.join(_EDITS_ROOT, f'{map_name}.json'), 'w') as f:
             json.dump(data, f, indent=4)  # noqa
 
