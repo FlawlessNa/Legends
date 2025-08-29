@@ -222,6 +222,10 @@ def teleport(
     initial_duration = getattr(structure, 'duration', 0)
     keys_held = getattr(structure, 'keys_held', controller.get_held_movement_keys(handle))
     limit = initial_duration + teleport_skill.animation_time * num_times
+    if structure is None:
+        structure = controller.KeyboardInputWrapper(
+            handle, [direction], ["keydown"], [next(controller.random_delay)]  # noqa
+        )
     # if structure is None:
     #     structure = _create_initial_input(handle, direction, None)
 

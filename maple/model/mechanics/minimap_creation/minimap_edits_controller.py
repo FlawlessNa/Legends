@@ -9,7 +9,7 @@ from maple.model.mechanics.maple_map import MapleMinimap
 from .minimap_edits_model import MinimapEditsManager, MinimapEdits
 from .minimap_edits_view import EditorView, FeatureSelectionFrame, PathfindingFrame
 from ..movement_mechanics_v2 import MovementHandler
-
+from maple.model.characters.magicians import Magician
 
 class MinimapEditor:
     """
@@ -43,7 +43,12 @@ class MinimapEditor:
         except ValueError:
             self.handle = 0
 
-        self.movement_handler = MovementHandler(self.handle, self.minimap, self.ign)
+        self.movement_handler = MovementHandler(
+            self.handle,
+            self.minimap,
+            self.ign,
+            Magician.skills['Teleport']
+        )
         self.root = tk.Tk()
         self.view = EditorView(
             self,
