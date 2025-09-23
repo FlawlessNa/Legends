@@ -121,7 +121,11 @@ class MobsHitting(
             self.training_skill.vertical_down_screen_range
             or self.training_skill.vertical_screen_range
         )
+        # TODO -> Detection model returns x1, y1, x2, y2, while detection configs returns x, y, w, h this needs to be corrected
         x1, y1, x2, y2 = pos
+        # x1, y1, w, h = pos
+        # x2 = x1 + w
+        # y2 = y1 + h
         region = Box(
             # TODO - finetune the region better? (Right now it uses smallest region)
             left=x1 - horizontal // 2,

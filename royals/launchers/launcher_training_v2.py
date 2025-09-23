@@ -19,6 +19,7 @@ training_configs = {
     "mob_spawn_alert_threshold": 4,
     # 'speed_multiplier': 1.4,
     # 'jump_multiplier': 1.23,
+    # "detection_configs": "Elephant Cape"
 
 }
 
