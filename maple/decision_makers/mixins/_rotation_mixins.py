@@ -244,10 +244,10 @@ class MovementsMixin:
         self.data.create_attribute(
             "movement_handler",
             lambda: MovementHandler(
-                self.data.ign,
                 self.data.handle,
-                self.data.character.skills.get("Teleport"),
                 self.data.current_minimap,
+                self.data.ign,
+                self.data.character.skills.get("Teleport"),
             ),
         )
 
