@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+import random
 from functools import lru_cache, cached_property
 from botting import PARENT_LOG
 from botting.models_abstractions import BaseMap
@@ -51,6 +52,17 @@ class MapleMinimap(Minimap):
                 indexed.append((idx, feature))
         indexed.sort(key=lambda x: x[0])
         return [feature for _, feature in indexed]
+
+    def random_point(self) -> tuple[int, int]:
+        """
+        Returns a random point within the minimap.
+        First, select a feature at random, weighted by its area (unless specified).
+        Then, select a random point within the feature.
+        :return: (x, y) coordinates of the random point.
+        """
+        y, x = random.choice(np.argwhere(self.modified_minimap))
+        return x, y
+
 
     @property
     def map_area_width(self) -> int:
