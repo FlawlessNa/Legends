@@ -27,7 +27,7 @@ class SessionManager:
     - TaskManager
     """
 
-    def __init__(self, discord_parser: type[BaseParser]) -> None:
+    def __init__(self, discord_parser: type[BaseParser], *, debug: bool = False) -> None:
         """
         Creates all necessary objects to start a new Session.
         :param discord_parser: A callable that parses discord message and returns
@@ -39,13 +39,22 @@ class SessionManager:
             logging_queue=self.process_manager.Queue(),
             proxy_request=self.process_manager.Condition(),
         )
-        self.metadata["ignored_keys"] = set(self.metadata.keys()).union(
+        self.metadata["ignored_keys"] = set(self.metadata.keys()).union(  # noqa
             {"ignored_keys"}
         )
+        self._debug = debug
 
-        self.peripherals = PeripheralsProcess(
-            self.metadata["logging_queue"], discord_parser
-        )
+        if not self._debug:
+            self.peripherals = PeripheralsProcess(
+                self.metadata["logging_queue"], discord_parser
+            )
+        else:
+            from unittest.mock import Mock, AsyncMock
+            async def _wait_forever(*args, **kwargs):
+                await asyncio.Event().wait()
+            self.peripherals = Mock()
+            self.peripherals.peripherals_listener = AsyncMock(side_effect=_wait_forever)
+
         self.task_manager = AsyncTaskManager(
             discord_pipe=self.peripherals.pipe_main_proc,
         )
@@ -109,8 +118,9 @@ class SessionManager:
                 engine.terminate()
             logger.info(f"Engine {engine.name} has been stopped.")
 
-        for bot in self.bots:
-            release_all(bot.get_handle_from_ign(bot.ign))
+        if not self._debug:
+            for bot in self.bots:
+                release_all(bot.get_handle_from_ign(bot.ign))
 
         if exc_type is not None:
             # Normally, each Engine should handle their own clean-up.
