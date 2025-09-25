@@ -18,6 +18,7 @@ class EditorView(ttk.Frame):
         register: callable,
         save: callable,
         path_handler: ...,
+        on_send_actions: callable,
         scale: int = 5,
         *args,
         **kwargs,
@@ -27,7 +28,9 @@ class EditorView(ttk.Frame):
         super().__init__(self.editor.root)
         self.pack(fill=tk.BOTH, expand=True)
 
-        self.controls_frame = ControlsFrame(self, register, save, path_handler)
+        self.controls_frame = ControlsFrame(
+            self, register, save, path_handler, on_send_actions
+        )
         self.canvas = EditableCanvas(
             self,
             scale,
@@ -210,12 +213,18 @@ class ControlsFrame(ttk.Frame):
     master: EditorView
 
     def __init__(
-        self, parent, feature_saver: callable, edits_saver: callable, path_handler: ...
+        self,
+        parent,
+        feature_saver: callable,
+        edits_saver: callable,
+        path_handler: ...,
+        on_send_actions: callable
     ):
         super().__init__(parent)
         self.feature_saver = feature_saver
         self.edits_saver = edits_saver
         self.path_handler = path_handler
+        self._on_send_actions = on_send_actions
         self.pack(side=tk.RIGHT, fill=tk.Y)
         self.selector_subframe = _ModeSelectionSubFrame(self)
         self.mode_specific_subframe = None
@@ -237,6 +246,7 @@ class ControlsFrame(ttk.Frame):
             register_procedure=self.feature_saver,
             save_edits=self.edits_saver,
             path_handler=self.path_handler,
+            on_send_actions=self._on_send_actions
         )
         self.mode_specific_subframe.create_widgets()
 
@@ -467,7 +477,13 @@ class FeatureSelectionFrame(_ModeDependentFrame):
 
 
 class PathfindingFrame(_ModeDependentFrame):
-    def __init__(self, parent: ControlsFrame, path_handler: ..., **kwargs):
+    def __init__(
+        self,
+        parent: ControlsFrame,
+        path_handler: ...,
+        on_send_actions: callable,
+        **kwargs
+    ):
         super().__init__(parent)
 
         self.start_pos_label = tk.Label(self, text="Start Position: (0, 0)")
@@ -515,6 +531,11 @@ class PathfindingFrame(_ModeDependentFrame):
             self, text="Print Actions", variable=self.print_actions_var
         )
 
+        self.send_actions_button = tk.Button(
+            self, text="Send Actions", command=self.on_send_actions
+        )
+        self._on_send_actions = on_send_actions
+
     def create_widgets(self):
         self.start_pos_label.grid(row=0, column=0, sticky=tk.W)
         self.end_pos_label.grid(row=1, column=0, sticky=tk.W)
@@ -528,6 +549,7 @@ class PathfindingFrame(_ModeDependentFrame):
         self.print_path_cb.grid(row=6, column=0, sticky=tk.W)
         self.print_movements_cb.grid(row=7, column=0, sticky=tk.W)
         self.print_actions_cb.grid(row=8, column=0, sticky=tk.W)
+        self.send_actions_button.grid(row=9, column=0, columnspan=2, sticky=tk.EW)
 
     @property
     def print_path(self) -> bool:
@@ -556,6 +578,9 @@ class PathfindingFrame(_ModeDependentFrame):
     def on_include_portals_toggle(self):
         if self.include_portals_var.get():
             print("Option 2 toggled on")
+
+    def on_send_actions(self):
+        self._on_send_actions()
 
     def get_grid_kwargs(self) -> dict:
         try:

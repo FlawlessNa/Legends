@@ -1,10 +1,12 @@
 """
 This script handles the Controller, which relays the GUI and the Model together.
 """
+import asyncio
 import numpy as np
 import tkinter as tk
 from dataclasses import asdict
 
+from botting.controller import KeyboardInputWrapper
 from maple.model.mechanics.maple_map import MapleMinimap
 from .minimap_edits_model import MinimapEditsManager, MinimapEdits
 from .minimap_edits_view import EditorView, FeatureSelectionFrame, PathfindingFrame
@@ -36,6 +38,7 @@ class MinimapEditor:
         self.modified_minimap = self.edits.apply_grid_edits(
             self.raw_minimap, apply_weights=False
         )
+        self._latest_actions: KeyboardInputWrapper | None = None
         try:
             from maple import royals_ign_finder
             from botting.utilities import client_handler
@@ -56,6 +59,7 @@ class MinimapEditor:
             self.register_feature,
             self.save_edits,
             self.movement_handler,
+            self.run_latest_actions,
             scale
         )
         # Draw each pixel as a larger rectangle and bounding boxes on the existing edits
@@ -233,6 +237,7 @@ class MinimapEditor:
                 print(f"Movements: \n{'\n'.join(map(str, movements))}")
 
             actions = self.movement_handler.movements_into_action(movements, grid)
+            self._latest_actions = actions
             if frame.print_actions:
                 print(f"Actions: \n {actions}")
 
@@ -242,3 +247,6 @@ class MinimapEditor:
                 self.view.canvas.draw_point(node.x, node.y, 'green')
 
             self.previous_path = path
+
+    def run_latest_actions(self) -> None:
+        asyncio.run(self._latest_actions.send())
