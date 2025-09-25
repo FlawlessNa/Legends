@@ -63,6 +63,10 @@ class MapleMinimap(Minimap):
         y, x = random.choice(np.argwhere(self.modified_minimap))
         return x, y
 
+    def get_feature_containing(self, position: tuple[int, int]) -> MinimapEdits | None:
+        x, y = position
+        return self.features_manager.get_feature_containing(x, y)
+
 
     @property
     def map_area_width(self) -> int:
@@ -142,7 +146,7 @@ class MapleMinimap(Minimap):
 
     @lru_cache
     def _get_node_info(self, x: int, y: int) -> MinimapEdits:
-        return self.features_manager.get_features_containing(
+        return self.features_manager.get_feature_containing(
             x, y
         ) or self.parser.parse_node(x, y)
 

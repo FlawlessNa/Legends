@@ -141,7 +141,7 @@ class MinimapEditsManager:
 
         return modified
 
-    def get_features_containing(self, mini_x: int, mini_y: int) -> MinimapEdits | None:
+    def get_feature_containing(self, mini_x: int, mini_y: int) -> MinimapEdits | None:
         """
         Returns the features that contain the given coordinates.
         """

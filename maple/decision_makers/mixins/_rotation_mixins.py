@@ -254,21 +254,26 @@ class MovementsMixin:
         self.data.create_attribute(
             "path",
             lambda: self.data.movement_handler.compute_path(
-                self.data.current_minimap_position, self.data.next_target
+                self.data.current_minimap_position,
+                self.data.next_target,
+                self.data.current_grid,
             ),
             threshold=0.1,
         )
         self.data.create_attribute(
             "movements",
-            lambda: self.data.movement_handler.path_into_movements(self.data.path),
+            lambda: self.data.movement_handler.path_into_movements(
+                self.data.path, self.data.current_grid
+            ),
             threshold=0.1,
         )
         self.data.create_attribute(
             "action",
             lambda: self.data.movement_handler.movements_into_action(
                 self.data.movements,
+                self.data.current_grid,
                 duration,
-                getattr(self.data, "speed_multiplier", 1.0),
+                # getattr(self.data, "speed_multiplier", 1.0),
             ),
         )
         self.data.create_attribute("has_pathing_attributes", lambda: True)
