@@ -1,3 +1,4 @@
+import cv2
 import logging
 from enum import IntEnum
 from functools import lru_cache
@@ -294,6 +295,32 @@ class MovementHandler:
         except Exception as e:
             breakpoint()
 
-    def _run_debug(self, start, end, path) -> None:
-        if DEBUG:
-            pass
+    def _run_debug(
+        self, start: tuple[int, int], end: tuple[int, int], path: list[MinimapNode]
+    ) -> None:
+        if not DEBUG:
+            return
+        minimap_img = self.minimap.parser.get_raw_minimap_grid(binary_mode=True).copy()
+        minimap_img = cv2.cvtColor(minimap_img, cv2.COLOR_GRAY2BGR)
+        cv2.drawMarker(
+            minimap_img,
+            (start[0], start[1]),
+            (0, 0, 255),
+            markerType=cv2.MARKER_CROSS,
+            markerSize=3
+        )
+        cv2.drawMarker(
+            minimap_img,
+            (end[0], end[1]),
+            (255, 0, 0),
+            markerType=cv2.MARKER_CROSS,
+            markerSize=3
+        )
+        for node in path:
+            minimap_img[node.y, node.x] = (0, 255, 0)
+        minimap_img = cv2.resize(minimap_img, None, fx=5, fy=5)
+        cv2.imshow(
+            f"_DEBUG_ Mode - Pathfinding {self.ign}2",
+            minimap_img,
+        )
+        cv2.waitKey(1)
