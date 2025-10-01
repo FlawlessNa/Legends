@@ -38,6 +38,7 @@ class MapleBot(Bot, ABC):
         self.game_map = game_map.replace("_", "").replace(" ", "")
         self.open_minimap_editor = open_minimap_editor
         self.kwargs = kwargs
+        self.kwargs.update(ign=ign)
 
     def child_init(
         self,

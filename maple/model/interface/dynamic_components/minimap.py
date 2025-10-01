@@ -32,7 +32,7 @@ class Minimap(InGameDynamicVisuals, ABC):
     )
     _self_color = [((136, 255, 255), (136, 255, 255))]
     _self_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-    _self_y_offset = 1
+    _self_y_offset = 2
 
     _stranger_color = [
         ((0, 0, 255), (0, 0, 255)),

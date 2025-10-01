@@ -114,7 +114,7 @@ class MovementHandler:
                         movements.append(_MovementComponent(MovementTypes.WALK_LEFT, 1))
                     case (0, -1, False, _) | (0, -1, True, False):
                         movements.append(_MovementComponent(MovementTypes.CLIMB_UP, 1))
-                    case (0, 1, False, _):
+                    case (0, 1, False, _) | (0, 1, True, False):
                         movements.append(
                             _MovementComponent(MovementTypes.CLIMB_DOWN, 1)
                         )
