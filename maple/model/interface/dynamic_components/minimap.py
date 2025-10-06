@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import os
-from functools import cached_property
+from functools import lru_cache
 from abc import ABC
 from paths import ROOT
 from botting.utilities import (
@@ -63,11 +63,11 @@ class Minimap(InGameDynamicVisuals, ABC):
     _minimap_area_top_offset_partial: int = 22
     _minimap_area_top_offset_full: int = 65
 
-    @cached_property
-    def _validation_title_img(self) -> np.ndarray:
+    @lru_cache
+    def _validation_title_img(self, map_name: str) -> np.ndarray:
         return cv2.imread(
             os.path.join(
-                ROOT, f"maple/assets/detection_images/{self.__class__.__name__}.png"
+                ROOT, f"maple/assets/detection_images/{map_name}Minimap.png"
             )
         )
 
@@ -76,9 +76,9 @@ class Minimap(InGameDynamicVisuals, ABC):
         img = take_screenshot(handle, region)
         return img
 
-    def validate_in_map(self, handle: int) -> bool:
+    def validate_in_map(self, handle: int, map_name: str) -> bool:
         return np.array_equal(
-            self.get_minimap_title_img(handle), self._validation_title_img
+            self.get_minimap_title_img(handle), self._validation_title_img(map_name)
         )
 
     @classmethod
