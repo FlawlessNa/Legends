@@ -20,7 +20,7 @@ class MapleSkill(Skill):
     icon_path: str = field(
         init=False,
         repr=False,
-        default=os.path.join(ROOT, f"royals/assets/detection_images"),
+        default=os.path.join(ROOT, f"maple/assets/detection_images"),
     )
     vertical_up_screen_range: int = field(default=None, repr=False)
     vertical_down_screen_range: int = field(default=None, repr=False)

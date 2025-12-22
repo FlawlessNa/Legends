@@ -26,6 +26,7 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
         super().__init__(metadata, data, pipe)
         if not self.data.has_minimap_attributes:
             self._create_minimap_attributes()
+        self.map_name = self.data.current_map.map_name
 
     async def _decide(self) -> None:
         still_in_map = self._perform_check()
@@ -57,7 +58,9 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
 
     def _perform_check(self) -> bool:
         try:
-            return self.data.current_minimap.validate_in_map(self.data.handle)
+            return self.data.current_minimap.validate_in_map(
+                self.data.handle, self.map_name
+            )
         except FileNotFoundError as e:
             raise e
         except BaseException as e:

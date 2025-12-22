@@ -197,7 +197,11 @@ class MinimapGrid(Grid):
         ng = super().calc_cost(node_a, node_b, False)
         if node_b in node_a.connections:
             connection_type = node_a.get_connection_type(node_b)
-            dist = math.dist((node_a.x, node_a.y), (node_b.x, node_b.y))
+            if connection_type in (ConnectionTypes.JUMP_RIGHT, ConnectionTypes.JUMP_LEFT):
+                # Horizontal jump, set vertical distance to 0
+                dist = abs(node_a.x - node_b.x)
+            else:
+                dist = math.dist((node_a.x, node_a.y), (node_b.x, node_b.y))
             reduce_by = self.cost_reduction.get(connection_type, 0)
             ng += dist * (1 - reduce_by)
 
