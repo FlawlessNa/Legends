@@ -13,6 +13,9 @@ from .minimap_edits_view import EditorView, FeatureSelectionFrame, PathfindingFr
 from ..movement_mechanics_v2 import MovementHandler
 from maple.model.characters.magicians import Magician
 
+MOVEMENT_DURATION_LIMIT = 1.0  # Seconds
+
+
 class MinimapEditor:
     """
     This class is used to load a raw minimap canvas from game files, along with any
@@ -43,8 +46,11 @@ class MinimapEditor:
             from maple import royals_ign_finder
             from botting.utilities import client_handler
             self.handle = client_handler.get_client_handle(self.ign, royals_ign_finder)
+            self.lock = asyncio.Lock()
+            self.q = asyncio.Queue()
         except ValueError:
             self.handle = 0
+            self.lock = self.q = None
 
         self.movement_handler = MovementHandler(
             self.handle,
@@ -249,4 +255,47 @@ class MinimapEditor:
             self.previous_path = path
 
     def run_latest_actions(self) -> None:
-        asyncio.run(self._latest_actions.send())
+
+        def _callback_wrapper(f):
+            def _wrapper(future):
+                return f()
+            return _wrapper
+
+        async def _execute_actions():
+            while True:
+                action = await self.q.get()
+                if action is None:
+                    break
+                task = asyncio.create_task(action.send())
+                task.add_done_callback(_callback_wrapper(self.lock.release))
+
+        async def _recompute_actions():
+            while True:
+                await self.lock.acquire()
+                pos = self.minimap.get_character_positions(
+                    self.handle, map_area_box=self._map_area_box
+                ).pop()
+                frame: PathfindingFrame = (
+                    self.view.controls_frame.mode_specific_subframe
+                )
+                assert isinstance(frame, PathfindingFrame)
+                kwargs = frame.get_grid_kwargs()
+                grid = self.minimap.generate_grid(**kwargs)
+                path = self.movement_handler.compute_path(pos, self.end_point, grid)
+                if len(path) <= 1:
+                    await self.q.put(None)
+                    break
+                movements = self.movement_handler.path_into_movements(path, grid)
+                actions = self.movement_handler.movements_into_action(
+                    movements, grid, MOVEMENT_DURATION_LIMIT
+                )
+                await self.q.put(actions)
+
+
+        async def _main_loop():
+            await asyncio.gather(
+                _execute_actions(),
+                _recompute_actions()
+            )
+
+        asyncio.run(_main_loop())
