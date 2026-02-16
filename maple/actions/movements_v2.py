@@ -173,7 +173,9 @@ def jump_on_rope(
     :return:
     """
     if structure is None:
-        structure = _create_initial_input(handle, direction, None)
+        structure = controller.KeyboardInputWrapper(
+            handle, [direction], ["keydown"], [next(controller.random_delay)]  # noqa
+        )
 
     for key in structure.keys_held:
         if key == direction:

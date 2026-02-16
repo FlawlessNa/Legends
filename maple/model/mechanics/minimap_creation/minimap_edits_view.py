@@ -532,7 +532,7 @@ class PathfindingFrame(_ModeDependentFrame):
         )
 
         self.send_actions_button = tk.Button(
-            self, text="Send Actions", command=self.on_send_actions
+            self, text="Get to target", command=self.on_send_actions
         )
         self._on_send_actions = on_send_actions
 

@@ -6,6 +6,7 @@ import numpy as np
 import tkinter as tk
 from dataclasses import asdict
 
+from botting import controller
 from botting.controller import KeyboardInputWrapper
 from maple.model.mechanics.maple_map import MapleMinimap
 from .minimap_edits_model import MinimapEditsManager, MinimapEdits
@@ -65,7 +66,7 @@ class MinimapEditor:
             self.register_feature,
             self.save_edits,
             self.movement_handler,
-            self.run_latest_actions,
+            self.get_to_target,
             scale
         )
         # Draw each pixel as a larger rectangle and bounding boxes on the existing edits
@@ -254,7 +255,7 @@ class MinimapEditor:
 
             self.previous_path = path
 
-    def run_latest_actions(self) -> None:
+    def get_to_target(self) -> None:
 
         def _callback_wrapper(f):
             def _wrapper(future):
@@ -268,10 +269,14 @@ class MinimapEditor:
                     break
                 task = asyncio.create_task(action.send())
                 task.add_done_callback(_callback_wrapper(self.lock.release))
+            print("Finished executing actions.")
+            controller.release_all(self.handle)
 
         async def _recompute_actions():
             while True:
+                print('Waiting on Lock')
                 await self.lock.acquire()
+                print('Lock Acquired - Recomputing')
                 pos = self.minimap.get_character_positions(
                     self.handle, map_area_box=self._map_area_box
                 ).pop()
@@ -282,7 +287,8 @@ class MinimapEditor:
                 kwargs = frame.get_grid_kwargs()
                 grid = self.minimap.generate_grid(**kwargs)
                 path = self.movement_handler.compute_path(pos, self.end_point, grid)
-                if len(path) <= 1:
+                if len(path) <= 3:
+                    print('Stopping Recompute - Reached Destination')
                     await self.q.put(None)
                     break
                 movements = self.movement_handler.path_into_movements(path, grid)
@@ -290,7 +296,7 @@ class MinimapEditor:
                     movements, grid, MOVEMENT_DURATION_LIMIT
                 )
                 await self.q.put(actions)
-
+            print("Finished re-computing actions.")
 
         async def _main_loop():
             await asyncio.gather(
@@ -298,4 +304,7 @@ class MinimapEditor:
                 _recompute_actions()
             )
 
+        self.lock = asyncio.Lock()
+        self.q = asyncio.Queue()
         asyncio.run(_main_loop())
+        print('Done!')

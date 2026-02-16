@@ -1,6 +1,6 @@
 from maple.model.mechanics import MapleMap
 
-MAP_NAME: str = 'MysteriousPath3'
+MAP_NAME: str = 'FreeMarket7'
 IGN: str = 'StarBase'
 
 if __name__ == '__main__':
