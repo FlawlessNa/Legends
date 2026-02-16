@@ -2,6 +2,7 @@
 Controller module for the game.
 Contains all high-level functions necessary for interacting with the game.
 """
+
 import asyncio
 import functools
 import logging
@@ -21,7 +22,7 @@ from .inputs import (
     message_constructor,
     DELAY,
     input_constructor,
-    # release_all,
+    release_all,
 )
 
 logger = logging.getLogger(__name__)

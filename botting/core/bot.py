@@ -4,6 +4,7 @@ import multiprocessing.managers
 from abc import ABC, abstractmethod
 from functools import cached_property
 
+from botting.controller import release_keys
 from botting.utilities import client_handler
 from .bot_data import BotData
 from .decision_maker import DecisionMaker
@@ -26,10 +27,7 @@ class Bot(ABC):
         return client_handler.get_client_handle(ign, cls.ign_finder)
 
     def __init__(
-        self,
-        ign: str,
-        metadata: multiprocessing.managers.DictProxy,
-        **kwargs
+        self, ign: str, metadata: multiprocessing.managers.DictProxy, **kwargs
     ) -> None:
         self.ign = ign
         self.data = None
@@ -38,10 +36,13 @@ class Bot(ABC):
         self.barrier = None
         self.kwargs = kwargs
 
+        self._bot: asyncio.Task | None = None
+        self._tg: asyncio.TaskGroup | None = None
+
     def child_init(
         self,
         pipe: multiprocessing.connection.Connection,
-        barrier: multiprocessing.managers.BarrierProxy
+        barrier: multiprocessing.managers.BarrierProxy,  # type: ignore
     ) -> None:
         """
         Called by the Engine to create Bot within Child process.
@@ -57,11 +58,39 @@ class Bot(ABC):
         Passes the TaskGroup to each DecisionMaker, such that they can define sub-tasks
         if required.
         """
+        self._bot = asyncio.current_task()
+
         async with asyncio.TaskGroup() as tg:
+            self._tg = tg
             decision_makers = self.decision_makers  # Instantiate DecisionMakers.
+
+            # Synchronizes the start of all bots at the same time.
             await asyncio.to_thread(self.barrier.wait)
+
             for dm in decision_makers:
                 tg.create_task(dm.start(tg), name=f"{dm}")
+
+    def pause(self) -> None:
+        """
+        Pauses all DecisionMakers tasks.
+        This can be overridden to provide custom behavior.
+        """
+        for dm_class in self._decision_makers():
+            for task in asyncio.all_tasks():
+                name = task.get_name()
+                if 'Enabler' in name or 'Disabler' in name:
+                    continue
+                elif name.startswith(dm_class.__name__):
+                    task.cancel()
+        release_keys(['left', 'up', 'down', 'right'], self.data.handle)
+
+    def resume(self) -> None:
+        """
+        Resumes the DecisionMakers tasks.
+        """
+        for dm in self.decision_makers:
+            task = self._tg.create_task(dm.task(), name=f"{dm}")
+            dm.decision_task = task
 
     @cached_property
     def decision_makers(self) -> list[DecisionMaker]:

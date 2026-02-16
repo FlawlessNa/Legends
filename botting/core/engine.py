@@ -22,7 +22,7 @@ class _ChildProcessEngine:
         pipe: multiprocessing.connection.Connection,
         metadata: multiprocessing.managers.DictProxy,
         bots: list[Bot],
-        barrier: multiprocessing.managers.BarrierProxy
+        barrier: multiprocessing.managers.BarrierProxy,
     ) -> None:
         assert multiprocessing.current_process().name != "MainProcess"
         self.pipe = pipe
@@ -57,7 +57,10 @@ class _ChildProcessEngine:
         setup_child_proc_logging(metadata["logging_queue"])
         engine = cls(pipe, metadata, bots, barrier)
         logger.info(f"{engine} Started.")
-        asyncio.run(engine._cycle_forever())
+        try:
+            asyncio.run(engine._cycle_forever())
+        except BaseException as e:
+            raise e
 
     async def _cycle_forever(self) -> None:
         """
@@ -98,8 +101,8 @@ class _ChildProcessEngine:
             pass
 
         except Exception as e:
-            logger.error(f"Exception occurred in {self}: {e}.")
-            self.pipe.send(e)
+            import traceback
+            logger.error("".join(traceback.format_exception(e)))
             raise e
 
         finally:
@@ -119,8 +122,12 @@ class _ChildProcessEngine:
                 if data is None:
                     logger.info(f"{self} received None from MainProcess. Exiting.")
                     break
-                else:
-                    breakpoint()  # TODO
+                elif isinstance(data, str):
+                    action = data.split()[0].lower()
+                    targets = data.split()[1:]
+                    for bot in self.bots:
+                        if bot.ign in targets or targets == ["All"]:
+                            getattr(bot, action)()
 
 
 class Engine(_ChildProcessEngine):

@@ -1,6 +1,7 @@
 """
 To be able to insert a hook, it looks like I would need to code the callback function in C++/C and then compile it into a DLL.
 """
+
 import ctypes
 from ctypes import wintypes
 import os

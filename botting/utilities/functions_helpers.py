@@ -18,6 +18,7 @@ def cooldown(seconds: float):
             return False
 
         return wrapper
+
     return decorator
 
 
@@ -80,19 +81,23 @@ def randomize_params(
 
             if abs_threshold:
                 randomized_params = {
-                    k: random.uniform(v - abs_threshold, v + abs_threshold)
-                    if isinstance(v, (int, float))
-                    else v
+                    k: (
+                        random.uniform(v - abs_threshold, v + abs_threshold)
+                        if isinstance(v, (int, float))
+                        else v
+                    )
                     for k, v in arguments_mapper.items()
                     if k in params_to_randomize
                 }
             else:
                 randomized_params = {
-                    k: random.uniform(
-                        v * (1 - perc_threshold), v * (1 + perc_threshold)
+                    k: (
+                        random.uniform(
+                            v * (1 - perc_threshold), v * (1 + perc_threshold)
+                        )
+                        if isinstance(v, (int, float))
+                        else v
                     )
-                    if isinstance(v, (int, float))
-                    else v
                     for k, v in arguments_mapper.items()
                     if k in params_to_randomize
                 }

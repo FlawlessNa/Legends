@@ -17,7 +17,10 @@ LOG_LEVEL = logging.WARNING
 
 class ThrottleMeta(ABCMeta):
     def __init__(cls, name, bases, dct):
-        if "_throttle" not in [key.lower() for key in dct] or dct.get("_throttle", dct["_THROTTLE"]) is None:
+        if (
+            "_throttle" not in [key.lower() for key in dct]
+            or dct.get("_throttle", dct["_THROTTLE"]) is None
+        ):
             raise TypeError(f"Class {name} must define a '_throttle' class variable.")
         super().__init__(name, bases, dct)
 
@@ -82,14 +85,21 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
 
 
 class PetFood(UseAndCheckConsumable):
-    _THROTTLE = 900
+    _THROTTLE = 720
 
     def __init__(self, metadata, data, pipe, num_pets: int = 1, **kwargs):
         super().__init__(metadata, data, pipe, "Pet Food", num_usage=num_pets)
 
 
 class MountFood(UseAndCheckConsumable):
-    _THROTTLE = 900
+    _THROTTLE = 720
 
     def __init__(self, metadata, data, pipe, **kwargs):
         super().__init__(metadata, data, pipe, "Mount Food", num_usage=1)
+
+
+class SpeedPill(UseAndCheckConsumable):
+    _THROTTLE = 600
+
+    def __init__(self, metadata, data, pipe, **kwargs):
+        super().__init__(metadata, data, pipe, "Speed Pill", num_usage=1)

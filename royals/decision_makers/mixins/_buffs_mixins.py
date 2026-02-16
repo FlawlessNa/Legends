@@ -120,7 +120,7 @@ class RebuffMixin:
             priority=priorities.BUFFS,
             block_lower_priority=True,
             args=(self.data.handle, self.data.ign, buffs),
-            log=True
+            log=True,
         )
         validator = ActionWithValidation(
             self.pipe,

@@ -20,9 +20,7 @@ class FolderManager:
         """
         :return: The total size of the directory, in GB.
         """
-        return sum([os.path.getsize(file) for file in self.get_all_files()]) / (
-            1024**3
-        )
+        return sum([os.path.getsize(file) for file in self.get_all_files()]) / (1024**3)
 
     def get_sorted_files_by_creation_time(self) -> list[os.DirEntry]:
         """

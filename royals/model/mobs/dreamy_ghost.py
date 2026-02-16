@@ -12,9 +12,6 @@ class DreamyGhost(BaseMob):
     _minimal_rect_height = 10
     _multiplier = 3
 
-    def __init__(self, detection_box: Box):
-        super().__init__(detection_box)
-
     @classmethod
     def _preprocess_img(cls, image: np.ndarray) -> np.ndarray:
         binary = cv2.inRange(image, cls._color_lower, cls._color_upper)

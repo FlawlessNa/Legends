@@ -74,7 +74,7 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
             args=(self.data.handle, target.center),
             block_lower_priority=True,
             kwargs={"nbr_times": num_points, "delay": 0.15},
-            log=True
+            log=True,
         )
         validated_action = ActionWithValidation(
             self.pipe,

@@ -7,12 +7,12 @@ from royals.model.mechanics import (
 class LudibriumMinimap(MinimapPathingMechanics):
     map_area_width = 210
     map_area_height = 101
-    minimap_speed: float = 8.5  # TODO
-    jump_height: int = 5  # TODO
-    jump_distance: int = 7  # TODO
-    teleport_h_dist = 10
-    teleport_v_up_dist = 8
-    teleport_v_down_dist = 15
+    # minimap_speed: float = 8.5  # TODO
+    # jump_height: int = 5  # TODO
+    # jump_distance: int = 7  # TODO
+    # teleport_h_dist = 10
+    # teleport_v_up_dist = 8
+    # teleport_v_down_dist = 15
     npc_shop = (76, 74)
 
     @property

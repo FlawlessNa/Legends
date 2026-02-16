@@ -82,7 +82,7 @@ class BotData:
                 (
                     value
                     for value in reversed(self._metadata[name].prev_values)
-                    if value not in [None, "", [], {}]
+                    if value not in [None, "", [], {}, ()]
                 ),
                 None,
             )
@@ -114,6 +114,17 @@ class BotData:
                 datetime.now() - self._metadata[name].last_value_change_time
             ).total_seconds()
         raise AttributeError(f"{name} not found in {self}")
+
+    def check_if_values_have_changed(self, name: str) -> bool:
+        """
+        Checks in the last known value to see if there was any change.
+        """
+        if name in self._metadata:
+            prev_values = self._metadata[name].prev_values
+            if all(val == prev_values[-1] or val is None for val in prev_values):
+                return False
+            else:
+                return True
 
     def __getattr__(self, name: str) -> Any:
         """
@@ -179,7 +190,9 @@ class BotData:
         except Exception as e:
             if name in self._error_handlers:
                 self._error_handlers[name]()
-                self._update_value(name)
+                logger.info(f"Finished error handling for {name}.")
+                self.update_attribute(name)
+                logger.info(f"Successfully updated {name} after error handling.")
             else:
                 raise e
 

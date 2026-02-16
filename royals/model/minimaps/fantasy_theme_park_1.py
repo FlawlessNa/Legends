@@ -9,14 +9,14 @@ from royals.model.mechanics import (
 class FantasyThemePark1Minimap(MinimapPathingMechanics):
     map_area_width = 145
     map_area_height = 111
-    minimap_speed = 10
+    # minimap_speed = 10
 
-    jump_height: int = 5
-    jump_distance: int = 6
+    # jump_height: int = 5
+    # jump_distance: int = 6
     jump_down_limit = 35
-    teleport_h_dist = 9
-    teleport_v_up_dist = 7
-    teleport_v_down_dist = 15
+    # teleport_h_dist = 9
+    # teleport_v_up_dist = 7
+    # teleport_v_down_dist = 15
 
     @property
     def central_node(self) -> tuple[int, int]:

@@ -6,14 +6,21 @@ import royals.parsers
 
 training_configs = {
     "num_pets": 1,
-    "game_map": maps.PathOfTime1,
+    "game_map": maps.MysteriousPath3,
     "mob_count_threshold": 1,
-    "detection_configs": "Elephant Cape",
-    "client_size": "large",
-    "anti_detection_mob_threshold": 4,
-    "anti_detection_time_threshold": 10,
-    "included_buffs": [],
-    "training_skill": "Heal"
+    "included_buffs": ["Invincible", "Holy Symbol"],
+    "training_skill": "Heal",
+    "models_path": {
+        "All": "data/model_runs/detection/Full Model up to GS2 - Nano"
+    },
+    "smart_rotation_enabled": True,
+    # "disable_teleport": True,
+    "mob_spawn_alert_timer": 15,
+    "mob_spawn_alert_threshold": 4,
+    # 'speed_multiplier': 1.4,
+    # 'jump_multiplier': 1.23,
+    # "detection_configs": "Elephant Cape"
+
 }
 
 

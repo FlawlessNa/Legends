@@ -13,9 +13,6 @@ class Slimy(BaseMob):
     _maximal_rect_width = 15
     _multiplier = 4
 
-    def __init__(self, detection_box: Box):
-        super().__init__(detection_box)
-
     @classmethod
     def _preprocess_img(cls, image: np.ndarray) -> np.ndarray:
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)

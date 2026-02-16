@@ -48,5 +48,5 @@ if __name__ == "__main__":
         cv2.imshow("Client", client_img)
         cv2.waitKey(1)
         freshness = (target == processed_icon).sum() / target.size
-        print(SKILL_NAME, 'Template Match:', max_val, 'Freshness Score:', freshness)
+        print(SKILL_NAME, "Template Match:", max_val, "Freshness Score:", freshness)
         time.sleep(1)

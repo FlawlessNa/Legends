@@ -36,7 +36,11 @@ class DecisionMaker(ABC):
         self._disabler = self.request_proxy(
             self.metadata, f"{self.__class__.__name__} - Disabler", "Condition", True
         )
-        self._decision_task = None
+        self._enabler = self.request_proxy(
+            self.metadata, f"{self.__class__.__name__} - Enabler", "Condition", True
+        )
+        self.decision_task = None
+        self._enabled = True
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.data.ign})"
@@ -106,11 +110,11 @@ class DecisionMaker(ABC):
         :return:
         """
         for class_name in args:
-            condition_proxy = self.metadata.get(f"{class_name} - Disabler", None)
+            condition_proxy = self.metadata.get(f"{class_name} - Enabler", None)
             if condition_proxy is not None:
                 logger.log(LOG_LEVEL, f"{self} is re-enabling {class_name}.")
                 with condition_proxy:
-                    condition_proxy.notify_all()  # noqa1
+                    condition_proxy.notify_all()  # noqa
 
     async def _validate_request_async(
         self,
@@ -134,11 +138,15 @@ class DecisionMaker(ABC):
             asyncio.to_thread(self._disabler_task, tg, *args, **kwargs),
             name=f"{self} - Disabler",
         )
-        self._decision_task = tg.create_task(
-            self._task(*args, **kwargs), name=f"{self}"
+        tg.create_task(
+            asyncio.to_thread(self._enabler_task, tg, *args, **kwargs),
+            name=f"{self} - Enabler",
+        )
+        self.decision_task = tg.create_task(
+            self.task(*args, **kwargs), name=f"{self}"
         )
 
-    async def _task(self, *args, **kwargs) -> None:
+    async def task(self, *args, **kwargs) -> None:
         """
         The main task of the DecisionMaker.
         :return:
@@ -158,20 +166,25 @@ class DecisionMaker(ABC):
             # breakpoint()
             raise e
 
+    def _enabler_task(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
+        while True:
+            with self._enabler:
+                self._enabler.wait()
+                if not self._enabled:
+                    self.decision_task = tg.create_task(
+                        self.task(*args, **kwargs), name=f"{self}"
+                    )
+                    self._enabled = True
+
     def _disabler_task(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
         """
         Listens for a disable request.
-        TODO - Add failsafe to only add back into tg if not already in there?
         :return:
         """
         while True:
             with self._disabler:
                 # When notified, cancel the task
                 self._disabler.wait()
-                self._decision_task.cancel()
-
-                # Upon next notification, re-enable the task
-                self._disabler.wait()
-                self._decision_task = tg.create_task(
-                    self._task(*args, **kwargs), name=f"{self}"
-                )
+                if self._enabled:
+                    self.decision_task.cancel()
+                    self._enabled = False

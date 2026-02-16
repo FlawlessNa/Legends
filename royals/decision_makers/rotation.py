@@ -12,7 +12,7 @@ from .mixins import (
     MinimapAttributesMixin,
     MovementsMixin,
     NextTargetMixin,
-    TimeBasedFailsafeMixin,
+    FailsafeMixin, MobsHittingMixin,
 )
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -20,10 +20,11 @@ LOG_LEVEL = logging.NOTSET
 
 
 class Rotation(
-    NextTargetMixin,
+    FailsafeMixin,
     MinimapAttributesMixin,
     MovementsMixin,
-    TimeBasedFailsafeMixin,
+    NextTargetMixin,
+    MobsHittingMixin,
     DecisionMaker,
 ):
     # TODO - Implement logic to continuously check if character strayed too far from
@@ -41,21 +42,31 @@ class Rotation(
         movements_duration: float = 1.0,
         static_position_threshold: float = 10.0,
         no_path_threshold: float = 10.0,
+        disable_teleport: bool = False,
+        smart_rotation_enabled: bool = False,
+        mob_count_threshold: int = None,
         **kwargs,
     ) -> None:
         super().__init__(metadata, data, pipe)
         self._teleport_skill = self.data.character.skills.get("Teleport")
         self.lock = self.request_proxy(self.metadata, f"{self}", "Lock")
 
+        if disable_teleport:
+            self.data.character.skills.pop('Teleport', None)
+
         # Minimap attributes
         self._create_minimap_attributes()
 
         # Rotation attributes
-        self._create_rotation_attributes()
+        self._create_rotation_attributes(
+            smart_rotation=smart_rotation_enabled,
+            mob_count_threshold=mob_count_threshold
+        )
         self._create_pathing_attributes(movements_duration)
 
         # Fail safes
-        self._sentinels = []
+        self._tb_sentinels = []
+        self._bool_sentinels = []
         self._create_time_based_sentinel(
             attribute="current_minimap_position",
             method=self.data.get_time_since_last_value_change,
@@ -92,18 +103,23 @@ class Rotation(
             threshold=self.NO_PATH_KILL_SWITCH,
             response=...,  # TODO - Trigger Pause mechanism until resumed by user
         )
+        # self._create_bool_sentinel(
+        #     attribute="movements",
+        #     method=self.data.check_if_values_have_changed,
+        #     trigger_when_true=False,
+        #     response=self._failsafe_request(),
+        # )
         self._sentinel_starts_at = time.perf_counter() + 60.0
 
-    async def _task(self, *args, **kwargs) -> None:
+    async def task(self, *args, **kwargs) -> None:
         self._sentinel_starts_at = time.perf_counter() + 10.0
-        await super()._task(*args, **kwargs)
+        await super().task(*args, **kwargs)
 
     async def _decide(self) -> None:
         self._failsafe_checks()  # Check each time, no need to wait for lock
 
         # Only send standard request when lock is acquired, otherwise wait for lock
-        acquired = self.lock.acquire(blocking=False)
-        if acquired:
+        if self.lock.acquire(blocking=False):
             logger.log(LOG_LEVEL, f"{self} is deciding.")
             self.data.update_attribute("next_target")
             self.data.update_attribute("action")
@@ -120,7 +136,7 @@ class Rotation(
             f"{self}",
             inputs.send,
             ign=self.data.ign,
-            requeue_if_not_scheduled=True,
+            requeue_if_not_scheduled=False,
             callbacks=[self.lock.release],
             cancel_callback=partial(self._release_left_right, self.data.handle),
         )
@@ -158,5 +174,7 @@ class Rotation(
 
     @staticmethod
     async def _wait_and_random_jump(handle: int, jump_key: str) -> None:
+        for key in ['left', 'right']:
+            await controller.press(handle, key, down_or_up='keyup')
         await asyncio.sleep(3.0)
         await random_jump(handle, jump_key).send()

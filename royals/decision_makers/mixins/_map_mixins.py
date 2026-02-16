@@ -1,12 +1,13 @@
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
+import time
 import win32gui
 
 from royals.actions import ensure_minimap_displayed
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
-from botting.utilities import Box, take_screenshot
+from botting.utilities import Box
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.WARNING
@@ -17,7 +18,7 @@ class MinimapAttributesMixin:
     metadata: multiprocessing.managers.DictProxy
     pipe: multiprocessing.connection.Connection
     MINIMAP_POS_REFRESH_RATE = 0.1
-    ERROR_HANDLING_TIME_LIMIT = 5.0
+    ERROR_HANDLING_TIME_LIMIT = 7.5
 
     def _get_minimap_pos(self) -> tuple[int, int]:
         return self.data.current_minimap.get_character_positions(
@@ -39,18 +40,31 @@ class MinimapAttributesMixin:
             identifier,
             "Condition",
         )
+        attempt = 0
+        while True:
+            time.sleep(1.5)
+            ensure_minimap_displayed(
+                identifier,
+                self.data.handle,
+                self.data.ign,
+                self.pipe,
+                self.data.current_minimap,
+                condition,
+                self.ERROR_HANDLING_TIME_LIMIT,
+            )
+            logger.info("Minimap fully displayed confirmed")
 
-        ensure_minimap_displayed(
-            identifier,
-            self.data.handle,
-            self.data.ign,
-            self.pipe,
-            self.data.current_minimap,
-            condition,
-            self.ERROR_HANDLING_TIME_LIMIT,
-        )
+            self._ensure_mouse_not_on_minimap(identifier)
+            logger.info("Mouse not on minimap confirmed")
+            try:
+                self._get_minimap_pos()
+                break
+            except Exception as e:
+                attempt += 1
+                logger.error(f"{identifier} Attempt {attempt} failed")
+                if attempt >= 5:
+                    raise e
 
-        self._ensure_mouse_not_on_minimap(identifier)
         self.data.update_attributes(
             "current_client_img",
             "minimap_currently_displayed",
@@ -58,7 +72,6 @@ class MinimapAttributesMixin:
             "current_minimap_area_box",
             "current_entire_minimap_box",
             "current_minimap_title_box",
-            "current_minimap_position",
         )
 
     def _ensure_mouse_not_on_minimap(self, identifier: str) -> None:
@@ -91,6 +104,7 @@ class MinimapAttributesMixin:
             controller.mouse_move,
             self.data.ign,
             args=(self.data.handle, (x, y)),
+            cancels_itself=True
         )
         self.pipe.send(request)
 
@@ -103,15 +117,15 @@ class MinimapAttributesMixin:
             self.data.current_minimap,
             getattr(
                 self,
-                '_condition',
+                "_condition",
                 DecisionMaker.request_proxy(
                     self.metadata,
                     f"{self} Initial Setup",
                     "Condition",
-                )
+                ),
             ),
             self.ERROR_HANDLING_TIME_LIMIT,
-            )
+        )
         self.data.create_attribute(
             "minimap_currently_displayed",
             lambda: self.data.current_minimap.is_displayed(
@@ -145,9 +159,7 @@ class MinimapAttributesMixin:
         ),
         self.data.create_attribute(
             "current_minimap_title_img",
-            lambda: self.data.current_minimap.get_minimap_title_img(
-                self.data.handle
-            ),
+            lambda: self.data.current_minimap.get_minimap_title_img(self.data.handle),
         )
         self.data.create_attribute(
             "current_minimap_position",
@@ -157,7 +169,9 @@ class MinimapAttributesMixin:
         )
         self.data.current_minimap.generate_grid_template(
             self.data.character.skills.get("Teleport") is not None,
-            self.data.speed_multiplier if self.data.has_ap_menu_attributes else 1.00,
-            self.data.jump_multiplier if self.data.has_ap_menu_attributes else 1.00,
+            # self.data.speed_multiplier if self.data.has_ap_menu_attributes else 1.00,
+            # self.data.jump_multiplier if self.data.has_ap_menu_attributes else 1.00,
+            getattr(self.data, "speed_multiplier", 1.00),
+            getattr(self.data, "jump_multiplier", 1.00),
         )
         self.data.create_attribute("has_minimap_attributes", lambda: True)

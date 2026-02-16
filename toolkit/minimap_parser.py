@@ -1,6 +1,7 @@
 """
 Helper script to continuously record minimap positioning and record platform endpoints, portals, ladders, etc. based on key presses.
 """
+
 import keyboard
 import math
 import os
@@ -32,7 +33,7 @@ VRRight = 1080
 VRWidth = VRRight - VRLeft
 VRHeight = VRBottom - VRTop
 
-VRJumpHeight = PHYSICS_JUMP_SPEED ** 2 / (2 * PHYSICS_GRAVITY)
+VRJumpHeight = PHYSICS_JUMP_SPEED**2 / (2 * PHYSICS_GRAVITY)
 VRJumpDuration = 2 * PHYSICS_JUMP_SPEED / PHYSICS_GRAVITY
 VRJumpWidth = VRJumpDuration * PHYSICS_SPEED
 
@@ -42,6 +43,7 @@ container = []
 class FakeMinimap(Minimap):
     map_area_width = MINIMAP_CANVAS_WIDTH
     map_area_height = MINIMAP_CANVAS_HEIGHT
+
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         pass
 
@@ -65,7 +67,7 @@ def write_feature(cont: list) -> None:
             top=math.floor(min(pt1[1], pt2[1])),
             bottom=math.ceil(max(pt1[1], pt2[1])),
             name=feature_name,
-            offset=True,
+            relative=True,
         )
         with open(os.path.join(OUTPUT_LOCATION, OUTPUT_NAME), "a") as f:
             f.write(f"\t{feature_name}: MinimapFeature = MinimapFeature(")
@@ -105,7 +107,9 @@ if __name__ == "__main__":
         f.write(f"\tminimap_speed = {PHYSICS_SPEED / VRWidth * MINIMAP_CANVAS_WIDTH}\n")
         f.write(f"\tjump_height = {VRJumpHeight / VRHeight * MINIMAP_CANVAS_HEIGHT}\n")
         f.write(f"\tjump_distance = {VRJumpWidth / VRWidth * MINIMAP_CANVAS_WIDTH}\n")
-        f.write(f"\tteleport_h_dist = {TELEPORT_DISTANCE / VRWidth * MINIMAP_CANVAS_WIDTH}\n")
+        f.write(
+            f"\tteleport_h_dist = {TELEPORT_DISTANCE / VRWidth * MINIMAP_CANVAS_WIDTH}\n"
+        )
 
     keyboard.on_press_key("z", lambda _: take_position(minimap))
     keyboard.on_press_key("z", lambda _: write_feature(container))

@@ -1,10 +1,13 @@
 import asyncio
+import logging
 import time
 import multiprocessing.connection
 import multiprocessing.managers
 import numpy as np
 from dataclasses import field, dataclass
 from functools import partial
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -122,9 +125,17 @@ class ActionWithValidation:
     def _send_and_wait(self, action: ActionRequest, started_at: float) -> None:
         with self.condition:
             self.pipe.send(action)
+            logger.info(
+                f"Sent {action.identifier} to Main Process with the condition "
+                f"ID: {id(self.condition)}"
+            )
             if time.perf_counter() - started_at > self.timeout:
                 raise TimeoutError(f"{action.identifier} failed validation")
             elif not self.condition.wait(timeout=self.timeout):
+                logger.info(
+                    f"Attempted to wait for condition ID {id(self.condition)} but"
+                    f" timed out after {self.timeout} seconds."
+                )
                 raise TimeoutError(f"{action.identifier} failed validation")
 
     def _check_for_trials(self, action: ActionRequest) -> None:
@@ -161,13 +172,16 @@ class ActionWithValidation:
     @staticmethod
     async def _conditional_procedure(procedure: callable, condition, *args, **kwargs):
         while True:
+            logger.info(f"Attempting to acquire condition ID {id(condition)}")
             if not condition.acquire(timeout=0.1):
                 await asyncio.sleep(0.1)
             else:
+                logger.info(f"Acquired condition ID {id(condition)}")
                 try:
                     res = await procedure(*args, **kwargs)
-                    condition.notify()
+                    condition.notify_all()
                     break
                 finally:
                     condition.release()
+                    logger.info(f"Released condition ID {id(condition)}")
         return res

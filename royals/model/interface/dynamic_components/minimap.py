@@ -32,6 +32,7 @@ class Minimap(InGameDynamicVisuals, ABC):
     )
     _self_color = [((136, 255, 255), (136, 255, 255))]
     _self_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    _self_y_offset = 1
 
     _stranger_color = [
         ((0, 0, 255), (0, 0, 255)),
@@ -39,14 +40,19 @@ class Minimap(InGameDynamicVisuals, ABC):
         ((0, 0, 221), (0, 0, 221)),
     ]
     _stranger_kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (5, 5))
+    _stranger_y_offset = 0
     _party_color = [((0, 119, 255), (0, 153, 255))]  # TODO
     _party_kernel = None  # TODO
+    _party_y_offset = 0
     _buddy_color = [((1, 1, 1), (0, 0, 0))]  # TODO
     _buddy_kernel = None  # TODO
+    _buddy_y_offset = 0
     _guildie_color = [((1, 1, 1), (0, 0, 0))]  # TODO
     _guildie_kernel = None  # TODO
+    _guildie_y_offset = 0
     _npc_color = [((0, 221, 0), (0, 221, 0))]
     _npc_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 3))
+    _npc_y_offset = 0
 
     _menu_icon_left_offset: int = -27
     _menu_icon_right_offset: int = -38
@@ -71,7 +77,10 @@ class Minimap(InGameDynamicVisuals, ABC):
         return img
 
     def validate_in_map(self, handle: int) -> bool:
-        return np.array_equal(self.get_minimap_title_img(handle), self._validation_title_img)
+        # Check that at least 99.9% equal
+        diff = self.get_minimap_title_img(handle) - self._validation_title_img
+        similarity = np.count_nonzero(diff) / (self._validation_title_img.size // 3)
+        return similarity < 0.001
 
     @classmethod
     def is_displayed(
@@ -110,7 +119,7 @@ class Minimap(InGameDynamicVisuals, ABC):
             world_icon_box = cls._menu_icon_position(handle, client_img)
         if world_icon_box:
             detection_box = world_icon_box + Box(
-                offset=True,
+                relative=True,
                 left=cls._menu_icon_left_offset,
                 right=cls._menu_icon_right_offset,
                 top=0,
@@ -173,6 +182,14 @@ class Minimap(InGameDynamicVisuals, ABC):
                 "Guildie": self._guildie_kernel,
                 "Npc": self._npc_kernel,
             }[character_type.capitalize()]
+            y_offset = {
+                "Self": self._self_y_offset,
+                "Stranger": self._stranger_y_offset,
+                "Party": self._party_y_offset,
+                "Buddy": self._buddy_y_offset,
+                "Guildie": self._guildie_y_offset,
+                "Npc": self._npc_y_offset,
+            }[character_type.capitalize()]
 
             # Loop over each color and detect it. Combine the results before eroding.
             mask = np.zeros_like(map_area_img[:, :, 0])
@@ -182,7 +199,8 @@ class Minimap(InGameDynamicVisuals, ABC):
 
             eroded_detection = cv2.erode(mask, kernel)
             y_x_list = list(zip(*np.where(eroded_detection == 255)))
-            return [(x, y) for y, x in y_x_list]
+            # return [(x, y) for y, x in y_x_list]
+            return [(x, y+y_offset) for y, x in y_x_list]
 
     def get_map_area_box(
         self,
@@ -241,8 +259,11 @@ class Minimap(InGameDynamicVisuals, ABC):
                         left_offset = extra_width // 2
                         right_offset = -left_offset
                     else:
-                        left_offset = self.full_map_area_left_offset
-                        right_offset = -self.full_map_area_right_offset
+                        if self.full_map_area_left_offset is NotImplemented:
+                            left_offset = right_offset = 0
+                        else:
+                            left_offset = self.full_map_area_left_offset
+                            right_offset = -self.full_map_area_right_offset
             else:
                 top_offset = self._minimap_area_top_offset_partial
                 left_offset = 0

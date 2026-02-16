@@ -2,6 +2,7 @@ import asyncio
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
+import numpy as np
 from functools import cached_property
 
 from botting import PARENT_LOG, controller
@@ -14,13 +15,17 @@ from botting.utilities import (
 from royals.actions.skills_related_v2 import cast_skill
 from royals.model.interface import LargeClientChatFeed
 from royals.model.mechanics import RoyalsSkill
-from .mixins import MobsHittingMixin, MinimapAttributesMixin
+from .mixins import MobsHittingMixin, MinimapAttributesMixin, NextTargetMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.INFO
 
 
-class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
+class MobsHitting(
+    MobsHittingMixin, MinimapAttributesMixin, NextTargetMixin, DecisionMaker
+):
+    ON_SCREEN_THRESHOLD = 0.65
+
     def __init__(
         self,
         metadata: multiprocessing.managers.DictProxy,
@@ -38,9 +43,15 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
         self.data.create_attribute(
             "current_on_screen_position",
             self._get_on_screen_pos,
-            threshold=1.0,
-            error_handler=...,  # TODO - Implement error handler
+            threshold=0.25,
+            # error_handler=...,  # TODO - Implement error handler
         )
+
+    async def task(self, *args, **kwargs) -> None:
+        # Ensures the lock is actually released before task is started, no matter what.
+        self.lock.acquire(blocking=False)
+        self.lock.release()
+        await super().task(*args, **kwargs)
 
     def _hit_mobs(self, direction: str | None) -> ActionRequest:
         """
@@ -57,14 +68,14 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
             cancel_tasks=[f"Rotation({self.data.ign})"],
             block_lower_priority=True,
             callbacks=[self.lock.release],
-            cancels_itself=True,
+            # cancels_itself=True,
             log=True,
-            args=(inputs, )
+            args=(inputs,),
         )
 
     @staticmethod
     async def _cap_duration(  # TODO - If this works, cleanup.
-        inputs: controller.KeyboardInputWrapper
+        inputs: controller.KeyboardInputWrapper,
     ) -> None:
         """
         Function to use to update the current on screen position of the character.
@@ -82,7 +93,7 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
 
     @cached_property
     def _hide_minimap_box(self) -> Box:
-        minimap_box = self.data.current_minimap_area_box
+        minimap_box = self.data.current_entire_minimap_box
         return Box(
             max(
                 0,
@@ -98,7 +109,36 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
 
     @cached_property
     def _hide_tv_smega_box(self) -> Box:
-        return Box(left=700, right=1024, top=0, bottom=300)
+        return Box(left=800, right=1024, top=0, bottom=200)
+
+    def _mask_for_skill_range(self, pos: tuple[int, int, int, int]) -> np.ndarray:
+        horizontal = self.training_skill.horizontal_screen_range
+        vertical_up = (
+            self.training_skill.vertical_up_screen_range
+            or self.training_skill.vertical_screen_range
+        )
+        vertical_down = (
+            self.training_skill.vertical_down_screen_range
+            or self.training_skill.vertical_screen_range
+        )
+        # TODO -> Detection model returns x1, y1, x2, y2, while detection configs returns x, y, w, h this needs to be corrected
+        x1, y1, x2, y2 = pos
+        # x1, y1, w, h = pos
+        # x2 = x1 + w
+        # y2 = y1 + h
+        region = Box(
+            # TODO - finetune the region better? (Right now it uses smallest region)
+            left=x1 - horizontal // 2,
+            right=x2 + horizontal // 2,
+            top=y2 - vertical_up // 2,
+            bottom=min(
+                y2 + vertical_down // 2,
+                LargeClientChatFeed._chat_typing_area.top,  # noqa
+            ),
+        )
+        mask = np.zeros(self.data.current_client_img.shape, np.uint8)
+        mask[region.top:region.bottom, region.left:region.right] = 255
+        return mask
 
     def _get_on_screen_pos(self) -> tuple[int, int]:
         """
@@ -111,7 +151,17 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
             [
                 self._hide_minimap_box,
                 self._hide_tv_smega_box,
-            ],  # TODO - Add Chat Box as well into hiding
+            ],  # TODO - Add Chat Box  + fixed UI as well into hiding
+            acceptance_threshold=self.ON_SCREEN_THRESHOLD,
+        )
+
+    def _currently_on_ladder(self) -> bool:
+        return getattr(
+            self.data.current_minimap.get_feature_containing(
+                self.data.current_minimap_position
+            ),
+            'is_ladder',
+            False
         )
 
     async def _decide(self) -> None:
@@ -123,38 +173,25 @@ class MobsHitting(MobsHittingMixin, MinimapAttributesMixin, DecisionMaker):
         :return:
         """
         await asyncio.to_thread(self.lock.acquire)
+        if self._currently_on_ladder():
+            await asyncio.to_thread(self.lock.release)
+            return
 
         on_screen_pos = self.data.get_last_known_value("current_on_screen_position")
         closest_mob_direction = None
 
         if on_screen_pos:
-            x, y = on_screen_pos
-            if (
-                self.training_skill.horizontal_screen_range
-                and self.training_skill.vertical_screen_range
-            ):
-                region = Box(
-                    left=x - self.training_skill.horizontal_screen_range,
-                    right=x + self.training_skill.horizontal_screen_range,
-                    top=y - self.training_skill.vertical_screen_range,
-                    bottom=min(
-                        y + self.training_skill.vertical_screen_range,
-                        LargeClientChatFeed._chat_typing_area.top,  # noqa
-                    ),
-                )
-                x, y = region.width / 2, region.height / 2
-            else:
-                region = self.data.current_map.detection_box
-            cropped_img = region.extract_client_img(self.data.current_client_img)
+            mask = self._mask_for_skill_range(on_screen_pos)
             mobs = self.data.current_mobs
-            nbr_mobs = 0
-            for mob in mobs:
-                nbr_mobs += mob.get_mob_count(cropped_img)
+            nbr_mobs = self.mob_count_in_img(
+                self.data.current_client_img, mobs, mask=mask
+            )
 
             if nbr_mobs >= self.mob_threshold:
                 if self.training_skill.unidirectional:
+                    breakpoint()  # TODO
                     mobs_locations = self.get_mobs_positions_in_img(
-                        cropped_img, self.data.current_mobs
+                        self.data.current_client_img, self.data.current_mobs, mask=mask
                     )
                     closest_mob_direction = self.get_closest_mob_direction(
                         (x, y), mobs_locations

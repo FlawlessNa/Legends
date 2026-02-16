@@ -109,6 +109,13 @@ class Movements:
                 and (current_feature.is_ladder or next_feature.is_ladder)
             ):
                 movements.append("up")
+            elif (
+                current_feature.is_platform
+                and next_feature.is_platform
+                and dx == 0
+                and dy == 1
+            ):
+                continue
 
             # Otherwise, Nodes are connected. Need to determine connection type.
             elif next_node in current_node.connections:
@@ -190,6 +197,7 @@ class Movements:
         speed_multiplier: float = 1.0,
     ) -> controller.KeyboardInputWrapper:
         """
+        # TODO - When refactoring this (and for each transition movement pairs), try using structural pattern matching
         Translates a series of movements into a series of inputs and delays.
         :param movements: series of
             ("movement to do", "number of nodes/times to go through")
@@ -220,7 +228,7 @@ class Movements:
                     # Check if last movement, meaning target is on the same platform.
                     # If not, add extra nodes to make sure character goes beyond ladder.
                     if not move == movements[-1]:
-                        duration += 3 / speed
+                        duration += 5 / speed
                 elif direction in ["left", "right"]:
                     # Check if next movement is a simple "up" or "down". If so, add it
                     # as secondary direction, but only if close enough to the ladder.
@@ -260,6 +268,14 @@ class Movements:
                 if move[1] > 1:
                     breakpoint()
                     raise NotImplementedError("Not supposed to reach this point.")
+                # Attempting to force all key releases when jump on rope is part of structure
+                if structure is not None:
+                    for key in structure.keys_held:
+                        structure.append(
+                            key,
+                            "keyup",
+                            next(controller.random_delay)
+                        )
                 structure = movements_v2.jump_on_rope(
                     self.handle,
                     direction,  # noqa
@@ -316,6 +332,15 @@ class Movements:
                 breakpoint()
                 raise NotImplementedError("Not supposed to reach this point.")
 
+            if idx == len(movements) - 1:
+                # If we get all the way to the last movement within the path, then
+                # We release directional keys but not enforced.
+                to_release = list(structure.keys_held)
+                structure.append(
+                    to_release,
+                    ['keyup'] * len(to_release),  # noqa
+                    next(controller.random_delay)
+                )
             if (
                 total_duration is not None
                 and structure is not None

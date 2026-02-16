@@ -28,7 +28,7 @@ mule_configs = {
     "game_map": GAME_MAP,
     "client_size": CLIENT_SIZE,
     "detection_configs": DETECTION_CONFIG_SECTION,
-    "skills_to_reset": ["Haste", "Meso Up"]
+    "skills_to_reset": ["Haste", "Meso Up"],
 }
 
 

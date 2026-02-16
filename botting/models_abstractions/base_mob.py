@@ -1,17 +1,14 @@
 import cv2
-import math
 import numpy as np
 
 from abc import ABC, abstractmethod
 from typing import Sequence
+from botting.visuals import InGameDetectionVisuals
 
-from botting.utilities import Box
-from botting.visuals import InGameBaseVisuals
-
-DEBUG = False
+DEBUG = True
 
 
-class BaseMob(InGameBaseVisuals, ABC):
+class BaseMob(InGameDetectionVisuals, ABC):
     """
     Base class for all in-game Mobs.
     Defines contour detection method used for on-screen mob detection.
@@ -30,10 +27,9 @@ class BaseMob(InGameBaseVisuals, ABC):
     _minimal_rect_area: int = NotImplemented
     _maximal_rect_area: int = NotImplemented
 
-    _multiplier: int = NotImplemented  # Used to count mobs on screen, since some mobs are counted as multiple contours.
-
-    def __init__(self, detection_box: Box):
-        self.detection_box = detection_box
+    _multiplier: int = (
+        NotImplemented  # Used to count mobs on screen, since some mobs are counted as multiple contours.
+    )
 
     @classmethod
     @abstractmethod
@@ -44,29 +40,44 @@ class BaseMob(InGameBaseVisuals, ABC):
         pass
 
     def get_onscreen_mobs(
-        self, image: np.ndarray, debug: bool = True
-    ) -> list[Sequence[int]]:
+        self,
+        image: np.ndarray,
+        handle: int,  # must be provided if detection model is used
+        threshold: float = None,
+        mask: np.ndarray = None,
+        debug: bool = True
+    ) -> tuple[Sequence[int], ...]:
         """
         Returns a list of tuples of the coordinates for each mob found on-screen.
+        If a detection model exists for the current mob, it is used by default.
         :return: Coordinates are, in order, x, y, width, height.
         """
-        processed = self._preprocess_img(image)
-        contours, _ = cv2.findContours(
-            processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
-        try:
-            if DEBUG and debug:
-                _debug(image, list(self._filter(contours)))
-            return [cv2.boundingRect(cnt) for cnt in self._filter(contours)]
-        except Exception as e:
-            breakpoint()
+        if self.detection_model is not None:
+            detections = self.run_detection_model(
+                handle, image, threshold, debug=DEBUG, mask=mask
+            )
+            res = self.extract_results(detections, mask=mask)
+            return res
 
-    def get_mob_count(self, image: np.ndarray, **kwargs) -> int:
+        else:
+            processed = self._preprocess_img(image)
+            contours, _ = cv2.findContours(
+                processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            )
+            try:
+                if DEBUG and debug:
+                    _debug(image, list(self._filter(contours)))
+                return tuple([cv2.boundingRect(cnt) for cnt in self._filter(contours)])
+            except Exception as e:
+                breakpoint()
+
+    def get_mob_count(self, image: np.ndarray, handle: int, **kwargs) -> int:
         """
         Returns the number of mobs found on-screen.
         """
-        return math.ceil(
-            len(self.get_onscreen_mobs(image, **kwargs)) / self._multiplier
+        multiplier = self._multiplier if self.detection_model is None else 1
+        return round(
+            len(self.get_onscreen_mobs(image, handle, **kwargs)) / multiplier
         )
 
 

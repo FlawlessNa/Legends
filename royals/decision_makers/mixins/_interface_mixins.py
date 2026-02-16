@@ -7,6 +7,7 @@ from royals.model.interface import (
     AbilityMenu,
     CharacterStats,
     InventoryMenu,
+    LargeClientChatFeed
 )
 
 
@@ -39,15 +40,11 @@ class MenusMixin:
         )
         self.data.create_attribute(
             "speed_multiplier",
-            lambda: menu.get_speed(
-                self.data.handle, self.data.current_client_img
-            )
+            lambda: menu.get_speed(self.data.handle, self.data.current_client_img),
         )
         self.data.create_attribute(
             "jump_multiplier",
-            lambda: menu.get_jump(
-                self.data.handle, self.data.current_client_img
-            )
+            lambda: menu.get_jump(self.data.handle, self.data.current_client_img),
         )
         # Refresh minimap grid with new speed and jump multipliers
         if self.data.has_minimap_attributes:
@@ -58,7 +55,7 @@ class MenusMixin:
             )
 
         if self.data.has_pathing_attributes:
-            self.data.update_attribute('action')
+            self.data.update_attribute("action")
 
         ensure_ability_menu_displayed(
             **self._display_kwargs(f"{self} - Ability Menu Setup", 2.0, condition),
@@ -134,3 +131,12 @@ class UIMixin:
             lambda: stats.level_box.extract_client_img(self.data.current_client_img),
         )
         self.data.create_attribute("has_ui_attributes", lambda: True)
+
+    def _create_chat_feed_attributes(self) -> None:
+        feed = LargeClientChatFeed()
+        self.data.create_attribute("chat_feed", LargeClientChatFeed, initial_value=feed)
+        self.data.create_attribute(
+            "chat_feed_displayed", lambda: feed.is_displayed(self.data.handle)
+        )
+        # TODO - Finish creating other attributes
+        self.data.create_attribute("has_chat_feed_attributes", lambda: True)

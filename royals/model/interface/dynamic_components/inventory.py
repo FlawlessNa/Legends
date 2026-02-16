@@ -27,7 +27,7 @@ class InventoryMenu(InGameDynamicVisuals):
     _empty_slot_rect_height: int = 31
     _emtpy_slot_cnt_area: int = 900
     total_slots: int = 96
-    _entire_inventory_box: Box = Box(left=2, right=492, top=45, bottom=233, offset=True)
+    _entire_inventory_box: Box = Box(left=2, right=492, top=45, bottom=233, relative=True)
     tabs: tuple = ("Equip", "Use", "Setup", "Etc", "Cash")
 
     mesos_box: Box = Box(
@@ -36,7 +36,7 @@ class InventoryMenu(InGameDynamicVisuals):
         top=262,
         bottom=262,
         name="Mesos Box",
-        offset=True,
+        relative=True,
         config=f"--psm 7 -c tessedit_char_whitelist=,{string.digits}",
     )
     extend_button: Box = Box(
@@ -45,7 +45,7 @@ class InventoryMenu(InGameDynamicVisuals):
         top=3,
         bottom=-3,
         name="Extend Button",
-        offset=True,
+        relative=True,
     )
     merge_and_sort_button: Box = ...
 

@@ -52,7 +52,7 @@ if current_process.name == "MainProcess":
             "{asctime}:::{message}"
         ),
         style="{",
-        datefmt="%Y.%m.%d. %H:%M:%S",
+        # datefmt="%Y.%m.%d. %H:%M:%S:%f",
     )  # TODO - If you ever switch to 3.12, then add TASK %(taskName)s to the formatter
 
     if not os.path.exists(os.path.join(ROOT, "logs")):

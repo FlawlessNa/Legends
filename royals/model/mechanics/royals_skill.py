@@ -22,6 +22,8 @@ class RoyalsSkill(Skill):
         repr=False,
         default=os.path.join(ROOT, f"royals/assets/detection_images"),
     )
+    vertical_up_screen_range: int = field(default=None, repr=False)
+    vertical_down_screen_range: int = field(default=None, repr=False)
 
     @property
     def icon(self) -> np.ndarray:
@@ -35,6 +37,7 @@ class RoyalsBuff(RoyalsSkill):
     properly cast by attempting to match the buff icon in the top-right corner of in-
     game screen.
     """
+
     type: str = field(init=False, default="Buff")
     match_template_threshold: float = field(default=MATCH_TEMPLATE_THRESHOLD)
     match_icon_threshold: float = field(default=MATCH_ICON_THRESHOLD)
@@ -47,6 +50,7 @@ class RoyalsPartyBuff(RoyalsSkill):
     properly cast by attempting to match the buff icon in the top-right corner of in-
     game screen.
     """
+
     type: str = field(init=False, default="Party Buff")
     match_template_threshold: float = field(default=MATCH_TEMPLATE_THRESHOLD)
     match_icon_threshold: float = field(default=MATCH_ICON_THRESHOLD)

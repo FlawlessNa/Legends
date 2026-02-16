@@ -8,12 +8,12 @@ from royals.model.mechanics import (
 class KampungVillageMinimap(MinimapPathingMechanics):
     map_area_width = 153
     map_area_height = 87
-    minimap_speed: float = 8.5  # TODO
-    jump_height: int = 5  # TODO
-    jump_distance: int = 7  # TODO
-    teleport_h_dist = 10
-    teleport_v_up_dist = 7
-    teleport_v_down_dist = 15
+    # minimap_speed: float = 8.5  # TODO
+    # jump_height: int = 5  # TODO
+    # jump_distance: int = 7  # TODO
+    # teleport_h_dist = 10
+    # teleport_v_up_dist = 7
+    # teleport_v_down_dist = 15
 
     # npc_shop = (32, 66)  # Real value returned
     npc_shop = (32, 67)  # Adjusted value to make it on a walkable node

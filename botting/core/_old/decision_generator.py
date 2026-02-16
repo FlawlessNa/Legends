@@ -32,9 +32,9 @@ class DecisionGenerator(ABC):
         self._error_counter = 0  # For error-handling
         self._blocked_at = self._blocked = None
 
-        self.__class__.generators_blockers[
-            id(self)
-        ] = set()  # Create a new set for the generator being created
+        self.__class__.generators_blockers[id(self)] = (
+            set()
+        )  # Create a new set for the generator being created
 
     @property
     def blocked(self) -> bool:

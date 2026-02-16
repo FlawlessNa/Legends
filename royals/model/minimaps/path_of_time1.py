@@ -3,20 +3,20 @@ from royals.model.mechanics import (
     MinimapPathingMechanics,
 )
 
+CUBE_WEIGHTS = 2  # Used to increase weight on cubes, to avoid them as much as possible
+
 
 class PathOfTime1Minimap(MinimapPathingMechanics):
     map_area_width = 116
     map_area_height = 88
 
-    # Computed using speed_calculation.py. Assumes a 100% character speed in-game. Represents Nodes per second.
-    # minimap_speed: float = 7.686336000692184
-    minimap_speed: float = 8.5
-    jump_height: int = 5
-    jump_distance: int = 7
+    minimap_speed: float = 8.150646430578977
+    jump_height = 3.6829076086956523
+    jump_distance: int = 4.523608768971332
 
-    teleport_h_dist = 10
-    teleport_v_up_dist = 8
-    teleport_v_down_dist = 15
+    teleport_h_dist = int(9.780775716694773) - 1
+    teleport_v_up_dist = int(9.780775716694773) - 1  # TODO - Change this value (most likely decrease)
+    teleport_v_down_dist = round(9.780775716694773)  # TODO - Change this value (most likely decrease)
 
     door_spot = [(65, 54), (66, 54), (67, 54), (68, 54), (69, 54), (70, 54)]
 
@@ -29,13 +29,21 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
     @property
     def feature_cycle(self) -> list[MinimapFeature]:
         return [
-            self.first_platform,
-            self.second_platform,
             self.third_platform,
             self.fourth_platform,
             self.fifth_platform,
             self.fourth_platform,
             self.third_platform,
+            self.fourth_platform,
+            self.fifth_platform,
+            self.fourth_platform,
+            self.third_platform,
+            self.fourth_platform,
+            self.fifth_platform,
+            self.fourth_platform,
+            self.third_platform,
+            self.second_platform,
+            self.first_platform,
             self.second_platform,
         ]
 
@@ -80,6 +88,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=7,
         bottom=7,
         name="cube1",
+        weight=CUBE_WEIGHTS,
     )
     cube2: MinimapFeature = MinimapFeature(
         left=22,
@@ -87,6 +96,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=7,
         bottom=7,
         name="cube2",
+        weight=CUBE_WEIGHTS,
     )
     side_platform1: MinimapFeature = MinimapFeature(
         left=31,
@@ -108,6 +118,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=22,
         bottom=22,
         name="cube3",
+        weight=CUBE_WEIGHTS,
     )
     cube4: MinimapFeature = MinimapFeature(
         left=36,
@@ -115,6 +126,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=22,
         bottom=22,
         name="cube4",
+        weight=CUBE_WEIGHTS,
     )
     cube5: MinimapFeature = MinimapFeature(
         left=36,
@@ -122,6 +134,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=19,
         bottom=19,
         name="cube5",
+        weight=CUBE_WEIGHTS,
     )
     side_platform3: MinimapFeature = MinimapFeature(
         left=48,
@@ -143,6 +156,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=37,
         bottom=37,
         name="cube6",
+        weight=CUBE_WEIGHTS,
     )
     cube7: MinimapFeature = MinimapFeature(
         left=29,
@@ -150,6 +164,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=37,
         bottom=37,
         name="cube7",
+        weight=CUBE_WEIGHTS,
     )
     cube8: MinimapFeature = MinimapFeature(
         left=54,
@@ -157,6 +172,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=37,
         bottom=37,
         name="cube8",
+        weight=CUBE_WEIGHTS,
     )
     side_platform5: MinimapFeature = MinimapFeature(
         left=65,
@@ -178,6 +194,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=52,
         bottom=52,
         name="cube9",
+        weight=CUBE_WEIGHTS,
     )
     cube10: MinimapFeature = MinimapFeature(
         left=36,
@@ -185,6 +202,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=52,
         bottom=52,
         name="cube10",
+        weight=CUBE_WEIGHTS,
     )
     cube11: MinimapFeature = MinimapFeature(
         left=71,
@@ -192,6 +210,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=52,
         bottom=52,
         name="cube11",
+        weight=CUBE_WEIGHTS,
     )
     side_platform7: MinimapFeature = MinimapFeature(
         left=82,
@@ -213,6 +232,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=67,
         bottom=67,
         name="cube12",
+        weight=CUBE_WEIGHTS,
     )
     cube13: MinimapFeature = MinimapFeature(
         left=9,
@@ -220,6 +240,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=64,
         bottom=64,
         name="cube13",
+        weight=CUBE_WEIGHTS,
     )
     cube14: MinimapFeature = MinimapFeature(
         left=22,
@@ -227,6 +248,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=67,
         bottom=67,
         name="cube14",
+        weight=CUBE_WEIGHTS,
     )
     cube15: MinimapFeature = MinimapFeature(
         left=38,
@@ -234,6 +256,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=67,
         bottom=67,
         name="cube15",
+        weight=CUBE_WEIGHTS,
     )
     cube16: MinimapFeature = MinimapFeature(
         left=49,
@@ -241,6 +264,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=67,
         bottom=67,
         name="cube16",
+        weight=CUBE_WEIGHTS,
     )
     cube17: MinimapFeature = MinimapFeature(
         left=53,
@@ -248,6 +272,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=64,
         bottom=64,
         name="cube17",
+        weight=CUBE_WEIGHTS,
     )
     cube18: MinimapFeature = MinimapFeature(
         left=84,
@@ -255,6 +280,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=67,
         bottom=67,
         name="cube18",
+        weight=CUBE_WEIGHTS,
     )
     cube19: MinimapFeature = MinimapFeature(
         left=102,
@@ -262,6 +288,7 @@ class PathOfTime1Minimap(MinimapPathingMechanics):
         top=67,
         bottom=67,
         name="cube19",
+        weight=CUBE_WEIGHTS,
     )
     first_platform_ladder: MinimapFeature = MinimapFeature(
         left=10,

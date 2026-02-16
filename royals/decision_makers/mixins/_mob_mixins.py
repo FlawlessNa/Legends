@@ -2,6 +2,7 @@ import math
 import numpy as np
 from typing import Sequence
 
+from botting.core import BotData
 from botting.models_abstractions import BaseMob
 
 
@@ -9,9 +10,9 @@ class MobsHittingMixin:
     """
     Utility functions to determine mob count, mob positions, and closest mob direction.
     """
+    data: BotData
 
-    @staticmethod
-    def mob_count_in_img(img: np.ndarray, mobs: list[BaseMob]) -> int:
+    def mob_count_in_img(self, img: np.ndarray, mobs: list[BaseMob], **kwargs) -> int:
         """
         Given an image of arbitrary size, return the mob count of a specific mob found
         within that image.
@@ -19,11 +20,10 @@ class MobsHittingMixin:
         :param mobs: The mobs to look for.
         :return: Total number of mobs detected in the image
         """
-        return sum([mob.get_mob_count(img) for mob in mobs])
+        return sum([mob.get_mob_count(img, self.data.handle, **kwargs) for mob in mobs])
 
-    @staticmethod
     def get_mobs_positions_in_img(
-        img: np.ndarray, mobs: list[BaseMob]
+        self, img: np.ndarray, mobs: list[BaseMob], **kwargs
     ) -> list[Sequence[int]]:
         """
         Given an image of arbitrary size, return the positions of a specific mob
@@ -33,7 +33,10 @@ class MobsHittingMixin:
         :param mobs: The mobs to look for.
         :return: List of mob positions found in the image.
         """
-        return [pos for mob in mobs for pos in mob.get_onscreen_mobs(img)]
+        return [
+            pos for mob in mobs
+            for pos in mob.get_onscreen_mobs(img, self.data.handle, **kwargs)
+        ]
 
     @staticmethod
     def get_closest_mob_direction(

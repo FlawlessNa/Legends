@@ -8,10 +8,10 @@ class TestBox(TestCase):
         self.box = Box(left=0, right=10, top=0, bottom=10, name="box1", config="test")
         self.box2 = Box(left=0, right=20, top=0, bottom=30, name="box2")
         self.box_offset = Box(
-            left=0, right=10, top=0, bottom=10, offset=True, config="test2"
+            left=0, right=10, top=0, bottom=10, relative=True, config="test2"
         )
-        self.box_offset2 = Box(left=-10, right=10, top=-10, bottom=10, offset=True)
-        self.box_offset3 = Box(left=10, right=-10, top=10, bottom=-10, offset=True)
+        self.box_offset2 = Box(left=-10, right=10, top=-10, bottom=10, relative=True)
+        self.box_offset3 = Box(left=10, right=-10, top=10, bottom=-10, relative=True)
 
     def test___post_init__(self):
         with self.assertRaises(AssertionError):

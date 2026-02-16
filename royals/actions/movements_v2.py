@@ -29,8 +29,13 @@ def _create_initial_input(
         held_keys.remove(direction)
     if secondary_direction in held_keys:
         held_keys.remove(secondary_direction)
-    # if 'up' in held_keys and 'down' not in [direction, secondary_direction]:
-    #     held_keys.remove('up')
+
+    # ALWAYS release opposite key on directional movement - should prevent being stuck
+    # but also causes unnecessary key releases
+    if direction == 'right' and 'left' not in held_keys:
+        held_keys.append('left')
+    elif direction == 'left' and 'right' not in held_keys:
+        held_keys.append('right')
     if held_keys:
         _initial_structure.append(
             held_keys, ["keyup"] * len(held_keys), next(controller.random_delay)  # noqa
@@ -152,10 +157,12 @@ def jump_on_rope(
     """
     if structure is None:
         structure = _create_initial_input(handle, direction, None)
+
     for key in structure.keys_held:
         if key == direction:
             continue
-        structure.append(key, "keyup", next(controller.random_delay))
+        # Longer delay to try preventing "static" jumps
+        structure.append(key, "keyup", next(controller.random_delay) * 5)
 
     if direction in structure.keys_held:
         structure.append([jump_key, "up"], ["keydown", "keydown"], 0.75)
@@ -164,7 +171,7 @@ def jump_on_rope(
         )
 
     else:
-        structure.append(direction, "keydown", next(controller.random_delay) * 2)
+        structure.append(direction, "keydown", next(controller.random_delay) * 5)
         structure.append([jump_key, "up"], ["keydown", "keydown"], 0.75)
         structure.append(
             [jump_key, direction], ["keyup", "keyup"], next(controller.random_delay) * 2

@@ -2,6 +2,7 @@
 Exports the necessary functions from windll.user32 to be used by the input module.
 Retrieves appropriate virtual key code given keyboard layout and key name.
 """
+
 import ctypes
 import random
 import time

@@ -38,7 +38,6 @@ class SessionManager:
         self.metadata = self.process_manager.dict(
             logging_queue=self.process_manager.Queue(),
             proxy_request=self.process_manager.Condition(),
-            # _disabled=self.process_manager.dict(),
         )
         self.metadata["ignored_keys"] = set(self.metadata.keys()).union(
             {"ignored_keys"}
@@ -105,7 +104,7 @@ class SessionManager:
         self.log_receiver.stop()
 
         for engine in self.engines:
-            engine.join(timeout=5)
+            engine.join(timeout=2)
             if engine.is_alive():
                 engine.terminate()
             logger.info(f"Engine {engine.name} has been stopped.")
@@ -125,12 +124,14 @@ class SessionManager:
         :return:
         """
         self.main_bot = grouped_bots[0][0]
+        self.peripherals.discord_parser.main_ign = self.main_bot.ign
         self.barrier = self.process_manager.Barrier(
             sum(len(group) for group in grouped_bots)
         )
         for group in grouped_bots:
             self.bots.extend(group)
             engine_side, listener_side = multiprocessing.Pipe()
+            self.peripherals.engine_pipes.append(listener_side)
             engine_proc = Engine.start(engine_side, self.metadata, group, self.barrier)
             engine_listener = Engine.listener(
                 listener_side,

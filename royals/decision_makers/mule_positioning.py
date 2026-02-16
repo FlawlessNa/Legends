@@ -117,7 +117,8 @@ class ResetIdleSafeguard(
             self._skills = [
                 random.choice(
                     [
-                        skill for skill in self.data.character.skills.values()
+                        skill
+                        for skill in self.data.character.skills.values()
                         if skill.type in ["Buff"]
                     ]
                 )
@@ -127,7 +128,7 @@ class ResetIdleSafeguard(
         try:
             await asyncio.wait_for(
                 self._ensure_safe_spot(),
-                timeout=random.uniform(0.9, 1.1) * self._TIME_LIMIT
+                timeout=random.uniform(0.9, 1.1) * self._TIME_LIMIT,
             )
             logger.log(LOG_LEVEL, f"{self} is not at safe spot. Resetting")
         except asyncio.TimeoutError:

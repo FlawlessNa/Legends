@@ -8,14 +8,14 @@ from royals.model.mechanics import (
 class MuddyBanks2Minimap(MinimapPathingMechanics):
     map_area_width = 127
     map_area_height = 71
-    minimap_speed = 9.531017923423336
+    # minimap_speed = 9.531017923423336
 
-    jump_height: int = 9
-    jump_distance: int = 12
+    # jump_height: int = 9
+    # jump_distance: int = 12
 
-    teleport_h_dist = 10
-    teleport_v_up_dist = 8
-    teleport_v_down_dist = 15
+    # teleport_h_dist = 10
+    # teleport_v_up_dist = 8
+    # teleport_v_down_dist = 15
     door_spot = [(i, 50) for i in range(25, 35)]
 
     @property

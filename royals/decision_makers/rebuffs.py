@@ -58,9 +58,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
 
         # Unique Lock is used by this instance and NOT shared.
         # Used for buff confirmation
-        self._unique_lock = self.request_proxy(
-            self.metadata, f"{self}", "Lock"
-        )
+        self._unique_lock = self.request_proxy(self.metadata, f"{self}", "Lock")
 
         if not self.data.has_minimap_attributes:
             self._create_minimap_attributes()
@@ -103,9 +101,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         :param remaining_buffs:
         :return:
         """
-        to_cast = [
-            self.data.character.skills[buff] for buff in remaining_buffs
-        ]
+        to_cast = [self.data.character.skills[buff] for buff in remaining_buffs]
         self.pipe.send(
             ActionRequest(
                 f"{self} - {remaining_buffs}",
@@ -164,7 +160,9 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
                 self._event.clear()
         if self._reset_flag:
             # Resets the rotation mechanism
-            self._create_rotation_attributes(self.data.feature_cycle)
+            self._create_rotation_attributes(
+                cycle=getattr(self.data, 'feature_cycle', None)
+            )
             self._reset_flag = False
 
     async def _wait_until_ready(self) -> None:
@@ -289,7 +287,8 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
         if excluded_buffs:
             buffs = list(filter(lambda buff: buff.name not in excluded_buffs, buffs))
         self._buffs = buffs
-        self._decision_task: dict[str, asyncio.Task] = dict()
+        self._sub_tasks: dict[str, asyncio.Task] = dict()
+        self._tg = None
 
     async def start(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
         """
@@ -297,35 +296,18 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
         each buff individually.
         :return:
         """
+        self._tg = tg
+        await super().start(tg, *args, **kwargs)
+
+    async def task(self, *args, **kwargs) -> None:
         for buff in self._buffs:
             ident = f"{self} - {buff.name}"
-            condition = self.request_proxy(self.metadata, ident, "Condition")
-            tg.create_task(
-                asyncio.to_thread(self._disabler_task, tg, buff, condition),
-                name=f"{ident} - Disabler",
+            condition = self.request_proxy(
+                self.metadata, f"{ident}", "Condition"
             )
-            self._decision_task[ident] = tg.create_task(
-                self._task(buff, condition), name=ident
+            self._sub_tasks[ident] = self._tg.create_task(
+                super().task(buff, condition), name=ident
             )
-
-    def _disabler_task(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
-        """
-        Overwrites the DecisionMaker start method such that there is one disabler per
-        individual buff.
-        :return:
-        """
-        ident = f"{self} - {args[0].name}"
-        while True:
-            with self._disabler:
-                # When notified, cancel the task
-                self._disabler.wait()
-                self._decision_task[ident].cancel()
-
-                # Upon next notification, re-enable the task
-                self._disabler.wait()
-                self._decision_task[ident] = tg.create_task(
-                    self._task(*args, **kwargs), name=f"{self}"
-                )
 
     async def _decide(
         self, buff: RoyalsSkill, condition: multiprocessing.managers.ConditionProxy

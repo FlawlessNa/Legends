@@ -1,13 +1,17 @@
 from dataclasses import dataclass, field
 
-from botting.models_abstractions import BaseMap, BaseMob
-from botting.utilities import Box
+from botting.models_abstractions import BaseMob
 from royals.model.minimaps import BuddhaMinimap
 from royals.model.mobs import DreamyGhost
+from .base import RoyalsMap
 
 
 @dataclass
-class EncounterWithTheBuddha(BaseMap):
-    detection_box: Box = Box(left=3, right=1027, top=482, bottom=573, name=None)
+class EncounterWithTheBuddha(RoyalsMap):
     minimap: BuddhaMinimap = field(default_factory=BuddhaMinimap)
-    mobs: tuple[BaseMob] = (DreamyGhost(Box(left=0, right=1024, top=29, bottom=700)),)
+    mobs: tuple[BaseMob] = field(default_factory=lambda: (DreamyGhost(), ))
+    vr_left: int = -1289
+    vr_right: int = 1560
+    vr_top = -306
+    vr_bottom = 1167
+

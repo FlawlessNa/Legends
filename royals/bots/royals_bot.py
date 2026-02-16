@@ -3,6 +3,7 @@ import multiprocessing.managers
 from abc import ABC
 from botting.core import Bot
 from botting.utilities import take_screenshot
+from botting.visuals import InGameDetectionVisuals
 from royals import royals_ign_finder, royals_job_finder
 from royals.model.characters import MAPPING as CHARACTER_MAPPING
 from royals.model.maps import RoyalsMap
@@ -19,9 +20,10 @@ class RoyalsBot(Bot, ABC):
         self,
         ign: str,
         metadata: multiprocessing.managers.DictProxy,
-        detection_configs: str,
-        client_size: str,
         game_map: type[RoyalsMap],
+        detection_configs: str = None,
+        client_size: str = "medium",
+        models_path: dict[str, str] = None,
         character_class: str = None,
         **kwargs
     ) -> None:
@@ -31,12 +33,14 @@ class RoyalsBot(Bot, ABC):
         self.character_class = CHARACTER_MAPPING[class_name]
         self.detection_configs = detection_configs
         self.client_size = client_size
+        self.models_path = models_path
         self.game_map = game_map
+        self.kwargs = kwargs
 
     def child_init(
         self,
         pipe: multiprocessing.connection.Connection,
-        barrier: multiprocessing.managers.BarrierProxy
+        barrier: multiprocessing.managers.BarrierProxy,  # type: ignore
     ) -> None:
         """
         Called by the Engine to create Bot within Child process.
@@ -45,6 +49,8 @@ class RoyalsBot(Bot, ABC):
         convenience.
         """
         super().child_init(pipe, barrier)
+        InGameDetectionVisuals.register_models(self.models_path)
+        InGameDetectionVisuals.register_cache_id(self.data.handle)
         self.data.create_attribute(
             "character",
             lambda: self.character_class(
@@ -61,3 +67,11 @@ class RoyalsBot(Bot, ABC):
             lambda: take_screenshot(self.data.handle),
             threshold=0.1,
         )
+        if self.kwargs.get('speed_multiplier'):
+            self.data.create_attribute(
+                'speed_multiplier', lambda: self.kwargs['speed_multiplier']
+            )
+        if self.kwargs.get('jump_multiplier'):
+            self.data.create_attribute(
+                'jump_multiplier', lambda: self.kwargs['jump_multiplier']
+            )

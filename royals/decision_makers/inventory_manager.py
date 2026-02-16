@@ -35,18 +35,18 @@ class InventoryManager(
     _TIME_LIMIT = 300
     _DISTANCE_TO_DOOR_THRESHOLD = 2
     TABS_OFFSETS = {
-        "Equip": Box(left=84, right=55, top=90, bottom=35, offset=True),
-        "Use": Box(left=128, right=99, top=90, bottom=35, offset=True),
-        "Set-up": Box(left=172, right=143, top=90, bottom=35, offset=True),
-        "Etc": Box(left=216, right=187, top=90, bottom=35, offset=True),
-        "Cash": Box(left=260, right=231, top=90, bottom=35, offset=True),
+        "Equip": Box(left=84, right=55, top=90, bottom=35, relative=True),
+        "Use": Box(left=128, right=99, top=90, bottom=35, relative=True),
+        "Set-up": Box(left=172, right=143, top=90, bottom=35, relative=True),
+        "Etc": Box(left=216, right=187, top=90, bottom=35, relative=True),
+        "Cash": Box(left=260, right=231, top=90, bottom=35, relative=True),
     }
     ACTIVE_TAB_COLOR = np.array([136, 102, 238])
     SELECTED_ITEM_COLOR = np.array([34, 153, 238])
     FIRST_SLOT_SHOP_OFFSET: Box = Box(
-        left=135, right=160, top=124, bottom=80, offset=True
+        left=135, right=160, top=124, bottom=80, relative=True
     )
-    SELL_BUTTON_OFFSET: Box = Box(left=268, right=227, top=34, bottom=-30, offset=True)
+    SELL_BUTTON_OFFSET: Box = Box(left=268, right=227, top=34, bottom=-30, relative=True)
 
     def __init__(
         self,
@@ -188,7 +188,7 @@ class InventoryManager(
                 "PartyRebuff",
                 "SoloRebuff",
                 "PetFood",
-                "MountFood"
+                "MountFood",
             )
             if self._cleanup_procedure == INVENTORY_CLEANUP_WITH_TOWN_SCROLL:
                 await self._cleanup_with_town_scroll()
@@ -273,7 +273,9 @@ class InventoryManager(
     def _reset_all(self):
         self._door_spot = self._npc_positions = self._open_shop_box = None
         self._create_pathing_attributes(self.data.action_duration)
-        self._create_rotation_attributes(self.data.feature_cycle)
+        self._create_rotation_attributes(
+            cycle=getattr(self.data, 'feature_cycle', None)
+        )
         self.data.next_target = self.data.current_minimap_position
         self._enable_decision_makers(
             "MobsHitting",
@@ -282,7 +284,7 @@ class InventoryManager(
             "SoloRebuff",
             "PetFood",
             "MountFood",
-            "Rotation"
+            "Rotation",
         )
 
     async def _move_to_town_self_door(self):
@@ -307,7 +309,7 @@ class InventoryManager(
         await self._move_to_door_spot()
         self._connect_door_to_other_map()
         await self._enter_door()
-        self.data.update_attribute('current_map')
+        self.data.update_attribute("current_map")
         await self._confirm_in_map(self.data.current_map)
 
     async def _cleanup_with_party_door(self) -> None:
@@ -319,9 +321,10 @@ class InventoryManager(
 
     async def _wait_until_target_reached(self) -> None:
         while True:
-            if math.dist(
-                self.data.current_minimap_position, self.data.next_target
-            ) < self._DISTANCE_TO_DOOR_THRESHOLD:
+            if (
+                math.dist(self.data.current_minimap_position, self.data.next_target)
+                < self._DISTANCE_TO_DOOR_THRESHOLD
+            ):
                 break
             await asyncio.sleep(0.5)
 
@@ -481,7 +484,7 @@ class InventoryManager(
 
     def active_item_detected(self) -> bool:
         box = self.FIRST_SLOT_SHOP_OFFSET + self._open_shop_box
-        self.data.update_attribute('current_client_img')
+        self.data.update_attribute("current_client_img")
         box_img = box.extract_client_img(self.data.current_client_img)
         binary_img = cv2.inRange(
             box_img, self.SELECTED_ITEM_COLOR, self.SELECTED_ITEM_COLOR
@@ -511,7 +514,7 @@ class InventoryManager(
                 controller.click,
                 priorities.INVENTORY_CLEANUP,
                 block_lower_priority=True,
-                args=(self.data.handle, ),
+                args=(self.data.handle,),
                 kwargs=dict(delay=0.1),
                 callbacks=[self._condition.release],
             )

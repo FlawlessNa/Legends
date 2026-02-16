@@ -31,6 +31,8 @@ class AsyncTaskManager:
             if action_request is None:
                 logger.info("Received None from the queue. Exiting Task Manager.")
                 break
+            elif isinstance(action_request, BaseException):
+                break
 
             await self._process_request(action_request)
             self._check_for_event_loop_overflow()
@@ -71,6 +73,9 @@ class AsyncTaskManager:
                 logging.INFO,
                 f"{request.identifier} has been blocked by higher priority tasks.",
             )
+            if request.callbacks:
+                for cb in request.callbacks:
+                    cb()
 
     def _get_priority_blocking(self) -> int:
         """
