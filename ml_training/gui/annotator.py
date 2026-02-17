@@ -471,7 +471,7 @@ def run_annotator(
     labels_dir: str,
     classes: List[str],
     mode: str = "annotate"
-) -> None:
+) -> int:
     """
     Run annotation GUI.
     
@@ -480,18 +480,24 @@ def run_annotator(
         labels_dir: Directory containing/to save labels
         classes: List of class names
         mode: "annotate" or "verify"
+        
+    Returns:
+        Exit code from QApplication
     """
-    app = QApplication(sys.argv)
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+    
     window = AnnotatorGUI(images_dir, labels_dir, classes, mode)
     window.show()
-    sys.exit(app.exec())
+    return app.exec()
 
 
 if __name__ == "__main__":
     # Example usage
-    run_annotator(
+    sys.exit(run_annotator(
         images_dir="ml_training/data/raw_images",
         labels_dir="ml_training/data/annotations",
         classes=["enemy", "item"],
         mode="annotate"
-    )
+    ))

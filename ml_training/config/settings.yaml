@@ -2,9 +2,6 @@
 
 # Screen Capture Settings
 screen_capture:
-  window_title: "MapleStory"  # Window title to focus (empty string for full screen)
-  region: null  # [x, y, width, height] or null for full screen
-  countdown: 3  # Countdown in seconds before capture
   burst_interval: 0.5  # Interval between burst captures in seconds
   output_dir: "ml_training/data/raw_images"
 

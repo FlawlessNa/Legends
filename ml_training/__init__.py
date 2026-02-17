@@ -5,12 +5,9 @@ __version__ = "0.1.0"
 # Import main components for easier access
 from .config import config, get_config
 from .dataset_manager import (
-    DataAugmentation,
     ScreenCapture,
     YOLODataset,
-    augment_dataset,
     capture_burst,
-    capture_single,
     create_dataset,
     load_dataset,
 )
@@ -34,13 +31,10 @@ __all__ = [
     'get_config',
     # Dataset Manager
     'ScreenCapture',
-    'capture_single',
     'capture_burst',
     'YOLODataset',
     'create_dataset',
     'load_dataset',
-    'DataAugmentation',
-    'augment_dataset',
     # Model Manager
     'YOLOTrainer',
     'train_model',

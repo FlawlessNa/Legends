@@ -2,8 +2,6 @@
 
 import unittest
 from pathlib import Path
-import tempfile
-import shutil
 
 
 class TestConfigStructure(unittest.TestCase):

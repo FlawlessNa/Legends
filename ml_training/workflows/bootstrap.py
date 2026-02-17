@@ -4,11 +4,10 @@ import shutil
 from pathlib import Path
 from typing import List, Optional
 
-from ..config import config
+from ..config import config, SUPPORTED_IMAGE_EXTENSIONS
 from ..dataset_manager import (
     ScreenCapture,
     YOLODataset,
-    augment_dataset,
     create_dataset,
 )
 from ..gui import run_annotator
@@ -68,13 +67,12 @@ class BootstrapNewClass:
         self.mini_model_path: Optional[str] = None
         self.final_model_path: Optional[str] = None
     
-    def capture_initial_samples(self, count: Optional[int] = None, countdown: int = 3) -> int:
+    def capture_initial_samples(self, count: Optional[int] = None) -> int:
         """
         Capture initial sample images.
         
         Args:
             count: Number of images to capture
-            countdown: Countdown before capture
             
         Returns:
             Number of images captured
@@ -85,12 +83,11 @@ class BootstrapNewClass:
         print(f"PHASE 1: INITIAL BOOTSTRAP")
         print(f"{'='*60}")
         print(f"Capturing {count} initial samples for '{self.class_name}'...")
-        print(f"Focus the game window when countdown starts!\n")
+        print(f"Make sure the game window is visible!\n")
         
         captured = self.capturer.capture_burst(
             count=count,
-            prefix=f"{self.class_name}_initial",
-            countdown=countdown
+            prefix=f"{self.class_name}_initial"
         )
         
         print(f"\nCaptured {len(captured)} images to {self.raw_images_dir}")
@@ -139,24 +136,15 @@ class BootstrapNewClass:
         print(f"TRAINING MINI MODEL")
         print(f"{'='*60}\n")
         
-        # Augment data if requested
+        # Note: Augmentation is optional. For small datasets, consider using
+        # augmentation to increase training data. Can be done separately if needed.
         images_dir = self.raw_images_dir
         labels_dir = self.annotations_dir
         
         if augment:
-            print("Augmenting dataset...")
-            multiplier = config.get('augmentation.multiplier', 3)
-            count = augment_dataset(
-                images_dir=str(self.raw_images_dir),
-                labels_dir=str(self.annotations_dir),
-                output_images_dir=str(self.augmented_images_dir),
-                output_labels_dir=str(self.augmented_labels_dir),
-                multiplier=multiplier
-            )
-            print(f"Created {count} augmented images\n")
-            
-            images_dir = self.augmented_images_dir
-            labels_dir = self.augmented_labels_dir
+            print("Note: Augmentation has been moved to an optional separate step.")
+            print("The mini-model training uses aggressive augmentation parameters")
+            print("during training, which is often sufficient for small datasets.\n")
         
         # Create dataset
         print("Creating YOLO dataset...")
@@ -171,8 +159,8 @@ class BootstrapNewClass:
         print("\nTraining mini model...")
         trainer = YOLOTrainer(model_size=model_size)
         
-        mini_model_name = config.get('bootstrap.mini_model_name_template', '{class_name}_mini_v{version}')
-        mini_model_name = mini_model_name.format(class_name=self.class_name, version=1)
+        # Use simple name without version - registry will add version
+        mini_model_name = f"{self.class_name}_mini"
         
         results = trainer.train_mini_model(
             data_yaml=dataset.get_data_yaml_path(),
@@ -203,15 +191,13 @@ class BootstrapNewClass:
     
     def capture_extended_samples(
         self,
-        count: Optional[int] = None,
-        countdown: int = 3
+        count: Optional[int] = None
     ) -> int:
         """
         Capture extended sample images for active learning.
         
         Args:
             count: Number of images to capture
-            countdown: Countdown before capture
             
         Returns:
             Number of images captured
@@ -222,7 +208,7 @@ class BootstrapNewClass:
         print(f"PHASE 2: ACTIVE LEARNING")
         print(f"{'='*60}")
         print(f"Capturing {count} extended samples...")
-        print(f"Focus the game window when countdown starts!\n")
+        print(f"Make sure the game window is visible!\n")
         
         # Create extended samples directory
         extended_dir = self.base_path / "raw_images" / f"{self.class_name}_extended"
@@ -231,8 +217,7 @@ class BootstrapNewClass:
         capturer = ScreenCapture(output_dir=str(extended_dir))
         captured = capturer.capture_burst(
             count=count,
-            prefix=f"{self.class_name}_extended",
-            countdown=countdown
+            prefix=f"{self.class_name}_extended"
         )
         
         self.extended_images_dir = extended_dir
@@ -358,8 +343,8 @@ class BootstrapNewClass:
         print("\nTraining final model...")
         trainer = YOLOTrainer(model_size=model_size)
         
-        final_model_name = config.get('bootstrap.final_model_name_template', '{class_name}_final_v{version}')
-        final_model_name = final_model_name.format(class_name=self.class_name, version=1)
+        # Use simple name without version - registry will add version
+        final_model_name = f"{self.class_name}_final"
         
         results = trainer.train(
             data_yaml=dataset.get_data_yaml_path(),
@@ -378,6 +363,12 @@ class BootstrapNewClass:
         # Register model
         model_id = self.registry.register_model(
             name=final_model_name,
+            model_path=self.final_model_path,
+            dataset_name=self.final_dataset_name,
+            metrics=metrics,
+            hyperparameters={'model_size': model_size, 'type': 'final'},
+            notes=f"Final model for {self.class_name}"
+        )
             model_path=self.final_model_path,
             dataset_name=self.final_dataset_name,
             metrics=metrics,
@@ -425,8 +416,9 @@ class BootstrapNewClass:
         print(f"EXPORTING TO PRODUCTION")
         print(f"{'='*60}\n")
         
-        # Get model ID from registry
-        models = self.registry.list_models(name=self.class_name)
+        # Get model ID from registry - search by the base name pattern
+        final_model_base_name = f"{self.class_name}_final"
+        models = self.registry.list_models(name=final_model_base_name)
         final_models = [m for m in models if m.get('hyperparameters', {}).get('type') == 'final']
         
         if not final_models:

@@ -161,13 +161,12 @@ class ModelRegistry:
             return [m for m in self._registry['models'] if m['name'] == name]
         return self._registry['models'].copy()
     
-    def promote_to_production(self, model_id: str, copy: bool = True) -> str:
+    def promote_to_production(self, model_id: str) -> str:
         """
-        Promote model to production.
+        Promote model to production by copying it.
         
         Args:
             model_id: Model ID to promote
-            copy: Whether to copy (True) or move (False)
             
         Returns:
             Production model path
@@ -181,14 +180,11 @@ class ModelRegistry:
             if m['name'] == model['name'] and m['is_production']:
                 m['is_production'] = False
         
-        # Copy/move to production
+        # Copy to production (always copy to avoid breaking registry)
         src_path = Path(model['model_path'])
         dest_path = self.production_path / f"{model['name']}.pt"
         
-        if copy:
-            shutil.copy(src_path, dest_path)
-        else:
-            shutil.move(src_path, dest_path)
+        shutil.copy(src_path, dest_path)
         
         # Update metadata
         model['is_production'] = True
