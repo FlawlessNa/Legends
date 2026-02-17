@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
-from ..config import config
+from ..config import config, SUPPORTED_IMAGE_PATTERNS
 
 
 class YOLOInference:
@@ -167,7 +167,7 @@ class YOLOInference:
         
         # Get all images
         image_files = []
-        for ext in ['*.jpg', '*.jpeg', '*.png', '*.bmp']:
+        for ext in SUPPORTED_IMAGE_PATTERNS:
             image_files.extend(list(images_dir.glob(ext)))
         
         total_detections = 0
@@ -206,7 +206,7 @@ class YOLOInference:
         
         # Get all images
         image_files = []
-        for ext in ['*.jpg', '*.jpeg', '*.png', '*.bmp']:
+        for ext in SUPPORTED_IMAGE_PATTERNS:
             image_files.extend(list(images_dir.glob(ext)))
         
         low_conf_images = []

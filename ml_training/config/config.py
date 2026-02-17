@@ -7,6 +7,11 @@ from typing import Any, Dict, Optional
 import yaml
 
 
+# Supported image file extensions
+SUPPORTED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.bmp']
+SUPPORTED_IMAGE_PATTERNS = ['*.jpg', '*.jpeg', '*.png', '*.bmp']
+
+
 class Config:
     """Configuration manager for ML Training package."""
     

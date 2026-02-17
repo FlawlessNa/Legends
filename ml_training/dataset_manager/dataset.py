@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Tuple
 
 import yaml
 
-from ..config import config
+from ..config import config, SUPPORTED_IMAGE_PATTERNS
 
 
 class YOLODataset:
@@ -68,7 +68,7 @@ class YOLODataset:
         
         # Get all image files
         image_files = []
-        for ext in ['*.jpg', '*.jpeg', '*.png', '*.bmp']:
+        for ext in SUPPORTED_IMAGE_PATTERNS:
             image_files.extend(list(images_dir.glob(ext)))
         
         if not image_files:

@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ..config import config
+from ..config import config, SUPPORTED_IMAGE_PATTERNS
 
 
 class BoundingBox:
@@ -282,7 +282,7 @@ class AnnotatorGUI(QMainWindow):
         
         # Get image files
         self.image_files = []
-        for ext in ['*.jpg', '*.jpeg', '*.png', '*.bmp']:
+        for ext in SUPPORTED_IMAGE_PATTERNS:
             self.image_files.extend(list(self.images_dir.glob(ext)))
         self.image_files = sorted(self.image_files)
         

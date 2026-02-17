@@ -1,5 +1,6 @@
 """Bootstrap workflow for training new detection classes."""
 
+import shutil
 from pathlib import Path
 from typing import List, Optional
 
@@ -325,9 +326,8 @@ class BootstrapNewClass:
         combined_labels.mkdir(parents=True, exist_ok=True)
         
         # Copy initial samples
-        import shutil
         for img in self.raw_images_dir.glob('*'):
-            if img.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp']:
+            if img.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
                 shutil.copy(img, combined_images / img.name)
                 
                 label = self.annotations_dir / f"{img.stem}.txt"
@@ -337,7 +337,7 @@ class BootstrapNewClass:
         # Copy extended samples
         if hasattr(self, 'extended_images_dir') and hasattr(self, 'extended_annotations_dir'):
             for img in self.extended_images_dir.glob('*'):
-                if img.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp']:
+                if img.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS:
                     shutil.copy(img, combined_images / img.name)
                     
                     label = self.extended_annotations_dir / f"{img.stem}.txt"
