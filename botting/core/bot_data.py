@@ -303,5 +303,5 @@ class BotData:
                 error_handler=error_handler,
                 **kwargs,
             )
-        if not initial_value:
+        if initial_value is None:
             self.update_attribute(name)

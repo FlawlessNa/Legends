@@ -170,6 +170,12 @@ class TestAttributeAccess(unittest.TestCase):
         self.assertEqual(self.bot_data._managed["x"].value, "preset")
         fn.assert_not_called()
 
+    def test_falsy_initial_value_bypasses_update(self):
+        fn = Mock(return_value="should_not_be_used")
+        self.bot_data.create_attribute("x", fn, initial_value=False)
+        self.assertEqual(self.bot_data._managed["x"].value, False)
+        fn.assert_not_called()
+
     def test_get_time_since_last_valid_update(self):
         self.bot_data.create_attribute("x", lambda: "valid")
         elapsed = self.bot_data.get_time_since_last_valid_update("x")
