@@ -13,8 +13,8 @@ N_RET_VALUES = 10
 @dataclass
 class AttributeMetadata:
     """
-    A data container instance used by BotData to retain the overall frequency of
-    updates for each attribute, as well as the average update time and the last
+    A data container instance used by ManagedAttribute to retain the overall frequency
+    of updates for each attribute, as well as the average update time and the last
     N values of the attribute.
     """
 
@@ -36,39 +36,153 @@ class AttributeMetadata:
         return self.total_update_time / self.update_count
 
 
+class ManagedAttribute:
+    """
+    Encapsulates all state and behavior for a single managed attribute within
+    BotData. Each ManagedAttribute holds the attribute's current value, its
+    metadata, update function, refresh threshold, and optional error handler.
+
+    This replaces the previous approach where per-attribute data was scattered
+    across multiple parallel dictionaries in BotData.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        update_function: callable,
+        threshold: float = None,
+        initial_value: Any = None,
+        error_handler: callable = None,
+        **metadata_kwargs,
+    ) -> None:
+        self.name = name
+        self.value: Any = initial_value
+        self.metadata = AttributeMetadata(**metadata_kwargs)
+        self.update_function = update_function
+        self.threshold = threshold
+        self.error_handler = error_handler
+
+    def get(self, owner: "BotData") -> Any:
+        """
+        Returns the current value, automatically refreshing if the threshold
+        has been exceeded since the last update.
+        """
+        self.metadata.access_count += 1
+        threshold = self.threshold or float("inf")
+        last_update_time = self.metadata.last_update_time or datetime.min
+        if (datetime.now() - last_update_time).total_seconds() > threshold:
+            logger.log(
+                LOG_LEVEL,
+                f"{owner} Updating {self.name} due to exceeded threshold.",
+            )
+            self.update(owner)
+        return self.value
+
+    def set(self, value: Any) -> None:
+        """
+        Sets the value and appends it to the history of previous values.
+        """
+        self.value = value
+        self.metadata.prev_values.append(value)
+
+    def update(self, owner: "BotData") -> None:
+        """
+        Refreshes the value by calling the update function. Tracks metadata
+        such as update count, timing, validity, and value changes.
+        Falls back to the error handler if the update function raises.
+        """
+        try:
+            self._execute_update()
+        except Exception as e:
+            if self.error_handler is not None:
+                self.error_handler()
+                logger.info(f"Finished error handling for {self.name}.")
+                self.update(owner)
+                logger.info(
+                    f"Successfully updated {self.name} after error handling."
+                )
+            else:
+                raise e
+
+    def _execute_update(self) -> None:
+        """
+        Calls the update function, updates metadata, and sets the new value.
+        """
+        now = datetime.now()
+        value = self.update_function()
+        self.metadata.update_count += 1
+        self.metadata.last_update_time = datetime.now()
+
+        if _update_is_valid(value):
+            self.metadata.last_valid_update_time = self.metadata.last_update_time
+
+        if _update_is_change(value, self.value):
+            self.metadata.last_value_change_time = self.metadata.last_update_time
+        self.set(value)
+        self.metadata.total_update_time += (
+            datetime.now() - now
+        ).total_seconds()
+
+
+def _update_is_valid(value: Any) -> bool:
+    if isinstance(value, np.ndarray):
+        return not (np.all(value == 0) or value.size == 0)
+    else:
+        return value not in [None, "", [], {}, set()]
+
+
+def _update_is_change(value: Any, prev_value: Any) -> bool:
+    if isinstance(value, np.ndarray):
+        return not np.array_equal(value, prev_value)
+    else:
+        return value != prev_value
+
+
 class BotData:
     """
     A data container instance used by a Bot instance to enable communication
     between its DecisionMakers. This is achieved by the fact that each DecisionMaker
     assigned to a Bot instance has access to the same BotData instance.
 
-    Whenever an attribute of BotData is created/updated, BotData retains the overall
-    frequency of updates for each attribute, as well as the average update time.
-    It also retains the last N values of the attribute.
-    Lastly, a thresh can be set for each attribute to ensure the attribute is
-    automatically updated if the time since the last update is greater than the
-    threshold value.
-    """
+    Attributes are registered via create_attribute() and stored as ManagedAttribute
+    instances. Each ManagedAttribute encapsulates the attribute's value, metadata,
+    update function, refresh threshold, and optional error handler.
 
-    _authorized_attributes: set[str] = {
-        "ign",
-        "_attributes",
-        "_metadata",
-        "_update_functions",
-        "_thresholds",
-        "_error_handlers",
-    }
+    When a managed attribute is accessed, its threshold is checked and the value is
+    automatically refreshed if enough time has passed since the last update.
+    """
 
     def __init__(self, ign: str) -> None:
         self.ign = ign
-        self._attributes: dict[str, Any] = {}
-        self._metadata: dict[str, AttributeMetadata] = {}
-        self._update_functions: dict[str, callable] = {}
-        self._thresholds: dict[str, float] = {}
-        self._error_handlers: dict[str, callable] = {}
+        self._managed: dict[str, ManagedAttribute] = {}
 
     def __str__(self) -> str:
         return f"BotData({self.ign})"
+
+    def __getattr__(self, name: str) -> Any:
+        """
+        Returns the value of a managed attribute, auto-refreshing if needed.
+        For unregistered attributes starting with "has", returns False to support
+        feature-flag checks (e.g., data.has_minimap_attributes).
+        """
+        managed = self.__dict__.get("_managed")
+        if managed is not None and name in managed:
+            return managed[name].get(self)
+        if name.startswith("has"):
+            return False
+        raise AttributeError(f"{name} not found in {self}")
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """
+        Sets the value of a managed attribute. For non-managed attributes
+        (ign, _managed), falls through to normal attribute setting.
+        """
+        if name in ("ign", "_managed"):
+            super().__setattr__(name, value)
+        elif name in self._managed:
+            self._managed[name].set(value)
+        else:
+            raise AttributeError(f"{name} created in {self}. Use create_attribute()")
 
     def get_last_known_value(self, name: str, update: bool = True) -> Any:
         """
@@ -77,11 +191,11 @@ class BotData:
         :param update: Whether to enable automatic update.
         :return: Last known value of the attribute.
         """
-        if name in self._metadata:
+        if name in self._managed:
             last_known_update = next(
                 (
                     value
-                    for value in reversed(self._metadata[name].prev_values)
+                    for value in reversed(self._managed[name].metadata.prev_values)
                     if value not in [None, "", [], {}, ()]
                 ),
                 None,
@@ -97,9 +211,9 @@ class BotData:
         :param name: Name of the attribute.
         :return: Time since the last valid update.
         """
-        if name in self._metadata:
+        if name in self._managed:
             return (
-                datetime.now() - self._metadata[name].last_valid_update_time
+                datetime.now() - self._managed[name].metadata.last_valid_update_time
             ).total_seconds()
         raise AttributeError(f"{name} not found in {self}")
 
@@ -109,9 +223,9 @@ class BotData:
         :param name: Name of the attribute.
         :return: Time since the last value change.
         """
-        if name in self._metadata:
+        if name in self._managed:
             return (
-                datetime.now() - self._metadata[name].last_value_change_time
+                datetime.now() - self._managed[name].metadata.last_value_change_time
             ).total_seconds()
         raise AttributeError(f"{name} not found in {self}")
 
@@ -119,54 +233,12 @@ class BotData:
         """
         Checks in the last known value to see if there was any change.
         """
-        if name in self._metadata:
-            prev_values = self._metadata[name].prev_values
+        if name in self._managed:
+            prev_values = self._managed[name].metadata.prev_values
             if all(val == prev_values[-1] or val is None for val in prev_values):
                 return False
             else:
                 return True
-
-    def __getattr__(self, name: str) -> Any:
-        """
-        Returns the value of an attribute if it exists, and also updates the metadata
-        for that attribute.
-        Looks at whether the threshold for updating the attribute has been reached,
-        and if so, updates the attribute.
-        :param name: Name of the attribute.
-        :return:
-        """
-        if name in self._attributes:
-            metadata = self._metadata[name]
-            metadata.access_count += 1
-            threshold = self._thresholds[name] or float("inf")
-            now = datetime.now()
-            last_update_time = metadata.last_update_time or datetime.min
-            if (now - last_update_time).total_seconds() > threshold:
-                logger.log(
-                    LOG_LEVEL, f"{self} Updating {name} due to exceeded threshold."
-                )
-                self.update_attribute(name)
-            return self._attributes[name]
-        elif name in [*self._authorized_attributes, "_authorized_attributes"]:
-            return super().__getattribute__(name)
-        elif name.startswith("has"):
-            return False
-        raise AttributeError(f"{name} not found in {self}")
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        """
-        Sets the value of an attribute, and also updates the metadata for that attribute
-        :param name: Name of the attribute.
-        :param value: Value to set.
-        :return:
-        """
-        if name in self._authorized_attributes:
-            super().__setattr__(name, value)
-        elif name in self._attributes:
-            self._attributes[name] = value
-            self._metadata[name].prev_values.append(value)
-        else:
-            raise AttributeError(f"{name} created in {self}. Use create_attribute()")
 
     def update_attributes(self, *names: str) -> None:
         """
@@ -183,52 +255,19 @@ class BotData:
         :param name: Name of the attribute.
         :return:
         """
-        if name not in self._metadata:
+        if name not in self._managed:
             raise AttributeError(f"{name} not found in {self}")
-        try:
-            self._update_value(name)
-        except Exception as e:
-            if name in self._error_handlers:
-                self._error_handlers[name]()
-                logger.info(f"Finished error handling for {name}.")
-                self.update_attribute(name)
-                logger.info(f"Successfully updated {name} after error handling.")
-            else:
-                raise e
+        self._managed[name].update(self)
 
-    def _update_value(self, name: str) -> None:
-        """
-        Updates the value of an attribute.
-        :param name: Name of the attribute.
-        :return:
-        """
-        metadata = self._metadata[name]
-        now = datetime.now()
-        value = self._update_functions[name]()
-        metadata.update_count += 1
-        metadata.last_update_time = datetime.now()
+    @property
+    def _metadata(self) -> dict[str, AttributeMetadata]:
+        """Provides access to per-attribute metadata for backward compatibility."""
+        return {name: attr.metadata for name, attr in self._managed.items()}
 
-        if self._update_is_valid(value):
-            metadata.last_valid_update_time = metadata.last_update_time
-
-        if self._update_is_change(value, self._attributes[name]):
-            metadata.last_value_change_time = metadata.last_update_time
-        self.__setattr__(name, value)
-        metadata.total_update_time += (datetime.now() - now).total_seconds()
-
-    @staticmethod
-    def _update_is_valid(value: Any) -> bool:
-        if isinstance(value, np.ndarray):
-            return not (np.all(value == 0) or value.size == 0)
-        else:
-            return value not in [None, "", [], {}, set()]
-
-    @staticmethod
-    def _update_is_change(value: Any, prev_value: Any) -> bool:
-        if isinstance(value, np.ndarray):
-            return not np.array_equal(value, prev_value)
-        else:
-            return value != prev_value
+    @property
+    def _thresholds(self) -> dict[str, float]:
+        """Provides access to per-attribute thresholds for backward compatibility."""
+        return {name: attr.threshold for name, attr in self._managed.items()}
 
     def create_attribute(
         self,
@@ -243,19 +282,26 @@ class BotData:
         Creates a new attribute or overwrites the specifications of an existing one.
         :param name: Name of the attribute.
         :param update_function: Function to update the attribute.
-        :param threshold: Maximum delay after which the attribute is updated.
+        :param threshold: Maximum delay after which the attribute is automatically
+            refreshed on access.
         :param initial_value: Initial value of the attribute, which bypasses the
             update function if specified.
         :param error_handler: Function to handle errors in the update function.
         :return:
         """
-        self._metadata.setdefault(name, AttributeMetadata(**kwargs))
-        self._update_functions[name] = update_function
-        self._thresholds[name] = threshold
-        self._attributes.setdefault(name, initial_value)
-        if error_handler is not None:
-            self._error_handlers[name] = error_handler
+        if name in self._managed:
+            managed = self._managed[name]
+            managed.update_function = update_function
+            managed.threshold = threshold
+            managed.error_handler = error_handler
         else:
-            self._error_handlers.pop(name, None)
+            self._managed[name] = ManagedAttribute(
+                name=name,
+                update_function=update_function,
+                threshold=threshold,
+                initial_value=initial_value,
+                error_handler=error_handler,
+                **kwargs,
+            )
         if not initial_value:
             self.update_attribute(name)
