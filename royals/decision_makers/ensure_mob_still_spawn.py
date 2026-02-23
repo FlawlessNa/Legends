@@ -104,7 +104,7 @@ class CheckMobsStillSpawn(
         else:
             self.data.reconfigure_attribute(
                 "next_target",
-                update_function=self.data.current_minimap.random_point(),
+                update_function=self.data.current_minimap.random_point,
             )
 
     async def _clear_failsafe_procedure(self) -> None:

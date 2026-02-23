@@ -72,27 +72,27 @@ class MenusMixin:
             )
 
         self.data.set_static("inventory_menu", menu)
-        self.data.create_attribute(
+        self.data.create_or_reconfigure_attribute(
             "inventory_menu_displayed",
             lambda: menu.is_displayed(self.data.handle, self.data.current_client_img),
             initial_value=False,
         )
-        self.data.create_attribute(
+        self.data.create_or_reconfigure_attribute(
             "inventory_menu_extended",
             lambda: menu.is_extended(self.data.handle, self.data.current_client_img),
             initial_value=False,
         )
-        self.data.create_attribute(
+        self.data.create_or_reconfigure_attribute(
             "current_mesos",
             lambda: menu.get_current_mesos(self.data.handle),
             initial_value=None,
         )
-        self.data.create_attribute(
+        self.data.create_or_reconfigure_attribute(
             "inventory_menu_active_tab",
             lambda: menu.get_active_tab(self.data.handle, self.data.current_client_img),
             initial_value=None,
         )
-        self.data.create_attribute(
+        self.data.create_or_reconfigure_attribute(
             "inventory_space_left",
             lambda: menu.get_space_left(self.data.handle, self.data.current_client_img),
             initial_value=menu.total_slots,
