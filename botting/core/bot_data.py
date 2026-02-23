@@ -9,6 +9,8 @@ logger = logging.getLogger(__name__)
 LOG_LEVEL = logging.NOTSET
 N_RET_VALUES = 10
 
+_SENTINEL = object()
+
 
 @dataclass
 class AttributeMetadata:
@@ -53,6 +55,7 @@ class ManagedAttribute:
         threshold: float = None,
         initial_value: Any = None,
         error_handler: callable = None,
+        max_retries: int = 1,
         **metadata_kwargs,
     ) -> None:
         self.name = name
@@ -61,6 +64,7 @@ class ManagedAttribute:
         self.update_function = update_function
         self.threshold = threshold
         self.error_handler = error_handler
+        self.max_retries = max_retries
 
     def get(self, owner: "BotData") -> Any:
         """
@@ -89,15 +93,19 @@ class ManagedAttribute:
         """
         Refreshes the value by calling the update function. Tracks metadata
         such as update count, timing, validity, and value changes.
-        Falls back to the error handler if the update function raises.
+        Falls back to the error handler if the update function raises,
+        up to max_retries attempts.
         """
+        self._update_with_retry(owner, retries_left=self.max_retries)
+
+    def _update_with_retry(self, owner: "BotData", retries_left: int) -> None:
         try:
             self._execute_update()
         except Exception as e:
-            if self.error_handler is not None:
+            if self.error_handler is not None and retries_left > 0:
                 self.error_handler()
                 logger.info(f"Finished error handling for {self.name}.")
-                self.update(owner)
+                self._update_with_retry(owner, retries_left - 1)
                 logger.info(
                     f"Successfully updated {self.name} after error handling."
                 )
@@ -119,9 +127,7 @@ class ManagedAttribute:
         if _update_is_change(value, self.value):
             self.metadata.last_value_change_time = self.metadata.last_update_time
         self.set(value)
-        self.metadata.total_update_time += (
-            datetime.now() - now
-        ).total_seconds()
+        self.metadata.total_update_time += (datetime.now() - now).total_seconds()
 
 
 def _update_is_valid(value: Any) -> bool:
@@ -144,9 +150,10 @@ class BotData:
     between its DecisionMakers. This is achieved by the fact that each DecisionMaker
     assigned to a Bot instance has access to the same BotData instance.
 
-    Attributes are registered via create_attribute() and stored as ManagedAttribute
-    instances. Each ManagedAttribute encapsulates the attribute's value, metadata,
-    update function, refresh threshold, and optional error handler.
+    Attributes are stored in three tiers:
+    - _managed: Live attributes with update functions, thresholds, and metadata tracking.
+    - _static: Simple key-value pairs for config/constants (no update function).
+    - _features: A set of feature flags (has_* convention).
 
     When a managed attribute is accessed, its threshold is checked and the value is
     automatically refreshed if enough time has passed since the last update.
@@ -155,41 +162,51 @@ class BotData:
     def __init__(self, ign: str) -> None:
         self.ign = ign
         self._managed: dict[str, ManagedAttribute] = {}
+        self._static: dict[str, Any] = {}
+        self._features: set[str] = set()
 
     def __str__(self) -> str:
         return f"BotData({self.ign})"
 
     def __getattr__(self, name: str) -> Any:
         """
-        Returns the value of a managed attribute, auto-refreshing if needed.
+        Returns the value of an attribute, checking _managed, _static, and _features.
         For unregistered attributes starting with "has", returns False to support
         feature-flag checks (e.g., data.has_minimap_attributes).
         """
         managed = self.__dict__.get("_managed")
         if managed is not None and name in managed:
             return managed[name].get(self)
+        static = self.__dict__.get("_static")
+        if static is not None and name in static:
+            return static[name]
+        features = self.__dict__.get("_features")
+        if features is not None and name in features:
+            return True
         if name.startswith("has"):
             return False
         raise AttributeError(f"{name} not found in {self}")
 
     def __setattr__(self, name: str, value: Any) -> None:
         """
-        Sets the value of a managed attribute. For non-managed attributes
-        (ign, _managed), falls through to normal attribute setting.
+        Sets the value of a managed or static attribute. For internal attributes
+        (ign, _managed, _static, _features), falls through to normal attribute setting.
         """
-        if name in ("ign", "_managed"):
+        if name in ("ign", "_managed", "_static", "_features"):
             super().__setattr__(name, value)
         elif name in self._managed:
             self._managed[name].set(value)
+        elif name in self._static:
+            self._static[name] = value
         else:
-            raise AttributeError(f"{name} created in {self}. Use create_attribute()")
+            raise AttributeError(
+                f"{name} not found in {self}. "
+                f"Use create_attribute() or set_static()."
+            )
 
     def get_last_known_value(self, name: str, update: bool = True) -> Any:
         """
         Returns the last known (non-None) value of an attribute, if it exists.
-        :param name: Name of the attribute.
-        :param update: Whether to enable automatic update.
-        :return: Last known value of the attribute.
         """
         if name in self._managed:
             last_known_update = next(
@@ -208,8 +225,6 @@ class BotData:
     def get_time_since_last_valid_update(self, name: str) -> float:
         """
         Returns the time since the last valid update of an attribute.
-        :param name: Name of the attribute.
-        :return: Time since the last valid update.
         """
         if name in self._managed:
             return (
@@ -220,8 +235,6 @@ class BotData:
     def get_time_since_last_value_change(self, name: str) -> float:
         """
         Returns the time since the last value change of an attribute.
-        :param name: Name of the attribute.
-        :return: Time since the last value change.
         """
         if name in self._managed:
             return (
@@ -239,12 +252,11 @@ class BotData:
                 return False
             else:
                 return True
+        raise AttributeError(f"{name} not found in {self}")
 
     def update_attributes(self, *names: str) -> None:
         """
         Updates the values of the specified attributes.
-        :param names: Name of the attributes.
-        :return:
         """
         for name in names:
             self.update_attribute(name)
@@ -252,22 +264,28 @@ class BotData:
     def update_attribute(self, name: str) -> None:
         """
         Updates the value of an attribute using the update function mapped to it.
-        :param name: Name of the attribute.
-        :return:
         """
         if name not in self._managed:
             raise AttributeError(f"{name} not found in {self}")
         self._managed[name].update(self)
 
-    @property
-    def _metadata(self) -> dict[str, AttributeMetadata]:
-        """Provides access to per-attribute metadata for backward compatibility."""
-        return {name: attr.metadata for name, attr in self._managed.items()}
+    def set_static(self, name: str, value: Any) -> None:
+        """
+        Register or update a static attribute (no update function, no metadata).
+        """
+        self._static[name] = value
 
-    @property
-    def _thresholds(self) -> dict[str, float]:
-        """Provides access to per-attribute thresholds for backward compatibility."""
-        return {name: attr.threshold for name, attr in self._managed.items()}
+    def set_feature(self, name: str) -> None:
+        """
+        Register a feature flag. Accessible as self.name returning True.
+        """
+        self._features.add(name)
+
+    def remove_feature(self, name: str) -> None:
+        """
+        Remove a feature flag.
+        """
+        self._features.discard(name)
 
     def create_attribute(
         self,
@@ -276,24 +294,76 @@ class BotData:
         threshold: float = None,
         initial_value: Any = None,
         error_handler: callable = None,
-        **kwargs,
+        max_retries: int = 1,
     ) -> None:
         """
-        Creates a new attribute or overwrites the specifications of an existing one.
-        :param name: Name of the attribute.
-        :param update_function: Function to update the attribute.
-        :param threshold: Maximum delay after which the attribute is automatically
-            refreshed on access.
-        :param initial_value: Initial value of the attribute, which bypasses the
-            update function if specified.
-        :param error_handler: Function to handle errors in the update function.
-        :return:
+        Creates a new managed attribute. Raises if the attribute already exists
+        in _managed. Use reconfigure_attribute() to modify an existing one, or
+        create_or_reconfigure_attribute() for mixin setup methods that may be
+        called multiple times.
         """
+        if name in self._managed:
+            raise AttributeError(
+                f"{name} already exists in {self}. Use reconfigure_attribute()."
+            )
+        self._static.pop(name, None)
+        self._managed[name] = ManagedAttribute(
+            name=name,
+            update_function=update_function,
+            threshold=threshold,
+            initial_value=initial_value,
+            error_handler=error_handler,
+            max_retries=max_retries,
+        )
+        if initial_value is None:
+            self.update_attribute(name)
+
+    def reconfigure_attribute(
+        self,
+        name: str,
+        update_function: callable = _SENTINEL,
+        threshold: float = _SENTINEL,
+        error_handler: callable = _SENTINEL,
+    ) -> None:
+        """
+        Reconfigure an existing managed attribute. Preserves metadata history.
+        Only updates the fields that are explicitly passed. Uses a sentinel
+        default so that None can be passed explicitly (e.g., to remove an
+        error_handler).
+        """
+        if name not in self._managed:
+            raise AttributeError(
+                f"{name} not found in {self}. Cannot reconfigure."
+            )
+        managed = self._managed[name]
+        if update_function is not _SENTINEL:
+            managed.update_function = update_function
+        if threshold is not _SENTINEL:
+            managed.threshold = threshold
+        if error_handler is not _SENTINEL:
+            managed.error_handler = error_handler
+
+    def create_or_reconfigure_attribute(
+        self,
+        name: str,
+        update_function: callable,
+        threshold: float = None,
+        initial_value: Any = None,
+        error_handler: callable = None,
+        max_retries: int = 1,
+    ) -> None:
+        """
+        Creates a new attribute or reconfigures an existing one.
+        Used by mixin setup methods that may be called multiple times.
+        Preserves metadata on reconfiguration.
+        """
+        self._static.pop(name, None)
         if name in self._managed:
             managed = self._managed[name]
             managed.update_function = update_function
             managed.threshold = threshold
             managed.error_handler = error_handler
+            managed.max_retries = max_retries
         else:
             self._managed[name] = ManagedAttribute(
                 name=name,
@@ -301,7 +371,7 @@ class BotData:
                 threshold=threshold,
                 initial_value=initial_value,
                 error_handler=error_handler,
-                **kwargs,
+                max_retries=max_retries,
             )
         if initial_value is None:
             self.update_attribute(name)

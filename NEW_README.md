@@ -1,4 +1,5 @@
 ## Botting System
+- [ ] Ask Claude about the Mixin system and whether this can be improved or not really. Ask for a deep-dive on each existing Mixin implementation as well. 
 - [ ] Look into Claude's advice of using a ProcessPoolExecutor to run all CPU-intensive functions (image processing, model detection, OCR, etc)
 - [ ] Ask Claude to do additional toolkits script such as 
   - the measuring of bot interferences with respect to each other's loop cycle (see new-map-system branch)
@@ -16,7 +17,10 @@
 ## Map Navigation
 - [ ] Rework once again the navigation system, avoid using game files.
   - Look into navigation/ folder of new-map-system and ask Claude how to best tackle this
+  - Minimap Creation GUI might be best
 
+## Movements into Actions
+- [ ] Ask Claude to compare new-map-system navigation with current, see what is best and if anything within new-map-system can be salvaged (make sure to mention we are moving away from anything related to game-files)
 
 ## Mob Detection
 - [ ] Create a script to annotate a small number of images and pre-train a model

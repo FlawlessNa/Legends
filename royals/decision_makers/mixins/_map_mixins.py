@@ -126,42 +126,42 @@ class MinimapAttributesMixin:
             ),
             self.ERROR_HANDLING_TIME_LIMIT,
         )
-        self.data.create_attribute(
+        self.data.create_or_reconfigure_attribute(
             "minimap_currently_displayed",
             lambda: self.data.current_minimap.is_displayed(
                 self.data.handle, self.data.current_client_img
             ),
         )
-        self.data.create_attribute(
+        self.data.create_or_reconfigure_attribute(
             "current_minimap_state",
             lambda: self.data.current_minimap.get_minimap_state(
                 self.data.handle, self.data.current_client_img
             ),
         )
-        self.data.create_attribute(
+        self.data.create_or_reconfigure_attribute(
             "current_minimap_area_box",
             lambda: self.data.current_minimap.get_map_area_box(
                 self.data.handle,
                 self.data.current_client_img,
             ),
         )
-        self.data.create_attribute(
+        self.data.create_or_reconfigure_attribute(
             "current_entire_minimap_box",
             lambda: self.data.current_minimap.get_entire_minimap_box(
                 self.data.handle, self.data.current_client_img
             ),
         )
-        self.data.create_attribute(
+        self.data.create_or_reconfigure_attribute(
             "current_minimap_title_box",
             lambda: self.data.current_minimap.get_minimap_title_box(
                 self.data.handle, self.data.current_client_img
             ),
         ),
-        self.data.create_attribute(
+        self.data.create_or_reconfigure_attribute(
             "current_minimap_title_img",
             lambda: self.data.current_minimap.get_minimap_title_img(self.data.handle),
         )
-        self.data.create_attribute(
+        self.data.create_or_reconfigure_attribute(
             "current_minimap_position",
             self._get_minimap_pos,
             threshold=self.MINIMAP_POS_REFRESH_RATE,
@@ -169,9 +169,7 @@ class MinimapAttributesMixin:
         )
         self.data.current_minimap.generate_grid_template(
             self.data.character.skills.get("Teleport") is not None,
-            # self.data.speed_multiplier if self.data.has_ap_menu_attributes else 1.00,
-            # self.data.jump_multiplier if self.data.has_ap_menu_attributes else 1.00,
             getattr(self.data, "speed_multiplier", 1.00),
             getattr(self.data, "jump_multiplier", 1.00),
         )
-        self.data.create_attribute("has_minimap_attributes", lambda: True)
+        self.data.set_feature("has_minimap_attributes")
