@@ -97,14 +97,14 @@ class CheckMobsStillSpawn(
             timeout=5.0,
         )
         if self.data.current_minimap.feature_cycle:
-            self.data.create_attribute(
+            self.data.reconfigure_attribute(
                 "next_target",
-                self._update_next_target_from_cycle,
+                update_function=self._update_next_target_from_cycle,
             )
         else:
-            self.data.create_attribute(
+            self.data.reconfigure_attribute(
                 "next_target",
-                self.data.current_minimap.random_point(),
+                update_function=self.data.current_minimap.random_point(),
             )
 
     async def _clear_failsafe_procedure(self) -> None:

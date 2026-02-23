@@ -35,31 +35,31 @@ class NextTargetMixin:
     ) -> None:
 
         if smart_rotation is True:
-            self.data.create_attribute('has_smart_rotation', lambda: True)
+            self.data.set_feature('has_smart_rotation')
             assert mob_count_threshold is not None, (
                 "Mob count threshold must be provided for smart rotation."
             )
-            self.data.create_attribute('mob_threshold', lambda: mob_count_threshold)
+            self.data.set_static('mob_threshold', mob_count_threshold)
 
         # If the map has a cycle provided for features, use it
         if self.data.current_minimap.feature_cycle:
             if cycle is None:
-                self.data.create_attribute(
+                self.data.set_static(
                     "feature_cycle",
-                    lambda: itertools.cycle(self.data.current_minimap.feature_cycle),
+                    itertools.cycle(self.data.current_minimap.feature_cycle),
                 )
-            self.data.create_attribute(
+            self.data.create_or_reconfigure_attribute(
                 "next_feature",
                 lambda: next(self.data.feature_cycle),
             )
             if not self.data.has_smart_rotation:
-                self.data.create_attribute(
+                self.data.create_or_reconfigure_attribute(
                     "next_target",
                     self._update_next_target_from_cycle,
                     initial_value=self.data.next_feature.random(),
                 )
             else:
-                self.data.create_attribute(
+                self.data.create_or_reconfigure_attribute(
                     "next_target",
                     self._smart_rotation_target,
                     initial_value=self.data.next_feature.random(),
@@ -67,24 +67,24 @@ class NextTargetMixin:
         # If not cycle provided for current map, rotate at random
         else:
             if not self.data.has_smart_rotation:
-                self.data.create_attribute(
+                self.data.create_or_reconfigure_attribute(
                     "next_target",
                     self._update_next_random_target,
                     initial_value=self.data.current_minimap.random_point(),
                 )
             else:
-                self.data.create_attribute(
+                self.data.create_or_reconfigure_attribute(
                     "next_target",
                     self._smart_rotation_target,
                     initial_value=self.data.current_minimap.random_point(),
                 )
-            self.data.create_attribute(
+            self.data.create_or_reconfigure_attribute(
                 "next_feature",
                 lambda: self.data.current_minimap.get_feature_containing(
                     self.data.next_target
                 ),
             )
-        self.data.create_attribute("has_rotation_attributes", lambda: True)
+        self.data.set_feature("has_rotation_attributes")
 
     def _update_next_target_from_cycle(self) -> None:
         """
@@ -123,9 +123,9 @@ class NextTargetMixin:
         """
         if self.data.has_rotation_attributes:
             # Overwrite how the next_target attribute is set until the rebuff is done
-            self.data.create_attribute(
+            self.data.reconfigure_attribute(
                 "next_target",
-                lambda: target,
+                update_function=lambda: target,
             )
             self._reset_flag = True
 
@@ -241,8 +241,8 @@ class MovementsMixin:
         self,
         duration: float,
     ) -> None:
-        self.data.create_attribute("action_duration", lambda: duration)
-        self.data.create_attribute(
+        self.data.set_static("action_duration", duration)
+        self.data.create_or_reconfigure_attribute(
             "movement_handler",
             lambda: Movements(
                 self.data.ign,
@@ -252,19 +252,19 @@ class MovementsMixin:
             ),
         )
 
-        self.data.create_attribute(
+        self.data.create_or_reconfigure_attribute(
             "path",
             lambda: self.data.movement_handler.compute_path(
                 self.data.current_minimap_position, self.data.next_target
             ),
             threshold=0.1,
         )
-        self.data.create_attribute(
+        self.data.create_or_reconfigure_attribute(
             "movements",
             lambda: self.data.movement_handler.path_into_movements(self.data.path),
             threshold=0.1,
         )
-        self.data.create_attribute(
+        self.data.create_or_reconfigure_attribute(
             "action",
             lambda: self.data.movement_handler.movements_into_action(
                 self.data.movements,
@@ -272,7 +272,7 @@ class MovementsMixin:
                 getattr(self.data, "speed_multiplier", 1.0),
             ),
         )
-        self.data.create_attribute("has_pathing_attributes", lambda: True)
+        self.data.set_feature("has_pathing_attributes")
 
     def _always_release_keys_on_actions(self):
         actions = self.data.movement_handler.movements_into_action(

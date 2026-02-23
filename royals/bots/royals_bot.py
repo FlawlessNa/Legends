@@ -67,11 +67,5 @@ class RoyalsBot(Bot, ABC):
             lambda: take_screenshot(self.data.handle),
             threshold=0.1,
         )
-        if self.kwargs.get('speed_multiplier'):
-            self.data.create_attribute(
-                'speed_multiplier', lambda: self.kwargs['speed_multiplier']
-            )
-        if self.kwargs.get('jump_multiplier'):
-            self.data.create_attribute(
-                'jump_multiplier', lambda: self.kwargs['jump_multiplier']
-            )
+        self.data.set_static('speed_multiplier', self.kwargs.get('speed_multiplier', 1.00))
+        self.data.set_static('jump_multiplier', self.kwargs.get('jump_multiplier', 1.00))
