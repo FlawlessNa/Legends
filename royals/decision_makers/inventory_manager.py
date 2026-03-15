@@ -263,7 +263,9 @@ class InventoryManager(
         assert self.data.has_pathing_attributes
         assert self.data.has_minimap_attributes
         # Overwrite action mechanics to ensure keys are always released
-        self.data.create_attribute("action", self._always_release_keys_on_actions)
+        self.data.reconfigure_attribute(
+            "action", update_function=self._always_release_keys_on_actions
+        )
 
         door_spot = getattr(
             self.data.current_minimap, "door_spot", [self.data.current_minimap_position]
@@ -369,9 +371,9 @@ class InventoryManager(
                 return 0, 0
 
         # Overwrite the current_minimap_position attribute to disable the error handler
-        self.data.create_attribute(
+        self.data.reconfigure_attribute(
             "current_minimap_position",
-            _temp_minimap_pos,
+            update_function=_temp_minimap_pos,
             threshold=self.MINIMAP_POS_REFRESH_RATE,
             error_handler=None,
         )

@@ -48,7 +48,7 @@ class Bot(ABC):
         Called by the Engine to create Bot within Child process.
         """
         self.data = BotData(self.ign)
-        self.data.create_attribute("handle", lambda: self.get_handle_from_ign(self.ign))
+        self.data.set_static("handle", self.get_handle_from_ign(self.ign))
         self.pipe = pipe
         self.barrier = barrier
 
