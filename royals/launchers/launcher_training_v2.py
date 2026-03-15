@@ -12,7 +12,7 @@ training_configs = {
     "training_skill": "Heal",
     "models_path": {
         "All": "data/model_runs/detection/Full Model up to GS2 - Nano"
-    },
+    },  
     "smart_rotation_enabled": True,
     # "disable_teleport": True,
     "mob_spawn_alert_timer": 15,
