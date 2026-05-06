@@ -1,7 +1,7 @@
 import multiprocessing.connection
 import multiprocessing.managers
 
-from botting.core import BotData, DecisionMaker
+from botting.core import BotData, ProxyFactory
 from royals.actions import ensure_ability_menu_displayed
 from royals.model.interface import (
     AbilityMenu,
@@ -15,12 +15,13 @@ class MenusMixin:
     data: BotData
     metadata: multiprocessing.managers.DictProxy
     pipe: multiprocessing.connection.Connection
+    _proxies: ProxyFactory
 
     def _create_ap_menu_attributes(self, condition=None):
         menu = AbilityMenu()
         if condition is None:
-            condition = DecisionMaker.request_proxy(
-                self.metadata, f"{self} - Ability Menu Setup", "Condition"
+            condition = self._proxies.instance(
+                f"{self} - Ability Menu Setup", "Condition"
             )
 
         self.data.set_static("ability_menu", menu)
@@ -67,8 +68,8 @@ class MenusMixin:
         menu = InventoryMenu()
         condition = condition or getattr(self, "_condition", None)
         if condition is None:
-            condition = DecisionMaker.request_proxy(
-                self.metadata, f"{self} - Inventory Menu Setup", "Condition"
+            condition = self._proxies.instance(
+                f"{self} - Inventory Menu Setup", "Condition"
             )
 
         self.data.set_static("inventory_menu", menu)
@@ -101,9 +102,7 @@ class MenusMixin:
 
     def _display_kwargs(self, identifier: str, timeout: float, condition=None) -> dict:
         if condition is None:
-            condition = DecisionMaker.request_proxy(
-                self.metadata, identifier, "Condition"
-            )
+            condition = self._proxies.instance(identifier, "Condition")
         return {
             "identifier": identifier,
             "handle": self.data.handle,

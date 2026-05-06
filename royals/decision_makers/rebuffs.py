@@ -6,7 +6,7 @@ import multiprocessing.managers
 
 from .mixins import RebuffMixin, NextTargetMixin, MinimapAttributesMixin
 from botting import PARENT_LOG
-from botting.core import ActionRequest, DecisionMaker, BotData
+from botting.core import ActionRequest, DecisionMaker, BotData, MetadataNamespace
 from botting.utilities import cooldown
 from royals.actions import priorities
 from royals.model.mechanics import RoyalsSkill
@@ -49,34 +49,21 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         self._all_buffs = synchronized_buffs
 
         # Set up the synchronization primitives used across bots with this DecisionMaker
-        self._shared_lock = self.request_proxy(
-            self.metadata, self.__class__.__name__ + "Lock", "Lock", True
-        )
-        self._event = self.request_proxy(
-            self.metadata, self.__class__.__name__ + "Event", "Event", True
-        )
+        self._shared_lock = self._proxies.shared("PartyRebuff", "lock", "Lock")
+        self._event = self._proxies.shared("PartyRebuff", "event", "Event")
 
         # Unique Lock is used by this instance and NOT shared.
         # Used for buff confirmation
-        self._unique_lock = self.request_proxy(self.metadata, f"{self}", "Lock")
+        self._unique_lock = self._proxies.instance(repr(self), "Lock")
 
         if not self.data.has_minimap_attributes:
             self._create_minimap_attributes()
 
         assert self.data.has_minimap_attributes, f"{self} must have minimap attributes"
-        location_key = self.__class__.__name__ + "_character_locations"
-        rebuff_key = self.__class__.__name__ + "_rebuffed"
+        self._ns = MetadataNamespace(self.metadata, "PartyRebuff")
         with self._shared_lock:
-            if location_key not in self.metadata:
-                self.metadata[location_key] = dict()
-                self.metadata["ignored_keys"] = self.metadata["ignored_keys"].union(
-                    {location_key}
-                )
-            if rebuff_key not in self.metadata:
-                self.metadata[rebuff_key] = dict()
-                self.metadata["ignored_keys"] = self.metadata["ignored_keys"].union(
-                    {rebuff_key}
-                )
+            self._ns.get_shared_dict("character_locations")
+            self._ns.get_shared_dict("rebuffed")
 
         self._set_ready_state()
         self._reset_flag = False
@@ -188,40 +175,36 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         """
         Update the shared location to the current location.
         """
-        ident = self.__class__.__name__ + "_character_locations"
-        locations = self.metadata[ident]
+        locations = self._ns.get_shared_dict("character_locations")
         locations[f"{self}"] = self.data.current_minimap_position
-        self.metadata[ident] = locations
+        self._ns.set_shared_dict("character_locations", locations)
 
     def _update_rebuff_status(self) -> None:
         """
         Update the rebuffed status for the current member.
         """
-        ident = self.__class__.__name__ + "_rebuffed"
-        statuses = self.metadata[ident]
+        statuses = self._ns.get_shared_dict("rebuffed")
         temp = statuses.setdefault(f"{self}", self._all_buffs.copy()).copy()
         for buff in self._all_buffs.copy():
             if self._buff_confirmation(buff) and buff in temp:
                 temp.remove(buff)
         statuses[f"{self}"] = temp
-        self.metadata[ident] = statuses
+        self._ns.set_shared_dict("rebuffed", statuses)
 
     def _reset_shared_location(self) -> None:
-        ident = self.__class__.__name__ + "_character_locations"
-        locations = self.metadata[ident]
+        locations = self._ns.get_shared_dict("character_locations")
         for key in locations:
             locations[key] = (-100, -100)
-        self.metadata[ident] = locations
+        self._ns.set_shared_dict("character_locations", locations)
 
     def _reset_rebuff_status(self) -> None:
         """
         Reset the rebuffed status for all members.
         """
-        ident = self.__class__.__name__ + "_rebuffed"
-        statuses = self.metadata[ident]
+        statuses = self._ns.get_shared_dict("rebuffed")
         for key in statuses:
             statuses[key] = self._all_buffs
-        self.metadata[ident] = statuses
+        self._ns.set_shared_dict("rebuffed", statuses)
 
     def _get_own_buff_remaining(self) -> list[str]:
         """
@@ -229,10 +212,8 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         with this member's own buffs and all the other member's remaining buffs.
         :return:
         """
-
-        ident = self.__class__.__name__ + "_rebuffed"
         buff_names = {buff.name for buff in self._buffs}
-        statuses = self.metadata[ident]
+        statuses = self._ns.get_shared_dict("rebuffed")
         remaining = set([item for sublist in statuses.values() for item in sublist])
         return list(buff_names.intersection(remaining))
 
@@ -241,10 +222,9 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         Computes the maximum distance between all shared locations and check if within
         range.
         """
-        ident = self.__class__.__name__ + "_character_locations"
         with self._shared_lock:
             self._update_shared_location()
-            locations = self.metadata[ident].values()
+            locations = self._ns.get_shared_dict("character_locations").values()
         return (
             all(
                 math.dist(location, self._location) <= self._min_range
@@ -258,10 +238,9 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         Check if all members have properly been rebuffed.
         :return:
         """
-        ident = self.__class__.__name__ + "_rebuffed"
         with self._shared_lock:
             self._update_rebuff_status()
-            statuses = self.metadata[ident].values()
+            statuses = self._ns.get_shared_dict("rebuffed").values()
             logger.log(LOG_LEVEL, f"Rebuff statuses: {statuses}")
         return all(len(status) == 0 for status in statuses) and len(statuses) > 1
 
@@ -302,9 +281,7 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
     async def task(self, *args, **kwargs) -> None:
         for buff in self._buffs:
             ident = f"{self} - {buff.name}"
-            condition = self.request_proxy(
-                self.metadata, f"{ident}", "Condition"
-            )
+            condition = self._proxies.instance(ident, "Condition")
             self._sub_tasks[ident] = self._tg.create_task(
                 super().task(buff, condition), name=ident
             )

@@ -61,9 +61,9 @@ class InventoryManager(
         super().__init__(metadata, data, pipe, **kwargs)
         # Set a condition but use a standard Lock instead of RLock, allowing to use
         # basic lock mechanism as well
-        temp_lock = self.request_proxy(metadata, f"{self}", "Lock")
-        self._condition = DecisionMaker.request_proxy(
-            metadata, f"{self}", "Condition", False, temp_lock
+        temp_lock = self._proxies.instance(repr(self), "Lock")
+        self._condition = self._proxies.instance(
+            repr(self) + "/condition", "Condition", temp_lock
         )
         self._cleanup_procedure = cleanup_procedure
         self._space_left_trigger = space_left_trigger

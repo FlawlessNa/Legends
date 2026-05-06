@@ -29,7 +29,7 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
     ) -> None:
         super().__init__(metadata, data, pipe)
         self._ap_menu_key = controller.key_binds(self.data.ign)[self.CONFIG_KEY]
-        self.condition = self.request_proxy(self.metadata, f"{self}", "Condition")
+        self.condition = self._proxies.instance(repr(self), "Condition")
         self._create_ap_menu_attributes(self.condition)
         self._create_ui_attributes()
         self._prev_level_img = self.data.current_level_img.copy()

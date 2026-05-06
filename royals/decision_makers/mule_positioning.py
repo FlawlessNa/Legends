@@ -90,7 +90,7 @@ class ResetIdleSafeguard(
         **kwargs,
     ) -> None:
         super().__init__(metadata, data, pipe)
-        self.lock = self.request_proxy(self.metadata, f"{self}", "Lock")
+        self.lock = self._proxies.instance(repr(self), "Lock")
         self._teleport_skill = self.data.character.skills.get("Teleport")
 
         # Minimap attributes

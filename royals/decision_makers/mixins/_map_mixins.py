@@ -6,7 +6,7 @@ import win32gui
 
 from royals.actions import ensure_minimap_displayed
 from botting import PARENT_LOG, controller
-from botting.core import ActionRequest, BotData, DecisionMaker
+from botting.core import ActionRequest, BotData, ProxyFactory
 from botting.utilities import Box
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -17,6 +17,7 @@ class MinimapAttributesMixin:
     data: BotData
     metadata: multiprocessing.managers.DictProxy
     pipe: multiprocessing.connection.Connection
+    _proxies: ProxyFactory
     MINIMAP_POS_REFRESH_RATE = 0.1
     ERROR_HANDLING_TIME_LIMIT = 7.5
 
@@ -35,11 +36,7 @@ class MinimapAttributesMixin:
         """
         identifier = f"{self}.current_minimap_position Error Handler"
         logger.warning(f"{identifier} Attempt")
-        condition = DecisionMaker.request_proxy(
-            self.metadata,
-            identifier,
-            "Condition",
-        )
+        condition = self._proxies.instance(identifier, "Condition")
         attempt = 0
         while True:
             time.sleep(1.5)
@@ -118,11 +115,7 @@ class MinimapAttributesMixin:
             getattr(
                 self,
                 "_condition",
-                DecisionMaker.request_proxy(
-                    self.metadata,
-                    f"{self} Initial Setup",
-                    "Condition",
-                ),
+                self._proxies.instance(f"{self} Initial Setup", "Condition"),
             ),
             self.ERROR_HANDLING_TIME_LIMIT,
         )
