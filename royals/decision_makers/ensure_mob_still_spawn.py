@@ -38,7 +38,7 @@ class CheckMobsStillSpawn(
         self._alert_threshold = mob_spawn_alert_threshold
         self._last_valid_detection = time.perf_counter() + 30.0
 
-        self._condition = self.request_proxy(self.metadata, f"{self}", "Condition")
+        self._condition = self._proxies.instance(repr(self), "Condition")
         if not self.data.has_chat_feed_attributes:
             self._create_chat_feed_attributes()
 
