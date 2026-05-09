@@ -66,8 +66,8 @@ class YOLOTrainer:
         patience = patience or config.get('model.final_training.patience', 20)
         
         if project is None:
-            project = str(Path(config.get('registry.models_path', 'ml_training/data/models')) / 'runs')
-        
+            project = config.get('registry.runs_path', 'data/models/runs')
+
         # Train
         results = self.model.train(
             data=data_yaml,
@@ -79,9 +79,9 @@ class YOLOTrainer:
             name=name,
             **kwargs
         )
-        
+
         return results
-    
+
     def train_mini_model(
         self,
         data_yaml: str,
@@ -112,7 +112,7 @@ class YOLOTrainer:
         patience = config.get('model.mini_training.patience', 10)
         
         if project is None:
-            project = str(Path(config.get('registry.models_path', 'ml_training/data/models')) / 'runs')
+            project = config.get('registry.runs_path', 'data/models/runs')
         
         # Aggressive augmentation parameters
         aug_params = {

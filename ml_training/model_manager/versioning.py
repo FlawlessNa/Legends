@@ -19,10 +19,10 @@ class ModelRegistry:
         Args:
             base_path: Base path for model storage
         """
-        self.base_path = Path(base_path or config.get('registry.models_path', 'ml_training/data/models'))
+        self.base_path = Path(base_path or config.get('registry.models_path', 'data/models/registry'))
         self.base_path.mkdir(parents=True, exist_ok=True)
-        
-        self.production_path = Path(config.get('registry.production_path', 'ml_training/data/models/production'))
+
+        self.production_path = Path(config.get('registry.production_path', 'data/models/production'))
         self.production_path.mkdir(parents=True, exist_ok=True)
         
         self.metadata_file = self.base_path / config.get('registry.metadata_file', 'model_registry.json')
@@ -180,21 +180,25 @@ class ModelRegistry:
             if m['name'] == model['name'] and m['is_production']:
                 m['is_production'] = False
         
-        # Copy to production (always copy to avoid breaking registry)
+        # Copy to production in bot-compatible directory structure
+        # Bot expects: {path}/weights/best.pt (see InGameDetectionVisuals.register_models)
         src_path = Path(model['model_path'])
-        dest_path = self.production_path / f"{model['name']}.pt"
-        
+        dest_dir = self.production_path / model['name'] / "weights"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_path = dest_dir / "best.pt"
+
         shutil.copy(src_path, dest_path)
-        
-        # Update metadata
+
+        # Update metadata — production_path points to the model directory (not the .pt)
         model['is_production'] = True
-        model['production_path'] = str(dest_path)
+        model['production_path'] = str(dest_dir.parent)
         model['promoted_at'] = datetime.now().isoformat()
         
         self._save_registry()
         
-        print(f"Promoted {model_id} to production: {dest_path}")
-        return str(dest_path)
+        prod_model_dir = str(dest_dir.parent)
+        print(f"Promoted {model_id} to production: {prod_model_dir}")
+        return prod_model_dir
     
     def get_production_model(self, name: str) -> Optional[Dict]:
         """

@@ -9,7 +9,9 @@ from .dataset_manager import (
     YOLODataset,
     capture_burst,
     create_dataset,
+    import_existing_dataset,
     load_dataset,
+    merge_datasets,
 )
 from .gui import AnnotatorGUI, run_annotator
 from .model_manager import (
@@ -34,7 +36,9 @@ __all__ = [
     'capture_burst',
     'YOLODataset',
     'create_dataset',
+    'import_existing_dataset',
     'load_dataset',
+    'merge_datasets',
     # Model Manager
     'YOLOTrainer',
     'train_model',
