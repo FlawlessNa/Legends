@@ -2,21 +2,21 @@
 
 # Screen Capture Settings
 screen_capture:
-  burst_interval: 0.5  # Interval between burst captures in seconds
-  output_dir: "ml_training/data/raw_images"
+  burst_interval: 3  # Interval between burst captures in seconds
+  output_dir: "data/captures"
 
 # Dataset Settings
 dataset:
-  base_path: "ml_training/data/datasets"
+  base_path: "data/datasets"
   train_val_split: 0.8  # 80% train, 20% validation
   image_format: "jpg"
   label_format: "yolo"  # YOLO format (class x_center y_center width height)
 
 # Model Training Settings
 model:
-  base_model: "yolov8n.pt"  # yolov8n, yolov8s, yolov8m, yolov8l, yolov8x
+  base_model: "botting/visuals/deep_learning_framework/yolov8n.pt"  # pre-downloaded; avoids dropping yolov8n.pt in repo root
   image_size: 640
-  
+
   # Mini Model Training (for bootstrap phase)
   mini_training:
     epochs: 50
@@ -36,7 +36,7 @@ model:
     fliplr: 0.5  # 50% horizontal flip
     mosaic: 1.0
     mixup: 0.15
-  
+
   # Final Model Training
   final_training:
     epochs: 100
@@ -63,25 +63,18 @@ inference:
   iou_threshold: 0.45  # IoU threshold for NMS
   low_confidence_threshold: 0.5  # Threshold for flagging low-confidence predictions
 
-# Augmentation Settings
-augmentation:
-  brightness_range: [0.8, 1.2]
-  contrast_range: [0.8, 1.2]
-  noise_std: 10  # Gaussian noise standard deviation
-  horizontal_flip: true
-  multiplier: 3  # How many augmented versions per image
-
 # Bootstrap Workflow Settings
 bootstrap:
   initial_samples: 10
   extended_samples: 100
   mini_model_name_template: "{class_name}_mini_v{version}"
   final_model_name_template: "{class_name}_final_v{version}"
-  
+
 # Model Registry Settings
 registry:
-  models_path: "ml_training/data/models"
-  production_path: "ml_training/data/models/production"
+  models_path: "data/models/registry"
+  production_path: "data/models/production"
+  runs_path: "data/models/runs"
   metadata_file: "model_registry.json"
 
 # GUI Settings

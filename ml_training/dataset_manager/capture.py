@@ -8,9 +8,14 @@ from typing import List, Optional
 import cv2
 
 # Import the existing screenshot function from botting utilities
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from botting.utilities.screenshots import take_screenshot
+try:
+    from botting.utilities.screenshots import take_screenshot
+except ImportError:
+    from PIL import ImageGrab
+    import numpy as np
+
+    def take_screenshot(handle=None):
+        return np.array(ImageGrab.grab())
 
 
 class ScreenCapture:
