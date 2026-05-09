@@ -6,8 +6,10 @@
   - Profiling of CV (cpu-bound) parallelism gains (see new-map-system branch)
 - [ ] Ask Claude to look at the botting package step by step and see how it can be improved (the Process Model in general)
 - [ ] Also look at each components individually to see if there are any recommandations, such as
+  - Handling of Proxies
   - Decision Maker's request_proxy (proxy system) very convoluted (Enable/Disable mechanism overcomplicated)
   - BotData is "too magical"
+  - Mixin system revamp if needed?
   - ActionRequest/TaskManager complexity? (Too many un-used features right now, such as re-queuing)
   - DecisionMaker does too much? (decision + coordination + proxy management) -> separation of concerns
   - Error Handling & Logging -> Need a centralized error recovery strategy, discord error notifications are currently ad-hoc

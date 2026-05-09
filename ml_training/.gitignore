@@ -1,0 +1,33 @@
+# Data directories
+data/
+raw_images/
+annotations/
+datasets/
+models/
+runs/
+
+# Training outputs
+*.pt
+*.onnx
+*.engine
+
+# Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

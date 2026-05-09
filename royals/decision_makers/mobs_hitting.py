@@ -36,7 +36,7 @@ class MobsHitting(
         **kwargs,
     ) -> None:
         super().__init__(metadata, data, pipe)
-        self.lock = self.request_proxy(self.metadata, f"{self}", "Lock")
+        self.lock = self._proxies.instance(repr(self), "Lock")
         self.mob_threshold = mob_count_threshold
         self.training_skill = self._get_skill_from_str(training_skill)
         self._create_minimap_attributes()

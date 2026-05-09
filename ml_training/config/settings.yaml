@@ -1,0 +1,98 @@
+# ML Training Configuration
+
+# Screen Capture Settings
+screen_capture:
+  burst_interval: 3  # Interval between burst captures in seconds
+  output_dir: "data/captures"
+
+# Dataset Settings
+dataset:
+  base_path: "data/datasets"
+  train_val_split: 0.8  # 80% train, 20% validation
+  image_format: "jpg"
+  label_format: "yolo"  # YOLO format (class x_center y_center width height)
+
+# Model Training Settings
+model:
+  base_model: "botting/visuals/deep_learning_framework/yolov8n.pt"  # pre-downloaded; avoids dropping yolov8n.pt in repo root
+  image_size: 640
+
+  # Mini Model Training (for bootstrap phase)
+  mini_training:
+    epochs: 50
+    batch_size: 8
+    patience: 10
+    augment: true
+    # Aggressive augmentation for small datasets
+    hsv_h: 0.02  # Hue augmentation
+    hsv_s: 0.7  # Saturation augmentation
+    hsv_v: 0.4  # Value augmentation
+    degrees: 10  # Rotation degrees
+    translate: 0.2  # Translation
+    scale: 0.5  # Scale
+    shear: 0.0
+    perspective: 0.0
+    flipud: 0.0
+    fliplr: 0.5  # 50% horizontal flip
+    mosaic: 1.0
+    mixup: 0.15
+
+  # Final Model Training
+  final_training:
+    epochs: 100
+    batch_size: 16
+    patience: 20
+    augment: true
+    # Standard augmentation
+    hsv_h: 0.015
+    hsv_s: 0.7
+    hsv_v: 0.4
+    degrees: 5
+    translate: 0.1
+    scale: 0.3
+    shear: 0.0
+    perspective: 0.0
+    flipud: 0.0
+    fliplr: 0.5
+    mosaic: 1.0
+    mixup: 0.0
+
+# Inference Settings
+inference:
+  confidence_threshold: 0.25  # Minimum confidence for predictions
+  iou_threshold: 0.45  # IoU threshold for NMS
+  low_confidence_threshold: 0.5  # Threshold for flagging low-confidence predictions
+
+# Bootstrap Workflow Settings
+bootstrap:
+  initial_samples: 10
+  extended_samples: 100
+  mini_model_name_template: "{class_name}_mini_v{version}"
+  final_model_name_template: "{class_name}_final_v{version}"
+
+# Model Registry Settings
+registry:
+  models_path: "data/models/registry"
+  production_path: "data/models/production"
+  runs_path: "data/models/runs"
+  metadata_file: "model_registry.json"
+
+# GUI Settings
+gui:
+  window_size: [1200, 800]
+  default_class: 0
+  shortcuts:
+    next_image: "D"
+    prev_image: "A"
+    save: "Ctrl+S"
+    delete_box: "Del"
+    accept: "Return"
+  colors:
+    - [255, 0, 0]      # Class 0: Red
+    - [0, 255, 0]      # Class 1: Green
+    - [0, 0, 255]      # Class 2: Blue
+    - [255, 255, 0]    # Class 3: Yellow
+    - [255, 0, 255]    # Class 4: Magenta
+    - [0, 255, 255]    # Class 5: Cyan
+    - [255, 128, 0]    # Class 6: Orange
+    - [128, 0, 255]    # Class 7: Purple

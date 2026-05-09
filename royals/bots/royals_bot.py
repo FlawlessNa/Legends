@@ -30,7 +30,7 @@ class RoyalsBot(Bot, ABC):
         super().__init__(ign, metadata, **kwargs)
         self.handle = self.get_handle_from_ign(ign)
         class_name = character_class or royals_job_finder(self.handle)
-        self.character_class = CHARACTER_MAPPING[class_name]
+        self.character_class = CHARACTER_MAPPING[class_name.title()]
         self.detection_configs = detection_configs
         self.client_size = client_size
         self.models_path = models_path
