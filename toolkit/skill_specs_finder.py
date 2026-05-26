@@ -4,9 +4,9 @@ import os
 import win32gui
 import time
 from botting.utilities import client_handler, take_screenshot, Box
-from royals import royals_ign_finder
-from royals.model.characters import ALL_BUFFS
-from royals.model.mechanics import RoyalsSkill
+from maple import maple_ign_finder
+from maple.model.characters import ALL_BUFFS
+from maple.model.mechanics import RoyalsSkill
 
 
 IGN = "WrongDoor"

@@ -20,19 +20,19 @@ import numpy as np
 import xml.etree.ElementTree as ElementTree
 
 from paths import ROOT
-from royals import royals_ign_finder
-from royals.model.interface.dynamic_components.minimap import Minimap
+from maple import maple_ign_finder
+from maple.model.interface.dynamic_components.minimap import Minimap
 from botting.utilities import client_handler
 from botting.utilities import Box
 
 HANDLE = client_handler.get_client_handle("StarBase", royals_ign_finder)
-OUTPUT_LOCATION = os.path.join(ROOT, "royals/model/minimaps/")
+OUTPUT_LOCATION = os.path.join(ROOT, "maple/model/minimaps/")
 OUTPUT_NAME = "test.py"
 MAP_FILENAME = "MysteriousPath3.xml"
 BRIGHTNESS_THRESH = 10  # After reducing to minimap size, the threshold for binary conversion
 
 tree = ElementTree.parse(
-    os.path.join(ROOT, f"royals/assets/game_files/maps/{MAP_FILENAME}")
+    os.path.join(ROOT, f"maple/assets/game_files/maps/{MAP_FILENAME}")
 )
 root = tree.getroot()
 foothold = root.find(".//imgdir[@name='foothold']")
@@ -219,7 +219,7 @@ if __name__ == "__main__":
 
     with open(os.path.join(OUTPUT_LOCATION, OUTPUT_NAME), "w") as f:
         f.write(
-            """from royals.model.mechanics import (
+            """from maple.model.mechanics import (
     MinimapFeature,
     MinimapConnection,
     MinimapPathingMechanics,

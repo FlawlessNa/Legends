@@ -4,7 +4,7 @@ import os
 
 from unittest import TestCase
 
-from royals.model.interface.fixed_components.in_game_chat.chat_lines import ChatLine
+from maple.model.interface.fixed_components.in_game_chat.chat_lines import ChatLine
 from paths import ROOT
 
 

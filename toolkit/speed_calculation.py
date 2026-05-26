@@ -1,9 +1,9 @@
 import time
 import math
 
-from royals.model.minimaps import MuddyBanks2Minimap
+from maple.model.minimaps import MuddyBanks2Minimap
 from botting.utilities import client_handler
-from royals import royals_ign_finder
+from maple import maple_ign_finder
 
 # Once the script starts, it continuously monitors the character's position on the minimap.
 # As soon as the character starts moving, the script logs the character's position with a timestamp.

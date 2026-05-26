@@ -2,9 +2,9 @@ import asyncio
 import cv2
 import numpy as np
 import keyboard
-import royals.model.minimaps as minimaps
-from royals.model.mechanics.movement_mechanics import Movements
-from royals.model.characters import Bishop
+import maple.model.minimaps as minimaps
+from maple.model.mechanics.movement_mechanics import Movements
+from maple.model.characters import Bishop
 
 # TODO - Improve this script. It's a bit messy.
 # TODO - Investigate why "RIGHT_JUMP_AND_UP" are jumping from two horizontal nodes, while it's three for the other direction

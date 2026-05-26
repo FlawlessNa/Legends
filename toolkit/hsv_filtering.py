@@ -265,7 +265,7 @@ class ColorsFilter:
 
 if __name__ == "__main__":
     from botting.utilities import client_handler
-    from royals import royals_ign_finder
+    from maple import maple_ign_finder
     import win32gui
 
     HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
