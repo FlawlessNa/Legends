@@ -9,7 +9,7 @@ from botting.utilities import (
     take_screenshot,
     config_reader,
 )
-from maple.model.mechanics import RoyalsSkill
+from .maple_skills import MapleSkill
 
 DEBUG = True
 
@@ -28,7 +28,7 @@ class Character(BaseCharacter, ABC):
     detection_box_large_client: Box = NotImplemented
     main_skill: str = NotImplemented
     main_stat: str = NotImplemented
-    skills: dict[str, RoyalsSkill] = NotImplemented
+    skills: dict[str, MapleSkill] = NotImplemented
 
     def __init__(
         self,

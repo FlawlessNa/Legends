@@ -23,6 +23,7 @@ from .inputs_helpers import (
     EXTENDED_KEYS,
     MAPVK_VK_TO_VSC_EX,
     OVERHEAD,
+    random_delay
 )
 
 KEYEVENTF_EXTENDEDKEY = 0x0001
@@ -132,6 +133,45 @@ class KeyboardInputWrapper:
     delays: list[float] = field(default_factory=list)
     forced_key_releases: list[str] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        """
+        Before the instance is finalized, look into top-level held keys (directed to the
+        relevant window).
+        If opposites keys to the ones desired are held, force release them.
+        """
+        self._clear_opposites(
+            held_keys=set(get_held_movement_keys(self.handle)),
+            desired_keys=self.keys_held,
+            strict=True
+        )
+
+    def _clear_opposites(
+        self, held_keys: set[str], desired_keys: set[str], strict: bool, idx: int = None
+    ) -> None:
+        """
+        Utility function that compares the desired keys to be held versus those already
+        held. If the opposites are held, a release event is inserted.
+        """
+        to_release = []
+        for key in filter(lambda k: k in ('left', 'right', 'up', 'down'), desired_keys):
+            if OPPOSITES[key] in held_keys:
+                to_release.append(OPPOSITES[key])
+
+        # ALWAYS release opposite key on directional movement - should prevent being
+        # stuck but also causes unnecessary key releases
+        if strict:
+            if 'right' in desired_keys and 'left' not in to_release:
+                to_release.append('left')
+            elif 'left' in desired_keys and 'right' not in to_release:
+                to_release.append('right')
+        if to_release:
+            self.insert(
+                idx or 0,
+                to_release,
+                ["keyup"] * len(to_release),  # noqa
+                next(random_delay),
+            )
+
     def __str__(self) -> str:
         result = []
         current_key = None
@@ -168,9 +208,30 @@ class KeyboardInputWrapper:
     def append(
         self, keys: str | list[str], events: EVENTS | list[EVENTS], delay: float
     ) -> None:
+        """
+        Before appending new keys, retrospectively look at prior held keys and insert
+        release events on opposites, if any.
+        """
+        self._clear_opposites(
+            held_keys=self.keys_held,
+            desired_keys=self.get_held_movement_keys([keys], [events]),
+            strict=False,
+            idx=-1,
+        )
         self.keys.append(keys)
         self.events.append(events)
         self.delays.append(delay)
+
+    def insert(
+        self,
+        index: int,
+        keys: str | list[str],
+        events: EVENTS | list[EVENTS],
+        delay: float
+    ) -> None:
+        self.keys.insert(index, keys)
+        self.events.insert(index, events)
+        self.delays.insert(index, delay)
 
     def fill(self, key: str, event: EVENTS, delay_generator: Generator, limit: float):
         """
@@ -192,19 +253,27 @@ class KeyboardInputWrapper:
         sent and for which no subsequent KEYUP event is sent.
         :return:
         """
+        return self.get_held_movement_keys(self.keys, self.events)
+
+    @staticmethod
+    def get_held_movement_keys(
+        keys: list[str | list[str]], events: list[EVENTS | list[EVENTS]]
+    ) -> set[str]:
         keys_down = set()
-        for i, key in enumerate(self.keys):
-            if isinstance(key, list):
-                for j, k in enumerate(key):
-                    if self.events[i][j] == "keydown":
+        for key, event in zip(keys, events):
+            if isinstance(key, list) and isinstance(event, list):
+                for k, e in zip(key, event):
+                    if e == "keydown":
                         keys_down.add(k)
-                    elif self.events[i][j] == "keyup":
+                    elif e == "keyup":
                         keys_down.discard(k)
-            else:
-                if self.events[i] == "keydown":
+            elif isinstance(key, str) and isinstance(event, str):
+                if event == "keydown":
                     keys_down.add(key)
-                elif self.events[i] == "keyup":
+                elif event == "keyup":
                     keys_down.discard(key)
+            else:
+                raise ValueError(f"Invalid key {key} or event {event}")
         return keys_down
 
     async def send(self):

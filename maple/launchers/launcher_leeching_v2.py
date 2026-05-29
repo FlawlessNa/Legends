@@ -2,7 +2,7 @@ import asyncio
 from botting.core.session_manager import SessionManager
 import maple.bots as bots
 import maple.constants as constants
-import maple.model.maps as maps
+import maple._old.maps as maps
 import maple.parsers
 
 
@@ -33,7 +33,7 @@ mule_configs = {
 
 
 async def main():
-    with SessionManager(royals.parsers.RoyalsParser) as session:
+    with SessionManager(maple.parsers.MapleParser) as session:
         leecher = bots.LeechingBot("WrongDoor", session.metadata, **leeching_configs)
         mule1 = bots.LeechMuleWithBuffs(
             "UluLoot", session.metadata, character_class="Hermit", **mule_configs

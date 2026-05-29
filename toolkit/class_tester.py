@@ -1,17 +1,10 @@
-import asyncio
-import cv2
 import os
-import numpy as np
-import win32gui
-from botting import controller
-from botting.utilities import client_handler, Box, take_screenshot, find_image
-from maple import maple_ign_finder
+from botting.utilities import client_handler
+from royals import royals_ign_finder
 from paths import ROOT
-from maple.model.minimaps import PathOfTime1Minimap, MysteriousPath3Minimap
+from maple._old.minimaps import MysteriousPath3Minimap
 
-from maple.model.characters import Bishop
-from maple.model.mechanics.movement_mechanics import Movements
-from maple.actions.skills_related_v2 import cast_skill
+from maple._old.movement_mechanics import Movements
 from maple.actions.movements_v2 import telecast
 
 HANDLE = client_handler.get_client_handle("StarBase", royals_ign_finder)

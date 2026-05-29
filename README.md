@@ -10,9 +10,11 @@
 - [ ] There's a bug with the rotation cycle, could be caused by Mob Check failsafe, but rotation sometimes resets?
 - [ ] Fix minimap error handling bug.
 - [ ] Add ability to specify speed/jump from launcher
+- [ ] When firing automated chat reaction, need to properly cancel all pending rotation/mobs hitting action, otherwise keystrokes in chat get mixed
 
 ## Model Usage
-- [ ] For comparison, try removing the caching feature and assess which option is best (will need to wait until server stable)
+- [ ] For comparison, try removing the caching feature and assess which option is best
+  - Use the BotData monitoring mechanism to do so
 - [ ] Refactor model storage structure 
   - remove from .gitignore
   - instead of using models_paths, specify model name
@@ -22,18 +24,16 @@
 
 ## Map Parser
 - [ ] Should be able to group footholds/ladders by actual "platforms" and "ladders" for pathfinding
-- [ ] Class that can be used to draw canvas for ANY map (provided the .xml files are available)
-  - VR Map Canvas
-  - VR Foothold Canvas
-  - VR Minimap Canvas
-  - Minimap Canvas
-  - Full Canvas (incl background)
-- [ ] It also extracts objects/tiles
 - [ ] Can extract mobs and their "expected" locations to create synthetic data
 - [ ] It can attempt to estimate the character's VR coordinates as well
 - [ ] Should be able to draw proper background as well for synthetic data
 - [ ] Apply edits on grid
 - [ ] EditorView 2nd mob to show pathfinding and better finetuning with those
+  - [ ] Ability to toggle jump/fall trajectories
+  - [ ] Ability to show all connections for the current source node
+  - [ ] Ability to print the path, movements and actions between source and dest nodes
+  - [ ] mouse click to change source node, ctrl + click for target node
+- [ ] New grid system: for jump connections, if needed, use VR physics/coordinates to determine if jump reaches other platform instead of approx minimap coordinates
 
 ## Movements
 - [ ] Add step to convert current minimap pos towards closest walkable node, up to a small acceptable dist threshold

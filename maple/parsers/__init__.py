@@ -1,1 +1,1 @@
-from .royals_parser import RoyalsParser
+from .maple_parser import MapleParser

@@ -1,18 +1,16 @@
 import asyncio
 from botting.core.session_manager import SessionManager
 import maple.bots as bots
-import maple.model.maps as maps
 import maple.parsers
 
 training_configs = {
     "num_pets": 1,
-    "game_map": maps.MysteriousPath3,
+    "game_map": "MysteriousPath3",
+    "open_minimap_editor": False,
     "mob_count_threshold": 1,
     "included_buffs": ["Invincible", "Holy Symbol"],
     "training_skill": "Heal",
-    "models_path": {
-        "All": "data/model_runs/detection/Full Model up to GS2 - Nano"
-    },  
+    "models_path": {"All": "data/model_runs/detection/Full Model up to GS2 - Nano"},
     "smart_rotation_enabled": True,
     # "disable_teleport": True,
     "mob_spawn_alert_timer": 15,
@@ -20,12 +18,11 @@ training_configs = {
     # 'speed_multiplier': 1.4,
     # 'jump_multiplier': 1.23,
     # "detection_configs": "Elephant Cape"
-
 }
 
 
 async def main():
-    with SessionManager(royals.parsers.RoyalsParser) as session:
+    with SessionManager(maple.parsers.MapleParser) as session:
         leecher = bots.TrainingBot("StarBase", session.metadata, **training_configs)
         # mule1 = bots.TestBot('UluLoot', session.metadata)
         # mule2 = bots.TestBot('FinancialWiz', session.metadata)

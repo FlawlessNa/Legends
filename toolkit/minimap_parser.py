@@ -14,7 +14,7 @@ from maple.model.interface.dynamic_components.minimap import Minimap
 from botting.utilities import client_handler
 from botting.utilities import Box
 
-HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
+HANDLE = client_handler.get_client_handle("WrongDoor", maple_ign_finder)
 OUTPUT_LOCATION = os.path.join(ROOT, "maple/model/minimaps/")
 OUTPUT_NAME = "ulu_estate_2.py"
 

@@ -25,7 +25,7 @@ from maple.model.interface.dynamic_components.minimap import Minimap
 from botting.utilities import client_handler
 from botting.utilities import Box
 
-HANDLE = client_handler.get_client_handle("StarBase", royals_ign_finder)
+HANDLE = client_handler.get_client_handle("StarBase", maple_ign_finder)
 OUTPUT_LOCATION = os.path.join(ROOT, "maple/model/minimaps/")
 OUTPUT_NAME = "test.py"
 MAP_FILENAME = "MysteriousPath3.xml"

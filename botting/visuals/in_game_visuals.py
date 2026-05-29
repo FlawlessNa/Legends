@@ -293,7 +293,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         """
         if cls.detection_model is None:
             model = cls._get_model_for_cls()
-            if cls._is_detectable_by_model(model):
+            if model is not None and cls._is_detectable_by_model(model):
                 cls.detection_model = model
 
     @classmethod
@@ -311,6 +311,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
                 return parent._get_model_for_cls()
         if "All" in InGameDetectionVisuals._models:
             return InGameDetectionVisuals._models["All"]
+        return None
 
     @classmethod
     def _is_detectable_by_model(cls, model: YOLO) -> bool:
@@ -320,7 +321,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         if model is None:
             return False
         detectable_classes = model.names.values()  # type: ignore
-        if cls.__name__ in detectable_classes:
+        if cls.__name__.replace(" ", "").replace(".", "") in detectable_classes:
             cls._model_cls_name = cls.__name__
             return True
         else:

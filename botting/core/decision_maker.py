@@ -15,8 +15,8 @@ LOG_LEVEL = logging.INFO
 class DecisionMaker(ABC):
     """
     Abstract base class to represent a decision maker of any kind.
-    Each Bot consists of one or more DecisionMaker, which are cycled and called
-    one at a time.
+    Each Bot consists of one or more DecisionMaker, which are wrapped as asyncio.Tasks
+    and executed concurrently.
     When called, a DecisionMaker may return an ActionRequest container,
     which will be sent to the Main Process to be executed there.
     """

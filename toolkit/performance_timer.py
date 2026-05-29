@@ -3,13 +3,13 @@ from timeit import timeit
 from botting.utilities import client_handler
 from maple import maple_ign_finder
 
-from maple.model.minimaps import LudiFreeMarketTemplateMinimap
+from maple._old.minimaps import LudiFreeMarketTemplateMinimap
 from maple._old.path_into_movements import get_to_target
 from maple.model.characters import Bishop
 
 test = LudiFreeMarketTemplateMinimap()
 test.generate_grid_template(True)
-HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
+HANDLE = client_handler.get_client_handle("WrongDoor", maple_ign_finder)
 map_area = test.get_map_area_box(HANDLE)
 current_pos = test.get_character_positions(HANDLE, map_area_box=map_area).pop()
 bishop = Bishop("WrongDoor", "Elephant Cape", "large")

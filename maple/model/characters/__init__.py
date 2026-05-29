@@ -1,6 +1,7 @@
 from .character import Character
 from .magicians import Magician, Cleric, Priest, Bishop, FPWizard, FPMage, FPArchMage
 from .thiefs import Rogue, Assassin, Hermit
+from .maple_skills import MapleSkill, MapleBuff, MaplePartyBuff
 
 MAPPING = {
     "Magician": Magician,

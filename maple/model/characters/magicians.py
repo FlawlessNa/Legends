@@ -1,27 +1,25 @@
-from re import match
-
-from maple.model.mechanics import RoyalsSkill, RoyalsBuff, RoyalsPartyBuff
+from .maple_skills import MapleSkill, MapleBuff, MaplePartyBuff
 from .character import Character
 
 
 class Magician(Character):
     main_stat = "INT"
     skills = {
-        "Magic Guard": RoyalsBuff(
+        "Magic Guard": MapleBuff(
             "Magic Guard",
             duration=600,
             animation_time=0.6,
             match_template_threshold=0.61,
             match_icon_threshold=0.80,
         ),
-        "Magic Claw": RoyalsSkill(
+        "Magic Claw": MapleSkill(
             "Magic Claw",
             "Attack",
             animation_time=0.8,
             horizontal_screen_range=310,
             vertical_screen_range=30,
         ),
-        "Teleport": RoyalsSkill(  # Put here since shared across all 2nd job magicians
+        "Teleport": MapleSkill(  # Put here since shared across all 2nd job magicians
             "Teleport",
             "Movement",
             animation_time=0.6,
@@ -58,7 +56,7 @@ class FPArchMage(FPMage):
 class Cleric(Magician):
     skills = {
         **Magician.skills,
-        "Heal": RoyalsSkill(
+        "Heal": MapleSkill(
             "Heal",
             "Attack",
             animation_time=0.6,
@@ -66,7 +64,7 @@ class Cleric(Magician):
             vertical_screen_range=200,
             unidirectional=False,
         ),
-        "Bless": RoyalsPartyBuff(
+        "Bless": MaplePartyBuff(
             "Bless",
             animation_time=0.6,
             unidirectional=False,
@@ -74,7 +72,7 @@ class Cleric(Magician):
             horizontal_screen_range=300,
             vertical_screen_range=200,
         ),
-        "Invincible": RoyalsBuff(
+        "Invincible": MapleBuff(
             "Invincible",
             animation_time=0.6,
             duration=300,
@@ -89,7 +87,7 @@ class Cleric(Magician):
 class Priest(Cleric):
     skills = {
         **Cleric.skills,
-        "Holy Symbol": RoyalsPartyBuff(
+        "Holy Symbol": MaplePartyBuff(
             "Holy Symbol",
             animation_time=18 * 0.085,  # TODO - Confirm
             unidirectional=False,
@@ -102,7 +100,7 @@ class Priest(Cleric):
             match_template_threshold=0.64,
             match_icon_threshold=0.79,
         ),
-        "Shining Ray": RoyalsSkill(
+        "Shining Ray": MapleSkill(
             "Shining Ray",
             "Attack",
             animation_time=11 * 0.095,
@@ -110,14 +108,14 @@ class Priest(Cleric):
             vertical_screen_range=50,
             unidirectional=False,
         ),
-        "Mystic Door": RoyalsSkill(
+        "Mystic Door": MapleSkill(
             "Mystic Door",
             "Utility",
             animation_time=0.6,  # TODO - Confirm
             unidirectional=False,
             duration=180,
         ),
-        "Dispel": RoyalsSkill(
+        "Dispel": MapleSkill(
             "Dispel",
             "Utility",
             animation_time=0.9,  # TODO - Confirm
@@ -132,7 +130,7 @@ class Bishop(Priest):
     main_skill = "Genesis"
     skills = {
         **Priest.skills,
-        "Genesis": RoyalsSkill(
+        "Genesis": MapleSkill(
             "Genesis",
             "Attack",
             animation_time=2.6,
@@ -142,7 +140,7 @@ class Bishop(Priest):
             vertical_up_screen_range=350,
             vertical_down_screen_range=250,
         ),
-        "Maple Warrior": RoyalsPartyBuff(
+        "Maple Warrior": MaplePartyBuff(
             "Maple Warrior",
             animation_time=0.06 * 24,
             unidirectional=False,
@@ -153,7 +151,7 @@ class Bishop(Priest):
             match_template_threshold=0.59,
             match_icon_threshold=0.80,
         ),
-        "Resurrection": RoyalsSkill(
+        "Resurrection": MapleSkill(
             "Resurrection",
             "Utility",
             animation_time=0.12 * 21,
@@ -163,7 +161,7 @@ class Bishop(Priest):
             unidirectional=False,
             cooldown=1800,
         ),
-        "Holy Shield": RoyalsBuff(
+        "Holy Shield": MapleBuff(
             "Holy Shield",
             animation_time=0.06 * 18,
             duration=40,

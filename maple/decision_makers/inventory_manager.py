@@ -19,7 +19,7 @@ from maple.constants import (
     INVENTORY_CLEANUP_WITH_SELF_DOOR,
     INVENTORY_CLEANUP_WITH_PARTY_DOOR,
 )
-from maple.model.maps import RoyalsMap
+from maple._old.maps import RoyalsMap
 from maple.model.mechanics import MinimapConnection
 from .mixins import MenusMixin, NextTargetMixin, MovementsMixin, MinimapAttributesMixin
 

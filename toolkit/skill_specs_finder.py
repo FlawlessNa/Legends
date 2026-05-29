@@ -4,19 +4,19 @@ import os
 import win32gui
 import time
 from botting.utilities import client_handler, take_screenshot, Box
-from maple import maple_ign_finder
+from royals import maple_ign_finder
 from maple.model.characters import ALL_BUFFS
-from maple.model.mechanics import RoyalsSkill
+from maple.model.mechanics import MapleSkill
 
 
 IGN = "WrongDoor"
-HANDLE = client_handler.get_client_handle(IGN, royals_ign_finder)
+HANDLE = client_handler.get_client_handle(IGN, maple_ign_finder)
 SKILL_NAME = "Meso Up"
 
 skill = ALL_BUFFS[SKILL_NAME]
 l, t, r, b = win32gui.GetClientRect(HANDLE)
 buff_region = Box(left=r - 350, top=t + 45, right=r, bottom=85)
-icons_directory = RoyalsSkill.icon_path
+icons_directory = MapleSkill.icon_path
 buff_icon = cv2.imread(os.path.join(icons_directory, f"{skill.name}.png"))
 
 
