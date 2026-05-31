@@ -5,13 +5,13 @@ import maple.parsers
 
 training_configs = {
     "num_pets": 1,
-    "game_map": "MysteriousPath3",
+    "game_map": "GhostShip1",
     "open_minimap_editor": False,
     "mob_count_threshold": 1,
     "included_buffs": ["Invincible", "Holy Symbol"],
     "training_skill": "Heal",
-    "models_path": {"All": "data/model_runs/detection/Full Model up to GS2 - Nano"},
-    "smart_rotation_enabled": True,
+    "models_path": {"All": "data/models/production/global"},
+    "smart_rotation_enabled": False,
     # "disable_teleport": True,
     "mob_spawn_alert_timer": 15,
     "mob_spawn_alert_threshold": 4,

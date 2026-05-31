@@ -4,10 +4,14 @@ import random
 from functools import lru_cache, cached_property
 from botting import PARENT_LOG
 from botting.models_abstractions import BaseMap
-from .game_file_extraction.map_parser import MapParser
 from .game_file_extraction.map_physics import MinimapPhysics
 from .maple_mob import MapleMob
-from .minimap_creation.minimap_edits_model import MinimapEditsManager, MinimapEdits
+from .minimap_creation.minimap_edits_model import (
+    MinimapEditsManager,
+    MinimapEdits,
+    PortalEdge,
+    _DEFAULT_NODE_INFO,
+)
 from .minimap_creation.minimap_grid import MinimapNode, MinimapGrid, ConnectionTypes
 from ..interface import Minimap
 
@@ -16,29 +20,25 @@ logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 class MapleMinimap(Minimap):
     """
-    Draws the raw minimap from game files.
-    If a minimap subclass exists for the current minimap, it loads in the specified
-    modifications and modifies the raw minimap based on those.
+    Minimap built entirely from a MinimapEditsManager (JSON config).
+    No game-file parser required. Physics is optional; omitting it disables
+    physics-based grid connections (jumps, teleport).
     """
 
-    JUMP_DOWN_LIMIT: int = (
-        30  # TODO - Make this a parameter or fine-tune (probably in physics?)
-    )
-    TELEPORT_DOWN_MIN_DIST: int = 3  # TODO - Make this a parameter or fine-tune
+    JUMP_DOWN_LIMIT: int = 30
+    TELEPORT_DOWN_MIN_DIST: int = 3
 
     def __init__(
         self,
-        parser: MapParser,
+        map_name: str,
         features_manager: MinimapEditsManager,
+        physics: MinimapPhysics | None = None,
     ):
-        self.map_name = parser.map_name
-        self.parser = parser
-        self.physics = MinimapPhysics(
-            1 / self.parser.minimap_scale_x, 1 / self.parser.minimap_scale_y
-        )
-        raw_canvas = self.parser.get_raw_minimap_grid(binary_mode=True)
-        self.raw_minimap = self._preprocess_canvas(raw_canvas)
+        self.map_name = map_name
+        self.physics = physics
         self.features_manager = features_manager
+        raw_canvas = self.features_manager.build_canvas()
+        self.raw_minimap = self._preprocess_canvas(raw_canvas)
         self.modified_minimap = self.features_manager.apply_grid_edits(
             self.raw_minimap, apply_weights=True
         )
@@ -54,12 +54,6 @@ class MapleMinimap(Minimap):
         return [feature for _, feature in indexed]
 
     def random_point(self) -> tuple[int, int]:
-        """
-        Returns a random point within the minimap.
-        First, select a feature at random, weighted by its area (unless specified).
-        Then, select a random point within the feature.
-        :return: (x, y) coordinates of the random point.
-        """
         y, x = random.choice(np.argwhere(self.modified_minimap))
         return x, y
 
@@ -67,14 +61,13 @@ class MapleMinimap(Minimap):
         x, y = position
         return self.features_manager.get_feature_containing(x, y)
 
-
     @property
     def map_area_width(self) -> int:
-        return self.parser.mini_cv_w
+        return self.modified_minimap.shape[1]
 
     @property
     def map_area_height(self) -> int:
-        return self.parser.mini_cv_h
+        return self.modified_minimap.shape[0]
 
     @lru_cache
     def generate_grid(
@@ -84,6 +77,11 @@ class MapleMinimap(Minimap):
         jump_multiplier: float,
         include_portals: bool = True,
     ) -> MinimapGrid:
+        if self.physics is None:
+            raise RuntimeError(
+                f"Cannot generate grid for '{self.map_name}': physics parameters "
+                f"(scale_x, scale_y) are not set in the map's JSON config."
+            )
         logger.info(
             f"Generating grid for {self.map_name}, {allow_teleport=}, "
             f"{speed_multiplier=}, {jump_multiplier=}, {include_portals=}"
@@ -92,8 +90,6 @@ class MapleMinimap(Minimap):
         distance = self.physics.get_jump_distance(speed_multiplier, jump_multiplier)
         displacement_speed = self.physics.get_minimap_speed(speed_multiplier)
 
-        # Create the grid and set walkable nodes with weights
-        # TODO - This needs to be corrected for custom edits with offsets
         grid = MinimapGrid(
             self.modified_minimap, speed=displacement_speed, grid_id=self.map_name
         )
@@ -122,9 +118,6 @@ class MapleMinimap(Minimap):
 
     @staticmethod
     def _preprocess_canvas(canvas: np.ndarray) -> np.ndarray:
-        """
-        Converts the canvas into a binary (unweighted) image.
-        """
         if len(canvas.shape) == 3 and canvas.shape[-1] == 3:
             return np.where(np.any(canvas > 0, axis=-1), 1, 0).astype(np.uint8)
         else:
@@ -133,22 +126,16 @@ class MapleMinimap(Minimap):
     _preprocess_img = _preprocess_canvas
 
     def get_node_info(self, node: MinimapNode) -> MinimapEdits:
-        """
-        Returns custom feature for the given node, if any.
-        Otherwise, returns the auto-generated feature.
-        """
         x, y = node.x, node.y
         assert node.grid_id == self.map_name, (
-            f"Cannot retrieve info for a node from another map:"
+            f"Cannot retrieve info for a node from another map: "
             f"{node.grid_id=} != {self.map_name=}"
         )
         return self._get_node_info(x, y)
 
     @lru_cache
     def _get_node_info(self, x: int, y: int) -> MinimapEdits:
-        return self.features_manager.get_feature_containing(
-            x, y
-        ) or self.parser.parse_node(x, y)
+        return self.features_manager.get_feature_containing(x, y) or _DEFAULT_NODE_INFO
 
     def _add_vertical_connections(
         self, grid: MinimapGrid, conn_type: ConnectionTypes, jump_height: float = None
@@ -200,9 +187,6 @@ class MapleMinimap(Minimap):
     def _add_parabolic_jump_connections(
         self, grid: MinimapGrid, jump_dist: float, jump_height: float
     ) -> None:
-        """
-        Adds connections for parabolic jumps (e.g jumps in a direction).
-        """
         for row in grid.nodes:
             for node in row:
                 if not node.walkable:
@@ -215,46 +199,24 @@ class MapleMinimap(Minimap):
                         continue
 
                     left_jump = self.physics.get_jump_trajectory(
-                        node.x,
-                        node.y,
-                        "left",
-                        jump_dist,
-                        jump_height,
-                        grid.width,
-                        grid.height,
+                        node.x, node.y, "left", jump_dist, jump_height,
+                        grid.width, grid.height,
                     )
                     right_jump = self.physics.get_jump_trajectory(
-                        node.x,
-                        node.y,
-                        "right",
-                        jump_dist,
-                        jump_height,
-                        grid.width,
-                        grid.height,
+                        node.x, node.y, "right", jump_dist, jump_height,
+                        grid.width, grid.height,
                     )
                     self._parse_trajectory(grid, node, right_jump)
                     self._parse_trajectory(grid, node, left_jump)
 
                 elif node_info.is_ladder:
                     left_jump = self.physics.get_jump_trajectory(
-                        node.x,
-                        node.y,
-                        "left",
-                        jump_dist,
-                        jump_height,
-                        grid.width,
-                        grid.height,
-                        True,
+                        node.x, node.y, "left", jump_dist, jump_height,
+                        grid.width, grid.height, True,
                     )
                     right_jump = self.physics.get_jump_trajectory(
-                        node.x,
-                        node.y,
-                        "right",
-                        jump_dist,
-                        jump_height,
-                        grid.width,
-                        grid.height,
-                        True,
+                        node.x, node.y, "right", jump_dist, jump_height,
+                        grid.width, grid.height, True,
                     )
                     self._parse_trajectory(grid, node, right_jump)
                     self._parse_trajectory(grid, node, left_jump)
@@ -271,23 +233,16 @@ class MapleMinimap(Minimap):
         apogee_idx = trajectory.index(apogee[0])
         mid = len(apogee) // 2
         if len(apogee) % 2 == 0:
-            nodes_for_rope = apogee[mid - 1 : mid + 1]
+            nodes_for_rope = apogee[mid - 1: mid + 1]
         else:
-            nodes_for_rope = apogee[mid : mid + 1]
+            nodes_for_rope = apogee[mid: mid + 1]
         idx = trajectory.index(nodes_for_rope[-1])
-        nodes_for_rope = trajectory[idx : idx + 3]
+        nodes_for_rope = trajectory[idx: idx + 3]
 
         if max(trajectory, key=lambda i: (i[0], i[1])) == trajectory[0]:
-            if not fall:
-                connection = ConnectionTypes.JUMP_LEFT
-            else:
-                connection = ConnectionTypes.FALL_LEFT
-
+            connection = ConnectionTypes.FALL_LEFT if fall else ConnectionTypes.JUMP_LEFT
         elif max(trajectory, key=lambda i: (i[0], i[1])) == trajectory[-1]:
-            if not fall:
-                connection = ConnectionTypes.JUMP_RIGHT
-            else:
-                connection = ConnectionTypes.FALL_RIGHT
+            connection = ConnectionTypes.FALL_RIGHT if fall else ConnectionTypes.JUMP_RIGHT
 
         neighbors = grid.neighbors(node, MinimapGrid.ALL_DIAGONAL_NEIGHBORS, False)
         node_info = self.get_node_info(node)
@@ -299,11 +254,9 @@ class MapleMinimap(Minimap):
             other_info = self.get_node_info(other_node)
             if other_info == node_info:
                 break
-            # If other node is a platform, this will stop the motion so break loop
             elif other_info.is_platform and trajectory.index((x, y)) >= apogee_idx:
                 node.connect(other_node, connection)  # noqa
                 break
-            # If other node is ladder, we can connect to it and keep going
             elif (
                 other_info.is_ladder and (other_node.x, other_node.y) in nodes_for_rope
             ):
@@ -327,41 +280,20 @@ class MapleMinimap(Minimap):
 
                 for d in direction:
                     traj = self.physics.get_jump_trajectory(
-                        node.x,
-                        node.y,
-                        d,
-                        jump_dist,
-                        jump_height,
-                        grid.width,
-                        grid.height,
-                        fall=True,
+                        node.x, node.y, d, jump_dist, jump_height,
+                        grid.width, grid.height, fall=True,
                     )
                     self._parse_trajectory(grid, node, traj, fall=True)
 
     def _add_portals(self, grid: MinimapGrid) -> None:
-        for portal in self.parser.portals.res:
-            source = self.parser.get_minimap_coords(portal["x"], portal["y"])
-            if not grid.node(*source).walkable:
-                breakpoint()
-
-            if self.parser.map_id == portal["target_map"]:
-                target_portal = self.parser.portals.get_portal(portal["target_name"])
-                target = self.parser.get_minimap_coords(
-                    target_portal["x"], target_portal["y"]
-                )
-                grid.node(*source).connect(
-                    grid.node(*target), ConnectionTypes.IN_MAP_PORTAL
-                )
-            else:
-                pass  # TODO - Connect to out-of-map portals
+        for portal in self.features_manager.portals:
+            src = grid.node(*portal.source)
+            tgt = grid.node(*portal.target)
+            src.connect(tgt, ConnectionTypes.IN_MAP_PORTAL)
+            if portal.bidirectional:
+                tgt.connect(src, ConnectionTypes.IN_MAP_PORTAL)
 
     def _add_horizontal_teleport_connections(self, grid: MinimapGrid) -> None:
-        """
-        Add "horizontal" connections between nodes for teleporting. For each node,
-        look whether there are other walkable platform nodes within horizontal distance
-        and within a small vertical range.
-        Priority to upward nodes, otherwise look downwards.
-        """
 
         def _parse_range(
             x: int, y_start: int, y_rng: int, conn_type: ConnectionTypes
@@ -371,7 +303,6 @@ class MapleMinimap(Minimap):
                 if other_node.walkable and self.get_node_info(other_node).is_platform:
                     node.connect(other_node, conn_type)
                     return
-
             for y in range(y_start + 1, y_start + y_rng + 1):
                 other_node = grid.node(x, y)
                 if other_node.walkable and self.get_node_info(other_node).is_platform:
@@ -394,44 +325,45 @@ class MapleMinimap(Minimap):
                     round(node.x + self.physics.teleport_h_dist), grid.width - 1
                 )
 
-                _parse_range(
-                    left_x, node.y, vertical_rng, ConnectionTypes.TELEPORT_LEFT
-                )
-                _parse_range(
-                    right_x, node.y, vertical_rng, ConnectionTypes.TELEPORT_RIGHT
-                )
+                _parse_range(left_x, node.y, vertical_rng, ConnectionTypes.TELEPORT_LEFT)
+                _parse_range(right_x, node.y, vertical_rng, ConnectionTypes.TELEPORT_RIGHT)
 
 
 class MapleMap(BaseMap):
     """
-    Class to hold the map of the game and its associated info.
+    Holds the map and its associated data. The minimap is built entirely from a
+    JSON config (MinimapEditsManager). No game-file parser is required.
+
+    MapleMob instantiation is deferred until mob IDs are supplied externally
+    (e.g. from the ML training pipeline).
+    TODO: inject mob IDs from ML pipeline rather than game files.
     """
 
     def __init__(
         self, map_name: str, open_minimap_editor: bool = False, **kwargs
     ) -> None:
         self.map_name = map_name
-        self.parser = MapParser(map_name)
         self.edits = MinimapEditsManager.from_json(map_name) or MinimapEditsManager()
-        self.minimap = MapleMinimap(
-            self.parser, self.edits
-        )
+        physics = self._build_physics(self.edits)
+        self.minimap = MapleMinimap(map_name, self.edits, physics)
+
         if open_minimap_editor:
-            # This will block until the editor's mainloop is closed
-            from .minimap_creation.minimap_edits_controller import MinimapEditor
+            from .minimap_creation.map_editor import MinimapEditor
             editor = MinimapEditor(
                 self.minimap,
                 self.edits,
-                include_character_position=kwargs.get(
-                    "include_character_position", True
-                ),
+                include_character_position=kwargs.get("include_character_position", True),
                 scale=kwargs.get("scale", 5),
                 ign=kwargs.get("ign", None),
             )
             self.edits = editor.edits
-            # If edits were made, we need to reinitialize the minimap
-            self.minimap = MapleMinimap(
-                self.parser, self.edits
-            )
-        mob_ids = self.parser.get_mobs_ids()
-        self.mobs = tuple(MapleMob(mob_id) for mob_id in mob_ids)
+            physics = self._build_physics(self.edits)
+            self.minimap = MapleMinimap(map_name, self.edits, physics)
+
+        self.mobs: tuple = ()  # TODO: populate from ML pipeline mob IDs
+
+    @staticmethod
+    def _build_physics(edits: MinimapEditsManager) -> MinimapPhysics | None:
+        if edits.scale_x is not None and edits.scale_y is not None:
+            return MinimapPhysics(edits.scale_x, edits.scale_y)
+        return None
