@@ -89,6 +89,10 @@ class MinimapEditsManager:
     # persisted so the canvas is always the right size regardless of feature coverage.
     canvas_width: int | None = None
     canvas_height: int | None = None
+    # Mob names present in this map (static, never changes per map).
+    mobs: list[str] = field(default_factory=list)
+    # Path (relative to ROOT) of the minimap title screenshot used for map validation.
+    title_img_path: str | None = None
 
     @property
     def names(self) -> list[str]:
@@ -100,8 +104,8 @@ class MinimapEditsManager:
         Uses saved canvas_width/canvas_height when available; falls back to the
         feature bounding box when the dimensions haven't been measured yet.
         """
-        w = self.canvas_width or (max(f.right for f in self.features) + 5 if self.features else 0)
-        h = self.canvas_height or (max(f.bottom for f in self.features) + 5 if self.features else 0)
+        w = self.canvas_width or 0
+        h = self.canvas_height or 0
         if w == 0 or h == 0:
             return np.zeros((1, 1), np.uint8)
         canvas = np.zeros((h, w), np.uint8)
@@ -144,6 +148,8 @@ class MinimapEditsManager:
             scale_y=meta.get('scale_y'),
             canvas_width=meta.get('canvas_width'),
             canvas_height=meta.get('canvas_height'),
+            mobs=data.get('mobs', []),
+            title_img_path=data.get('title_img_path'),
         )
 
     def to_json(self, map_name: str) -> None:
@@ -160,6 +166,8 @@ class MinimapEditsManager:
                 'canvas_width': self.canvas_width,
                 'canvas_height': self.canvas_height,
             },
+            'title_img_path': self.title_img_path,
+            'mobs': self.mobs,
             'features': features_dict,
             'portals': [
                 {

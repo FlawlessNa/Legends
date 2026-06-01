@@ -7,6 +7,9 @@ Supports two modes:
   - Pathfinding      : visualise computed paths and optionally execute them
 """
 import asyncio
+import cv2
+import os
+import time
 import numpy as np
 import tkinter as tk
 
@@ -210,6 +213,20 @@ class MinimapEditor:
             sub: TrailRecordingFrame = self.view.controls_frame.mode_specific_subframe
             sub.refresh_feature_list(self.edits.names)
             sub.feature_listbox.bind('<<ListboxSelect>>', self.on_feature_select)
+            self._refresh_scale_display(sub)
+            self._refresh_title_display(sub)
+
+    def _refresh_scale_display(self, sub: TrailRecordingFrame) -> None:
+        sx = self.edits.scale_x
+        sy = self.edits.scale_y
+        sx_str = f"{sx:.6f}" if sx is not None else "—"
+        sy_str = f"{sy:.6f}" if sy is not None else "—"
+        sub.calib_result_label.config(text=f"scale_x: {sx_str}   scale_y: {sy_str}")
+
+    def _refresh_title_display(self, sub: TrailRecordingFrame) -> None:
+        path = self.edits.title_img_path
+        if path:
+            sub.title_status_label.config(text=f"Saved: {path}")
 
     # ------------------------------------------------------------------
     # Feature list: select, update, delete
@@ -329,6 +346,147 @@ class MinimapEditor:
     def _rebuild_modified_minimap(self) -> None:
         raw = self.edits.build_canvas()
         self.modified_minimap = self.edits.apply_grid_edits(raw, apply_weights=False)
+
+    # ------------------------------------------------------------------
+    # Minimap title image capture
+    # ------------------------------------------------------------------
+
+    def capture_title_image(self) -> None:
+        sub: TrailRecordingFrame = self.view.controls_frame.mode_specific_subframe
+        if not isinstance(sub, TrailRecordingFrame):
+            return
+        if self.handle == 0:
+            sub.title_status_label.config(text="Error: no game client connected.")
+            return
+        try:
+            img = self.minimap.get_minimap_title_img(self.handle)
+        except Exception as e:
+            sub.title_status_label.config(text=f"Error: {e}")
+            return
+        if img is None:
+            sub.title_status_label.config(
+                text="Failed: minimap must be in Full display mode."
+            )
+            return
+
+        self._pending_title_img = img
+
+        from PIL import Image, ImageTk
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        scale = max(1, 48 // img_rgb.shape[0])  # ensure at least ~48px tall
+        pil = Image.fromarray(img_rgb).resize(
+            (img_rgb.shape[1] * scale, img_rgb.shape[0] * scale),
+            Image.NEAREST,
+        )
+        photo = ImageTk.PhotoImage(pil)
+        sub._title_preview_photo = photo  # keep reference
+        sub.title_preview_label.config(image=photo, text="")
+        sub.confirm_title_btn.config(state=tk.NORMAL)
+        sub.retake_title_btn.config(state=tk.NORMAL)
+        sub.title_status_label.config(text="Preview ready — confirm to save.")
+
+    def confirm_title_image(self) -> None:
+        sub: TrailRecordingFrame = self.view.controls_frame.mode_specific_subframe
+        if not isinstance(sub, TrailRecordingFrame):
+            return
+        img = getattr(self, '_pending_title_img', None)
+        if img is None:
+            return
+        from paths import ROOT
+        rel_path = f"maple/assets/detection_images/{self.minimap.map_name}Minimap.png"
+        abs_path = os.path.join(ROOT, rel_path)
+        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+        cv2.imwrite(abs_path, img)
+        self.edits.title_img_path = rel_path
+        self._pending_title_img = None
+        sub.confirm_title_btn.config(state=tk.DISABLED)
+        sub.retake_title_btn.config(state=tk.DISABLED)
+        sub.title_status_label.config(text=f"Saved: {rel_path}")
+
+    # ------------------------------------------------------------------
+    # Scale calibration
+    # ------------------------------------------------------------------
+
+    def start_scale_calibration(self, kind: str) -> None:
+        assert kind in ('walking', 'climbing')
+        if self._map_area_box is None or self.handle == 0:
+            print("Cannot calibrate: no game client connected.")
+            return
+
+        sub: TrailRecordingFrame = self.view.controls_frame.mode_specific_subframe
+        try:
+            duration = float(sub.calib_duration_entry.get())
+            speed_mod = float(sub.calib_speed_entry.get())
+        except ValueError:
+            print("Invalid duration or speed modifier.")
+            return
+
+        try:
+            start_pos = self.minimap.get_character_positions(
+                self.handle, map_area_box=self._map_area_box
+            ).pop()
+        except (KeyError, IndexError):
+            print("Cannot detect character position — is the character visible on the minimap?")
+            return
+
+        try:
+            import win32gui
+            win32gui.SetForegroundWindow(self.handle)
+        except Exception as e:
+            print(f"Could not focus game window: {e}")
+
+        start_time = time.time()
+        status_lbl = sub.calib_status_label
+        result_lbl = sub.calib_result_label
+        walk_btn   = sub.calib_walk_btn
+        climb_btn  = sub.calib_climb_btn
+
+        walk_btn.config(state=tk.DISABLED)
+        climb_btn.config(state=tk.DISABLED)
+
+        def _finish():
+            try:
+                end_pos = self.minimap.get_character_positions(
+                    self.handle, map_area_box=self._map_area_box
+                ).pop()
+            except (KeyError, IndexError):
+                if status_lbl.winfo_exists():
+                    status_lbl.config(text="Error: could not read end position.")
+                walk_btn.config(state=tk.NORMAL)
+                climb_btn.config(state=tk.NORMAL)
+                return
+
+            elapsed = time.time() - start_time
+            walk_speed_vr = 125.0 * speed_mod
+            if kind == 'walking':
+                delta = abs(end_pos[0] - start_pos[0])
+                scale = delta / (walk_speed_vr * elapsed) if elapsed > 0 else 0.0
+                self.edits.scale_x = scale
+                attr = 'scale_x'
+            else:
+                delta = abs(end_pos[1] - start_pos[1])
+                scale = delta / (walk_speed_vr * elapsed) if elapsed > 0 else 0.0
+                self.edits.scale_y = scale
+                attr = 'scale_y'
+
+            if status_lbl.winfo_exists():
+                status_lbl.config(
+                    text=f"Done!  {attr} = {scale:.6f}  (Δ={delta}px, t={elapsed:.2f}s)"
+                )
+            self._refresh_scale_display(sub)
+            walk_btn.config(state=tk.NORMAL)
+            climb_btn.config(state=tk.NORMAL)
+
+        self.root.after(int(duration * 1000), _finish)
+
+        def _tick(remaining: int):
+            if status_lbl.winfo_exists():
+                label = 'walk' if kind == 'walking' else 'climb'
+                status_lbl.config(text=f"Recording {label}... {remaining}s")
+            if remaining > 0:
+                self.root.after(1000, lambda: _tick(remaining - 1))
+
+        _tick(int(duration))
 
     # ------------------------------------------------------------------
     # Save

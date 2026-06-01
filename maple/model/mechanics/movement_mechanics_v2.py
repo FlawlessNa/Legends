@@ -1,5 +1,6 @@
 import cv2
 import logging
+import numpy as np
 from enum import IntEnum
 from functools import lru_cache
 from itertools import groupby
@@ -300,7 +301,7 @@ class MovementHandler:
     ) -> None:
         if not DEBUG:
             return
-        minimap_img = self.minimap.parser.get_raw_minimap_grid(binary_mode=True).copy()
+        minimap_img = (self.minimap.modified_minimap > 0).view(np.uint8) * 255
         minimap_img = cv2.cvtColor(minimap_img, cv2.COLOR_GRAY2BGR)
         cv2.drawMarker(
             minimap_img,

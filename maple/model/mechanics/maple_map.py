@@ -3,13 +3,12 @@ import numpy as np
 import random
 from functools import lru_cache, cached_property
 from botting import PARENT_LOG
-from botting.models_abstractions import BaseMap
+from botting.models_abstractions import BaseMap, BaseMob
 from .game_file_extraction.map_physics import MinimapPhysics
 from .maple_mob import MapleMob
 from .minimap_creation.minimap_edits_model import (
     MinimapEditsManager,
     MinimapEdits,
-    PortalEdge,
     _DEFAULT_NODE_INFO,
 )
 from .minimap_creation.minimap_grid import MinimapNode, MinimapGrid, ConnectionTypes
@@ -360,7 +359,7 @@ class MapleMap(BaseMap):
             physics = self._build_physics(self.edits)
             self.minimap = MapleMinimap(map_name, self.edits, physics)
 
-        self.mobs: tuple = ()  # TODO: populate from ML pipeline mob IDs
+        self.mobs: tuple[BaseMob, ...] = tuple(MapleMob(name) for name in self.edits.mobs)
 
     @staticmethod
     def _build_physics(edits: MinimapEditsManager) -> MinimapPhysics | None:

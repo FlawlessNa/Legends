@@ -1,34 +1,28 @@
 import numpy as np
-import os
-import xml.etree.ElementTree as ET
 from enum import Enum
-from paths import ROOT
 
-PHYS_XML_PATH = os.path.join(ROOT, "maple/assets/game_files/Physics.img.xml")
-PHYS_XML = ET.parse(PHYS_XML_PATH).getroot()
-PHYS = {child.attrib['name']: float(child.attrib['value']) for child in PHYS_XML}
-
-
+# Physics constants sourced from Physics.img.xml (GMS v83).
+# These are game-engine constants; they do not vary per map or per character.
 class _PhysicsValues(Enum):
-    WALK_FORCE = PHYS["walkForce"]
-    WALK_SPEED = PHYS["walkSpeed"]
-    WALK_DRAG = PHYS["walkDrag"]
-    SLIP_FORCE = PHYS["slipForce"]
-    SLIP_SPEED = PHYS["slipSpeed"]
-    FLOAT_DRAG_1 = PHYS["floatDrag1"]
-    FLOAT_DRAG_2 = PHYS["floatDrag2"]
-    FLOAT_COEFFICIENT = PHYS["floatCoefficient"]
-    SWIM_FORCE = PHYS["swimForce"]
-    SWIM_SPEED = PHYS["swimSpeed"]
-    FLY_FORCE = PHYS["flyForce"]
-    FLY_SPEED = PHYS["flySpeed"]
-    GRAVITY_ACC = PHYS["gravityAcc"]
-    FALL_SPEED = PHYS["fallSpeed"]
-    JUMP_SPEED = PHYS["jumpSpeed"]
-    MAX_FRICTION = PHYS["maxFriction"]
-    MIN_FRICTION = PHYS["minFriction"]
-    SWIM_SPEED_DEC = PHYS["swimSpeedDec"]
-    FLY_JUMP_DEC = PHYS["flyJumpDec"]
+    WALK_FORCE = 140000.0
+    WALK_SPEED = 125.0
+    WALK_DRAG = 80000.0
+    SLIP_FORCE = 60000.0
+    SLIP_SPEED = 120.0
+    FLOAT_DRAG_1 = 100000.0
+    FLOAT_DRAG_2 = 10000.0
+    FLOAT_COEFFICIENT = 0.01
+    SWIM_FORCE = 120000.0
+    SWIM_SPEED = 140.0
+    FLY_FORCE = 120000.0
+    FLY_SPEED = 200.0
+    GRAVITY_ACC = 2000.0
+    FALL_SPEED = 670.0
+    JUMP_SPEED = 555.0
+    MAX_FRICTION = 2.0
+    MIN_FRICTION = 0.05
+    SWIM_SPEED_DEC = 0.9
+    FLY_JUMP_DEC = 0.35
     TELEPORT_DISTANCE = 150
 
 

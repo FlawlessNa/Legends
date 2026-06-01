@@ -214,7 +214,7 @@ class Engine(_ChildProcessEngine):
             except asyncio.CancelledError:
                 logger.info(f"Listener to {engine.name} cancelled.")
 
-            except Exception as e:
+            except Exception as e: 
                 logger.error(f"Exception occurred in Listener to {engine.name}.")
                 raise e
 
