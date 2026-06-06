@@ -9,6 +9,7 @@ Supports two modes:
 import asyncio
 import cv2
 import os
+import threading
 import time
 import numpy as np
 import tkinter as tk
@@ -18,6 +19,7 @@ from botting.controller import KeyboardInputWrapper
 from maple.model.mechanics.maple_map import MapleMinimap
 from .minimap_edits_model import MinimapEditsManager, MinimapEdits, PortalEdge
 from .map_editor_view import EditorView, PathfindingFrame, TrailRecordingFrame
+from .minimap_grid import ConnectionTypes
 from ..movement_mechanics_v2 import MovementHandler
 from maple.model.characters.magicians import Magician
 
@@ -25,6 +27,24 @@ MOVEMENT_DURATION_LIMIT = 1.0  # seconds
 
 _START_DOT_COLOR = "#ff8800"
 _END_DOT_COLOR   = "#cc44ff"
+
+_PATH_COLORS: dict = {
+    "walk":                          "green",
+    "climb":                         "#9BEB87",
+    ConnectionTypes.JUMP:            "yellow",
+    ConnectionTypes.JUMP_LEFT:       "yellow",
+    ConnectionTypes.JUMP_RIGHT:      "yellow",
+    ConnectionTypes.JUMP_DOWN:       "orange",
+    ConnectionTypes.FALL_LEFT:       "orange",
+    ConnectionTypes.FALL_RIGHT:      "orange",
+    ConnectionTypes.FALL_ANY:        "orange",
+    ConnectionTypes.TELEPORT_LEFT:   "cyan",
+    ConnectionTypes.TELEPORT_RIGHT:  "cyan",
+    ConnectionTypes.TELEPORT_UP:     "cyan",
+    ConnectionTypes.TELEPORT_DOWN:   "cyan",
+    ConnectionTypes.IN_MAP_PORTAL:   "magenta",
+    ConnectionTypes.OUT_MAP_PORTAL:  "magenta",
+}
 
 
 class MinimapEditor:
@@ -517,6 +537,15 @@ class MinimapEditor:
                 )
             else:
                 self.view.canvas.coords(self.character_marker, *coords)
+
+            if self.view.get_current_mode() == "Pathfinding":
+                frame: PathfindingFrame = self.view.controls_frame.mode_specific_subframe
+                if isinstance(frame, PathfindingFrame) and frame.use_char_pos_var.get():
+                    x, y = int(pos[0]), int(pos[1])
+                    if (x, y) != self.start_point:
+                        self.start_point = (x, y)
+                        frame.start_pos_label.config(text=f"Start Position: ({x}, {y})")
+                        self._calculate_and_display_path()
         except (KeyError, IndexError):
             pass
         self.root.after(100, self.update_character_position)
@@ -651,62 +680,92 @@ class MinimapEditor:
         movements = self.movement_handler.path_into_movements(path, grid)
         if frame.print_movements:
             print(f"Movements:\n{chr(10).join(map(str, movements))}")
+        frame.update_movement_display(movements, grid.speed)
 
         actions = self.movement_handler.movements_into_action(movements, grid)
         self._latest_actions = actions
         if frame.print_actions:
             print(f"Actions:\n{actions}")
 
-        for node in path:
-            if (node.x, node.y) not in {self.start_point, self.end_point}:
-                self.view.canvas.draw_point(node.x, node.y, 'green')
+        endpoints = {self.start_point, self.end_point}
+        for i, node in enumerate(path):
+            if (node.x, node.y) in endpoints:
+                continue
+            if i == 0:
+                color = _PATH_COLORS["walk"]
+            else:
+                prev = path[i - 1]
+                if node in prev.connections:
+                    color = _PATH_COLORS.get(prev.get_connection_type(node), "green")
+                else:
+                    color = _PATH_COLORS["walk"] if node.x != prev.x else _PATH_COLORS["climb"]
+            self.view.canvas.draw_point(node.x, node.y, color)
 
         self.previous_path = path
 
+    def show_timeline(self) -> None:
+        if self._latest_actions is None:
+            print("No actions computed yet — set a start and end point first.")
+            return
+        from toolkit.movement_timeline import visualize
+        title = f"{self.minimap.map_name}:  {self.start_point} → {self.end_point}"
+        print("Opening timeline — editor resumes when the window is closed.")
+        visualize(self._latest_actions, title=title)
+
     def get_to_target(self) -> None:
+        if self.end_point is None:
+            print("No end point set.")
+            return
 
-        def _callback_wrapper(f):
-            def _wrapper(future):
-                return f()
-            return _wrapper
+        frame: PathfindingFrame = self.view.controls_frame.mode_specific_subframe
+        assert isinstance(frame, PathfindingFrame)
+        grid_kwargs = frame.get_grid_kwargs()
+        end_point = self.end_point
 
-        async def _execute_actions():
-            while True:
-                action = await self.q.get()
-                if action is None:
-                    break
-                task = asyncio.create_task(action.send())
-                task.add_done_callback(_callback_wrapper(self.lock.release))
-            print("Finished executing actions.")
-            controller.release_all(self.handle)
+        def _run():
+            async def _main_loop():
+                lock = asyncio.Lock()
+                q: asyncio.Queue = asyncio.Queue()
 
-        async def _recompute_actions():
-            while True:
-                print('Waiting on Lock')
-                await self.lock.acquire()
-                print('Lock Acquired - Recomputing')
-                pos = self.minimap.get_character_positions(
-                    self.handle, map_area_box=self._map_area_box
-                ).pop()
-                frame: PathfindingFrame = self.view.controls_frame.mode_specific_subframe
-                assert isinstance(frame, PathfindingFrame)
-                grid = self.minimap.generate_grid(**frame.get_grid_kwargs())
-                path = self.movement_handler.compute_path(pos, self.end_point, grid)
-                if len(path) <= 3:
-                    print('Stopping Recompute - Reached Destination')
-                    await self.q.put(None)
-                    break
-                movements = self.movement_handler.path_into_movements(path, grid)
-                actions = self.movement_handler.movements_into_action(
-                    movements, grid, MOVEMENT_DURATION_LIMIT
-                )
-                await self.q.put(actions)
-            print("Finished re-computing actions.")
+                async def _execute_actions():
+                    while True:
+                        action = await q.get()
+                        if action is None:
+                            break
+                        task = asyncio.create_task(action.send())
+                        task.add_done_callback(lambda _: lock.release())
+                    print("Finished executing actions.")
+                    controller.release_all(self.handle)
 
-        async def _main_loop():
-            await asyncio.gather(_execute_actions(), _recompute_actions())
+                async def _recompute_actions():
+                    while True:
+                        print('Waiting on Lock')
+                        await lock.acquire()
+                        print('Lock Acquired - Recomputing')
+                        try:
+                            pos = self.minimap.get_character_positions(
+                                self.handle, map_area_box=self._map_area_box
+                            ).pop()
+                        except (KeyError, IndexError):
+                            print('Could not detect character position — stopping.')
+                            await q.put(None)
+                            break
+                        grid = self.minimap.generate_grid(**grid_kwargs)
+                        path = self.movement_handler.compute_path(pos, end_point, grid)
+                        if len(path) <= 3:
+                            print('Stopping Recompute - Reached Destination')
+                            await q.put(None)
+                            break
+                        movements = self.movement_handler.path_into_movements(path, grid)
+                        actions = self.movement_handler.movements_into_action(
+                            movements, grid, MOVEMENT_DURATION_LIMIT
+                        )
+                        await q.put(actions)
+                    print("Finished re-computing actions.")
 
-        self.lock = asyncio.Lock()
-        self.q = asyncio.Queue()
-        asyncio.run(_main_loop())
-        print('Done!')
+                await asyncio.gather(_execute_actions(), _recompute_actions())
+
+            asyncio.run(_main_loop())
+            print('Done!')
+
+        threading.Thread(target=_run, daemon=True).start()

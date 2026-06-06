@@ -115,18 +115,19 @@ class EditableCanvas(tk.Canvas):
             self.master.editor.on_trail_canvas_click(int(x), int(y))
 
         elif mode == "Pathfinding":
+            frame = self.master.controls_frame.mode_specific_subframe
             if event.state & 0x0004:  # Ctrl → end point
                 if self.end_point_id is not None:
                     self.delete(self.end_point_id)
                 self.end_point = (x, y)
                 self.end_point_id = self.draw_point(x, y, "blue")
-                self.master.controls_frame.mode_specific_subframe.update_end_pos_label(x, y)
-            else:
+                frame.update_end_pos_label(x, y)
+            elif not (isinstance(frame, PathfindingFrame) and frame.use_char_pos_var.get()):
                 if self.start_point_id is not None:
                     self.delete(self.start_point_id)
                 self.start_point = (x, y)
                 self.start_point_id = self.draw_point(x, y, "red")
-                self.master.controls_frame.mode_specific_subframe.update_start_pos_label(x, y)
+                frame.update_start_pos_label(x, y)
 
     def on_mouse_drag(self, event):
         self.on_mouse_move(event)
@@ -142,10 +143,11 @@ class EditableCanvas(tk.Canvas):
     def on_key_press(self, event):
         if self.get_current_mode() == "Pathfinding":
             if event.keysym in ["Left", "Right", "Up", "Down"]:
+                frame = self.master.controls_frame.mode_specific_subframe
                 if event.state & 0x0004:
                     if self.end_point is not None:
                         self.move_point(event.keysym, "blue", "end")
-                else:
+                elif not (isinstance(frame, PathfindingFrame) and frame.use_char_pos_var.get()):
                     if self.start_point is not None:
                         self.move_point(event.keysym, "red", "start")
 
@@ -588,9 +590,14 @@ class PathfindingFrame(_ModeDependentFrame):
         self.jump_multiplier_entry.insert(0, "1.00")
 
         self.path_handler = path_handler
-        modified = self.path_handler.minimap.modified_minimap.copy()
-        modified[modified.nonzero()] = 255
-        self.master.master.canvas.refresh_canvas(modified)
+        self.master.master.editor.refresh_canvas(self.path_handler.minimap.modified_minimap)
+
+        self.use_char_pos_var = tk.BooleanVar(value=False)
+        self.use_char_pos_cb = ttk.Checkbutton(
+            self, text="Use character as start",
+            variable=self.use_char_pos_var,
+            command=self._on_use_char_pos_changed,
+        )
 
         self.print_path_var = tk.BooleanVar(value=False)
         self.print_path_cb = ttk.Checkbutton(
@@ -607,20 +614,50 @@ class PathfindingFrame(_ModeDependentFrame):
         self.send_actions_button = tk.Button(
             self, text="Get to target", command=on_send_actions
         )
+        self.show_timeline_button = tk.Button(
+            self, text="Show Timeline",
+            command=lambda: self.master.master.editor.show_timeline(),
+        )
+
+        self._movements_frame = ttk.LabelFrame(self, text="Movement Sequence", padding=2)
+        self.movements_text = tk.Text(
+            self._movements_frame,
+            height=8,
+            font=("Courier", 8),
+            state=tk.DISABLED,
+            wrap=tk.NONE,
+        )
+        self._movements_scroll = ttk.Scrollbar(
+            self._movements_frame, orient=tk.VERTICAL,
+            command=self.movements_text.yview,
+        )
+        self.movements_text.config(yscrollcommand=self._movements_scroll.set)
 
     def create_widgets(self):
+        self.columnconfigure(0, weight=1)
         self.start_pos_label.grid(row=0, column=0, sticky=tk.W)
         self.end_pos_label.grid(row=1, column=0, sticky=tk.W)
-        self.allow_teleport_cb.grid(row=2, column=0, sticky=tk.W)
-        self.include_portals_cb.grid(row=3, column=0, sticky=tk.W)
-        self.speed_multiplier_label.grid(row=4, column=0, sticky=tk.W)
-        self.speed_multiplier_entry.grid(row=4, column=1, sticky=tk.W)
-        self.jump_multiplier_label.grid(row=5, column=0, sticky=tk.W)
-        self.jump_multiplier_entry.grid(row=5, column=1, sticky=tk.W)
-        self.print_path_cb.grid(row=6, column=0, sticky=tk.W)
-        self.print_movements_cb.grid(row=7, column=0, sticky=tk.W)
-        self.print_actions_cb.grid(row=8, column=0, sticky=tk.W)
-        self.send_actions_button.grid(row=9, column=0, columnspan=2, sticky=tk.EW)
+        self.use_char_pos_cb.grid(row=2, column=0, columnspan=2, sticky=tk.W)
+        self.allow_teleport_cb.grid(row=3, column=0, sticky=tk.W)
+        self.include_portals_cb.grid(row=4, column=0, sticky=tk.W)
+        self.speed_multiplier_label.grid(row=5, column=0, sticky=tk.W)
+        self.speed_multiplier_entry.grid(row=5, column=1, sticky=tk.W)
+        self.jump_multiplier_label.grid(row=6, column=0, sticky=tk.W)
+        self.jump_multiplier_entry.grid(row=6, column=1, sticky=tk.W)
+        self.print_path_cb.grid(row=7, column=0, sticky=tk.W)
+        self.print_movements_cb.grid(row=8, column=0, sticky=tk.W)
+        self.print_actions_cb.grid(row=9, column=0, sticky=tk.W)
+        self.send_actions_button.grid(row=10, column=0, columnspan=2, sticky=tk.EW)
+        self.show_timeline_button.grid(row=11, column=0, columnspan=2, sticky=tk.EW)
+        ttk.Separator(self, orient=tk.HORIZONTAL).grid(
+            row=12, column=0, columnspan=2, sticky=tk.EW, pady=4
+        )
+        self._movements_frame.grid(row=13, column=0, columnspan=2, sticky=tk.NSEW)
+        self._movements_frame.columnconfigure(0, weight=1)
+        self._movements_frame.rowconfigure(0, weight=1)
+        self.movements_text.grid(row=0, column=0, sticky=tk.NSEW)
+        self._movements_scroll.grid(row=0, column=1, sticky=tk.NS)
+        self.rowconfigure(13, weight=1)
 
     @property
     def print_path(self) -> bool:
@@ -641,6 +678,25 @@ class PathfindingFrame(_ModeDependentFrame):
     def update_end_pos_label(self, x, y):
         self.end_pos_label.config(text=f"End Position: ({x:.0f}, {y:.0f})")
         self.master.master.editor.update_end_point(int(x), int(y))
+
+    def update_movement_display(self, movements: tuple, speed: float) -> None:
+        self.movements_text.config(state=tk.NORMAL)
+        self.movements_text.delete("1.0", tk.END)
+        for move in movements:
+            if move.movement_type.name == "END_OF_MOVEMENT":
+                continue
+            duration = move.length / max(speed, 1e-6)
+            line = f"{move.movement_type.name:<22} x{move.length}  {duration:.3f}s\n"
+            self.movements_text.insert(tk.END, line)
+        self.movements_text.config(state=tk.DISABLED)
+
+    def _on_use_char_pos_changed(self) -> None:
+        if self.use_char_pos_var.get():
+            canvas = self.master.master.canvas
+            if canvas.start_point_id is not None:
+                canvas.delete(canvas.start_point_id)
+                canvas.start_point_id = None
+                canvas.start_point = None
 
     def get_grid_kwargs(self) -> dict:
         try:

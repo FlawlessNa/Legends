@@ -98,8 +98,8 @@ def move(
         if actual_releases:
             structure.insert(
                 release_index,
-                release_keys,
-                ["keyup"] * len(release_keys) if isinstance(release_keys, list) else "keyup",
+                actual_releases,
+                ["keyup"] * len(actual_releases),
                 next(controller.random_delay),
             )
     structure.fill(repeated_key, "keydown", controller.random_delay, limit=limit)
@@ -197,7 +197,6 @@ def jump_on_rope(
         )
 
     structure.forced_key_releases.append(jump_key)
-    structure.force_all_releases = True
     return structure
 
 

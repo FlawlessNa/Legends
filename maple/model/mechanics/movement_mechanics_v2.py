@@ -122,8 +122,8 @@ class MovementHandler:
                     case (0, -1, True, True) | (0, 1, True, True):
                         continue
                     case _:
-                        breakpoint()
                         raise NotImplementedError
+                        breakpoint()
 
             elif next_node in current_node.connections:
                 connection_type = current_node.get_connection_type(next_node)
@@ -275,7 +275,6 @@ class MovementHandler:
                     ):
                         raise NotImplementedError
                     case MovementTypes.END_OF_MOVEMENT if structure is not None:
-                        breakpoint()
                         keys = list(
                             key for key in structure.keys_held
                             if key not in structure.forced_key_releases

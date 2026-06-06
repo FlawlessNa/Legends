@@ -35,7 +35,7 @@ from maple.model.mechanics import MapleMap
 
 # ── configure here ────────────────────────────────────────────────────────────
 MAP_NAME: str = 'GhostShip1'
-IGN: str = 'Starbase'
+IGN: str = 'StarBase'
 SCALE: int = 5   # editor zoom: pixels per minimap cell (increase for small maps)
 # ──────────────────────────────────────────────────────────────────────────────
 
