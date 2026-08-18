@@ -133,9 +133,12 @@ class MinimapGrid(Grid):
         canvas: np.ndarray,
         speed: float,
         grid_id: str = None,
-        portal_cost_reduction: float = 0.9,
-        teleport_cost_reduction: float = 0.5,
-        jump_down_cost_reduction: float = 0.1,
+        portal_cost_reduction: float = 0.8,
+        teleport_cost_reduction: float = 0.6,
+        jump_down_cost_reduction: float = 0.7,
+        portal_overhead: float = 1.0,
+        teleport_overhead: float = 2.0,
+        jump_down_overhead: float = 3.0,
     ):
         super().__init__(matrix=canvas, grid_id=grid_id)
         self.grid_id = grid_id
@@ -144,6 +147,9 @@ class MinimapGrid(Grid):
         self.portal_cost_reduction = portal_cost_reduction
         self.teleport_cost_reduction = teleport_cost_reduction
         self.jump_down_cost_reduction = jump_down_cost_reduction
+        self.portal_overhead = portal_overhead
+        self.teleport_overhead = teleport_overhead
+        self.jump_down_overhead = jump_down_overhead
 
     @property
     def cost_reduction(self) -> dict:
@@ -153,7 +159,18 @@ class MinimapGrid(Grid):
             ConnectionTypes.TELEPORT_RIGHT: self.teleport_cost_reduction,
             ConnectionTypes.TELEPORT_UP: self.teleport_cost_reduction,
             ConnectionTypes.TELEPORT_DOWN: self.teleport_cost_reduction,
-            ConnectionTypes.JUMP_DOWN: self.jump_down_cost_reduction
+            ConnectionTypes.JUMP_DOWN: self.jump_down_cost_reduction,
+        }
+
+    @property
+    def connection_overhead(self) -> dict:
+        return {
+            ConnectionTypes.IN_MAP_PORTAL: self.portal_overhead,
+            ConnectionTypes.TELEPORT_LEFT: self.teleport_overhead,
+            ConnectionTypes.TELEPORT_RIGHT: self.teleport_overhead,
+            ConnectionTypes.TELEPORT_UP: self.teleport_overhead,
+            ConnectionTypes.TELEPORT_DOWN: self.teleport_overhead,
+            ConnectionTypes.JUMP_DOWN: self.jump_down_overhead,
         }
 
     def node(self, x, y) -> MinimapNode:
@@ -185,9 +202,9 @@ class MinimapGrid(Grid):
         Allows to exclude connections from the neighbors.
         """
         neighbors = super().neighbors(node, diagonal_movement)
-        if not include_connections:
-            for connection in node.connections:
-                neighbors.remove(connection)
+        if not include_connections and node.connections:
+            exclude = {id(c) for c in node.connections}
+            neighbors = [n for n in neighbors if id(n) not in exclude]
         return neighbors  # noqa
 
     def calc_cost(self, node_a: MinimapNode, node_b: MinimapNode, weighted=True) -> float:
@@ -198,12 +215,12 @@ class MinimapGrid(Grid):
         if node_b in node_a.connections:
             connection_type = node_a.get_connection_type(node_b)
             if connection_type in (ConnectionTypes.JUMP_RIGHT, ConnectionTypes.JUMP_LEFT):
-                # Horizontal jump, set vertical distance to 0
                 dist = abs(node_a.x - node_b.x)
             else:
                 dist = math.dist((node_a.x, node_a.y), (node_b.x, node_b.y))
             reduce_by = self.cost_reduction.get(connection_type, 0)
-            ng += dist * (1 - reduce_by)
+            overhead = self.connection_overhead.get(connection_type, 0)
+            ng = overhead + dist * (1 - reduce_by)
 
         if weighted:
             ng *= node_b.weight

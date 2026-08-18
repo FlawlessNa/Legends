@@ -62,11 +62,15 @@ class MapleMinimap(Minimap):
 
     @property
     def map_area_width(self) -> int:
-        return self.modified_minimap.shape[1]
+        if self.features_manager.canvas_width is None:
+            return NotImplemented
+        return self.features_manager.canvas_width
 
     @property
     def map_area_height(self) -> int:
-        return self.modified_minimap.shape[0]
+        if self.features_manager.canvas_height is None:
+            return NotImplemented
+        return self.features_manager.canvas_height
 
     @lru_cache
     def generate_grid(

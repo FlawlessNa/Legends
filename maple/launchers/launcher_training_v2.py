@@ -5,11 +5,11 @@ import maple.parsers
 
 training_configs = {
     "num_pets": 1,
-    "game_map": "GhostShip1",
+    "game_map": "Line1Area1",
     "open_minimap_editor": False,
-    "mob_count_threshold": 1,
-    "included_buffs": ["Invincible", "Holy Symbol"],
-    "training_skill": "Heal",
+    "mob_count_threshold": 8,
+    "included_buffs": ["Maple Warrior", "Holy Symbol"],
+    "training_skill": "Genesis",
     "models_path": {"All": "data/models/production/global"},
     "smart_rotation_enabled": False,
     # "disable_teleport": True,
@@ -23,7 +23,7 @@ training_configs = {
 
 async def main():
     with SessionManager(maple.parsers.MapleParser) as session:
-        leecher = bots.TrainingBot("StarBase", session.metadata, **training_configs)
+        leecher = bots.TrainingBot("Farmacy", session.metadata, **training_configs)
         # mule1 = bots.TestBot('UluLoot', session.metadata)
         # mule2 = bots.TestBot('FinancialWiz', session.metadata)
         # mule3 = bots.TestBot('MoneyEngine', session.metadata)

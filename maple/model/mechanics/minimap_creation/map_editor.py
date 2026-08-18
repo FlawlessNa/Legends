@@ -23,7 +23,7 @@ from .minimap_grid import ConnectionTypes
 from ..movement_mechanics_v2 import MovementHandler
 from maple.model.characters.magicians import Magician
 
-MOVEMENT_DURATION_LIMIT = 1.0  # seconds
+MOVEMENT_DURATION_LIMIT = 0.4  # seconds
 
 _START_DOT_COLOR = "#ff8800"
 _END_DOT_COLOR   = "#cc44ff"
@@ -68,6 +68,8 @@ class MinimapEditor:
         self.ign = ign
 
         self._latest_actions: KeyboardInputWrapper | None = None
+        self._timeline_fig = None
+        self._move_stop_event: threading.Event | None = None
         self._map_area_box = None
         self.handle = 0
         self.lock = self.q = None
@@ -533,7 +535,7 @@ class MinimapEditor:
             )
             if self.character_marker is None:
                 self.character_marker = self.view.canvas.create_rectangle(
-                    *coords, fill='yellow'
+                    *coords, fill='red'
                 )
             else:
                 self.view.canvas.coords(self.character_marker, *coords)
@@ -667,27 +669,33 @@ class MinimapEditor:
         frame: PathfindingFrame = self.view.controls_frame.mode_specific_subframe
         assert isinstance(frame, PathfindingFrame)
         kwargs = frame.get_grid_kwargs()
-
-        for node in self.previous_path:
-            if (node.x, node.y) not in {self.start_point, self.end_point}:
-                self.view.canvas.draw_point(node.x, node.y, 'white')
-
         grid = self.minimap.generate_grid(**kwargs)
         path = self.movement_handler.compute_path(self.start_point, self.end_point, grid)
         if frame.print_path:
             print(f"Path:\n{chr(10).join(map(str, path))}")
-
         movements = self.movement_handler.path_into_movements(path, grid)
         if frame.print_movements:
             print(f"Movements:\n{chr(10).join(map(str, movements))}")
         frame.update_movement_display(movements, grid.speed)
-
         actions = self.movement_handler.movements_into_action(movements, grid)
         self._latest_actions = actions
         if frame.print_actions:
             print(f"Actions:\n{actions}")
+        self._draw_path_on_canvas(path, self.start_point, self.end_point)
+        self._update_timeline()
 
-        endpoints = {self.start_point, self.end_point}
+    def _draw_path_on_canvas(
+        self,
+        path: tuple,
+        start: tuple[int, int],
+        end: tuple[int, int],
+    ) -> None:
+        """Clear the previous path and paint the new one. Must run on the main thread."""
+        endpoints = {start, end}
+        for node in self.previous_path:
+            if (node.x, node.y) not in endpoints:
+                bg_color = 'white' if self.modified_minimap[node.y, node.x] != 0 else 'black'
+                self.view.canvas.draw_point(node.x, node.y, bg_color)
         for i, node in enumerate(path):
             if (node.x, node.y) in endpoints:
                 continue
@@ -700,8 +708,30 @@ class MinimapEditor:
                 else:
                     color = _PATH_COLORS["walk"] if node.x != prev.x else _PATH_COLORS["climb"]
             self.view.canvas.draw_point(node.x, node.y, color)
-
+        if self.character_marker is not None:
+            self.view.canvas.tag_raise(self.character_marker)
         self.previous_path = path
+
+    def _on_move_display(
+        self,
+        pos: tuple[int, int],
+        end_point: tuple[int, int],
+        path: tuple,
+        actions: KeyboardInputWrapper,
+    ) -> None:
+        """UI refresh scheduled by the move loop after each recompute. Main thread only."""
+        self._draw_path_on_canvas(path, pos, end_point)
+        self._latest_actions = actions
+        self._update_timeline()
+
+    def _update_timeline(self) -> None:
+        if self._latest_actions is None:
+            return
+        from toolkit.movement_timeline import visualize
+        title = f"{self.minimap.map_name}:  {self.start_point} → {self.end_point}"
+        self._timeline_fig = visualize(
+            self._latest_actions, title=title, block=False, fig=self._timeline_fig
+        )
 
     def show_timeline(self) -> None:
         if self._latest_actions is None:
@@ -723,49 +753,142 @@ class MinimapEditor:
         end_point = self.end_point
 
         def _run():
-            async def _main_loop():
-                lock = asyncio.Lock()
-                q: asyncio.Queue = asyncio.Queue()
+            import pythoncom
+            pythoncom.CoInitialize()
+            try:
+                async def _main_loop():
+                    lock = asyncio.Lock()
+                    q: asyncio.Queue = asyncio.Queue()
 
-                async def _execute_actions():
-                    while True:
-                        action = await q.get()
-                        if action is None:
-                            break
-                        task = asyncio.create_task(action.send())
-                        task.add_done_callback(lambda _: lock.release())
-                    print("Finished executing actions.")
-                    controller.release_all(self.handle)
+                    async def _execute_actions():
+                        while True:
+                            action = await q.get()
+                            if action is None:
+                                break
+                            task = asyncio.create_task(action.send())
+                            task.add_done_callback(lambda _: lock.release())
+                        print("Finished executing actions.")
+                        controller.release_all(self.handle)
 
-                async def _recompute_actions():
-                    while True:
-                        print('Waiting on Lock')
-                        await lock.acquire()
-                        print('Lock Acquired - Recomputing')
-                        try:
-                            pos = self.minimap.get_character_positions(
-                                self.handle, map_area_box=self._map_area_box
-                            ).pop()
-                        except (KeyError, IndexError):
-                            print('Could not detect character position — stopping.')
-                            await q.put(None)
-                            break
-                        grid = self.minimap.generate_grid(**grid_kwargs)
-                        path = self.movement_handler.compute_path(pos, end_point, grid)
-                        if len(path) <= 3:
-                            print('Stopping Recompute - Reached Destination')
-                            await q.put(None)
-                            break
-                        movements = self.movement_handler.path_into_movements(path, grid)
-                        actions = self.movement_handler.movements_into_action(
-                            movements, grid, MOVEMENT_DURATION_LIMIT
-                        )
-                        await q.put(actions)
-                    print("Finished re-computing actions.")
+                    async def _recompute_actions():
+                        while True:
+                            print('Waiting on Lock')
+                            await lock.acquire()
+                            print('Lock Acquired - Recomputing')
+                            try:
+                                pos = self.minimap.get_character_positions(
+                                    self.handle, map_area_box=self._map_area_box
+                                ).pop()
+                            except (KeyError, IndexError):
+                                print('Could not detect character position — stopping.')
+                                await q.put(None)
+                                break
+                            grid = self.minimap.generate_grid(**grid_kwargs)
+                            path = self.movement_handler.compute_path(pos, end_point, grid)
+                            if len(path) <= 3:
+                                print('Stopping Recompute - Reached Destination')
+                                await q.put(None)
+                                break
+                            movements = self.movement_handler.path_into_movements(path, grid)
+                            actions = self.movement_handler.movements_into_action(
+                                movements, grid, MOVEMENT_DURATION_LIMIT
+                            )
+                            await q.put(actions)
+                        print("Finished re-computing actions.")
 
-                await asyncio.gather(_execute_actions(), _recompute_actions())
+                    await asyncio.gather(_execute_actions(), _recompute_actions())
 
-            asyncio.run(_main_loop())
-            print('Done!')
+                asyncio.run(_main_loop())
+                print('Done!')
+            finally:
+                pythoncom.CoUninitialize()
+
+        threading.Thread(target=_run, daemon=True).start()
+
+    def toggle_move(self, button: tk.Button) -> None:
+        if self._move_stop_event is not None and not self._move_stop_event.is_set():
+            self._move_stop_event.set()
+            button.config(text="Move")
+        else:
+            frame: PathfindingFrame = self.view.controls_frame.mode_specific_subframe
+            assert isinstance(frame, PathfindingFrame)
+            grid_kwargs = frame.get_grid_kwargs()
+            self._move_stop_event = threading.Event()
+            button.config(text="Stop Moving")
+            self._start_move_loop(button, grid_kwargs)
+
+    def _start_move_loop(self, button: tk.Button, grid_kwargs: dict) -> None:
+        stop_event = self._move_stop_event
+
+        def _run():
+            import pythoncom
+            pythoncom.CoInitialize()
+            try:
+                async def _main_loop():
+                    current_task: asyncio.Task | None = None
+                    end_point = self.minimap.random_point()
+                    print(f'Move: first target = {end_point}')
+
+                    async def _replace_action(new_actions: KeyboardInputWrapper) -> asyncio.Task:
+                        nonlocal current_task
+                        if current_task is not None and not current_task.done():
+                            current_task.cancel()
+                            try:
+                                await current_task
+                            except asyncio.CancelledError:
+                                pass
+                            controller.release_all(self.handle)
+                        return asyncio.create_task(new_actions.send())
+
+                    try:
+                        while not stop_event.is_set():
+                            try:
+                                pos = self.minimap.get_character_positions(
+                                    self.handle, map_area_box=self._map_area_box
+                                ).pop()
+                            except (KeyError, IndexError):
+                                await asyncio.sleep(0.1)
+                                continue
+
+                            grid = self.minimap.generate_grid(**grid_kwargs)
+                            path = self.movement_handler.compute_path(pos, end_point, grid)
+                            if len(path) <= 3:
+                                end_point = self.minimap.random_point()
+                                print(f'Move: new target = {end_point}')
+                                path = self.movement_handler.compute_path(
+                                    pos, end_point, grid
+                                )
+                            movements = self.movement_handler.path_into_movements(path, grid)
+                            actions = self.movement_handler.movements_into_action(
+                                movements, grid, MOVEMENT_DURATION_LIMIT
+                            )
+                            if actions is None:
+                                await asyncio.sleep(0.1)
+                                continue
+
+                            current_task = await _replace_action(actions)
+                            self.root.after(
+                                0,
+                                lambda _pos=pos, _ep=end_point, _p=path, _a=actions:
+                                    self._on_move_display(_pos, _ep, _p, _a),
+                            )
+                            await asyncio.sleep(MOVEMENT_DURATION_LIMIT)
+                    finally:
+                        if current_task is not None and not current_task.done():
+                            current_task.cancel()
+                            try:
+                                await current_task
+                            except asyncio.CancelledError:
+                                pass
+                        controller.release_all(self.handle)
+
+                asyncio.run(_main_loop())
+            finally:
+                pythoncom.CoUninitialize()
+                self._move_stop_event = None
+                self.root.after(
+                    0,
+                    lambda: button.config(text="Move") if button.winfo_exists() else None,
+                )
 
         threading.Thread(target=_run, daemon=True).start()

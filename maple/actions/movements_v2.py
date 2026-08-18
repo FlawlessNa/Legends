@@ -79,7 +79,7 @@ def move(
     first_delay = (
         # TODO - see if "not in keys_held + ["up"]" is necessary and if so, document why
         # if repeated_key not in list(structure.keys_held) + ["up"]
-        FIRST_DELAY if repeated_key not in keys_held else next(controller.random_delay)
+        min(FIRST_DELAY, duration) if repeated_key not in keys_held else next(controller.random_delay)
     )
     if structure is None:
         release_index = 0

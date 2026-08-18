@@ -34,8 +34,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from maple.model.mechanics import MapleMap
 
 # ── configure here ────────────────────────────────────────────────────────────
-MAP_NAME: str = 'GhostShip1'
-IGN: str = 'StarBase'
+MAP_NAME: str = 'Line1Area1'
+IGN: str = 'Farmacy'
 SCALE: int = 5   # editor zoom: pixels per minimap cell (increase for small maps)
 # ──────────────────────────────────────────────────────────────────────────────
 

@@ -31,6 +31,7 @@ _KEY_COLORS = {
 _PREFERRED_ORDER = ["up", "down", "left", "right"]
 _DEFAULT_COLOR = "#8172B2"
 _MIN_BAR_WIDTH_FOR_LABEL = 0.035  # seconds
+_TIMELINE_X_MAX = 5.0             # fixed x-axis range (seconds) — change here to rescale
 
 
 def _parse_intervals(
@@ -75,7 +76,9 @@ def visualize(
     title: str = "Key Input Timeline",
     save_path: str | None = None,
     show: bool = True,
-) -> None:
+    block: bool = True,
+    fig: "plt.Figure | None" = None,
+) -> "plt.Figure | None":
     """
     Render a Gantt chart of key-hold intervals from a KeyboardInputWrapper.
 
@@ -84,12 +87,15 @@ def visualize(
     wrapper:    The KeyboardInputWrapper to visualize.
     title:      Plot title (shown above the chart).
     save_path:  If given, save the figure to this path (PNG/SVG/etc.).
-    show:       If True, call plt.show() to open the interactive window.
+    show:       If True, open/refresh the interactive window.
+    block:      If True, block until the window is closed (ignored when fig is given).
+    fig:        If given, clear and redraw this existing figure in place rather than
+                creating a new window.
     """
     intervals = _parse_intervals(wrapper)
     if not intervals:
         print("No key events found in wrapper.")
-        return
+        return fig
 
     all_keys = list(intervals)
     ordered = [k for k in _PREFERRED_ORDER if k in all_keys]
@@ -97,9 +103,14 @@ def visualize(
     n = len(ordered)
 
     total = wrapper.duration
-    fig_w = max(12, min(total * 5, 32))
-    fig_h = n * 0.9 + 2.2
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    updating = fig is not None
+    if not updating:
+        fig_w = _TIMELINE_X_MAX * 4
+        fig_h = n * 0.9 + 2.2
+        fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    else:
+        fig.clear()
+        ax = fig.add_subplot(111)
 
     for lane, key in enumerate(ordered):
         color = _KEY_COLORS.get(key, _DEFAULT_COLOR)
@@ -135,7 +146,7 @@ def visualize(
     ax.set_yticks(range(n))
     ax.set_yticklabels(ordered, fontsize=11)
     ax.set_ylim(-0.6, n - 0.4)
-    ax.set_xlim(0.0, total * 1.06)
+    ax.set_xlim(0.0, _TIMELINE_X_MAX)
     ax.set_xlabel("Time (s)", fontsize=11)
     ax.set_title(
         f"{title}\n"
@@ -156,13 +167,21 @@ def visualize(
         )
     ax.legend(handles=legend_patches, loc="upper right", fontsize=9, framealpha=0.7)
 
-    plt.tight_layout()
+    fig.tight_layout()
     if save_path:
-        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
         print(f"Saved to {save_path}")
+
+    if updating:
+        fig.canvas.draw_idle()
+        return fig
+
     if show:
-        plt.show()
-    plt.close(fig)
+        plt.show(block=block)
+    if block:
+        plt.close(fig)
+        return None
+    return fig
 
 
 # ---------------------------------------------------------------------------

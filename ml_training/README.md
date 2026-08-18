@@ -362,6 +362,7 @@ run_annotator(
 **Keyboard Shortcuts:**
 - **A/D**: Previous/Next image
 - **Click & Drag**: Draw bounding box
+- **Ctrl+Click**: Remove box under cursor (first match)
 - **Del**: Delete last box
 - **Ctrl+S**: Save annotations
 - **Enter**: Accept and next (verify mode)

@@ -17,7 +17,7 @@ class TrainingBot(MapleBot):
             # decision_makers.AbilityPointDistributor,
             decision_makers.PetFood,
             decision_makers.SoloRebuff,
-            decision_makers.SpeedPill,
+            # decision_makers.SpeedPill,
             decision_makers.CheckMobsStillSpawn,
             decision_makers.CheckStillInMap,
         ]

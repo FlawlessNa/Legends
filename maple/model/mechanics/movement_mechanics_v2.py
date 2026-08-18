@@ -44,6 +44,24 @@ class MovementTypes(IntEnum):
     END_OF_MOVEMENT = 99  # Last movement, used to release any remaining held key.
 
 
+_NARROW_PLATFORM_THRESHOLD = 5  # platforms narrower than this (pixels) get a direction-stop after landing
+
+_PRECISION_PRE_STOP = frozenset({
+    MovementTypes.JUMP,
+    MovementTypes.JUMP_LEFT,
+    MovementTypes.JUMP_RIGHT,
+    MovementTypes.JUMP_DOWN,
+    MovementTypes.ENTER_PORTAL,
+})
+
+_JUMP_CONNECTION_TYPES = frozenset({
+    ConnectionTypes.JUMP,
+    ConnectionTypes.JUMP_LEFT,
+    ConnectionTypes.JUMP_RIGHT,
+    ConnectionTypes.JUMP_DOWN,
+})
+
+
 class _MovementComponent(NamedTuple):
     """
     NamedTuple to hold the movement type and the duration of the movement.
@@ -51,6 +69,7 @@ class _MovementComponent(NamedTuple):
 
     movement_type: MovementTypes
     length: int
+    narrow: bool = False  # True when this jump lands on a narrow platform (≤ _NARROW_PLATFORM_THRESHOLD px)
 
 
 class MovementHandler:
@@ -83,7 +102,8 @@ class MovementHandler:
         start_node = grid.node(*start)
         end_node = grid.node(*end)
         logger.log(LOG_LEVEL, f"Computing path from {start} to {end}")
-        finder = DijkstraFinder() if grid.has_portals else AStarFinder()
+        # finder = DijkstraFinder() if grid.has_portals else AStarFinder()
+        finder = DijkstraFinder()
         path, _ = finder.find_path(start_node, end_node, grid)
         grid.cleanup()
         return path
@@ -97,9 +117,9 @@ class MovementHandler:
         for current_node, next_node in zip(path, path[1:]):
             current_feature = self.minimap.get_node_info(current_node)
             next_feature = self.minimap.get_node_info(next_node)
-            if not current_feature.walkable:
+            if not current_node.walkable:
                 continue
-            elif not next_feature.walkable:
+            elif not next_node.walkable:
                 raise NotImplementedError
 
             if next_node in grid.neighbors(current_node, include_connections=False):
@@ -138,9 +158,15 @@ class MovementHandler:
                 elif connection_type is ConnectionTypes.IN_MAP_PORTAL:
                     movements.append(_MovementComponent(MovementTypes.ENTER_PORTAL, 1))
                 else:
-                    movements.append(
-                        _MovementComponent(MovementTypes[connection_type.name], 1)
-                    )
+                    move_type = MovementTypes[connection_type.name]
+                    if connection_type in _JUMP_CONNECTION_TYPES:
+                        is_narrow = (
+                            next_feature.is_platform
+                            and next_feature.width <= _NARROW_PLATFORM_THRESHOLD
+                        )
+                        movements.append(_MovementComponent(move_type, 1, narrow=is_narrow))
+                    else:
+                        movements.append(_MovementComponent(move_type, 1))
             else:
                 breakpoint()
                 raise NotImplementedError
@@ -149,9 +175,10 @@ class MovementHandler:
         squeezed = []
         for k, group in groupby(movements, key=lambda x: x.movement_type):
             group_list = list(group)
+            is_narrow = group_list[0].narrow  # preserved from first element in group
             for i in range(0, len(group_list), self._MAX_WALK_SIZE):
                 squeezed.append(
-                    _MovementComponent(k, min(len(group_list) - i, self._MAX_WALK_SIZE))
+                    _MovementComponent(k, min(len(group_list) - i, self._MAX_WALK_SIZE), is_narrow)
                 )
         squeezed.append(_MovementComponent(MovementTypes.END_OF_MOVEMENT, 1))
         return tuple(squeezed)
@@ -168,7 +195,7 @@ class MovementHandler:
             structure = None
             for move, upcoming_move in zip(movements, movements[1:]):
 
-                move_type, move_length = move
+                move_type, move_length = move.movement_type, move.length
                 duration = move_length / grid.speed
                 match move_type:
 
@@ -240,6 +267,15 @@ class MovementHandler:
                             structure = movements_v2.jump_on_rope(**kwargs)
                         else:
                             structure = movements_v2.single_jump(**kwargs)
+                            if move.narrow:
+                                # Narrow platform: release horizontal key on landing so the
+                                # character doesn't walk off the edge after touching down.
+                                held_dir = next(
+                                    (k for k in structure.keys_held if k in ('left', 'right')),
+                                    None
+                                )
+                                if held_dir:
+                                    structure.append(held_dir, "keyup", 0)
 
                     case MovementTypes.ENTER_PORTAL:
                         structure = movements_v2.move(
@@ -288,6 +324,16 @@ class MovementHandler:
 
                 # Else just consider current move and disregard previous.
                 if structure.duration >= (total_duration or float('inf')):
+                    # Before hard-truncating: if the next move is precision-sensitive,
+                    # release the horizontal key now so the next chunk starts from a
+                    # stopped position and can execute the jump from the correct spot.
+                    if upcoming_move.movement_type in _PRECISION_PRE_STOP:
+                        held_dir = next(
+                            (k for k in structure.keys_held if k in ('left', 'right')),
+                            None
+                        )
+                        if held_dir:
+                            structure.append(held_dir, "keyup", 0)
                     structure = structure.truncate(total_duration)
                     break
 

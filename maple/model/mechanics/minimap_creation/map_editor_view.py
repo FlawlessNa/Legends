@@ -614,6 +614,10 @@ class PathfindingFrame(_ModeDependentFrame):
         self.send_actions_button = tk.Button(
             self, text="Get to target", command=on_send_actions
         )
+        self.move_button = tk.Button(
+            self, text="Move",
+            command=lambda: self.master.master.editor.toggle_move(self.move_button),
+        )
         self.show_timeline_button = tk.Button(
             self, text="Show Timeline",
             command=lambda: self.master.master.editor.show_timeline(),
@@ -648,16 +652,17 @@ class PathfindingFrame(_ModeDependentFrame):
         self.print_movements_cb.grid(row=8, column=0, sticky=tk.W)
         self.print_actions_cb.grid(row=9, column=0, sticky=tk.W)
         self.send_actions_button.grid(row=10, column=0, columnspan=2, sticky=tk.EW)
-        self.show_timeline_button.grid(row=11, column=0, columnspan=2, sticky=tk.EW)
+        self.move_button.grid(row=11, column=0, columnspan=2, sticky=tk.EW)
+        self.show_timeline_button.grid(row=12, column=0, columnspan=2, sticky=tk.EW)
         ttk.Separator(self, orient=tk.HORIZONTAL).grid(
-            row=12, column=0, columnspan=2, sticky=tk.EW, pady=4
+            row=13, column=0, columnspan=2, sticky=tk.EW, pady=4
         )
-        self._movements_frame.grid(row=13, column=0, columnspan=2, sticky=tk.NSEW)
+        self._movements_frame.grid(row=14, column=0, columnspan=2, sticky=tk.NSEW)
         self._movements_frame.columnconfigure(0, weight=1)
         self._movements_frame.rowconfigure(0, weight=1)
         self.movements_text.grid(row=0, column=0, sticky=tk.NSEW)
         self._movements_scroll.grid(row=0, column=1, sticky=tk.NS)
-        self.rowconfigure(13, weight=1)
+        self.rowconfigure(14, weight=1)
 
     @property
     def print_path(self) -> bool:

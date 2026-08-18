@@ -106,9 +106,13 @@ class YOLODataset:
             train_split: Train/val split ratio (e.g., 0.8 for 80/20 split)
         """
         train_split = train_split if train_split is not None else config.get('dataset.train_val_split', 0.8)
-        
-        # Create directory structure
+
+        # Recreate directory structure from scratch. Clearing is required: the
+        # split is random, so re-running with stale files left over would put
+        # the same image in both train/ and val/ (train/val leakage).
         for directory in [self.images_train, self.images_val, self.labels_train, self.labels_val]:
+            if directory.exists():
+                shutil.rmtree(directory)
             directory.mkdir(parents=True, exist_ok=True)
         
         images_dir = Path(images_dir)
@@ -429,6 +433,9 @@ def merge_datasets(
         else:
             classes = list(names)
 
+        if not classes:
+            raise ValueError(f"{data_yaml_path} declares no class names")
+
         # Build remap: old class ID -> new class ID in unified list
         remap = {}
         for old_id, cls_name in enumerate(classes):
@@ -438,12 +445,22 @@ def merge_datasets(
 
         dataset_class_maps.append(remap)
 
+        # Show the mapping explicitly so a wrong data.yaml is visible at merge time
+        mapping = ', '.join(
+            f"{old}:{classes[old]}→{new}" for old, new in remap.items()
+        )
+        print(f"  {Path(src_path).name}: {mapping}")
+
     print(f"Unified classes: {unified_classes}")
 
-    # Create merged dataset
+    # Create merged dataset. Rebuild from scratch: leftover files from a
+    # previous merge whose sources were since re-split would end up in both
+    # train/ and val/ (train/val leakage).
     dataset = YOLODataset(name, unified_classes, base_path)
     for d in [dataset.images_train, dataset.images_val,
               dataset.labels_train, dataset.labels_val]:
+        if d.exists():
+            shutil.rmtree(d)
         d.mkdir(parents=True, exist_ok=True)
 
     train_count = 0
@@ -451,7 +468,6 @@ def merge_datasets(
 
     for src_path, remap in zip(source_paths, dataset_class_maps):
         source = Path(src_path)
-        needs_remap = any(k != v for k, v in remap.items())
         src_prefix = source.name
 
         with open(source / "data.yaml") as f:
@@ -479,18 +495,26 @@ def merge_datasets(
 
                 shutil.copy(img_file, img_dest / dest_img_name)
 
-                if needs_remap:
-                    with open(label_file, 'r') as f:
-                        lines = f.readlines()
-                    with open(lbl_dest / dest_lbl_name, 'w') as f:
-                        for line in lines:
-                            parts = line.strip().split()
-                            if parts:
-                                old_id = int(parts[0])
-                                parts[0] = str(remap.get(old_id, old_id))
-                                f.write(' '.join(parts) + '\n')
-                else:
-                    shutil.copy(label_file, lbl_dest / dest_lbl_name)
+                # Always parse and remap. A class ID not declared in the source's
+                # data.yaml means the yaml and labels disagree — merging anyway
+                # would silently poison the merged dataset with wrong classes.
+                with open(label_file, 'r') as f:
+                    lines = f.readlines()
+                with open(lbl_dest / dest_lbl_name, 'w') as f:
+                    for line_no, line in enumerate(lines, 1):
+                        parts = line.strip().split()
+                        if not parts:
+                            continue
+                        old_id = int(parts[0])
+                        if old_id not in remap:
+                            raise ValueError(
+                                f"{label_file} line {line_no}: class id {old_id} "
+                                f"is not declared in {source / 'data.yaml'} "
+                                f"(only {len(remap)} classes). Fix the dataset's "
+                                f"data.yaml or its labels before merging."
+                            )
+                        parts[0] = str(remap[old_id])
+                        f.write(' '.join(parts) + '\n')
 
                 if split_name == "train":
                     train_count += 1

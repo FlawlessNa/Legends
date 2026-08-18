@@ -100,6 +100,7 @@ class BootstrapNewClass:
         print(f"Draw bounding boxes around '{self.class_name}' instances")
         print(f"Controls:")
         print(f"  - Click and drag to draw box")
+        print(f"  - Ctrl+Click: Remove box under cursor")
         print(f"  - A/D: Previous/Next image")
         print(f"  - Del: Delete last box")
         print(f"  - Ctrl+S: Save")
@@ -217,7 +218,7 @@ class BootstrapNewClass:
         print(f"RE-ANNOTATE EXTENDED IMAGES")
         print(f"{'='*60}")
         print(f"Add boxes for new classes — existing boxes are already loaded.")
-        print(f"Controls: A/D = prev/next   Del = delete last box   Ctrl+S = save")
+        print(f"Controls: A/D = prev/next   Ctrl+Click = remove box   Del = delete last box   Ctrl+S = save")
         print(f"{'='*60}\n")
 
         run_annotator(
@@ -365,6 +366,7 @@ class BootstrapNewClass:
         iou: float = 0.45,
         retrain_every: int = 0,
         model_size: str = 'n',
+        skip_preannotation: bool = False,
     ) -> None:
         """
         Run predictions on extended samples and open GUI for verification.
@@ -374,28 +376,36 @@ class BootstrapNewClass:
             iou: IOU threshold for NMS (from verify_mini_model).
             retrain_every: Re-train after every N verified images (0 = disabled).
             model_size: Model size for intermediate retrains.
+            skip_preannotation: Keep existing label files instead of re-running the
+                mini model over the extended images. Use when resuming a crashed
+                verify session so already-verified labels are not overwritten.
         """
         if not self.mini_model_path:
             raise ValueError("Mini model not trained yet. Run train_mini_model() first.")
         if not hasattr(self, 'extended_images_dir'):
             raise ValueError("Extended samples not captured. Run capture_extended_samples() first.")
 
-        print(f"\n{'='*60}")
-        print(f"Running predictions on extended samples (conf={conf:.2f}, iou={iou:.2f})…")
-        print(f"{'='*60}\n")
-
         predictions_dir = self.base_path / "captures" / f"{self.class_name}_extended_labels"
         predictions_dir.mkdir(parents=True, exist_ok=True)
 
-        inference = YOLOInference(self.mini_model_path, confidence_threshold=conf, iou_threshold=iou)
-        total = inference.batch_predict_and_save(
-            images_dir=str(self.extended_images_dir),
-            output_labels_dir=str(predictions_dir),
-        )
-        print(f"\nGenerated {total} pre-annotations across {len(list(self.extended_images_dir.glob('*')))} images")
+        if skip_preannotation:
+            existing = len(list(predictions_dir.glob('*.txt')))
+            print(f"\n[skip] Pre-annotation — keeping {existing} existing label files in {predictions_dir}")
+        else:
+            print(f"\n{'='*60}")
+            print(f"Running predictions on extended samples (conf={conf:.2f}, iou={iou:.2f})…")
+            print(f"{'='*60}\n")
+
+            inference = YOLOInference(self.mini_model_path, confidence_threshold=conf, iou_threshold=iou)
+            total = inference.batch_predict_and_save(
+                images_dir=str(self.extended_images_dir),
+                output_labels_dir=str(predictions_dir),
+            )
+            print(f"\nGenerated {total} pre-annotations across {len(list(self.extended_images_dir.glob('*')))} images")
 
         print(f"\n{'='*60}")
-        print(f"Opening verification GUI…  (Enter = accept & next, A/D = prev/next, Del = delete box)")
+        print(f"Opening verification GUI…  (Enter = accept & next, A/D = prev/next, "
+              f"Ctrl+Click = remove box, Del = delete last box)")
         if retrain_every > 0:
             print(f"  Model retrains every {retrain_every} verified images → live viewer → re-annotates remaining.")
         print(f"{'='*60}\n")
