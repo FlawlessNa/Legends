@@ -7,6 +7,24 @@ from .skills_related_v2 import cast_skill
 
 FIRST_DELAY = 0.5
 
+
+def _resolve_held_keys(
+    structure: controller.KeyboardInputWrapper | None,
+    handle: int,
+    initial_held_keys: frozenset[str] | None,
+) -> set[str]:
+    """
+    Determines the movement keys held before this builder call starts.
+    Chains onto `structure` when one exists (no live query needed); otherwise defers to
+    `initial_held_keys` when supplied, and only falls back to the live Win32 query when
+    neither is available - so a caller providing either keeps compilation deterministic.
+    """
+    if structure is not None:
+        return structure.keys_held
+    if initial_held_keys is not None:
+        return set(initial_held_keys)
+    return set(controller.get_held_movement_keys(handle))
+
 #
 # def _create_initial_input(
 #     handle: int,
@@ -51,6 +69,7 @@ def move(
     duration: float,
     structure: controller.KeyboardInputWrapper = None,
     release_keys: str | list[str] = None,
+    initial_held_keys: frozenset[str] | None = None,
 ) -> controller.KeyboardInputWrapper:
     """
     Creates the input structures and delays to describe the movement.
@@ -63,10 +82,13 @@ def move(
     :param structure:
     :param release_keys: If specified, release events are inserted before the movement,
         provided the release_keys are held.
+    :param initial_held_keys: Held movement keys to assume when `structure` is None,
+        instead of querying the live Win32 state. Enables deterministic offline
+        compilation of a movement plan's first builder call.
     :return:
     """
     initial_duration = getattr(structure, "duration", 0)
-    keys_held = getattr(structure, "keys_held", controller.get_held_movement_keys(handle))
+    keys_held = _resolve_held_keys(structure, handle, initial_held_keys)
     repeated_key: str = secondary_direction or direction  # noqa
     limit = initial_duration + duration
     if isinstance(release_keys, str):
@@ -84,7 +106,8 @@ def move(
     if structure is None:
         release_index = 0
         structure = controller.KeyboardInputWrapper(
-            handle, first_keys, ["keydown"] * len(first_keys) , [first_delay] # noqa
+            handle, first_keys, ["keydown"] * len(first_keys) , [first_delay], # noqa
+            initial_held_keys=initial_held_keys,
         )
     else:
         release_index = len(structure.keys)
@@ -112,16 +135,18 @@ def single_jump(
     jump_key: str,
     structure: controller.KeyboardInputWrapper = None,
     repeat_key: str = None,
+    initial_held_keys: frozenset[str] | None = None,
 ) -> controller.KeyboardInputWrapper:
     # TODO - Adjust the hard-coded 0.75 delay appropriately
-    keys_held = getattr(structure, 'keys_held', controller.get_held_movement_keys(handle))
+    keys_held = _resolve_held_keys(structure, handle, initial_held_keys)
     first_keys = [direction, jump_key] if direction not in keys_held else [jump_key]
     if structure is None:
         structure = controller.KeyboardInputWrapper(
             handle,
             first_keys,
             ["keydown"] * len(first_keys),  # noqa
-            [next(controller.random_delay) * 2] * len(first_keys)
+            [next(controller.random_delay) * 2] * len(first_keys),
+            initial_held_keys=initial_held_keys,
         )
     else:
         for key in first_keys:
@@ -163,6 +188,7 @@ def jump_on_rope(
     direction: Literal["left", "right"],
     jump_key: str,
     structure: controller.KeyboardInputWrapper = None,
+    initial_held_keys: frozenset[str] | None = None,
 ) -> controller.KeyboardInputWrapper:
     """
     Jump on a rope. The secondary direction is maintained after the jump.
@@ -170,11 +196,14 @@ def jump_on_rope(
     :param direction:
     :param jump_key:
     :param structure:
+    :param initial_held_keys: Held movement keys to assume when `structure` is None,
+        instead of querying the live Win32 state.
     :return:
     """
     if structure is None:
         structure = controller.KeyboardInputWrapper(
-            handle, [direction], ["keydown"], [next(controller.random_delay)]  # noqa
+            handle, [direction], ["keydown"], [next(controller.random_delay)],  # noqa
+            initial_held_keys=initial_held_keys,
         )
 
     for key in structure.keys_held:
@@ -208,6 +237,7 @@ def teleport(
     num_times: int = 1,
     structure: controller.KeyboardInputWrapper = None,
     repeat_key: str = None,
+    initial_held_keys: frozenset[str] | None = None,
 ) -> controller.KeyboardInputWrapper:
     """
     Casts teleport in a given direction.
@@ -218,14 +248,17 @@ def teleport(
     :param num_times:
     :param structure:
     :param repeat_key:
+    :param initial_held_keys: Held movement keys to assume when `structure` is None,
+        instead of querying the live Win32 state.
     :return:
     """
     initial_duration = getattr(structure, 'duration', 0)
-    keys_held = getattr(structure, 'keys_held', controller.get_held_movement_keys(handle))
+    keys_held = _resolve_held_keys(structure, handle, initial_held_keys)
     limit = initial_duration + teleport_skill.animation_time * num_times
     if structure is None:
         structure = controller.KeyboardInputWrapper(
-            handle, [direction], ["keydown"], [next(controller.random_delay)]  # noqa
+            handle, [direction], ["keydown"], [next(controller.random_delay)],  # noqa
+            initial_held_keys=initial_held_keys,
         )
     # if structure is None:
     #     structure = _create_initial_input(handle, direction, None)

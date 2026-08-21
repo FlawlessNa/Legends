@@ -189,8 +189,14 @@ class MovementHandler:
         movements: tuple[_MovementComponent, ...],
         grid: MinimapGrid,
         total_duration: float = None,
+        initial_held_keys: frozenset[str] | None = None,
     ) -> KeyboardInputWrapper:
-
+        """
+        :param initial_held_keys: Movement keys held before compilation starts. Passed
+            through to the first builder call (the only one that would otherwise query
+            live Win32 state), so this method can be compiled deterministically offline.
+            Defaults to None, preserving current runtime behavior (live OS query).
+        """
         try:
             structure = None
             for move, upcoming_move in zip(movements, movements[1:]):
@@ -222,6 +228,7 @@ class MovementHandler:
                             duration=duration,
                             structure=structure,
                             release_keys=release_keys,
+                            initial_held_keys=initial_held_keys,
                         )
 
                     case MovementTypes.CLIMB_UP | MovementTypes.CLIMB_DOWN:
@@ -238,6 +245,7 @@ class MovementHandler:
                             secondary,
                             duration=duration,
                             structure=structure,
+                            initial_held_keys=initial_held_keys,
                         )
 
                     case (
@@ -254,7 +262,8 @@ class MovementHandler:
                             handle=self.handle,
                             direction=direction,
                             jump_key=key_binds(self.ign)['jump'],
-                            structure=structure
+                            structure=structure,
+                            initial_held_keys=initial_held_keys,
                         )
                         for _ in range(move_length - 1):
                             structure = movements_v2.single_jump(**kwargs)
@@ -279,7 +288,11 @@ class MovementHandler:
 
                     case MovementTypes.ENTER_PORTAL:
                         structure = movements_v2.move(
-                            self.handle, "up", duration=duration, structure=structure
+                            self.handle,
+                            "up",
+                            duration=duration,
+                            structure=structure,
+                            initial_held_keys=initial_held_keys,
                         )
 
                     case (
@@ -302,7 +315,8 @@ class MovementHandler:
                             self.teleport,
                             move_length,
                             structure=structure,
-                            repeat_key=repeat_key
+                            repeat_key=repeat_key,
+                            initial_held_keys=initial_held_keys,
                         )
                     case (
                         MovementTypes.FLASH_JUMP_LEFT

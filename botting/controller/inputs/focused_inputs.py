@@ -132,15 +132,23 @@ class KeyboardInputWrapper:
     events: list[EVENTS | list[EVENTS]] = field(default_factory=list)
     delays: list[float] = field(default_factory=list)
     forced_key_releases: list[str] = field(default_factory=list)
+    initial_held_keys: frozenset[str] | None = None
 
     def __post_init__(self) -> None:
         """
         Before the instance is finalized, look into top-level held keys (directed to the
         relevant window).
         If opposites keys to the ones desired are held, force release them.
+
+        `initial_held_keys` overrides the live Win32 query below, so offline/deterministic
+        compilation can supply the held state instead of depending on real window focus.
         """
+        if self.initial_held_keys is not None:
+            held_keys = set(self.initial_held_keys)
+        else:
+            held_keys = set(get_held_movement_keys(self.handle))
         self._clear_opposites(
-            held_keys=set(get_held_movement_keys(self.handle)),
+            held_keys=held_keys,
             desired_keys=self.keys_held,
             strict=True
         )
@@ -283,7 +291,9 @@ class KeyboardInputWrapper:
 
     def truncate(self, limit: float) -> "KeyboardInputWrapper":
         result = KeyboardInputWrapper(
-            self.handle, forced_key_releases=self.forced_key_releases
+            self.handle,
+            forced_key_releases=self.forced_key_releases,
+            initial_held_keys=self.initial_held_keys,
         )
         generator = zip(self.keys, self.events, self.delays)
         while result.duration < limit:
