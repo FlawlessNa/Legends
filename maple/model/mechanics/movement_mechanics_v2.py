@@ -17,7 +17,6 @@ from .maple_map import MapleMinimap
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 LOG_LEVEL = logging.INFO
-DEBUG = True
 
 
 class MovementTypes(IntEnum):
@@ -75,18 +74,35 @@ class _MovementComponent(NamedTuple):
 class MovementHandler:
     _MAX_WALK_SIZE = 5
     _FALL_LEN_EXT = 3
+    _CACHE_MAXSIZE = 256  # bounded: avoids unbounded growth from stale entries on grid edits
 
     def __init__(
         self,
         handle: int,
         minimap: MapleMinimap,
         ign: str,
-        teleport: MapleSkill | None = None
+        teleport: MapleSkill | None = None,
+        *,
+        debug: bool = False,
     ) -> None:
         self.handle = handle
         self.minimap = minimap
         self.ign = ign
         self.teleport = teleport
+        self._debug = debug
+        # Per-instance, bounded caches: an `@lru_cache` on the method itself would key
+        # on `self`, pinning every handler ever created in memory for the process
+        # lifetime. Binding the cache here scopes it (and its staleness on grid edits)
+        # to this instance, so it's freed when the handler is.
+        self._compute_path = lru_cache(maxsize=self._CACHE_MAXSIZE)(
+            self._compute_path_uncached
+        )
+        self.path_into_movements = lru_cache(maxsize=self._CACHE_MAXSIZE)(
+            self._path_into_movements_uncached
+        )
+        self.movements_into_action = lru_cache(maxsize=self._CACHE_MAXSIZE)(
+            self._movements_into_action_uncached
+        )
 
     def compute_path(
         self, start: tuple[int, int], end: tuple[int, int], grid: MinimapGrid
@@ -95,8 +111,7 @@ class MovementHandler:
         self._run_debug(start, end, path)
         return tuple(path)
 
-    @lru_cache
-    def _compute_path(
+    def _compute_path_uncached(
         self, start: tuple[int, int], end: tuple[int, int], grid: MinimapGrid
     ) -> list[MinimapNode]:
         start_node = grid.node(*start)
@@ -108,8 +123,7 @@ class MovementHandler:
         grid.cleanup()
         return path
 
-    @lru_cache
-    def path_into_movements(
+    def _path_into_movements_uncached(
         self, path: tuple[MinimapNode, ...], grid: MinimapGrid
     ) -> tuple[_MovementComponent, ...]:
 
@@ -142,8 +156,10 @@ class MovementHandler:
                     case (0, -1, True, True) | (0, 1, True, True):
                         continue
                     case _:
-                        raise NotImplementedError
-                        breakpoint()
+                        raise NotImplementedError(
+                            f"Unhandled adjacency {(dx, dy, next_feature.is_platform, current_feature.is_platform)} "
+                            f"between {current_node} and {next_node}"
+                        )
 
             elif next_node in current_node.connections:
                 connection_type = current_node.get_connection_type(next_node)
@@ -168,8 +184,9 @@ class MovementHandler:
                     else:
                         movements.append(_MovementComponent(move_type, 1))
             else:
-                breakpoint()
-                raise NotImplementedError
+                raise NotImplementedError(
+                    f"No neighbor/connection edge between {current_node} and {next_node}"
+                )
 
         logger.log(LOG_LEVEL, f"Movements: {movements}")
         squeezed = []
@@ -183,8 +200,7 @@ class MovementHandler:
         squeezed.append(_MovementComponent(MovementTypes.END_OF_MOVEMENT, 1))
         return tuple(squeezed)
 
-    @lru_cache
-    def movements_into_action(
+    def _movements_into_action_uncached(
         self,
         movements: tuple[_MovementComponent, ...],
         grid: MinimapGrid,
@@ -197,168 +213,164 @@ class MovementHandler:
             live Win32 state), so this method can be compiled deterministically offline.
             Defaults to None, preserving current runtime behavior (live OS query).
         """
-        try:
-            structure = None
-            for move, upcoming_move in zip(movements, movements[1:]):
+        structure = None
+        for move, upcoming_move in zip(movements, movements[1:]):
 
-                move_type, move_length = move.movement_type, move.length
-                duration = move_length / grid.speed
-                match move_type:
+            move_type, move_length = move.movement_type, move.length
+            duration = move_length / grid.speed
+            match move_type:
 
-                    case MovementTypes.WALK_LEFT | MovementTypes.WALK_RIGHT:
-                        direction = move_type.name.split("_")[-1].lower()
-                        secondary = None
-                        if upcoming_move.movement_type in (
+                case MovementTypes.WALK_LEFT | MovementTypes.WALK_RIGHT:
+                    direction = move_type.name.split("_")[-1].lower()
+                    secondary = None
+                    if upcoming_move.movement_type in (
+                        MovementTypes.ENTER_PORTAL,
+                        MovementTypes.CLIMB_UP,
+                    ):
+                        secondary = "up"
+                        release_keys = "down"
+                        # TODO - See if duration needs to be extended
+                    elif upcoming_move.movement_type is MovementTypes.CLIMB_DOWN:
+                        # TODO - See if duration needs to be extended
+                        secondary = "down"
+                        release_keys = "up"
+                    else:
+                        release_keys = ["up", "down"]
+                    structure = movements_v2.move(
+                        self.handle,
+                        direction,  # noqa
+                        secondary,
+                        duration=duration,
+                        structure=structure,
+                        release_keys=release_keys,
+                        initial_held_keys=initial_held_keys,
+                    )
+
+                case MovementTypes.CLIMB_UP | MovementTypes.CLIMB_DOWN:
+                    direction = move_type.name.split("_")[-1].lower()
+                    secondary = None
+                    if upcoming_move.movement_type is MovementTypes.WALK_LEFT:
+                        secondary = "left"
+                    elif upcoming_move.movement_type is MovementTypes.WALK_RIGHT:
+                        secondary = "right"
+                    # TODO - See if duration needs to be extended
+                    structure = movements_v2.move(
+                        self.handle,
+                        direction,  # noqa
+                        secondary,
+                        duration=duration,
+                        structure=structure,
+                        initial_held_keys=initial_held_keys,
+                    )
+
+                case (
+                    MovementTypes.JUMP
+                    | MovementTypes.JUMP_LEFT
+                    | MovementTypes.JUMP_RIGHT
+                    | MovementTypes.JUMP_DOWN
+                ):
+                    direction = (
+                        'up' if move_type is MovementTypes.JUMP
+                        else move_type.name.split("_")[-1].lower()
+                    )
+                    kwargs = dict(
+                        handle=self.handle,
+                        direction=direction,
+                        jump_key=key_binds(self.ign)['jump'],
+                        structure=structure,
+                        initial_held_keys=initial_held_keys,
+                    )
+                    for _ in range(move_length - 1):
+                        structure = movements_v2.single_jump(**kwargs)
+                        kwargs.update(structure=structure)
+
+                    # For the last jump, look at the next move
+                    if upcoming_move.movement_type is MovementTypes.CLIMB_UP:
+                        # TODO - forced key releases, longer delays.
+                        # Todo so, implement a forced release mode on KeyboardInputWrapper
+                        structure = movements_v2.jump_on_rope(**kwargs)
+                    else:
+                        structure = movements_v2.single_jump(**kwargs)
+                        if move.narrow:
+                            # Narrow platform: release horizontal key on landing so the
+                            # character doesn't walk off the edge after touching down.
+                            held_dir = next(
+                                (k for k in structure.keys_held if k in ('left', 'right')),
+                                None
+                            )
+                            if held_dir:
+                                structure.append(held_dir, "keyup", 0)
+
+                case MovementTypes.ENTER_PORTAL:
+                    structure = movements_v2.move(
+                        self.handle,
+                        "up",
+                        duration=duration,
+                        structure=structure,
+                        initial_held_keys=initial_held_keys,
+                    )
+
+                case (
+                    MovementTypes.TELEPORT_LEFT
+                    | MovementTypes.TELEPORT_RIGHT
+                    | MovementTypes.TELEPORT_UP
+                    | MovementTypes.TELEPORT_DOWN
+                ):
+                    direction = move_type.name.split("_")[-1].lower()
+                    repeat_key = None
+                    if upcoming_move.movement_type in (
                             MovementTypes.ENTER_PORTAL,
                             MovementTypes.CLIMB_UP,
-                        ):
-                            secondary = "up"
-                            release_keys = "down"
-                            # TODO - See if duration needs to be extended
-                        elif upcoming_move.movement_type is MovementTypes.CLIMB_DOWN:
-                            # TODO - See if duration needs to be extended
-                            secondary = "down"
-                            release_keys = "up"
-                        else:
-                            release_keys = ["up", "down"]
-                        structure = movements_v2.move(
-                            self.handle,
-                            direction,  # noqa
-                            secondary,
-                            duration=duration,
-                            structure=structure,
-                            release_keys=release_keys,
-                            initial_held_keys=initial_held_keys,
-                        )
-
-                    case MovementTypes.CLIMB_UP | MovementTypes.CLIMB_DOWN:
-                        direction = move_type.name.split("_")[-1].lower()
-                        secondary = None
-                        if upcoming_move.movement_type is MovementTypes.WALK_LEFT:
-                            secondary = "left"
-                        elif upcoming_move.movement_type is MovementTypes.WALK_RIGHT:
-                            secondary = "right"
-                        # TODO - See if duration needs to be extended
-                        structure = movements_v2.move(
-                            self.handle,
-                            direction,  # noqa
-                            secondary,
-                            duration=duration,
-                            structure=structure,
-                            initial_held_keys=initial_held_keys,
-                        )
-
-                    case (
-                        MovementTypes.JUMP
-                        | MovementTypes.JUMP_LEFT
-                        | MovementTypes.JUMP_RIGHT
-                        | MovementTypes.JUMP_DOWN
                     ):
-                        direction = (
-                            'up' if move_type is MovementTypes.JUMP
-                            else move_type.name.split("_")[-1].lower()
-                        )
-                        kwargs = dict(
-                            handle=self.handle,
-                            direction=direction,
-                            jump_key=key_binds(self.ign)['jump'],
-                            structure=structure,
-                            initial_held_keys=initial_held_keys,
-                        )
-                        for _ in range(move_length - 1):
-                            structure = movements_v2.single_jump(**kwargs)
-                            kwargs.update(structure=structure)
+                        repeat_key='up'
+                    structure = movements_v2.teleport(
+                        self.handle,
+                        self.ign,
+                        direction, # noqa
+                        self.teleport,
+                        move_length,
+                        structure=structure,
+                        repeat_key=repeat_key,
+                        initial_held_keys=initial_held_keys,
+                    )
+                case (
+                    MovementTypes.FLASH_JUMP_LEFT
+                    | MovementTypes.FLASH_JUMP_RIGHT
+                    | MovementTypes.CROUCH
+                ):
+                    raise NotImplementedError(f"{move_type.name} builder not implemented")
+                case MovementTypes.END_OF_MOVEMENT if structure is not None:
+                    keys = list(
+                        key for key in structure.keys_held
+                        if key not in structure.forced_key_releases
+                    )
+                    event = ["keyup"] * len(keys)
+                    if keys and event:
+                        structure.append(keys, event, 0)  # noqa
+                case _:
+                    raise NotImplementedError(f"Unhandled movement type {move_type!r}")
 
-                        # For the last jump, look at the next move
-                        if upcoming_move.movement_type is MovementTypes.CLIMB_UP:
-                            # TODO - forced key releases, longer delays.
-                            # Todo so, implement a forced release mode on KeyboardInputWrapper
-                            structure = movements_v2.jump_on_rope(**kwargs)
-                        else:
-                            structure = movements_v2.single_jump(**kwargs)
-                            if move.narrow:
-                                # Narrow platform: release horizontal key on landing so the
-                                # character doesn't walk off the edge after touching down.
-                                held_dir = next(
-                                    (k for k in structure.keys_held if k in ('left', 'right')),
-                                    None
-                                )
-                                if held_dir:
-                                    structure.append(held_dir, "keyup", 0)
+            # Else just consider current move and disregard previous.
+            if structure.duration >= (total_duration or float('inf')):
+                # Before hard-truncating: if the next move is precision-sensitive,
+                # release the horizontal key now so the next chunk starts from a
+                # stopped position and can execute the jump from the correct spot.
+                if upcoming_move.movement_type in _PRECISION_PRE_STOP:
+                    held_dir = next(
+                        (k for k in structure.keys_held if k in ('left', 'right')),
+                        None
+                    )
+                    if held_dir:
+                        structure.append(held_dir, "keyup", 0)
+                structure = structure.truncate(total_duration)
+                break
 
-                    case MovementTypes.ENTER_PORTAL:
-                        structure = movements_v2.move(
-                            self.handle,
-                            "up",
-                            duration=duration,
-                            structure=structure,
-                            initial_held_keys=initial_held_keys,
-                        )
-
-                    case (
-                        MovementTypes.TELEPORT_LEFT
-                        | MovementTypes.TELEPORT_RIGHT
-                        | MovementTypes.TELEPORT_UP
-                        | MovementTypes.TELEPORT_DOWN
-                    ):
-                        direction = move_type.name.split("_")[-1].lower()
-                        repeat_key = None
-                        if upcoming_move.movement_type in (
-                                MovementTypes.ENTER_PORTAL,
-                                MovementTypes.CLIMB_UP,
-                        ):
-                            repeat_key='up'
-                        structure = movements_v2.teleport(
-                            self.handle,
-                            self.ign,
-                            direction, # noqa
-                            self.teleport,
-                            move_length,
-                            structure=structure,
-                            repeat_key=repeat_key,
-                            initial_held_keys=initial_held_keys,
-                        )
-                    case (
-                        MovementTypes.FLASH_JUMP_LEFT
-                        | MovementTypes.FLASH_JUMP_RIGHT
-                        | MovementTypes.CROUCH
-                    ):
-                        raise NotImplementedError
-                    case MovementTypes.END_OF_MOVEMENT if structure is not None:
-                        keys = list(
-                            key for key in structure.keys_held
-                            if key not in structure.forced_key_releases
-                        )
-                        event = ["keyup"] * len(keys)
-                        if keys and event:
-                            structure.append(keys, event, 0)  # noqa
-                    case _:
-                        breakpoint()
-                        raise NotImplementedError
-
-                # Else just consider current move and disregard previous.
-                if structure.duration >= (total_duration or float('inf')):
-                    # Before hard-truncating: if the next move is precision-sensitive,
-                    # release the horizontal key now so the next chunk starts from a
-                    # stopped position and can execute the jump from the correct spot.
-                    if upcoming_move.movement_type in _PRECISION_PRE_STOP:
-                        held_dir = next(
-                            (k for k in structure.keys_held if k in ('left', 'right')),
-                            None
-                        )
-                        if held_dir:
-                            structure.append(held_dir, "keyup", 0)
-                    structure = structure.truncate(total_duration)
-                    break
-
-            return structure
-        except Exception as e:
-            breakpoint()
+        return structure
 
     def _run_debug(
         self, start: tuple[int, int], end: tuple[int, int], path: list[MinimapNode]
     ) -> None:
-        if not DEBUG:
+        if not self._debug:
             return
         minimap_img = (self.minimap.modified_minimap > 0).view(np.uint8) * 255
         minimap_img = cv2.cvtColor(minimap_img, cv2.COLOR_GRAY2BGR)
