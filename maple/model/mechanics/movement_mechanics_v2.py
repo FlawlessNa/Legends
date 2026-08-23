@@ -339,14 +339,6 @@ class MovementHandler:
                     | MovementTypes.CROUCH
                 ):
                     raise NotImplementedError(f"{move_type.name} builder not implemented")
-                case MovementTypes.END_OF_MOVEMENT if structure is not None:
-                    keys = list(
-                        key for key in structure.keys_held
-                        if key not in structure.forced_key_releases
-                    )
-                    event = ["keyup"] * len(keys)
-                    if keys and event:
-                        structure.append(keys, event, 0)  # noqa
                 case _:
                     raise NotImplementedError(f"Unhandled movement type {move_type!r}")
 
@@ -364,6 +356,20 @@ class MovementHandler:
                         structure.append(held_dir, "keyup", 0)
                 structure = structure.truncate(total_duration)
                 break
+        else:
+            # Loop ran to completion (no truncation): release any keys still held
+            # so the last Step satisfies the Terminal Release invariant. `move`
+            # never reaches the END_OF_MOVEMENT sentinel appended by
+            # `_path_into_movements_uncached` (zip stops one short of it), so this
+            # can't be handled as a movement-type case in the loop body above.
+            if structure is not None:
+                keys = list(
+                    key for key in structure.keys_held
+                    if key not in structure.forced_key_releases
+                )
+                event = ["keyup"] * len(keys)
+                if keys and event:
+                    structure.append(keys, event, 0)  # noqa
 
         return structure
 
