@@ -136,9 +136,9 @@ class Bishop(Priest):
             animation_time=2.6,
             unidirectional=False,
             _use_by_default=True,
-            horizontal_screen_range=400,
-            vertical_up_screen_range=350,
-            vertical_down_screen_range=250,
+            horizontal_screen_range=800,
+            vertical_up_screen_range=700,
+            vertical_down_screen_range=500,
         ),
         "Maple Warrior": MaplePartyBuff(
             "Maple Warrior",

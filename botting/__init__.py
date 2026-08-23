@@ -11,6 +11,7 @@ import pytesseract
 import time
 
 from paths import ROOT, TESSERACT
+from ._debug_names import install as _install_debug_names
 
 PARENT_LOG = __name__
 pytesseract.pytesseract.tesseract_cmd = TESSERACT
@@ -20,6 +21,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 current_process = multiprocessing.current_process()
+
+# Opt-in, debugger-only. Must happen before any thread or event loop exists.
+_install_debug_names()
 
 if current_process.name == "MainProcess":
     # If this is the main process, then we want to set up the logging handlers.

@@ -162,6 +162,8 @@ def single_jump(
             controller.random_delay,
             limit=0.75 + structure.duration
         )
+        if repeat_key not in structure.forced_key_releases:
+            structure.forced_key_releases.append(repeat_key)
     structure.append(jump_key, "keyup", 0.75)
     #
     # elif direction == "down":
@@ -179,7 +181,7 @@ def single_jump(
     #     structure.append(jump_key, "keydown", next(controller.random_delay) * 2)
     #     structure.append(jump_key, "keyup", 0.75)
 
-    # structure.forced_key_releases.append(jump_key)
+    structure.forced_key_releases.append(jump_key)
     return structure
 
 
