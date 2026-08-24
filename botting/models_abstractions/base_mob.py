@@ -69,7 +69,6 @@ class BaseMob(InGameDetectionVisuals, ABC):
                     _debug(image, list(self._filter(contours)))
                 return tuple([cv2.boundingRect(cnt) for cnt in self._filter(contours)])
             except Exception as e:
-                breakpoint()
                 raise RuntimeError(
                     f"Error processing contours for {self.__class__.__name__}: {e}"
                 )

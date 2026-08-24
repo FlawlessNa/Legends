@@ -16,4 +16,5 @@ torch>=2.4.1
 
 # Testing
 pytest>=8.3.0
+pytest-mock>=3.14.0
 hypothesis>=6.112.0

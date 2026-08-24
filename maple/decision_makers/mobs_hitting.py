@@ -5,6 +5,7 @@ import multiprocessing.connection
 import multiprocessing.managers
 import numpy as np
 from functools import cached_property
+from typing import Callable
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
@@ -56,18 +57,34 @@ class MobsHitting(
 
     def _hit_mobs(self, direction: str | None) -> ActionRequest:
         """
-        Function to use to update the current on screen position of the character.
-        :return:
+        Builds the Action that casts the training skill at the mobs on screen.
+
+        `direction` is the facing the cast is preluded with - set by `_decide` for a
+        unidirectional skill, None for one that hits both ways.
         """
         compiler = functools.partial(
             cast_skill_compiler,
             handle=self.data.handle,
             ign=self.data.ign,
             skill=self.training_skill,
+            direction=direction,
         )
-        # The sequence `cast_skill` builds runs for the skill's animation time by
-        # construction, plus a short direction prelude - so the cap is known here,
-        # without compiling. Doubled, as it was when it read the compiled duration.
+        return self._cast_request(compiler)
+
+    def _cast_request(self, compiler: Callable) -> ActionRequest:
+        """
+        Wraps a dispatch-time compiler into the Action this DecisionMaker sends.
+
+        The seam subclasses swap: `TelecastMobsHitting` fuses the same cast into a
+        movement and hands the fused compiler here, so the Action's priority,
+        cancellation and lock handling stay defined in exactly one place.
+
+        The sequence `cast_skill` builds runs for the skill's animation time by
+        construction, plus a short direction prelude - so the cap is known here,
+        without compiling. Doubled, as it was when it read the compiled duration.
+        The same cap covers a telecast: `telecast` truncates its fused sequence to
+        that very animation time, so the two agree by construction.
+        """
         timeout = 2 * self.training_skill.animation_time + 1.0
 
         return ActionRequest(
@@ -75,6 +92,10 @@ class MobsHitting(
             self._cap_duration,
             ign=self.data.ign,
             priority=2,
+            # TODO - Cancelling by reconstructing another DecisionMaker's task name
+            #  is a string-keyed coupling: renaming Rotation silently stops
+            #  cancelling it. Awaiting the cross-DM coordination decision from the
+            #  architecture grilling (issue #47).
             cancel_tasks=[f"Rotation({self.data.ign})"],
             block_lower_priority=True,
             callbacks=[self.lock.release],
@@ -155,10 +176,11 @@ class MobsHitting(
         mask[region.top:region.bottom, region.left:region.right] = 255
         return mask
 
-    def _get_on_screen_pos(self) -> tuple[int, int]:
+    def _get_on_screen_pos(self) -> tuple[int, int, int, int] | None:
         """
         Function to use to update the current on screen position of the character.
-        :return:
+        :return: Bounding box (x1, y1, x2, y2), or None when the character is not
+        found on screen.
         """
         return self.data.character.get_onscreen_position(
             self.data.current_client_img,
@@ -178,6 +200,31 @@ class MobsHitting(
             'is_ladder',
             False
         )
+
+    def _closest_mob_direction(
+        self, on_screen_pos: tuple[int, int, int, int], mask: np.ndarray
+    ) -> str | None:
+        """
+        The facing a unidirectional training skill should be cast in: towards the
+        mob closest to the character.
+
+        Detection failing here is not worth losing the cast over - the skill still
+        hits, just without a facing prelude - so a failure falls back to None.
+        """
+        try:
+            mobs_locations = self.get_mobs_positions_in_img(
+                self.data.current_client_img, self.data.current_mobs, mask=mask
+            )
+            return self.get_closest_mob_direction(
+                self.box_center(on_screen_pos), mobs_locations
+            )
+        except Exception:  # noqa
+            logger.error(
+                f"{self} failed to determine the closest mob direction; "
+                f"casting without a facing prelude.",
+                exc_info=True,
+            )
+            return None
 
     async def _decide(self) -> None:
         """
@@ -204,12 +251,8 @@ class MobsHitting(
 
             if nbr_mobs >= self.mob_threshold:
                 if self.training_skill.unidirectional:
-                    breakpoint()  # TODO
-                    mobs_locations = self.get_mobs_positions_in_img(
-                        self.data.current_client_img, self.data.current_mobs, mask=mask
-                    )
-                    closest_mob_direction = self.get_closest_mob_direction(
-                        (x, y), mobs_locations
+                    closest_mob_direction = self._closest_mob_direction(
+                        on_screen_pos, mask
                     )
                 logger.log(LOG_LEVEL, f"{self} is about to hit {nbr_mobs} mobs.")
                 self.pipe.send(self._hit_mobs(closest_mob_direction))

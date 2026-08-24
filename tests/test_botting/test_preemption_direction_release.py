@@ -10,8 +10,6 @@ the handles are arbitrary integers.
 import asyncio
 import importlib
 
-from unittest.mock import AsyncMock, Mock, patch
-
 import pytest
 
 from botting.controller.inputs.focused_inputs import focused_inputs
@@ -56,11 +54,11 @@ class _SendLoopScenario:
         self.released: list[str] = []
         self.delivered = 0
 
-    def run(self) -> "_SendLoopScenario":
-        asyncio.run(self._run())
+    def run(self, mocker) -> "_SendLoopScenario":
+        asyncio.run(self._run(mocker))
         return self
 
-    async def _run(self) -> None:
+    async def _run(self, mocker) -> None:
         reached = asyncio.Event()
 
         def _fake_send(structure):
@@ -71,35 +69,39 @@ class _SendLoopScenario:
         def _fake_release(keys, hwnd):
             self.released.extend(keys)
 
-        with patch.object(
+        # `mocker` undoes every patch below when the test ends.
+        mocker.patch.object(
             focused_inputs_module, "_send_input", side_effect=_fake_send
-        ), patch.object(
-            focused_inputs_module, "activate", new=AsyncMock(return_value=False)
-        ), patch.object(
+        )
+        mocker.patch.object(
+            focused_inputs_module, "activate", new=mocker.AsyncMock(return_value=False)
+        )
+        mocker.patch.object(
             focused_inputs_module, "release_keys", side_effect=_fake_release
-        ):
-            task = asyncio.create_task(
-                focused_inputs(
-                    HANDLE,
-                    [Mock()] * len(self.keys),
-                    self.delays,
-                    forced_key_releases=self.forced_key_releases,
-                    keys=self.keys,
-                    events=self.events,
-                )
+        )
+
+        task = asyncio.create_task(
+            focused_inputs(
+                HANDLE,
+                [mocker.Mock()] * len(self.keys),
+                self.delays,
+                forced_key_releases=self.forced_key_releases,
+                keys=self.keys,
+                events=self.events,
             )
-            if self.cancel_after is None:
-                await task
-                return
-            await reached.wait()
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+        )
+        if self.cancel_after is None:
+            await task
+            return
+        await reached.wait()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 
 
-def test_cancellation_releases_a_direction_never_declared_for_forced_release():
+def test_cancellation_releases_a_direction_never_declared_for_forced_release(mocker):
     """
     The defect this fixes: a movement Action that declares no forced release for
     its direction key used to leave it down forever once preempted.
@@ -110,7 +112,7 @@ def test_cancellation_releases_a_direction_never_declared_for_forced_release():
         delays=[0, 10, 10],
         forced_key_releases=["jump"],
         cancel_after=2,
-    ).run()
+    ).run(mocker)
 
     assert sorted(scenario.released) == ["jump", "right"]
     # `release_keys` is patched, so the ledger still shows the Delivered Prefix -
@@ -118,7 +120,7 @@ def test_cancellation_releases_a_direction_never_declared_for_forced_release():
     assert HeldKeysLedger.keys_held(HANDLE) == frozenset({"right", "jump"})
 
 
-def test_normal_completion_carries_the_direction_over():
+def test_normal_completion_carries_the_direction_over(mocker):
     """
     A Continuation deliberately keeps walking across the route-cycle boundary, so
     the same key must survive a sequence that ran to its end (C3).
@@ -128,14 +130,14 @@ def test_normal_completion_carries_the_direction_over():
         events=["keydown", "keydown", "keyup"],
         delays=[0, 0, 0],
         forced_key_releases=["jump"],
-    ).run()
+    ).run(mocker)
 
     assert scenario.delivered == 3
     assert scenario.released == []
     assert HeldKeysLedger.keys_held(HANDLE) == frozenset({"right"})
 
 
-def test_cancellation_releases_a_direction_inherited_from_a_prior_sequence():
+def test_cancellation_releases_a_direction_inherited_from_a_prior_sequence(mocker):
     """
     Preemption can land before this sequence delivers a Step of its own. The key
     left down is then the one the previous Continuation carried over, and D2 still
@@ -149,12 +151,12 @@ def test_cancellation_releases_a_direction_inherited_from_a_prior_sequence():
         delays=[10, 10],
         forced_key_releases=["jump"],
         cancel_after=1,
-    ).run()
+    ).run(mocker)
 
     assert sorted(scenario.released) == ["jump", "left"]
 
 
-def test_every_direction_key_is_released_not_just_left_and_right():
+def test_every_direction_key_is_released_not_just_left_and_right(mocker):
     """`up` and `down` are direction keys too - a held `up` keeps climbing."""
     scenario = _SendLoopScenario(
         keys=["up", "down", "left", "right"],
@@ -162,18 +164,18 @@ def test_every_direction_key_is_released_not_just_left_and_right():
         delays=[0, 0, 0, 10],
         forced_key_releases=None,
         cancel_after=4,
-    ).run()
+    ).run(mocker)
 
     assert sorted(scenario.released) == ["down", "left", "right", "up"]
 
 
-def test_nothing_is_sent_when_the_ledger_holds_no_direction():
+def test_nothing_is_sent_when_the_ledger_holds_no_direction(mocker):
     scenario = _SendLoopScenario(
         keys=["jump", "jump"],
         events=["keydown", "keyup"],
         delays=[0, 10],
         forced_key_releases=None,
         cancel_after=2,
-    ).run()
+    ).run(mocker)
 
     assert scenario.released == []

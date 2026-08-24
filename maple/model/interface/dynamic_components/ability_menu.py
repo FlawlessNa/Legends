@@ -1,13 +1,17 @@
 import cv2
+import logging
 import numpy as np
 import os
 import string
 from paths import ROOT
+from botting import PARENT_LOG
 from botting.visuals import InGameDynamicVisuals
 from botting.utilities import (
     Box,
     take_screenshot,
 )
+
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
 class AbilityMenu(InGameDynamicVisuals):
@@ -169,7 +173,10 @@ class AbilityMenu(InGameDynamicVisuals):
         try:
             return int(self.read_from_img(cropped, box.config).strip("%")) / 100
         except ValueError:
-            breakpoint()
+            logger.error(
+                "Could not read Speed off the ability menu.", exc_info=True
+            )
+            raise
 
     def get_jump(self, handle: int, image: np.ndarray = None) -> float:
         if image is None:
@@ -180,4 +187,7 @@ class AbilityMenu(InGameDynamicVisuals):
         try:
             return int(self.read_from_img(cropped, box.config).strip("%")) / 100
         except ValueError:
-            breakpoint()
+            logger.error(
+                "Could not read Jump off the ability menu.", exc_info=True
+            )
+            raise

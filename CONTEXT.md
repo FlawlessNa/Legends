@@ -114,6 +114,15 @@ the currently focused one.
 _Avoid_: held-keys state, keys sent — the historical set of every key ever
 sent answers a different question than what is down right now.
 
+**Telecast**:
+A movement and a skill cast performed as one: the ultimate's key is fused into
+every teleport keydown Step of a compiled Input Sequence, so the character casts
+while it blinks. A post-processing pass over a finished Input Sequence rather
+than a builder — it runs at dispatch, wrapped around the movement compiler, and
+truncates the result to the skill's animation time.
+_Avoid_: Telecast movement, teleport-cast — telecasting produces no movement of
+its own, it rewrites one that was already compiled.
+
 ## Movement checking
 
 **Invariant**:

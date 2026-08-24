@@ -16,8 +16,6 @@ import functools
 import importlib
 import pickle
 
-from unittest.mock import patch
-
 import pytest
 
 from botting.controller.inputs.focused_inputs import (
@@ -84,11 +82,11 @@ class _DispatchScenario:
         self.trace.append("compile")
         return self._result
 
-    def run(self) -> "_DispatchScenario":
-        asyncio.run(self._run())
+    def run(self, mocker) -> "_DispatchScenario":
+        asyncio.run(self._run(mocker))
         return self
 
-    async def _run(self) -> None:
+    async def _run(self, mocker) -> None:
         reached = asyncio.Event()
 
         async def _fake_activate(hwnd):
@@ -106,31 +104,36 @@ class _DispatchScenario:
             self.released.extend(keys)
 
         # A lock created inside this test's own event loop: the class-level one is
-        # shared process-wide and would carry state between tests.
-        with patch.object(SharedResources, "focus_lock", asyncio.Lock()), patch.object(
+        # shared process-wide and would carry state between tests. `mocker` undoes
+        # every patch below when the test ends.
+        mocker.patch.object(SharedResources, "focus_lock", asyncio.Lock())
+        mocker.patch.object(
             focused_inputs_module, "activate", side_effect=_fake_activate
-        ), patch.object(
+        )
+        mocker.patch.object(
             focused_inputs_module, "_send_input", side_effect=_fake_send
-        ), patch.object(
+        )
+        mocker.patch.object(
             focused_inputs_module, "release_keys", side_effect=_fake_release
-        ):
-            task = asyncio.create_task(compile_and_send(HANDLE, self._compile))
-            if self.cancel_after is None:
-                self.sent_count = await task
-            else:
-                await reached.wait()
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-            self.lock_released = not SharedResources.focus_lock.locked()
+        )
+
+        task = asyncio.create_task(compile_and_send(HANDLE, self._compile))
+        if self.cancel_after is None:
+            self.sent_count = await task
+        else:
+            await reached.wait()
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        self.lock_released = not SharedResources.focus_lock.locked()
 
 
 # --- dispatch-time compilation ------------------------------------------------
 
 
-def test_compiler_reads_the_ledger_entry_for_its_own_handle():
+def test_compiler_reads_the_ledger_entry_for_its_own_handle(mocker):
     """
     The whole point of moving the compile: the held state it sees is this
     client's, at dispatch - not a system-wide `GetAsyncKeyState` sampled in some
@@ -138,19 +141,19 @@ def test_compiler_reads_the_ledger_entry_for_its_own_handle():
     """
     HeldKeysLedger.record_step(HANDLE, ["right", "a"], ["keydown", "keydown"])
 
-    scenario = _DispatchScenario(_sequence("up")).run()
+    scenario = _DispatchScenario(_sequence("up")).run(mocker)
 
     # Only movement keys: that is what the `initial_held_keys` seam describes.
     assert scenario.seen_held_keys == frozenset({"right"})
     assert isinstance(scenario.seen_held_keys, frozenset)
 
 
-def test_compile_happens_inside_the_focus_lock_critical_section():
+def test_compile_happens_inside_the_focus_lock_critical_section(mocker):
     """
     Load-bearing: compiling before the lock is taken re-opens the same
     compile->dispatch race the ledger was built to close (ADR 0002).
     """
-    scenario = _DispatchScenario(_sequence("right")).run()
+    scenario = _DispatchScenario(_sequence("right")).run(mocker)
 
     assert scenario.locked_during_compile
     assert scenario.trace[:2] == ["activate", "compile"]
@@ -158,26 +161,27 @@ def test_compile_happens_inside_the_focus_lock_critical_section():
     assert scenario.lock_released
 
 
-def test_compiled_steps_are_streamed_and_recorded_in_the_ledger():
+def test_compiled_steps_are_streamed_and_recorded_in_the_ledger(mocker):
     """
     The dispatch path feeds the same send loop, so the ledger still describes what
     was delivered.
     """
-    scenario = _DispatchScenario(_sequence("right")).run()
+    scenario = _DispatchScenario(_sequence("right")).run(mocker)
 
-    # Two Steps: the phantom `left` release strict `_clear_opposites` inserts at
-    # construction (issue #28), then the `right` keydown itself.
-    assert scenario.delivered == 2
-    assert scenario.sent_count == 2
+    # One Step: the `right` keydown itself. Nothing is held, so construction inserts
+    # no opposite release - A6 forbids the phantom `left` keyup this used to carry
+    # (issue #28).
+    assert scenario.delivered == 1
+    assert scenario.sent_count == 1
     assert HeldKeysLedger.keys_held(HANDLE) == frozenset({"right"})
 
 
-def test_a_plan_that_compiles_to_nothing_sends_nothing():
+def test_a_plan_that_compiles_to_nothing_sends_nothing(mocker):
     """
     `compile_movements` returns None for a plan with no Steps in it. The old live
     path could only discover that by compiling in the Engine process first.
     """
-    scenario = _DispatchScenario(None).run()
+    scenario = _DispatchScenario(None).run(mocker)
 
     assert scenario.delivered == 0
     assert scenario.sent_count == 0
@@ -185,14 +189,14 @@ def test_a_plan_that_compiles_to_nothing_sends_nothing():
     assert scenario.lock_released
 
 
-def test_cancellation_of_a_dispatch_compiled_send_still_releases_directions():
+def test_cancellation_of_a_dispatch_compiled_send_still_releases_directions(mocker):
     """
     Moving the compile inside `focused_inputs` puts it under the same cancellation
     handling as the send loop, so D2 keeps holding on the new path.
     """
     scenario = _DispatchScenario(
         _sequence("right", "up", delay=10.0), cancel_after=2
-    ).run()
+    ).run(mocker)
 
     assert "right" in scenario.released
     assert scenario.lock_released

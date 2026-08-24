@@ -227,8 +227,11 @@ class InventoryManager(
                 break
             except asyncio.TimeoutError:
                 pass
-            except Exception as e:
-                breakpoint()
+            except Exception:
+                logger.error(
+                    f"{self} failed to reach town through SELF DOOR.", exc_info=True
+                )
+                raise
 
         while not self._confirm_shop_open():
             self._enable_decision_makers("Rotation")
@@ -254,8 +257,11 @@ class InventoryManager(
                 break
             except asyncio.TimeoutError:
                 pass
-            except Exception as e:
-                breakpoint()
+            except Exception:
+                logger.error(
+                    f"{self} failed to return to its original map.", exc_info=True
+                )
+                raise
         logger.log(LOG_LEVEL, f"{self} procedure completed")
 
     def _setup_procedure(self) -> None:

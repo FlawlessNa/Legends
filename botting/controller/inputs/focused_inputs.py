@@ -139,7 +139,7 @@ class KeyboardInputWrapper:
         """
         Before the instance is finalized, look into top-level held keys (directed to the
         relevant window).
-        If opposites keys to the ones desired are held, force release them.
+        If opposites keys to the ones desired are held, release them.
 
         `initial_held_keys` overrides the Held-Keys Ledger read below, so
         offline/deterministic compilation can supply the held state instead. Compiling
@@ -149,31 +149,27 @@ class KeyboardInputWrapper:
             held_keys = set(self.initial_held_keys)
         else:
             held_keys = set(get_held_movement_keys(self.handle))
-        self._clear_opposites(
-            held_keys=held_keys,
-            desired_keys=self.keys_held,
-            strict=True
-        )
+        self._clear_opposites(held_keys=held_keys, desired_keys=self.keys_held)
 
     def _clear_opposites(
-        self, held_keys: set[str], desired_keys: set[str], strict: bool, idx: int = None
+        self, held_keys: set[str], desired_keys: set[str], idx: int = None
     ) -> None:
         """
         Utility function that compares the desired keys to be held versus those already
         held. If the opposites are held, a release event is inserted.
+
+        Only keys `held_keys` reports as down are released. This used to also release
+        the opposite of any desired `left`/`right` unconditionally, as a blunt guard
+        against a stale direction latching the character - a guard that only existed
+        because compile-time held-keys state was untrustworthy. The Held-Keys Ledger
+        makes it authoritative, so the guard goes and **A6 No Phantom Release** holds:
+        no keyup targets a key that is not down.
         """
         to_release = []
         for key in filter(lambda k: k in ('left', 'right', 'up', 'down'), desired_keys):
             if OPPOSITES[key] in held_keys:
                 to_release.append(OPPOSITES[key])
 
-        # ALWAYS release opposite key on directional movement - should prevent being
-        # stuck but also causes unnecessary key releases
-        if strict:
-            if 'right' in desired_keys and 'left' not in to_release:
-                to_release.append('left')
-            elif 'left' in desired_keys and 'right' not in to_release:
-                to_release.append('right')
         if to_release:
             self.insert(
                 idx or 0,
@@ -221,12 +217,17 @@ class KeyboardInputWrapper:
         """
         Before appending new keys, retrospectively look at prior held keys and insert
         release events on opposites, if any.
+
+        The release goes at the end - immediately ahead of the Step about to be
+        appended. It used to go at `-1`, which lands *before* the last existing Step:
+        when that Step was the keydown of the very key being released, the sequence
+        read `keyup, keydown, <opposite> keydown`, leaving both directions down (A3)
+        off a keyup for a key that was not yet pressed (A6).
         """
         self._clear_opposites(
             held_keys=self.keys_held,
             desired_keys=self.get_held_movement_keys([keys], [events]),
-            strict=False,
-            idx=-1,
+            idx=len(self.keys),
         )
         self.keys.append(keys)
         self.events.append(events)

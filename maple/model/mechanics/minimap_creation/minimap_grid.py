@@ -112,10 +112,8 @@ class MinimapNode(GridNode):
             ):
                 return ConnectionTypes.TELEPORT_DOWN
             else:
-                breakpoint()
                 raise NotImplementedError
         else:
-            breakpoint()
             raise NotImplementedError
 
 

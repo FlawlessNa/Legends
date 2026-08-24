@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
-from unittest.mock import Mock
 
 import pytest
+from pytest_mock import MockType
 
 from botting.core.bot_data import BotData, ManagedAttribute, _SENTINEL
 
@@ -12,8 +12,8 @@ def bot_data() -> BotData:
 
 
 @pytest.fixture
-def mock_fn() -> Mock:
-    return Mock(return_value="new_value")
+def mock_fn(mocker) -> MockType:
+    return mocker.Mock(return_value="new_value")
 
 
 # --- create_attribute ---------------------------------------------------------
@@ -30,15 +30,15 @@ def test_sets_initial_value_via_update(bot_data, mock_fn):
     assert bot_data.test_attr == "new_value"
 
 
-def test_with_explicit_initial_value(bot_data):
-    fn = Mock(return_value="should_not_be_used")
+def test_with_explicit_initial_value(bot_data, mocker):
+    fn = mocker.Mock(return_value="should_not_be_used")
     bot_data.create_attribute("x", fn, initial_value="preset")
     assert bot_data._managed["x"].value == "preset"
     fn.assert_not_called()
 
 
-def test_falsy_initial_value_bypasses_update(bot_data):
-    fn = Mock(return_value="should_not_be_used")
+def test_falsy_initial_value_bypasses_update(bot_data, mocker):
+    fn = mocker.Mock(return_value="should_not_be_used")
     bot_data.create_attribute("x", fn, initial_value=False)
     assert bot_data._managed["x"].value is False
     fn.assert_not_called()
@@ -58,25 +58,25 @@ def test_with_threshold(bot_data, mock_fn):
 # --- reconfigure_attribute ----------------------------------------------------
 
 
-def test_preserves_metadata_history(bot_data, mock_fn):
+def test_preserves_metadata_history(bot_data, mock_fn, mocker):
     bot_data.create_attribute("x", mock_fn)
     original_metadata = bot_data._managed["x"].metadata
-    new_fn = Mock(return_value="updated")
+    new_fn = mocker.Mock(return_value="updated")
     bot_data.reconfigure_attribute("x", update_function=new_fn, threshold=1.0)
     assert bot_data._managed["x"].metadata is original_metadata
 
 
-def test_updates_function_and_threshold(bot_data, mock_fn):
+def test_updates_function_and_threshold(bot_data, mock_fn, mocker):
     bot_data.create_attribute("x", mock_fn, threshold=0.5)
-    new_fn = Mock(return_value="updated")
+    new_fn = mocker.Mock(return_value="updated")
     bot_data.reconfigure_attribute("x", update_function=new_fn, threshold=2.0)
     assert bot_data._managed["x"].update_function is new_fn
     assert bot_data._managed["x"].threshold == 2.0
 
 
-def test_can_set_error_handler_to_none(bot_data):
-    handler = Mock()
-    bot_data.create_attribute("x", Mock(return_value=1), error_handler=handler)
+def test_can_set_error_handler_to_none(bot_data, mocker):
+    handler = mocker.Mock()
+    bot_data.create_attribute("x", mocker.Mock(return_value=1), error_handler=handler)
     bot_data.reconfigure_attribute("x", error_handler=None)
     assert bot_data._managed["x"].error_handler is None
 
@@ -103,10 +103,10 @@ def test_creates_when_new(bot_data, mock_fn):
     assert bot_data.x == "new_value"
 
 
-def test_reconfigures_when_existing(bot_data, mock_fn):
+def test_reconfigures_when_existing(bot_data, mock_fn, mocker):
     bot_data.create_attribute("x", mock_fn)
     original_metadata = bot_data._managed["x"].metadata
-    new_fn = Mock(return_value="updated")
+    new_fn = mocker.Mock(return_value="updated")
     bot_data.create_or_reconfigure_attribute("x", new_fn, threshold=1.0)
     assert bot_data._managed["x"].metadata is original_metadata
     assert bot_data._managed["x"].update_function is new_fn
@@ -149,8 +149,8 @@ def test_setattr_on_static(bot_data):
     assert bot_data.x == 42
 
 
-def test_managed_takes_priority_over_static(bot_data):
-    mock_fn = Mock(return_value="managed_val")
+def test_managed_takes_priority_over_static(bot_data, mocker):
+    mock_fn = mocker.Mock(return_value="managed_val")
     bot_data.create_attribute("x", mock_fn)
     bot_data._static["x"] = "static_val"
     assert bot_data.x == "managed_val"
@@ -183,7 +183,7 @@ def test_remove_nonexistent_feature_is_safe(bot_data):
 # --- error handling -----------------------------------------------------------
 
 
-def test_error_handler_called_on_failure(bot_data):
+def test_error_handler_called_on_failure(bot_data, mocker):
     calls = []
 
     def failing_then_ok():
@@ -192,23 +192,23 @@ def test_error_handler_called_on_failure(bot_data):
             raise ValueError("fail")
         return "ok"
 
-    handler = Mock()
+    handler = mocker.Mock()
     bot_data.create_attribute("x", failing_then_ok, error_handler=handler)
     assert bot_data.x == "ok"
     handler.assert_called_once()
 
 
-def test_error_raised_without_handler(bot_data):
+def test_error_raised_without_handler(bot_data, mocker):
     bot_data.create_attribute("x", lambda: 1)
-    bot_data._managed["x"].update_function = Mock(side_effect=ValueError("fail"))
+    bot_data._managed["x"].update_function = mocker.Mock(side_effect=ValueError("fail"))
     with pytest.raises(ValueError):
         bot_data.update_attribute("x")
 
 
-def test_max_retries_caps_recursion(bot_data):
+def test_max_retries_caps_recursion(bot_data, mocker):
     """Error handler that never fixes the problem stops after max_retries."""
-    fn = Mock(side_effect=ValueError("always fails"))
-    handler = Mock()
+    fn = mocker.Mock(side_effect=ValueError("always fails"))
+    handler = mocker.Mock()
     bot_data.create_attribute("x", lambda: 1)
     bot_data._managed["x"].update_function = fn
     bot_data._managed["x"].error_handler = handler
@@ -218,9 +218,9 @@ def test_max_retries_caps_recursion(bot_data):
     assert handler.call_count == 2
 
 
-def test_max_retries_default_is_one(bot_data):
-    fn = Mock(side_effect=ValueError("always fails"))
-    handler = Mock()
+def test_max_retries_default_is_one(bot_data, mocker):
+    fn = mocker.Mock(side_effect=ValueError("always fails"))
+    handler = mocker.Mock()
     bot_data.create_attribute("x", lambda: 1)
     bot_data._managed["x"].update_function = fn
     bot_data._managed["x"].error_handler = handler
@@ -232,8 +232,8 @@ def test_max_retries_default_is_one(bot_data):
 # --- attribute access ---------------------------------------------------------
 
 
-def test_getattr_auto_refreshes_on_threshold(bot_data):
-    mock_fn = Mock(return_value="initial")
+def test_getattr_auto_refreshes_on_threshold(bot_data, mocker):
+    mock_fn = mocker.Mock(return_value="initial")
     bot_data.create_attribute("x", mock_fn, threshold=0.1)
     bot_data._managed["x"].metadata.last_update_time = datetime.now() - timedelta(
         seconds=0.2
@@ -242,15 +242,15 @@ def test_getattr_auto_refreshes_on_threshold(bot_data):
     assert bot_data.x == "refreshed"
 
 
-def test_getattr_increments_access_count(bot_data):
-    mock_fn = Mock(return_value="val")
+def test_getattr_increments_access_count(bot_data, mocker):
+    mock_fn = mocker.Mock(return_value="val")
     bot_data.create_attribute("x", mock_fn)
     _ = bot_data.x
     assert bot_data._managed["x"].metadata.access_count == 1
 
 
-def test_setattr_on_managed(bot_data):
-    mock_fn = Mock(return_value="val")
+def test_setattr_on_managed(bot_data, mocker):
+    mock_fn = mocker.Mock(return_value="val")
     bot_data.create_attribute("x", mock_fn)
     bot_data.x = "manual"
     assert bot_data.x == "manual"
@@ -273,8 +273,8 @@ def test_ign_is_normal_attribute(bot_data):
     assert bot_data.ign == "NewBot"
 
 
-def test_update_attribute_updates_value(bot_data):
-    mock_fn = Mock(return_value="initial")
+def test_update_attribute_updates_value(bot_data, mocker):
+    mock_fn = mocker.Mock(return_value="initial")
     bot_data.create_attribute("x", mock_fn)
     mock_fn.return_value = "updated"
     bot_data.update_attribute("x")
@@ -343,8 +343,8 @@ def test_check_if_values_have_changed_raises_for_unknown(bot_data):
 
 
 @pytest.fixture
-def original() -> Mock:
-    return Mock(return_value="original")
+def original(mocker) -> MockType:
+    return mocker.Mock(return_value="original")
 
 
 @pytest.fixture
@@ -365,8 +365,8 @@ def test_restores_the_exact_update_function(snapshot_data, original):
     assert snapshot_data.x == "original"
 
 
-def test_restores_the_full_configuration(snapshot_data):
-    handler = Mock()
+def test_restores_the_full_configuration(snapshot_data, mocker):
+    handler = mocker.Mock()
     snapshot_data.reconfigure_attribute("x", error_handler=handler)
     snapshot_data.snapshot_attribute("x")
     snapshot_data.reconfigure_attribute(
@@ -389,19 +389,19 @@ def test_first_snapshot_wins(snapshot_data, original):
     assert snapshot_data._managed["x"].update_function is original
 
 
-def test_restore_is_a_noop_without_a_snapshot(snapshot_data):
-    hijack = Mock(return_value="hijacked")
+def test_restore_is_a_noop_without_a_snapshot(snapshot_data, mocker):
+    hijack = mocker.Mock(return_value="hijacked")
     snapshot_data.reconfigure_attribute("x", update_function=hijack)
     snapshot_data.restore_attribute("x")
     assert snapshot_data._managed["x"].update_function is hijack
 
 
-def test_restore_only_once_per_snapshot(snapshot_data):
+def test_restore_only_once_per_snapshot(snapshot_data, mocker):
     snapshot_data.snapshot_attribute("x")
     snapshot_data.reconfigure_attribute("x", update_function=lambda: "hijacked")
     snapshot_data.restore_attribute("x")
 
-    later = Mock(return_value="later")
+    later = mocker.Mock(return_value="later")
     snapshot_data.reconfigure_attribute("x", update_function=later)
     snapshot_data.restore_attribute("x")
     assert snapshot_data._managed["x"].update_function is later
@@ -419,9 +419,9 @@ def test_restore_preserves_value_and_metadata(snapshot_data):
     assert managed.metadata.update_count == update_count
 
 
-def test_full_reconfiguration_discards_the_snapshot(snapshot_data):
+def test_full_reconfiguration_discards_the_snapshot(snapshot_data, mocker):
     snapshot_data.snapshot_attribute("x")
-    replacement = Mock(return_value="replacement")
+    replacement = mocker.Mock(return_value="replacement")
     snapshot_data.create_or_reconfigure_attribute("x", replacement, initial_value="seed")
 
     snapshot_data.restore_attribute("x")

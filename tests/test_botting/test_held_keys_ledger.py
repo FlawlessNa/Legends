@@ -11,8 +11,6 @@ import importlib
 import multiprocessing
 import threading
 
-from unittest.mock import AsyncMock, Mock, patch
-
 import pytest
 
 from botting.controller import get_held_movement_keys
@@ -110,25 +108,21 @@ def test_sweep_candidates_cover_movement_keys_and_everything_sent():
     assert {"left", "right", "up", "down", "space"} <= candidates
 
 
-def test_release_all_clears_the_entry():
+def test_release_all_clears_the_entry(mocker):
     HeldKeysLedger.record_step(HANDLE, ["left", "jump"], ["keydown", "keydown"])
-    with patch.object(
-        focused_inputs_module, "release_keys"
-    ) as release, patch.object(
-        focused_inputs_module, "_physically_held", return_value=set()
-    ):
-        release_all(HANDLE)
+    release = mocker.patch.object(focused_inputs_module, "release_keys")
+    mocker.patch.object(focused_inputs_module, "_physically_held", return_value=set())
+    release_all(HANDLE)
     assert sorted(release.call_args.args[0]) == ["jump", "left"]
     assert HeldKeysLedger.keys_held(HANDLE) == frozenset()
 
 
-def test_release_all_also_releases_keys_the_ledger_missed():
-    with patch.object(
-        focused_inputs_module, "release_keys"
-    ) as release, patch.object(
+def test_release_all_also_releases_keys_the_ledger_missed(mocker):
+    release = mocker.patch.object(focused_inputs_module, "release_keys")
+    mocker.patch.object(
         focused_inputs_module, "_physically_held", return_value={"ctrl"}
-    ):
-        release_all(HANDLE)
+    )
+    release_all(HANDLE)
     assert release.call_args.args[0] == ["ctrl"]
 
 
@@ -137,7 +131,7 @@ def test_release_all_also_releases_keys_the_ledger_missed():
 # send loop leaves down exactly the keys whose Step made it out.
 
 
-def test_truncated_send_loop_records_only_delivered_steps():
+def test_truncated_send_loop_records_only_delivered_steps(mocker):
     keys = ["left", "right", "up", "down"]
     events = ["keydown"] * 4
     # Step 3 is still waiting out step 2's delay when the task is cancelled.
@@ -152,26 +146,30 @@ def test_truncated_send_loop_records_only_delivered_steps():
             if len(sent) == 3:
                 third_step_sent.set()
 
-        with patch.object(
+        # `mocker` undoes every patch below when the test ends.
+        mocker.patch.object(
             focused_inputs_module, "_send_input", side_effect=_fake_send
-        ), patch.object(
-            focused_inputs_module, "activate", new=AsyncMock(return_value=False)
-        ), patch.object(focused_inputs_module, "release_keys") as release:
-            task = asyncio.create_task(
-                focused_inputs(
-                    HANDLE,
-                    [Mock()] * 4,
-                    delays,
-                    forced_key_releases=keys,
-                    keys=keys,
-                    events=events,
-                )
+        )
+        mocker.patch.object(
+            focused_inputs_module, "activate", new=mocker.AsyncMock(return_value=False)
+        )
+        release = mocker.patch.object(focused_inputs_module, "release_keys")
+
+        task = asyncio.create_task(
+            focused_inputs(
+                HANDLE,
+                [mocker.Mock()] * 4,
+                delays,
+                forced_key_releases=keys,
+                keys=keys,
+                events=events,
             )
-            await third_step_sent.wait()
-            task.cancel()
-            with pytest.raises(asyncio.CancelledError):
-                await task
-            assert len(sent) == 3
+        )
+        await third_step_sent.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert len(sent) == 3
         return release
 
     release = asyncio.run(_scenario())

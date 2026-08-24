@@ -39,22 +39,35 @@ class MobsHittingMixin:
         ]
 
     @staticmethod
+    def box_center(box: Sequence[int]) -> tuple[float, float]:
+        """
+        Center point of a detection box, in the x1, y1, x2, y2 format that
+        `Character.get_onscreen_position` returns.
+
+        Exists so the on-screen position of the character - a *box* - can be handed
+        to `get_closest_mob_direction`, which compares *points*.
+        :param box: Rectangle (x1, y1, x2, y2).
+        :return: (x, y) center of that rectangle.
+        """
+        x1, y1, x2, y2 = box
+        return (x1 + x2) / 2, (y1 + y2) / 2
+
+    @staticmethod
     def get_closest_mob_direction(
         character_pos: Sequence[float], mobs: list[Sequence[int]]
     ) -> str | None:
         """
         Given current character position and list of detected mobs on screen,
         return the (horizontal) direction of the closest mob relative to character.
-        :param character_pos: Rectangle (x, y, w, h)
-        :param mobs: List of rectangles (x, y, w, h)
-        :return: Direction of closest mob relative to character.
+        :param character_pos: Point (x, y) - use `box_center` on a detection box.
+        :param mobs: List of rectangles (x, y, w, h), as `get_onscreen_mobs` returns.
+        :return: Direction of closest mob relative to character, None if no mobs.
         """
         if not mobs:
             return None
         centers = [(rect[0] + rect[2] / 2, rect[1] + rect[3] / 2) for rect in mobs]
         distances = [math.dist(character_pos, center) for center in centers]
 
-        # Find minimum distance in terms of absolute value, but retain its sign
-        closest_mob_idx = np.argmin(np.abs(distances))
+        closest_mob_idx = int(np.argmin(distances))
         horizontal_distance = centers[closest_mob_idx][0] - character_pos[0]
         return "left" if horizontal_distance < 0 else "right"

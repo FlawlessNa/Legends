@@ -1,9 +1,13 @@
+import logging
 import random
-from typing import Literal
-from botting import controller
+from typing import Callable, Literal
+from botting import PARENT_LOG, controller
 from botting.models_abstractions import Skill
 
 from .skills_related_v2 import cast_skill
+
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
+LOG_LEVEL = logging.INFO
 
 FIRST_DELAY = 0.5
 
@@ -297,35 +301,104 @@ def teleport(
         structure.forced_key_releases.append(teleport_skill.key_bind(ign))
     return structure
 
-#
-# def telecast(
-#     structure: controller.KeyboardInputWrapper,
-#     ign: str,
-#     teleport_key: str,
-#     ultimate_skill: Skill,
-# ) -> controller.KeyboardInputWrapper:
-#     """
-#     This function does not extend the structure like other functions in this module.
-#     Instead, it introspects that structure and adds ultimate cast keystrokes in
-#     combination to the teleport keystrokes.
-#     :param structure:
-#     :param ign:
-#     :param teleport_key:
-#     :param ultimate_skill:
-#     :return:
-#     """
-#     if teleport_key not in structure.keys:
-#         print("No telecast possible. Casting ultimate instead")
-#         return cast_skill(structure.handle, ign, ultimate_skill)
-#
-#     # Modify the structure such that teleports are combined with ultimate casts
-#     ultimate_key = ultimate_skill.key_bind(ign)
-#     structure.forced_key_releases.append(ultimate_key)
-#     for idx, (key, event) in enumerate(zip(structure.keys, structure.events)):
-#         if key == teleport_key and event == "keydown":
-#             structure.keys[idx] = [teleport_key, ultimate_key]
-#             structure.events[idx] = ["keydown", "keydown"]
-#     return structure.truncate(ultimate_skill.animation_time)
+
+def _has_keydown(structure: controller.KeyboardInputWrapper, key: str) -> bool:
+    """
+    Whether any Step of `structure` presses `key` down. A Step carries either a single
+    key or a list of simultaneous ones, so both shapes are walked.
+    """
+    for step_keys, step_events in zip(structure.keys, structure.events):
+        if isinstance(step_keys, list):
+            if any(
+                k == key and e == "keydown" for k, e in zip(step_keys, step_events)
+            ):
+                return True
+        elif step_keys == key and step_events == "keydown":
+            return True
+    return False
+
+
+def telecast(
+    structure: controller.KeyboardInputWrapper,
+    ign: str,
+    teleport_key: str,
+    ultimate_skill: Skill,
+) -> controller.KeyboardInputWrapper:
+    """
+    Fuses an ultimate cast into an already-compiled Input Sequence.
+
+    Unlike the builders above, this does not extend a structure: it walks a finished
+    one and rewrites every teleport keydown Step into a simultaneous
+    `[teleport_key, ultimate_key]` Step, so the character casts while it blinks. The
+    result is truncated to the ultimate's animation time - past that the cast is over,
+    and the rest of the movement belongs to whatever the bot decides next.
+
+    The ultimate key is declared for forced release. Like the teleport key, it is a
+    non-directional key that stays down to the end of the sequence, so **A2 Terminal
+    Release** and **D1 Cancel Safety** rest entirely on that declaration.
+
+    :param structure: A compiled Input Sequence carrying at least one teleport keydown.
+    :param ign: The character's in-game name, used to resolve the ultimate's key bind.
+    :param teleport_key: The key every teleport keydown Step carries.
+    :param ultimate_skill: The skill to fuse into those Steps.
+    :return: A new, truncated Input Sequence carrying the fused Steps.
+    """
+    ultimate_key = ultimate_skill.key_bind(ign)
+    if ultimate_key not in structure.forced_key_releases:
+        structure.forced_key_releases.append(ultimate_key)
+    for idx, (key, event) in enumerate(zip(structure.keys, structure.events)):
+        if key == teleport_key and event == "keydown":
+            structure.keys[idx] = [teleport_key, ultimate_key]
+            structure.events[idx] = ["keydown", "keydown"]
+    return structure.truncate(ultimate_skill.animation_time)
+
+
+def telecast_compiler(
+    initial_held_keys: frozenset[str] | None,
+    *,
+    movement_compiler: Callable[
+        [frozenset[str] | None], controller.KeyboardInputWrapper | None
+    ],
+    handle: int,
+    ign: str,
+    teleport_key: str,
+    ultimate_skill: Skill,
+) -> controller.KeyboardInputWrapper | None:
+    """
+    `telecast` in the shape `controller.compile_and_send` expects - a compiler that
+    decorates another compiler.
+
+    Telecasting is a post-processing pass over a compiled Input Sequence, so it has to
+    run where the compile now happens: at dispatch, inside the focus lock (ADR 0002).
+    It wraps `compile_movements` rather than becoming another of its parameters,
+    because it is a second concern layered on the first, not a variation of it: the
+    movement compile is unchanged and unaware, and the wrapper is an adapter at the
+    same seam - `Callable[[frozenset[str] | None], KeyboardInputWrapper | None]` -
+    that `compile_movements` and `cast_skill_compiler` already sit at. Taking the
+    inner compiler as a parameter rather than naming `compile_movements` directly
+    keeps this module free of any dependency on the mechanics layer (which imports
+    it) and lets the caller freeze the plan exactly as rotation does.
+
+    :param initial_held_keys: Movement keys held at dispatch, from the Held-Keys
+        Ledger. Handed straight to the inner compiler, and to the fallback cast.
+    :param movement_compiler: The compiler whose Input Sequence gets fused - in
+        practice a `compile_movements` partial over the current Movement Plan.
+    :param handle: The client window the sequence targets, for the fallback cast.
+    :param ign: The character's in-game name.
+    :param teleport_key: The key a teleport keydown Step carries.
+    :param ultimate_skill: The skill to fuse in.
+    :return: The fused Input Sequence, or a plain cast when there is nothing to fuse.
+    """
+    structure = movement_compiler(initial_held_keys)
+    if structure is None or not _has_keydown(structure, teleport_key):
+        # Reachable even when the Movement Plan holds teleports: `total_duration` can
+        # truncate the compile before the first teleport component is built. Casting
+        # in place still hits the mobs, which is what this DecisionMaker is for.
+        logger.log(LOG_LEVEL, "No telecast possible. Casting the ultimate instead.")
+        return cast_skill(
+            handle, ign, ultimate_skill, initial_held_keys=initial_held_keys
+        )
+    return telecast(structure, ign, teleport_key, ultimate_skill)
 
 
 def random_jump(handle: int, jump_key: str) -> controller.KeyboardInputWrapper:

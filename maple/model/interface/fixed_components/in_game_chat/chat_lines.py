@@ -312,7 +312,7 @@ class Alliance(ChatLine):
         super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        breakpoint()
+        raise NotImplementedError
 
     def get_author(self) -> str:
         pass
@@ -326,7 +326,7 @@ class Party(ChatLine):
         super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        breakpoint()
+        raise NotImplementedError
 
     def get_author(self) -> str:
         pass
@@ -340,7 +340,7 @@ class Guild(ChatLine):
         super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        breakpoint()
+        raise NotImplementedError
 
     def get_author(self) -> str:
         pass
@@ -373,7 +373,7 @@ class Buddy(ChatLine):
         super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        breakpoint()
+        raise NotImplementedError
 
     def get_author(self) -> str:
         pass
@@ -387,7 +387,7 @@ class Spouse(ChatLine):
         super().__init__(img, read)
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        breakpoint()
+        raise NotImplementedError
 
     def get_author(self) -> str:
         pass

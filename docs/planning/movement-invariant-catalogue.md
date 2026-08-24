@@ -32,16 +32,34 @@ Checked on every compiled Input Sequence.
 | **A1 Shape** | `len(keys) == len(events) == len(delays)`; at each Step, `keys[i]` and `events[i]` are both `str`, or both `list` of equal length | Invariant | holds |
 | **A2 Terminal Release** | If `S` was not truncated, `down(n-1)` is a subset of `forced_key_releases` | Invariant | fails — [#25](https://github.com/FlawlessNa/Legends/issues/25) |
 | **A3 No Opposing Overlap** | No Hold of `left` overlaps a Hold of `right`; likewise `up`/`down` | Invariant | holds |
-| **A4 Skill Key Closure** | Every Hold whose key is non-directional has `t_up` strictly before the sequence end | Invariant | holds |
+| **A4 Skill Key Closure** | Every Hold whose key is non-directional has `t_up` strictly before the sequence end | Invariant | unsettled — [#75](https://github.com/FlawlessNa/Legends/issues/75) |
 | **A5 Delays** | Every delay is finite and `>= 0` | Invariant | holds |
-| **A6 No Phantom Release** | For every keyup of key `k` at Step `i`: `k` is in `down(i-1)` | Invariant | fails — [#28](https://github.com/FlawlessNa/Legends/issues/28) |
+| **A6 No Phantom Release** | For every keyup of key `k` at Step `i`: `k` is in `down(i-1)` | Invariant | holds — fixed by [#28](https://github.com/FlawlessNa/Legends/issues/28) |
 
 **A6** is a humanization property as much as a correctness one: a human never
 releases a key they are not holding, and the pattern is machine-distinguishable.
-It contradicts `_clear_opposites(strict=True)`, whose blind release exists only
-because compile-time held-keys state is untrustworthy — so A6 cannot be
-satisfied until [#24](https://github.com/FlawlessNa/Legends/issues/24) makes that
-state authoritative.
+It contradicted `_clear_opposites(strict=True)`, whose blind release existed only
+because compile-time held-keys state was untrustworthy;
+[#24](https://github.com/FlawlessNa/Legends/issues/24) made that state
+authoritative and [#28](https://github.com/FlawlessNa/Legends/issues/28) removed
+the blind release, so opposites are now cleared off real held state alone.
+
+**A3 did not really hold before #28**, despite its status here. The
+opposite-key release that `append` inserts was going in at index `-1` — *ahead of* the last existing Step, which is
+typically the keydown of the very key being released. A plan reversing direction
+compiled to `right keyup, right keydown, left keydown`: a phantom release, and
+both directions down after it. #28 moved the insertion to the end of the
+sequence, where the release lands immediately ahead of the Step that opposes it.
+
+**A4 does not hold as written**, and telecast is what made that visible. A
+teleport component compiles to a run of `teleport_key` keydowns with no keyup: the
+key is meant to stay down and is released by the forced volley, so its Hold ends
+at the sequence end, not strictly before it. Telecasting fuses a second such key -
+the ultimate - into those same Steps, so it doubles the exposure without creating a
+new kind of it. Either A4 is too strong and should exempt keys in
+`forced_key_releases` (whose release **A2**/**D1** already cover), or the builders
+are wrong to leave a skill key latched; that is
+[#75](https://github.com/FlawlessNa/Legends/issues/75), not a settled status.
 
 ## B — Movement Plan / Input Sequence consistency
 
@@ -114,8 +132,9 @@ Continuation carried over before this sequence delivered a Step of its own.
 ## Deliberately excluded
 
 - **"No keyup without a preceding keydown" as accepted behaviour.** Initially
-  excluded, because `_clear_opposites(strict=True)` emits exactly that on
-  purpose. Reversed: it is now **A6**, an Invariant, on humanization grounds.
+  excluded, because `_clear_opposites(strict=True)` emitted exactly that on
+  purpose. Reversed: it is now **A6**, an Invariant, on humanization grounds, and
+  the `strict` branch it was excluded for no longer exists.
 - **Movement Plan correctness** — whether pathfinding chose a sensible route, or
   whether a node transition is legal. Real, but a question about
   `path_into_movements`, not about Input Sequences; it belongs to the test corpus
