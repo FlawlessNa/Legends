@@ -39,7 +39,6 @@ class ActionRequest:
     block_lower_priority: bool = field(default=False)
 
     callbacks: list[callable] = field(default_factory=list)
-    cancel_callback: callable = field(default=None)
     task: asyncio.Task = field(default=None, init=False)
     discord_request: "DiscordRequest" = field(default=None)
     log: bool = field(default=False)

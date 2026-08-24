@@ -3,7 +3,7 @@ import logging
 import multiprocessing.connection
 import multiprocessing.managers
 
-from botting.utilities import setup_child_proc_logging
+from botting.utilities import install_loop_diagnostics, setup_child_proc_logging
 from .bot import Bot
 from .action_data import ActionRequest
 
@@ -57,10 +57,8 @@ class _ChildProcessEngine:
         setup_child_proc_logging(metadata["logging_queue"])
         engine = cls(pipe, metadata, bots, barrier)
         logger.info(f"{engine} Started.")
-        try:
-            asyncio.run(engine._cycle_forever())
-        except BaseException as e:
-            raise e
+        # None (not False) so that PYTHONASYNCIODEBUG still wins when the flag is off.
+        asyncio.run(engine._cycle_forever(), debug=metadata.get("debug") or None)
 
     async def _cycle_forever(self) -> None:
         """
@@ -69,6 +67,7 @@ class _ChildProcessEngine:
         :return:
         """
         asyncio.current_task().set_name(f"MainTask - {self}")
+        install_loop_diagnostics(debug=bool(self.metadata.get("debug")))
         try:
             for bot in self.bots:
                 bot.child_init(self.pipe, self.barrier)
@@ -88,21 +87,30 @@ class _ChildProcessEngine:
             for task in t_pending:
                 logger.info(f"{self} Cancelling task {task.get_name()}")
                 task.cancel()
-            if t_done:
-                t_done = t_done.pop()
 
-                if t_done.exception():
-                    if isinstance(t_done.exception(), ExceptionGroup):
-                        raise t_done.exception().exceptions[0]
-                    else:
-                        raise t_done.exception()
+            # Several tasks may complete on the same loop iteration, so every member
+            # of the done set gets its exception retrieved - inspecting only the first
+            # leaves the siblings' failures unretrieved, meaning invisible.
+            failures = [
+                task
+                for task in t_done
+                if not task.cancelled() and task.exception() is not None
+            ]
+            for task in failures:
+                logger.error(
+                    f"{self} task {task.get_name()} raised.",
+                    exc_info=task.exception(),
+                )
+            if failures:
+                # The whole group is raised, never just .exceptions[0]: a TaskGroup
+                # reports every sibling that failed alongside the first one.
+                raise failures[0].exception()
 
         except SystemExit:
             pass
 
         except Exception as e:
-            import traceback
-            logger.error("".join(traceback.format_exception(e)))
+            logger.error(f"{self} is exiting on an exception.", exc_info=e)
             raise e
 
         finally:
@@ -214,8 +222,10 @@ class Engine(_ChildProcessEngine):
             except asyncio.CancelledError:
                 logger.info(f"Listener to {engine.name} cancelled.")
 
-            except Exception as e: 
-                logger.error(f"Exception occurred in Listener to {engine.name}.")
+            except Exception as e:
+                logger.error(
+                    f"Exception occurred in Listener to {engine.name}.", exc_info=e
+                )
                 raise e
 
             finally:

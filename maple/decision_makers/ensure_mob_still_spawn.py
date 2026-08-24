@@ -96,6 +96,7 @@ class CheckMobsStillSpawn(
             lambda: not self.data.chat_feed.is_displayed(self.data.handle),
             timeout=5.0,
         )
+        self.data.snapshot_attribute("next_target")
         if self.data.current_minimap.feature_cycle:
             self.data.reconfigure_attribute(
                 "next_target",
@@ -119,9 +120,7 @@ class CheckMobsStillSpawn(
             "PartyRebuff"
         )
         self._last_valid_detection = time.perf_counter()
-        self._create_rotation_attributes(
-            cycle=getattr(self.data, 'feature_cycle', None)
-        )  # This resets the next_target procedure
+        self._restore_rotation_target()  # This resets the next_target procedure
 
     async def _failsafe_procedure(self) -> None:
         try:

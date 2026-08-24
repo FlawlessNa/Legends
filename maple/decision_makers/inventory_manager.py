@@ -262,10 +262,10 @@ class InventoryManager(
         # TODO - Implement grid connections
         assert self.data.has_pathing_attributes
         assert self.data.has_minimap_attributes
-        # Overwrite action mechanics to ensure keys are always released
-        self.data.reconfigure_attribute(
-            "action", update_function=self._always_release_keys_on_actions
-        )
+        # For the duration of the trip, no movement may carry a direction key past
+        # the end of its sequence. `_reset_all` re-creates the pathing attributes,
+        # which puts the flag back to its normal False.
+        self.data.always_release_keys = True
 
         door_spot = getattr(
             self.data.current_minimap, "door_spot", [self.data.current_minimap_position]
@@ -275,9 +275,7 @@ class InventoryManager(
     def _reset_all(self):
         self._door_spot = self._npc_positions = self._open_shop_box = None
         self._create_pathing_attributes(self.data.action_duration)
-        self._create_rotation_attributes(
-            cycle=getattr(self.data, 'feature_cycle', None)
-        )
+        self._restore_rotation_target()
         self.data.next_target = self.data.current_minimap_position
         self._enable_decision_makers(
             "MobsHitting",

@@ -56,7 +56,10 @@ class MenusMixin:
             )
 
         if self.data.has_pathing_attributes:
-            self.data.update_attribute("action")
+            # Refresh the Movement Plan against the regenerated grid. This used to
+            # refresh the compiled `action`; nothing is compiled before dispatch any
+            # more, so `movements` is the live path's downstream attribute.
+            self.data.update_attribute("movements")
 
         ensure_ability_menu_displayed(
             **self._display_kwargs(f"{self} - Ability Menu Setup", 2.0, condition),

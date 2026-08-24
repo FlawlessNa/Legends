@@ -65,6 +65,37 @@ class ManagedAttribute:
         self.threshold = threshold
         self.error_handler = error_handler
         self.max_retries = max_retries
+        self._snapshot: dict[str, Any] | None = None
+
+    def snapshot_config(self) -> None:
+        """
+        Records the current update configuration so it can be put back later.
+
+        Idempotent: a second call while a snapshot is already held is a no-op, so
+        successive hijacks of the same attribute all restore to the configuration
+        that was in place before the first one.
+        """
+        if self._snapshot is None:
+            self._snapshot = {
+                "update_function": self.update_function,
+                "threshold": self.threshold,
+                "error_handler": self.error_handler,
+                "max_retries": self.max_retries,
+            }
+
+    def restore_config(self) -> None:
+        """
+        Puts back the configuration captured by snapshot_config() and drops the
+        snapshot. No-op when nothing was snapshotted. The value and the metadata
+        history are left untouched - only the update configuration is restored.
+        """
+        if self._snapshot is None:
+            return
+        self.update_function = self._snapshot["update_function"]
+        self.threshold = self._snapshot["threshold"]
+        self.error_handler = self._snapshot["error_handler"]
+        self.max_retries = self._snapshot["max_retries"]
+        self._snapshot = None
 
     def get(self, owner: "BotData") -> Any:
         """
@@ -343,6 +374,25 @@ class BotData:
         if error_handler is not _SENTINEL:
             managed.error_handler = error_handler
 
+    def snapshot_attribute(self, name: str) -> None:
+        """
+        Records a managed attribute's update configuration so that a temporary
+        override (installed with reconfigure_attribute) can later be undone with
+        restore_attribute. The first snapshot wins until it is restored.
+        """
+        if name not in self._managed:
+            raise AttributeError(f"{name} not found in {self}. Cannot snapshot.")
+        self._managed[name].snapshot_config()
+
+    def restore_attribute(self, name: str) -> None:
+        """
+        Puts back the update configuration captured by snapshot_attribute(). Does
+        nothing when no snapshot is held.
+        """
+        if name not in self._managed:
+            raise AttributeError(f"{name} not found in {self}. Cannot restore.")
+        self._managed[name].restore_config()
+
     def create_or_reconfigure_attribute(
         self,
         name: str,
@@ -356,10 +406,15 @@ class BotData:
         Creates a new attribute or reconfigures an existing one.
         Used by mixin setup methods that may be called multiple times.
         Preserves metadata on reconfiguration.
+
+        This is a full re-installation of the configuration, so it discards any
+        pending snapshot: restore_attribute() must never resurrect an update
+        function the owner has since replaced.
         """
         self._static.pop(name, None)
         if name in self._managed:
             managed = self._managed[name]
+            managed._snapshot = None
             managed.update_function = update_function
             managed.threshold = threshold
             managed.error_handler = error_handler

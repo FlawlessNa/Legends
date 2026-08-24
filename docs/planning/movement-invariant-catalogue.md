@@ -87,21 +87,29 @@ mid-flight.
 | Id | Statement | Tier | Status |
 |---|---|---|---|
 | **D1 Cancel Safety** | For every cancel point `k` in `[0, n]`, the keys in `down(k-1)` that are not in `forced_key_releases` contain no non-directional key | Invariant | fails — [#26](https://github.com/FlawlessNa/Legends/issues/26) |
-| **D2 Preemption Direction Release** | After a Preemption, no direction key remains down | Invariant | fails — [#27](https://github.com/FlawlessNa/Legends/issues/27) |
+| **D2 Preemption Direction Release** | After a Preemption, no direction key remains down | Invariant | holds — fixed by [#27](https://github.com/FlawlessNa/Legends/issues/27) |
 
 **Cancel points are swept exhaustively** — every `k` from `0` to `n`, not
 sampled. An Input Sequence is tens of Steps and each check is a set operation
 over the already-derived Holds, so exhaustive is cheap and removes "did we
 sample the bad index" from every future failure discussion.
 
-**D2 is stated as an outcome, not a mechanism**, because the mechanism is
+**D2 was stated as an outcome, not a mechanism**, because the mechanism was
 [#24](https://github.com/FlawlessNa/Legends/issues/24)'s to choose.
 `forced_key_releases` cannot express it: it fires from a `finally`, so it runs on
 normal completion too, and putting directions in it would force a release at the
-end of every Continuation. Today only `cancel_callback` distinguishes the two,
-and only rotation wires one. If Main Process ends up tracking held keys
-authoritatively per handle, it can release directions on cancel centrally and
-the per-Action wiring disappears.
+end of every Continuation.
+
+[#27](https://github.com/FlawlessNa/Legends/issues/27) settled the mechanism as
+#24 predicted it would. The `focused_inputs` send loop releases every direction
+key the Held-Keys Ledger holds for the window on its cancellation path only, so
+the per-Action `cancel_callback` wiring — which only rotation ever had — is gone,
+along with `ActionRequest.cancel_callback` itself. Two properties follow from the
+release living in the send loop rather than in a task done-callback: it fires
+inside the focus-lock critical section, so it reaches the preempted client rather
+than whichever one the preempting Action has meanwhile brought to the foreground;
+and it reads the ledger, so it also clears a direction key an earlier
+Continuation carried over before this sequence delivered a Step of its own.
 
 ## Deliberately excluded
 

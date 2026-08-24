@@ -104,7 +104,9 @@ class ResetIdleSafeguard(
             initial_value=self._target_position,
         )
         self._create_pathing_attributes(movements_duration)
-        self.data.create_attribute("action", self._always_release_keys_on_actions)
+        # Positioning a mule must never carry a direction key past its sequence:
+        # nothing follows to release it. The dispatch-side compile consumes this.
+        self.data.always_release_keys = True
 
         self._feature = self.data.current_minimap.get_feature_containing(
             self._target_position
@@ -153,17 +155,27 @@ class ResetIdleSafeguard(
             self.pipe.send(
                 ActionRequest(
                     f"{self} - Jumping Out of Rope",
-                    random_jump(
-                        self.data.handle, controller.key_binds(self.data.ign)["jump"]
-                    ).send,
+                    self._random_jump,
                     ign=self.data.ign,
                     callbacks=[self.lock.release],
                     priority=priorities.MULE_POSITIONING,
                     block_lower_priority=True,
                     log=True,
+                    args=(
+                        self.data.handle,
+                        controller.key_binds(self.data.ign)["jump"],
+                    ),
                 )
             )
             await asyncio.sleep(1.0)
+
+    @staticmethod
+    async def _random_jump(handle: int, jump_key: str) -> None:
+        """
+        Called in Main Process as an ActionRequest procedure. `random_jump` releases
+        keys as it builds, so it may not be called from the Engine process.
+        """
+        await random_jump(handle, jump_key).send()
 
     async def _cast_skills_to_reset(self) -> None:
         """Required to remove the game safeguard"""
@@ -195,25 +207,18 @@ class ResetIdleSafeguard(
     async def _return_to_safe_spot(self) -> None:
         while not self._is_at_safe_spot():
             await asyncio.to_thread(self.lock.acquire)
-            self.data.update_attribute("action")
-            if self.data.action is not None:
-                action = self.data.action
-                for key in ["left", "up", "right", "left"]:
-                    if (
-                        key not in action.forced_key_releases
-                        and key in action.keys_held
-                    ):
-                        action.forced_key_releases.append(key)
-                print(action)
+            self.data.update_attribute("movements")
+            if self._has_movements():
                 self.pipe.send(
                     ActionRequest(
                         f"{self} - Returning to Safe Spot",
-                        self.data.action.send,
+                        controller.compile_and_send,
                         ign=self.data.ign,
                         callbacks=[self.lock.release],
                         priority=priorities.MULE_POSITIONING,
                         block_lower_priority=True,
                         log=True,
+                        args=(self.data.handle, self._movement_compiler()),
                     )
                 )
             else:

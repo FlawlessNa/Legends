@@ -4,6 +4,7 @@ It contains the necessary tool to establish one or multiple botting processes,
 and provides abstractions into how a bot should be structured and implemented.
 """
 
+import faulthandler
 import logging.handlers
 import multiprocessing
 import os
@@ -21,6 +22,16 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 current_process = multiprocessing.current_process()
+
+# Always-on, in every process. A hard crash (segfault, C-level abort in a native
+# dependency) never reaches the logging module, so the only trace it can leave is the
+# interpreter-level traceback faulthandler dumps to stderr.
+try:
+    faulthandler.enable()
+except (AttributeError, RuntimeError, ValueError):
+    # sys.stderr is None or has no file descriptor - the case under pythonw and some
+    # IDE runners. Nothing to dump to, so carry on without the crash tracebacks.
+    pass
 
 # Opt-in, debugger-only. Must happen before any thread or event loop exists.
 _install_debug_names()
@@ -48,16 +59,19 @@ if current_process.name == "MainProcess":
                     record.__dict__[attr] = record.__dict__[attr].ljust(30)
                 elif attr == "levelname":
                     record.__dict__[attr] = record.__dict__[attr].ljust(10)
+                elif attr == "taskName":
+                    # None whenever the record was emitted outside an asyncio task.
+                    record.__dict__[attr] = str(value or "-").ljust(30)
             return super().format(record)
 
     formatter = CustomFormatter(
         fmt=(
-            "{levelname} -- PROCESS {processName} -- MODULE {name} -- "
-            "{asctime}:::{message}"
+            "{levelname} -- PROCESS {processName} -- TASK {taskName} -- "
+            "MODULE {name} -- {asctime}:::{message}"
         ),
         style="{",
         # datefmt="%Y.%m.%d. %H:%M:%S:%f",
-    )  # TODO - If you ever switch to 3.12, then add TASK %(taskName)s to the formatter
+    )
 
     if not os.path.exists(os.path.join(ROOT, "logs")):
         os.mkdir(os.path.join(ROOT, "logs"))

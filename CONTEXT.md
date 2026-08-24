@@ -34,6 +34,24 @@ _Avoid_: Action ID — collides with the existing `ActionRequest` type.
 A subsystem that emits Telemetry Records via `emit_event()`. Movement is the
 first Producer; any `DecisionMaker` subclass can become one.
 
+**Log Bucket**:
+The text-log file a record is routed to, derived from its logger name — one of
+movement, inputs, decisions, or other, alongside a combined file carrying all
+four. A partition of the code by area, never by severity; every record belongs
+to exactly one Bucket.
+_Avoid_: Subsystem — used loosely across the codebase for any package, whereas
+a Log Bucket is specifically a routing destination.
+
+**Console Threshold**:
+The minimum severity a record must carry to appear on the live console, looked
+up per logger name. Independent of what the log files capture, which is always
+everything. Separates "do I want to watch this right now" from "how bad is
+this" — the two questions the retired per-module `LOG_LEVEL` constants
+conflated.
+_Avoid_: Log level — a record's severity and its console visibility are
+distinct dials, and one word for both is the confusion this term exists to
+prevent.
+
 ## Movement compilation
 
 **Path**:
@@ -57,11 +75,14 @@ _Avoid_: Action, structure, input structure — "Action" is a different thing
 (below), and `structure` is the local variable name, not the concept.
 
 **Action**:
-The request a DecisionMaker sends to Main Process asking it to execute an Input
-Sequence, carrying the priority and cancellation rules Main Process arbitrates
-by.
-_Avoid_: Using "action" for the Input Sequence itself — the `data.action`
-attribute holds an Input Sequence and is a misnomer.
+The request a DecisionMaker sends to Main Process asking it to execute something
+in a game client, carrying the priority and cancellation rules Main Process
+arbitrates by. A movement Action carries the Movement Plan plus the inputs
+needed to compile it, never a compiled Input Sequence — compilation happens at
+dispatch, inside the focus lock (ADR 0002).
+_Avoid_: Using "action" for the Input Sequence itself — the two were conflated
+by a `data.action` attribute that held an Input Sequence, now gone from the live
+path.
 
 **Step**:
 One position in an Input Sequence: the key or keys sent simultaneously at that

@@ -23,6 +23,9 @@ async def write_in_chat(
         raise ValueError(f"Channel {channel} not recognized.")
     key = mapping[channel]
 
+    # Stop whatever the character was doing before typing. This has to happen here,
+    # in Main Process, since the requesting DecisionMaker may not send input itself.
+    controller.release_all(handle)
     await controller.press(handle, key, silenced=silenced)
     await asyncio.sleep(0.5)
 

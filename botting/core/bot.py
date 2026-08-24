@@ -6,8 +6,11 @@ from functools import cached_property
 
 from botting.controller import release_keys
 from botting.utilities import client_handler
+from .action_data import ActionRequest
 from .bot_data import BotData
 from .decision_maker import DecisionMaker
+
+USER_REQUESTS_PRIORITY = 98  # Matches a user-issued request: pause comes from Discord.
 
 
 class Bot(ABC):
@@ -74,6 +77,8 @@ class Bot(ABC):
         """
         Pauses all DecisionMakers tasks.
         This can be overridden to provide custom behavior.
+        Runs inside the Engine process, which may not send input, so the movement keys
+        are dropped through an ActionRequest executed in Main Process instead.
         """
         for dm_class in self._decision_makers():
             for task in asyncio.all_tasks():
@@ -82,7 +87,24 @@ class Bot(ABC):
                     continue
                 elif name.startswith(dm_class.__name__):
                     task.cancel()
-        release_keys(['left', 'up', 'down', 'right'], self.data.handle)
+        self.pipe.send(
+            ActionRequest(
+                f"Releasing movement keys - {self.ign}",
+                self._release_movement_keys,
+                ign=self.ign,
+                priority=USER_REQUESTS_PRIORITY,
+                requeue_if_not_scheduled=False,
+                cancels_itself=True,
+                args=(self.data.handle,),
+            )
+        )
+
+    @staticmethod
+    async def _release_movement_keys(handle: int) -> None:
+        """
+        Called in Main Process as an ActionRequest procedure.
+        """
+        release_keys(['left', 'up', 'down', 'right'], handle)
 
     def resume(self) -> None:
         """

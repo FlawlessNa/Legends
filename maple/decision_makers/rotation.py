@@ -3,7 +3,6 @@ import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import time
-from functools import partial
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
 from maple.actions.movements_v2 import random_jump
@@ -122,37 +121,24 @@ class Rotation(
         if self.lock.acquire(blocking=False):
             logger.log(LOG_LEVEL, f"{self} is deciding.")
             self.data.update_attribute("next_target")
-            self.data.update_attribute("action")
-            if self.data.action is not None:
-                self.pipe.send(self._request(self.data.action))
+            self.data.update_attribute("movements")
+            if self._has_movements():
+                self.pipe.send(self._request())
             else:
                 self.lock.release()
 
-    def _request(self, inputs: controller.KeyboardInputWrapper) -> ActionRequest:
+    def _request(self) -> ActionRequest:
         # TODO - Could switch to requeue=False while ensuring that the lock is released.
         # This is because Telecasting will move the character, and the next action should
         # be based on the new position.
         return ActionRequest(
             f"{self}",
-            inputs.send,
+            controller.compile_and_send,
             ign=self.data.ign,
             requeue_if_not_scheduled=False,
             callbacks=[self.lock.release],
-            cancel_callback=partial(self._release_left_right, self.data.handle),
+            args=(self.data.handle, self._movement_compiler()),
         )
-
-    @staticmethod
-    def _release_left_right(handle: int, fut: asyncio.Future) -> None:
-        if not fut.cancelled():
-            return
-        held = list(
-            filter(
-                lambda i: i in ["left", "right"],
-                controller.get_held_movement_keys(handle),
-            )
-        )
-        if held:
-            controller.release_keys(held, handle)
 
     def _failsafe_request(self, disc_msg: str = None) -> ActionRequest:
         alert = (

@@ -329,6 +329,11 @@ def teleport(
 
 
 def random_jump(handle: int, jump_key: str) -> controller.KeyboardInputWrapper:
+    """
+    Builds a jump in a random direction, releasing whatever is currently held first.
+    That release is sent immediately, so this must be called from Main Process - build
+    it inside the ActionRequest procedure rather than when composing the request.
+    """
     direction = random.choice(["left", "right"])
     controller.release_all(handle)
     structure = single_jump(handle, direction, jump_key)

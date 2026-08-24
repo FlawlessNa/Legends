@@ -71,6 +71,15 @@ arbitrary Step inside its send loop.
 - Per-instance compile caches stop mattering on the live path; compilation
   (pure list-building) now runs inside the focus-lock critical section,
   which costs microseconds.
+- Delivered by #30: `controller.compile_and_send` is the live path's
+  ActionRequest procedure. The compile is a picklable callable over plain data
+  (`compile_movements`; `cast_skill_compiler` for skill casts) invoked *inside*
+  `focused_inputs`, after focus is acquired, so it shares the send loop's
+  critical section and its cancellation handling rather than opening a second
+  one. `data.action` and `_always_release_keys_on_actions` left the live path,
+  the latter surviving as an `always_release` compile flag.
 - Central preemption cleanup (releasing directions on cancel from the
   ledger, replacing per-Action `cancel_callback` wiring) becomes possible —
-  the mechanism issue #27 anticipated.
+  the mechanism issue #27 anticipated. Delivered by #27: the release sits on
+  the `focused_inputs` cancellation path, inside the same critical section,
+  and `ActionRequest.cancel_callback` is gone.

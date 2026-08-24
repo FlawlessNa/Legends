@@ -2,7 +2,6 @@ import random
 import multiprocessing.connection
 import multiprocessing.managers
 
-from botting import controller
 from botting.core import ActionRequest, BotData, DiscordRequest
 from botting.utilities import cooldown
 from maple.actions import write_in_chat, priorities
@@ -69,4 +68,3 @@ class ReactionsMixin:
                 discord_request=disc_alert
             )
         )
-        controller.release_keys(['left', 'right', 'up', 'down'], self.data.handle)

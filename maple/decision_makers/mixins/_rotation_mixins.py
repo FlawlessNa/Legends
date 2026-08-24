@@ -1,3 +1,4 @@
+import functools
 import itertools
 import logging
 import math
@@ -8,6 +9,7 @@ from botting import PARENT_LOG
 from botting.core import BotData
 from maple.model.mechanics import (
     MovementHandler,
+    compile_movements,
 )
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -121,12 +123,24 @@ class NextTargetMixin:
         Move to the location where the buffs are cast.
         """
         if self.data.has_rotation_attributes:
-            # Overwrite how the next_target attribute is set until the rebuff is done
+            # Overwrite how the next_target attribute is set until the rebuff is done.
+            # Snapshot first: the hijack is undone by restoring the rotation owner's
+            # exact update function. Re-deriving it with _create_rotation_attributes
+            # from here would rebind it to *this* DecisionMaker instead.
+            self.data.snapshot_attribute("next_target")
             self.data.reconfigure_attribute(
                 "next_target",
                 update_function=lambda: target,
             )
             self._reset_flag = True
+
+    def _restore_rotation_target(self) -> None:
+        """
+        Undoes a next_target hijack, putting back the update function installed by
+        whichever DecisionMaker owns the rotation.
+        """
+        if self.data.has_rotation_attributes:
+            self.data.restore_attribute("next_target")
 
     def _smart_rotation_target(self) -> tuple[int, int]:
         """
@@ -267,25 +281,39 @@ class MovementsMixin:
             ),
             threshold=0.1,
         )
-        self.data.create_or_reconfigure_attribute(
-            "action",
-            lambda: self.data.movement_handler.movements_into_action(
-                self.data.movements,
-                self.data.current_grid,
-                duration,
-                # getattr(self.data, "speed_multiplier", 1.0),
-            ),
-        )
+        # No compiled `action` attribute: nothing is compiled in this process any
+        # more. A DecisionMaker decides from `movements` and ships the plan, which
+        # Main Process compiles at dispatch against the Held-Keys Ledger (ADR 0002).
+        self.data.set_static("always_release_keys", False)
         self.data.set_feature("has_pathing_attributes")
 
-    def _always_release_keys_on_actions(self):
-        actions = self.data.movement_handler.movements_into_action(
-            self.data.movements,
-            self.data.current_grid,
-            self.data.action_duration,
+    def _has_movements(self) -> bool:
+        """
+        Whether the current Movement Plan compiles to anything at all. A plan holding
+        nothing but the END_OF_MOVEMENT sentinel produces no Input Sequence - this is
+        the live replacement for the old `data.action is not None` check, which could
+        only be made by compiling first.
+        """
+        movements = self.data.movements
+        return movements is not None and len(movements) > 1
+
+    def _movement_compiler(self) -> functools.partial:
+        """
+        Freezes the compile inputs for the current Movement Plan into a picklable
+        callable, to be handed to `controller.compile_and_send` inside an
+        ActionRequest. Main Process calls it with the Held-Keys Ledger's entry for
+        this handle, from inside the focus-lock critical section.
+
+        `MovementHandler` itself cannot travel: its per-instance `lru_cache` wrappers
+        are unpicklable, and the grid is only consulted for its speed.
+        """
+        return functools.partial(
+            compile_movements,
+            movements=self.data.movements,
+            handle=self.data.handle,
+            ign=self.data.ign,
+            speed=self.data.current_grid.speed,
+            teleport=self.data.character.skills.get("Teleport"),
+            total_duration=self.data.action_duration,
+            always_release=self.data.always_release_keys,
         )
-        if actions is not None:
-            for key in actions.keys_held:
-                if key not in actions.forced_key_releases:
-                    actions.forced_key_releases.append(key)
-        return actions

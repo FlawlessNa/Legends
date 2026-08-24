@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
@@ -12,7 +13,7 @@ from botting.utilities import (
     CLIENT_HORIZONTAL_MARGIN_PX,
     CLIENT_VERTICAL_MARGIN_PX,
 )
-from maple.actions.skills_related_v2 import cast_skill
+from maple.actions.skills_related_v2 import cast_skill_compiler
 from maple.model.interface import LargeClientChatFeed
 from maple.model.characters import MapleSkill
 from .mixins import MobsHittingMixin, MinimapAttributesMixin, NextTargetMixin
@@ -58,7 +59,16 @@ class MobsHitting(
         Function to use to update the current on screen position of the character.
         :return:
         """
-        inputs = cast_skill(self.data.handle, self.data.ign, self.training_skill)
+        compiler = functools.partial(
+            cast_skill_compiler,
+            handle=self.data.handle,
+            ign=self.data.ign,
+            skill=self.training_skill,
+        )
+        # The sequence `cast_skill` builds runs for the skill's animation time by
+        # construction, plus a short direction prelude - so the cap is known here,
+        # without compiling. Doubled, as it was when it read the compiled duration.
+        timeout = 2 * self.training_skill.animation_time + 1.0
 
         return ActionRequest(
             f"{self}",
@@ -70,21 +80,26 @@ class MobsHitting(
             callbacks=[self.lock.release],
             # cancels_itself=True,
             log=True,
-            args=(inputs,),
+            args=(self.data.handle, compiler, timeout),
         )
 
     @staticmethod
-    async def _cap_duration(  # TODO - If this works, cleanup.
-        inputs: controller.KeyboardInputWrapper,
+    async def _cap_duration(
+        handle: int, compiler: callable, timeout: float
     ) -> None:
         """
-        Function to use to update the current on screen position of the character.
-        :return:
+        Compiles the cast at dispatch (so it sees this client's held keys, read from
+        the Held-Keys Ledger inside the focus lock) and caps how long it may run.
         """
         try:
-            await asyncio.wait_for(inputs.send(), timeout=inputs.duration * 2)
+            await asyncio.wait_for(
+                controller.compile_and_send(handle, compiler), timeout=timeout
+            )
         except asyncio.TimeoutError:
-            breakpoint()
+            logger.error(
+                f"Skill cast on handle {handle} exceeded its {timeout:.2f}s cap "
+                f"and was cancelled."
+            )
 
     def _get_skill_from_str(self, skill_str: str) -> MapleSkill:
         if skill_str:

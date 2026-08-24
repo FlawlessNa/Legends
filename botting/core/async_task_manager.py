@@ -32,6 +32,10 @@ class AsyncTaskManager:
                 logger.info("Received None from the queue. Exiting Task Manager.")
                 break
             elif isinstance(action_request, BaseException):
+                logger.error(
+                    "Received an exception from the queue. Exiting Task Manager.",
+                    exc_info=action_request,
+                )
                 break
 
             await self._process_request(action_request)
@@ -107,8 +111,6 @@ class AsyncTaskManager:
         if request.callbacks:
             for cb in request.callbacks:
                 request.task.add_done_callback(self.cb_wrapper(cb))
-        if request.cancel_callback is not None:
-            request.task.add_done_callback(request.cancel_callback)
         self.running_tasks[request.identifier] = request
 
     def _cleanup_handler(self, fut):
@@ -117,7 +119,8 @@ class AsyncTaskManager:
             exception = fut.exception()
             if exception:
                 logger.error(
-                    f"Exception occurred in task {fut.get_name()}: {exception}"
+                    f"Exception occurred in task {fut.get_name()}: {exception}",
+                    exc_info=exception,
                 )
                 self.queue.put_nowait(None)
                 raise exception

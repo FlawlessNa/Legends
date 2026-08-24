@@ -1,2 +1,2 @@
 from .maple_map import MapleMap
-from .movement_mechanics_v2 import MovementHandler
+from .movement_mechanics_v2 import MovementHandler, compile_movements
