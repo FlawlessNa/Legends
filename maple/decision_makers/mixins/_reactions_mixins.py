@@ -1,6 +1,6 @@
 import random
-import multiprocessing.connection
 import multiprocessing.managers
+from collections.abc import Callable
 
 from botting.core import ActionRequest, BotData, DiscordRequest
 from botting.utilities import cooldown
@@ -13,7 +13,7 @@ class ReactionsMixin:
     """
     data: BotData
     metadata: multiprocessing.managers.DictProxy
-    pipe: multiprocessing.connection.Connection
+    send: Callable[[ActionRequest], None]
 
     _light_reactions = [
         "wtf",
@@ -57,7 +57,7 @@ class ReactionsMixin:
 
         selected = random.choice(choices)
         choices.remove(selected)
-        self.pipe.send(
+        self.send(
             ActionRequest(
                 f"{self} - Writing to chat",
                 write_in_chat,

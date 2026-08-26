@@ -18,7 +18,7 @@ from .inputs.held_keys_ledger import (
 )
 
 from .inputs.non_focused_inputs import non_focused_input, message_constructor
-from .inputs.inputs_helpers import random_delay, KEYBOARD_MAPPING
+from .inputs.inputs_helpers import DELAY, OVERHEAD, random_delay, KEYBOARD_MAPPING
 
 from .high_level import (
     click,

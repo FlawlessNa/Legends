@@ -38,13 +38,12 @@ class TelecastMobsHitting(MovementsMixin, MobsHitting):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._teleport_skill = self.data.character.skills["Teleport"]
-        self._teleport_key = self._teleport_skill.key_bind(self.data.ign)
 
     def _teleport_in_movement_plan(self) -> bool:
         """
         Whether the Movement Plan about to be dispatched holds any teleport.
 
-        Replaces `self._teleport_key in self.data.action.keys`, a question that can
+        Replaces `teleport_key in self.data.action.keys`, a question that can
         only be asked of a compiled Input Sequence - and nothing is compiled in this
         process any more (ADR 0002). The two are equivalent: the teleport key reaches
         an Input Sequence only through `movements_v2.teleport`, which
@@ -70,7 +69,7 @@ class TelecastMobsHitting(MovementsMixin, MobsHitting):
             movement_compiler=self._movement_compiler(),
             handle=self.data.handle,
             ign=self.data.ign,
-            teleport_key=self._teleport_key,
+            teleport_skill=self._teleport_skill,
             ultimate_skill=self.training_skill,
         )
         return self._cast_request(compiler)

@@ -11,6 +11,8 @@ from .engine import Engine
 from .peripherals_process import PeripheralsProcess
 from botting.communications import BaseParser
 from botting.controller import HeldKeysLedger, release_all
+from botting.logging_config import PARENT_LOG, new_session_dir
+from botting.telemetry import TELEMETRY_FILENAME, TelemetryHandler
 from botting.utilities import install_loop_diagnostics
 
 logger = logging.getLogger(__name__)
@@ -64,9 +66,23 @@ class SessionManager:
             discord_pipe=self.peripherals.pipe_main_proc,
         )
 
+        # One Session, one directory - text logs and telemetry alike. Built here
+        # rather than in __enter__ because the QueueListener below snapshots the
+        # parent logger's handlers at construction: attach the sink after that
+        # and every Telemetry Record emitted in a child process reaches nothing.
+        self.session_dir = new_session_dir()
+        self.telemetry_handler = TelemetryHandler(
+            self.session_dir / TELEMETRY_FILENAME
+        )
+        logging.getLogger(PARENT_LOG).addHandler(self.telemetry_handler)
+
         self.log_receiver = logging.handlers.QueueListener(
             self.metadata["logging_queue"],
-            *logger.parent.handlers,
+            # Named explicitly rather than reached through `logger.parent`: this
+            # module's parent resolves to `botting` only for as long as no
+            # `botting.core` logger object exists, and the moment one does, the
+            # listener would silently be built with zero handlers.
+            *logging.getLogger(PARENT_LOG).handlers,
             respect_handler_level=True,
         )
 
@@ -122,6 +138,11 @@ class SessionManager:
         logger.debug("Stopping Log listener.")
         logger.info("SessionManager exited.")
         self.log_receiver.stop()
+
+        # After stop(), so records still in flight from a child process land in
+        # the JSONL file rather than on a closed stream.
+        logging.getLogger(PARENT_LOG).removeHandler(self.telemetry_handler)
+        self.telemetry_handler.close()
 
         for engine in self.engines:
             engine.join(timeout=2)

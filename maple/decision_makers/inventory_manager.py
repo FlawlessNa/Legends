@@ -180,7 +180,7 @@ class InventoryManager(
 
     async def _trigger_procedure(self) -> None:
         if self._cleanup_procedure == INVENTORY_DISCORD_ALERT:
-            self.pipe.send(self._discord_alert())
+            self.send(await self._discord_alert())
         else:
             self._disable_decision_makers(
                 "MobsHitting",
@@ -348,7 +348,7 @@ class InventoryManager(
         # Use door image from game files and find a matchTemplate threshold acceptable
         # Create a PORTAL connection to (0, 0) and attempt to move there
         await asyncio.to_thread(self._condition.acquire)
-        self.pipe.send(
+        self.send(
             ActionRequest(
                 f"{self} - Casting Door",
                 cast_skill_single_press,
@@ -436,7 +436,7 @@ class InventoryManager(
     async def _toggle_npc_shop(self, opening: bool = True) -> None:
         key = controller.key_binds(self.data.ign)["NPC Chat"] if opening else "escape"
         await asyncio.to_thread(self._condition.acquire)
-        self.pipe.send(
+        self.send(
             ActionRequest(
                 f"{self} - Toggling NPC Shop {opening}",
                 controller.press,
@@ -455,7 +455,7 @@ class InventoryManager(
         if np.count_nonzero(binary_img) < 10:
             await asyncio.to_thread(self._condition.acquire)
             target = box.random()
-            self.pipe.send(
+            self.send(
                 ActionRequest(
                     f"{self} - Opening NPC Shop",
                     controller.mouse_move_and_click,
@@ -477,7 +477,7 @@ class InventoryManager(
     async def _click_on_first_item(self):
         box = self.FIRST_SLOT_SHOP_OFFSET + self._open_shop_box
         await asyncio.to_thread(self._condition.acquire)
-        self.pipe.send(
+        self.send(
             ActionRequest(
                 f"{self} - Clicking on First Item",
                 controller.mouse_move_and_click,
@@ -501,7 +501,7 @@ class InventoryManager(
     async def _mouse_move_to_sell_button(self):
         button = self.SELL_BUTTON_OFFSET + self._open_shop_box
         await asyncio.to_thread(self._condition.acquire)
-        self.pipe.send(
+        self.send(
             ActionRequest(
                 f"{self} - Moving to Sell Button",
                 controller.mouse_move,
@@ -514,7 +514,7 @@ class InventoryManager(
 
     async def _click_on_sell_button(self):
         await asyncio.to_thread(self._condition.acquire)
-        self.pipe.send(
+        self.send(
             ActionRequest(
                 f"{self} - Clicking on Sell Button",
                 controller.click,
@@ -528,7 +528,7 @@ class InventoryManager(
 
     async def _confirm_sale(self):
         await asyncio.to_thread(self._condition.acquire)
-        self.pipe.send(
+        self.send(
             ActionRequest(
                 f"{self} - Clicking on Sell Button",
                 controller.press,

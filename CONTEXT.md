@@ -24,15 +24,35 @@ _Avoid_: Log entry, event log — both blur the record/narrative-log
 distinction this concept exists to make.
 
 **Correlation ID**:
-A `uuid.uuid4()` generated once at the top of the `DecisionMaker._decide()`
-call that triggered a chain of behavior, and passed explicitly to every
-Telemetry Record emitted as a result — ties a decision to whatever it caused
-(e.g. a resulting movement action) into one traceable chain.
-_Avoid_: Action ID — collides with the existing `ActionRequest` type.
+A `uuid.uuid4()` identifying one `DecisionMaker._decide()` call, and carried by
+every Telemetry Record that call caused — including the ones emitted in Main
+Process once the resulting action is dispatched. Ties a decision to what it
+caused into one traceable chain. Its span is exactly that one call: a behaviour
+pursued across several consecutive calls is several Correlation IDs, stitched
+back together offline by the analyzer rather than at runtime. A record with no
+originating decision (Session startup, listener lifecycle) carries no
+Correlation ID at all.
+_Avoid_: Action ID — collides with the existing `ActionRequest` type. Also
+avoid calling a multi-call behaviour "one correlation" — that unit is an
+Attempt, and it is the analyzer's to reconstruct.
 
 **Producer**:
 A subsystem that emits Telemetry Records via `emit_event()`. Movement is the
 first Producer; any `DecisionMaker` subclass can become one.
+
+**Event Type**:
+The stable, semantic name of what a Telemetry Record describes — a dotted
+`<area>.<event>` string, where the area is a behaviour domain an analyzer would
+filter a Session on (movement, rotation, recovery, inventory, rebuff, combat,
+session). Deliberately redundant with `logger_name`: that field is a Python
+module path, ideal for routing to a Log Bucket but churning whenever a file
+moves, whereas an Event Type is the grouping key the offline analyzer is
+written against, so it must outlive refactors. Governed by convention rather
+than validated at runtime — telemetry is never allowed to raise inside a
+Producer. Additive only: new Event Types are added freely, existing ones are
+never removed or repurposed.
+_Avoid_: Event name, log type — both suggest a label chosen per call site,
+whereas an Event Type is a shared vocabulary the analyzer is written against.
 
 **Log Bucket**:
 The text-log file a record is routed to, derived from its logger name — one of
@@ -115,13 +135,20 @@ _Avoid_: held-keys state, keys sent — the historical set of every key ever
 sent answers a different question than what is down right now.
 
 **Telecast**:
-A movement and a skill cast performed as one: the ultimate's key is fused into
-every teleport keydown Step of a compiled Input Sequence, so the character casts
-while it blinks. A post-processing pass over a finished Input Sequence rather
-than a builder — it runs at dispatch, wrapped around the movement compiler, and
-truncates the result to the skill's animation time.
+A movement and a skill cast performed as one: the teleport and the ultimate are
+pressed together, released, and pressed again one teleport animation later, so
+the character casts while it blinks. A post-processing pass over a finished Input
+Sequence rather than a builder — it runs at dispatch, wrapped around the movement
+compiler, and truncates the result to the skill's animation time.
 _Avoid_: Telecast movement, teleport-cast — telecasting produces no movement of
-its own, it rewrites one that was already compiled.
+its own, it rebuilds one that was already compiled.
+
+**Teleport region**:
+A maximal run of consecutive Steps carrying the teleport key alone — what a
+`TELEPORT_*` component compiles to, and the unit a Telecast replaces. Its own
+duration is the budget the replacement has to spend, so nothing outside the
+compiled Input Sequence is needed to rebuild it.
+_Avoid_: Teleport block, teleport chunk.
 
 ## Movement checking
 

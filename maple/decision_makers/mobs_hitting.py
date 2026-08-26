@@ -82,8 +82,9 @@ class MobsHitting(
         The sequence `cast_skill` builds runs for the skill's animation time by
         construction, plus a short direction prelude - so the cap is known here,
         without compiling. Doubled, as it was when it read the compiled duration.
-        The same cap covers a telecast: `telecast` truncates its fused sequence to
-        that very animation time, so the two agree by construction.
+        The same cap covers a telecast: `telecast` truncates its rebuilt sequence to
+        that very animation time. The cut lands on a paired-press boundary, so it can
+        overshoot by up to one teleport animation - still well inside the doubled cap.
         """
         timeout = 2 * self.training_skill.animation_time + 1.0
 
@@ -255,6 +256,6 @@ class MobsHitting(
                         on_screen_pos, mask
                     )
                 logger.log(LOG_LEVEL, f"{self} is about to hit {nbr_mobs} mobs.")
-                self.pipe.send(self._hit_mobs(closest_mob_direction))
+                self.send(self._hit_mobs(closest_mob_direction))
                 return
         await asyncio.to_thread(self.lock.release)

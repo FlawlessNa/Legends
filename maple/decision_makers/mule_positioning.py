@@ -49,7 +49,7 @@ class EnsureSafeSpot(MinimapAttributesMixin, DecisionMaker):
     @cooldown(60)
     def _send_alert(self):
         logger.log(LOG_LEVEL, f"{self.data.ign} has been moved!")
-        self.pipe.send(self._discord_alert())
+        self.send(self._discord_alert())
 
     def _discord_alert(self) -> ActionRequest:
         """
@@ -152,7 +152,7 @@ class ResetIdleSafeguard(
         num_jumps = random.randint(2, 4)
         for _ in range(num_jumps):
             await asyncio.to_thread(self.lock.acquire)
-            self.pipe.send(
+            self.send(
                 ActionRequest(
                     f"{self} - Jumping Out of Rope",
                     self._random_jump,
@@ -180,7 +180,7 @@ class ResetIdleSafeguard(
     async def _cast_skills_to_reset(self) -> None:
         """Required to remove the game safeguard"""
         await asyncio.to_thread(self.lock.acquire)
-        self.pipe.send(
+        self.send(
             ActionRequest(
                 f"{self} - Casting Random Buff",
                 self._cast_skills_single_press,
@@ -209,7 +209,7 @@ class ResetIdleSafeguard(
             await asyncio.to_thread(self.lock.acquire)
             self.data.update_attribute("movements")
             if self._has_movements():
-                self.pipe.send(
+                self.send(
                     ActionRequest(
                         f"{self} - Returning to Safe Spot",
                         controller.compile_and_send,

@@ -123,7 +123,7 @@ class Rotation(
             self.data.update_attribute("next_target")
             self.data.update_attribute("movements")
             if self._has_movements():
-                self.pipe.send(self._request())
+                self.send(self._request())
             else:
                 self.lock.release()
 

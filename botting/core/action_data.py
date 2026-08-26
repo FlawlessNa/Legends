@@ -45,6 +45,10 @@ class ActionRequest:
     args: tuple = field(default_factory=tuple)
     kwargs: dict = field(default_factory=dict)
 
+    # Identifies the DecisionMaker._decide() call this request originated from.
+    # Stamped at send time by DecisionMaker.send(); None when no decision caused it.
+    correlation_id: str | None = field(default=None)
+
     def __lt__(self, other):
         """
         Used by the PriorityQueue to determine the order of tasks.
@@ -80,12 +84,14 @@ class ActionWithValidation:
         condition: multiprocessing.Condition,
         timeout: float,
         max_trials: int = 10,
+        correlation_id: str | None = None,
     ):
         self.pipe = pipe
         self.validator = validator
         self.condition = condition
         self.timeout = timeout
         self.max_trials = max_trials
+        self.correlation_id = correlation_id
 
         self.trials = 0
 
@@ -123,6 +129,8 @@ class ActionWithValidation:
 
     def _send_and_wait(self, action: ActionRequest, started_at: float) -> None:
         with self.condition:
+            # Re-stamped on every attempt: the retry loop re-sends the same object.
+            action.correlation_id = self.correlation_id
             self.pipe.send(action)
             logger.info(
                 f"Sent {action.identifier} to Main Process with the condition "

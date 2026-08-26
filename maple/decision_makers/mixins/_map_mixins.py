@@ -3,6 +3,7 @@ import multiprocessing.connection
 import multiprocessing.managers
 import time
 import win32gui
+from collections.abc import Callable
 
 from maple.actions import ensure_minimap_displayed
 from botting import PARENT_LOG, controller
@@ -17,6 +18,7 @@ class MinimapAttributesMixin:
     data: BotData
     metadata: multiprocessing.managers.DictProxy
     pipe: multiprocessing.connection.Connection
+    send: Callable[[ActionRequest], None]
     _proxies: ProxyFactory
     MINIMAP_POS_REFRESH_RATE = 0.1
     ERROR_HANDLING_TIME_LIMIT = 7.5
@@ -103,7 +105,7 @@ class MinimapAttributesMixin:
             args=(self.data.handle, (x, y)),
             cancels_itself=True
         )
-        self.pipe.send(request)
+        self.send(request)
 
     def _create_minimap_attributes(self) -> None:
         ensure_minimap_displayed(

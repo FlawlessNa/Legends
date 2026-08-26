@@ -89,7 +89,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         :return:
         """
         to_cast = [self.data.character.skills[buff] for buff in remaining_buffs]
-        self.pipe.send(
+        self.send(
             ActionRequest(
                 f"{self} - {remaining_buffs}",
                 self._cast_skills_single_press,

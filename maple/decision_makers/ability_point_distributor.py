@@ -84,5 +84,6 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
             == 0,
             self.condition,
             60.0,
+            correlation_id=self.correlation_id,
         )
         validated_action.execute_blocking(request)

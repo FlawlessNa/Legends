@@ -66,7 +66,7 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
         self.num_usage. # TODO
         """
         if self.num_usage > 0:
-            self.pipe.send(
+            self.send(
                 ActionRequest(
                     f"{self}",
                     controller.press,

@@ -318,39 +318,141 @@ def _has_keydown(structure: controller.KeyboardInputWrapper, key: str) -> bool:
     return False
 
 
+def _teleport_regions(
+    structure: controller.KeyboardInputWrapper, teleport_key: str
+) -> dict[int, int]:
+    """
+    The teleport regions of a compiled Input Sequence, as `{start: stop}` half-open
+    Step index ranges - each a maximal run of consecutive Steps carrying
+    `teleport_key` on its own.
+
+    A run absorbs an explicit keyup sitting against the keydowns (the shape `teleport`
+    builds when handed a `repeat_key`), so a rebuild that presses and releases the key
+    itself leaves no phantom release behind it. A run holding no keydown is not a
+    region: nothing there was ever pressed to fuse a cast into.
+    """
+    runs = []
+    start = None
+    for idx, key in enumerate(structure.keys):
+        if key == teleport_key:
+            if start is None:
+                start = idx
+        elif start is not None:
+            runs.append((start, idx))
+            start = None
+    if start is not None:
+        runs.append((start, len(structure.keys)))
+    return {
+        start: stop
+        for start, stop in runs
+        if "keydown" in structure.events[start:stop]
+    }
+
+
+def _append_telecast_taps(
+    structure: controller.KeyboardInputWrapper,
+    teleport_key: str,
+    ultimate_key: str,
+    budget: float,
+    cadence: float,
+) -> None:
+    """
+    Appends paired presses of the teleport and ultimate keys, one per `cadence`, for
+    as long as `budget` lasts.
+
+    A tap is a down of both keys together, an up of both together, and then a wait for
+    the teleport animation - carried as the delay on the keyup Step, so the gap is a
+    single Step rather than a fill. That is the whole point of the rebuild: a key that
+    stays down does not resume auto-repeating once another press has happened, so
+    filling the gap would fabricate a repeat run the game never produces from a human.
+    The direction key stays down across the gap; only its repeating is gone.
+
+    At least one tap is always emitted, and the last one is shortened to whatever
+    budget is left rather than overrunning the region.
+    """
+    remaining = budget
+    while True:
+        press = next(controller.random_delay)
+        gap = min(cadence, remaining) - press - 2 * controller.OVERHEAD
+        if gap <= 0:
+            # Cadence shorter than a single down/up: no room to wait, tap and move on.
+            gap = next(controller.random_delay)
+        structure.append([teleport_key, ultimate_key], ["keydown", "keydown"], press)
+        structure.append([teleport_key, ultimate_key], ["keyup", "keyup"], gap)
+        remaining -= press + gap + 2 * controller.OVERHEAD
+        if remaining < controller.DELAY:
+            # Too little left to hold another press - and below the float noise the
+            # subtraction above leaves behind.
+            return
+
+
 def telecast(
     structure: controller.KeyboardInputWrapper,
     ign: str,
-    teleport_key: str,
+    teleport_skill: Skill,
     ultimate_skill: Skill,
 ) -> controller.KeyboardInputWrapper:
     """
     Fuses an ultimate cast into an already-compiled Input Sequence.
 
     Unlike the builders above, this does not extend a structure: it walks a finished
-    one and rewrites every teleport keydown Step into a simultaneous
-    `[teleport_key, ultimate_key]` Step, so the character casts while it blinks. The
-    result is truncated to the ultimate's animation time - past that the cast is over,
-    and the rest of the movement belongs to whatever the bot decides next.
+    one and **rebuilds its teleport regions**, so the character casts while it blinks.
+    Every other Step is copied through untouched. The result is truncated to the
+    ultimate's animation time - past that the cast is over, and the rest of the
+    movement belongs to whatever the bot decides next.
 
-    The ultimate key is declared for forced release. Like the teleport key, it is a
-    non-directional key that stays down to the end of the sequence, so **A2 Terminal
-    Release** and **D1 Cancel Safety** rest entirely on that declaration.
+    This used to rewrite each teleport keydown in place into a simultaneous
+    `[teleport_key, ultimate_key]` Step. Those keydowns are a `fill` at the input
+    cadence, which is faithful for a *held* teleport key but not for a fused pair:
+    nothing a human does presses a second key thirty times a second. Spy++ settles
+    what is really being imitated - only the last key pressed auto-repeats, and
+    auto-repeat never comes back to a key still held once another press has happened -
+    so telecasting is re-pressing both keys together to keep teleporting while the
+    ultimate casts. The cadence is the teleport's own `animation_time`, which also
+    keeps the plan's distance intent: `teleport` budgets `animation_time * num_times`,
+    so one press per cadence yields exactly `num_times` teleports.
+
+    The ultimate key is declared for forced release. Each tap now closes its Hold
+    inside the sequence, so **A2 Terminal Release** and **D1 Cancel Safety** no longer
+    rest on that declaration alone - but a truncation landing between a tap's down and
+    its up still does, and the forced volley only fires for keys the Held-Keys Ledger
+    reports down, so declaring it stays free.
 
     :param structure: A compiled Input Sequence carrying at least one teleport keydown.
-    :param ign: The character's in-game name, used to resolve the ultimate's key bind.
-    :param teleport_key: The key every teleport keydown Step carries.
-    :param ultimate_skill: The skill to fuse into those Steps.
-    :return: A new, truncated Input Sequence carrying the fused Steps.
+    :param ign: The character's in-game name, used to resolve both key binds.
+    :param teleport_skill: The teleport being cast through; its `animation_time` is the
+        re-press cadence.
+    :param ultimate_skill: The skill to fuse into the teleport regions.
+    :return: A new, truncated Input Sequence carrying the rebuilt regions.
     """
+    teleport_key = teleport_skill.key_bind(ign)
     ultimate_key = ultimate_skill.key_bind(ign)
-    if ultimate_key not in structure.forced_key_releases:
-        structure.forced_key_releases.append(ultimate_key)
-    for idx, (key, event) in enumerate(zip(structure.keys, structure.events)):
-        if key == teleport_key and event == "keydown":
-            structure.keys[idx] = [teleport_key, ultimate_key]
-            structure.events[idx] = ["keydown", "keydown"]
-    return structure.truncate(ultimate_skill.animation_time)
+    result = controller.KeyboardInputWrapper(
+        structure.handle,
+        forced_key_releases=structure.forced_key_releases,
+        initial_held_keys=structure.initial_held_keys,
+    )
+    if ultimate_key not in result.forced_key_releases:
+        result.forced_key_releases.append(ultimate_key)
+
+    regions = _teleport_regions(structure, teleport_key)
+    idx = 0
+    while idx < len(structure.keys):
+        stop = regions.get(idx)
+        if stop is None:
+            result.append(
+                structure.keys[idx], structure.events[idx], structure.delays[idx]
+            )
+            idx += 1
+            continue
+        # The region's own duration is the budget: everything the rebuild needs is
+        # already in the compiled sequence.
+        budget = sum(structure.delays[idx:stop]) + controller.OVERHEAD * (stop - idx)
+        _append_telecast_taps(
+            result, teleport_key, ultimate_key, budget, teleport_skill.animation_time
+        )
+        idx = stop
+    return result.truncate(ultimate_skill.animation_time)
 
 
 def telecast_compiler(
@@ -361,7 +463,7 @@ def telecast_compiler(
     ],
     handle: int,
     ign: str,
-    teleport_key: str,
+    teleport_skill: Skill,
     ultimate_skill: Skill,
 ) -> controller.KeyboardInputWrapper | None:
     """
@@ -379,18 +481,26 @@ def telecast_compiler(
     keeps this module free of any dependency on the mechanics layer (which imports
     it) and lets the caller freeze the plan exactly as rotation does.
 
+    That seam survives `telecast` becoming a rebuild rather than an in-place rewrite:
+    a region is still found in the compiled sequence, and its budget is still the
+    region's own duration. The one thing the rebuild needs that no Input Sequence
+    carries is the re-press cadence, and that arrives here as the teleport `Skill`
+    rather than its key bind alone - a wider parameter at the wrapper, not a wider
+    contract on the compiler it decorates.
+
     :param initial_held_keys: Movement keys held at dispatch, from the Held-Keys
         Ledger. Handed straight to the inner compiler, and to the fallback cast.
     :param movement_compiler: The compiler whose Input Sequence gets fused - in
         practice a `compile_movements` partial over the current Movement Plan.
     :param handle: The client window the sequence targets, for the fallback cast.
     :param ign: The character's in-game name.
-    :param teleport_key: The key a teleport keydown Step carries.
+    :param teleport_skill: The teleport whose regions get rebuilt; supplies both the
+        key a teleport keydown Step carries and the re-press cadence.
     :param ultimate_skill: The skill to fuse in.
     :return: The fused Input Sequence, or a plain cast when there is nothing to fuse.
     """
     structure = movement_compiler(initial_held_keys)
-    if structure is None or not _has_keydown(structure, teleport_key):
+    if structure is None or not _has_keydown(structure, teleport_skill.key_bind(ign)):
         # Reachable even when the Movement Plan holds teleports: `total_duration` can
         # truncate the compile before the first teleport component is built. Casting
         # in place still hits the mobs, which is what this DecisionMaker is for.
@@ -398,7 +508,7 @@ def telecast_compiler(
         return cast_skill(
             handle, ign, ultimate_skill, initial_held_keys=initial_held_keys
         )
-    return telecast(structure, ign, teleport_key, ultimate_skill)
+    return telecast(structure, ign, teleport_skill, ultimate_skill)
 
 
 def random_jump(handle: int, jump_key: str) -> controller.KeyboardInputWrapper:

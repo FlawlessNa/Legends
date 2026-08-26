@@ -13,8 +13,9 @@ import time
 
 from paths import ROOT, TESSERACT
 from ._debug_names import install as _install_debug_names
+from .logging_config import PARENT_LOG
+from .telemetry import emit_event, not_telemetry
 
-PARENT_LOG = __name__
 pytesseract.pytesseract.tesseract_cmd = TESSERACT
 
 # Set the root logger for the entire project.
@@ -87,5 +88,12 @@ if current_process.name == "MainProcess":
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)
+
+    # Telemetry Records ride this same hierarchy on their way to the JSONL sink.
+    # They carry an empty message, so a text handler without this filter prints
+    # a blank line per emitted event.
+    file_handler.addFilter(not_telemetry)
+    console_handler.addFilter(not_telemetry)
+
     logger.addHandler(file_handler)
     logger.addHandler(console_handler)

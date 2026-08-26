@@ -22,6 +22,7 @@ DEBUG = True
 class RebuffMixin:
     data: BotData
     pipe: multiprocessing.connection.Connection
+    correlation_id: str | None
     _icons_directory = MapleSkill.icon_path
     _hsv_lower = np.array([0, 0, 0])
     _hsv_upper = np.array([179, 255, 53])
@@ -127,6 +128,7 @@ class RebuffMixin:
             condition,
             timeout=15.0,
             max_trials=20,
+            correlation_id=self.correlation_id,
         )
         await validator.execute_async(request)
 

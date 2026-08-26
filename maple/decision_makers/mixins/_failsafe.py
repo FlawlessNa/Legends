@@ -1,6 +1,6 @@
 import logging
-import multiprocessing.connection
 import time
+from collections.abc import Callable
 
 from botting import PARENT_LOG
 from botting.core import ActionRequest, BotData
@@ -18,7 +18,7 @@ class FailsafeMixin:
     """
 
     data: BotData
-    pipe: multiprocessing.connection.Connection
+    send: Callable[[ActionRequest], None]
     _tb_sentinels: list[dict]
     _bool_sentinels: list[dict]
     _sentinel_starts_at: float
@@ -73,7 +73,7 @@ class FailsafeMixin:
                         f"{self.data.ign} - {attribute} has been static for > "
                         f"{threshold:.2f}s."
                     )
-                    self.pipe.send(sentinel["response"])
+                    self.send(sentinel["response"])
             else:
                 sentinel["triggered"] = False
 
@@ -87,13 +87,13 @@ class FailsafeMixin:
                     logger.warning(
                         f"{self.data.ign} - {attribute} Failsafe triggered."
                     )
-                    self.pipe.send(sentinel["response"])
+                    self.send(sentinel["response"])
             elif not sentinel["trigger_when_true"] and not method(attribute):
                 if not sentinel["triggered"]:
                     sentinel["triggered"] = True
                     logger.warning(
                         f"{self.data.ign} - {attribute} Failsafe triggered."
                     )
-                    self.pipe.send(sentinel["response"])
+                    self.send(sentinel["response"])
             else:
                 sentinel["triggered"] = False

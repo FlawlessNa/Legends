@@ -54,9 +54,12 @@ sequence, where the release lands immediately ahead of the Step that opposes it.
 **A4 does not hold as written**, and telecast is what made that visible. A
 teleport component compiles to a run of `teleport_key` keydowns with no keyup: the
 key is meant to stay down and is released by the forced volley, so its Hold ends
-at the sequence end, not strictly before it. Telecasting fuses a second such key -
-the ultimate - into those same Steps, so it doubles the exposure without creating a
-new kind of it. Either A4 is too strong and should exempt keys in
+at the sequence end, not strictly before it. Telecasting used to fuse a second such
+key - the ultimate - into those same Steps, doubling the exposure without creating a
+new kind of it; since [#84](https://github.com/FlawlessNa/Legends/issues/84) it
+rebuilds the teleport region into paired down/up taps, so both keys close their Holds
+inside the sequence and telecast no longer contributes to A4 at all. The plain
+teleport builder still does. Either A4 is too strong and should exempt keys in
 `forced_key_releases` (whose release **A2**/**D1** already cover), or the builders
 are wrong to leave a skill key latched; that is
 [#75](https://github.com/FlawlessNa/Legends/issues/75), not a settled status.

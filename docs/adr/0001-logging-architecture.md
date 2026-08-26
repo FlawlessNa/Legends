@@ -36,6 +36,13 @@ outcomes.
   each Producer decides how it threads the id through its own call stack.
   Reuses the existing child-process `QueueHandler`/`Queue` transport and
   writes into the same per-Session directory as the text logs.
+- The `event_type` taxonomy is governed by **convention, not validation**: a
+  dotted `<area>.<event>` [Event Type](../../CONTEXT.md) and a per-event
+  `TypedDict` payload, both declared per Producer — for the game layer, in
+  `maple/telemetry_events.py`. `emit_event()`'s signature stays permissive
+  (`str`, `dict[str, Any]`) because `botting/` must not enumerate `maple/`'s
+  vocabulary, and because a validating emitter could raise inside a Producer.
+  Payloads carry JSON primitives only, converted at the call site.
 - Pre-existing hazards in movement code (`except Exception: breakpoint()`,
   `DEBUG=True`/`cv2.imshow`) are out of scope — that code belongs to the
   movement-framework map.
