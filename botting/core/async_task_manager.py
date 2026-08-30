@@ -2,10 +2,19 @@ import asyncio
 import logging
 import multiprocessing.connection
 
+from ..telemetry import emit_event
+from ..telemetry_events import (
+    ACTION_BLOCKED,
+    ACTION_CANCELS_OTHER,
+    ACTION_REQUEUED,
+    ACTION_SCHEDULED,
+    ACTION_SELF_CANCELLED,
+    ActionCancelsOtherPayload,
+    ActionPayload,
+)
 from .action_data import ActionRequest
 
 logger = logging.getLogger(__name__)
-LOG_LEVEL = logging.INFO
 
 MAX_CONCURRENT_TASKS = 30
 
@@ -50,33 +59,46 @@ class AsyncTaskManager:
     def _handle_duplicate_request(self, request: ActionRequest) -> None:
         former = self.running_tasks[request.identifier]
         if request.cancels_itself:
-            if request.log:
-                logger.log(
-                    LOG_LEVEL,
-                    f"{request.identifier} has cancelled itself.",
-                )
+            self._emit(ACTION_SELF_CANCELLED, request)
             former.task.cancel()
         else:
             raise ValueError(
                 f"Task {request.identifier} already exists and can't cancel itself"
             )
 
+    def _emit(self, event_type: str, request: ActionRequest) -> None:
+        """
+        Emit one ``action.*`` Telemetry Record for a request Main Process is
+        disposing of.
+
+        Unconditional, unlike the text logs these records replace. Those were
+        gated on a per-request ``log`` flag - severity and visibility conflated
+        at the call site, which is the conflation ADR-0001 exists to undo. The
+        Correlation ID rides on the request, so this is where a decision made in
+        an Engine is joined to what Main Process did with it.
+
+        :param event_type: One of the ``ACTION_*`` constants.
+        :param request: The request being disposed of.
+        """
+        payload: ActionPayload = {
+            "identifier": request.identifier,
+            "priority": int(request.priority),
+        }
+        emit_event(
+            request.correlation_id, event_type, payload, logger_name=logger.name
+        )
+
     async def _handle_priority(self, request: ActionRequest) -> None:
         if request.priority >= self._get_priority_blocking():
-            if request.log:
-                logger.log(LOG_LEVEL, f"{request.identifier} has been scheduled.")
+            self._emit(ACTION_SCHEDULED, request)
             await self._schedule_task(request)
         elif request.requeue_if_not_scheduled:
-            if request.log:
-                logger.log(LOG_LEVEL, f"{request.identifier} has been re-queued.")
+            self._emit(ACTION_REQUEUED, request)
             # Self-inflicted delay to avoid infinite re-queueing
             asyncio.get_running_loop().call_later(1.0, self.queue.put_nowait, request)
             # await self.queue.put(request)
         else:
-            logger.log(
-                logging.INFO,
-                f"{request.identifier} has been blocked by higher priority tasks.",
-            )
+            self._emit(ACTION_BLOCKED, request)
             if request.callbacks:
                 for cb in request.callbacks:
                     cb()
@@ -94,8 +116,15 @@ class AsyncTaskManager:
     async def _schedule_task(self, request: ActionRequest) -> None:
         for task in request.cancel_tasks:
             if task in self.running_tasks:
-                logger.log(
-                    LOG_LEVEL, f"{request.identifier} is cancelling task {task}."
+                cancels: ActionCancelsOtherPayload = {
+                    "identifier": request.identifier,
+                    "cancelled": task,
+                }
+                emit_event(
+                    request.correlation_id,
+                    ACTION_CANCELS_OTHER,
+                    cancels,
+                    logger_name=logger.name,
                 )
                 self.running_tasks[task].task.cancel()
 
@@ -119,7 +148,9 @@ class AsyncTaskManager:
             exception = fut.exception()
             if exception:
                 logger.error(
-                    f"Exception occurred in task {fut.get_name()}: {exception}",
+                    "Exception occurred in task %s: %s",
+                    fut.get_name(),
+                    exception,
                     exc_info=exception,
                 )
                 self.queue.put_nowait(None)
@@ -138,8 +169,8 @@ class AsyncTaskManager:
         """
         if len(self.running_tasks) > self._event_loop_overflow:
             logger.warning(
-                f"Nbr of tasks scheduled from ActionRequests in the event loop is "
-                f"{len(self.running_tasks)}."
+                "Nbr of tasks scheduled from ActionRequests in the event loop is %s.",
+                len(self.running_tasks),
             )
 
     def _check_for_queue_overflow(self):
@@ -149,8 +180,8 @@ class AsyncTaskManager:
         """
         if self.queue.qsize() > self._event_loop_overflow:
             logger.warning(
-                f"Nbr of tasks scheduled from ActionRequests in the queue is "
-                f"{self.queue.qsize()}."
+                "Nbr of tasks scheduled from ActionRequests in the queue is %s.",
+                self.queue.qsize(),
             )
 
     @staticmethod

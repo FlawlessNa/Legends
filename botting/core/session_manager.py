@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import logging.config
 import logging.handlers
 import multiprocessing.connection
 
@@ -11,12 +12,11 @@ from .engine import Engine
 from .peripherals_process import PeripheralsProcess
 from botting.communications import BaseParser
 from botting.controller import HeldKeysLedger, release_all
-from botting.logging_config import PARENT_LOG, new_session_dir
+from botting.logging_config import PARENT_LOG, full_config, new_session_dir
 from botting.telemetry import TELEMETRY_FILENAME, TelemetryHandler
 from botting.utilities import install_loop_diagnostics
 
 logger = logging.getLogger(__name__)
-LOG_LEVEL = logging.INFO
 
 
 class SessionManager:
@@ -71,6 +71,13 @@ class SessionManager:
         # parent logger's handlers at construction: attach the sink after that
         # and every Telemetry Record emitted in a child process reaches nothing.
         self.session_dir = new_session_dir()
+
+        # The handlers themselves: one file per Log Bucket, the combined
+        # session.log, and the console. dictConfig *replaces* the parent
+        # logger's handler list, so it has to run before the telemetry sink is
+        # attached below - the other order would discard the sink.
+        logging.config.dictConfig(full_config(self.session_dir))
+
         self.telemetry_handler = TelemetryHandler(
             self.session_dir / TELEMETRY_FILENAME
         )
@@ -148,7 +155,7 @@ class SessionManager:
             engine.join(timeout=2)
             if engine.is_alive():
                 engine.terminate()
-            logger.info(f"Engine {engine.name} has been stopped.")
+            logger.info("Engine %s has been stopped.", engine.name)
 
         if not self._debug:
             for bot in self.bots:
@@ -190,7 +197,7 @@ class SessionManager:
         )
 
         for task in t_pending:
-            logger.info(f"Cancelling task {task.get_name()}.")
+            logger.info("Cancelling task %s.", task.get_name())
             task.cancel()
 
         # Every member of the done set is inspected, not just one: tasks that complete
@@ -202,7 +209,7 @@ class SessionManager:
             if not task.cancelled() and task.exception() is not None
         ]
         for task in failures:
-            logger.error(f"Task {task.get_name()} raised.", exc_info=task.exception())
+            logger.error("Task %s raised.", task.get_name(), exc_info=task.exception())
             self.peripherals.pipe_main_proc.send(
                 f"Error in {task.get_name()}: {task.exception()}"
             )
@@ -229,7 +236,7 @@ class SessionManager:
                     if key not in self.metadata["ignored_keys"]
                 )
                 type_, args, kwargs = self.metadata[key]
-                logger.log(LOG_LEVEL, f"Request received from {key} for {type_}.")
+                logger.debug("Request received from %s for %s.", key, type_)
                 self.metadata[key] = getattr(self.process_manager, type_)(
                     *args, **kwargs
                 )

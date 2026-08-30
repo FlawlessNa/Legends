@@ -322,7 +322,7 @@ async def activate(hwnd: int) -> bool:
     acquired = False
     if GetForegroundWindow() != hwnd:
         acquired = await SharedResources.focus_lock.acquire()
-        logger.debug(f"Activating window {hwnd}")
+        logger.debug("Activating window %s", hwnd)
         # Before activating, make sure to release any keys that are currently pressed.
         release_all(GetForegroundWindow())
         Dispatch("WScript.Shell").SendKeys("%")
@@ -350,12 +350,14 @@ def release_all(hwnd: int = None) -> None:
     stragglers = _physically_held(hwnd) - keys_to_release
     if stragglers:
         logger.warning(
-            f"Keys {sorted(stragglers)} were physically down on window {hwnd} without "
-            f"being in the Held-Keys Ledger. Releasing them as well."
+            "Keys %s were physically down on window %s without being in the Held-Keys "
+            "Ledger. Releasing them as well.",
+            sorted(stragglers),
+            hwnd,
         )
         keys_to_release |= stragglers
     if keys_to_release:
-        logger.debug(f"Releasing keys {sorted(keys_to_release)} from window {hwnd}")
+        logger.debug("Releasing keys %s from window %s", sorted(keys_to_release), hwnd)
     release_keys(sorted(keys_to_release), hwnd)
     HeldKeysLedger.clear(hwnd)
 
@@ -396,7 +398,7 @@ def release_directions(hwnd: int = None) -> None:
     held = HeldKeysLedger.keys_held(hwnd)
     _release_keys = [key for key in OPPOSITES if key in held]
     if _release_keys:
-        logger.debug(f"Releasing keys {_release_keys} from window {hwnd}")
+        logger.debug("Releasing keys %s from window %s", _release_keys, hwnd)
         release_keys(_release_keys, hwnd)
 
 
@@ -616,10 +618,10 @@ def _send_input(structure: tuple) -> None:
     pointer = ctypes.POINTER(array_class)
     _EXPORTED_FUNCTIONS["SendInput"].argtypes = [wintypes.UINT, pointer, wintypes.INT]
     while _EXPORTED_FUNCTIONS["SendInput"](*structure) != structure[0].value:
-        logger.error(f"Failed to send input {structure}")
+        logger.error("Failed to send input %s", structure)
         failure_count += 1
         if failure_count > 10:
-            logger.critical(f"Unable to send structure {structure} to active window")
+            logger.critical("Unable to send structure %s to active window", structure)
             raise RuntimeError(f"Unable to send structure {structure} to active window")
 
 

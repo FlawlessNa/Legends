@@ -10,9 +10,15 @@ from botting.core import ActionRequest, DecisionMaker, BotData, MetadataNamespac
 from botting.utilities import cooldown
 from maple.actions import priorities
 from maple.model.characters import MapleSkill
+from maple.telemetry_events import (
+    REBUFF_MEMBERS_IN_POSITION,
+    REBUFF_PARTY_COMPLETE,
+    REBUFF_SIGNALLED,
+    REBUFF_STATE_RESET,
+    RebuffPayload,
+)
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
-LOG_LEVEL = logging.INFO
 
 
 class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, DecisionMaker):
@@ -107,12 +113,12 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         """
         while True:
             if self._rebuff_status_all_true():
-                logger.log(LOG_LEVEL, "All have successfully been rebuffed.")
+                self.emit(REBUFF_PARTY_COMPLETE, self._member())
                 break
 
             self._event.set()
             if self._members_all_in_range():
-                logger.log(LOG_LEVEL, f"{self} confirms all members at location.")
+                self.emit(REBUFF_MEMBERS_IN_POSITION, self._member())
                 while not self._unique_lock.acquire(blocking=False):
                     self._update_rebuff_status()
                     await asyncio.sleep(0.1)
@@ -126,13 +132,19 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
 
             await asyncio.sleep(0.5)
 
+    def _member(self) -> RebuffPayload:
+        """
+        :return: The payload every ``rebuff.*`` event carries.
+        """
+        return {"ign": self.data.ign}
+
     def _set_ready_state(self) -> None:
         """
         Set the ready state, shared across all PartyRebuff instances from all processes.
         """
         with self._shared_lock:
             if not self._event.is_set():
-                logger.log(LOG_LEVEL, f"{self} signaled its time to rebuff.")
+                self.emit(REBUFF_SIGNALLED, self._member())
                 self._event.set()
                 self._reset_shared_location()
                 self._reset_rebuff_status()
@@ -143,7 +155,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         """
         with self._shared_lock:
             if self._event.is_set():
-                logger.log(LOG_LEVEL, f"{self} resets the ready state.")
+                self.emit(REBUFF_STATE_RESET, self._member())
                 self._event.clear()
         if self._reset_flag:
             # Resets the rotation mechanism
@@ -239,7 +251,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         with self._shared_lock:
             self._update_rebuff_status()
             statuses = self._ns.get_shared_dict("rebuffed").values()
-            logger.log(LOG_LEVEL, f"Rebuff statuses: {statuses}")
+            logger.debug("Rebuff statuses: %s", statuses)
         return all(len(status) == 0 for status in statuses) and len(statuses) > 1
 
 

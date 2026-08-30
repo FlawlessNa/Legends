@@ -54,7 +54,8 @@ class MapleMinimap(Minimap):
 
     def random_point(self) -> tuple[int, int]:
         y, x = random.choice(np.argwhere(self.modified_minimap))
-        return x, y
+        # np.argwhere yields np.int64; cast so the annotation is true.
+        return int(x), int(y)
 
     def get_feature_containing(self, position: tuple[int, int]) -> MinimapEdits | None:
         x, y = position
@@ -86,8 +87,13 @@ class MapleMinimap(Minimap):
                 f"(scale_x, scale_y) are not set in the map's JSON config."
             )
         logger.info(
-            f"Generating grid for {self.map_name}, {allow_teleport=}, "
-            f"{speed_multiplier=}, {jump_multiplier=}, {include_portals=}"
+            "Generating grid for %s, allow_teleport=%r, speed_multiplier=%r, "
+            "jump_multiplier=%r, include_portals=%r",
+            self.map_name,
+            allow_teleport,
+            speed_multiplier,
+            jump_multiplier,
+            include_portals,
         )
         height = self.physics.get_jump_height(jump_multiplier)
         distance = self.physics.get_jump_distance(speed_multiplier, jump_multiplier)

@@ -7,7 +7,6 @@ import maple.decision_makers as dm
 
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.DEBUG
 
 
 IGN = 'StarBase'

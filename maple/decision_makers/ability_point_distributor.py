@@ -13,7 +13,6 @@ from .mixins import (
 )
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.WARNING
 
 
 class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
@@ -38,14 +37,14 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
         self.data.update_attribute("current_level_img")
 
         if not np.array_equal(self.data.current_level_img, self._prev_level_img):
-            logger.log(LOG_LEVEL, f"Level up detected for {self.data.ign}.")
+            logger.info("Level up detected for %s.", self.data.ign)
             ensure_ability_menu_displayed(
                 **self._display_kwargs("Ability Menu Trigger", 2.0, self.condition)
             )
             self.data.update_attribute("available_ap")
 
             if self.data.available_ap > 0:
-                logger.log(LOG_LEVEL, f"{self} now distributing AP.")
+                logger.info("%s now distributing AP.", self)
                 self._disable_decision_makers("Rotation")
                 self._distribute_ap(self.data.available_ap)
                 ensure_ability_menu_displayed(
@@ -54,7 +53,7 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
                 )
                 self._enable_decision_makers("Rotation")
             else:
-                logger.log(LOG_LEVEL, f"Uh-oh. {self} has no AP to distribute.")
+                logger.warning("Uh-oh. %s has no AP to distribute.", self)
                 ensure_ability_menu_displayed(
                     **self._display_kwargs("Ability Menu Trigger", 2.0, self.condition),
                     ensure_displayed=False,
@@ -74,7 +73,6 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
             args=(self.data.handle, target.center),
             block_lower_priority=True,
             kwargs={"nbr_times": num_points, "delay": 0.15},
-            log=True,
         )
         validated_action = ActionWithValidation(
             self.pipe,

@@ -15,7 +15,6 @@ from maple.actions import priorities
 from maple.model.characters import ALL_BUFFS, MapleSkill, MapleBuff, MaplePartyBuff
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
-LOG_LEVEL = logging.WARNING
 DEBUG = True
 
 
@@ -120,7 +119,6 @@ class RebuffMixin:
             priority=priorities.BUFFS,
             block_lower_priority=True,
             args=(self.data.handle, self.data.ign, buffs),
-            log=True,
         )
         validator = ActionWithValidation(
             self.pipe,

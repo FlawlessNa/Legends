@@ -199,7 +199,9 @@ class Minimap(InGameDynamicVisuals, ABC):
             eroded_detection = cv2.erode(mask, kernel)
             y_x_list = list(zip(*np.where(eroded_detection == 255)))
             # return [(x, y) for y, x in y_x_list]
-            return [(x, y+y_offset) for y, x in y_x_list]
+            # np.where yields np.int64; cast here so the annotation is true and no
+            # consumer (telemetry payloads especially) inherits a numpy scalar.
+            return [(int(x), int(y) + y_offset) for y, x in y_x_list]
 
     def get_map_area_box(
         self,
@@ -246,9 +248,11 @@ class Minimap(InGameDynamicVisuals, ABC):
                         _THRESHOLD -= 2
                         extra_columns = np.where(differences > _THRESHOLD)[0]
                     if extra_columns.size > 0:
-                        left_offset = extra_columns[0] + 1
+                        left_offset = int(extra_columns[0]) + 1
                         right_offset = -(
-                            mean_vertical_intensity.shape[0] - extra_columns[-1] - 1
+                            mean_vertical_intensity.shape[0]
+                            - int(extra_columns[-1])
+                            - 1
                         )
                     else:
                         left_offset = right_offset = 0
@@ -355,7 +359,7 @@ class Minimap(InGameDynamicVisuals, ABC):
                 if all(col + i in empty_columns for i in range(1, 4)):
                     map_border = col
                     map_border_idx = np.where(full_columns == map_border)[0][0]
-                    left_border = full_columns[map_border_idx + 1] + 1
+                    left_border = int(full_columns[map_border_idx + 1]) + 1
                     break
 
             # For the right border, use the world icon. Also shift by 1 pixel to the right.

@@ -6,7 +6,6 @@ from botting.core import DecisionMaker
 from .maple_bot import MapleBot
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.NOTSET
 
 
 class TrainingBot(MapleBot):

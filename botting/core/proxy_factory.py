@@ -2,7 +2,6 @@ import logging
 import multiprocessing.managers
 
 logger = logging.getLogger(__name__)
-LOG_LEVEL = logging.INFO
 
 
 class ProxyFactory:
@@ -33,13 +32,11 @@ class ProxyFactory:
         ignored_keys). If False, it is popped after creation.
         :return: The created proxy object.
         """
-        logger.log(LOG_LEVEL, f"Requesting {primitive_type} for {key}.")
+        logger.debug("Requesting %s for %s.", primitive_type, key)
         notifier = self._meta["proxy_request"]
         with notifier:
             if key in self._meta and not isinstance(self._meta[key], tuple):
-                logger.log(
-                    LOG_LEVEL, f"Returning existing {primitive_type} for {key}."
-                )
+                logger.debug("Returning existing %s for %s.", primitive_type, key)
                 return self._meta[key]
 
             self._meta[key] = (primitive_type, args, kwargs)
@@ -47,7 +44,7 @@ class ProxyFactory:
                 notifier.notify_all()
                 notifier.wait(timeout=1)
 
-        logger.log(LOG_LEVEL, f"Created {primitive_type} for {key}.")
+        logger.debug("Created %s for %s.", primitive_type, key)
         if shared:
             self._meta["ignored_keys"] = self._meta["ignored_keys"] | {key}
             return self._meta[key]

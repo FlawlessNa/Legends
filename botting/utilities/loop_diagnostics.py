@@ -31,7 +31,7 @@ def install_loop_diagnostics(*, debug: bool = False) -> None:
     loop.set_exception_handler(_log_loop_exception)
     if debug:
         loop.set_debug(True)
-    logger.debug(f"Loop diagnostics installed (asyncio debug mode: {debug}).")
+    logger.debug("Loop diagnostics installed (asyncio debug mode: %s).", debug)
 
 
 def _log_loop_exception(loop: asyncio.AbstractEventLoop, context: dict[str, Any]):

@@ -56,7 +56,9 @@ class TestChildProcess(TestCase):
         child_logger = logging.getLogger(PARENT_LOG)
 
         for i in range(nbr_logs_per_child):
-            child_logger.debug(f"Child {multiprocessing.current_process().name} - {i}")
+            child_logger.debug(
+                "Child %s - %s", multiprocessing.current_process().name, i
+            )
 
     def test_items_one_and_two(self):
         """

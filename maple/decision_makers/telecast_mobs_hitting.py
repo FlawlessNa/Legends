@@ -5,12 +5,12 @@ from botting import PARENT_LOG
 from botting.core import ActionRequest
 from maple.actions.movements_v2 import telecast_compiler
 from maple.model.mechanics import MovementTypes
+from maple.telemetry_events import COMBAT_TELECAST, TelecastPayload
 
 from .mixins import MovementsMixin
 from .mobs_hitting import MobsHitting
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.INFO
 
 _TELEPORT_MOVEMENTS = frozenset(
     {
@@ -63,7 +63,11 @@ class TelecastMobsHitting(MovementsMixin, MobsHitting):
         if not self._teleport_in_movement_plan():
             return super()._hit_mobs(direction=None)
 
-        logger.log(LOG_LEVEL, f"{self} is about to Telecast.")
+        fused: TelecastPayload = {
+            "teleport_skill": self._teleport_skill.name,
+            "ultimate_skill": self.training_skill.name,
+        }
+        self.emit(COMBAT_TELECAST, fused)
         compiler = functools.partial(
             telecast_compiler,
             movement_compiler=self._movement_compiler(),
@@ -71,5 +75,9 @@ class TelecastMobsHitting(MovementsMixin, MobsHitting):
             ign=self.data.ign,
             teleport_skill=self._teleport_skill,
             ultimate_skill=self.training_skill,
+            # Baked in rather than passed to the procedure: the compile runs in
+            # Main Process, and only this partial - built inside `_decide()` -
+            # knows which decision it belongs to.
+            correlation_id=self.correlation_id,
         )
         return self._cast_request(compiler)

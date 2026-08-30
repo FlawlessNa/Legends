@@ -16,7 +16,6 @@ from .minimap_creation.minimap_grid import ConnectionTypes, MinimapNode, Minimap
 from .maple_map import MapleMinimap
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.INFO
 
 
 class MovementTypes(IntEnum):
@@ -314,7 +313,9 @@ class MovementHandler:
     ) -> list[MinimapNode]:
         start_node = grid.node(*start)
         end_node = grid.node(*end)
-        logger.log(LOG_LEVEL, f"Computing path from {start} to {end}")
+        # Per-cycle pathing traces, so DEBUG is the honest level. Their Telemetry
+        # Record form waits on issue #12, which owns `MovementPayload`.
+        logger.debug("Computing path from %s to %s", start, end)
         # finder = DijkstraFinder() if grid.has_portals else AStarFinder()
         finder = DijkstraFinder()
         path, _ = finder.find_path(start_node, end_node, grid)
@@ -386,7 +387,7 @@ class MovementHandler:
                     f"No neighbor/connection edge between {current_node} and {next_node}"
                 )
 
-        logger.log(LOG_LEVEL, f"Movements: {movements}")
+        logger.debug("Movements: %s", movements)
         squeezed = []
         for k, group in groupby(movements, key=lambda x: x.movement_type):
             group_list = list(group)

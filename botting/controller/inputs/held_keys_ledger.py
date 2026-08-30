@@ -182,8 +182,10 @@ class HeldKeysLedger:
             others = {h: set(k) for h, k in cls._held.items() if h != handle and k}
         if others:
             logger.error(
-                f"Held-Keys Ledger invariant broken: {handle} is not the only client "
-                f"holding keys. Others: {others}"
+                "Held-Keys Ledger invariant broken: %s is not the only client holding "
+                "keys. Others: %s",
+                handle,
+                others,
             )
 
     @classmethod
@@ -195,7 +197,7 @@ class HeldKeysLedger:
         if not cls._warned_foreign_read and not in_main_process():
             cls._warned_foreign_read = True
             logger.warning(
-                f"Held-Keys Ledger read from process "
-                f"{multiprocessing.current_process().name!r}, which owns no ledger. "
-                f"It will report no keys held."
+                "Held-Keys Ledger read from process %r, which owns no ledger. It will "
+                "report no keys held.",
+                multiprocessing.current_process().name,
             )

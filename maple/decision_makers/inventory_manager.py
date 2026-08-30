@@ -21,10 +21,19 @@ from maple.constants import (
 )
 from maple._old.maps import RoyalsMap
 from maple.model.mechanics import MinimapConnection
+from maple.telemetry_events import (
+    INVENTORY_CLEANUP_COMPLETED,
+    INVENTORY_CLEANUP_STARTED,
+    INVENTORY_CLEARED,
+    INVENTORY_DOOR_SPOT_REACHED,
+    INVENTORY_SHOP_OPENED,
+    INVENTORY_TOWN_REACHED,
+    InventoryCleanupPayload,
+    InventoryMilestonePayload,
+)
 from .mixins import MenusMixin, NextTargetMixin, MovementsMixin, MinimapAttributesMixin
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
-LOG_LEVEL = logging.INFO
 
 
 class InventoryManager(
@@ -93,10 +102,10 @@ class InventoryManager(
             await self._ensure_on_target_tab()
             return await self._get_space_left()
         except AssertionError:
-            logger.log(LOG_LEVEL, f"Failed to check inventory space. Retrying once")
+            logger.warning("Failed to check inventory space. Retrying once")
             await self._check_inventory_space()
         except Exception as e:
-            logger.error(f"Exception occurred in {self}: {e}.")
+            logger.error("Exception occurred in %s: %s.", self, e)
             raise e
 
     async def _ensure_inventory_displayed(self, displayed: bool = True) -> None:
@@ -214,11 +223,18 @@ class InventoryManager(
             ),
         )
 
+    def _milestone(self) -> InventoryMilestonePayload:
+        """
+        :return: The payload every bare ``inventory.*`` milestone carries.
+        """
+        return {"ign": self.data.ign}
+
     async def _cleanup_with_town_scroll(self) -> None:
         raise NotImplementedError
 
     async def _cleanup_with_self_door(self) -> None:
-        logger.log(LOG_LEVEL, f"{self} is cleaning up with SELF DOOR")
+        started: InventoryCleanupPayload = {"method": "self_door"}
+        self.emit(INVENTORY_CLEANUP_STARTED, started)
         self._setup_procedure()
         while True:
             try:
@@ -229,7 +245,7 @@ class InventoryManager(
                 pass
             except Exception:
                 logger.error(
-                    f"{self} failed to reach town through SELF DOOR.", exc_info=True
+                    "%s failed to reach town through SELF DOOR.", self, exc_info=True
                 )
                 raise
 
@@ -240,10 +256,10 @@ class InventoryManager(
             await asyncio.sleep(0.5)
             await self._toggle_npc_shop()
 
-        logger.log(LOG_LEVEL, f"{self} has reached and opened NPC Shop")
+        self.emit(INVENTORY_SHOP_OPENED, self._milestone())
         await self._activate_tab()
         await self._clear_inventory()
-        logger.log(LOG_LEVEL, f"{self} inventory has been cleared")
+        self.emit(INVENTORY_CLEARED, self._milestone())
         while self._confirm_shop_open():
             await self._toggle_npc_shop(opening=False)
             await asyncio.sleep(0.5)
@@ -259,10 +275,10 @@ class InventoryManager(
                 pass
             except Exception:
                 logger.error(
-                    f"{self} failed to return to its original map.", exc_info=True
+                    "%s failed to return to its original map.", self, exc_info=True
                 )
                 raise
-        logger.log(LOG_LEVEL, f"{self} procedure completed")
+        self.emit(INVENTORY_CLEANUP_COMPLETED, self._milestone())
 
     def _setup_procedure(self) -> None:
         # TODO - Implement grid connections
@@ -295,7 +311,7 @@ class InventoryManager(
 
     async def _move_to_town_self_door(self):
         await self._move_to_door_spot()
-        logger.log(LOG_LEVEL, f"{self} has reached door_spot")
+        self.emit(INVENTORY_DOOR_SPOT_REACHED, self._milestone())
 
         # Refresh door spot to current position
         grid = self.data.current_minimap.grid
@@ -309,7 +325,7 @@ class InventoryManager(
         await self._cast_door()
         await self._enter_door()
         await self._confirm_in_map(self.data.current_map.path_to_shop)
-        logger.log(LOG_LEVEL, f"{self} has reached town")
+        self.emit(INVENTORY_TOWN_REACHED, self._milestone())
 
     async def _move_back_to_original_map(self):
         await self._move_to_door_spot()

@@ -75,7 +75,6 @@ def ensure_minimap_displayed(
         priority,
         block_lower_priority=True,
         args=(handle, ign),
-        log=True,
         cancels_itself=True,
     )
     validated_action = ActionWithValidation(

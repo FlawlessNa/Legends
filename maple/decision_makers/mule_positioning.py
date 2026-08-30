@@ -10,10 +10,15 @@ from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
 from botting.utilities import cooldown
 from maple.actions.movements_v2 import random_jump
 from maple.actions import priorities
+from maple.telemetry_events import (
+    MULE_RESET_STARTED,
+    MULE_SAFE_SPOT_RESTORED,
+    MuleResetPayload,
+    MuleSafeSpotPayload,
+)
 from .mixins import MinimapAttributesMixin, MovementsMixin, RebuffMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.INFO
 
 
 class EnsureSafeSpot(MinimapAttributesMixin, DecisionMaker):
@@ -48,7 +53,7 @@ class EnsureSafeSpot(MinimapAttributesMixin, DecisionMaker):
 
     @cooldown(60)
     def _send_alert(self):
-        logger.log(LOG_LEVEL, f"{self.data.ign} has been moved!")
+        logger.warning("%s has been moved!", self.data.ign)
         self.send(self._discord_alert())
 
     def _discord_alert(self) -> ActionRequest:
@@ -132,9 +137,14 @@ class ResetIdleSafeguard(
                 self._ensure_safe_spot(),
                 timeout=random.uniform(0.9, 1.1) * self._TIME_LIMIT,
             )
-            logger.log(LOG_LEVEL, f"{self} is not at safe spot. Resetting")
+            left: MuleResetPayload = {
+                "ign": self.data.ign,
+                "reason": "left_safe_spot",
+            }
+            self.emit(MULE_RESET_STARTED, left)
         except asyncio.TimeoutError:
-            logger.log(LOG_LEVEL, f"{self} is idle. Engaging reset.")
+            idle: MuleResetPayload = {"ign": self.data.ign, "reason": "idle"}
+            self.emit(MULE_RESET_STARTED, idle)
 
         await self._jump_out_of_safe_spot()
         await self._cast_skills_to_reset()
@@ -160,7 +170,6 @@ class ResetIdleSafeguard(
                     callbacks=[self.lock.release],
                     priority=priorities.MULE_POSITIONING,
                     block_lower_priority=True,
-                    log=True,
                     args=(
                         self.data.handle,
                         controller.key_binds(self.data.ign)["jump"],
@@ -189,7 +198,6 @@ class ResetIdleSafeguard(
                 priority=priorities.MULE_POSITIONING,
                 block_lower_priority=True,
                 args=(self.data.handle, self.data.ign, self._skills),
-                log=True,
             )
         )
 
@@ -217,11 +225,11 @@ class ResetIdleSafeguard(
                         callbacks=[self.lock.release],
                         priority=priorities.MULE_POSITIONING,
                         block_lower_priority=True,
-                        log=True,
                         args=(self.data.handle, self._movement_compiler()),
                     )
                 )
             else:
                 self.lock.release()
                 await asyncio.sleep(1)
-        logger.log(LOG_LEVEL, f"{self.data.ign} is back at safe spot.")
+        restored: MuleSafeSpotPayload = {"ign": self.data.ign}
+        self.emit(MULE_SAFE_SPOT_RESTORED, restored)

@@ -7,13 +7,17 @@ from abc import ABC, abstractmethod
 
 from botting.logging_config import PARENT_LOG
 from botting.telemetry import emit_event
+from botting.telemetry_events import (
+    DECISION_DISABLED,
+    DECISION_ENABLED,
+    DecisionGatePayload,
+)
 
 from .action_data import ActionRequest, ActionWithValidation
 from .bot_data import BotData
 from .proxy_factory import ProxyFactory
 
 logger = logging.getLogger(__name__)
-LOG_LEVEL = logging.INFO
 
 
 class DecisionMaker(ABC):
@@ -111,7 +115,8 @@ class DecisionMaker(ABC):
             key = f"proxy/shared/{class_name}/disabler"
             condition_proxy = self.metadata.get(key, None)
             if condition_proxy is not None:
-                logger.log(LOG_LEVEL, f"{self} is disabling {class_name}.")
+                gated: DecisionGatePayload = {"target": class_name}
+                self.emit(DECISION_DISABLED, gated)
                 with condition_proxy:
                     condition_proxy.notify_all()  # noqa
 
@@ -125,7 +130,8 @@ class DecisionMaker(ABC):
             key = f"proxy/shared/{class_name}/enabler"
             condition_proxy = self.metadata.get(key, None)
             if condition_proxy is not None:
-                logger.log(LOG_LEVEL, f"{self} is re-enabling {class_name}.")
+                gated: DecisionGatePayload = {"target": class_name}
+                self.emit(DECISION_ENABLED, gated)
                 with condition_proxy:
                     condition_proxy.notify_all()  # noqa
 
@@ -166,7 +172,7 @@ class DecisionMaker(ABC):
         :return:
         """
         name = asyncio.current_task().get_name()
-        logger.log(LOG_LEVEL, f"{name} has been enabled.")
+        logger.info("%s has been enabled.", name)
         try:
             while True:
                 self.correlation_id = str(uuid.uuid4())
@@ -174,10 +180,10 @@ class DecisionMaker(ABC):
                 if self._throttle:
                     await asyncio.sleep(self._throttle)
         except asyncio.CancelledError:
-            logger.log(LOG_LEVEL, f"{name} has been disabled.")
+            logger.info("%s has been disabled.", name)
             pass  # TODO - see if cleanup is required
         except BaseException as e:
-            logger.error(f"Exception occurred in {name}: {e}.")
+            logger.error("Exception occurred in %s: %s.", name, e)
             # breakpoint()
             raise e
 

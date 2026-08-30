@@ -15,7 +15,6 @@ from .mixins import (
 )
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.NOTSET
 
 
 class Rotation(
@@ -119,7 +118,7 @@ class Rotation(
 
         # Only send standard request when lock is acquired, otherwise wait for lock
         if self.lock.acquire(blocking=False):
-            logger.log(LOG_LEVEL, f"{self} is deciding.")
+            logger.debug("%s is deciding.", self)
             self.data.update_attribute("next_target")
             self.data.update_attribute("movements")
             if self._has_movements():

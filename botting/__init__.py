@@ -5,22 +5,24 @@ and provides abstractions into how a bot should be structured and implemented.
 """
 
 import faulthandler
-import logging.handlers
+import logging.config
 import multiprocessing
-import os
 import pytesseract
-import time
 
-from paths import ROOT, TESSERACT
+from paths import TESSERACT
 from ._debug_names import install as _install_debug_names
-from .logging_config import PARENT_LOG
+from .logging_config import PARENT_LOG, levels_config
 from .telemetry import emit_event, not_telemetry
 
 pytesseract.pytesseract.tesseract_cmd = TESSERACT
 
-# Set the root logger for the entire project.
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+# The capture dial, in every process: `botting` captures at DEBUG and stops
+# propagating to the root logger. Handlers are deliberately absent here - a
+# child process ships its records to Main Process over the logging queue, and
+# Main Process builds its own once `SessionManager` has a Session directory to
+# write into.
+logging.config.dictConfig(levels_config())
+logger = logging.getLogger(PARENT_LOG)
 
 current_process = multiprocessing.current_process()
 
@@ -36,64 +38,3 @@ except (AttributeError, RuntimeError, ValueError):
 
 # Opt-in, debugger-only. Must happen before any thread or event loop exists.
 _install_debug_names()
-
-if current_process.name == "MainProcess":
-    # If this is the main process, then we want to set up the logging handlers.
-
-    class CustomFormatter(logging.Formatter):
-        """
-        Custom formatter for logging. Ensures most log messages are vertically aligned.
-        """
-
-        def format(self, record):
-            for attr, value in record.__dict__.items():
-                if attr == "name":
-                    record.__dict__[attr] = record.__dict__[attr].ljust(50)
-                    record.__dict__[attr] = record.__dict__[attr].removeprefix(
-                        "botting."
-                    )
-                    record.__dict__[attr] = record.__dict__[attr].removeprefix("core.")
-                    record.__dict__[attr] = record.__dict__[attr].removeprefix(
-                        "maple."
-                    )
-                elif attr == "processName":
-                    record.__dict__[attr] = record.__dict__[attr].ljust(30)
-                elif attr == "levelname":
-                    record.__dict__[attr] = record.__dict__[attr].ljust(10)
-                elif attr == "taskName":
-                    # None whenever the record was emitted outside an asyncio task.
-                    record.__dict__[attr] = str(value or "-").ljust(30)
-            return super().format(record)
-
-    formatter = CustomFormatter(
-        fmt=(
-            "{levelname} -- PROCESS {processName} -- TASK {taskName} -- "
-            "MODULE {name} -- {asctime}:::{message}"
-        ),
-        style="{",
-        # datefmt="%Y.%m.%d. %H:%M:%S:%f",
-    )
-
-    if not os.path.exists(os.path.join(ROOT, "logs")):
-        os.mkdir(os.path.join(ROOT, "logs"))
-
-    file_handler = logging.handlers.RotatingFileHandler(
-        os.path.join(ROOT, "logs", f'Session {time.strftime("%Y%m%d")}.log'),
-        maxBytes=10 * (2**20),  # 10 MB
-        backupCount=100,
-    )
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(formatter)
-
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
-
-    # Telemetry Records ride this same hierarchy on their way to the JSONL sink.
-    # They carry an empty message, so a text handler without this filter prints
-    # a blank line per emitted event.
-    file_handler.addFilter(not_telemetry)
-    console_handler.addFilter(not_telemetry)
-
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)

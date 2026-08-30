@@ -523,3 +523,37 @@ def test__get_entire_minimap_box(mm):
             )
             == mm.entire_minimap_box[idx]
         )
+
+
+def test_character_positions_are_builtin_ints(mm):
+    """
+    Coordinates come out of `np.where`, which yields `np.int64`. They must leave the
+    detection boundary as builtin `int`, otherwise every downstream consumer -- the
+    JSONL telemetry encoder above all, which renders `np.int64` as a quoted string --
+    silently inherits a numpy scalar behind an `int` annotation.
+    """
+    for idx, img in enumerate(mm.test_images):
+        positions = mm.minimap.get_character_positions(
+            mm.dummy_handle, "Self", mm.test_images[img], None, None
+        )
+        if positions is None:
+            continue
+        for x, y in positions:
+            assert type(x) is int
+            assert type(y) is int
+
+
+def test_minimap_boxes_have_builtin_int_coordinates(mm):
+    """Same defect one layer up: box edges are derived from `np.where` indices."""
+    for idx, img in enumerate(mm.test_images):
+        boxes = (
+            mm.minimap.get_entire_minimap_box(
+                mm.dummy_handle, mm.test_images[img], None
+            ),
+            mm.minimap.get_map_area_box(mm.dummy_handle, mm.test_images[img], None),
+        )
+        for box in boxes:
+            if box is None:
+                continue
+            for coordinate in (box.left, box.right, box.top, box.bottom):
+                assert type(coordinate) is int

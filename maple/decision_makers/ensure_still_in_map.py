@@ -4,13 +4,17 @@ import multiprocessing.managers
 
 from botting import PARENT_LOG
 from botting.core import BotData, DecisionMaker
+from maple.telemetry_events import (
+    RECOVERY_MAP_CHECK_FAILED,
+    RECOVERY_MAP_CHECK_RECOVERED,
+    MapCheckPayload,
+)
 from .mixins import (
     MinimapAttributesMixin,
     ReactionsMixin,
 )
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.WARNING
 
 
 class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
@@ -33,7 +37,8 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
         if not still_in_map:
 
             # Reset minimap attributes and move mouse away
-            logger.log(LOG_LEVEL, "Suspected Not in map. Toggling minimap.")
+            checked: MapCheckPayload = {"map_name": self.map_name}
+            self.emit(RECOVERY_MAP_CHECK_FAILED, checked)
             try:
                 self._minimap_pos_error_handler()
             except :
@@ -54,7 +59,8 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
 
         if not still_in_map:
             # If we reach this point and there was an issue originally
-            logger.log(LOG_LEVEL, "Problem solved, still in map.")
+            recovered: MapCheckPayload = {"map_name": self.map_name}
+            self.emit(RECOVERY_MAP_CHECK_RECOVERED, recovered)
 
     def _perform_check(self) -> bool:
         try:

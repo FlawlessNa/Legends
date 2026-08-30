@@ -24,6 +24,7 @@ import pytest
 from botting.controller.inputs.focused_inputs import KeyboardInputWrapper
 from botting.controller.inputs.inputs_helpers import OVERHEAD
 from maple.actions.movements_v2 import telecast, telecast_compiler
+from maple.telemetry_events import COMBAT_TELECAST_UNAVAILABLE
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
     _MovementComponent,
@@ -124,7 +125,7 @@ def _movement_compiler(movements, **kwargs) -> functools.partial:
     )
 
 
-def _telecast(inner, initial_held_keys=frozenset()):
+def _telecast(inner, initial_held_keys=frozenset(), **kwargs):
     return telecast_compiler(
         initial_held_keys,
         movement_compiler=inner,
@@ -132,6 +133,7 @@ def _telecast(inner, initial_held_keys=frozenset()):
         ign=IGN,
         teleport_skill=TELEPORT_SKILL,
         ultimate_skill=ULTIMATE,
+        **kwargs,
     )
 
 
@@ -376,13 +378,40 @@ def test_the_wrapper_falls_back_when_the_plan_compiles_to_nothing():
     assert any(keys == ULTIMATE_KEY for keys in result.keys)
 
 
-def test_the_wrapper_logs_the_fallback(caplog):
+def test_the_wrapper_emits_a_telemetry_record_for_the_fallback(mocker):
+    """
+    The fallback is a decision the analyzer has to see, so it is a Telemetry Record
+    rather than a log line - and it carries the Correlation ID of the `_decide()`
+    call that built the partial, which is the only reason that id is a parameter
+    here at all.
+    """
+    emitted = mocker.patch("maple.actions.movements_v2.emit_event")
     inner, _ = _compiler_for(None)
 
-    with caplog.at_level("INFO"):
-        _telecast(inner)
+    _telecast(inner, correlation_id="decision-1")
 
-    assert any("No telecast possible" in record.message for record in caplog.records)
+    (correlation_id, event_type, payload), _ = emitted.call_args
+    assert correlation_id == "decision-1"
+    assert event_type == COMBAT_TELECAST_UNAVAILABLE
+    assert payload == {
+        "ultimate_skill": ULTIMATE.name,
+        "reason": "no_compiled_sequence",
+    }
+
+
+def test_the_fallback_record_names_the_branch_it_took(mocker):
+    """
+    Both branches reach the same fallback; only the payload says which, and an
+    analyzer counting compiles truncated short of their first teleport needs them
+    apart from plans that compiled to nothing at all.
+    """
+    emitted = mocker.patch("maple.actions.movements_v2.emit_event")
+    inner, _ = _compiler_for(_sequence(("right", "keydown"), ("right", "keyup")))
+
+    _telecast(inner)
+
+    (_, _, payload), _ = emitted.call_args
+    assert payload["reason"] == "no_teleport"
 
 
 def test_the_wrapper_hands_the_held_keys_to_the_inner_compiler():

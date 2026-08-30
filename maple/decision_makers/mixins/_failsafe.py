@@ -6,7 +6,6 @@ from botting import PARENT_LOG
 from botting.core import ActionRequest, BotData
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.WARNING
 
 
 class FailsafeMixin:
@@ -70,8 +69,10 @@ class FailsafeMixin:
                 if not sentinel["triggered"]:
                     sentinel["triggered"] = True
                     logger.warning(
-                        f"{self.data.ign} - {attribute} has been static for > "
-                        f"{threshold:.2f}s."
+                        "%s - %s has been static for > %.2fs.",
+                        self.data.ign,
+                        attribute,
+                        threshold,
                     )
                     self.send(sentinel["response"])
             else:
@@ -85,14 +86,14 @@ class FailsafeMixin:
                 if not sentinel["triggered"]:
                     sentinel["triggered"] = True
                     logger.warning(
-                        f"{self.data.ign} - {attribute} Failsafe triggered."
+                        "%s - %s Failsafe triggered.", self.data.ign, attribute
                     )
                     self.send(sentinel["response"])
             elif not sentinel["trigger_when_true"] and not method(attribute):
                 if not sentinel["triggered"]:
                     sentinel["triggered"] = True
                     logger.warning(
-                        f"{self.data.ign} - {attribute} Failsafe triggered."
+                        "%s - %s Failsafe triggered.", self.data.ign, attribute
                     )
                     self.send(sentinel["response"])
             else:

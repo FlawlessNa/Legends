@@ -13,7 +13,6 @@ from maple.model.mechanics import (
 )
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.WARNING
 
 
 class NextTargetMixin:

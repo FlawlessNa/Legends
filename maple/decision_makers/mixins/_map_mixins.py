@@ -11,7 +11,6 @@ from botting.core import ActionRequest, BotData, ProxyFactory
 from botting.utilities import Box
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.WARNING
 
 
 class MinimapAttributesMixin:
@@ -37,7 +36,7 @@ class MinimapAttributesMixin:
         :return:
         """
         identifier = f"{self}.current_minimap_position Error Handler"
-        logger.warning(f"{identifier} Attempt")
+        logger.warning("%s Attempt", identifier)
         condition = self._proxies.instance(identifier, "Condition")
         attempt = 0
         while True:
@@ -60,7 +59,7 @@ class MinimapAttributesMixin:
                 break
             except Exception as e:
                 attempt += 1
-                logger.error(f"{identifier} Attempt {attempt} failed")
+                logger.error("%s Attempt %s failed", identifier, attempt)
                 if attempt >= 5:
                     raise e
 

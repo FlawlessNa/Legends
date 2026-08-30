@@ -12,7 +12,6 @@ from .mixins import (
 from maple.actions import priorities
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.WARNING
 
 
 class ThrottleMeta(ABCMeta):

@@ -17,10 +17,10 @@ from botting.utilities import (
 from maple.actions.skills_related_v2 import cast_skill_compiler
 from maple.model.interface import LargeClientChatFeed
 from maple.model.characters import MapleSkill
+from maple.telemetry_events import COMBAT_MOBS_HIT, MobsHitPayload
 from .mixins import MobsHittingMixin, MinimapAttributesMixin, NextTargetMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.INFO
 
 
 class MobsHitting(
@@ -101,7 +101,6 @@ class MobsHitting(
             block_lower_priority=True,
             callbacks=[self.lock.release],
             # cancels_itself=True,
-            log=True,
             args=(self.data.handle, compiler, timeout),
         )
 
@@ -119,8 +118,9 @@ class MobsHitting(
             )
         except asyncio.TimeoutError:
             logger.error(
-                f"Skill cast on handle {handle} exceeded its {timeout:.2f}s cap "
-                f"and was cancelled."
+                "Skill cast on handle %s exceeded its %.2fs cap and was cancelled.",
+                handle,
+                timeout,
             )
 
     def _get_skill_from_str(self, skill_str: str) -> MapleSkill:
@@ -221,8 +221,9 @@ class MobsHitting(
             )
         except Exception:  # noqa
             logger.error(
-                f"{self} failed to determine the closest mob direction; "
-                f"casting without a facing prelude.",
+                "%s failed to determine the closest mob direction; casting without a "
+                "facing prelude.",
+                self,
                 exc_info=True,
             )
             return None
@@ -255,7 +256,11 @@ class MobsHitting(
                     closest_mob_direction = self._closest_mob_direction(
                         on_screen_pos, mask
                     )
-                logger.log(LOG_LEVEL, f"{self} is about to hit {nbr_mobs} mobs.")
+                hit: MobsHitPayload = {
+                    "mob_count": int(nbr_mobs),
+                    "direction": closest_mob_direction,
+                }
+                self.emit(COMBAT_MOBS_HIT, hit)
                 self.send(self._hit_mobs(closest_mob_direction))
                 return
         await asyncio.to_thread(self.lock.release)

@@ -54,7 +54,7 @@ class PeripheralsProcess:
             logger.debug("Sent stop signal to Peripherals process.")
 
         self.process.join()
-        logger.info(f"Peripherals process exited.")
+        logger.info("Peripherals process exited.")
 
     async def peripherals_listener(self, async_queue: asyncio.Queue) -> None:
         """
@@ -126,9 +126,9 @@ class PeripheralsProcess:
             )
 
             for task in task_done:
-                logger.info(f"Task {task.get_name()} has exited.")
+                logger.info("Task %s has exited.", task.get_name())
             for task in task_pending:
-                logger.info(f"Cancelling task {task.get_name()}.")
+                logger.info("Cancelling task %s.", task.get_name())
                 task.cancel()
 
             # Same reasoning as the Engine and SessionManager wait sites: retrieve
@@ -140,7 +140,7 @@ class PeripheralsProcess:
             ]
             for task in failures:
                 logger.error(
-                    f"Task {task.get_name()} raised.", exc_info=task.exception()
+                    "Task %s raised.", task.get_name(), exc_info=task.exception()
                 )
             if failures:
                 raise failures[0].exception()

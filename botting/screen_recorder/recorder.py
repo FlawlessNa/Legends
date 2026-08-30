@@ -57,8 +57,8 @@ class Recorder:
         """
         try:
             logger.info(
-                f"Screen recorder started. Saving recording to "
-                f"{os.path.normpath(os.path.join(self.out_path))}"
+                "Screen recorder started. Saving recording to %s",
+                os.path.normpath(os.path.join(self.out_path)),
             )
             while True:
                 beginning = time.perf_counter()
@@ -72,14 +72,14 @@ class Recorder:
 
         except asyncio.CancelledError:
             logger.info(
-                f"Screen recorder stopped. Saving recording to "
-                f"{os.path.normpath(os.path.join(self.out_path))}"
+                "Screen recorder stopped. Saving recording to %s",
+                os.path.normpath(os.path.join(self.out_path)),
             )
 
         except Exception as e:
             logger.error(
-                f"Screen recorder has unexpectedly stopped. Saving recording to "
-                f"{os.path.normpath(os.path.join(self.out_path))}"
+                "Screen recorder has unexpectedly stopped. Saving recording to %s",
+                os.path.normpath(os.path.join(self.out_path)),
             )
             raise
         finally:

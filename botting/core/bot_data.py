@@ -6,7 +6,6 @@ from datetime import datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
-LOG_LEVEL = logging.NOTSET
 N_RET_VALUES = 10
 
 _SENTINEL = object()
@@ -106,10 +105,7 @@ class ManagedAttribute:
         threshold = self.threshold or float("inf")
         last_update_time = self.metadata.last_update_time or datetime.min
         if (datetime.now() - last_update_time).total_seconds() > threshold:
-            logger.log(
-                LOG_LEVEL,
-                f"{owner} Updating {self.name} due to exceeded threshold.",
-            )
+            logger.debug("%s Updating %s due to exceeded threshold.", owner, self.name)
             self.update(owner)
         return self.value
 
@@ -135,11 +131,9 @@ class ManagedAttribute:
         except Exception as e:
             if self.error_handler is not None and retries_left > 0:
                 self.error_handler()
-                logger.info(f"Finished error handling for {self.name}.")
+                logger.info("Finished error handling for %s.", self.name)
                 self._update_with_retry(owner, retries_left - 1)
-                logger.info(
-                    f"Successfully updated {self.name} after error handling."
-                )
+                logger.info("Successfully updated %s after error handling.", self.name)
             else:
                 raise e
 

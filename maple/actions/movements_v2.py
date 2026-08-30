@@ -1,13 +1,16 @@
 import logging
 import random
 from typing import Callable, Literal
-from botting import PARENT_LOG, controller
+from botting import PARENT_LOG, controller, emit_event
 from botting.models_abstractions import Skill
+from maple.telemetry_events import (
+    COMBAT_TELECAST_UNAVAILABLE,
+    TelecastUnavailablePayload,
+)
 
 from .skills_related_v2 import cast_skill
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.INFO
 
 FIRST_DELAY = 0.5
 
@@ -465,6 +468,7 @@ def telecast_compiler(
     ign: str,
     teleport_skill: Skill,
     ultimate_skill: Skill,
+    correlation_id: str | None = None,
 ) -> controller.KeyboardInputWrapper | None:
     """
     `telecast` in the shape `controller.compile_and_send` expects - a compiler that
@@ -497,6 +501,10 @@ def telecast_compiler(
     :param teleport_skill: The teleport whose regions get rebuilt; supplies both the
         key a teleport keydown Step carries and the re-press cadence.
     :param ultimate_skill: The skill to fuse in.
+    :param correlation_id: The Correlation ID of the `_decide()` call that built this
+        partial. Baked in by the caller because the compile happens in Main Process,
+        where the decision that asked for it is no longer in scope - and the fallback
+        below is a Telemetry Record only that decision explains.
     :return: The fused Input Sequence, or a plain cast when there is nothing to fuse.
     """
     structure = movement_compiler(initial_held_keys)
@@ -504,7 +512,16 @@ def telecast_compiler(
         # Reachable even when the Movement Plan holds teleports: `total_duration` can
         # truncate the compile before the first teleport component is built. Casting
         # in place still hits the mobs, which is what this DecisionMaker is for.
-        logger.log(LOG_LEVEL, "No telecast possible. Casting the ultimate instead.")
+        unavailable: TelecastUnavailablePayload = {
+            "ultimate_skill": ultimate_skill.name,
+            "reason": "no_compiled_sequence" if structure is None else "no_teleport",
+        }
+        emit_event(
+            correlation_id,
+            COMBAT_TELECAST_UNAVAILABLE,
+            unavailable,
+            logger_name=logger.name,
+        )
         return cast_skill(
             handle, ign, ultimate_skill, initial_held_keys=initial_held_keys
         )

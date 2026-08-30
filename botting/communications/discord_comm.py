@@ -11,7 +11,6 @@ from functools import cached_property
 from botting.utilities import config_reader
 
 logger = logging.getLogger(__name__)
-LOG_LEVEL = logging.DEBUG
 
 
 class DiscordIO(discord.Client):
@@ -75,8 +74,11 @@ class DiscordIO(discord.Client):
             return
 
         logger.info(
-            f"Received message from {msg.author.name}#{msg.author.discriminator} in "
-            f"channel {msg.channel.name}. Contents: {msg.content}"
+            "Received message from %s#%s in channel %s. Contents: %s",
+            msg.author.name,
+            msg.author.discriminator,
+            msg.channel.name,
+            msg.content,
         )
         self.pipe.send(msg.content)  # Send message to main process for parsing
 
@@ -104,8 +106,9 @@ class DiscordIO(discord.Client):
                     else:
                         if isinstance(signal, str):
                             logger.info(
-                                f"{self.__class__.__name__} received a signal {signal}"
-                                f". Sending to Discord."
+                                "%s received a signal %s. Sending to Discord.",
+                                self.__class__.__name__,
+                                signal,
                             )
                             msg = (
                                 f'<@{self.config[self.config_section]["DISCORD_ID"]}'

@@ -7,6 +7,10 @@ import time
 from botting import PARENT_LOG
 from botting.core import ActionRequest, BotData, DecisionMaker
 from maple.actions import priorities, toggle_menu
+from maple.telemetry_events import (
+    RECOVERY_MOB_SPAWN_RESTORED,
+    MobSpawnRestoredPayload,
+)
 from .mixins import (
     UIMixin,
     MobsHittingMixin,
@@ -15,7 +19,6 @@ from .mixins import (
 )
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
-LOG_LEVEL = logging.WARNING
 
 
 class CheckMobsStillSpawn(
@@ -59,17 +62,17 @@ class CheckMobsStillSpawn(
 
         # Not enough mobs and timer expired
         elif time.perf_counter() - self._last_valid_detection >= self._alert_timer:
-            logger.log(
-                LOG_LEVEL, f"No mobs detected in {self._alert_timer} seconds."
-            )
+            logger.warning("No mobs detected in %s seconds.", self._alert_timer)
             try:
                 await self._setup_failsafe_procedure()
                 await asyncio.wait_for(
                     self._failsafe_procedure(), timeout=self.FAILSAFE_TIMER
                 )
-                logger.log(
-                    LOG_LEVEL, "Mobs still spawn. Resuming normal operation."
-                )
+                restored: MobSpawnRestoredPayload = {
+                    "alert_timer": float(self._alert_timer),
+                    "alert_threshold": int(self._alert_threshold),
+                }
+                self.emit(RECOVERY_MOB_SPAWN_RESTORED, restored)
                 await self._clear_failsafe_procedure()
 
             except asyncio.TimeoutError:
@@ -81,8 +84,8 @@ class CheckMobsStillSpawn(
                 )
                 self._react("advanced")
                 logger.critical(
-                    f"Failed to ensure mobs still spawn after {self.FAILSAFE_TIMER} "
-                    f"seconds"
+                    "Failed to ensure mobs still spawn after %s seconds",
+                    self.FAILSAFE_TIMER,
                 )
 
     async def _setup_failsafe_procedure(self) -> None:
@@ -131,9 +134,8 @@ class CheckMobsStillSpawn(
         except asyncio.TimeoutError:
             # Still no mobs.
             self._react("light")
-            logger.log(
-                LOG_LEVEL,
-                f"No mobs detected after {self.FAILSAFE_TIMER // 2} seconds"
+            logger.warning(
+                "No mobs detected after %s seconds", self.FAILSAFE_TIMER // 2
             )
 
             # Keep trying until this is cancelled by the failsafe procedure
