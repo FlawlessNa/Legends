@@ -7,9 +7,9 @@ For *what runs where* — the four process kinds, who owns which queue, where a
 keystroke actually leaves from — read `docs/agents/engine-architecture.md` before
 exploring. This file is the complement: the rules a change can **violate**.
 
-It knows nothing about MapleStory, and nothing here may import from `maple/`. The one existing import
-(`botting/visuals/object_detection.py` → `maple_ign_finder`) is a defect to be
-removed, not a pattern to copy.
+It knows nothing about MapleStory, and nothing here may import from `maple/`.
+There are no exceptions: the last such import
+(`botting/visuals/object_detection.py` → `maple_ign_finder`) was removed by #85.
 
 ## Orientation
 

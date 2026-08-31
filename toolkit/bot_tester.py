@@ -2,7 +2,7 @@ import asyncio
 import logging
 from botting import PARENT_LOG
 from botting.core import DecisionMaker, SessionManager
-from maple.bots.royals_bot import MapleBot
+from maple.bots.maple_bot import MapleBot
 import maple.decision_makers as dm
 
 

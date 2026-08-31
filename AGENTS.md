@@ -15,10 +15,12 @@ directly. Keep tool-neutral guidance here, not in the per-tool files.
 - `docs/adr/` — architecture decisions. `docs/agents/` — the reference docs the
   sections below point at.
 - `toolkit/`, `ml_training/` — supporting tools and model training.
+  `toolkit/` holds **standalone scripts**: nothing imports them, they are run
+  directly, and they are held to the same gates as the rest of the tree.
 
-Dependencies point one way: `maple` imports `botting`, never the reverse. The
-single existing violation (`botting/visuals/object_detection.py` importing
-`maple_ign_finder`) is a defect, not a precedent.
+Dependencies point one way: `maple` imports `botting`, never the reverse. There
+are no exceptions — the last one (`botting/visuals/object_detection.py`) was
+removed by #85.
 
 Each of `botting/`, `maple/`, and `tests/` has its own `AGENTS.md` with the
 rules that only apply inside it. Read the one for the package you're touching.

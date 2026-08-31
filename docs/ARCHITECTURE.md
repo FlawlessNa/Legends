@@ -140,8 +140,8 @@ break one and you get an exception, not a subtle bug six hours into a Session.
   keeps a permissive signature on purpose, and Event Types are governed by
   convention rather than validated at runtime.
 - **Dependencies point one way: `maple` imports `botting`, never the reverse.**
-  The one existing violation (`botting/visuals/object_detection.py`) is a defect
-  on the books, not a precedent.
+  There are no exceptions — the last violation
+  (`botting/visuals/object_detection.py`) was removed by #85.
 
 ## Where each piece lives
 

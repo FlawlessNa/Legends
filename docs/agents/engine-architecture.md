@@ -135,7 +135,7 @@ registered in `ignored_keys`, or `_monitor_proxy` will try to service it as one.
   `dictConfig` data (ADR 0001).
 - **Don't validate inside `emit_event()`.** Telemetry may never raise inside a
   Producer.
-- **Don't import `maple` from `botting`.** The one existing violation
-  (`visuals/object_detection.py` → `maple_ign_finder`) is a defect.
+- **Don't import `maple` from `botting`.** There are no exceptions left; the
+  last violation (`visuals/object_detection.py`) was removed by #85.
 - **Correlation IDs are passed explicitly.** No `contextvars`, no ambient
   propagation.

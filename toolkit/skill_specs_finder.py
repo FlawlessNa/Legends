@@ -4,9 +4,8 @@ import os
 import win32gui
 import time
 from botting.utilities import client_handler, take_screenshot, Box
-from royals import maple_ign_finder
-from maple.model.characters import ALL_BUFFS
-from maple.model.mechanics import MapleSkill
+from maple import maple_ign_finder
+from maple.model.characters import ALL_BUFFS, MapleSkill
 
 
 IGN = "WrongDoor"
