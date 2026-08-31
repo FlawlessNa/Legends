@@ -1,135 +1,125 @@
+"""
+The `windll.user32` seam: which entry points are exported, and the two helpers
+that turn a key name into a virtual-key code.
+
+`_get_virtual_key` and `_keyboard_layout_handle` are only meaningful against a
+real keyboard layout, so the tests covering them load layouts into the machine
+and cycle through them. That side effect is machine-global, not process-local,
+which is why they carry the `system` marker and stay out of the default run.
+"""
+
 import ctypes
 import string
+
+import pytest
 import win32gui
 
-from unittest import TestCase
-from botting.controller import (
-    _setup_exported_functions,
+from botting.controller.inputs.inputs_helpers import (
     _get_virtual_key,
     _keyboard_layout_handle,
+    _setup_exported_functions,
 )
 
+HKL_NEXT = 1
 
-class TestInputsHelpers(TestCase):
-    HKL_NEXT = 1
-    HKL_PREV = 0
-    handle: int
-    get_active_layout_name: callable
-    layout_name: type(ctypes.create_unicode_buffer(10))
-    original_layout: str
-    languages: dict[str, str]
-    load_new_layout: callable
-    unload_layout: callable
-    activate_keyboard_layout: callable
+#: The layouts cycled through to prove a virtual-key code doesn't depend on the
+#: active one. ENG-US and CAN-CMS are left loaded on teardown - they are the two
+#: a developer machine here is expected to have already.
+LAYOUTS = {
+    "ENG-US": "00000409",
+    "ENG-UK": "00000809",
+    "FRA-FR": "0000040c",
+    "CAN-CMS": "00011009",
+    "CAN-FR": "00001009",
+}
+KEPT_LOADED = ("ENG-US", "CAN-CMS")
 
-    @classmethod
-    def setUpClass(cls) -> None:
-        """
-        We use the handle to the foreground window to get the keyboard layout (This should normally be this PyCharm window).
-        Technically since Windows 8, the active keyboard layout is the same across all processes, so the handle should not matter.
-        We load a bunch of keyboard layouts to test that the functions work properly with different layouts.
-        """
-        cls.layout_name = ctypes.create_unicode_buffer(10)
-        cls.handle = win32gui.GetForegroundWindow()
 
-        cls.activate_keyboard_layout = ctypes.windll.user32.ActivateKeyboardLayout
-        cls.get_active_layout_name = ctypes.windll.user32.GetKeyboardLayoutNameW
-        cls.load_new_layout = ctypes.windll.user32.LoadKeyboardLayoutW
-        cls.unload_layout = ctypes.windll.user32.UnloadKeyboardLayout
+# --- The exported user32 entry points ---------------------------------------
 
-        cls.get_active_layout_name(cls.layout_name)
-        cls.original_layout = cls.layout_name.value
-        print(f"Original keyboard layout is {cls.original_layout}.")
 
-        cls.languages = {
-            "ENG-US": "00000409",
-            "ENG-UK": "00000809",
-            "FRA-FR": "0000040c",
-            "CAN-CMS": "00011009",
-            "CAN-FR": "00001009",
-        }
-        for lang in cls.languages.values():
-            print(f"Loading {lang} layout")
-            cls.load_new_layout(lang, 0)
+def test_setup_exported_functions_exports_the_five_user32_entry_points():
+    exported = _setup_exported_functions()
 
-    @classmethod
-    def tearDownClass(cls) -> None:
-        """Make sure to unload the unnecessary layouts. Return the keyboard language to the original one."""
-        for key, lang in cls.languages.items():
-            if key == "ENG-US" or key == "CAN-CMS":
-                continue
-            print(f"Unloading {key} layout {lang}")
-            cls.unload_layout(lang)
-        while True:
-            cls.activate_keyboard_layout(cls.HKL_NEXT, 0)
-            cls.get_active_layout_name(cls.layout_name)
-            if cls.layout_name.value == cls.original_layout:
-                print(f"Keyboard layout returned to {cls.layout_name.value}.")
-                break
+    assert set(exported) == {
+        "MapVirtualKeyExW",
+        "GetWindowThreadProcessId",
+        "GetKeyboardLayout",
+        "PostMessageW",
+        "SendInput",
+    }
+    assert all(callable(func) for func in exported.values())
 
-    def test__get_virtual_key(self):
-        """Goal is to test that this function returns consistent values for the same key, regardless of the keyboard language settings."""
-        for _ in self.languages:
-            self.activate_keyboard_layout(self.HKL_NEXT, 0)
 
-            for c in string.ascii_letters:
-                vk_sensitive = _get_virtual_key(
-                    c, True, _keyboard_layout_handle(self.handle)
-                )
-                self.assertEqual(
-                    vk_sensitive,
-                    ord(c),
-                    f"Virtual key for {c} is {vk_sensitive} instead of {ord(c)}",
-                )
-                vk_lower = _get_virtual_key(
-                    c, False, _keyboard_layout_handle(self.handle)
-                )
-                self.assertEqual(
-                    vk_lower,
-                    ord(c.upper()),
-                    f"Virtual key for {c} is {vk_lower} instead of {ord(c)}",
-                )
-            for c in string.digits:
-                vk = _get_virtual_key(c, False, _keyboard_layout_handle(self.handle))
-                self.assertEqual(
-                    vk, ord(c), f"Virtual key for {c} is {vk} instead of {ord(c)}"
-                )
-            for c in string.punctuation:
-                vk = _get_virtual_key(c, True, _keyboard_layout_handle(self.handle))
-                self.assertEqual(
-                    vk, ord(c), f"Virtual key for {c} is {vk} instead of {ord(c)}"
-                )
+# --- The virtual-key helpers, against real layouts --------------------------
 
-    def test__keyboard_layout_handle(self):
-        """
-        Here we merely test that the returned value doesn't change when we change the keyboard language settings.
-        This is because the function is cached.
-        """
-        prev_val = _keyboard_layout_handle(self.handle)
-        for _ in self.languages:
-            self.activate_keyboard_layout(self.HKL_NEXT, 0)
-            new_val = _keyboard_layout_handle(self.handle)
-            self.assertEqual(
-                prev_val,
-                new_val,
-                f"Keyboard layout handle is the same after changing keyboard language settings.",
-            )
-            prev_val = new_val
 
-    def test__setup_exported_functions(self):
-        results = _setup_exported_functions()
-        self.assertIsInstance(results, dict)
-        self.assertEqual(len(results), 5)
-        for key, val in results.items():
-            self.assertIsInstance(key, str)
-            self.assertTrue(
-                key
-                in [
-                    "MapVirtualKeyExW",
-                    "GetWindowThreadProcessId",
-                    "GetKeyboardLayout",
-                    "PostMessageW",
-                    "SendInput",
-                ]
-            )
-            self.assertTrue(callable(val))
+@pytest.fixture(scope="module")
+def cycled_layouts():
+    """
+    Loads every layout in `LAYOUTS`, then puts the machine back as it was.
+
+    Yields a callable that advances to the next loaded layout, so a test can
+    assert a property holds across all of them.
+    """
+    user32 = ctypes.windll.user32
+    name = ctypes.create_unicode_buffer(10)
+    user32.GetKeyboardLayoutNameW(name)
+    original = name.value
+
+    # Unloading takes the HKL the load returned, not the layout string.
+    handles = {key: user32.LoadKeyboardLayoutW(code, 0) for key, code in LAYOUTS.items()}
+
+    def _next_layout() -> None:
+        user32.ActivateKeyboardLayout(HKL_NEXT, 0)
+
+    yield _next_layout
+
+    for key, handle in handles.items():
+        if key not in KEPT_LOADED:
+            user32.UnloadKeyboardLayout(handle)
+
+    # Bounded: a layout that never comes back around must not hang the suite.
+    for _ in range(len(LAYOUTS) + 1):
+        user32.GetKeyboardLayoutNameW(name)
+        if name.value == original:
+            break
+        user32.ActivateKeyboardLayout(HKL_NEXT, 0)
+
+
+@pytest.fixture
+def foreground_handle() -> int:
+    return win32gui.GetForegroundWindow()
+
+
+@pytest.mark.system
+def test_virtual_key_is_the_same_code_whatever_the_active_layout(
+    cycled_layouts, foreground_handle
+):
+    """The property the input layer depends on: a key name maps to one code."""
+    for _ in LAYOUTS:
+        cycled_layouts()
+        layout = _keyboard_layout_handle(foreground_handle)
+
+        for char in string.ascii_letters:
+            assert _get_virtual_key(char, True, layout) == ord(char)
+            assert _get_virtual_key(char, False, layout) == ord(char.upper())
+        for char in string.digits:
+            assert _get_virtual_key(char, False, layout) == ord(char)
+        for char in string.punctuation:
+            assert _get_virtual_key(char, True, layout) == ord(char)
+
+
+@pytest.mark.system
+def test_layout_handle_is_pinned_per_window_once_looked_up(
+    cycled_layouts, foreground_handle
+):
+    """
+    The lookup is `lru_cache`d on the handle, so one window keeps one layout for
+    the life of the process even if the user switches language mid-session.
+    """
+    pinned = _keyboard_layout_handle(foreground_handle)
+
+    for _ in LAYOUTS:
+        cycled_layouts()
+        assert _keyboard_layout_handle(foreground_handle) == pinned

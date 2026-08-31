@@ -13,6 +13,14 @@ many times, with what arguments, etc).
 
 import pytest
 
+#: Every test below is an unwritten placeholder whose body is `pytest.fail()`.
+#: Strict, so implementing one turns XPASS into a failure that says "drop this
+#: marker". Their fate - write, or delete against the #72 coverage constraint -
+#: is issue #89.
+pytestmark = pytest.mark.xfail(
+    reason="Unwritten placeholder; see issue #89", strict=True
+)
+
 
 def test_key_binds():
     pytest.fail()

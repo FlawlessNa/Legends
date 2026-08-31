@@ -57,6 +57,14 @@ class MapleMinimap(Minimap):
         # np.argwhere yields np.int64; cast so the annotation is true.
         return int(x), int(y)
 
+    @property
+    def party_rebuff_spot(self) -> tuple[int, int] | None:
+        """
+        The (x, y) gathering coordinate for synchronized rebuffs, from the map's
+        JSON config, or None when the map defines none.
+        """
+        return self.features_manager.party_rebuff_zone
+
     def get_feature_containing(self, position: tuple[int, int]) -> MinimapEdits | None:
         x, y = position
         return self.features_manager.get_feature_containing(x, y)

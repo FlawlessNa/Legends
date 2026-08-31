@@ -3,10 +3,21 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Data folder
+# Training artifacts and model weights. Production weights are distributed
+# out-of-band via GitHub Releases -- run `python scripts/fetch_models.py`.
 data/
 runs/
-configs/
+
+# Personal configs only. Everything else under configs/ is shared project data
+# and IS tracked: map definitions, detection tuning, client settings.
+# Each of these has a committed .example.ini template beside it.
+configs/discord.ini
+configs/keybindings.ini
+configs/recordings.ini
+
+# Per-user launcher profiles (see profiles/example.yaml).
+profiles/*.yaml
+!profiles/example.yaml
 # C extensions
 *.so
 # Logs

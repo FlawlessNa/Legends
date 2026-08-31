@@ -1,22 +1,18 @@
-# Core ML dependencies
-ultralytics>=8.0.0
-torch>=2.0.0
-torchvision>=0.15.0
-opencv-python>=4.8.0
-Pillow>=10.0.0
-numpy>=1.24.0
+# Extra dependencies for training and annotating detection models.
+# Only needed if you are building your own models -- running the bot with the
+# published weights (`python scripts/fetch_models.py`) does not require these.
+#
+#   pip install -r requirements-dev.txt -r ml_training/requirements.txt
 
-# GUI and annotation
-PyQt6>=6.5.0
+-r ../requirements.txt
 
-# Data management
-PyYAML>=6.0
-pandas>=2.0.0
+# Annotation GUI
+PyQt6==6.11.0
 
-# Visualization
-matplotlib>=3.7.0
-seaborn>=0.12.0
-
-# Utilities
-tqdm>=4.65.0
-python-dotenv>=1.0.0
+# Dataset handling and training reports.
+# pandas 3.x -- note it enables copy-on-write by default, so chained assignment
+# that used to mutate in place is now a no-op.
+pandas==3.0.5
+matplotlib==3.11.1
+seaborn==0.13.2
+tqdm==4.70.0

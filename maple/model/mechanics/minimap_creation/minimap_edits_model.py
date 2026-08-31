@@ -93,6 +93,9 @@ class MinimapEditsManager:
     mobs: list[str] = field(default_factory=list)
     # Path (relative to ROOT) of the minimap title screenshot used for map validation.
     title_img_path: str | None = None
+    # Minimap (x, y) coordinate where all party members gather for synchronized
+    # rebuffs. The zone around it is determined at runtime.
+    party_rebuff_zone: tuple[int, int] | None = None
 
     @property
     def names(self) -> list[str]:
@@ -141,6 +144,7 @@ class MinimapEditsManager:
             )
             for p in data.get('portals', [])
         ]
+        zone = data.get('party_rebuff_zone')
         return cls(
             features=features,
             portals=portals,
@@ -150,6 +154,7 @@ class MinimapEditsManager:
             canvas_height=meta.get('canvas_height'),
             mobs=data.get('mobs', []),
             title_img_path=data.get('title_img_path'),
+            party_rebuff_zone=tuple(zone) if zone is not None else None,
         )
 
     def to_json(self, map_name: str) -> None:
@@ -168,6 +173,11 @@ class MinimapEditsManager:
             },
             'title_img_path': self.title_img_path,
             'mobs': self.mobs,
+            'party_rebuff_zone': (
+                list(self.party_rebuff_zone)
+                if self.party_rebuff_zone is not None
+                else None
+            ),
             'features': features_dict,
             'portals': [
                 {

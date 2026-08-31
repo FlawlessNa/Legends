@@ -1,37 +1,20 @@
-import asyncio
-from botting.core.session_manager import SessionManager
-import maple.bots as bots
-import maple.parsers
+r"""
+Replaced by the profile-driven launcher.
 
-training_configs = {
-    "num_pets": 1,
-    "game_map": "Line1Area1",
-    "open_minimap_editor": False,
-    "mob_count_threshold": 8,
-    "included_buffs": ["Maple Warrior", "Holy Symbol"],
-    "training_skill": "Genesis",
-    "models_path": {"All": "data/models/production/global"},
-    "smart_rotation_enabled": False,
-    # "disable_teleport": True,
-    "mob_spawn_alert_timer": 15,
-    "mob_spawn_alert_threshold": 4,
-    # 'speed_multiplier': 1.4,
-    # 'jump_multiplier': 1.23,
-    # "detection_configs": "Elephant Cape"
-}
+This script used to hold one person's character, map and skills as edited-in
+source, which does not survive more than one user. That configuration now lives
+in `profiles/<name>.yaml`:
 
+    copy profiles\example.yaml profiles\yourname.yaml
+    python -m maple.launchers.run yourname
 
-async def main():
-    with SessionManager(maple.parsers.MapleParser) as session:
-        leecher = bots.TrainingBot("Farmacy", session.metadata, **training_configs)
-        # mule1 = bots.TestBot('UluLoot', session.metadata)
-        # mule2 = bots.TestBot('FinancialWiz', session.metadata)
-        # mule3 = bots.TestBot('MoneyEngine', session.metadata)
-        # mule4 = bots.TestBot('iYieldMoney', session.metadata)
-        # mule5 = bots.TestBot('BCoinFarm', session.metadata)
-        # await session.launch([leecher], [mule1, mule2, mule3, mule4, mule5])
-        await session.launch([leecher])
+See docs/FIRST_BOT.md for the walkthrough.
+"""
 
+import sys
+
+MESSAGE = __doc__.strip()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    print(MESSAGE, file=sys.stderr)
+    raise SystemExit(2)

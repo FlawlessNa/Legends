@@ -1,3 +1,18 @@
+"""
+PARKED - not wired into any bot, and not importable as-is.
+
+This module predates the JSON minimap rewrite and still reaches for the old map
+model: ``maple._old.maps.RoyalsMap`` (the package is gone) and
+``maple.model.mechanics.MinimapConnection`` (no longer exported there). Importing
+it raises. It is kept for the inventory-cleanup behaviour it encodes, which has
+no replacement yet.
+
+It is disconnected at the import boundary rather than deleted - see the
+commented-out lines in ``maple/decision_makers/__init__.py`` and
+``maple/bots/leeching.py``. Leave it that way: reconnecting it means porting the
+map handling to the current model first, which is deliberately deferred.
+"""
+
 import asyncio
 import cv2
 import logging

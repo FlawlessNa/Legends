@@ -1,0 +1,12 @@
+# Everything in requirements.txt, plus the tooling for tests and linting.
+#
+#   pip install -r requirements-dev.txt
+#
+# Install this instead of requirements.txt if you intend to open pull requests.
+
+-r requirements.txt
+
+pytest==9.1.1
+pytest-mock==3.15.1
+hypothesis==6.167.1
+ruff==0.16.5

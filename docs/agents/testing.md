@@ -52,11 +52,9 @@ Two consequences worth knowing:
 Prefer `monkeypatch` when you only need to swap an attribute and never assert on the
 call; reach for `mocker` when you need to record how something was called.
 
-Three modules are the standing exception, and only until their own tickets land:
-`test_child_process.py` and `test_inputs_helpers.py` (issue #40) and
-`test_discord_comm.py` (issue #69) still import `unittest`. Each of those tickets
-decides whether its module is repaired or rewritten from scratch; whatever survives
-that decision is written to the convention above.
+There are no longer any exceptions. The last three fell with issues #40 and #69:
+`test_child_process.py` and `test_discord_comm.py` were deleted as dead, and
+`test_inputs_helpers.py` was repointed at the symbols' current home and converted.
 
 ## What the scaffolding gives you
 
@@ -64,9 +62,12 @@ that decision is written to the convention above.
 re-deriving what they configure. Two things there are worth knowing before you write
 a test:
 
-- **The `live` marker.** Tests that drive a real, focused game client are marked
-  `@pytest.mark.live` and are excluded from a default run. Run them with
-  `pytest -m live`. Anything that needs a game window belongs behind this marker.
+- **Two opt-in markers.** `@pytest.mark.live` is for tests that drive a real,
+  focused game client; `@pytest.mark.system` is for tests that mutate
+  machine-global state, such as the keyboard layouts loaded on the machine. Both
+  are excluded from a default run — `pytest -m live`, `pytest -m system`.
+  Anything needing a game window, or leaving a trace outside the test process,
+  belongs behind one of them.
 - **The `held_movement_keys` fixture.** Constructing a `KeyboardInputWrapper` reads
   the Held-Keys Ledger, which only Main Process owns and which carries state between
   tests. Request this fixture to pin what construction sees as already held, so the
@@ -77,11 +78,90 @@ fixture of their own — see `tests/test_botting/test_held_keys_ledger.py`.
 
 ## Running
 
-`pytest` from the repo root. Two modules (`test_child_process.py`,
-`test_inputs_helpers.py`) currently fail to import against current source, which
-interrupts collection; until that is resolved, add
-`--ignore=tests/test_botting/test_child_process.py --ignore=tests/test_botting/test_inputs_helpers.py`
-to get a full run.
+`pytest` from the repo root. No flags, no `--ignore`:
+
+```
+0 failed, 0 errors, 11 xfailed, 2 deselected
+```
+
+**That is the green baseline. Any `failed` or `error` line is yours.**
+
+Don't pin the passing count anywhere — it moved from 270 to 322 in under an hour
+once someone else's branch landed. The shape is what holds:
+
+- **2 deselected** — the `system`-marked keyboard-layout tests. Nothing is wrong;
+  they are opt-in. Note these are *not* `live` tests: **no test carries the `live`
+  marker today**, so `pytest -m live` selects nothing.
+- **11 xfailed** — red tests parked behind issue #89, which decides their fate.
+  8 are unwritten `pytest.fail()` placeholders in `test_controller.py` and
+  `test_screenshots.py`; the other 3 are a 2px minimap-detection drift, an OCR
+  assertion that depends on the installed Tesseract, and an `ml_training/`
+  layout assertion for files not in the tree.
+- **An `XPASS` is a failure, not good news.** The 8 placeholders are marked
+  `strict=True` precisely so that writing one turns into a red line telling you
+  to drop the marker. The other 3 are non-strict, since they can legitimately
+  pass on another machine.
+
+Never add an `xfail` to get a green run. It is a holding action that costs a
+ticket: #89 exists because 11 tests needed one, and it names each of them.
+
+## Proving a new test earns its place
+
+A test that passes whether or not your change is present proves nothing, and it is
+indistinguishable from a real test once it is in the tree. So before a behaviour
+change is done, show that its test fails without it.
+
+**With the work uncommitted**, stash only the source paths and leave the test:
+
+```bash
+git stash push -- botting/some_module.py          # source only, test untouched
+pytest tests/test_botting/test_some_module.py::test_the_new_case
+git stash pop
+```
+
+**With the work already committed**, use a throwaway worktree at the parent commit
+and copy the test into it:
+
+```bash
+git worktree add ../verify HEAD~1
+cp tests/test_botting/test_some_module.py ../verify/tests/test_botting/
+cd ../verify && pytest tests/test_botting/test_some_module.py::test_the_new_case
+cd - && git worktree remove ../verify
+```
+
+**Read the failure, not just the colour.** A test that errors on an `ImportError`
+because the symbol does not exist yet is red for a structural reason; that is
+fine when your change adds the symbol, and worthless when your change alters
+behaviour of something already there. What you want to see is *your assertion*
+failing, with the old value on one side.
+
+State the result where the work is reported: which test, and what it said before.
+
+### Refactors are the opposite case
+
+No new test, and every existing test passes **unmodified**. Editing a test to make
+a refactor pass means behaviour moved — which makes it not a refactor. Stop and
+say what moved and why, rather than adjusting the assertion to match.
+
+This is the common case in the current backlog: #46 and #76 are both refactors,
+and for those the discipline is "don't touch the tests," not "write one first."
+
+### On test-first
+
+Encouraged where it works, which is the same boundary as everything else here:
+
+- **Invariant work** — write the test first if you can, and better still, write it
+  from the ticket's acceptance criteria rather than from the implementation you
+  have in mind. A test derived from the code it is about to test only records
+  your intent; one derived from the spec can contradict you, which is the entire
+  point.
+- **Expectation work** — test-first is not available. There is no failing test for
+  "the character reaches the platform." Do not invent one by pinning a measured
+  constant into an assertion and calling it an Invariant; that manufactures a
+  test which fails on somebody else's machine for reasons unrelated to the code.
+
+Test-first is a technique, not a rule here. The rule is the one above: the test
+fails without the change.
 
 ## Changing an existing test
 

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 470" width="1120" height="470" role="img" aria-label="Observability: engine and peripherals processes push log records through a QueueHandler into a logging queue held by the Manager process; a QueueListener thread in Main drains it into the parent logger's handlers, alongside Main's own loggers. The handlers fan out to the console under a per-logger threshold, to four bucket files plus a combined session log, and to a telemetry JSONL sink.">
+<title>Every process logs into one funnel</title>
+<style>
+svg{--surface:#FFFFFF;--surface-2:#FAFAFC;--wash:#EBEEF3;--ink:#14181F;--ink-2:#4E5766;--ink-3:#7B8492;--rule:#DBDFE6;--obs:#0B6E78;--obs-wash:#E2F0F1}
+@media (prefers-color-scheme:dark){svg{--surface:#171B22;--surface-2:#1C222A;--wash:#212832;--ink:#E6E9EF;--ink-2:#A2ACBA;--ink-3:#767F8C;--rule:#29303A;--obs:#4CBEC7;--obs-wash:#0F2A2D}}
+text{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace}
+.proc{fill:var(--surface-2);stroke:var(--ink-2);stroke-width:2}
+.task{fill:var(--surface);stroke:var(--rule);stroke-width:1.25}
+.thr{fill:var(--surface);stroke:var(--ink-3);stroke-width:1.5;stroke-dasharray:5 3}
+.state{fill:var(--wash);stroke:var(--rule);stroke-width:1.25}
+.obsbox{fill:var(--obs-wash);stroke:var(--obs);stroke-width:1.5}
+.a-obs{stroke:var(--obs);stroke-width:1.75;fill:none}
+.tb{font-size:13px;font-weight:500;fill:var(--ink)}
+.ts{font-size:10.5px;fill:var(--ink-2)}
+.al-obs{font-size:11px;fill:var(--obs)}
+</style>
+<defs>
+<marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--obs)"/></marker>
+</defs>
+
+<rect class="proc" x="24" y="40" width="200" height="56" rx="2"/>
+<text class="tb" x="124" y="64" text-anchor="middle">Engine Process ×N</text>
+<text class="ts" x="124" y="82" text-anchor="middle">DecisionMakers, movement</text>
+
+<rect class="proc" x="24" y="112" width="200" height="56" rx="2"/>
+<text class="tb" x="124" y="136" text-anchor="middle">Peripherals Process</text>
+<text class="ts" x="124" y="154" text-anchor="middle">recorder, discord</text>
+
+<rect class="proc" x="24" y="214" width="200" height="56" rx="2"/>
+<text class="tb" x="124" y="238" text-anchor="middle">Main Process</text>
+<text class="ts" x="124" y="256" text-anchor="middle">its own loggers</text>
+
+<rect class="state" x="284" y="64" width="200" height="56" rx="2"/>
+<text class="tb" x="384" y="88" text-anchor="middle">logging Queue</text>
+<text class="ts" x="384" y="106" text-anchor="middle">in the Manager process</text>
+
+<line class="a-obs" x1="224" y1="66" x2="280" y2="86" marker-end="url(#ao)"/>
+<line class="a-obs" x1="224" y1="140" x2="280" y2="100" marker-end="url(#ao)"/>
+<text class="al-obs" x="254" y="48" text-anchor="middle">QueueHandler</text>
+
+<rect class="thr" x="544" y="64" width="200" height="56" rx="2"/>
+<text class="tb" x="644" y="88" text-anchor="middle">Log Listener</text>
+<text class="ts" x="644" y="106" text-anchor="middle">QueueListener thread, in Main</text>
+<line class="a-obs" x1="484" y1="92" x2="540" y2="92" marker-end="url(#ao)"/>
+
+<rect class="obsbox" x="544" y="180" width="200" height="64" rx="7"/>
+<text class="tb" x="644" y="206" text-anchor="middle">botting logger</text>
+<text class="ts" x="644" y="225" text-anchor="middle">one handler set per Session</text>
+<line class="a-obs" x1="644" y1="120" x2="644" y2="176" marker-end="url(#ao)"/>
+<polyline class="a-obs" points="224,242 500,242 500,212 540,212" marker-end="url(#ao)"/>
+<text class="al-obs" x="360" y="234" text-anchor="middle">straight in — no queue hop</text>
+
+<rect class="task" x="824" y="40" width="272" height="56" rx="7"/>
+<text class="tb" x="960" y="64" text-anchor="middle">live console</text>
+<text class="ts" x="960" y="82" text-anchor="middle">per-logger Console Threshold</text>
+
+<rect class="task" x="824" y="120" width="272" height="88" rx="7"/>
+<text class="tb" x="960" y="144" text-anchor="middle">Log Buckets</text>
+<text class="ts" x="960" y="165" text-anchor="middle">movement.log · inputs.log</text>
+<text class="ts" x="960" y="182" text-anchor="middle">decisions.log · other.log</text>
+<text class="ts" x="960" y="200" text-anchor="middle">+ session.log, all four combined</text>
+
+<rect class="task" x="824" y="232" width="272" height="72" rx="7"/>
+<text class="tb" x="960" y="256" text-anchor="middle">telemetry.jsonl</text>
+<text class="ts" x="960" y="275" text-anchor="middle">one Telemetry Record per line</text>
+<text class="ts" x="960" y="293" text-anchor="middle">timestamp · correlation_id · event_type</text>
+
+<polyline class="a-obs" points="744,200 784,200 784,68 820,68" marker-end="url(#ao)"/>
+<text class="al-obs" x="778" y="120" text-anchor="end">≥ threshold</text>
+<polyline class="a-obs" points="744,208 784,208 784,164 820,164" marker-end="url(#ao)"/>
+<text class="al-obs" x="778" y="152" text-anchor="end">not_telemetry</text>
+<polyline class="a-obs" points="744,220 784,220 784,268 820,268" marker-end="url(#ao)"/>
+<text class="al-obs" x="778" y="262" text-anchor="end">is_telemetry</text>
+
+<rect class="state" x="24" y="368" width="1072" height="60" rx="2"/>
+<text class="tb" x="560" y="394" text-anchor="middle">One Session, one directory</text>
+<text class="ts" x="560" y="413" text-anchor="middle">every file above is created under it at startup, before the listener snapshots the handler set</text>
+</svg>

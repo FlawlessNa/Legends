@@ -58,9 +58,9 @@ def test___getitem__(box, box_offset):
     assert box["top"] == 0
     assert box["bottom"] == 10
     assert box["name"] == "box1"
-    assert box["offset"] is False
+    assert box["relative"] is False
     assert box["config"] == "test"
-    assert box_offset["offset"] is True
+    assert box_offset["relative"] is True
     with pytest.raises(AttributeError):
         print(box["wrong_key"])
 

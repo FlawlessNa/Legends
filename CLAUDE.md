@@ -1,17 +1,12 @@
-## Agent skills
+@AGENTS.md
 
-### Issue tracker
+## Claude Code
 
-Issues live in GitHub Issues on `FlawlessNa/Legends`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+The instructions above come from `AGENTS.md`, which every agent in this repo
+shares. Put project guidance there, not here — this file is for Claude-specific
+behaviour only.
 
-### Triage labels
-
-Canonical label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) — identity mapping. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context: one `CONTEXT.md` plus `docs/adr/` at the repo root. See `docs/agents/domain.md`.
-
-### Tests
-
-pytest-native, always: plain module-level `test_*` functions, `@pytest.fixture` in place of `setUp`/`tearDown`, and bare `assert`. This holds for new test modules and for any unittest-style test you touch. See `docs/agents/testing.md` for the translation table, the `live` marker, the shared fixtures, and how to convert a module without changing its behaviour.
+`botting/`, `maple/`, and `tests/` each hold an `AGENTS.md` plus a one-line
+`CLAUDE.md` that imports it. Those `CLAUDE.md` files are shims: edit the
+`AGENTS.md` beside them instead. Claude loads a nested file when it reads a file
+in that directory, so package rules arrive on demand rather than at launch.

@@ -1,0 +1,47 @@
+{
+  "_comment": "Pins the YOLO weights this commit expects. Weights are NOT in git -- run `python scripts/fetch_models.py` to download them from the GitHub Release named by `release_tag`. Regenerate this file with `python scripts/publish_models.py` after promoting a new model.",
+  "repo": "FlawlessNa/Legends",
+  "release_tag": "models-v1",
+  "models": [
+    {
+      "name": "global",
+      "description": "General-purpose detector covering the character plus five mobs. This is the default for the training launcher; start here unless you need a single-mob model.",
+      "classes": [
+        "Character",
+        "Slimy",
+        "SelkieJr",
+        "PlatoonChronos",
+        "PacPinky",
+        "Bubbling"
+      ],
+      "asset": "global.pt",
+      "dest": "data/models/production/global/weights/best.pt",
+      "sha256": "1ec56200ff9bc89d2fe3192c0a0bf9618485e9b33fa162c2eb37886e93aefcdf",
+      "size_bytes": 6244579
+    },
+    {
+      "name": "Bubbling_final",
+      "description": "Single-mob specialist for Bubbling. Higher precision than `global` on that mob alone.",
+      "classes": [
+        "Bubbling",
+        "Character"
+      ],
+      "asset": "Bubbling_final.pt",
+      "dest": "data/models/production/Bubbling_final/weights/best.pt",
+      "sha256": "eb9ab82586fa17c74d22ba75aa9c06d09fe4368bbec2b2bcdb886c6c324bd30f",
+      "size_bytes": 6232419
+    },
+    {
+      "name": "PacPinky_final",
+      "description": "Single-mob specialist for PacPinky. Higher precision than `global` on that mob alone.",
+      "classes": [
+        "PacPinky",
+        "Character"
+      ],
+      "asset": "PacPinky_final.pt",
+      "dest": "data/models/production/PacPinky_final/weights/best.pt",
+      "sha256": "93860340dfd43730ba6045f6e63d4ef7c9758b0b28c1f5edce3070b233cef043",
+      "size_bytes": 6242915
+    }
+  ]
+}

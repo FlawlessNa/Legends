@@ -1,20 +1,49 @@
-pywin32>=306
-opencv-python>=4.8.1.78
-numpy>=1.26.0
-discord>=2.3.2
-pytesseract>=0.3.10
-pathfinding>=1.0.4
-pytweening>=1.0.7
-keyboard>=0.13.5
-fuzzywuzzy>=0.18.0
-levenshtein>=0.25.0
-ultralytics>=8.2.94
+# Runtime dependencies for the bot. Requires Python 3.14 on Windows.
+#
+#   py -3.14 -m venv venv
+#   venv\Scripts\activate
+#   pip install -r requirements.txt
+#
+# Versions are pinned to what the project is developed against. See
+# docs/SETUP.md for the prerequisites pip cannot install (Tesseract-OCR,
+# and a CUDA build of torch if you have an NVIDIA GPU).
 
+# --- Windows integration -----------------------------------------------------
+# The bot drives the game client through Win32 window handles and raw input;
+# there is no cross-platform path.
+pywin32==312
+keyboard==0.13.5
 
-pillow>=10.4.0
-torch>=2.4.1
+# --- Vision ------------------------------------------------------------------
+# OpenCV 5.x. This is a major release and ~37 modules here call into cv2, so
+# treat cv2 behaviour changes as a suspect if image handling misbehaves.
+opencv-python==5.0.0.93
+numpy==2.5.2
+pillow==12.3.0
 
-# Testing
-pytest>=8.3.0
-pytest-mock>=3.14.0
-hypothesis>=6.112.0
+# torch/torchvision below are the CPU wheels from PyPI. If you have an NVIDIA
+# GPU, install the CUDA build INSTEAD -- see docs/SETUP.md, "GPU vs CPU".
+torch==2.11.0
+torchvision==0.26.0
+ultralytics==8.4.135
+
+# --- OCR (chat and UI text reading) ------------------------------------------
+# Also needs the Tesseract-OCR binary installed separately; see docs/SETUP.md.
+pytesseract==0.3.13
+
+# --- Pathfinding and movement ------------------------------------------------
+pathfinding==1.0.22
+pytweening==1.2.0
+
+# --- Config, profiles, notifications -----------------------------------------
+PyYAML==6.0.3
+
+# discord.py, NOT the `discord` shim package: that shim is unmaintained and
+# frozen at 2.3.2, whose player.py imports `audioop` -- a stdlib module removed
+# in Python 3.13. discord.py 2.7.1 pulls audioop-lts instead, pinned below so
+# the install is reproducible.
+discord.py==2.7.1
+audioop-lts==0.2.2
+
+fuzzywuzzy==0.18.0
+Levenshtein==0.27.4

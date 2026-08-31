@@ -33,6 +33,11 @@ def test_from_img(img_path, all_files, expected):
         assert chat_line.name == expected[file][0]
 
 
+@pytest.mark.xfail(
+    reason="Asserts the installed Tesseract build's OCR output, so it is "
+    "machine-dependent; also asserts outside its loop. See issue #89.",
+    strict=False,
+)
 def test_read_text(img_path, all_files, expected):
     for file in all_files:
         full_path = os.path.join(img_path, file)
