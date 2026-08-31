@@ -1,0 +1,5 @@
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+    "python.analysis.pyrightVersion": "1.1.411",
+    "python.analysis.diagnosticsSource": "Pylance + Pyright"
+}

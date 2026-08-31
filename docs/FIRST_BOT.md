@@ -163,8 +163,9 @@ Once it runs at all, these are the dials worth turning, roughly in order:
 mobs on screen before the attack is worth casting.
 
 **It mistimes jumps or overshoots platforms** — the physics model doesn't know
-about your gear or speed buffs. Measure the real values with
-`toolkit/speed_calculation.py` and set `speed_multiplier` / `jump_multiplier`.
+about your gear or speed buffs. Measure the real values in the map editor
+(`python toolkit/create_map.py --map <MapName> --ign <YourIGN>`), which derives
+them from a recorded walk, and set `speed_multiplier` / `jump_multiplier`.
 Don't guess these.
 
 **It doesn't notice it's stuck** — `mob_spawn_alert_timer` and

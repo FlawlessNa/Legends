@@ -15,10 +15,12 @@ directly. Keep tool-neutral guidance here, not in the per-tool files.
 - `docs/adr/` — architecture decisions. `docs/agents/` — the reference docs the
   sections below point at.
 - `toolkit/`, `ml_training/` — supporting tools and model training.
+  `toolkit/` holds **standalone scripts**: nothing imports them, they are run
+  directly, and they are held to the same gates as the rest of the tree.
 
-Dependencies point one way: `maple` imports `botting`, never the reverse. The
-single existing violation (`botting/visuals/object_detection.py` importing
-`maple_ign_finder`) is a defect, not a precedent.
+Dependencies point one way: `maple` imports `botting`, never the reverse. There
+are no exceptions — the last one (`botting/visuals/object_detection.py`) was
+removed by #85.
 
 Each of `botting/`, `maple/`, and `tests/` has its own `AGENTS.md` with the
 rules that only apply inside it. Read the one for the package you're touching.
@@ -141,3 +143,14 @@ in place of `setUp`/`tearDown`, and bare `assert`. This holds for new test
 modules and for any unittest-style test you touch. See `docs/agents/testing.md`
 for the translation table, the two opt-in markers (`live`, `system`), the shared
 fixtures, and how to convert a module without changing its behaviour.
+
+## Typing
+
+Pre-commit runs Ruff and Pyright on staged files only, gated at Pyright
+`standard` for the whole tree and `strict` for the one directory currently on
+the Strict List (`botting/controller/inputs/`). Touching a file surfaces every
+existing violation in *that file* — fix them, don't suppress them, and don't
+bulk-fix a file you didn't otherwise need to touch. Never add a
+`pyrightconfig.json`; it silently overrides `pyproject.toml` and breaks
+editor/hook parity. See `docs/agents/typing.md` for the ratchet mechanics, the
+"strongly typed" definition, and how a directory joins the Strict List.

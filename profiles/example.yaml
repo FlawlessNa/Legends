@@ -75,7 +75,8 @@ settings:
   # -- Movement tuning ------------------------------------------------------
   # Leave these out unless movement is visibly mistimed. Speed and jump
   # multipliers correct for gear/buffs the physics model doesn't know about;
-  # measure them with toolkit/speed_calculation.py rather than guessing.
+  # measure them in the map editor (`python toolkit/create_map.py --map
+  # <MapName> --ign <YourIGN>`) rather than guessing.
   # speed_multiplier: 1.4
   # jump_multiplier: 1.23
 

@@ -268,7 +268,7 @@ if __name__ == "__main__":
     from maple import maple_ign_finder
     import win32gui
 
-    HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
+    HANDLE = client_handler.get_client_handle("WrongDoor", maple_ign_finder)
     USE_HSV = False
     USE_COLORS = True
 
