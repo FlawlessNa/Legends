@@ -9,13 +9,13 @@ Everything below assumes Windows and a `cmd`/PowerShell prompt at the repo root.
 
 ## 1. Prerequisites
 
-### Python 3.12
+### Python 3.14
 
-The project is developed against **3.12** (3.12.4 specifically) and is not
-tested on anything else. 3.13 in particular is likely to fight you over
-`torch` and `PyQt6` wheels.
+The project targets **3.14** (developed against 3.14.7). Older versions will
+not work with the pinned dependencies -- `numpy 2.5` and `torch 2.11` are
+required for 3.14 support and dropped some of what 3.12 needed.
 
-Get it from [python.org](https://www.python.org/downloads/release/python-3129/)
+Get it from [python.org](https://www.python.org/downloads/release/python-3147/)
 — tick **"Add python.exe to PATH"** in the installer — then confirm:
 
 ```
@@ -23,7 +23,7 @@ python --version
 ```
 
 If you have several Pythons installed, use the launcher to pick this one:
-`py -3.12 -m venv venv`.
+`py -3.14 -m venv .venv`.
 
 ### Tesseract-OCR
 
@@ -60,8 +60,8 @@ gh auth login
 ## 2. The virtual environment
 
 ```
-py -3.12 -m venv venv
-venv\Scripts\activate
+py -3.14 -m venv .venv
+.venv\Scripts\activate
 python -m pip install --upgrade pip
 ```
 
@@ -81,11 +81,11 @@ your own detection models.
 because that's what installs everywhere without special handling. It works, but
 detection is the bot's hot path and CPU inference is markedly slower.
 
-If you have an NVIDIA GPU, replace them with the CUDA 12.4 build:
+If you have an NVIDIA GPU, replace them with the CUDA 12.8 build:
 
 ```
 pip uninstall -y torch torchvision
-pip install torch==2.4.1 torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu124
+pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128
 ```
 
 Check which one you ended up with:
@@ -94,8 +94,11 @@ Check which one you ended up with:
 python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 ```
 
-`2.4.1+cu124 True` means the GPU is in play. `2.4.1+cpu False` means it isn't —
-fine to start with, worth fixing later.
+`2.11.0+cu128 True` means the GPU is in play. `2.11.0+cpu False` means it
+isn't -- fine to start with, worth fixing later.
+
+CUDA 12.6 and 12.9 wheels also exist for 3.14 if 12.8 doesn't suit your driver;
+substitute `cu126` or `cu129` in the index URL above.
 
 ---
 
@@ -172,31 +175,19 @@ All three should print something sensible. That's enough to move on to
 
 ### About the test suite
 
-`pytest` does not currently come back green, and that is a known state rather
-than something you broke. Run it like this:
-
 ```
-pytest --ignore=tests/test_botting/test_child_process.py --ignore=tests/test_botting/test_inputs_helpers.py
+pytest
 ```
 
-Expect roughly **261 passing, 11 failing, 8 errors**. The failures break down as:
+Expect a clean run: **322 passing, 11 xfailed, 2 deselected**.
 
-- **Two modules interrupt collection** (`test_child_process.py`,
-  `test_inputs_helpers.py`) — they import names that have since moved. Tracked
-  as issues #40 and #69; `--ignore` them, as above.
-- **Eight `pytest.fail()` stubs** in `test_controller.py` and
-  `test_screenshots.py` — deliberate placeholders for tests nobody has written.
-- **Eight errors in `test_minimap.py`** — the module loads fixtures by relative
-  path (`images/test_minimap1.png`), so it only passes with `tests/` as the
-  working directory.
-- **Three genuine failures**: `test_box.py::test___getitem__`,
-  `test_chat_lines.py::test_read_text`, and
-  `test_ml_training.py::test_all_required_files_exist` (which asserts on a
-  `dataset_manager/augmentation.py` that doesn't exist).
+The xfails are deliberate and tracked under issue #89 -- unwritten placeholder
+tests, plus a few whose expectations are machine-dependent (Tesseract's OCR
+output) or of undecided correctness. They are not failures, and you should not
+need to touch them. The 2 deselected are the `live` tests.
 
-Before you open a pull request, take that baseline first and compare against it
-afterwards — the bar is "no *new* failures", not a clean run. See
-[CONTRIBUTING.md](../CONTRIBUTING.md).
+If you see anything other than a clean run on a fresh clone, that is a real
+problem worth reporting rather than something to work around.
 
 Tests behind the `live` marker drive a real, focused game client and are
 deselected by default. Run them deliberately with `pytest -m live`, with the
@@ -207,7 +198,7 @@ game open.
 ## Troubleshooting
 
 **`ModuleNotFoundError: No module named 'botting'`** — you're not at the repo
-root, or the venv isn't active. Run from the root with `venv\Scripts\activate`
+root, or the venv isn't active. Run from the root with `.venv\Scripts\activate`
 done first.
 
 **`Model 'All' ... is not on disk`** — run `python scripts/fetch_models.py`.

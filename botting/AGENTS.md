@@ -6,6 +6,15 @@ import from `maple/`. The one existing import
 (`botting/visuals/object_detection.py` → `maple_ign_finder`) is a defect to be
 removed, not a pattern to copy.
 
+## Orientation
+
+`docs/agents/engine-architecture.md` covers what runs where: the four kinds of
+process, the action path from `_decide()` to `SendInput`, the control and
+logging planes, the proxy handshake, and a concern-to-file map. Read it before
+exploring the package — it answers most "where does this happen" questions
+without a search. The diagrams in `docs/ARCHITECTURE.md` are for humans and
+carry nothing extra.
+
 ## Input goes through Main Process
 
 ADR 0002 is load-bearing for everything under `controller/`:

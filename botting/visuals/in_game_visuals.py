@@ -15,7 +15,7 @@ from typing import Any, Sequence
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
 from paths import ROOT
-from botting.utilities import Box, take_screenshot, find_image
+from botting.utilities import Box, take_screenshot, find_image, group_rectangles
 
 
 logger = logging.getLogger(__name__)
@@ -136,7 +136,11 @@ class InGameBaseVisuals(ABC):
     def _apply_rectangle_grouping(
         rects: list[Sequence[int]], **kwargs
     ) -> Sequence[Sequence[int]]:
-        return cv2.groupRectangles(rects, **kwargs)[0]
+        # `groupThreshold` is spelled OpenCV's way in character_detection.ini,
+        # so it is translated here rather than churning everyone's config.
+        if "groupThreshold" in kwargs:
+            kwargs["group_threshold"] = kwargs.pop("groupThreshold")
+        return group_rectangles(rects, **kwargs)[0]
 
     @staticmethod
     def _apply_convex_hull(contour: Sequence[int], **kwargs) -> Sequence[int]:

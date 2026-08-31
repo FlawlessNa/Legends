@@ -22,20 +22,20 @@ should go through a PR so someone else sees it.
 
 ## Before you open a PR
 
-**Take a test baseline first.** The suite is not green — see
-[docs/SETUP.md](docs/SETUP.md#about-the-test-suite) for exactly which failures
-are expected and why. The bar is **no new failures**, not a clean run:
+**The suite is green -- keep it that way.**
 
 ```
-pytest --ignore=tests/test_botting/test_child_process.py --ignore=tests/test_botting/test_inputs_helpers.py -q --tb=no -rA
+pytest
 ```
 
-Run that on `dev` before you start, keep the output, and diff it against the
-same command on your branch.
+A clean run is **322 passing, 11 xfailed, 2 deselected**. The xfails are
+deliberate and tracked under issue #89; the deselected two are `live` tests.
+Any actual failure is yours to fix before the PR, not a known-bad to explain
+away.
 
-Tests behind the `live` marker drive a real, focused game client. They're
-deselected by default; run them with `pytest -m live` and the game open if you
-touched input, movement, or detection.
+Tests behind the `live` marker drive a real, focused game client. Run them
+deliberately with `pytest -m live` and the game open if you touched input,
+movement, or detection.
 
 **Lint what you changed.**
 

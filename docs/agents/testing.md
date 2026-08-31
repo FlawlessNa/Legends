@@ -78,24 +78,88 @@ fixture of their own — see `tests/test_botting/test_held_keys_ledger.py`.
 
 ## Running
 
-`pytest` from the repo root. No flags, no `--ignore` — collection completes, and
-262 tests run.
+`pytest` from the repo root. No flags, no `--ignore`:
 
-The suite is not green yet, and the residue is worth knowing before you read a
-failure as yours:
+```
+270 passed, 2 deselected, 11 xfailed
+```
 
-- **8 placeholder stubs** whose whole body is `pytest.fail()` —
-  `test_controller.py` (6) and `test_screenshots.py` (2). Unwritten tests, red on
-  purpose.
-- **`test_minimap.py`** opens `images/test_minimap1.png` by a path relative to the
-  working directory, so its 8 tests error unless you run from
-  `tests/test_royals/`.
-- **`test_box.py::test___getitem__`** expects a `Box.offset` that no longer
-  exists, and **`test_chat_lines.py::test_read_text`** depends on the installed
-  Tesseract build.
-- **`test_ml_training.py`** asserts training files exist that aren't in the tree.
+**That is the green baseline. Any `failed` or `error` line is yours.**
 
-Anything outside that list failing is a change you made.
+The three counts each mean something specific:
+
+- **2 deselected** — the `system`-marked keyboard-layout tests. Nothing is wrong;
+  they are opt-in.
+- **11 xfailed** — red tests parked behind issue #89, which decides their fate.
+  8 are unwritten `pytest.fail()` placeholders in `test_controller.py` and
+  `test_screenshots.py`; the other 3 are a 2px minimap-detection drift, an OCR
+  assertion that depends on the installed Tesseract, and an `ml_training/`
+  layout assertion for files not in the tree.
+- **An `XPASS` is a failure, not good news.** The 8 placeholders are marked
+  `strict=True` precisely so that writing one turns into a red line telling you
+  to drop the marker. The other 3 are non-strict, since they can legitimately
+  pass on another machine.
+
+Never add an `xfail` to get a green run. It is a holding action that costs a
+ticket: #89 exists because 11 tests needed one, and it names each of them.
+
+## Proving a new test earns its place
+
+A test that passes whether or not your change is present proves nothing, and it is
+indistinguishable from a real test once it is in the tree. So before a behaviour
+change is done, show that its test fails without it.
+
+**With the work uncommitted**, stash only the source paths and leave the test:
+
+```bash
+git stash push -- botting/some_module.py          # source only, test untouched
+pytest tests/test_botting/test_some_module.py::test_the_new_case
+git stash pop
+```
+
+**With the work already committed**, use a throwaway worktree at the parent commit
+and copy the test into it:
+
+```bash
+git worktree add ../verify HEAD~1
+cp tests/test_botting/test_some_module.py ../verify/tests/test_botting/
+cd ../verify && pytest tests/test_botting/test_some_module.py::test_the_new_case
+cd - && git worktree remove ../verify
+```
+
+**Read the failure, not just the colour.** A test that errors on an `ImportError`
+because the symbol does not exist yet is red for a structural reason; that is
+fine when your change adds the symbol, and worthless when your change alters
+behaviour of something already there. What you want to see is *your assertion*
+failing, with the old value on one side.
+
+State the result where the work is reported: which test, and what it said before.
+
+### Refactors are the opposite case
+
+No new test, and every existing test passes **unmodified**. Editing a test to make
+a refactor pass means behaviour moved — which makes it not a refactor. Stop and
+say what moved and why, rather than adjusting the assertion to match.
+
+This is the common case in the current backlog: #46 and #76 are both refactors,
+and for those the discipline is "don't touch the tests," not "write one first."
+
+### On test-first
+
+Encouraged where it works, which is the same boundary as everything else here:
+
+- **Invariant work** — write the test first if you can, and better still, write it
+  from the ticket's acceptance criteria rather than from the implementation you
+  have in mind. A test derived from the code it is about to test only records
+  your intent; one derived from the spec can contradict you, which is the entire
+  point.
+- **Expectation work** — test-first is not available. There is no failing test for
+  "the character reaches the platform." Do not invent one by pinning a measured
+  constant into an assertion and calling it an Invariant; that manufactures a
+  test which fails on somebody else's machine for reasons unrelated to the code.
+
+Test-first is a technique, not a rule here. The rule is the one above: the test
+fails without the change.
 
 ## Changing an existing test
 

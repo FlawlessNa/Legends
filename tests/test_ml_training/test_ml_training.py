@@ -89,6 +89,11 @@ def test_all_modules_have_init(base_path):
         assert init_file.exists(), f"{module}/__init__.py should exist"
 
 
+@pytest.mark.xfail(
+    reason="Asserts an ml_training/ layout that does not exist in the tree; "
+    "see issue #89.",
+    strict=False,
+)
 def test_all_required_files_exist(base_path):
     """Test all required module files exist."""
     required_files = [

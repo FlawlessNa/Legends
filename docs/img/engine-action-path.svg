@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 1100" width="940" height="1100" role="img" aria-label="The action path: a DecisionMaker decide call mints a correlation ID, sends an ActionRequest over the pipe, an Engine listener puts it on a priority queue, the task manager gates it by priority and schedules it, and compile_and_send acquires the focus lock, reads the held-keys ledger, compiles the movement plan, and streams keystrokes to the game client.">
+<title>From a decision to a keystroke</title>
+<style>
+svg{--surface:#FFFFFF;--surface-2:#FAFAFC;--wash:#EBEEF3;--ink:#14181F;--ink-2:#4E5766;--ink-3:#7B8492;--rule:#DBDFE6;--hot:#B26205}
+@media (prefers-color-scheme:dark){svg{--surface:#171B22;--surface-2:#1C222A;--wash:#212832;--ink:#E6E9EF;--ink-2:#A2ACBA;--ink-3:#767F8C;--rule:#29303A;--hot:#E9A54A}}
+text{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace}
+.proc{fill:var(--surface-2);stroke:var(--ink-2);stroke-width:2}
+.task{fill:var(--surface);stroke:var(--rule);stroke-width:1.25}
+.state{fill:var(--wash);stroke:var(--rule);stroke-width:1.25}
+.grp{fill:none;stroke:var(--hot);stroke-width:1.25}
+.note{fill:none;stroke:var(--rule);stroke-width:1.25;stroke-dasharray:3 3}
+.a-hot{stroke:var(--hot);stroke-width:1.75;fill:none}
+.a-dash{stroke:var(--ink-3);stroke-width:1.25;fill:none;stroke-dasharray:4 3}
+.life{stroke:var(--rule);stroke-width:1.25;stroke-dasharray:4 4}
+.tb{font-size:13px;font-weight:500;fill:var(--ink)}
+.tt{font-size:12px;font-weight:500;fill:var(--ink)}
+.ts{font-size:10.5px;fill:var(--ink-2)}
+.te{font-size:10.5px;letter-spacing:.09em;fill:var(--ink-3)}
+.te-hot{font-size:10.5px;letter-spacing:.09em;fill:var(--hot)}
+.al-hot{font-size:11px;fill:var(--hot)}
+</style>
+<defs>
+<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--hot)"/></marker>
+<marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-3)"/></marker>
+</defs>
+
+<rect class="task" x="40" y="56" width="420" height="68" rx="7"/>
+<text class="tb" x="250" y="88" text-anchor="middle">DecisionMaker._decide()</text>
+<text class="ts" x="250" y="107" text-anchor="middle">one cycle · one fresh Correlation ID</text>
+<line class="a-hot" x1="140" y1="124" x2="140" y2="172" marker-end="url(#ah)"/>
+<text class="al-hot" x="156" y="153">builds an ActionRequest</text>
+
+<rect class="task" x="40" y="176" width="420" height="68" rx="7"/>
+<text class="tb" x="250" y="208" text-anchor="middle">DecisionMaker.send()</text>
+<text class="ts" x="250" y="227" text-anchor="middle">stamps the Correlation ID · the only way out</text>
+<line class="a-hot" x1="140" y1="244" x2="140" y2="292" marker-end="url(#ah)"/>
+<text class="al-hot" x="156" y="256">Pipe — pickled</text>
+
+<line class="life" x1="20" y1="274" x2="920" y2="274"/>
+<text class="te" x="920" y="269" text-anchor="end">ENGINE PROCESS ABOVE · MAIN PROCESS BELOW</text>
+
+<rect class="task" x="40" y="296" width="420" height="68" rx="7"/>
+<text class="tb" x="250" y="328" text-anchor="middle">Engine.listener task</text>
+<text class="ts" x="250" y="347" text-anchor="middle">poll() on a thread, then hand to the loop</text>
+<line class="a-hot" x1="140" y1="364" x2="140" y2="412" marker-end="url(#ah)"/>
+<text class="al-hot" x="156" y="393">await queue.put(request)</text>
+
+<rect class="state" x="40" y="416" width="420" height="68" rx="2"/>
+<text class="tb" x="250" y="448" text-anchor="middle">asyncio.PriorityQueue</text>
+<text class="ts" x="250" y="467" text-anchor="middle">highest priority first · one queue for the Session</text>
+<line class="a-hot" x1="140" y1="484" x2="140" y2="532" marker-end="url(#ah)"/>
+<text class="al-hot" x="156" y="513">await queue.get()</text>
+
+<rect class="task" x="40" y="536" width="420" height="92" rx="7"/>
+<text class="tb" x="250" y="564" text-anchor="middle">AsyncTaskManager</text>
+<text class="ts" x="250" y="584" text-anchor="middle">same identifier already running? cancel it or refuse</text>
+<text class="ts" x="250" y="601" text-anchor="middle">outranked by a blocker? requeue, or drop and call back</text>
+<text class="ts" x="250" y="618" text-anchor="middle">cleared? cancel the tasks it names, then schedule</text>
+<line class="a-hot" x1="140" y1="628" x2="140" y2="676" marker-end="url(#ah)"/>
+<text class="al-hot" x="156" y="657">asyncio.create_task(procedure)</text>
+
+<rect class="task" x="40" y="680" width="420" height="68" rx="7"/>
+<text class="tb" x="250" y="712" text-anchor="middle">compile_and_send(hwnd, compiler)</text>
+<text class="ts" x="250" y="731" text-anchor="middle">the request's procedure, now running in Main</text>
+<line class="a-hot" x1="140" y1="748" x2="140" y2="796" marker-end="url(#ah)"/>
+<text class="al-hot" x="156" y="777">await activate(hwnd)</text>
+
+<rect class="grp" x="40" y="800" width="420" height="140" rx="7"/>
+<text class="te-hot" x="250" y="821" text-anchor="middle">FOCUS-LOCK CRITICAL SECTION</text>
+<rect class="task" x="56" y="828" width="388" height="30" rx="4"/>
+<text class="tt" x="250" y="848" text-anchor="middle">read the Held-Keys Ledger for this client</text>
+<rect class="task" x="56" y="864" width="388" height="30" rx="4"/>
+<text class="tt" x="250" y="884" text-anchor="middle">compile Movement Plan → Input Sequence</text>
+<rect class="task" x="56" y="900" width="388" height="30" rx="4"/>
+<text class="tt" x="250" y="920" text-anchor="middle">stream Steps · record each one delivered</text>
+<line class="a-hot" x1="140" y1="940" x2="140" y2="988" marker-end="url(#ah)"/>
+<text class="al-hot" x="156" y="969">SendInput</text>
+
+<rect class="proc" x="40" y="992" width="420" height="64" rx="2"/>
+<text class="tb" x="250" y="1022" text-anchor="middle">Game client · foreground window</text>
+<text class="ts" x="250" y="1041" text-anchor="middle">the only window SendInput can reach</text>
+
+<rect class="note" x="510" y="56" width="390" height="68" rx="4"/>
+<text class="ts" x="526" y="80">The id is minted per cycle and stamped at send(),</text>
+<text class="ts" x="526" y="97">not at construction — a request built once and</text>
+<text class="ts" x="526" y="114">re-sent carries the decision that sent it.</text>
+<line class="a-dash" x1="460" y1="90" x2="506" y2="90" marker-end="url(#ahm)"/>
+
+<rect class="note" x="510" y="536" width="390" height="92" rx="4"/>
+<text class="ts" x="526" y="562">One Telemetry Record per disposal, unconditional:</text>
+<text class="tt" x="526" y="583">action.scheduled · action.requeued</text>
+<text class="tt" x="526" y="601">action.blocked · action.cancels_other</text>
+<text class="ts" x="526" y="620">Each carries the Correlation ID it arrived with.</text>
+<line class="a-dash" x1="460" y1="582" x2="506" y2="582" marker-end="url(#ahm)"/>
+
+<rect class="note" x="510" y="800" width="390" height="96" rx="4"/>
+<text class="ts" x="526" y="826">The ledger is written per Step, after the Step</text>
+<text class="ts" x="526" y="843">lands — so it describes the Delivered Prefix, not</text>
+<text class="ts" x="526" y="860">the Input Sequence, when a higher-priority Action</text>
+<text class="ts" x="526" y="877">truncates it. Cancelling here also releases every</text>
+<text class="ts" x="526" y="894">direction key still held.</text>
+<line class="a-dash" x1="460" y1="848" x2="506" y2="848" marker-end="url(#ahm)"/>
+</svg>

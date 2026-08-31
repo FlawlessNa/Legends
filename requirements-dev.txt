@@ -8,11 +8,5 @@
 
 pytest==9.1.1
 pytest-mock==3.15.1
-hypothesis==6.165.10
-ruff==0.16.4
-
-# Type checking and the hook runner. Pyright is pinned to the version VS Code's
-# Pylance 2026.3.1 bundles, so editor diagnostics and hook failures agree --
-# see issue #77. Their configuration lands with issue #81.
-pyright==1.1.411
-pre-commit==4.6.2
+hypothesis==6.167.1
+ruff==0.16.5

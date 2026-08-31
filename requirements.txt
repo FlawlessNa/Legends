@@ -1,6 +1,6 @@
-# Runtime dependencies for the bot. Requires Python 3.12 on Windows.
+# Runtime dependencies for the bot. Requires Python 3.14 on Windows.
 #
-#   python -m venv venv
+#   py -3.14 -m venv venv
 #   venv\Scripts\activate
 #   pip install -r requirements.txt
 #
@@ -15,26 +15,35 @@ pywin32==312
 keyboard==0.13.5
 
 # --- Vision ------------------------------------------------------------------
-opencv-python==4.10.0.84
-numpy==1.26.4
-pillow==10.4.0
+# OpenCV 5.x. This is a major release and ~37 modules here call into cv2, so
+# treat cv2 behaviour changes as a suspect if image handling misbehaves.
+opencv-python==5.0.0.93
+numpy==2.5.2
+pillow==12.3.0
 
 # torch/torchvision below are the CPU wheels from PyPI. If you have an NVIDIA
 # GPU, install the CUDA build INSTEAD -- see docs/SETUP.md, "GPU vs CPU".
-torch==2.4.1
-torchvision==0.19.1
-ultralytics==8.3.182
+torch==2.11.0
+torchvision==0.26.0
+ultralytics==8.4.135
 
 # --- OCR (chat and UI text reading) ------------------------------------------
 # Also needs the Tesseract-OCR binary installed separately; see docs/SETUP.md.
 pytesseract==0.3.13
 
 # --- Pathfinding and movement ------------------------------------------------
-pathfinding==1.0.11
+pathfinding==1.0.22
 pytweening==1.2.0
 
 # --- Config, profiles, notifications -----------------------------------------
-PyYAML==6.0.2
-discord==2.3.2
+PyYAML==6.0.3
+
+# discord.py, NOT the `discord` shim package: that shim is unmaintained and
+# frozen at 2.3.2, whose player.py imports `audioop` -- a stdlib module removed
+# in Python 3.13. discord.py 2.7.1 pulls audioop-lts instead, pinned below so
+# the install is reproducible.
+discord.py==2.7.1
+audioop-lts==0.2.2
+
 fuzzywuzzy==0.18.0
-Levenshtein==0.25.1
+Levenshtein==0.27.4

@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 500" width="1120" height="500" role="img" aria-label="Control plane: a Discord message reaches the peripherals process, crosses the pipe to a listener in Main Process, is parsed, and either becomes an ActionRequest on the priority queue or a command string broadcast to every Engine, which pauses or resumes its bots. Pausing sends an ActionRequest back to Main to release the movement keys.">
+<title>How a human interrupts a running Session</title>
+<style>
+svg{--surface:#FFFFFF;--surface-2:#FAFAFC;--wash:#EBEEF3;--ink:#14181F;--ink-2:#4E5766;--ink-3:#7B8492;--rule:#DBDFE6;--hot:#B26205;--ctrl:#5B4BC4;--ctrl-wash:#EDEBF9}
+@media (prefers-color-scheme:dark){svg{--surface:#171B22;--surface-2:#1C222A;--wash:#212832;--ink:#E6E9EF;--ink-2:#A2ACBA;--ink-3:#767F8C;--rule:#29303A;--hot:#E9A54A;--ctrl:#A697F7;--ctrl-wash:#1F1C33}}
+text{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace}
+.proc{fill:var(--surface-2);stroke:var(--ink-2);stroke-width:2}
+.task{fill:var(--surface);stroke:var(--rule);stroke-width:1.25}
+.state{fill:var(--wash);stroke:var(--rule);stroke-width:1.25}
+.ctrlbox{fill:var(--ctrl-wash);stroke:var(--ctrl);stroke-width:1.5}
+.a-ctrl{stroke:var(--ctrl);stroke-width:1.75;fill:none}
+.a-hot{stroke:var(--hot);stroke-width:1.75;fill:none}
+.tb{font-size:13px;font-weight:500;fill:var(--ink)}
+.ts{font-size:10.5px;fill:var(--ink-2)}
+.te{font-size:10.5px;letter-spacing:.09em;fill:var(--ink-3)}
+.al-ctrl{font-size:11px;fill:var(--ctrl)}
+.al-hot{font-size:11px;fill:var(--hot)}
+</style>
+<defs>
+<marker id="ac" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ctrl)"/></marker>
+<marker id="ahh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--hot)"/></marker>
+</defs>
+
+<rect class="proc" x="24" y="40" width="180" height="72" rx="2"/>
+<text class="tb" x="114" y="72" text-anchor="middle">Discord user</text>
+<text class="ts" x="114" y="91" text-anchor="middle">PAUSE --ign Nass</text>
+
+<rect class="task" x="264" y="40" width="200" height="72" rx="7"/>
+<text class="te" x="364" y="60" text-anchor="middle">PERIPHERALS</text>
+<text class="tb" x="364" y="80" text-anchor="middle">Discord I/O</text>
+<text class="ts" x="364" y="98" text-anchor="middle">watches the channel</text>
+
+<rect class="task" x="524" y="40" width="220" height="72" rx="7"/>
+<text class="te" x="634" y="60" text-anchor="middle">MAIN PROCESS</text>
+<text class="tb" x="634" y="80" text-anchor="middle">peripherals_listener</text>
+<text class="ts" x="634" y="98" text-anchor="middle">poll(pipe) on a thread</text>
+
+<rect class="ctrlbox" x="804" y="40" width="200" height="72" rx="7"/>
+<text class="tb" x="904" y="72" text-anchor="middle">BaseParser</text>
+<text class="ts" x="904" y="91" text-anchor="middle">parse_message()</text>
+
+<line class="a-ctrl" x1="204" y1="76" x2="260" y2="76" marker-end="url(#ac)"/>
+<text class="al-ctrl" x="232" y="68" text-anchor="middle">message</text>
+<line class="a-ctrl" x1="464" y1="76" x2="520" y2="76" marker-end="url(#ac)"/>
+<text class="al-ctrl" x="492" y="68" text-anchor="middle">Pipe</text>
+<line class="a-ctrl" x1="744" y1="76" x2="800" y2="76" marker-end="url(#ac)"/>
+<text class="al-ctrl" x="772" y="68" text-anchor="middle">str</text>
+
+<polyline class="a-ctrl" points="904,112 904,150 634,150 634,186" marker-end="url(#ac)"/>
+<text class="al-ctrl" x="770" y="142" text-anchor="middle">an ActionRequest → joins the hot path</text>
+<rect class="state" x="524" y="190" width="220" height="64" rx="2"/>
+<text class="tb" x="634" y="216" text-anchor="middle">PriorityQueue</text>
+<text class="ts" x="634" y="235" text-anchor="middle">see the action path</text>
+
+<line class="a-ctrl" x1="904" y1="112" x2="904" y2="186" marker-end="url(#ac)"/>
+<text class="al-ctrl" x="916" y="152">a command string</text>
+<rect class="task" x="804" y="190" width="200" height="64" rx="7"/>
+<text class="tb" x="904" y="216" text-anchor="middle">broadcast</text>
+<text class="ts" x="904" y="235" text-anchor="middle">to every Engine pipe</text>
+
+<line class="a-ctrl" x1="904" y1="254" x2="904" y2="282" marker-end="url(#ac)"/>
+<rect class="task" x="804" y="286" width="200" height="64" rx="7"/>
+<text class="te" x="904" y="306" text-anchor="middle">EACH ENGINE</text>
+<text class="tb" x="904" y="325" text-anchor="middle">_poll_for_updates</text>
+<text class="ts" x="904" y="343" text-anchor="middle">matches on ign</text>
+
+<line class="a-ctrl" x1="904" y1="350" x2="904" y2="378" marker-end="url(#ac)"/>
+<rect class="task" x="804" y="382" width="200" height="64" rx="7"/>
+<text class="tb" x="904" y="408" text-anchor="middle">bot.pause() / resume()</text>
+<text class="ts" x="904" y="427" text-anchor="middle">cancels DecisionMaker tasks</text>
+
+<polyline class="a-hot" points="804,414 490,414 490,222 520,222" marker-end="url(#ahh)"/>
+<text class="al-hot" x="648" y="392" text-anchor="middle">…and sends an ActionRequest back to Main</text>
+<text class="al-hot" x="648" y="405" text-anchor="middle">to release the keys it left held</text>
+
+<rect class="task" x="264" y="190" width="200" height="64" rx="7"/>
+<text class="te" x="364" y="210" text-anchor="middle">PERIPHERALS</text>
+<text class="tb" x="364" y="230" text-anchor="middle">Discord Relay</text>
+<text class="ts" x="364" y="248" text-anchor="middle">main to user</text>
+<line class="a-ctrl" x1="524" y1="222" x2="468" y2="222" marker-end="url(#ac)"/>
+<text class="al-ctrl" x="496" y="214" text-anchor="middle">pipe</text>
+<polyline class="a-ctrl" points="264,222 114,222 114,116" marker-end="url(#ac)"/>
+<text class="al-ctrl" x="256" y="242" text-anchor="end">errors · screenshots · notices</text>
+</svg>

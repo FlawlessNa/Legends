@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from botting.utilities import take_screenshot, Box
+from botting.utilities import take_screenshot, Box, group_rectangles
 
 
 def init_control_gui_hsv():
@@ -315,7 +315,7 @@ if __name__ == "__main__":
             cv2.imshow("contoured_hsv", cv2.resize(img_hsv, None, fx=fx, fy=fy))
             cv2.waitKey(1)
 
-            hsv_groups = cv2.groupRectangles(
+            hsv_groups = group_rectangles(
                 hsv_rects, hsv_filters.groupthresh, hsv_filters.eps
             )
 
@@ -364,7 +364,7 @@ if __name__ == "__main__":
                         img_color_rect, (x, y), (x + w, y + h), (0, 255, 0), 3
                     )
 
-            grouped = cv2.groupRectangles(colors_rects, 1, colors_filters.eps)
+            grouped = group_rectangles(colors_rects, 1, colors_filters.eps)
             for x, y, w, h in grouped[0]:
                 if (
                     colors_filters.minw <= w <= colors_filters.maxw

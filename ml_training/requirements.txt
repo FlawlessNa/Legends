@@ -9,8 +9,10 @@
 # Annotation GUI
 PyQt6==6.11.0
 
-# Dataset handling and training reports
-pandas==2.2.2
-matplotlib==3.9.2
+# Dataset handling and training reports.
+# pandas 3.x -- note it enables copy-on-write by default, so chained assignment
+# that used to mutate in place is now a no-op.
+pandas==3.0.5
+matplotlib==3.11.1
 seaborn==0.13.2
-tqdm==4.66.5
+tqdm==4.70.0

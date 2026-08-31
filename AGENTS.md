@@ -23,6 +23,9 @@ single existing violation (`botting/visuals/object_detection.py` importing
 Each of `botting/`, `maple/`, and `tests/` has its own `AGENTS.md` with the
 rules that only apply inside it. Read the one for the package you're touching.
 
+For the engine's runtime shape — which process owns what, and how a decision
+becomes a keystroke — see `docs/agents/engine-architecture.md`.
+
 ## Read before you explore
 
 - **`CONTEXT.md`** at the repo root — the domain glossary. Its terms are the
@@ -37,6 +40,75 @@ rules that only apply inside it. Read the one for the package you're touching.
 
 See `docs/agents/domain.md` for the full convention.
 
+## Verifying your work
+
+```
+pytest        ->  270 passed, 2 deselected, 11 xfailed
+```
+
+That is the green baseline, from the repo root, no flags. Any `failed` or
+`error` line is yours. `docs/agents/testing.md` explains the three counts and
+why an `XPASS` is also a failure.
+
+**Green means the Invariants hold. It does not mean the bot works.** Nothing in
+the default suite drives a game client, and no test is `live`-marked today — the
+marker is reserved and unused. Whole behaviours here have no offline proof: that
+the character reaches the platform, that a rotation looks right, that inputs land
+before the animation ends.
+
+So one thing is required of every change: **say what you could not verify.** If
+your change could alter which keys reach the game, or when, name that explicitly
+in your report or PR body. An unverifiable change is fine. An unverifiable change
+reported as done is not.
+
+### A test that would have failed
+
+A change to behaviour lands with a test that **fails without it**. Not "write the
+test first" — nobody can check the order from a diff. Demonstrate it: stash the
+source change, keep the test, run it, and confirm it goes red for the reason you
+expect. A test that passes without your change is not testing your change.
+
+**Refactors are exempt, and inverted**: no new test, and the existing suite passes
+untouched. If you had to edit a test to make a refactor pass, it was not a
+refactor — say so, and say what behaviour moved.
+
+`docs/agents/testing.md` has the procedure.
+
+## When to stop and hand back
+
+Stop and ask rather than finishing, whenever the work needs:
+
+- A **measured constant** — anything timed, tuned, or read off a running client.
+  These are Expectations (`CONTEXT.md`), and no amount of reasoning settles them.
+- A **running game client**, whether to reproduce, to confirm, or to record.
+- A **minimap trail**, recorded through the GUI editor in
+  `maple/model/mechanics/minimap_creation/`.
+- A judgment that reduces to **watching the character**.
+
+Stopping at these is compliance, not failure. Report what you finished, what you
+did not, and what the human needs to do — a half-finished ticket with a clear
+handoff is worth more than a guess.
+
+`docs/agents/triage-labels.md` defines the same boundary at ticket level: work
+resting on an Expectation is `ready-for-human`, however well specified.
+
+## What you may change
+
+Freely, when tests cover it and no ADR governs it: tests, docs, telemetry Event
+Types (additive only), and offline logic — compilation, pathfinding, config
+parsing, logging.
+
+**Not without asking**, because the tests will not catch you being wrong:
+
+- The input send path, focus handling, and the Held-Keys Ledger (ADR 0002).
+- The telemetry envelope and transport (ADR 0001) — other consumers are written
+  against it.
+- Anything an ADR decides. Contradicting one is allowed; doing it silently is
+  not.
+- Map JSON under `configs/maps/` and pinned dependency versions.
+- `maple/decision_makers/inventory_manager.py`, which is parked — see
+  `maple/AGENTS.md`.
+
 ## Issue tracker
 
 Issues live in GitHub Issues on `FlawlessNa/Legends`, via the `gh` CLI. See
@@ -44,14 +116,15 @@ Issues live in GitHub Issues on `FlawlessNa/Legends`, via the `gh` CLI. See
 
 ## Triage labels
 
-Canonical label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`,
-`ready-for-human`, `wontfix`) — identity mapping. See
-`docs/agents/triage-labels.md`.
+Canonical label vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`,
+`ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`, which also
+defines what `ready-for-agent` requires — a ticket is agent-workable only when
+its acceptance criteria can be settled offline.
 
 ## Tests
 
 pytest-native, always: plain module-level `test_*` functions, `@pytest.fixture`
 in place of `setUp`/`tearDown`, and bare `assert`. This holds for new test
 modules and for any unittest-style test you touch. See `docs/agents/testing.md`
-for the translation table, the `live` marker, the shared fixtures, and how to
-convert a module without changing its behaviour.
+for the translation table, the two opt-in markers (`live`, `system`), the shared
+fixtures, and how to convert a module without changing its behaviour.

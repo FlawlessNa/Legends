@@ -16,7 +16,7 @@ raw input; there is no macOS or Linux path.
 
 Three documents, in order:
 
-1. **[docs/SETUP.md](docs/SETUP.md)** — install Python 3.12, the dependencies,
+1. **[docs/SETUP.md](docs/SETUP.md)** — install Python 3.14, the dependencies,
    Tesseract, and the detection models. Do this once.
 2. **[docs/FIRST_BOT.md](docs/FIRST_BOT.md)** — configure your keys, record a
    map, write a profile, and get a character farming.
@@ -47,6 +47,16 @@ python -m maple.launchers.run yourname
 A run is a **Session**: `SessionManager` spawns an `Engine` per group of bots
 plus a peripherals process for Discord and screen recording, and each bot's
 `DecisionMaker`s take turns deciding what that character does next.
+
+![Process topology of the engine](docs/img/engine-topology.svg)
+
+Four kinds of process, and one rule that shapes the rest: **only Main Process
+may press a key.** Engines read the game clients and decide what to do; they
+send an `ActionRequest` to Main Process, which arbitrates by priority and sends
+the input itself. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) follows that path
+end to end, plus the three others — Discord control, logging and telemetry, and
+cross-process shared state.
+
 [CONTEXT.md](CONTEXT.md) defines the vocabulary the codebase uses — read it
 before naming anything new.
 
@@ -80,6 +90,7 @@ effort to produce, so when you record a new map, commit it.
 
 | | |
 | --- | --- |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the engine works — processes, the action path, control, logging, shared state. |
 | [CONTEXT.md](CONTEXT.md) | Domain vocabulary. The words the code uses and the synonyms it avoids. |
 | [docs/adr/](docs/adr/) | Architecture decision records — why things are the way they are. |
 | [docs/agents/](docs/agents/) | Conventions for AI agents working in this repo. |
