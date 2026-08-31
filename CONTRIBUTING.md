@@ -28,14 +28,19 @@ should go through a PR so someone else sees it.
 pytest
 ```
 
-A clean run is **322 passing, 11 xfailed, 2 deselected**. The xfails are
-deliberate and tracked under issue #89; the deselected two are `live` tests.
-Any actual failure is yours to fix before the PR, not a known-bad to explain
-away.
+A clean run is **0 failed, 0 errors, 11 xfailed, 2 deselected**. The xfails are
+deliberate and tracked under issue #89. Any actual failure is yours to fix before
+the PR, not a known-bad to explain away. Don't pin the passing count in a
+document -- it moves whenever anyone adds a test.
 
-Tests behind the `live` marker drive a real, focused game client. Run them
-deliberately with `pytest -m live` and the game open if you touched input,
-movement, or detection.
+The two deselected are the **`system`**-marked tests in
+`test_inputs_helpers.py`: they load keyboard layouts into the machine, which is
+machine-global state, so they are opt-in via `pytest -m system`.
+
+The `live` marker is for tests that drive a real, focused game client. **No test
+carries it today** -- it is reserved, and `pytest -m live` currently selects
+nothing. That is the gap to know about: if you touched input, movement, or
+detection, the suite cannot confirm your change, and you should say so in the PR.
 
 **Lint what you changed.**
 

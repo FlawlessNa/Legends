@@ -81,15 +81,17 @@ fixture of their own — see `tests/test_botting/test_held_keys_ledger.py`.
 `pytest` from the repo root. No flags, no `--ignore`:
 
 ```
-270 passed, 2 deselected, 11 xfailed
+0 failed, 0 errors, 11 xfailed, 2 deselected
 ```
 
 **That is the green baseline. Any `failed` or `error` line is yours.**
 
-The three counts each mean something specific:
+Don't pin the passing count anywhere — it moved from 270 to 322 in under an hour
+once someone else's branch landed. The shape is what holds:
 
 - **2 deselected** — the `system`-marked keyboard-layout tests. Nothing is wrong;
-  they are opt-in.
+  they are opt-in. Note these are *not* `live` tests: **no test carries the `live`
+  marker today**, so `pytest -m live` selects nothing.
 - **11 xfailed** — red tests parked behind issue #89, which decides their fate.
   8 are unwritten `pytest.fail()` placeholders in `test_controller.py` and
   `test_screenshots.py`; the other 3 are a 2px minimap-detection drift, an OCR

@@ -43,12 +43,15 @@ See `docs/agents/domain.md` for the full convention.
 ## Verifying your work
 
 ```
-pytest        ->  270 passed, 2 deselected, 11 xfailed
+pytest        ->  0 failed, 0 errors, 11 xfailed, 2 deselected
 ```
 
-That is the green baseline, from the repo root, no flags. Any `failed` or
-`error` line is yours. `docs/agents/testing.md` explains the three counts and
-why an `XPASS` is also a failure.
+That is the green baseline, from the repo root, no flags. **Any `failed` or
+`error` line is yours.** The passing count is deliberately not pinned here — it
+moves every time anyone adds a test. What must hold is the shape: nothing failed,
+the 11 xfails are the ones tracked in issue #89, and the 2 deselected are the
+`system`-marked tests. `docs/agents/testing.md` explains all three, and why an
+`XPASS` is also a failure.
 
 **Green means the Invariants hold. It does not mean the bot works.** Nothing in
 the default suite drives a game client, and no test is `live`-marked today — the
@@ -108,6 +111,16 @@ parsing, logging.
 - Map JSON under `configs/maps/` and pinned dependency versions.
 - `maple/decision_makers/inventory_manager.py`, which is parked — see
   `maple/AGENTS.md`.
+
+## Handing work over
+
+Work is handed to the next person — a reviewer, or whoever picks it up — through
+the PR body. `.github/PULL_REQUEST_TEMPLATE.md` is the shape: what changed, the
+test that was red without it, **what you could not verify**, the ADRs and
+invariant ids the change bears on, and what a human still has to do.
+
+Reviewing is a different job with different inputs, and reading this file again
+is not one of them. See `docs/agents/code-review.md`.
 
 ## Issue tracker
 
