@@ -3,9 +3,11 @@ Standalone tool for defining minimap coordinates for a new or existing map.
 
 Usage
 -----
-1. Set MAP_NAME to the map's identifier (used as the JSON filename).
-2. Set IGN to your in-game character name so the editor can locate the client window.
-3. Run this script while the game is open and your character is standing in the map.
+    python toolkit/create_map.py --map Line1Area1 --ign YourCharacterName
+
+Run it while the game is open and your character is standing in the map you
+want to record. Add `--scale 8` for small maps that are hard to click at the
+default zoom.
 
 The editor opens with three modes:
 
@@ -26,24 +28,50 @@ Click "Save Edits" in any mode to write the config to
   configs/maps/{MAP_NAME}.json
 
 That file is everything MapleMap needs at runtime; no game XML files required.
+Unlike the rest of configs/, `configs/maps/` IS tracked in git -- commit a new
+map so everyone else can bot it too.
 """
-import sys
+import argparse
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from maple.model.mechanics import MapleMap
 
-# ── configure here ────────────────────────────────────────────────────────────
-MAP_NAME: str = 'Line1Area1'
-IGN: str = 'Farmacy'
-SCALE: int = 5   # editor zoom: pixels per minimap cell (increase for small maps)
-# ──────────────────────────────────────────────────────────────────────────────
 
-if __name__ == '__main__':
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Record or edit a map's minimap layout.",
+        epilog="Saves to configs/maps/<map>.json. See docs/FIRST_BOT.md.",
+    )
+    parser.add_argument(
+        "--map",
+        required=True,
+        dest="map_name",
+        help="Map identifier, used as the JSON filename (e.g. Line1Area1).",
+    )
+    parser.add_argument(
+        "--ign",
+        required=True,
+        help="Your in-game character name, used to find the client window.",
+    )
+    parser.add_argument(
+        "--scale",
+        type=int,
+        default=5,
+        help="Editor zoom in pixels per minimap cell. Raise it for small maps.",
+    )
+    args = parser.parse_args()
+
     MapleMap(
-        MAP_NAME,
+        args.map_name,
         open_minimap_editor=True,
-        ign=IGN,
-        scale=SCALE,
+        ign=args.ign,
+        scale=args.scale,
         include_character_position=True,
     )
+
+
+if __name__ == "__main__":
+    main()

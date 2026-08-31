@@ -1,27 +1,41 @@
+"""
+Multi-client leeching setup: one leecher clearing the map, five mules riding
+along for the party buffs and the loot.
+
+This is the maintainer's own tracked setup. For your own characters, prefer a
+profile instead of editing this file:
+
+    python -m maple.launchers.run <profile>
+
+See docs/FIRST_BOT.md. A profile supports mules too, so this whole layout can
+be expressed as one YAML file under profiles/.
+
+The map's JSON config (configs/maps/) must define `party_rebuff_zone` for
+PartyRebuff to know where the party gathers; alternatively, pass an explicit
+`buff_location` in the configs below.
+"""
 import asyncio
 from botting.core.session_manager import SessionManager
 import maple.bots as bots
-import maple.constants as constants
-import maple._old.maps as maps
 import maple.parsers
 
 
 SYNCHRONIZED_BUFFS = ["Holy Symbol", "Maple Warrior", "Haste", "Meso Up"]
-GAME_MAP = maps.UluEstate2
+GAME_MAP = "Line1Area1"
 CLIENT_SIZE = "large"
 DETECTION_CONFIG_SECTION = "Elephant Cape"
 
 leeching_configs = {
     "num_pets": 3,
     "game_map": GAME_MAP,
-    "mob_count_threshold": 4,
+    "mob_count_threshold": 8,
     "detection_configs": DETECTION_CONFIG_SECTION,
     "client_size": CLIENT_SIZE,
-    "anti_detection_mob_threshold": 4,
-    "anti_detection_time_threshold": 10,
+    "models_path": {"All": "data/models/production/global"},
+    "mob_spawn_alert_timer": 15,
+    "mob_spawn_alert_threshold": 4,
     "included_buffs": ["Invincible", "Magic Guard"],
     "synchronized_buffs": SYNCHRONIZED_BUFFS,
-    "cleanup_procedure": constants.INVENTORY_CLEANUP_WITH_SELF_DOOR,
 }
 mule_configs = {
     "synchronized_buffs": SYNCHRONIZED_BUFFS,
@@ -34,7 +48,7 @@ mule_configs = {
 
 async def main():
     with SessionManager(maple.parsers.MapleParser) as session:
-        leecher = bots.LeechingBot("WrongDoor", session.metadata, **leeching_configs)
+        leecher = bots.LeechingBot("Farmacy", session.metadata, **leeching_configs)
         mule1 = bots.LeechMuleWithBuffs(
             "UluLoot", session.metadata, character_class="Hermit", **mule_configs
         )
@@ -51,8 +65,6 @@ async def main():
             "BCoinFarm", session.metadata, **mule_configs
         )
         await session.launch([leecher], [mule1, mule2, mule3, mule4, mule5])
-        # await session.launch([leecher],  [mule1])
-        # await session.launch([leecher])
 
 
 if __name__ == "__main__":

@@ -1,0 +1,59 @@
+{
+    "Platform1": {
+        "left": 91,
+        "right": 185,
+        "top": 70,
+        "bottom": 71,
+        "offset": [
+            0,
+            0
+        ],
+        "walkable": true,
+        "weight": 1,
+        "avoid_right_edge": true,
+        "avoid_left_edge": true,
+        "edge_threshold": 4,
+        "no_jump_connections_from_endpoints": false,
+        "rotation_indexes": [
+            1
+        ]
+    },
+    "Platform2": {
+        "left": 81,
+        "right": 135,
+        "top": 45,
+        "bottom": 46,
+        "offset": [
+            0,
+            0
+        ],
+        "walkable": true,
+        "weight": 1,
+        "avoid_right_edge": true,
+        "avoid_left_edge": true,
+        "edge_threshold": 4,
+        "no_jump_connections_from_endpoints": false,
+        "rotation_indexes": [
+            2
+        ]
+    },
+    "Platform3": {
+        "left": 104,
+        "right": 169,
+        "top": 22,
+        "bottom": 23,
+        "offset": [
+            0,
+            0
+        ],
+        "walkable": true,
+        "weight": 1,
+        "avoid_right_edge": true,
+        "avoid_left_edge": true,
+        "edge_threshold": 4,
+        "no_jump_connections_from_endpoints": false,
+        "rotation_indexes": [
+            3
+        ]
+    }
+}

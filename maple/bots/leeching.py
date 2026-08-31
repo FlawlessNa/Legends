@@ -18,5 +18,5 @@ class LeechingBot(MapleBot):
             decision_makers.SoloRebuff,
             decision_makers.PartyRebuff,
             decision_makers.CheckMobsStillSpawn,
-            # decision_makers.InventoryManager,
+            # decision_makers.InventoryManager,  # PARKED - see its module docstring
         ]

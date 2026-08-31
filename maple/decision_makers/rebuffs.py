@@ -35,7 +35,12 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         **kwargs,
     ) -> None:
         super().__init__(metadata, data, pipe)
-        self._location = buff_location or self.data.current_minimap.central_node
+        self._location = buff_location or self.data.current_minimap.party_rebuff_spot
+        if self._location is None:
+            raise ValueError(
+                f"{self} requires a buff location: pass buff_location explicitly or "
+                f"define party_rebuff_zone in the map's JSON config."
+            )
 
         # Set the party-buffs specific to the current character
         self._buffs = {

@@ -1,0 +1,30 @@
+{
+    "_meta": {
+        "scale_x": 0.06342344727593015,
+        "scale_y": 0.060291921481386464,
+        "canvas_width": 251,
+        "canvas_height": 79
+    },
+    "title_img_path": "maple/assets/detection_images/Line1Area1Minimap.png",
+    "mobs": ["Bubbling"],
+    "features": {
+        "main_platform": {
+            "left": 15,
+            "right": 233,
+            "top": 50,
+            "bottom": 50,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        }
+    },
+    "portals": []
+}

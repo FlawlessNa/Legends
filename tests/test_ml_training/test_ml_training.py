@@ -49,12 +49,31 @@ def test_gitignore_exists(base_path):
     assert "data/" in content
 
 
+def _resolve_requirements(req_file: Path) -> str:
+    """
+    Read a requirements file, inlining any `-r other.txt` includes.
+
+    ml_training/requirements.txt pulls the shared runtime pins in from the root
+    requirements.txt rather than restating them, so a plain text search would
+    miss dependencies that are genuinely installed.
+    """
+    parts = []
+    for line in req_file.read_text().splitlines():
+        stripped = line.strip()
+        if stripped.startswith("-r "):
+            included = (req_file.parent / stripped[3:].strip()).resolve()
+            parts.append(_resolve_requirements(included))
+        else:
+            parts.append(line)
+    return "\n".join(parts)
+
+
 def test_requirements_has_dependencies(base_path):
     """Test requirements.txt has required dependencies."""
     req_file = base_path / "requirements.txt"
     assert req_file.exists()
 
-    content = req_file.read_text()
+    content = _resolve_requirements(req_file)
     required_deps = ["ultralytics", "torch", "opencv-python", "PyQt6", "PyYAML"]
 
     for dep in required_deps:

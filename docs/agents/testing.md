@@ -52,11 +52,9 @@ Two consequences worth knowing:
 Prefer `monkeypatch` when you only need to swap an attribute and never assert on the
 call; reach for `mocker` when you need to record how something was called.
 
-Three modules are the standing exception, and only until their own tickets land:
-`test_child_process.py` and `test_inputs_helpers.py` (issue #40) and
-`test_discord_comm.py` (issue #69) still import `unittest`. Each of those tickets
-decides whether its module is repaired or rewritten from scratch; whatever survives
-that decision is written to the convention above.
+There are no longer any exceptions. The last three fell with issues #40 and #69:
+`test_child_process.py` and `test_discord_comm.py` were deleted as dead, and
+`test_inputs_helpers.py` was repointed at the symbols' current home and converted.
 
 ## What the scaffolding gives you
 
@@ -64,9 +62,12 @@ that decision is written to the convention above.
 re-deriving what they configure. Two things there are worth knowing before you write
 a test:
 
-- **The `live` marker.** Tests that drive a real, focused game client are marked
-  `@pytest.mark.live` and are excluded from a default run. Run them with
-  `pytest -m live`. Anything that needs a game window belongs behind this marker.
+- **Two opt-in markers.** `@pytest.mark.live` is for tests that drive a real,
+  focused game client; `@pytest.mark.system` is for tests that mutate
+  machine-global state, such as the keyboard layouts loaded on the machine. Both
+  are excluded from a default run — `pytest -m live`, `pytest -m system`.
+  Anything needing a game window, or leaving a trace outside the test process,
+  belongs behind one of them.
 - **The `held_movement_keys` fixture.** Constructing a `KeyboardInputWrapper` reads
   the Held-Keys Ledger, which only Main Process owns and which carries state between
   tests. Request this fixture to pin what construction sees as already held, so the
@@ -77,11 +78,24 @@ fixture of their own — see `tests/test_botting/test_held_keys_ledger.py`.
 
 ## Running
 
-`pytest` from the repo root. Two modules (`test_child_process.py`,
-`test_inputs_helpers.py`) currently fail to import against current source, which
-interrupts collection; until that is resolved, add
-`--ignore=tests/test_botting/test_child_process.py --ignore=tests/test_botting/test_inputs_helpers.py`
-to get a full run.
+`pytest` from the repo root. No flags, no `--ignore` — collection completes, and
+262 tests run.
+
+The suite is not green yet, and the residue is worth knowing before you read a
+failure as yours:
+
+- **8 placeholder stubs** whose whole body is `pytest.fail()` —
+  `test_controller.py` (6) and `test_screenshots.py` (2). Unwritten tests, red on
+  purpose.
+- **`test_minimap.py`** opens `images/test_minimap1.png` by a path relative to the
+  working directory, so its 8 tests error unless you run from
+  `tests/test_royals/`.
+- **`test_box.py::test___getitem__`** expects a `Box.offset` that no longer
+  exists, and **`test_chat_lines.py::test_read_text`** depends on the installed
+  Tesseract build.
+- **`test_ml_training.py`** asserts training files exist that aren't in the tree.
+
+Anything outside that list failing is a change you made.
 
 ## Changing an existing test
 

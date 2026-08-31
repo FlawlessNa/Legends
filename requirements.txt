@@ -1,20 +1,40 @@
-pywin32>=306
-opencv-python>=4.8.1.78
-numpy>=1.26.0
-discord>=2.3.2
-pytesseract>=0.3.10
-pathfinding>=1.0.4
-pytweening>=1.0.7
-keyboard>=0.13.5
-fuzzywuzzy>=0.18.0
-levenshtein>=0.25.0
-ultralytics>=8.2.94
+# Runtime dependencies for the bot. Requires Python 3.12 on Windows.
+#
+#   python -m venv venv
+#   venv\Scripts\activate
+#   pip install -r requirements.txt
+#
+# Versions are pinned to what the project is developed against. See
+# docs/SETUP.md for the prerequisites pip cannot install (Tesseract-OCR,
+# and a CUDA build of torch if you have an NVIDIA GPU).
 
+# --- Windows integration -----------------------------------------------------
+# The bot drives the game client through Win32 window handles and raw input;
+# there is no cross-platform path.
+pywin32==312
+keyboard==0.13.5
 
-pillow>=10.4.0
-torch>=2.4.1
+# --- Vision ------------------------------------------------------------------
+opencv-python==4.10.0.84
+numpy==1.26.4
+pillow==10.4.0
 
-# Testing
-pytest>=8.3.0
-pytest-mock>=3.14.0
-hypothesis>=6.112.0
+# torch/torchvision below are the CPU wheels from PyPI. If you have an NVIDIA
+# GPU, install the CUDA build INSTEAD -- see docs/SETUP.md, "GPU vs CPU".
+torch==2.4.1
+torchvision==0.19.1
+ultralytics==8.3.182
+
+# --- OCR (chat and UI text reading) ------------------------------------------
+# Also needs the Tesseract-OCR binary installed separately; see docs/SETUP.md.
+pytesseract==0.3.13
+
+# --- Pathfinding and movement ------------------------------------------------
+pathfinding==1.0.11
+pytweening==1.2.0
+
+# --- Config, profiles, notifications -----------------------------------------
+PyYAML==6.0.2
+discord==2.3.2
+fuzzywuzzy==0.18.0
+Levenshtein==0.25.1
