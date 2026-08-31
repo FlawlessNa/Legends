@@ -22,6 +22,18 @@ should go through a PR so someone else sees it.
 
 ## Before you open a PR
 
+**One-time setup: install the hooks.**
+
+```
+pip install -r requirements-dev.txt
+pre-commit install
+```
+
+Nobody enforces `ruff` and `pyright` for you until you run this — a hook
+nobody installed catches nothing. Once installed, both run automatically on
+`git commit`, scoped to the files you staged; see
+[`docs/agents/typing.md`](docs/agents/typing.md) for what they gate and why.
+
 **The suite is green -- keep it that way.**
 
 ```
@@ -42,15 +54,18 @@ carries it today** -- it is reserved, and `pytest -m live` currently selects
 nothing. That is the gap to know about: if you touched input, movement, or
 detection, the suite cannot confirm your change, and you should say so in the PR.
 
-**Lint what you changed.**
+**Lint and type-check what you changed.** The pre-commit hooks do this for
+you automatically, scoped to whatever's staged. To run the same checks
+without committing:
 
 ```
-ruff check botting maple ml_training tests toolkit conftest.py paths.py
-ruff format --check <the files you touched>
+ruff check <the files you touched>
+pyright <the files you touched>
 ```
 
-The codebase is not fully formatted yet, so don't run `ruff format` across
-everything — that buries your change in a reformat diff.
+The codebase is not fully formatted or typed yet, so don't run `ruff format`,
+`ruff check`, or `pyright` across the whole tree — that buries your change in
+an unrelated diff. Staged-only is the point, not a limitation to work around.
 
 ---
 
