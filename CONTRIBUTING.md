@@ -22,9 +22,13 @@ should go through a PR so someone else sees it.
 
 ## Before you open a PR
 
-**One-time setup: install the hooks.**
+**One-time setup: install the hooks.** Needs an active `.venv` first — the
+hooks call straight into `.venv\Scripts\`, so without one they're just
+broken, not skipped. [docs/SETUP.md](docs/SETUP.md) covers creating it; the
+short version if you already have one, from the repo root:
 
 ```
+.venv\Scripts\activate
 pip install -r requirements-dev.txt
 pre-commit install
 ```

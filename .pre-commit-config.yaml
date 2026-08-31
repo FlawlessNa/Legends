@@ -6,15 +6,15 @@ repos:
   # resolve `.venv/Scripts/x.exe` without it.
   - repo: local
     hooks:
-      - id: ruff-format
-        name: ruff format
-        entry: ./.venv/Scripts/ruff.exe format
-        language: system
-        types: [python]
-
       - id: ruff-check
         name: ruff check
         entry: ./.venv/Scripts/ruff.exe check --fix
+        language: system
+        types: [python]
+
+      - id: ruff-format
+        name: ruff format
+        entry: ./.venv/Scripts/ruff.exe format
         language: system
         types: [python]
 
