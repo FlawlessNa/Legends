@@ -1,0 +1,266 @@
+import asyncio
+import functools
+import logging
+import multiprocessing.connection
+import multiprocessing.managers
+import numpy as np
+from functools import cached_property
+from typing import Callable
+
+from botting import PARENT_LOG, controller
+from botting.core import ActionRequest, BotData, DecisionMaker
+from botting.utilities import (
+    Box,
+    CLIENT_HORIZONTAL_MARGIN_PX,
+    CLIENT_VERTICAL_MARGIN_PX,
+)
+from maple.actions.skills_related_v2 import cast_skill_compiler
+from maple.model.interface import LargeClientChatFeed
+from maple.model.characters import MapleSkill
+from maple.telemetry_events import COMBAT_MOBS_HIT, MobsHitPayload
+from .mixins import MobsHittingMixin, MinimapAttributesMixin, NextTargetMixin
+
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
+
+
+class MobsHitting(
+    MobsHittingMixin, MinimapAttributesMixin, NextTargetMixin, DecisionMaker
+):
+    ON_SCREEN_THRESHOLD = 0.65
+
+    def __init__(
+        self,
+        metadata: multiprocessing.managers.DictProxy,
+        data: BotData,
+        pipe: multiprocessing.connection.Connection,
+        mob_count_threshold: int,
+        training_skill: str = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(metadata, data, pipe)
+        self.lock = self._proxies.instance(repr(self), "Lock")
+        self.mob_threshold = mob_count_threshold
+        self.training_skill = self._get_skill_from_str(training_skill)
+        self._create_minimap_attributes()
+        self.data.create_attribute(
+            "current_on_screen_position",
+            self._get_on_screen_pos,
+            threshold=0.25,
+            # error_handler=...,  # TODO - Implement error handler
+        )
+
+    async def task(self, *args, **kwargs) -> None:
+        # Ensures the lock is actually released before task is started, no matter what.
+        self.lock.acquire(blocking=False)
+        self.lock.release()
+        await super().task(*args, **kwargs)
+
+    def _hit_mobs(self, direction: str | None) -> ActionRequest:
+        """
+        Builds the Action that casts the training skill at the mobs on screen.
+
+        `direction` is the facing the cast is preluded with - set by `_decide` for a
+        unidirectional skill, None for one that hits both ways.
+        """
+        compiler = functools.partial(
+            cast_skill_compiler,
+            handle=self.data.handle,
+            ign=self.data.ign,
+            skill=self.training_skill,
+            direction=direction,
+        )
+        return self._cast_request(compiler)
+
+    def _cast_request(self, compiler: Callable) -> ActionRequest:
+        """
+        Wraps a dispatch-time compiler into the Action this DecisionMaker sends.
+
+        The seam subclasses swap: `TelecastMobsHitting` fuses the same cast into a
+        movement and hands the fused compiler here, so the Action's priority,
+        cancellation and lock handling stay defined in exactly one place.
+
+        The sequence `cast_skill` builds runs for the skill's animation time by
+        construction, plus a short direction prelude - so the cap is known here,
+        without compiling. Doubled, as it was when it read the compiled duration.
+        The same cap covers a telecast: `telecast` truncates its rebuilt sequence to
+        that very animation time. The cut lands on a paired-press boundary, so it can
+        overshoot by up to one teleport animation - still well inside the doubled cap.
+        """
+        timeout = 2 * self.training_skill.animation_time + 1.0
+
+        return ActionRequest(
+            f"{self}",
+            self._cap_duration,
+            ign=self.data.ign,
+            priority=2,
+            # TODO - Cancelling by reconstructing another DecisionMaker's task name
+            #  is a string-keyed coupling: renaming Rotation silently stops
+            #  cancelling it. Awaiting the cross-DM coordination decision from the
+            #  architecture grilling (issue #47).
+            cancel_tasks=[f"Rotation({self.data.ign})"],
+            block_lower_priority=True,
+            callbacks=[self.lock.release],
+            # cancels_itself=True,
+            args=(self.data.handle, compiler, timeout),
+        )
+
+    @staticmethod
+    async def _cap_duration(
+        handle: int, compiler: callable, timeout: float
+    ) -> None:
+        """
+        Compiles the cast at dispatch (so it sees this client's held keys, read from
+        the Held-Keys Ledger inside the focus lock) and caps how long it may run.
+        """
+        try:
+            await asyncio.wait_for(
+                controller.compile_and_send(handle, compiler), timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                "Skill cast on handle %s exceeded its %.2fs cap and was cancelled.",
+                handle,
+                timeout,
+            )
+
+    def _get_skill_from_str(self, skill_str: str) -> MapleSkill:
+        if skill_str:
+            return self.data.character.skills[skill_str]
+        return self.data.character.skills[self.data.character.main_skill]
+
+    @cached_property
+    def _hide_minimap_box(self) -> Box:
+        minimap_box = self.data.current_entire_minimap_box
+        return Box(
+            max(
+                0,
+                minimap_box.left - CLIENT_HORIZONTAL_MARGIN_PX - 5,
+            ),
+            minimap_box.right + CLIENT_HORIZONTAL_MARGIN_PX + 5,
+            max(
+                0,
+                minimap_box.top - CLIENT_VERTICAL_MARGIN_PX - 10,
+            ),
+            minimap_box.bottom + CLIENT_VERTICAL_MARGIN_PX + 5,
+        )
+
+    @cached_property
+    def _hide_tv_smega_box(self) -> Box:
+        return Box(left=800, right=1024, top=0, bottom=200)
+
+    def _mask_for_skill_range(self, pos: tuple[int, int, int, int]) -> np.ndarray:
+        horizontal = self.training_skill.horizontal_screen_range
+        vertical_up = (
+            self.training_skill.vertical_up_screen_range
+            or self.training_skill.vertical_screen_range
+        )
+        vertical_down = (
+            self.training_skill.vertical_down_screen_range
+            or self.training_skill.vertical_screen_range
+        )
+        # TODO -> Detection model returns x1, y1, x2, y2, while detection configs returns x, y, w, h this needs to be corrected
+        x1, y1, x2, y2 = pos
+        # x1, y1, w, h = pos
+        # x2 = x1 + w
+        # y2 = y1 + h
+        region = Box(
+            # TODO - finetune the region better? (Right now it uses smallest region)
+            left=x1 - horizontal // 2,
+            right=x2 + horizontal // 2,
+            top=y2 - vertical_up // 2,
+            bottom=min(
+                y2 + vertical_down // 2,
+                LargeClientChatFeed._chat_typing_area.top,  # noqa
+            ),
+        )
+        mask = np.zeros(self.data.current_client_img.shape, np.uint8)
+        mask[region.top:region.bottom, region.left:region.right] = 255
+        return mask
+
+    def _get_on_screen_pos(self) -> tuple[int, int, int, int] | None:
+        """
+        Function to use to update the current on screen position of the character.
+        :return: Bounding box (x1, y1, x2, y2), or None when the character is not
+        found on screen.
+        """
+        return self.data.character.get_onscreen_position(
+            self.data.current_client_img,
+            self.data.handle,
+            [
+                self._hide_minimap_box,
+                self._hide_tv_smega_box,
+            ],  # TODO - Add Chat Box  + fixed UI as well into hiding
+            acceptance_threshold=self.ON_SCREEN_THRESHOLD,
+        )
+
+    def _currently_on_ladder(self) -> bool:
+        return getattr(
+            self.data.current_minimap.get_feature_containing(
+                self.data.current_minimap_position
+            ),
+            'is_ladder',
+            False
+        )
+
+    def _closest_mob_direction(
+        self, on_screen_pos: tuple[int, int, int, int], mask: np.ndarray
+    ) -> str | None:
+        """
+        The facing a unidirectional training skill should be cast in: towards the
+        mob closest to the character.
+
+        Detection failing here is not worth losing the cast over - the skill still
+        hits, just without a facing prelude - so a failure falls back to None.
+        """
+        try:
+            mobs_locations = self.get_mobs_positions_in_img(
+                self.data.current_client_img, self.data.current_mobs, mask=mask
+            )
+            return self.get_closest_mob_direction(
+                self.box_center(on_screen_pos), mobs_locations
+            )
+        except Exception:  # noqa
+            logger.error(
+                "%s failed to determine the closest mob direction; casting without a "
+                "facing prelude.",
+                self,
+                exc_info=True,
+            )
+            return None
+
+    async def _decide(self) -> None:
+        """
+        Looks for the character on-screen, or use the last known location.
+        Crop the image to the region of interest, centered around character location.
+        Then, count the number of mobs in the region.
+        If the number of mobs is greater than the threshold, cast the skill.
+        :return:
+        """
+        await asyncio.to_thread(self.lock.acquire)
+        if self._currently_on_ladder():
+            await asyncio.to_thread(self.lock.release)
+            return
+
+        on_screen_pos = self.data.get_last_known_value("current_on_screen_position")
+        closest_mob_direction = None
+
+        if on_screen_pos:
+            mask = self._mask_for_skill_range(on_screen_pos)
+            mobs = self.data.current_mobs
+            nbr_mobs = self.mob_count_in_img(
+                self.data.current_client_img, mobs, mask=mask
+            )
+
+            if nbr_mobs >= self.mob_threshold:
+                if self.training_skill.unidirectional:
+                    closest_mob_direction = self._closest_mob_direction(
+                        on_screen_pos, mask
+                    )
+                hit: MobsHitPayload = {
+                    "mob_count": int(nbr_mobs),
+                    "direction": closest_mob_direction,
+                }
+                self.emit(COMBAT_MOBS_HIT, hit)
+                self.send(self._hit_mobs(closest_mob_direction))
+                return
+        await asyncio.to_thread(self.lock.release)

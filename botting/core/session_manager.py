@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import logging.config
 import logging.handlers
 import multiprocessing.connection
 
@@ -10,10 +11,12 @@ from .bot import Bot
 from .engine import Engine
 from .peripherals_process import PeripheralsProcess
 from botting.communications import BaseParser
-from botting.controller import release_all
+from botting.controller import HeldKeysLedger, release_all
+from botting.logging_config import PARENT_LOG, full_config, new_session_dir
+from botting.telemetry import TELEMETRY_FILENAME, TelemetryHandler
+from botting.utilities import install_loop_diagnostics
 
 logger = logging.getLogger(__name__)
-LOG_LEVEL = logging.INFO
 
 
 class SessionManager:
@@ -27,7 +30,7 @@ class SessionManager:
     - TaskManager
     """
 
-    def __init__(self, discord_parser: type[BaseParser]) -> None:
+    def __init__(self, discord_parser: type[BaseParser], *, debug: bool = False) -> None:
         """
         Creates all necessary objects to start a new Session.
         :param discord_parser: A callable that parses discord message and returns
@@ -38,21 +41,55 @@ class SessionManager:
         self.metadata = self.process_manager.dict(
             logging_queue=self.process_manager.Queue(),
             proxy_request=self.process_manager.Condition(),
+            # Read by each Engine child to mirror this process' asyncio debug mode.
+            # Set here, before ignored_keys is computed, so the proxy-request scan in
+            # _monitor_proxy keeps skipping it.
+            debug=debug,
         )
-        self.metadata["ignored_keys"] = set(self.metadata.keys()).union(
+        self.metadata["ignored_keys"] = set(self.metadata.keys()).union(  # noqa
             {"ignored_keys"}
         )
+        self._debug = debug
 
-        self.peripherals = PeripheralsProcess(
-            self.metadata["logging_queue"], discord_parser
-        )
+        if not self._debug:
+            self.peripherals = PeripheralsProcess(
+                self.metadata["logging_queue"], discord_parser
+            )
+        else:
+            from unittest.mock import Mock, AsyncMock
+            async def _wait_forever(*args, **kwargs):
+                await asyncio.Event().wait()
+            self.peripherals = Mock()
+            self.peripherals.peripherals_listener = AsyncMock(side_effect=_wait_forever)
+
         self.task_manager = AsyncTaskManager(
             discord_pipe=self.peripherals.pipe_main_proc,
         )
 
+        # One Session, one directory - text logs and telemetry alike. Built here
+        # rather than in __enter__ because the QueueListener below snapshots the
+        # parent logger's handlers at construction: attach the sink after that
+        # and every Telemetry Record emitted in a child process reaches nothing.
+        self.session_dir = new_session_dir()
+
+        # The handlers themselves: one file per Log Bucket, the combined
+        # session.log, and the console. dictConfig *replaces* the parent
+        # logger's handler list, so it has to run before the telemetry sink is
+        # attached below - the other order would discard the sink.
+        logging.config.dictConfig(full_config(self.session_dir))
+
+        self.telemetry_handler = TelemetryHandler(
+            self.session_dir / TELEMETRY_FILENAME
+        )
+        logging.getLogger(PARENT_LOG).addHandler(self.telemetry_handler)
+
         self.log_receiver = logging.handlers.QueueListener(
             self.metadata["logging_queue"],
-            *logger.parent.handlers,
+            # Named explicitly rather than reached through `logger.parent`: this
+            # module's parent resolves to `botting` only for as long as no
+            # `botting.core` logger object exists, and the moment one does, the
+            # listener would silently be built with zero handlers.
+            *logging.getLogger(PARENT_LOG).handlers,
             respect_handler_level=True,
         )
 
@@ -71,6 +108,12 @@ class SessionManager:
         Both the Peripherals process and its listener are started.
         :return:
         """
+        # Session-start reconciliation: the Held-Keys Ledger starts empty, so sweep the
+        # physical keyboard once to make that true - a previous Session may have died
+        # with a key latched down.
+        HeldKeysLedger.reset()
+        release_all()
+        install_loop_diagnostics(debug=self._debug)
         self.log_receiver.start()
         self.peripherals.start()
         self.discord_listener = asyncio.create_task(
@@ -103,14 +146,20 @@ class SessionManager:
         logger.info("SessionManager exited.")
         self.log_receiver.stop()
 
+        # After stop(), so records still in flight from a child process land in
+        # the JSONL file rather than on a closed stream.
+        logging.getLogger(PARENT_LOG).removeHandler(self.telemetry_handler)
+        self.telemetry_handler.close()
+
         for engine in self.engines:
             engine.join(timeout=2)
             if engine.is_alive():
                 engine.terminate()
-            logger.info(f"Engine {engine.name} has been stopped.")
+            logger.info("Engine %s has been stopped.", engine.name)
 
-        for bot in self.bots:
-            release_all(bot.get_handle_from_ign(bot.ign))
+        if not self._debug:
+            for bot in self.bots:
+                release_all(bot.get_handle_from_ign(bot.ign))
 
         if exc_type is not None:
             # Normally, each Engine should handle their own clean-up.
@@ -146,15 +195,26 @@ class SessionManager:
             + [self.discord_listener, self.proxy_listener, self.management_task],
             return_when=asyncio.FIRST_COMPLETED,
         )
-        t_done = t_done.pop()
 
         for task in t_pending:
-            logger.info(f"Cancelling task {task.get_name()}.")
+            logger.info("Cancelling task %s.", task.get_name())
             task.cancel()
 
-        if t_done.exception():
-            self.peripherals.pipe_main_proc.send(f"Error: {t_done.exception()}")
-            raise t_done.exception()
+        # Every member of the done set is inspected, not just one: tasks that complete
+        # on the same loop iteration would otherwise have their exception retrieved by
+        # nobody, which is how a Session dies with its cause missing from the log.
+        failures = [
+            task
+            for task in t_done
+            if not task.cancelled() and task.exception() is not None
+        ]
+        for task in failures:
+            logger.error("Task %s raised.", task.get_name(), exc_info=task.exception())
+            self.peripherals.pipe_main_proc.send(
+                f"Error in {task.get_name()}: {task.exception()}"
+            )
+        if failures:
+            raise failures[0].exception()
         logger.info("All bots have been stopped. Session is about to exit.")
 
     async def _monitor_proxy(self) -> None:
@@ -176,7 +236,7 @@ class SessionManager:
                     if key not in self.metadata["ignored_keys"]
                 )
                 type_, args, kwargs = self.metadata[key]
-                logger.log(LOG_LEVEL, f"Request received from {key} for {type_}.")
+                logger.debug("Request received from %s for %s.", key, type_)
                 self.metadata[key] = getattr(self.process_manager, type_)(
                     *args, **kwargs
                 )

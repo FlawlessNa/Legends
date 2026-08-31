@@ -14,17 +14,17 @@ import os
 import time
 
 from botting.utilities import client_handler, take_screenshot
-from royals import royals_ign_finder
+from maple import maple_ign_finder
 from paths import ROOT
 
 HANDLE = client_handler.get_client_handle("StarBase", royals_ign_finder)
 # Load the template image (object/tile)
 templates = [
     cv2.imread(
-        os.path.join(ROOT, f'royals/assets/game_files/mobs/images/Slimy/{img}'),
+        os.path.join(ROOT, f'maple/assets/game_files/mobs/images/Slimy/{img}'),
         cv2.IMREAD_GRAYSCALE
     ) for img in os.listdir(
-        os.path.join(ROOT, 'royals/assets/game_files/mobs/images/Slimy')
+        os.path.join(ROOT, 'maple/assets/game_files/mobs/images/Slimy')
     )
 ]
 templates += [cv2.flip(template, 1) for template in templates]

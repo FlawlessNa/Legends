@@ -3,7 +3,7 @@ import json
 import os
 
 from paths import ROOT
-from royals.model.interface import LargeClientChatFeed
+from maple.model.interface import LargeClientChatFeed
 
 OUTPUT_FILENAME = "chat_lines.json"
 feed = LargeClientChatFeed()

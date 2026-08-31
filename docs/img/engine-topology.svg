@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 570" width="960" height="570" role="img" aria-label="Process topology of the botting engine: Main Process holds the event loop, the log listener thread, the held-keys ledger and the input layer; N Engine processes hold the Bots and their DecisionMakers; a Peripherals process holds the screen recorder and Discord I/O; a Manager process holds the shared proxies. Engines read the game clients, Main Process sends input to them.">
+<title>botting/ process topology</title>
+<style>
+svg{--surface:#FFFFFF;--surface-2:#FAFAFC;--wash:#EBEEF3;--ink:#14181F;--ink-2:#4E5766;--ink-3:#7B8492;--rule:#DBDFE6;--hot:#B26205;--hot-wash:#F8EFE3}
+@media (prefers-color-scheme:dark){svg{--surface:#171B22;--surface-2:#1C222A;--wash:#212832;--ink:#E6E9EF;--ink-2:#A2ACBA;--ink-3:#767F8C;--rule:#29303A;--hot:#E9A54A;--hot-wash:#2B2114}}
+text{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace}
+.proc{fill:var(--surface-2);stroke:var(--ink-2);stroke-width:2}
+.grp{fill:none;stroke:var(--rule);stroke-width:1.25}
+.task{fill:var(--surface);stroke:var(--rule);stroke-width:1.25}
+.thr{fill:var(--surface);stroke:var(--ink-3);stroke-width:1.5;stroke-dasharray:5 3}
+.state{fill:var(--wash);stroke:var(--rule);stroke-width:1.25}
+.hotbox{fill:var(--hot-wash);stroke:var(--hot);stroke-width:1.5}
+.a{stroke:var(--ink-2);stroke-width:1.5;fill:none}
+.a-hot{stroke:var(--hot);stroke-width:1.75;fill:none}
+.a-dash{stroke:var(--ink-3);stroke-width:1.25;fill:none;stroke-dasharray:4 3}
+.tb{font-size:12px;font-weight:500;fill:var(--ink)}
+.tt{font-size:11px;font-weight:500;fill:var(--ink)}
+.ts{font-size:10px;fill:var(--ink-2)}
+.te{font-size:10px;letter-spacing:.09em;fill:var(--ink-3)}
+.al{font-size:10px;fill:var(--ink-2)}
+.al-hot{font-size:10px;fill:var(--hot)}
+</style>
+<defs>
+<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-2)"/></marker>
+<marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-3)"/></marker>
+<marker id="ahh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--hot)"/></marker>
+</defs>
+
+<rect class="proc" x="264" y="12" width="384" height="64" rx="2"/>
+<text class="te" x="278" y="31">GAME CLIENTS — ONE WINDOW PER BOT</text>
+<rect class="task" x="278" y="40" width="110" height="26" rx="4"/>
+<text class="tt" x="333" y="57" text-anchor="middle">client 1</text>
+<rect class="task" x="398" y="40" width="110" height="26" rx="4"/>
+<text class="tt" x="453" y="57" text-anchor="middle">client 2</text>
+<rect class="task" x="518" y="40" width="110" height="26" rx="4"/>
+<text class="tt" x="573" y="57" text-anchor="middle">client N</text>
+
+<rect class="proc" x="8" y="132" width="184" height="184" rx="2"/>
+<text class="te" x="22" y="152">PERIPHERALS PROCESS</text>
+<rect class="grp" x="22" y="162" width="156" height="140" rx="4"/>
+<rect class="task" x="32" y="172" width="136" height="38" rx="7"/>
+<text class="tt" x="100" y="189" text-anchor="middle">Screen Recorder</text>
+<text class="ts" x="100" y="203" text-anchor="middle">records the Session</text>
+<rect class="task" x="32" y="218" width="136" height="38" rx="7"/>
+<text class="tt" x="100" y="235" text-anchor="middle">Discord I/O</text>
+<text class="ts" x="100" y="249" text-anchor="middle">user to main</text>
+<rect class="task" x="32" y="264" width="136" height="38" rx="7"/>
+<text class="tt" x="100" y="281" text-anchor="middle">Discord Relay</text>
+<text class="ts" x="100" y="295" text-anchor="middle">main to user</text>
+
+<rect class="proc" x="8" y="332" width="184" height="140" rx="2"/>
+<text class="te" x="22" y="353">MANAGER PROCESS</text>
+<text class="ts" x="22" y="373">shared by every process</text>
+<text class="tt" x="22" y="398">· metadata DictProxy</text>
+<text class="tt" x="22" y="418">· logging Queue</text>
+<text class="tt" x="22" y="438">· Conditions · Barrier</text>
+<text class="tt" x="22" y="458">· Locks</text>
+
+<rect class="proc" x="264" y="132" width="384" height="340" rx="2"/>
+<text class="te" x="278" y="152">MAIN PROCESS — ONE ASYNCIO LOOP</text>
+<rect class="grp" x="278" y="162" width="356" height="182" rx="4"/>
+<text class="ts" x="288" y="178">Main Event Loop</text>
+<rect class="task" x="288" y="186" width="168" height="44" rx="7"/>
+<text class="tt" x="372" y="205" text-anchor="middle">Engine Listeners ×N</text>
+<text class="ts" x="372" y="220" text-anchor="middle">poll(pipe) on a thread</text>
+<rect class="task" x="466" y="186" width="168" height="44" rx="7"/>
+<text class="tt" x="550" y="205" text-anchor="middle">Discord Listener</text>
+<text class="ts" x="550" y="220" text-anchor="middle">parses user messages</text>
+<rect class="task" x="288" y="238" width="168" height="44" rx="7"/>
+<text class="tt" x="372" y="257" text-anchor="middle">Proxy Listener</text>
+<text class="ts" x="372" y="272" text-anchor="middle">serves proxy requests</text>
+<rect class="task" x="466" y="238" width="168" height="44" rx="7"/>
+<text class="tt" x="550" y="257" text-anchor="middle">Task Manager</text>
+<text class="ts" x="550" y="272" text-anchor="middle">priority + cancellation</text>
+<rect class="state" x="288" y="292" width="346" height="40" rx="2"/>
+<text class="tb" x="461" y="310" text-anchor="middle">asyncio.PriorityQueue</text>
+<text class="ts" x="461" y="325" text-anchor="middle">every ActionRequest lands here</text>
+
+<rect class="thr" x="278" y="356" width="168" height="44" rx="2"/>
+<text class="tt" x="362" y="375" text-anchor="middle">Log Listener</text>
+<text class="ts" x="362" y="390" text-anchor="middle">QueueListener thread</text>
+<rect class="state" x="466" y="356" width="168" height="44" rx="2"/>
+<text class="tt" x="550" y="375" text-anchor="middle">Held-Keys Ledger</text>
+<text class="ts" x="550" y="390" text-anchor="middle">what is down, per client</text>
+
+<rect class="hotbox" x="278" y="414" width="356" height="44" rx="7"/>
+<text class="tb" x="456" y="433" text-anchor="middle">focused_inputs → SendInput</text>
+<text class="ts" x="456" y="448" text-anchor="middle">the only place that presses a key</text>
+
+<rect class="proc" x="730" y="122" width="222" height="340" rx="2" opacity="0.4"/>
+<rect class="proc" x="720" y="132" width="232" height="340" rx="2"/>
+<text class="te" x="734" y="152">ENGINE PROCESS ×N</text>
+<text class="ts" x="734" y="168">one per bot group</text>
+<rect class="grp" x="734" y="176" width="204" height="272" rx="4"/>
+<rect class="task" x="744" y="186" width="184" height="40" rx="7"/>
+<text class="tt" x="836" y="203" text-anchor="middle">Main Listener</text>
+<text class="ts" x="836" y="218" text-anchor="middle">poll(pipe) for commands</text>
+<rect class="task" x="744" y="238" width="184" height="88" rx="4"/>
+<text class="tt" x="836" y="258" text-anchor="middle">Bot A · BotData</text>
+<rect class="state" x="756" y="266" width="160" height="22" rx="3"/>
+<text class="ts" x="836" y="281" text-anchor="middle">DecisionMakers ×N</text>
+<rect class="state" x="756" y="294" width="160" height="22" rx="3"/>
+<text class="ts" x="836" y="309" text-anchor="middle">one asyncio task each</text>
+<rect class="task" x="744" y="338" width="184" height="88" rx="4"/>
+<text class="tt" x="836" y="358" text-anchor="middle">Bot B · BotData</text>
+<rect class="state" x="756" y="366" width="160" height="22" rx="3"/>
+<text class="ts" x="836" y="381" text-anchor="middle">DecisionMakers ×N</text>
+<rect class="state" x="756" y="394" width="160" height="22" rx="3"/>
+<text class="ts" x="836" y="409" text-anchor="middle">one asyncio task each</text>
+<text class="ts" x="836" y="441" text-anchor="middle">one Bot per client</text>
+
+<line class="a-hot" x1="400" y1="132" x2="400" y2="80" marker-end="url(#ahh)"/>
+<text class="al-hot" x="412" y="110">SendInput</text>
+<polyline class="a" points="836,132 836,104 590,104 590,80" marker-end="url(#ah)"/>
+<text class="al" x="716" y="96" text-anchor="middle">screen reads</text>
+
+<line class="a" x1="720" y1="222" x2="656" y2="222" marker-end="url(#ah)"/>
+<text class="al" x="688" y="203" text-anchor="middle">Action</text>
+<text class="al" x="688" y="215" text-anchor="middle">Requests</text>
+<line class="a" x1="648" y1="290" x2="712" y2="290" marker-end="url(#ah)"/>
+<text class="al" x="680" y="282" text-anchor="middle">commands</text>
+
+<line class="a" x1="192" y1="222" x2="256" y2="222" marker-end="url(#ah)"/>
+<text class="al" x="224" y="214" text-anchor="middle">user msgs</text>
+<line class="a" x1="264" y1="290" x2="200" y2="290" marker-end="url(#ah)"/>
+<text class="al" x="232" y="282" text-anchor="middle">relay out</text>
+
+<line class="a-dash" x1="192" y1="400" x2="256" y2="400" marker-end="url(#ahm)"/>
+<text class="al" x="224" y="392" text-anchor="middle">proxies</text>
+<line class="a-dash" x1="100" y1="332" x2="100" y2="320" marker-end="url(#ahm)"/>
+<polyline class="a-dash" points="192,450 228,450 228,536 836,536 836,476" marker-end="url(#ahm)"/>
+</svg>

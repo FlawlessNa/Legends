@@ -3,12 +3,11 @@ import logging
 import multiprocessing.connection
 import multiprocessing.managers
 
-from botting.utilities import setup_child_proc_logging
+from botting.utilities import install_loop_diagnostics, setup_child_proc_logging
 from .bot import Bot
 from .action_data import ActionRequest
 
 logger = logging.getLogger(__name__)
-LOG_LEVEL = logging.NOTSET
 _DEBUG_TIMEOUT_ = None  # None to run infinitely. Otherwise, this stops the engine
 
 
@@ -56,11 +55,9 @@ class _ChildProcessEngine:
         """
         setup_child_proc_logging(metadata["logging_queue"])
         engine = cls(pipe, metadata, bots, barrier)
-        logger.info(f"{engine} Started.")
-        try:
-            asyncio.run(engine._cycle_forever())
-        except BaseException as e:
-            raise e
+        logger.info("%s Started.", engine)
+        # None (not False) so that PYTHONASYNCIODEBUG still wins when the flag is off.
+        asyncio.run(engine._cycle_forever(), debug=metadata.get("debug") or None)
 
     async def _cycle_forever(self) -> None:
         """
@@ -69,6 +66,7 @@ class _ChildProcessEngine:
         :return:
         """
         asyncio.current_task().set_name(f"MainTask - {self}")
+        install_loop_diagnostics(debug=bool(self.metadata.get("debug")))
         try:
             for bot in self.bots:
                 bot.child_init(self.pipe, self.barrier)
@@ -83,33 +81,44 @@ class _ChildProcessEngine:
                 timeout=_DEBUG_TIMEOUT_,
                 return_when=asyncio.FIRST_COMPLETED,
             )
-            logger.info(f"{self} has finished waiting due to {t_done}.")
+            logger.info("%s has finished waiting due to %s.", self, t_done)
 
             for task in t_pending:
-                logger.info(f"{self} Cancelling task {task.get_name()}")
+                logger.info("%s Cancelling task %s", self, task.get_name())
                 task.cancel()
-            if t_done:
-                t_done = t_done.pop()
 
-                if t_done.exception():
-                    if isinstance(t_done.exception(), ExceptionGroup):
-                        raise t_done.exception().exceptions[0]
-                    else:
-                        raise t_done.exception()
+            # Several tasks may complete on the same loop iteration, so every member
+            # of the done set gets its exception retrieved - inspecting only the first
+            # leaves the siblings' failures unretrieved, meaning invisible.
+            failures = [
+                task
+                for task in t_done
+                if not task.cancelled() and task.exception() is not None
+            ]
+            for task in failures:
+                logger.error(
+                    "%s task %s raised.",
+                    self,
+                    task.get_name(),
+                    exc_info=task.exception(),
+                )
+            if failures:
+                # The whole group is raised, never just .exceptions[0]: a TaskGroup
+                # reports every sibling that failed alongside the first one.
+                raise failures[0].exception()
 
         except SystemExit:
             pass
 
         except Exception as e:
-            import traceback
-            logger.error("".join(traceback.format_exception(e)))
+            logger.error("%s is exiting on an exception.", self, exc_info=e)
             raise e
 
         finally:
             if not self.pipe.closed:
-                logger.info(f"{self} is sending None and closing pipe")
+                logger.info("%s is sending None and closing pipe", self)
                 self.pipe.send(None)
-            logger.info(f"{self} Exited.")
+            logger.info("%s Exited.", self)
 
     async def _poll_for_updates(self) -> None:
         """
@@ -120,7 +129,7 @@ class _ChildProcessEngine:
             if await asyncio.to_thread(self.pipe.poll):
                 data = self.pipe.recv()
                 if data is None:
-                    logger.info(f"{self} received None from MainProcess. Exiting.")
+                    logger.info("%s received None from MainProcess. Exiting.", self)
                     break
                 elif isinstance(data, str):
                     action = data.split()[0].lower()
@@ -199,28 +208,30 @@ class Engine(_ChildProcessEngine):
                             break
 
                         elif isinstance(request, BaseException):
-                            logger.error(f"Exception occurred in {engine.name}.")
+                            logger.error("Exception occurred in %s.", engine.name)
 
                             discord_pipe.send(
                                 f"Exception {request} \n occurred in {engine.name}."
                             )
                             # raise request
                         elif isinstance(request, str):
-                            logger.info(f"Received {request} from {engine.name}.")
+                            logger.info("Received %s from %s.", request, engine.name)
                             discord_pipe.send(request)
 
                         await queue.put(request)
 
             except asyncio.CancelledError:
-                logger.info(f"Listener to {engine.name} cancelled.")
+                logger.info("Listener to %s cancelled.", engine.name)
 
             except Exception as e:
-                logger.error(f"Exception occurred in Listener to {engine.name}.")
+                logger.error(
+                    "Exception occurred in Listener to %s.", engine.name, exc_info=e
+                )
                 raise e
 
             finally:
                 if not pipe.closed:
-                    logger.info(f"Sending None from {engine.name} listener")
+                    logger.info("Sending None from %s listener", engine.name)
                     pipe.send(None)
                 queue.put_nowait(None)
 

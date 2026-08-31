@@ -60,7 +60,9 @@ class FolderManager:
             self.clear_file(file_to_remove)
             files_removed += 1
             logger.info(
-                f"{file_to_remove} has been deleted. Current directory size: {self.directory_size} GB."
+                "%s has been deleted. Current directory size: %s GB.",
+                file_to_remove,
+                self.directory_size,
             )
         if files_removed:
-            logger.info(f"{files_removed} files removed from {self.folder_path}")
+            logger.info("%s files removed from %s", files_removed, self.folder_path)

@@ -1,21 +1,20 @@
+import logging
+
+import pytest
+
 from botting.utilities.config_reader import logger, config_reader
 
-from unittest import TestCase
 
+def test_config_reader(caplog):
+    with caplog.at_level(logging.DEBUG, logger=logger.name):
+        config_reader(filename="game", section="Client", option="Window Titles")
+    assert caplog.records
 
-class Test(TestCase):
-    def setUp(self) -> None:
-        self.logger = logger
+    with pytest.raises(AssertionError):
+        config_reader(filename="keybindings", file_ext=".txt")
 
-    def test_config_reader(self):
-        with self.assertLogs(self.logger, level="DEBUG") as cm:
-            config_reader(filename="game", section="Client", option="Window Titles")
+    with pytest.raises(KeyError):
+        config_reader(filename="keybindings", section="random_section")
 
-        with self.assertRaises(AssertionError):
-            config_reader(filename="keybindings", file_ext=".txt")
-
-        with self.assertRaises(KeyError):
-            config_reader(filename="keybindings", section="random_section")
-
-        with self.assertRaises(KeyError):
-            config_reader(filename="game", section="Client", option="random_option")
+    with pytest.raises(KeyError):
+        config_reader(filename="game", section="Client", option="random_option")

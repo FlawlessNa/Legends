@@ -51,19 +51,19 @@ from ml_training.workflows import BootstrapNewClass, train_global_production_mod
 # Session name — used for folder and model naming only.
 # For a single class, set this to the class name.
 # For multi-class, use a descriptive map/group name (e.g. "GS2Map").
-SESSION_NAME = "PacPinky"
+SESSION_NAME = "Bubbling"
 
 # Detection classes to annotate and train.
 # Always include "Character" — it is always on-screen and must be annotated
 # so the global model keeps detecting it correctly alongside new monsters.
 # Single class:   CLASSES = ["Character", "PacPinky"]
 # Multi-class:    CLASSES = ["Character", "Slimy", "SelkieJr", "PlatoonChronos"]
-CLASSES = ["PacPinky", "Character"]
+CLASSES = ["Bubbling", "Character"]
 
 # Number of screenshots to capture for each phase.
 # Phase 1: small set, you annotate everything manually from scratch.
 # Phase 2: large set, the mini-model pre-fills boxes for you to verify.
-INITIAL_SAMPLES = 10
+INITIAL_SAMPLES = 5
 EXTENDED_SAMPLES = 50
 
 # YOLO model size: 'n' (nano), 's' (small), 'm' (medium), 'l' (large), 'x'
@@ -82,6 +82,14 @@ SKIP_PHASE_1 = True
 #   Use when: extended images were already captured.
 SKIP_EXTENDED_CAPTURE = True
 
+# SKIP_PREANNOTATION: don't re-run the mini model over the extended images —
+#   keep the label files already in data/captures/{SESSION_NAME}_extended_labels/.
+#   Requires: label files already exist there (verified and/or pre-annotated).
+#   Use when: resuming a crashed verify session, so labels you already verified
+#   are NOT overwritten by fresh predictions. The verify GUI reopens on them;
+#   press Enter to skip through images you already verified.
+SKIP_PREANNOTATION = True
+
 # REANNOTATE: re-open the annotator on all existing images so you can add boxes
 #   for new classes without re-capturing anything.
 #   Skips: all captures, mini-model training, live viewer, pre-annotation.
@@ -93,12 +101,12 @@ REANNOTATE = False
 # the model at PREANNOTATE_MODEL_PATH before the annotator opens.
 # Set to [] to skip pre-annotation and draw everything manually.
 REANNOTATE_PREANNOTATE_CLASSES: list[str] = ["Character"]
-PREANNOTATE_MODEL_PATH = "data/model_runs/detection/Full Model up to GS2 - Nano/weights/best.pt"
+PREANNOTATE_MODEL_PATH = "data/model_runs/models/production/global/weights/best.pt"
 
 # RETRAIN_EVERY: retrain the model after every N verified images in the verify GUI.
 #   0 = disabled (use original mini model for all pre-annotations).
 #   Recommended: 10-15. Each retrain improves pre-annotations for remaining images.
-RETRAIN_EVERY = 15
+RETRAIN_EVERY = 10
 
 # ── Post-training options ──────────────────────────────────────────────────────
 
@@ -123,10 +131,18 @@ RETRAIN_GLOBAL_ONLY = True
 # Paths to include in the global model (in addition to this session's data,
 # unless RETRAIN_GLOBAL_ONLY=True in which case only these paths are used).
 # Each path must be a YOLO-format dataset directory containing a data.yaml file.
+#
+# After training a new monster class, append its {SESSION_NAME}_final dataset
+# here. Each dataset keeps its own local class IDs; the merge remaps them into
+# a unified class list using each dataset's data.yaml (and aborts if labels and
+# data.yaml disagree). The bot looks up detections by class NAME from the
+# model, so IDs shifting between retrains is harmless — never edit a
+# pipeline-generated data.yaml by hand.
 GLOBAL_DATASET_PATHS: list[str] = [
-    "data/character_detection_images/GS2MobsAndChar",
-    "data/character_detection_images/ChronosAndMp3WithCharacter",
+    "data/datasets/GS2MobsAndChar",
+    "data/datasets/ChronosAndMp3WithCharacter",
     "data/datasets/PacPinky_final",   # session data — the YOLO-formatted dataset, not raw captures
+    "data/datasets/Bubbling_final",
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -283,7 +299,7 @@ def _run(wf: BootstrapNewClass) -> None:
         wf.capture_initial_samples(count=INITIAL_SAMPLES)
 
         print("\nOpening annotation GUI — draw boxes around every instance.")
-        print("Controls:  A/D = prev/next   Del = delete last box   Ctrl+S = save\n")
+        print("Controls:  A/D = prev/next   Ctrl+Click = remove box   Del = delete last box   Ctrl+S = save\n")
         wf.annotate_initial_samples()
 
         wf.train_mini_model(model_size=MODEL_SIZE)
@@ -318,7 +334,13 @@ def _run(wf: BootstrapNewClass) -> None:
             print(f"ERROR: Expected {wf.extended_images_dir} but it does not exist.")
             sys.exit(1)
 
-    wf.predict_and_verify(conf=conf, iou=iou, retrain_every=RETRAIN_EVERY, model_size=MODEL_SIZE)
+    wf.predict_and_verify(
+        conf=conf,
+        iou=iou,
+        retrain_every=RETRAIN_EVERY,
+        model_size=MODEL_SIZE,
+        skip_preannotation=SKIP_PREANNOTATION,
+    )
 
     # ── Phase 3: final training ──────────────────────────────────────────────
     wf.train_final_model(model_size=MODEL_SIZE)

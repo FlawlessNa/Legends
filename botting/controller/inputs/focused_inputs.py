@@ -9,11 +9,12 @@ import win32con
 
 from ctypes import wintypes
 from dataclasses import dataclass, field
-from typing import Literal, Generator
+from typing import Callable, Literal, Generator
 from win32com.client import Dispatch
 from win32api import HIBYTE, GetKeyState, GetAsyncKeyState
 from win32gui import SetForegroundWindow, GetForegroundWindow
 
+from .held_keys_ledger import HeldKeysLedger, require_main_process
 from .shared_resources import SharedResources
 
 from .inputs_helpers import (
@@ -23,6 +24,7 @@ from .inputs_helpers import (
     EXTENDED_KEYS,
     MAPVK_VK_TO_VSC_EX,
     OVERHEAD,
+    random_delay
 )
 
 KEYEVENTF_EXTENDEDKEY = 0x0001
@@ -131,6 +133,50 @@ class KeyboardInputWrapper:
     events: list[EVENTS | list[EVENTS]] = field(default_factory=list)
     delays: list[float] = field(default_factory=list)
     forced_key_releases: list[str] = field(default_factory=list)
+    initial_held_keys: frozenset[str] | None = None
+
+    def __post_init__(self) -> None:
+        """
+        Before the instance is finalized, look into top-level held keys (directed to the
+        relevant window).
+        If opposites keys to the ones desired are held, release them.
+
+        `initial_held_keys` overrides the Held-Keys Ledger read below, so
+        offline/deterministic compilation can supply the held state instead. Compiling
+        outside Main Process must supply it: no other process owns a ledger.
+        """
+        if self.initial_held_keys is not None:
+            held_keys = set(self.initial_held_keys)
+        else:
+            held_keys = set(get_held_movement_keys(self.handle))
+        self._clear_opposites(held_keys=held_keys, desired_keys=self.keys_held)
+
+    def _clear_opposites(
+        self, held_keys: set[str], desired_keys: set[str], idx: int = None
+    ) -> None:
+        """
+        Utility function that compares the desired keys to be held versus those already
+        held. If the opposites are held, a release event is inserted.
+
+        Only keys `held_keys` reports as down are released. This used to also release
+        the opposite of any desired `left`/`right` unconditionally, as a blunt guard
+        against a stale direction latching the character - a guard that only existed
+        because compile-time held-keys state was untrustworthy. The Held-Keys Ledger
+        makes it authoritative, so the guard goes and **A6 No Phantom Release** holds:
+        no keyup targets a key that is not down.
+        """
+        to_release = []
+        for key in filter(lambda k: k in ('left', 'right', 'up', 'down'), desired_keys):
+            if OPPOSITES[key] in held_keys:
+                to_release.append(OPPOSITES[key])
+
+        if to_release:
+            self.insert(
+                idx or 0,
+                to_release,
+                ["keyup"] * len(to_release),  # noqa
+                next(random_delay),
+            )
 
     def __str__(self) -> str:
         result = []
@@ -168,9 +214,35 @@ class KeyboardInputWrapper:
     def append(
         self, keys: str | list[str], events: EVENTS | list[EVENTS], delay: float
     ) -> None:
+        """
+        Before appending new keys, retrospectively look at prior held keys and insert
+        release events on opposites, if any.
+
+        The release goes at the end - immediately ahead of the Step about to be
+        appended. It used to go at `-1`, which lands *before* the last existing Step:
+        when that Step was the keydown of the very key being released, the sequence
+        read `keyup, keydown, <opposite> keydown`, leaving both directions down (A3)
+        off a keyup for a key that was not yet pressed (A6).
+        """
+        self._clear_opposites(
+            held_keys=self.keys_held,
+            desired_keys=self.get_held_movement_keys([keys], [events]),
+            idx=len(self.keys),
+        )
         self.keys.append(keys)
         self.events.append(events)
         self.delays.append(delay)
+
+    def insert(
+        self,
+        index: int,
+        keys: str | list[str],
+        events: EVENTS | list[EVENTS],
+        delay: float
+    ) -> None:
+        self.keys.insert(index, keys)
+        self.events.insert(index, events)
+        self.delays.insert(index, delay)
 
     def fill(self, key: str, event: EVENTS, delay_generator: Generator, limit: float):
         """
@@ -192,29 +264,44 @@ class KeyboardInputWrapper:
         sent and for which no subsequent KEYUP event is sent.
         :return:
         """
+        return self.get_held_movement_keys(self.keys, self.events)
+
+    @staticmethod
+    def get_held_movement_keys(
+        keys: list[str | list[str]], events: list[EVENTS | list[EVENTS]]
+    ) -> set[str]:
         keys_down = set()
-        for i, key in enumerate(self.keys):
-            if isinstance(key, list):
-                for j, k in enumerate(key):
-                    if self.events[i][j] == "keydown":
+        for key, event in zip(keys, events):
+            if isinstance(key, list) and isinstance(event, list):
+                for k, e in zip(key, event):
+                    if e == "keydown":
                         keys_down.add(k)
-                    elif self.events[i][j] == "keyup":
+                    elif e == "keyup":
                         keys_down.discard(k)
-            else:
-                if self.events[i] == "keydown":
+            elif isinstance(key, str) and isinstance(event, str):
+                if event == "keydown":
                     keys_down.add(key)
-                elif self.events[i] == "keyup":
+                elif event == "keyup":
                     keys_down.discard(key)
+            else:
+                raise ValueError(f"Invalid key {key} or event {event}")
         return keys_down
 
     async def send(self):
         return await focused_inputs(
-            self.handle, self.c_input, self.delays, self.forced_key_releases
+            self.handle,
+            self.c_input,
+            self.delays,
+            self.forced_key_releases,
+            keys=self.keys,
+            events=self.events,
         )
 
     def truncate(self, limit: float) -> "KeyboardInputWrapper":
         result = KeyboardInputWrapper(
-            self.handle, forced_key_releases=self.forced_key_releases
+            self.handle,
+            forced_key_releases=self.forced_key_releases,
+            initial_held_keys=self.initial_held_keys,
         )
         generator = zip(self.keys, self.events, self.delays)
         while result.duration < limit:
@@ -235,7 +322,7 @@ async def activate(hwnd: int) -> bool:
     acquired = False
     if GetForegroundWindow() != hwnd:
         acquired = await SharedResources.focus_lock.acquire()
-        logger.debug(f"Activating window {hwnd}")
+        logger.debug("Activating window %s", hwnd)
         # Before activating, make sure to release any keys that are currently pressed.
         release_all(GetForegroundWindow())
         Dispatch("WScript.Shell").SendKeys("%")
@@ -247,41 +334,72 @@ async def activate(hwnd: int) -> bool:
 
 
 def release_all(hwnd: int = None) -> None:
+    """
+    Releases every key the Held-Keys Ledger holds for the window, then clears its
+    entry. This is one of the two reconciliation points against physical key state -
+    the other being the session-start sweep - so it also releases any key found down
+    that the ledger did not know about (a human keystroke, or a leftover from a
+    previous Session).
+    :param hwnd: Handle to the window to release the keys from. Defaults to foreground.
+    :return: None
+    """
+    require_main_process("release_all")
     if hwnd is None:
         hwnd = GetForegroundWindow()
-    keys_to_release = []
-    for key in SharedResources.keys_sent:
-        if (
-            HIBYTE(
-                GetAsyncKeyState(
-                    _get_virtual_key(key, True, _keyboard_layout_handle(hwnd))
-                )
-            )
-            != 0
-        ):
-            keys_to_release.append(key)
+    keys_to_release = set(HeldKeysLedger.keys_held(hwnd))
+    stragglers = _physically_held(hwnd) - keys_to_release
+    if stragglers:
+        logger.warning(
+            "Keys %s were physically down on window %s without being in the Held-Keys "
+            "Ledger. Releasing them as well.",
+            sorted(stragglers),
+            hwnd,
+        )
+        keys_to_release |= stragglers
     if keys_to_release:
-        logger.debug(f"Releasing keys {keys_to_release} from window {hwnd}")
-    release_keys(keys_to_release)
+        logger.debug("Releasing keys %s from window %s", sorted(keys_to_release), hwnd)
+    release_keys(sorted(keys_to_release), hwnd)
+    HeldKeysLedger.clear(hwnd)
+
+
+def _physically_held(hwnd: int) -> set[str]:
+    """
+    The reconciliation sweep itself: one `GetAsyncKeyState` per candidate key. Note the
+    query is system-wide, so it describes the physical keyboard rather than this
+    window - which is exactly what a reconciliation needs, and why it is only ever
+    used while `hwnd` is the foreground window.
+    :param hwnd: Handle to the window whose keyboard layout resolves the key names.
+    :return: The candidate keys currently down.
+    """
+    layout = _keyboard_layout_handle(hwnd)
+    return {
+        key
+        for key in HeldKeysLedger.sweep_candidates()
+        if HIBYTE(GetAsyncKeyState(_get_virtual_key(key, False, layout))) != 0
+    }
 
 
 def release_directions(hwnd: int = None) -> None:
+    """
+    Releases every direction key the Held-Keys Ledger holds for the window. Unlike
+    `release_all` this is not a reconciliation point: it reads the ledger and sends
+    nothing for keys the ledger does not hold.
+
+    Note this sends outside the focus lock, so it only reaches `hwnd` while `hwnd` is
+    the foreground window. Cancelling a movement Action does not need it - the send
+    loop releases directions from inside its own critical section (see
+    `focused_inputs`).
+    :param hwnd: Handle to the window to release from. Defaults to foreground.
+    :return: None
+    """
+    require_main_process("release_directions")
     if hwnd is None:
         hwnd = GetForegroundWindow()
-    _release_keys = []
-    for key in ["left", "right"]:
-        if (
-            HIBYTE(
-                GetAsyncKeyState(
-                    _get_virtual_key(key, True, _keyboard_layout_handle(hwnd))
-                )
-            )
-            != 0
-        ):
-            _release_keys.append(key)
+    held = HeldKeysLedger.keys_held(hwnd)
+    _release_keys = [key for key in OPPOSITES if key in held]
     if _release_keys:
-        logger.debug(f"Releasing keys {_release_keys} from window {hwnd}")
-    release_keys(_release_keys)
+        logger.debug("Releasing keys %s from window %s", _release_keys, hwnd)
+        release_keys(_release_keys, hwnd)
 
 
 def input_constructor(
@@ -307,7 +425,7 @@ def input_constructor(
     structures = []
     for lst_inputs, lst_events in zip(inputs, events):
         if isinstance(lst_inputs, str):  # Keyboard input
-            SharedResources.keys_sent.add(lst_inputs)
+            HeldKeysLedger.note_sent(lst_inputs)
             structures.append(
                 (
                     wintypes.UINT(1),
@@ -352,7 +470,7 @@ def input_constructor(
                 for i, e in zip(lst_inputs, lst_events)
             ]
             for i in lst_inputs:
-                SharedResources.keys_sent.add(i)
+                HeldKeysLedger.note_sent(i)
             num_inputs = len(inputs)
             array_class = Input * num_inputs
             array_pointer = ctypes.POINTER(array_class)
@@ -370,71 +488,123 @@ def input_constructor(
 
 async def focused_inputs(
     hwnd: int,
-    inputs: list[tuple],
-    delays: list[float],
+    inputs: list[tuple] = None,
+    delays: list[float] = None,
     forced_key_releases: list[str] = None,
+    keys: list[str | list[str]] = None,
+    events: list[EVENTS | list[EVENTS]] = None,
+    compiler: Callable[[frozenset[str]], "KeyboardInputWrapper | None"] = None,
 ) -> int:
     """
     Sends the inputs to the active window.
     A small delay is added between each input.
     :param hwnd: handle to the window to send the inputs to.
-    :param inputs: input structures to send.
-    :param delays: delays between each input.
+    :param inputs: input structures to send. Omitted when `compiler` is provided.
+    :param delays: delays between each input. Omitted when `compiler` is provided.
     :param forced_key_releases: If provided, these are sure to be released at the end,
     even if the task is cancelled.
+    :param keys: The keys each input structure carries, index-aligned with `inputs`.
+    :param events: The events each input structure carries, index-aligned with `inputs`.
+    :param compiler: Dispatch-time compilation. When provided, the Input Sequence is
+    built here - after focus is acquired, from the Held-Keys Ledger - instead of being
+    handed in pre-compiled. See `compile_and_send`.
     :return: Nbr of inputs successfully sent.
+
+    Note:
+        `keys` and `events` are what the Held-Keys Ledger is written from - the input
+        structures themselves are opaque C buffers. A Step is recorded only once
+        `_send_input` has returned, so the ledger describes the Delivered Prefix
+        rather than the Input Sequence when cancellation truncates the loop.
+        Callers sending no keyboard input (mouse moves, clicks) leave them None.
+
+        `compiler` exists because held keys shape the *structure* of an Input
+        Sequence, so the state it compiles against must be the state at dispatch, in
+        this window. Compiling here rather than in the caller keeps the read and the
+        first Step inside one focus-lock critical section, and keeps the compile
+        window under the same cancellation handling as the send loop.
+
+        Cancellation additionally releases every direction key the ledger holds for
+        the window - invariant D2, "after a Preemption, no direction key remains
+        down". This is the one release that `forced_key_releases` cannot express:
+        that list fires on normal completion too, whereas a Continuation carries its
+        direction key across the route-cycle boundary on purpose. Being here rather
+        than in a task done-callback keeps the release inside the focus-lock critical
+        section, so it reaches this client rather than whichever one the preempting
+        Action has meanwhile brought to the foreground.
     """
+    require_main_process("focused_inputs")
     res = 0
     acquired = False
+    cancelled = False
     try:
         acquired = await activate(hwnd)
+
+        if compiler is not None:
+            structure = compiler(frozenset(get_held_movement_keys(hwnd)))
+            if structure is None:
+                return res
+            inputs = structure.c_input
+            delays = structure.delays
+            keys = structure.keys
+            events = structure.events
+            forced_key_releases = structure.forced_key_releases
 
         for i in range(len(inputs)):
             _send_input(inputs[i])
             res += 1
+            if keys is not None and events is not None:
+                HeldKeysLedger.record_step(hwnd, keys[i], events[i])
             await asyncio.sleep(delays[i])
         return res
 
     except asyncio.CancelledError as e:
+        cancelled = True
         raise e
 
     except Exception as e:
         raise e
 
     finally:
-        if forced_key_releases:
-            keys_to_release = []
-            for key in set(forced_key_releases):
-                if (
-                    HIBYTE(
-                        GetAsyncKeyState(
-                            _get_virtual_key(key, True, _keyboard_layout_handle(hwnd))
-                        )
-                    )
-                    != 0
-                ):
-                    keys_to_release.append(key)
-            release_keys(keys_to_release)
+        held = HeldKeysLedger.keys_held(hwnd)
+        keys_to_release = {k for k in forced_key_releases or () if k in held}
+        if cancelled:
+            keys_to_release.update(k for k in OPPOSITES if k in held)
+        if keys_to_release:
+            release_keys(sorted(keys_to_release), hwnd)
         if acquired:
             SharedResources.focus_lock.release()
 
 
+async def compile_and_send(
+    hwnd: int,
+    compiler: Callable[[frozenset[str]], "KeyboardInputWrapper | None"],
+) -> int:
+    """
+    The live path's entry point: an ActionRequest procedure that carries the plan
+    rather than a compiled Input Sequence, and compiles it at dispatch.
+
+    Acquire focus -> read the Held-Keys Ledger for `hwnd` -> compile through the
+    `initial_held_keys` seam -> stream the Steps, all inside one critical section.
+    A DecisionMaker deciding in its own process cannot do the read: only Main Process
+    owns a ledger, and by dispatch its snapshot would be stale anyway (see ADR 0002).
+    :param hwnd: Handle to the client window the sequence targets.
+    :param compiler: Called with the movement keys the ledger holds for `hwnd`;
+    returns the Input Sequence to send, or None when there is nothing to send.
+    :return: Nbr of inputs successfully sent.
+    """
+    return await focused_inputs(hwnd, compiler=compiler)
+
+
 def get_held_movement_keys(hwnd: int) -> list[str]:
     """
-    Returns a list of the currently held movement keys.
-    :param hwnd:
-    :return:
+    Returns a list of the currently held movement keys, read from the Held-Keys Ledger.
+    Only Main Process owns a ledger, so a call from an Engine process reports none held
+    (and warns once) - live compilation must be fed ledger state at dispatch instead.
+    :param hwnd: Handle to the client window.
+    :return: The movement keys currently down for that client.
     """
-    return [
-        key
-        for key in OPPOSITES
-        if HIBYTE(
-            GetAsyncKeyState(
-                _get_virtual_key(key, False, _keyboard_layout_handle(hwnd))
-            )
-        )
-        != 0
-    ]
+    held = HeldKeysLedger.keys_held(hwnd)
+    return [key for key in OPPOSITES if key in held]
 
 
 def _send_input(structure: tuple) -> None:
@@ -448,10 +618,10 @@ def _send_input(structure: tuple) -> None:
     pointer = ctypes.POINTER(array_class)
     _EXPORTED_FUNCTIONS["SendInput"].argtypes = [wintypes.UINT, pointer, wintypes.INT]
     while _EXPORTED_FUNCTIONS["SendInput"](*structure) != structure[0].value:
-        logger.error(f"Failed to send input {structure}")
+        logger.error("Failed to send input %s", structure)
         failure_count += 1
         if failure_count > 10:
-            logger.critical(f"Unable to send structure {structure} to active window")
+            logger.critical("Unable to send structure %s to active window", structure)
             raise RuntimeError(f"Unable to send structure {structure} to active window")
 
 
@@ -576,6 +746,7 @@ def release_keys(keys: list[str], handle: int = None) -> None:
     :param handle: Handle to the window to release the keys.
     :return: Input structure to release the given keys.
     """
+    require_main_process("release_keys")
     if handle is None:
         handle = GetForegroundWindow()
     if keys:
@@ -583,3 +754,4 @@ def release_keys(keys: list[str], handle: int = None) -> None:
         inputs = input_constructor(handle, [keys], [events])
         if inputs:
             _send_input(inputs[0])
+            HeldKeysLedger.record_step(handle, list(keys), events)

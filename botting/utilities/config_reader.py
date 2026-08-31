@@ -34,7 +34,7 @@ def config_reader(
     assert os.path.exists(full_path), f"Config file {full_path} does not exist."
     config.read(full_path)
 
-    logger.debug(f"config read successfully from {full_path}")
+    logger.debug("config read successfully from %s", full_path)
     if section is not None:
         if option is not None:
             return config[section][option]

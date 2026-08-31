@@ -9,7 +9,6 @@ from typing import Any
 from botting.core import ActionRequest, DiscordRequest
 
 logger = logging.getLogger(__name__)
-LOG_LEVEL = logging.NOTSET
 
 
 class Actions(Enum):

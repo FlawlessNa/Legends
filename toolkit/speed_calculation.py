@@ -1,9 +1,9 @@
 import time
 import math
 
-from royals.model.minimaps import MuddyBanks2Minimap
+from maple._old.minimaps import MuddyBanks2Minimap
 from botting.utilities import client_handler
-from royals import royals_ign_finder
+from maple import maple_ign_finder
 
 # Once the script starts, it continuously monitors the character's position on the minimap.
 # As soon as the character starts moving, the script logs the character's position with a timestamp.
@@ -12,7 +12,7 @@ from royals import royals_ign_finder
 TARGET = (121, 50)  # Target position on the minimap
 
 
-HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
+HANDLE = client_handler.get_client_handle("WrongDoor", maple_ign_finder)
 minimap = MuddyBanks2Minimap()  # Minimap implementation in which the speed is tested
 # (Assumption is that speed may vary from map to map)
 

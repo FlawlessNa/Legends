@@ -9,13 +9,13 @@ import os
 import numpy as np
 
 from paths import ROOT
-from royals import royals_ign_finder
-from royals.model.interface.dynamic_components.minimap import Minimap
+from maple import maple_ign_finder
+from maple.model.interface.dynamic_components.minimap import Minimap
 from botting.utilities import client_handler
 from botting.utilities import Box
 
-HANDLE = client_handler.get_client_handle("WrongDoor", royals_ign_finder)
-OUTPUT_LOCATION = os.path.join(ROOT, "royals/model/minimaps/")
+HANDLE = client_handler.get_client_handle("WrongDoor", maple_ign_finder)
+OUTPUT_LOCATION = os.path.join(ROOT, "maple/model/minimaps/")
 OUTPUT_NAME = "ulu_estate_2.py"
 
 # TODO - Automatically read these from game files
@@ -89,7 +89,7 @@ if __name__ == "__main__":
 
     with open(os.path.join(OUTPUT_LOCATION, OUTPUT_NAME), "w") as f:
         f.write(
-            """from royals.model.mechanics import (
+            """from maple.model.mechanics import (
     MinimapFeature,
     MinimapConnection,
     MinimapPathingMechanics,

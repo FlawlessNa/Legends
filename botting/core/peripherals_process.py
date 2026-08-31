@@ -4,7 +4,7 @@ import multiprocessing.connection
 from typing import Any
 from botting.screen_recorder import Recorder
 from botting.communications import DiscordIO, BaseParser
-from botting.utilities import setup_child_proc_logging
+from botting.utilities import install_loop_diagnostics, setup_child_proc_logging
 
 from .action_data import ActionRequest
 
@@ -54,7 +54,7 @@ class PeripheralsProcess:
             logger.debug("Sent stop signal to Peripherals process.")
 
         self.process.join()
-        logger.info(f"Peripherals process exited.")
+        logger.info("Peripherals process exited.")
 
     async def peripherals_listener(self, async_queue: asyncio.Queue) -> None:
         """
@@ -105,6 +105,7 @@ class PeripheralsProcess:
             Then cancels all other tasks.
             :return:
             """
+            install_loop_diagnostics()
             recorder = Recorder()
             discord_io = DiscordIO(self.pipe_spawned_proc)
 
@@ -123,14 +124,25 @@ class PeripheralsProcess:
                 [task_recorder, task_discord_relay, task_discord_io],
                 return_when=asyncio.FIRST_COMPLETED,
             )
-            t_done = task_done.pop()
 
-            logger.info(f"Task {t_done.get_name()} has exited.")
+            for task in task_done:
+                logger.info("Task %s has exited.", task.get_name())
             for task in task_pending:
-                logger.info(f"Cancelling task {task.get_name()}.")
+                logger.info("Cancelling task %s.", task.get_name())
                 task.cancel()
 
-            if t_done.exception():
-                raise t_done.exception()
+            # Same reasoning as the Engine and SessionManager wait sites: retrieve
+            # every done task's exception, not just the first one popped.
+            failures = [
+                task
+                for task in task_done
+                if not task.cancelled() and task.exception() is not None
+            ]
+            for task in failures:
+                logger.error(
+                    "Task %s raised.", task.get_name(), exc_info=task.exception()
+                )
+            if failures:
+                raise failures[0].exception()
 
         asyncio.run(_launch_tasks())

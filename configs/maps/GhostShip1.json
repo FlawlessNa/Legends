@@ -1,0 +1,282 @@
+{
+    "_meta": {
+        "scale_x": 0.0625467102010949,
+        "scale_y": 0.04618260326870873,
+        "canvas_width": 116,
+        "canvas_height": 53
+    },
+    "title_img_path": null,
+    "mobs": [
+        "PacPinky"
+    ],
+    "features": {
+        "bottom_platform": {
+            "left": 12,
+            "right": 109,
+            "top": 42,
+            "bottom": 42,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "top_platform": {
+            "left": 12,
+            "right": 109,
+            "top": 27,
+            "bottom": 27,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "mid_ladder": {
+            "left": 63,
+            "right": 63,
+            "top": 28,
+            "bottom": 41,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "bottom_box1": {
+            "left": 24,
+            "right": 31,
+            "top": 38,
+            "bottom": 38,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "bottom_box2": {
+            "left": 65,
+            "right": 66,
+            "top": 38,
+            "bottom": 38,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 5,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "stair_1": {
+            "left": 94,
+            "right": 99,
+            "top": 39,
+            "bottom": 39,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "stair_2": {
+            "left": 95,
+            "right": 100,
+            "top": 38,
+            "bottom": 38,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "stair_3": {
+            "left": 96,
+            "right": 101,
+            "top": 36,
+            "bottom": 36,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "stair_4": {
+            "left": 98,
+            "right": 102,
+            "top": 35,
+            "bottom": 35,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "stair_5": {
+            "left": 98,
+            "right": 104,
+            "top": 33,
+            "bottom": 33,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "stair_6": {
+            "left": 97,
+            "right": 103,
+            "top": 32,
+            "bottom": 32,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "stair_7": {
+            "left": 96,
+            "right": 101,
+            "top": 30,
+            "bottom": 30,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "stair_8": {
+            "left": 95,
+            "right": 100,
+            "top": 29,
+            "bottom": 29,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "top_box_1": {
+            "left": 17,
+            "right": 20,
+            "top": 23,
+            "bottom": 23,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "top_box_2": {
+            "left": 40,
+            "right": 44,
+            "top": 23,
+            "bottom": 23,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        }
+    },
+    "portals": [
+        {
+            "source": [
+                81,
+                42
+            ],
+            "target": [
+                23,
+                27
+            ],
+            "bidirectional": false
+        }
+    ]
+}

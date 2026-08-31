@@ -39,10 +39,12 @@ def _post_message(
 ) -> None:
     failure_count = 0
     while not _EXPORTED_FUNCTIONS["PostMessageW"](*msg):
-        logger.error(f"Failed to post message {msg}")
+        logger.error("Failed to post message %s", msg)
         failure_count += 1
         if failure_count > 10:
-            logger.critical(f"Unable to post the message {msg} to the window {msg[0]}")
+            logger.critical(
+                "Unable to post the message %s to the window %s", msg, msg[0]
+            )
             raise RuntimeError(f"Failed to post message {msg} after 10 attempts.")
 
 

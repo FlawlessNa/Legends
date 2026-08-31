@@ -143,9 +143,13 @@ class AnnotationCanvas(QLabel):
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             pos = self.get_image_coords(event.pos())
-            if pos:
-                self.drawing = True
-                self.start_point = pos
+            if not pos:
+                return
+            if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                self.parent_window.remove_box_at(pos)
+                return
+            self.drawing = True
+            self.start_point = pos
 
     def mouseMoveEvent(self, event):
         if self.drawing and self.start_point:
@@ -313,6 +317,8 @@ class AnnotatorGUI(QMainWindow):
         self.delete_btn.clicked.connect(self.delete_last_box)
         controls_layout.addWidget(self.delete_btn)
 
+        controls_layout.addWidget(QLabel("Ctrl+Click box: remove"))
+
         if self.mode == "verify":
             self.accept_btn = QPushButton("Accept (Enter)")
             self.accept_btn.clicked.connect(self.accept_and_next)
@@ -411,6 +417,15 @@ class AnnotatorGUI(QMainWindow):
             self.boxes.pop()
             self.update_info()
             self.canvas.display_image()
+
+    def remove_box_at(self, pos: Tuple[int, int]) -> None:
+        """Remove the first box (in draw order) containing pos. Used by Ctrl+Click."""
+        for box in self.boxes:
+            if box.contains_point(pos[0], pos[1]):
+                self.boxes.remove(box)
+                self.update_info()
+                self.canvas.display_image()
+                return
 
     def prev_image(self) -> None:
         self.save_labels()

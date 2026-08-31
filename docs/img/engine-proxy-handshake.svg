@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 460" width="1120" height="460" role="img" aria-label="Proxy handshake sequence: a DecisionMaker writes a request tuple into the metadata dict and notifies a condition, then waits; the proxy listener in Main wakes, finds the one key not in ignored_keys, replaces it with a real Manager proxy and notifies all; the DecisionMaker's wait returns and it reads the live proxy.">
+<title>The proxy handshake</title>
+<style>
+svg{--surface:#FFFFFF;--surface-2:#FAFAFC;--wash:#EBEEF3;--ink:#14181F;--ink-2:#4E5766;--ink-3:#7B8492;--rule:#DBDFE6}
+@media (prefers-color-scheme:dark){svg{--surface:#171B22;--surface-2:#1C222A;--wash:#212832;--ink:#E6E9EF;--ink-2:#A2ACBA;--ink-3:#767F8C;--rule:#29303A}}
+text{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace}
+.proc{fill:var(--surface-2);stroke:var(--ink-2);stroke-width:2}
+.state{fill:var(--wash);stroke:var(--rule);stroke-width:1.25}
+.note{fill:none;stroke:var(--rule);stroke-width:1.25;stroke-dasharray:3 3}
+.a{stroke:var(--ink-2);stroke-width:1.5;fill:none}
+.life{stroke:var(--rule);stroke-width:1.25;stroke-dasharray:4 4}
+.tb{font-size:13px;font-weight:500;fill:var(--ink)}
+.ts{font-size:10.5px;fill:var(--ink-2)}
+.al{font-size:11px;fill:var(--ink-2)}
+.num{font-size:12px;font-weight:500;fill:var(--ink)}
+</style>
+<defs>
+<marker id="ai" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-2)"/></marker>
+</defs>
+
+<rect class="proc" x="24" y="24" width="232" height="56" rx="2"/>
+<text class="tb" x="140" y="48" text-anchor="middle">DecisionMaker</text>
+<text class="ts" x="140" y="66" text-anchor="middle">in an Engine process</text>
+
+<rect class="state" x="444" y="24" width="232" height="56" rx="2"/>
+<text class="tb" x="560" y="48" text-anchor="middle">metadata DictProxy</text>
+<text class="ts" x="560" y="66" text-anchor="middle">in the Manager process</text>
+
+<rect class="proc" x="864" y="24" width="232" height="56" rx="2"/>
+<text class="tb" x="980" y="48" text-anchor="middle">Proxy Listener</text>
+<text class="ts" x="980" y="66" text-anchor="middle">in Main Process</text>
+
+<line class="life" x1="140" y1="84" x2="140" y2="416"/>
+<line class="life" x1="560" y1="84" x2="560" y2="416"/>
+<line class="life" x1="980" y1="84" x2="980" y2="416"/>
+
+<line class="a" x1="140" y1="130" x2="556" y2="130" marker-end="url(#ai)"/>
+<text class="num" x="150" y="121">1</text>
+<text class="al" x="174" y="121">metadata[key] = ("Condition", args, kwargs)</text>
+
+<line class="a" x1="140" y1="182" x2="556" y2="182" marker-end="url(#ai)"/>
+<text class="num" x="150" y="173">2</text>
+<text class="al" x="174" y="173">notify() the proxy_request Condition, then wait()</text>
+
+<line class="a" x1="560" y1="234" x2="976" y2="234" marker-end="url(#ai)"/>
+<text class="num" x="570" y="225">3</text>
+<text class="al" x="594" y="225">Main wakes, finds the one key not in ignored_keys</text>
+
+<line class="a" x1="980" y1="286" x2="564" y2="286" marker-end="url(#ai)"/>
+<text class="num" x="970" y="277" text-anchor="end">4</text>
+<text class="al" x="946" y="277" text-anchor="end">writes back a real Manager proxy, then notify_all()</text>
+
+<line class="a" x1="560" y1="338" x2="144" y2="338" marker-end="url(#ai)"/>
+<text class="num" x="550" y="329" text-anchor="end">5</text>
+<text class="al" x="526" y="329" text-anchor="end">the wait() returns · the DecisionMaker holds a live proxy</text>
+
+<rect class="note" x="24" y="368" width="1072" height="52" rx="4"/>
+<text class="ts" x="44" y="391">Shared proxies are keyed by DecisionMaker class name, so they are the same object in every Engine. That is what lets</text>
+<text class="ts" x="44" y="409">_disable_decision_makers("Rotation") reach every bot in the Session at once: one notify_all() on a Condition they all wait on.</text>
+</svg>

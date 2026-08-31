@@ -23,6 +23,7 @@ from .inputs import (
     DELAY,
     input_constructor,
     release_all,
+    require_main_process,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ def key_binds(ign: str) -> dict[str, str]:
     final = {}
     for val in temp.values():
         final.update(val)
-    logger.debug(f"Key bindings successfully retrieved for {ign}.")
+    logger.debug("Key bindings successfully retrieved for %s.", ign)
     return final
 
 
@@ -76,6 +77,7 @@ async def press(
     :param delay: Delay between the keydown and keyup events.
     :return: None
     """
+    require_main_process("press")
     if down_or_up != "keyup":
         assert key not in [
             "up",
@@ -114,7 +116,7 @@ async def press(
             events.append(["keyup"])
 
         delays = [random.uniform(0.95, 1.05) * delay for _ in range(len(inputs))]
-        await focused_inputs(handle, inputs, delays, release)
+        await focused_inputs(handle, inputs, delays, release, keys=keys, events=events)
 
 
 async def write(
@@ -148,7 +150,7 @@ async def write(
     """
     release_all(handle)
     if silenced:
-        logger.info(f"Writing message {message} in window {handle} silently.")
+        logger.info("Writing message %s in window %s silently.", message, handle)
         inputs = message_constructor(
             handle,
             list(message),
@@ -158,7 +160,7 @@ async def write(
         await non_focused_input(inputs, delays)
 
     else:
-        logger.info(f"Writing message {message} in window {handle} LOUDLY.")
+        logger.info("Writing message %s in window %s LOUDLY.", message, handle)
         release_keys = list(set(message))
 
         if delay == 0:
@@ -173,7 +175,11 @@ async def write(
             delays = [random.uniform(0.95, 1.05) * delay for _ in range(len(message))]
 
         inputs = input_constructor(handle, message, events, as_unicode=True)
-        await asyncio.shield(focused_inputs(handle, inputs, delays, release_keys))
+        await asyncio.shield(
+            focused_inputs(
+                handle, inputs, delays, release_keys, keys=message, events=events
+            )
+        )
 
 
 @randomize_params("total_duration")

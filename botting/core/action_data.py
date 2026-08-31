@@ -39,12 +39,14 @@ class ActionRequest:
     block_lower_priority: bool = field(default=False)
 
     callbacks: list[callable] = field(default_factory=list)
-    cancel_callback: callable = field(default=None)
     task: asyncio.Task = field(default=None, init=False)
     discord_request: "DiscordRequest" = field(default=None)
-    log: bool = field(default=False)
     args: tuple = field(default_factory=tuple)
     kwargs: dict = field(default_factory=dict)
+
+    # Identifies the DecisionMaker._decide() call this request originated from.
+    # Stamped at send time by DecisionMaker.send(); None when no decision caused it.
+    correlation_id: str | None = field(default=None)
 
     def __lt__(self, other):
         """
@@ -81,12 +83,14 @@ class ActionWithValidation:
         condition: multiprocessing.Condition,
         timeout: float,
         max_trials: int = 10,
+        correlation_id: str | None = None,
     ):
         self.pipe = pipe
         self.validator = validator
         self.condition = condition
         self.timeout = timeout
         self.max_trials = max_trials
+        self.correlation_id = correlation_id
 
         self.trials = 0
 
@@ -124,17 +128,22 @@ class ActionWithValidation:
 
     def _send_and_wait(self, action: ActionRequest, started_at: float) -> None:
         with self.condition:
+            # Re-stamped on every attempt: the retry loop re-sends the same object.
+            action.correlation_id = self.correlation_id
             self.pipe.send(action)
             logger.info(
-                f"Sent {action.identifier} to Main Process with the condition "
-                f"ID: {id(self.condition)}"
+                "Sent %s to Main Process with the condition ID: %s",
+                action.identifier,
+                id(self.condition),
             )
             if time.perf_counter() - started_at > self.timeout:
                 raise TimeoutError(f"{action.identifier} failed validation")
             elif not self.condition.wait(timeout=self.timeout):
                 logger.info(
-                    f"Attempted to wait for condition ID {id(self.condition)} but"
-                    f" timed out after {self.timeout} seconds."
+                    "Attempted to wait for condition ID %s but timed out after %s "
+                    "seconds.",
+                    id(self.condition),
+                    self.timeout,
                 )
                 raise TimeoutError(f"{action.identifier} failed validation")
 
@@ -172,16 +181,16 @@ class ActionWithValidation:
     @staticmethod
     async def _conditional_procedure(procedure: callable, condition, *args, **kwargs):
         while True:
-            logger.info(f"Attempting to acquire condition ID {id(condition)}")
+            logger.info("Attempting to acquire condition ID %s", id(condition))
             if not condition.acquire(timeout=0.1):
                 await asyncio.sleep(0.1)
             else:
-                logger.info(f"Acquired condition ID {id(condition)}")
+                logger.info("Acquired condition ID %s", id(condition))
                 try:
                     res = await procedure(*args, **kwargs)
                     condition.notify_all()
                     break
                 finally:
                     condition.release()
-                    logger.info(f"Released condition ID {id(condition)}")
+                    logger.info("Released condition ID %s", id(condition))
         return res

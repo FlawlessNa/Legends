@@ -5,6 +5,7 @@ import win32gui
 import win32ui
 
 from .box import Box
+from .rectangles import group_rectangles
 
 CLIENT_HORIZONTAL_MARGIN_PX = 3
 CLIENT_VERTICAL_MARGIN_PX = 29
@@ -107,7 +108,7 @@ def find_image(
         rectangles.append(rect)
         rectangles.append(rect)
 
-    rectangles, weights = cv2.groupRectangles(rectangles, groupThreshold=1, eps=0.5)
+    rectangles, weights = group_rectangles(rectangles, group_threshold=1, eps=0.5)
     if add_margins:
         return [
             Box(
