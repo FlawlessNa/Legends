@@ -45,15 +45,14 @@ See `docs/agents/domain.md` for the full convention.
 ## Verifying your work
 
 ```
-pytest        ->  0 failed, 0 errors, 11 xfailed, 2 deselected
+pytest        ->  0 failed, 0 errors, 0 xfailed, 2 deselected
 ```
 
 That is the green baseline, from the repo root, no flags. **Any `failed` or
 `error` line is yours.** The passing count is deliberately not pinned here — it
 moves every time anyone adds a test. What must hold is the shape: nothing failed,
-the 11 xfails are the ones tracked in issue #89, and the 2 deselected are the
-`system`-marked tests. `docs/agents/testing.md` explains all three, and why an
-`XPASS` is also a failure.
+no xfails, and the 2 deselected are the `system`-marked tests.
+`docs/agents/testing.md` explains why an `XPASS` is a failure.
 
 **Green means the Invariants hold. It does not mean the bot works.** Nothing in
 the default suite drives a game client, and no test is `live`-marked today — the

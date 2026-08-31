@@ -44,10 +44,9 @@ nobody installed catches nothing. Once installed, both run automatically on
 pytest
 ```
 
-A clean run is **0 failed, 0 errors, 11 xfailed, 2 deselected**. The xfails are
-deliberate and tracked under issue #89. Any actual failure is yours to fix before
-the PR, not a known-bad to explain away. Don't pin the passing count in a
-document -- it moves whenever anyone adds a test.
+A clean run is **0 failed, 0 errors, 0 xfailed, 2 deselected**. Any actual
+failure is yours to fix before the PR, not a known-bad to explain away. Don't
+pin the passing count in a document -- it moves whenever anyone adds a test.
 
 The two deselected are the **`system`**-marked tests in
 `test_inputs_helpers.py`: they load keyboard layouts into the machine, which is

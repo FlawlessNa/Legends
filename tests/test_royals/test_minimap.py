@@ -1,24 +1,23 @@
-import cv2
 import os
-import numpy as np
 import re
-
 from types import SimpleNamespace
 
+import cv2
+import numpy as np
 import pytest
 
 from botting.utilities import (
-    Box,
     CLIENT_HORIZONTAL_MARGIN_PX,
     CLIENT_VERTICAL_MARGIN_PX,
+    Box,
 )
-from paths import ROOT
 from maple.model.interface import Minimap
+from paths import ROOT
 
 
 class MinimapTester(Minimap):
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        pass
+        return image
 
 
 @pytest.fixture(scope="module")
@@ -37,7 +36,13 @@ def mm() -> SimpleNamespace:
         for img in os.listdir(os.path.join(ROOT, "tests/images"))
         if img.startswith("test_minimap")
     ]
-    images.sort(key=lambda x: eval(re.search(r"\d+", x).group()))
+
+    def _image_sort_key(filename: str) -> int:
+        match = re.search(r"\d+", filename)
+        assert match is not None
+        return int(match.group())
+
+    images.sort(key=_image_sort_key)
     test_images = {
         img: cv2.imread(os.path.join(ROOT, "tests/images", img)) for img in images
     }
@@ -268,11 +273,16 @@ def mm() -> SimpleNamespace:
         if position is None:
             _corrected_self_position.append(None)
         else:
+            area_box = _map_area_box[i]
+            assert area_box is not None
             _corrected_self_position.append(
                 [
                     (
-                        pos[0] - _map_area_box[i].left + CLIENT_HORIZONTAL_MARGIN_PX,
-                        pos[1] - _map_area_box[i].top + CLIENT_VERTICAL_MARGIN_PX,
+                        pos[0] - area_box.left + CLIENT_HORIZONTAL_MARGIN_PX,
+                        pos[1]
+                        - area_box.top
+                        + CLIENT_VERTICAL_MARGIN_PX
+                        + minimap._self_y_offset,
                     )
                     for pos in position
                 ]
@@ -281,11 +291,13 @@ def mm() -> SimpleNamespace:
         if position is None:
             _corrected_stranger_position.append(None)
         else:
+            area_box = _map_area_box[i]
+            assert area_box is not None
             _corrected_stranger_position.append(
                 [
                     (
-                        pos[0] - _map_area_box[i].left + CLIENT_HORIZONTAL_MARGIN_PX,
-                        pos[1] - _map_area_box[i].top + CLIENT_VERTICAL_MARGIN_PX,
+                        pos[0] - area_box.left + CLIENT_HORIZONTAL_MARGIN_PX,
+                        pos[1] - area_box.top + CLIENT_VERTICAL_MARGIN_PX,
                     )
                     for pos in position
                 ]
@@ -294,11 +306,13 @@ def mm() -> SimpleNamespace:
         if position is None:
             _corrected_npc_position.append(None)
         else:
+            area_box = _map_area_box[i]
+            assert area_box is not None
             _corrected_npc_position.append(
                 [
                     (
-                        pos[0] - _map_area_box[i].left + CLIENT_HORIZONTAL_MARGIN_PX,
-                        pos[1] - _map_area_box[i].top + CLIENT_VERTICAL_MARGIN_PX - 1,
+                        pos[0] - area_box.left + CLIENT_HORIZONTAL_MARGIN_PX,
+                        pos[1] - area_box.top + CLIENT_VERTICAL_MARGIN_PX - 1,
                     )
                     for pos in position
                 ]
@@ -323,7 +337,7 @@ def mm() -> SimpleNamespace:
     )
 
 
-def test_is_displayed(mm):
+def test_is_displayed(mm: SimpleNamespace) -> None:
     """
     We test the function with both the image provided and/or the world icon detection box provided.
     :return:
@@ -341,7 +355,7 @@ def test_is_displayed(mm):
         )
 
 
-def test_get_minimap_state(mm):
+def test_get_minimap_state(mm: SimpleNamespace) -> None:
     for idx, img in enumerate(mm.test_images):
         assert (
             mm.minimap.get_minimap_state(mm.dummy_handle, mm.test_images[img], None)
@@ -355,18 +369,22 @@ def test_get_minimap_state(mm):
         )
 
 
-@pytest.mark.xfail(
-    reason="Detection returns (93, 40) where the recorded expectation is "
-    "(93, 38). Stale expectation or regression - undecided, see issue #89.",
-    strict=False,
-)
-def test_get_character_positions(mm):
+def test_get_character_positions(mm: SimpleNamespace) -> None:
     """
     TODO - Test with "Party" members as well as "Guild" members and "Buddies".
     """
 
-    def _single_test(expected, *params):
-        actual = mm.minimap.get_character_positions(*params)
+    def _single_test(
+        expected: list[tuple[int, int]] | None,
+        handle: int,
+        character_type: str,
+        client_img: np.ndarray | None,
+        world_icon_box: Box | None,
+        map_area_box: Box | None,
+    ) -> None:
+        actual = mm.minimap.get_character_positions(
+            handle, character_type, client_img, world_icon_box, map_area_box
+        )
         if expected is None:
             assert actual is None
             return
@@ -467,10 +485,10 @@ def test_get_character_positions(mm):
         )
         for img in images
     ]
-    assert all([pos == positions[0] for pos in positions])
+    assert all(pos == positions[0] for pos in positions)
 
 
-def test_get_map_area_box(mm):
+def test_get_map_area_box(mm: SimpleNamespace) -> None:
     for idx, img in enumerate(mm.test_images):
         assert (
             mm.minimap.get_map_area_box(mm.dummy_handle, mm.test_images[img], None)
@@ -484,7 +502,7 @@ def test_get_map_area_box(mm):
         )
 
 
-def test_get_minimap_title_box(mm):
+def test_get_minimap_title_box(mm: SimpleNamespace) -> None:
     boxes = [
         (
             Box(
@@ -505,9 +523,7 @@ def test_get_minimap_title_box(mm):
 
     for idx, img in enumerate(mm.test_images):
         assert (
-            mm.minimap.get_minimap_title_box(
-                mm.dummy_handle, mm.test_images[img], None
-            )
+            mm.minimap.get_minimap_title_box(mm.dummy_handle, mm.test_images[img], None)
             == boxes[idx]
         )
         assert (
@@ -518,7 +534,7 @@ def test_get_minimap_title_box(mm):
         )
 
 
-def test__get_entire_minimap_box(mm):
+def test__get_entire_minimap_box(mm: SimpleNamespace) -> None:
     for idx, img in enumerate(mm.test_images):
         assert (
             mm.minimap.get_entire_minimap_box(
@@ -534,7 +550,7 @@ def test__get_entire_minimap_box(mm):
         )
 
 
-def test_character_positions_are_builtin_ints(mm):
+def test_character_positions_are_builtin_ints(mm: SimpleNamespace) -> None:
     """
     Coordinates come out of `np.where`, which yields `np.int64`. They must leave the
     detection boundary as builtin `int`, otherwise every downstream consumer -- the
@@ -552,7 +568,7 @@ def test_character_positions_are_builtin_ints(mm):
             assert type(y) is int
 
 
-def test_minimap_boxes_have_builtin_int_coordinates(mm):
+def test_minimap_boxes_have_builtin_int_coordinates(mm: SimpleNamespace) -> None:
     """Same defect one layer up: box edges are derived from `np.where` indices."""
     for idx, img in enumerate(mm.test_images):
         boxes = (

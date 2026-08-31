@@ -179,12 +179,9 @@ All three should print something sensible. That's enough to move on to
 pytest
 ```
 
-Expect a clean run: **322 passing, 11 xfailed, 2 deselected**.
-
-The xfails are deliberate and tracked under issue #89 -- unwritten placeholder
-tests, plus a few whose expectations are machine-dependent (Tesseract's OCR
-output) or of undecided correctness. They are not failures, and you should not
-need to touch them. The 2 deselected are the `live` tests.
+Expect a clean run: **0 failed, 0 errors, 0 xfailed, 2 deselected**. The 2
+deselected are the `system`-marked tests in `test_inputs_helpers.py` (no test
+carries the `live` marker today).
 
 If you see anything other than a clean run on a fresh clone, that is a real
 problem worth reporting rather than something to work around.

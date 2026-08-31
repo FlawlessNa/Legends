@@ -22,7 +22,7 @@ For a refactor: say "Refactor -- no new test" and confirm every existing test
 passes unmodified. If you edited a test, this is not a refactor; say what moved.
 -->
 
-- [ ] `pytest` is green: 0 failed, 0 errors, 11 xfailed (#89), 2 deselected (`system`)
+- [ ] `pytest` is green: 0 failed, 0 errors, 0 xfailed, 2 deselected (`system`)
 - [ ] `ruff check` clean on the files I touched
 
 **Test that was red without this change:**

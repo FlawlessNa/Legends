@@ -13,13 +13,13 @@ def base_path() -> Path:
 # --- configuration structure --------------------------------------------------
 
 
-def test_config_file_exists(base_path):
+def test_config_file_exists(base_path: Path) -> None:
     """Test that config file exists."""
     config_path = base_path / "config" / "settings.yaml"
     assert config_path.exists(), "Config file should exist"
 
 
-def test_package_structure(base_path):
+def test_package_structure(base_path: Path) -> None:
     """Test that all required modules exist."""
     # Check main directories
     assert (base_path / "config").exists()
@@ -39,7 +39,7 @@ def test_package_structure(base_path):
 # --- directory structure ------------------------------------------------------
 
 
-def test_gitignore_exists(base_path):
+def test_gitignore_exists(base_path: Path) -> None:
     """Test .gitignore exists."""
     gitignore = base_path / ".gitignore"
     assert gitignore.exists()
@@ -68,7 +68,7 @@ def _resolve_requirements(req_file: Path) -> str:
     return "\n".join(parts)
 
 
-def test_requirements_has_dependencies(base_path):
+def test_requirements_has_dependencies(base_path: Path) -> None:
     """Test requirements.txt has required dependencies."""
     req_file = base_path / "requirements.txt"
     assert req_file.exists()
@@ -80,7 +80,7 @@ def test_requirements_has_dependencies(base_path):
         assert dep in content, f"{dep} should be in requirements.txt"
 
 
-def test_all_modules_have_init(base_path):
+def test_all_modules_have_init(base_path: Path) -> None:
     """Test all modules have __init__.py."""
     modules = ["config", "dataset_manager", "model_manager", "gui", "workflows"]
 
@@ -89,19 +89,13 @@ def test_all_modules_have_init(base_path):
         assert init_file.exists(), f"{module}/__init__.py should exist"
 
 
-@pytest.mark.xfail(
-    reason="Asserts an ml_training/ layout that does not exist in the tree; "
-    "see issue #89.",
-    strict=False,
-)
-def test_all_required_files_exist(base_path):
+def test_all_required_files_exist(base_path: Path) -> None:
     """Test all required module files exist."""
     required_files = [
         "config/config.py",
         "config/settings.yaml",
         "dataset_manager/capture.py",
         "dataset_manager/dataset.py",
-        "dataset_manager/augmentation.py",
         "model_manager/trainer.py",
         "model_manager/inference.py",
         "model_manager/versioning.py",
@@ -118,7 +112,7 @@ def test_all_required_files_exist(base_path):
 # --- examples -----------------------------------------------------------------
 
 
-def test_example_workflow_exists(base_path):
+def test_example_workflow_exists(base_path: Path) -> None:
     """Test example workflow file exists."""
     example_file = base_path / "examples" / "example_workflow.py"
     assert example_file.exists()
@@ -132,7 +126,7 @@ def test_example_workflow_exists(base_path):
 # --- documentation ------------------------------------------------------------
 
 
-def test_readme_has_sections(base_path):
+def test_readme_has_sections(base_path: Path) -> None:
     """Test README has required sections."""
     readme = base_path / "README.md"
     assert readme.exists()

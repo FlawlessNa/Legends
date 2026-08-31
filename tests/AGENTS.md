@@ -19,9 +19,9 @@ editing a test; what follows is only the shape of the suite.
   Modules that touch the ledger directly reset it with their own `autouse`
   fixture — see `test_botting/test_held_keys_ledger.py`.
 - `pytest` from the repo root — no flags, no `--ignore`. The green baseline is
-  **0 failed, 0 errors, 11 xfailed, 2 deselected**; any `failed` or `error` line
-  is yours, and don't pin the passing count — it drifts. The 11 xfails are parked behind issue #89, and 8 of them are `strict`,
-  so an `XPASS` is also a failure. Don't add an `xfail` to get a green run.
+  **0 failed, 0 errors, 0 xfailed, 2 deselected**; any `failed` or `error` line
+  is yours, and don't pin the passing count — it drifts. Don't add an `xfail`
+  to get a green run — issue #89 is what it costs to actually resolve one.
 - **A new test must fail without the change it covers** — stash the source, run
   the test, watch it go red for the reason you expect. Refactors are the
   inverse: no new test, existing ones pass unmodified. `docs/agents/testing.md`
