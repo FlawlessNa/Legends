@@ -1,0 +1,26 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Training Launcher (Debug)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "maple.launchers.launcher_training_v2",
+            "env": {
+                // Tags Call Stack threads with their process and asyncio task names.
+                // Use "threads" for process tagging only (no per-callback cost).
+                "BOTTING_DEBUG_NAMES": "1"
+            }
+        },
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        }
+    ]
+}

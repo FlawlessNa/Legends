@@ -1,0 +1,41 @@
+repos:
+  # language: system hooks call straight into the pinned .venv, so the hook
+  # version always matches what `pip install -r requirements-dev.txt` gave you
+  # -- no second, drifting copy from a hook-managed environment. The leading
+  # `./` on each entry is load-bearing on Windows: CreateProcess fails to
+  # resolve `.venv/Scripts/x.exe` without it.
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: ./.venv/Scripts/ruff.exe format
+        language: system
+        types: [python]
+
+      - id: ruff-check
+        name: ruff check
+        entry: ./.venv/Scripts/ruff.exe check --fix
+        language: system
+        types: [python]
+
+      - id: pyright
+        name: pyright
+        entry: ./.venv/Scripts/pyright.exe
+        language: system
+        types: [python]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: check-toml
+      - id: check-yaml
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]

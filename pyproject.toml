@@ -1,0 +1,26 @@
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+
+[tool.ruff.lint]
+extend-select = ["W", "E4", "E7", "E9", "TID", "PT", "ANN", "T20"]
+
+[tool.ruff.lint.per-file-ignores]
+"ml_training/**" = ["T20"]
+"toolkit/**" = ["T20"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"unittest.TestCase".msg = "Use pytest: module-level test_* functions and bare assert. See docs/agents/testing.md."
+"unittest.IsolatedAsyncioTestCase".msg = "Use pytest with pytest-asyncio. See docs/agents/testing.md."
+"unittest.main".msg = "Tests run under pytest. See docs/agents/testing.md."
+
+[tool.pyright]
+include = ["botting", "maple", "ml_training", "tests", "toolkit", "conftest.py", "paths.py"]
+typeCheckingMode = "standard"
+pythonVersion = "3.14"
+venvPath = "."
+venv = ".venv"
+strict = ["botting/controller/inputs"]
+reportMissingTypeStubs = "none"
+reportUnusedImport = "none"
+reportUndefinedVariable = "none"
