@@ -1,10 +1,9 @@
 import math
-import numpy as np
 from dataclasses import dataclass, field
 from enum import IntEnum
 from functools import cached_property
-from typing import List
 
+import numpy as np
 from pathfinding.core.diagonal_movement import DiagonalMovement
 from pathfinding.core.grid import Grid
 from pathfinding.core.node import GridNode
@@ -41,7 +40,7 @@ class MinimapNode(GridNode):
     """
     connections: list = field(default_factory=list)
     connections_types: list[ConnectionTypes] = field(default_factory=list, init=False)
-    grid_hash: int = field(default=None)
+    grid_hash: int | None = field(default=None)
 
     def __hash__(self) -> int:
         """
@@ -51,7 +50,7 @@ class MinimapNode(GridNode):
         """
         return hash((self.x, self.y, self.walkable, self.weight, self.grid_hash))
 
-    def __eq__(self, other: "MinimapNode") -> bool:
+    def __eq__(self, other: object) -> bool:
         return isinstance(other, MinimapNode) and (
             self.x == other.x
             and self.y == other.y
@@ -62,12 +61,12 @@ class MinimapNode(GridNode):
 
     # noinspection PyMethodOverriding
     def connect(
-        self, other: "MinimapNode", connection_type: ConnectionTypes
-    ) -> None:  # noqa
+        self, other_node: MinimapNode, connection_type: ConnectionTypes
+    ) -> None:
         """
         Creates connection with another node, and retains the connection type.
         """
-        super().connect(other)
+        super().connect(other_node)
         self.connections_types.append(connection_type)
 
     def __str__(self) -> str:
@@ -87,7 +86,7 @@ class MinimapNode(GridNode):
     def __repr__(self) -> str:
         return str(self)
 
-    def get_connection_type(self, other: "MinimapNode") -> ConnectionTypes:
+    def get_connection_type(self, other: MinimapNode) -> ConnectionTypes:
         """
         Returns the connection type between this node and the other.
         """
@@ -130,14 +129,14 @@ class MinimapGrid(Grid):
         self,
         canvas: np.ndarray,
         speed: float,
-        grid_id: str = None,
+        grid_id: str | None = None,
         portal_cost_reduction: float = 0.8,
         teleport_cost_reduction: float = 0.6,
         jump_down_cost_reduction: float = 0.7,
         portal_overhead: float = 1.0,
         teleport_overhead: float = 2.0,
         jump_down_overhead: float = 3.0,
-    ):
+    ) -> None:
         super().__init__(matrix=canvas, grid_id=grid_id)
         self.grid_id = grid_id
         self._replace_nodes()
@@ -171,30 +170,39 @@ class MinimapGrid(Grid):
             ConnectionTypes.JUMP_DOWN: self.jump_down_overhead,
         }
 
-    def node(self, x, y) -> MinimapNode:
+    def node(self, x: int, y: int) -> MinimapNode:
         """
         Overwrites signature to return a MinimapNode.
         """
         return self.nodes[y][x]
 
-    def _replace_nodes(self):
+    def _replace_nodes(self) -> None:
+        """
+        Rebuilds every GridNode as a MinimapNode.
+
+        Keywords are load-bearing: `GridNode`'s first eight dataclass fields are the
+        pathfinder's scratch state (h, g, f, opened, closed, parent, retain_count,
+        tested), so positional arguments land the coordinates there and leave every
+        node on its defaults (x=0, y=0, grid_id=None). `__post_init__` then calls
+        `cleanup()`, which wipes the misplaced values, so the loss is silent.
+        """
         for y, row in enumerate(self.nodes):
             for x, node in enumerate(row):
                 self.nodes[y][x] = MinimapNode(
-                    node.x,
-                    node.y,
-                    node.walkable,
-                    node.weight,
-                    node.grid_id,
-                    node.connections or list(),
-                    grid_hash=hash(self)
+                    x=node.x,
+                    y=node.y,
+                    walkable=node.walkable,
+                    weight=node.weight,
+                    grid_id=node.grid_id,
+                    connections=node.connections or [],
+                    grid_hash=hash(self),
                 )
 
     def neighbors(
         self, node: GridNode,
         diagonal_movement: DiagonalMovement = DiagonalMovement.never,
         include_connections: bool = True
-    ) -> List[MinimapNode]:
+    ) -> list[MinimapNode]:
         """
         Overwrites signature to return a list of MinimapNodes.
         Allows to exclude connections from the neighbors.
@@ -203,9 +211,11 @@ class MinimapGrid(Grid):
         if not include_connections and node.connections:
             exclude = {id(c) for c in node.connections}
             neighbors = [n for n in neighbors if id(n) not in exclude]
-        return neighbors  # noqa
+        return neighbors
 
-    def calc_cost(self, node_a: MinimapNode, node_b: MinimapNode, weighted=True) -> float:
+    def calc_cost(
+        self, node_a: MinimapNode, node_b: MinimapNode, weighted: bool = True
+    ) -> float:
         """
         Returns the cost of moving from node_a to node_b.
         """
@@ -227,7 +237,7 @@ class MinimapGrid(Grid):
     def is_left_edge(self, node: MinimapNode) -> bool:
         neighbors = self.neighbors(
             node,
-            diagonal_movement=self.ALL_DIAGONAL_NEIGHBORS,  # noqa
+            diagonal_movement=self.ALL_DIAGONAL_NEIGHBORS,
             include_connections=False
         )
         return not any(n.x < node.x for n in neighbors)
@@ -235,7 +245,7 @@ class MinimapGrid(Grid):
     def is_right_edge(self, node: MinimapNode) -> bool:
         neighbors = self.neighbors(
             node,
-            diagonal_movement=self.ALL_DIAGONAL_NEIGHBORS,  # noqa
+            diagonal_movement=self.ALL_DIAGONAL_NEIGHBORS,
             include_connections=False
         )
         return not any(n.x > node.x for n in neighbors)

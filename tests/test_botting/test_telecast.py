@@ -17,19 +17,23 @@ Nothing here sends real input: every sequence is compiled offline against an exp
 import functools
 import itertools
 import pickle
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 import pytest
+from pytest_mock import MockerFixture
 
-from botting.controller.inputs.focused_inputs import KeyboardInputWrapper
+from botting.controller.inputs.focused_inputs import EVENTS, KeyboardInputWrapper
 from botting.controller.inputs.inputs_helpers import OVERHEAD
 from maple.actions.movements_v2 import telecast, telecast_compiler
-from maple.telemetry_events import COMBAT_TELECAST_UNAVAILABLE
+from maple.model.characters.maple_skills import MapleSkill
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
     _MovementComponent,
     compile_movements,
 )
+from maple.telemetry_events import COMBAT_TELECAST_UNAVAILABLE
 
 HANDLE = 8765
 IGN = "TestMage"
@@ -39,22 +43,28 @@ DIRECTIONS = ("left", "right", "up", "down")
 
 
 @dataclass(frozen=True)
-class _StubSkill:
+class _StubSkill(MapleSkill):
     """A `Skill` whose key bind does not go through the keybindings config."""
 
-    name: str
-    key: str = field(repr=False)
-    animation_time: float = field(default=0.0, repr=False)
+    key: str = field(default="", repr=False)
 
+    # Decorated like the base's `key_bind`: `Skill.key_bind` is itself `@lru_cache`d,
+    # so a plain-method override is an incompatible override to Pyright. B019 warns
+    # about per-instance cache lifetime, which a frozen test stub does not have.
+    @lru_cache  # noqa: B019
     def key_bind(self, ign: str) -> str:
         return self.key
 
 
-TELEPORT_SKILL = _StubSkill("Teleport", TELEPORT_KEY, 0.6)
-ULTIMATE = _StubSkill("Genesis", ULTIMATE_KEY, 1.0)
+TELEPORT_SKILL = _StubSkill(
+    "Teleport", "Movement", key=TELEPORT_KEY, animation_time=0.6
+)
+ULTIMATE = _StubSkill("Genesis", "Attack", key=ULTIMATE_KEY, animation_time=1.0)
 # Long enough that truncation never hides a paired press, so the count and spacing of
 # the rebuild can be read off the whole sequence.
-UNTRUNCATED_ULTIMATE = _StubSkill("Genesis", ULTIMATE_KEY, 10.0)
+UNTRUNCATED_ULTIMATE = _StubSkill(
+    "Genesis", "Attack", key=ULTIMATE_KEY, animation_time=10.0
+)
 
 
 _TELEPORT_PLAN = (
@@ -74,12 +84,14 @@ _WALK_THEN_TELEPORT_PLAN = (
 )
 
 
-def _sequence(*steps: tuple[str, str], delay: float = 0.1) -> KeyboardInputWrapper:
+def _sequence(*steps: tuple[str, EVENTS], delay: float = 0.1) -> KeyboardInputWrapper:
     """A hand-built Input Sequence, compiled against nothing held."""
+    keys: list[str | list[str]] = [key for key, _ in steps]
+    events: list[EVENTS | list[EVENTS]] = [event for _, event in steps]
     return KeyboardInputWrapper(
         HANDLE,
-        [key for key, _ in steps],
-        [event for _, event in steps],
+        keys,
+        events,
         [delay] * len(steps),
         initial_held_keys=frozenset(),
     )
@@ -113,7 +125,12 @@ def _teleport_sequence() -> KeyboardInputWrapper:
     )
 
 
-def _movement_compiler(movements, **kwargs) -> functools.partial:
+def _movement_compiler(
+    movements: tuple[_MovementComponent, ...], total_duration: float | None = None
+) -> functools.partial:
+    # `compile_movements` declares `total_duration: float` with a `None` default, so
+    # the omitted case has to be an absent keyword rather than an explicit `None`.
+    cap = {} if total_duration is None else {"total_duration": total_duration}
     return functools.partial(
         compile_movements,
         movements=movements,
@@ -121,27 +138,41 @@ def _movement_compiler(movements, **kwargs) -> functools.partial:
         ign=IGN,
         speed=1.0,
         teleport=TELEPORT_SKILL,
-        **kwargs,
+        **cap,
     )
 
 
-def _telecast(inner, initial_held_keys=frozenset(), **kwargs):
-    return telecast_compiler(
+def _telecast(
+    inner: Callable[[frozenset[str] | None], KeyboardInputWrapper | None],
+    initial_held_keys: frozenset[str] = frozenset(),
+    correlation_id: str | None = None,
+) -> KeyboardInputWrapper:
+    """Every case here compiles to something; a `None` would be the test's own bug."""
+    result = telecast_compiler(
         initial_held_keys,
         movement_compiler=inner,
         handle=HANDLE,
         ign=IGN,
         teleport_skill=TELEPORT_SKILL,
         ultimate_skill=ULTIMATE,
-        **kwargs,
+        correlation_id=correlation_id,
     )
+    assert result is not None
+    return result
 
 
-def _compiler_for(result):
+def _compiler_for(
+    result: KeyboardInputWrapper | None,
+) -> tuple[
+    Callable[[frozenset[str] | None], KeyboardInputWrapper | None],
+    list[frozenset[str] | None],
+]:
     """An inner compiler returning `result` and recording what it was handed."""
-    seen = []
+    seen: list[frozenset[str] | None] = []
 
-    def _compile(initial_held_keys):
+    def _compile(
+        initial_held_keys: frozenset[str] | None,
+    ) -> KeyboardInputWrapper | None:
         seen.append(initial_held_keys)
         return result
 
@@ -151,7 +182,7 @@ def _compiler_for(result):
 # --- The rebuild ---------------------------------------------------------------
 
 
-def test_a_teleport_region_becomes_paired_presses():
+def test_a_teleport_region_becomes_paired_presses() -> None:
     """The whole point: the ultimate is cast on each blink, not after them."""
     fused = telecast(_teleport_sequence(), IGN, TELEPORT_SKILL, ULTIMATE)
 
@@ -159,7 +190,7 @@ def test_a_teleport_region_becomes_paired_presses():
     assert not any(keys == TELEPORT_KEY for keys, _ in _steps(fused))
 
 
-def test_every_paired_press_is_released_by_a_paired_release():
+def test_every_paired_press_is_released_by_a_paired_release() -> None:
     """
     The rebuild is re-press semantics, so each tap closes its own Hold. That is what
     makes the ultimate's release land inside the sequence rather than in the forced
@@ -174,13 +205,13 @@ def test_every_paired_press_is_released_by_a_paired_release():
         )
 
 
-def test_non_teleport_steps_are_left_alone():
+def test_non_teleport_steps_are_left_alone() -> None:
     fused = telecast(_teleport_sequence(), IGN, TELEPORT_SKILL, ULTIMATE)
 
     assert _steps(fused)[0] == ("right", "keydown")
 
 
-def test_an_explicit_teleport_release_is_absorbed_into_the_tap():
+def test_an_explicit_teleport_release_is_absorbed_into_the_tap() -> None:
     """
     A region absorbs a keyup sitting against its keydowns - the shape `teleport`
     builds when handed a `repeat_key`. The rebuild presses and releases the key
@@ -199,7 +230,7 @@ def test_an_explicit_teleport_release_is_absorbed_into_the_tap():
     ]
 
 
-def test_the_rebuild_releases_nothing_it_did_not_press():
+def test_the_rebuild_releases_nothing_it_did_not_press() -> None:
     """A6 No Phantom Release, over the rebuilt sequence."""
     fused = telecast(
         _movement_compiler(_TELEPORT_PLAN)(frozenset()),
@@ -219,7 +250,7 @@ def test_the_rebuild_releases_nothing_it_did_not_press():
                 down.add(key)
 
 
-def test_the_ultimate_key_is_declared_for_forced_release():
+def test_the_ultimate_key_is_declared_for_forced_release() -> None:
     """
     A2 Terminal Release and D1 Cancel Safety. Every tap now releases the key it
     pressed, so the declaration is no longer the only thing that gets it back up -
@@ -231,7 +262,7 @@ def test_the_ultimate_key_is_declared_for_forced_release():
     assert ULTIMATE_KEY in fused.forced_key_releases
 
 
-def test_the_ultimate_key_is_declared_once():
+def test_the_ultimate_key_is_declared_once() -> None:
     sequence = _teleport_sequence()
     sequence.forced_key_releases.append(ULTIMATE_KEY)
 
@@ -240,12 +271,13 @@ def test_the_ultimate_key_is_declared_once():
     assert fused.forced_key_releases.count(ULTIMATE_KEY) == 1
 
 
-def test_the_fused_sequence_is_truncated_to_the_ultimate_animation_time():
+def test_the_fused_sequence_is_truncated_to_the_ultimate_animation_time() -> None:
     """
     The shortest prefix that reaches the animation time. Past it the cast is over, so
     the rest of the movement belongs to whatever the bot decides next.
     """
-    sequence = _sequence(*[(TELEPORT_KEY, "keydown")] * 40, delay=0.1)
+    step: tuple[str, EVENTS] = (TELEPORT_KEY, "keydown")
+    sequence = _sequence(*[step] * 40, delay=0.1)
 
     fused = telecast(sequence, IGN, TELEPORT_SKILL, ULTIMATE)
 
@@ -257,7 +289,7 @@ def test_the_fused_sequence_is_truncated_to_the_ultimate_animation_time():
 # --- Cadence -------------------------------------------------------------------
 
 
-def test_a_three_teleport_plan_presses_the_pair_three_times():
+def test_a_three_teleport_plan_presses_the_pair_three_times() -> None:
     """
     The defect this rebuild fixes. The teleport keydowns a component compiles to are
     a `fill` at the input cadence - faithful for a *held* teleport key, but nothing a
@@ -273,7 +305,7 @@ def test_a_three_teleport_plan_presses_the_pair_three_times():
     assert len(_tap_indices(fused)) == 3
 
 
-def test_the_pair_is_re_pressed_once_per_teleport_animation():
+def test_the_pair_is_re_pressed_once_per_teleport_animation() -> None:
     """Spacing is the teleport's own `animation_time`, not the input cadence."""
     fused = telecast(
         _movement_compiler(_TELEPORT_PLAN)(frozenset()),
@@ -292,7 +324,7 @@ def test_the_pair_is_re_pressed_once_per_teleport_animation():
     )
 
 
-def test_the_gap_between_taps_is_a_single_delay_step():
+def test_the_gap_between_taps_is_a_single_delay_step() -> None:
     """
     Settled by Spy++: auto-repeat does not come back to a key still held once another
     press has happened. So the gap carries no fill - one would fabricate a repeat run
@@ -313,7 +345,7 @@ def test_the_gap_between_taps_is_a_single_delay_step():
         )
 
 
-def test_the_direction_key_stays_down_across_the_gaps():
+def test_the_direction_key_stays_down_across_the_gaps() -> None:
     """Only its *repeating* is gone; the character keeps walking into the blinks."""
     fused = telecast(
         _movement_compiler(_TELEPORT_PLAN)(frozenset()),
@@ -330,7 +362,7 @@ def test_the_direction_key_stays_down_across_the_gaps():
     assert "right" in held
 
 
-def test_the_rebuild_spends_the_regions_own_duration():
+def test_the_rebuild_spends_the_regions_own_duration() -> None:
     """
     The budget is the compiled region's own duration, so the rebuild needs nothing the
     Input Sequence does not already carry - and the sequence it replaces keeps its
@@ -347,7 +379,7 @@ def test_the_rebuild_spends_the_regions_own_duration():
 # --- The compiler wrapper ------------------------------------------------------
 
 
-def test_the_wrapper_fuses_a_sequence_that_teleports():
+def test_the_wrapper_fuses_a_sequence_that_teleports() -> None:
     inner, _ = _compiler_for(_teleport_sequence())
 
     result = _telecast(inner)
@@ -355,7 +387,7 @@ def test_the_wrapper_fuses_a_sequence_that_teleports():
     assert [TELEPORT_KEY, ULTIMATE_KEY] in result.keys
 
 
-def test_the_wrapper_falls_back_to_a_plain_cast_without_a_teleport():
+def test_the_wrapper_falls_back_to_a_plain_cast_without_a_teleport() -> None:
     """
     Reachable even off a Movement Plan full of teleports: `total_duration` can cut the
     compile short of the first teleport component. The fallback still hits the mobs.
@@ -369,7 +401,7 @@ def test_the_wrapper_falls_back_to_a_plain_cast_without_a_teleport():
     assert any(keys == ULTIMATE_KEY for keys in result.keys)
 
 
-def test_the_wrapper_falls_back_when_the_plan_compiles_to_nothing():
+def test_the_wrapper_falls_back_when_the_plan_compiles_to_nothing() -> None:
     inner, _ = _compiler_for(None)
 
     result = _telecast(inner)
@@ -378,7 +410,9 @@ def test_the_wrapper_falls_back_when_the_plan_compiles_to_nothing():
     assert any(keys == ULTIMATE_KEY for keys in result.keys)
 
 
-def test_the_wrapper_emits_a_telemetry_record_for_the_fallback(mocker):
+def test_the_wrapper_emits_a_telemetry_record_for_the_fallback(
+    mocker: MockerFixture,
+) -> None:
     """
     The fallback is a decision the analyzer has to see, so it is a Telemetry Record
     rather than a log line - and it carries the Correlation ID of the `_decide()`
@@ -399,7 +433,7 @@ def test_the_wrapper_emits_a_telemetry_record_for_the_fallback(mocker):
     }
 
 
-def test_the_fallback_record_names_the_branch_it_took(mocker):
+def test_the_fallback_record_names_the_branch_it_took(mocker: MockerFixture) -> None:
     """
     Both branches reach the same fallback; only the payload says which, and an
     analyzer counting compiles truncated short of their first teleport needs them
@@ -414,7 +448,7 @@ def test_the_fallback_record_names_the_branch_it_took(mocker):
     assert payload["reason"] == "no_teleport"
 
 
-def test_the_wrapper_hands_the_held_keys_to_the_inner_compiler():
+def test_the_wrapper_hands_the_held_keys_to_the_inner_compiler() -> None:
     """
     The seam's whole contract: held keys read from the ledger at dispatch have to
     reach the compile that shapes the sequence around them.
@@ -426,16 +460,29 @@ def test_the_wrapper_hands_the_held_keys_to_the_inner_compiler():
     assert seen == [frozenset({"left"})]
 
 
-def test_the_fallback_cast_sees_the_same_held_keys():
-    """`left` is down and the cast presses nothing opposing it, so nothing is released."""
+def test_the_fallback_cast_sees_the_same_held_keys() -> None:
+    """
+    `left` is down and the cast presses nothing opposing it, so no direction is
+    released. This used to assert no keyup at all, which happened to be equivalent
+    while `cast_skill` left its skill key latched; since #75 the cast closes its own
+    Hold, so the ultimate's keyup is expected and the direction's absence is the claim.
+    """
     inner, _ = _compiler_for(None)
 
     result = _telecast(inner, initial_held_keys=frozenset({"left"}))
 
-    assert all(event != "keyup" for event in result.events)
+    released = [
+        key
+        for keys, events in zip(result.keys, result.events)
+        for key, event in (
+            zip(keys, events) if isinstance(keys, list) else [(keys, events)]
+        )
+        if event == "keyup"
+    ]
+    assert released == [ULTIMATE_KEY]
 
 
-def test_the_compiler_partial_is_picklable():
+def test_the_compiler_partial_is_picklable() -> None:
     """It travels to Main Process inside an ActionRequest, so it has to pickle."""
     compiler = functools.partial(
         telecast_compiler,
@@ -452,7 +499,7 @@ def test_the_compiler_partial_is_picklable():
 # --- Over a real Movement Plan -------------------------------------------------
 
 
-def test_a_plan_holding_a_teleport_compiles_to_the_teleport_key():
+def test_a_plan_holding_a_teleport_compiles_to_the_teleport_key() -> None:
     """
     The equivalence the plan-level decision rests on. `TelecastMobsHitting` used to
     ask whether the compiled Input Sequence carried the teleport key; it now asks
@@ -464,13 +511,13 @@ def test_a_plan_holding_a_teleport_compiles_to_the_teleport_key():
     assert any(keys == TELEPORT_KEY for keys in sequence.keys)
 
 
-def test_a_plan_without_a_teleport_never_carries_the_teleport_key():
+def test_a_plan_without_a_teleport_never_carries_the_teleport_key() -> None:
     sequence = _movement_compiler(_WALK_PLAN)(frozenset())
 
     assert all(keys != TELEPORT_KEY for keys in sequence.keys)
 
 
-def test_a_plan_truncated_before_its_teleport_falls_back_to_a_plain_cast():
+def test_a_plan_truncated_before_its_teleport_falls_back_to_a_plain_cast() -> None:
     """
     The plan-level check says telecast; the compile disagrees, because
     `total_duration` cuts it before the teleport component is ever built. This is the
@@ -485,7 +532,9 @@ def test_a_plan_truncated_before_its_teleport_falls_back_to_a_plain_cast():
     assert any(keys == ULTIMATE_KEY for keys in result.keys)
 
 
-def test_the_fused_plan_leaves_no_undeclared_skill_key_down_at_any_cancel_point():
+def test_the_fused_plan_leaves_no_undeclared_skill_key_down_at_any_cancel_point() -> (
+    None
+):
     """
     D1 Cancel Safety, swept exhaustively over the fused sequence. Every tap releases
     both non-directional keys it pressed, so most cancel points now leave nothing
@@ -499,7 +548,5 @@ def test_the_fused_plan_leaves_no_undeclared_skill_key_down_at_any_cancel_point(
         down = KeyboardInputWrapper.get_held_movement_keys(
             fused.keys[:cancel_point], fused.events[:cancel_point]
         )
-        undeclared = {
-            key for key in down - declared if key not in DIRECTIONS
-        }
+        undeclared = {key for key in down - declared if key not in DIRECTIONS}
         assert not undeclared

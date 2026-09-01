@@ -177,3 +177,35 @@ mid-flight, ending its Delivered Prefix at an arbitrary Step. Always originates
 from a different DecisionMaker — a route cycle can never preempt itself.
 _Avoid_: Interrupt, cancellation — "cancellation" is the mechanism, Preemption
 is the handoff it produces.
+
+**Movement lab**:
+The offline suite that compiles a fixed corpus of Movement Plans and checks the
+Invariants and Expectations against them, with no game client involved. Green
+means the Invariants hold, not that the bot works.
+_Avoid_: Movement tests, movement framework — "framework" is the whole effort,
+the lab is only its offline half.
+
+**Fixture map**:
+A small map config written by hand for the lab, built to force one movement type
+rather than to describe a real place. Distinguished from the real mapfiles the
+bot actually runs on, which the lab also uses but which cover only whatever
+movements they happen to contain.
+_Avoid_: Test map, fake map — the real mapfiles in the corpus are test maps too.
+
+**Corpus**:
+The maps the lab compiles against, plus the frozen sample of start-and-end pairs
+per map. Fixed and checked in, so a failure is reproducible from a test id alone.
+_Avoid_: Test data, dataset.
+
+**Golden**:
+The recorded compilation of one curated Movement Plan, checked in and compared
+against on every run: the Holds it produces, then its Steps run-length collapsed.
+Times are quantized, so a Golden pins structure and cadence and says nothing
+about the per-Step jitter.
+_Avoid_: Snapshot — the codebase already uses "snapshot" for a copy of bot data.
+
+**Provenance**:
+The record, carried alongside an Input Sequence, of which Movement Plan component
+produced each Step. Not derivable from the Steps themselves; the compiler is the
+only layer that knows the boundaries.
+_Avoid_: Origin, source, mapping.

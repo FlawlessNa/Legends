@@ -9,7 +9,7 @@ import win32con
 
 from ctypes import wintypes
 from dataclasses import dataclass, field
-from typing import Callable, Literal, Generator
+from typing import Any, Callable, Literal, Generator, cast
 from win32com.client import Dispatch
 from win32api import HIBYTE, GetKeyState, GetAsyncKeyState
 from win32gui import SetForegroundWindow, GetForegroundWindow
@@ -129,10 +129,12 @@ class KeyboardInputWrapper:
     """
 
     handle: int
-    keys: list[str | list[str]] = field(default_factory=list)
-    events: list[EVENTS | list[EVENTS]] = field(default_factory=list)
-    delays: list[float] = field(default_factory=list)
-    forced_key_releases: list[str] = field(default_factory=list)
+    keys: list[str | list[str]] = field(default_factory=list["str | list[str]"])
+    events: list[EVENTS | list[EVENTS]] = field(
+        default_factory=list["EVENTS | list[EVENTS]"]
+    )
+    delays: list[float] = field(default_factory=list[float])
+    forced_key_releases: list[str] = field(default_factory=list[str])
     initial_held_keys: frozenset[str] | None = None
 
     def __post_init__(self) -> None:
@@ -144,15 +146,23 @@ class KeyboardInputWrapper:
         `initial_held_keys` overrides the Held-Keys Ledger read below, so
         offline/deterministic compilation can supply the held state instead. Compiling
         outside Main Process must supply it: no other process owns a ledger.
+
+        The resolved set is stored back onto the field, so `initial_held_keys` is a
+        frozenset for the rest of the instance's life and `keys_held` has an `H0` to
+        accumulate from. It also stops `truncate` re-reading the ledger for the copy.
+
+        `desired_keys` stays sequence-local - what these Steps want held, which is not
+        the same question as what is already down.
         """
-        if self.initial_held_keys is not None:
-            held_keys = set(self.initial_held_keys)
-        else:
-            held_keys = set(get_held_movement_keys(self.handle))
-        self._clear_opposites(held_keys=held_keys, desired_keys=self.keys_held)
+        if self.initial_held_keys is None:
+            self.initial_held_keys = frozenset(get_held_movement_keys(self.handle))
+        self._clear_opposites(
+            held_keys=set(self.initial_held_keys),
+            desired_keys=self.get_held_movement_keys(self.keys, self.events),
+        )
 
     def _clear_opposites(
-        self, held_keys: set[str], desired_keys: set[str], idx: int = None
+        self, held_keys: set[str], desired_keys: set[str], idx: int | None = None
     ) -> None:
         """
         Utility function that compares the desired keys to be held versus those already
@@ -165,21 +175,17 @@ class KeyboardInputWrapper:
         makes it authoritative, so the guard goes and **A6 No Phantom Release** holds:
         no keyup targets a key that is not down.
         """
-        to_release = []
+        to_release: list[str] = []
         for key in filter(lambda k: k in ('left', 'right', 'up', 'down'), desired_keys):
             if OPPOSITES[key] in held_keys:
                 to_release.append(OPPOSITES[key])
 
         if to_release:
-            self.insert(
-                idx or 0,
-                to_release,
-                ["keyup"] * len(to_release),  # noqa
-                next(random_delay),
-            )
+            releases: list[EVENTS] = ["keyup"] * len(to_release)
+            self.insert(idx or 0, to_release, releases, next(random_delay))
 
     def __str__(self) -> str:
-        result = []
+        result: list[str] = []
         current_key = None
         current_event = None
         total_delay = 0.0
@@ -204,8 +210,17 @@ class KeyboardInputWrapper:
         )
 
     @property
-    def c_input(self) -> list[tuple]:
-        return input_constructor(self.handle, self.keys, self.events)
+    def c_input(self) -> list[tuple[Any, ...]]:
+        # `list` is invariant: `list[str | list[str]]` is not assignable to
+        # `input_constructor`'s wider element type even though every element of it
+        # already satisfies that type. The casts are that variance gap, not a claim
+        # about the values.
+        inputs = cast(
+            "list[str | None | tuple[int, int] | list[str | None | tuple[int, int]]]",
+            self.keys,
+        )
+        events = cast("list[EVENTS | list[EVENTS] | None]", self.events)
+        return input_constructor(self.handle, inputs, events)
 
     @property
     def duration(self) -> float:
@@ -244,7 +259,13 @@ class KeyboardInputWrapper:
         self.events.insert(index, events)
         self.delays.insert(index, delay)
 
-    def fill(self, key: str, event: EVENTS, delay_generator: Generator, limit: float):
+    def fill(
+        self,
+        key: str,
+        event: EVENTS,
+        delay_generator: Generator[float],
+        limit: float,
+    ) -> None:
         """
         Fills the structure with the given key and event until the duration reaches the
         limit.
@@ -260,17 +281,35 @@ class KeyboardInputWrapper:
     @property
     def keys_held(self) -> set[str]:
         """
-        Introspects the input structures to find the keys for which a KEYDOWN event is
-        sent and for which no subsequent KEYUP event is sent.
+        The keys down at the end of this sequence: `down(n-1)` in the invariant
+        catalogue's terms.
+
+        Accumulates from `initial_held_keys` - the catalogue's `down(-1) = H0` - so a
+        key the Held-Keys Ledger reported at the sequence's start is reported here
+        until a Step releases it. Walking from an empty set instead meant every
+        builder after the first in a Movement Plan lost the inherited state
+        (issue #97): `_resolve_held_keys` returns this property whenever a structure
+        already exists.
         :return:
         """
-        return self.get_held_movement_keys(self.keys, self.events)
+        return self.get_held_movement_keys(
+            self.keys, self.events, initial=self.initial_held_keys
+        )
 
     @staticmethod
     def get_held_movement_keys(
-        keys: list[str | list[str]], events: list[EVENTS | list[EVENTS]]
+        keys: list[str | list[str]],
+        events: list[EVENTS | list[EVENTS]],
+        initial: frozenset[str] | set[str] | None = None,
     ) -> set[str]:
-        keys_down = set()
+        """
+        Walks the Steps, tracking which keys a KEYDOWN left down and no KEYUP closed.
+
+        :param initial: The keys already down before the first Step - the sequence's
+            `H0`. Omitted, the walk starts from nothing, which is the right question
+            for "what do these Steps want held" and the wrong one for "what is down".
+        """
+        keys_down: set[str] = set(initial) if initial else set()
         for key, event in zip(keys, events):
             if isinstance(key, list) and isinstance(event, list):
                 for k, e in zip(key, event):
@@ -284,10 +323,10 @@ class KeyboardInputWrapper:
                 elif event == "keyup":
                     keys_down.discard(key)
             else:
-                raise ValueError(f"Invalid key {key} or event {event}")
+                raise TypeError(f"Invalid key {key} or event {event}")
         return keys_down
 
-    async def send(self):
+    async def send(self) -> int:
         return await focused_inputs(
             self.handle,
             self.c_input,
@@ -297,7 +336,7 @@ class KeyboardInputWrapper:
             events=self.events,
         )
 
-    def truncate(self, limit: float) -> "KeyboardInputWrapper":
+    def truncate(self, limit: float) -> KeyboardInputWrapper:
         result = KeyboardInputWrapper(
             self.handle,
             forced_key_releases=self.forced_key_releases,
@@ -408,7 +447,7 @@ def input_constructor(
     events: list[EVENTS | list[EVENTS] | None],
     as_unicode: bool | list[bool] = False,
     mouse_data: list[int | None] | None = None,
-) -> list[tuple]:
+) -> list[tuple[Any, ...]]:
     """
     Constructs the input structures for the given inputs and events.
     These must be of the same length. When an item in inputs is a list, the
