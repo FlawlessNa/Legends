@@ -41,7 +41,7 @@ arbitrary Step inside its send loop.
    Sequences; an ActionRequest's procedure carries the Movement Plan plus
    compile inputs, and compiles *inside the focus-lock critical section* —
    acquire focus, read the ledger, feed it through the existing
-   `initial_held_keys` seam, stream the Steps. Compiling before the lock
+   `initial_state` seam, stream the Steps. Compiling before the lock
    would re-open the same race one layer down. The DecisionMaker decides
    whether to act from its `movements` attribute; the compiled `action`
    attribute leaves the live path (it remains the offline lab's artifact),
@@ -54,7 +54,7 @@ arbitrary Step inside its send loop.
 ## Consequences
 
 - Both defects die in one data flow, with no reconciliation heuristics. The
-  `initial_held_keys` seam built for offline determinism is now also the live
+  `initial_state` seam built for offline determinism is now also the live
   injection point — fed dispatch-time authoritative state, the opposite of
   the stale-snapshot misuse it was warned against.
 - Rejected: *dispatch-time corrective prefix* (approximates what builders

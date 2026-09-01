@@ -1,21 +1,35 @@
-import cv2
 import logging
-import numpy as np
 from enum import IntEnum
 from functools import lru_cache
-from itertools import groupby
-from pathfinding.finder.a_star import AStarFinder
+from itertools import groupby, pairwise
+from typing import Literal, NamedTuple
+
+import cv2
+import numpy as np
 from pathfinding.finder.dijkstra import DijkstraFinder
-from typing import NamedTuple
 
 from botting import PARENT_LOG
-from botting.controller import KeyboardInputWrapper, key_binds
+from botting.controller import EVENTS, InputState, KeyboardInputWrapper, key_binds
 from maple.actions import movements_v2
 from maple.model.characters.maple_skills import MapleSkill
-from .minimap_creation.minimap_grid import ConnectionTypes, MinimapNode, MinimapGrid
+
 from .maple_map import MapleMinimap
+from .minimap_creation.minimap_grid import ConnectionTypes, MinimapGrid, MinimapNode
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
+
+Direction = Literal["left", "right", "up", "down"]
+
+# A `MovementTypes` member's name carries its direction as a suffix, but
+# `.name.split("_")[-1].lower()` is a plain `str` to the type checker where every
+# builder takes a `Direction`. Going through this table narrows it without a cast, and
+# raises on a movement type whose suffix is not a direction.
+_DIRECTIONS: dict[str, Direction] = {
+    "left": "left",
+    "right": "right",
+    "up": "up",
+    "down": "down",
+}
 
 
 class MovementTypes(IntEnum):
@@ -42,22 +56,28 @@ class MovementTypes(IntEnum):
     END_OF_MOVEMENT = 99  # Last movement, used to release any remaining held key.
 
 
-_NARROW_PLATFORM_THRESHOLD = 5  # platforms narrower than this (pixels) get a direction-stop after landing
+_NARROW_PLATFORM_THRESHOLD = (
+    5  # platforms narrower than this (pixels) get a direction-stop after landing
+)
 
-_PRECISION_PRE_STOP = frozenset({
-    MovementTypes.JUMP,
-    MovementTypes.JUMP_LEFT,
-    MovementTypes.JUMP_RIGHT,
-    MovementTypes.JUMP_DOWN,
-    MovementTypes.ENTER_PORTAL,
-})
+_PRECISION_PRE_STOP = frozenset(
+    {
+        MovementTypes.JUMP,
+        MovementTypes.JUMP_LEFT,
+        MovementTypes.JUMP_RIGHT,
+        MovementTypes.JUMP_DOWN,
+        MovementTypes.ENTER_PORTAL,
+    }
+)
 
-_JUMP_CONNECTION_TYPES = frozenset({
-    ConnectionTypes.JUMP,
-    ConnectionTypes.JUMP_LEFT,
-    ConnectionTypes.JUMP_RIGHT,
-    ConnectionTypes.JUMP_DOWN,
-})
+_JUMP_CONNECTION_TYPES = frozenset(
+    {
+        ConnectionTypes.JUMP,
+        ConnectionTypes.JUMP_LEFT,
+        ConnectionTypes.JUMP_RIGHT,
+        ConnectionTypes.JUMP_DOWN,
+    }
+)
 
 
 class _MovementComponent(NamedTuple):
@@ -71,14 +91,14 @@ class _MovementComponent(NamedTuple):
 
 
 def compile_movements(
-    initial_held_keys: frozenset[str] | None,
+    initial_state: InputState | None,
     *,
     movements: tuple[_MovementComponent, ...],
     handle: int,
     ign: str,
     speed: float,
     teleport: MapleSkill | None = None,
-    total_duration: float = None,
+    total_duration: float | None = None,
     always_release: bool = False,
 ) -> KeyboardInputWrapper | None:
     """
@@ -90,11 +110,12 @@ def compile_movements(
     picklable. `MovementHandler.movements_into_action` delegates here, so the offline
     lab and the live path compile through the exact same code.
 
-    :param initial_held_keys: Movement keys held before compilation starts. Passed
-        through to the first builder call (the only one that would otherwise query
-        live Win32 state). Live callers feed it the Held-Keys Ledger; the offline lab
-        feeds it a fixture. None falls back to the live query, which is only correct
-        in Main Process.
+    :param initial_state: The keyboard state before compilation starts - the movement
+        keys held, which key owns typematic, and how long it has owned. Passed through
+        to the first builder call (the only one that would otherwise query live Win32
+        state). Live callers feed it the Held-Keys Ledger; the offline lab feeds it a
+        fixture. None falls back to the live query, which is only correct in Main
+        Process.
     :param movements: The Movement Plan to compile.
     :param speed: The grid's speed, which converts a movement's length to a duration.
     :param total_duration: When given, compilation stops once the sequence reaches it.
@@ -104,15 +125,13 @@ def compile_movements(
     :return: The Input Sequence, or None when the plan compiles to nothing.
     """
     structure = None
-    for move, upcoming_move in zip(movements, movements[1:]):
-
+    for move, upcoming_move in pairwise(movements):
         move_type, move_length = move.movement_type, move.length
         duration = move_length / speed
         match move_type:
-
             case MovementTypes.WALK_LEFT | MovementTypes.WALK_RIGHT:
-                direction = move_type.name.split("_")[-1].lower()
-                secondary = None
+                direction = _DIRECTIONS[move_type.name.split("_")[-1].lower()]
+                secondary: Direction | None = None
                 if upcoming_move.movement_type in (
                     MovementTypes.ENTER_PORTAL,
                     MovementTypes.CLIMB_UP,
@@ -128,16 +147,16 @@ def compile_movements(
                     release_keys = ["up", "down"]
                 structure = movements_v2.move(
                     handle,
-                    direction,  # noqa
+                    direction,
                     secondary,
                     duration=duration,
                     structure=structure,
                     release_keys=release_keys,
-                    initial_held_keys=initial_held_keys,
+                    initial_state=initial_state,
                 )
 
             case MovementTypes.CLIMB_UP | MovementTypes.CLIMB_DOWN:
-                direction = move_type.name.split("_")[-1].lower()
+                direction = _DIRECTIONS[move_type.name.split("_")[-1].lower()]
                 secondary = None
                 if upcoming_move.movement_type is MovementTypes.WALK_LEFT:
                     secondary = "left"
@@ -146,11 +165,11 @@ def compile_movements(
                 # TODO - See if duration needs to be extended
                 structure = movements_v2.move(
                     handle,
-                    direction,  # noqa
+                    direction,
                     secondary,
                     duration=duration,
                     structure=structure,
-                    initial_held_keys=initial_held_keys,
+                    initial_state=initial_state,
                 )
 
             case (
@@ -160,33 +179,53 @@ def compile_movements(
                 | MovementTypes.JUMP_DOWN
             ):
                 direction = (
-                    'up' if move_type is MovementTypes.JUMP
-                    else move_type.name.split("_")[-1].lower()
+                    "up"
+                    if move_type is MovementTypes.JUMP
+                    else _DIRECTIONS[move_type.name.split("_")[-1].lower()]
                 )
-                kwargs = dict(
-                    handle=handle,
-                    direction=direction,
-                    jump_key=key_binds(ign)['jump'],
-                    structure=structure,
-                    initial_held_keys=initial_held_keys,
-                )
+                jump_key = key_binds(ign)["jump"]
                 for _ in range(move_length - 1):
-                    structure = movements_v2.single_jump(**kwargs)
-                    kwargs.update(structure=structure)
+                    structure = movements_v2.single_jump(
+                        handle,
+                        direction,
+                        jump_key,
+                        structure=structure,
+                        initial_state=initial_state,
+                    )
 
                 # For the last jump, look at the next move
                 if upcoming_move.movement_type is MovementTypes.CLIMB_UP:
                     # TODO - forced key releases, longer delays.
                     # Todo so, implement a forced release mode on KeyboardInputWrapper
-                    structure = movements_v2.jump_on_rope(**kwargs)
+                    structure = movements_v2.jump_on_rope(
+                        handle,
+                        # `direction` is 'up' for a plain JUMP and 'down' for a
+                        # JUMP_DOWN, neither of which `jump_on_rope` accepts: it
+                        # presses 'up' itself, so an 'up' direction is pressed twice
+                        # and released once, leaving it held. Latent - the `**kwargs`
+                        # dict this call used to go through erased the type. Passed
+                        # through unchanged rather than guessed at, because what a
+                        # straight-up jump onto a rope should compile to needs a
+                        # client to settle. See issue #111.
+                        direction,  # pyright: ignore[reportArgumentType]
+                        jump_key,
+                        structure=structure,
+                        initial_state=initial_state,
+                    )
                 else:
-                    structure = movements_v2.single_jump(**kwargs)
+                    structure = movements_v2.single_jump(
+                        handle,
+                        direction,
+                        jump_key,
+                        structure=structure,
+                        initial_state=initial_state,
+                    )
                     if move.narrow:
                         # Narrow platform: release horizontal key on landing so the
                         # character doesn't walk off the edge after touching down.
                         held_dir = next(
-                            (k for k in structure.keys_held if k in ('left', 'right')),
-                            None
+                            (k for k in structure.keys_held if k in ("left", "right")),
+                            None,
                         )
                         if held_dir:
                             structure.append(held_dir, "keyup", 0)
@@ -197,7 +236,7 @@ def compile_movements(
                     "up",
                     duration=duration,
                     structure=structure,
-                    initial_held_keys=initial_held_keys,
+                    initial_state=initial_state,
                 )
 
             case (
@@ -206,22 +245,27 @@ def compile_movements(
                 | MovementTypes.TELEPORT_UP
                 | MovementTypes.TELEPORT_DOWN
             ):
-                direction = move_type.name.split("_")[-1].lower()
+                if teleport is None:
+                    raise ValueError(
+                        f"{move_type.name} is in the Movement Plan, but no teleport "
+                        f"skill was supplied to compile it with."
+                    )
+                direction = _DIRECTIONS[move_type.name.split("_")[-1].lower()]
                 repeat_key = None
                 if upcoming_move.movement_type in (
-                        MovementTypes.ENTER_PORTAL,
-                        MovementTypes.CLIMB_UP,
+                    MovementTypes.ENTER_PORTAL,
+                    MovementTypes.CLIMB_UP,
                 ):
-                    repeat_key='up'
+                    repeat_key = "up"
                 structure = movements_v2.teleport(
                     handle,
                     ign,
-                    direction, # noqa
+                    direction,
                     teleport,
                     move_length,
                     structure=structure,
                     repeat_key=repeat_key,
-                    initial_held_keys=initial_held_keys,
+                    initial_state=initial_state,
                 )
             case (
                 MovementTypes.FLASH_JUMP_LEFT
@@ -233,14 +277,13 @@ def compile_movements(
                 raise NotImplementedError(f"Unhandled movement type {move_type!r}")
 
         # Else just consider current move and disregard previous.
-        if structure.duration >= (total_duration or float('inf')):
+        if total_duration is not None and structure.duration >= total_duration:
             # Before hard-truncating: if the next move is precision-sensitive,
             # release the horizontal key now so the next chunk starts from a
             # stopped position and can execute the jump from the correct spot.
             if upcoming_move.movement_type in _PRECISION_PRE_STOP:
                 held_dir = next(
-                    (k for k in structure.keys_held if k in ('left', 'right')),
-                    None
+                    (k for k in structure.keys_held if k in ("left", "right")), None
                 )
                 if held_dir:
                     structure.append(held_dir, "keyup", 0)
@@ -253,13 +296,14 @@ def compile_movements(
         # `_path_into_movements_uncached` (zip stops one short of it), so this
         # can't be handled as a movement-type case in the loop body above.
         if structure is not None:
-            keys = list(
-                key for key in structure.keys_held
+            keys = [
+                key
+                for key in structure.keys_held
                 if key not in structure.forced_key_releases
-            )
-            event = ["keyup"] * len(keys)
-            if keys and event:
-                structure.append(keys, event, 0)  # noqa
+            ]
+            if keys:
+                events: list[EVENTS] = ["keyup"] * len(keys)
+                structure.append(keys, events, 0)
 
     if always_release and structure is not None:
         for key in structure.keys_held:
@@ -271,7 +315,9 @@ def compile_movements(
 class MovementHandler:
     _MAX_WALK_SIZE = 5
     _FALL_LEN_EXT = 3
-    _CACHE_MAXSIZE = 256  # bounded: avoids unbounded growth from stale entries on grid edits
+    _CACHE_MAXSIZE = (
+        256  # bounded: avoids unbounded growth from stale entries on grid edits
+    )
 
     def __init__(
         self,
@@ -327,7 +373,7 @@ class MovementHandler:
     ) -> tuple[_MovementComponent, ...]:
 
         movements = []
-        for current_node, next_node in zip(path, path[1:]):
+        for current_node, next_node in pairwise(path):
             current_feature = self.minimap.get_node_info(current_node)
             next_feature = self.minimap.get_node_info(next_node)
             if not current_node.walkable:
@@ -335,8 +381,7 @@ class MovementHandler:
             elif not next_node.walkable:
                 raise NotImplementedError
 
-            if next_node in grid.neighbors(current_node, include_connections=False):
-
+            if next_node in grid.adjacent_nodes(current_node):
                 dx = next_node.x - current_node.x
                 dy = next_node.y - current_node.y
                 match (dx, dy, next_feature.is_platform, current_feature.is_platform):
@@ -379,7 +424,9 @@ class MovementHandler:
                             next_feature.is_platform
                             and next_feature.width <= _NARROW_PLATFORM_THRESHOLD
                         )
-                        movements.append(_MovementComponent(move_type, 1, narrow=is_narrow))
+                        movements.append(
+                            _MovementComponent(move_type, 1, narrow=is_narrow)
+                        )
                     else:
                         movements.append(_MovementComponent(move_type, 1))
             else:
@@ -394,7 +441,9 @@ class MovementHandler:
             is_narrow = group_list[0].narrow  # preserved from first element in group
             for i in range(0, len(group_list), self._MAX_WALK_SIZE):
                 squeezed.append(
-                    _MovementComponent(k, min(len(group_list) - i, self._MAX_WALK_SIZE), is_narrow)
+                    _MovementComponent(
+                        k, min(len(group_list) - i, self._MAX_WALK_SIZE), is_narrow
+                    )
                 )
         squeezed.append(_MovementComponent(MovementTypes.END_OF_MOVEMENT, 1))
         return tuple(squeezed)
@@ -403,16 +452,17 @@ class MovementHandler:
         self,
         movements: tuple[_MovementComponent, ...],
         grid: MinimapGrid,
-        total_duration: float = None,
-        initial_held_keys: frozenset[str] | None = None,
+        total_duration: float | None = None,
+        initial_state: InputState | None = None,
     ) -> KeyboardInputWrapper | None:
         """
         Offline/tooling entry point. The live path compiles at dispatch through
         `compile_movements` directly - see `controller.compile_and_send`.
-        :param initial_held_keys: Movement keys held before compilation starts.
+        :param initial_state: The keyboard state before compilation starts - held
+            movement keys, typematic owner, and how long it has owned.
         """
         return compile_movements(
-            initial_held_keys,
+            initial_state,
             movements=movements,
             handle=self.handle,
             ign=self.ign,
@@ -433,14 +483,14 @@ class MovementHandler:
             (start[0], start[1]),
             (0, 0, 255),
             markerType=cv2.MARKER_CROSS,
-            markerSize=3
+            markerSize=3,
         )
         cv2.drawMarker(
             minimap_img,
             (end[0], end[1]),
             (255, 0, 0),
             markerType=cv2.MARKER_CROSS,
-            markerSize=3
+            markerSize=3,
         )
         for node in path:
             minimap_img[node.y, node.x] = (0, 255, 0)

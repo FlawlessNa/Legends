@@ -23,11 +23,29 @@ queried.
 At most one handle's entry is ever non-empty - the current foreground - because
 `activate()` releases every key before switching focus. `_check_single_holder`
 logs a defect if that invariant is ever broken.
+
+Typematic ownership
+-------------------
+Beside the held set, the ledger carries which key currently owns typematic - the one
+Windows repeats while it stays down. A keydown claims ownership, a later keydown takes
+it, and any keyup ends repetition outright rather than handing it back to a key still
+held. `record_step` already witnesses every delivered Step, in order, at the moment it
+reaches the game, so it is the only place that can observe this.
+
+Ownership is *not* recoverable from `GetAsyncKeyState`, which reports down/up and knows
+nothing about repetition. Neither reconciliation point can restore it, so "nobody owns"
+is the representable default rather than a separately modelled "unknown". The errors are
+not symmetric: emitting repeats with no owner is the defect **A7 Typematic Legality**
+names, while emitting no repeats is always physically producible.
 """
 
 import logging
 import multiprocessing
 import threading
+import time
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +54,34 @@ MAIN_PROCESS_NAME = "MainProcess"
 # Movement keys are always reconciliation candidates, even before this process has
 # sent any of them: they are the ones a previous Session may have left latched.
 _ALWAYS_SWEPT = frozenset({"left", "right", "up", "down"})
+
+
+@dataclass(frozen=True)
+class InputState:
+    """
+    The keyboard state an Input Sequence is compiled against: what is down, and which
+    key may legally repeat while it stays down.
+
+    One value object rather than two parallel parameters, because the two halves answer
+    one question and a caller reading only the first is exactly the defect issue #97
+    was. `held_keys` of `{right}` is equally consistent with "right was just pressed and
+    owns typematic" and "right is a Continuation carry whose ownership a teleport took
+    and dropped", so the held set alone cannot say which keydowns are legal repeats.
+
+    `owner_elapsed` is data, not a clock: the ledger stamps the owning keydown and
+    whoever reads the ledger computes the elapsed time at dispatch. A sequence that
+    presses `right` in its final 100ms hands the next one an owner whose typematic delay
+    is already 100ms spent. Passing it as data keeps compilation a pure function over
+    plain data, so it still pickles into an ActionRequest and the offline lab compiles
+    identically (issue #30).
+
+    "Nobody owns" is `typematic_owner is None`, and `owner_elapsed` is 0.0 and
+    meaningless there.
+    """
+
+    held_keys: frozenset[str] = frozenset()
+    typematic_owner: str | None = None
+    owner_elapsed: float = 0.0
 
 
 def in_main_process() -> bool:
@@ -69,9 +115,12 @@ class HeldKeysLedger:
     Process one is authoritative.
     """
 
-    _lock = threading.Lock()
-    _held: dict[int, set[str]] = {}
-    _sent_at_least_once: set[str] = set()
+    _lock: ClassVar[threading.Lock] = threading.Lock()
+    _held: ClassVar[dict[int, set[str]]] = {}
+    # Per handle, the key that owns typematic and the `time.monotonic()` stamp of the
+    # keydown that claimed it. Absent means nobody owns.
+    _owner: ClassVar[dict[int, tuple[str, float]]] = {}
+    _sent_at_least_once: ClassVar[set[str]] = set()
     _warned_foreign_read = False
 
     @classmethod
@@ -88,17 +137,24 @@ class HeldKeysLedger:
     def record_step(
         cls,
         handle: int,
-        keys: str | list | tuple | None,
-        events: str | list | tuple | None,
+        keys: str | Sequence[object] | None,
+        events: str | Sequence[object] | None,
     ) -> None:
         """
         Applies one delivered Step to the ledger. Mouse Steps (non-string keys) and
         events other than keydown/keyup leave it untouched.
+
+        Typematic ownership moves with the same walk, in Step order: a keydown claims
+        it, so the last keydown of a simultaneous batch owns, and any keyup drops it
+        outright. The stamp is the moment this Step reached the game, taken once - the
+        whole batch is delivered by a single `SendInput`.
         :param handle: Handle to the client window the Step was sent to.
-        :param keys: The key or keys sent simultaneously at that Step.
+        :param keys: The key or keys sent simultaneously at that Step. A mouse Step
+            carries coordinates rather than key names, hence the widest element type.
         :param events: The matching event or events.
         :return: None
         """
+        pairs: list[tuple[object, object]]
         if isinstance(keys, str) and isinstance(events, str):
             pairs = [(keys, events)]
         elif isinstance(keys, (list, tuple)) and isinstance(events, (list, tuple)):
@@ -106,6 +162,7 @@ class HeldKeysLedger:
         else:
             return
 
+        now = time.monotonic()
         with cls._lock:
             entry = cls._held.setdefault(handle, set())
             for key, event in pairs:
@@ -114,18 +171,45 @@ class HeldKeysLedger:
                 cls._sent_at_least_once.add(key)
                 if event == "keydown":
                     entry.add(key)
+                    cls._owner[handle] = (key, now)
                 elif event == "keyup":
                     entry.discard(key)
+                    cls._owner.pop(handle, None)
             if not entry:
                 cls._held.pop(handle, None)
         cls._check_single_holder(handle)
 
     @classmethod
-    def note_sent(cls, key: str) -> None:
+    def input_state(cls, handle: int) -> InputState:
+        """
+        The full start state for a compile: every key held for that client, the key that
+        owns typematic, and how long it has owned.
+
+        `owner_elapsed` is computed here, at the moment of the read, which is what keeps
+        the clock out of compilation - see `InputState`.
+        :param handle: Handle to the client window.
+        :return: The keyboard state to compile that client's next sequence against.
+        """
+        cls._warn_if_foreign_read()
+        with cls._lock:
+            held = frozenset(cls._held.get(handle, ()))
+            owner = cls._owner.get(handle)
+        if owner is None:
+            return InputState(held_keys=held)
+        key, stamp = owner
+        return InputState(
+            held_keys=held,
+            typematic_owner=key,
+            owner_elapsed=max(0.0, time.monotonic() - stamp),
+        )
+
+    @classmethod
+    def note_sent(cls, key: object) -> None:
         """
         Widens the reconciliation candidate set. Called for every key handed to
         `input_constructor`, including those built for a sequence that is never sent.
-        :param key: The key that was compiled into an input structure.
+        :param key: The key that was compiled into an input structure. Mouse
+            coordinates reach this too, and are ignored.
         :return: None
         """
         if isinstance(key, str):
@@ -145,12 +229,14 @@ class HeldKeysLedger:
     def clear(cls, handle: int) -> None:
         """
         Drops a client's entry, asserting that nothing of its is held any more. Called
-        by `release_all` once the releases have been sent.
+        by `release_all` once the releases have been sent. Nothing held means nothing
+        owns typematic, so the owner goes with it.
         :param handle: Handle to the client window.
         :return: None
         """
         with cls._lock:
             cls._held.pop(handle, None)
+            cls._owner.pop(handle, None)
 
     @classmethod
     def reset(cls) -> None:
@@ -162,6 +248,7 @@ class HeldKeysLedger:
         """
         with cls._lock:
             cls._held.clear()
+            cls._owner.clear()
             cls._sent_at_least_once.clear()
 
     @classmethod

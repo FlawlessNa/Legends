@@ -17,7 +17,7 @@ Timings are asserted against `DELAY` and `OVERHEAD` symbolically, never as liter
 `OVERHEAD` is measured at import time and differs per machine and per run.
 
 Nothing here sends real input: every sequence is compiled against an explicit
-`initial_held_keys`, and no handle refers to a real window.
+`initial_state`, and no handle refers to a real window.
 """
 
 from dataclasses import dataclass, field
@@ -27,6 +27,7 @@ import pytest
 
 from botting.controller import DELAY, OVERHEAD
 from botting.controller.inputs.focused_inputs import KeyboardInputWrapper
+from botting.controller.inputs.held_keys_ledger import InputState
 from maple.actions.skills_related_v2 import cast_skill
 from maple.model.characters.maple_skills import MapleSkill
 
@@ -79,9 +80,9 @@ def test_the_direction_steps_are_not_spent_out_of_the_cast_window(
     Load-bearing. The setup Steps used to count against the fill's absolute limit, so a
     directed cast held the skill key for measurably less than an undirected one.
     """
-    undirected = cast_skill(HANDLE, IGN, ULTIMATE, initial_held_keys=frozenset())
+    undirected = cast_skill(HANDLE, IGN, ULTIMATE, initial_state=InputState())
     directed = cast_skill(
-        HANDLE, IGN, ULTIMATE, direction=direction, initial_held_keys=frozenset()
+        HANDLE, IGN, ULTIMATE, direction=direction, initial_state=InputState()
     )
 
     def _held_for(wrapper: KeyboardInputWrapper) -> float:
@@ -99,7 +100,7 @@ def test_a_short_animation_still_casts_the_skill() -> None:
     the skill key, and the skill was never cast at all.
     """
     sequence = cast_skill(
-        HANDLE, IGN, INSTANT, direction="left", initial_held_keys=frozenset()
+        HANDLE, IGN, INSTANT, direction="left", initial_state=InputState()
     )
     events = [event for _, event in _skill_steps(sequence, INSTANT.key)]
     assert events[:1] == ["keydown"], "the skill is pressed at least once"
@@ -119,7 +120,7 @@ def test_the_skill_key_comes_up_before_the_animation_completes(
     completed - and the key still being down there is what triggers the second cast.
     """
     sequence = cast_skill(
-        HANDLE, IGN, ULTIMATE, direction=direction, initial_held_keys=frozenset()
+        HANDLE, IGN, ULTIMATE, direction=direction, initial_state=InputState()
     )
     steps = _skill_steps(sequence, ULTIMATE.key)
     first_down, keyup = steps[0][0], steps[-1][0]
@@ -133,7 +134,7 @@ def test_the_window_is_not_given_away_wholesale() -> None:
     The reservation is one Step, not a free-floating margin: the fill must still cover
     almost the whole animation, or the auto-repeat it exists to sustain breaks down.
     """
-    sequence = cast_skill(HANDLE, IGN, ULTIMATE, initial_held_keys=frozenset())
+    sequence = cast_skill(HANDLE, IGN, ULTIMATE, initial_state=InputState())
     steps = _skill_steps(sequence, ULTIMATE.key)
     first_down, keyup = steps[0][0], steps[-1][0]
     held_for = _sent_at(sequence, keyup) - _sent_at(sequence, first_down)

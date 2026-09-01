@@ -3,23 +3,41 @@ Exports the necessary functions from windll.user32 to be used by the input modul
 Retrieves appropriate virtual key code given keyboard layout and key name.
 """
 
+import asyncio
 import ctypes
 import random
 import time
+from collections.abc import Callable, Generator
+from ctypes import wintypes
+from functools import lru_cache
+from typing import Any
+
 import win32api
 import win32con
 
-from ctypes import wintypes
-from functools import lru_cache
+from .timer_resolution import raise_timer_resolution
 
 # http://www.kbdedit.com/manual/low_level_vk_list.html
 # https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+
+__all__ = [
+    "DELAY",
+    "EXTENDED_KEYS",
+    "KEYBOARD_MAPPING",
+    "MAPVK_VK_TO_VSC_EX",
+    "OVERHEAD",
+    "_EXPORTED_FUNCTIONS",
+    "_get_virtual_key",
+    "_keyboard_layout_handle",
+    "_setup_exported_functions",
+    "random_delay",
+]
 
 DELAY: float = 0.033 - time.get_clock_info("monotonic").resolution
 # DELAY: float = 0.033
 
 
-def _random_delay():
+def _random_delay() -> Generator[float]:
     while True:
         new_val = random.uniform(0.95, 1.05)
         yield new_val * DELAY
@@ -27,24 +45,55 @@ def _random_delay():
 
 random_delay = _random_delay()
 
-
-def _get_asyncio_overhead():
-    import timeit
-    import asyncio
-
-    actuals = []
-
-    async def _measure_delay():
-        actuals.append(next(random_delay))
-        await asyncio.sleep(actuals[-1])
-
-    def _main():
-        asyncio.run(_measure_delay())
-
-    return timeit.timeit(_main, number=50) / 50 - sum(actuals) / len(actuals)
+# Before OVERHEAD is measured, never after: the constant has to describe the same
+# timer regime the send loop will spend it in. See `timer_resolution`.
+raise_timer_resolution()
 
 
-OVERHEAD: float = _get_asyncio_overhead()
+def _measure_send_loop_overhead(iterations: int = 50) -> float:
+    """
+    The per-Step cost the send loop pays on top of the delay it asked for.
+
+    Measured the way `focused_inputs` pays it: many `asyncio.sleep`s inside
+    **one already-running loop**. The previous measurement ran
+    `asyncio.run(...)` per iteration and so charged every Step a whole event
+    loop's startup and teardown - a cost the send loop pays once per Action, if
+    at all. On this machine that inflated the constant from ~0.5ms to ~11.5ms.
+
+    The first sleep is discarded: a freshly-created loop pays one-off costs on
+    it that no later Step sees.
+
+    **Mean, not median**, though the median is measurably the steadier of the
+    two run to run (~0.33ms of spread against ~0.45ms). `duration` spends this
+    as `OVERHEAD * len(delays)` - a *sum* over Steps - and the excess is
+    right-skewed, outliers only ever running long. The mean is the estimator
+    that makes that sum unbiased; the median would under-predict every
+    multi-Step sequence in exchange for a tidier constant.
+
+    Two things this deliberately leaves out, both small next to the sleep and
+    neither measurable without a target window: `_send_input`'s `SendInput`
+    syscall, and `HeldKeysLedger.record_step`.
+    :param iterations: Sleeps to average over.
+    :return: Mean excess of the actual gap over the requested delay, in seconds.
+    """
+
+    async def _measure() -> float:
+        await asyncio.sleep(next(random_delay))
+
+        requested = 0.0
+        actual = 0.0
+        for _ in range(iterations):
+            delay = next(random_delay)
+            start = time.perf_counter()
+            await asyncio.sleep(delay)
+            actual += time.perf_counter() - start
+            requested += delay
+        return (actual - requested) / iterations
+
+    return asyncio.run(_measure())
+
+
+OVERHEAD: float = _measure_send_loop_overhead()
 
 KEYBOARD_MAPPING = {
     "alt": win32con.VK_MENU,
@@ -99,8 +148,15 @@ MAPVK_VK_TO_CHAR = 2
 MAPVK_VSC_TO_VK_EX = 3
 MAPVK_VK_TO_VSC_EX = 4
 
+# pywin32 ships no type for the layout handle, so `VkKeyScanEx` arrives partially
+# unknown and every call site inherits that. Narrowed once here, at the boundary,
+# to the signature `_get_virtual_key` actually relies on - the module is taken as
+# `Any` so the gap is closed by a declaration rather than by a suppression.
+_win32api: Any = win32api
+_vk_key_scan_ex: Callable[[str, Any], int] = _win32api.VkKeyScanEx
 
-def _setup_exported_functions() -> dict[str, callable]:
+
+def _setup_exported_functions() -> dict[str, Callable[..., Any]]:
     """
     :return: Dictionary of exported functions from the ctypes.windll module.
     """
@@ -151,7 +207,7 @@ def _get_virtual_key(key: str, case_sensitive: bool, layout: wintypes.HKL) -> in
     if len(key) == 1 and case_sensitive:
         return ord(key)
     elif len(key) == 1:
-        return win32api.LOBYTE(win32api.VkKeyScanEx(key, layout))
+        return win32api.LOBYTE(_vk_key_scan_ex(key, layout))
     else:
         return KEYBOARD_MAPPING[key]
 

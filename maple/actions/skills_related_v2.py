@@ -16,7 +16,7 @@ def cast_skill(
     ign: str,
     skill: Skill,
     direction: str | None = None,
-    initial_held_keys: frozenset[str] | None = None,
+    initial_state: controller.InputState | None = None,
 ) -> controller.KeyboardInputWrapper:
     """
     Casts a skill with the automated repeat feature (focused).
@@ -24,18 +24,17 @@ def cast_skill(
     :param ign:
     :param skill:
     :param direction:
-    :param initial_held_keys: Movement keys held before the cast, instead of querying
-        the live state. Only Main Process owns a Held-Keys Ledger to query, so any
-        caller compiling elsewhere must supply this - see `cast_skill_compiler`.
+    :param initial_state: The keyboard state before the cast - movement keys held,
+        typematic owner and how long it has owned - instead of querying the live state.
+        Only Main Process owns a Held-Keys Ledger to query, so any caller compiling
+        elsewhere must supply this - see `cast_skill_compiler`.
     :return:
     """
-    structure = controller.KeyboardInputWrapper(
-        handle, initial_held_keys=initial_held_keys
-    )
-    if initial_held_keys is None:
+    structure = controller.KeyboardInputWrapper(handle, initial_state=initial_state)
+    if initial_state is None:
         held_keys = controller.get_held_movement_keys(handle)
     else:
-        held_keys = [k for k in controller.OPPOSITES if k in initial_held_keys]
+        held_keys = [k for k in controller.OPPOSITES if k in initial_state.held_keys]
 
     if "down" in held_keys:
         held_keys.remove("down")
@@ -80,7 +79,7 @@ def cast_skill(
 
 
 def cast_skill_compiler(
-    initial_held_keys: frozenset[str] | None,
+    initial_state: controller.InputState | None,
     *,
     handle: int,
     ign: str,
@@ -88,14 +87,12 @@ def cast_skill_compiler(
     direction: str | None = None,
 ) -> controller.KeyboardInputWrapper:
     """
-    `cast_skill` in the shape `controller.compile_and_send` expects: held keys first
-    and positional, everything else frozen into a partial when the ActionRequest is
-    composed. Lets a skill cast be compiled at dispatch, against the ledger, the same
-    way a movement is.
+    `cast_skill` in the shape `controller.compile_and_send` expects: the dispatch-time
+    `InputState` first and positional, everything else frozen into a partial when the
+    ActionRequest is composed. Lets a skill cast be compiled at dispatch, against the
+    ledger, the same way a movement is.
     """
-    return cast_skill(
-        handle, ign, skill, direction, initial_held_keys=initial_held_keys
-    )
+    return cast_skill(handle, ign, skill, direction, initial_state=initial_state)
 
 
 async def cast_skill_single_press(handle: int, ign: str, skill: Skill) -> None:

@@ -20,18 +20,22 @@ FIRST_DELAY = 0.5
 def _resolve_held_keys(
     structure: controller.KeyboardInputWrapper | None,
     handle: int,
-    initial_held_keys: frozenset[str] | None,
+    initial_state: controller.InputState | None,
 ) -> set[str]:
     """
     Determines the movement keys held before this builder call starts.
     Chains onto `structure` when one exists (no live query needed); otherwise defers to
-    `initial_held_keys` when supplied, and only falls back to the live Win32 query when
+    `initial_state` when supplied, and only falls back to the live Win32 query when
     neither is available - so a caller providing either keeps compilation deterministic.
+
+    The `H0` half of the start state. Its `T0` half - which of those keys may legally
+    repeat - is `structure.typematic_owner` / `initial_state.typematic_owner`, read
+    where a builder needs it rather than folded in here: this answers "what is down".
     """
     if structure is not None:
         return structure.keys_held
-    if initial_held_keys is not None:
-        return set(initial_held_keys)
+    if initial_state is not None:
+        return set(initial_state.held_keys)
     return set(controller.get_held_movement_keys(handle))
 
 
@@ -74,12 +78,12 @@ def _resolve_held_keys(
 def move(
     handle: int,
     direction: Literal["left", "right", "up", "down"],
-    secondary_direction: Literal["up", "down"] | None = None,
+    secondary_direction: Literal["left", "right", "up", "down"] | None = None,
     *,
     duration: float,
     structure: controller.KeyboardInputWrapper | None = None,
     release_keys: str | list[str] | None = None,
-    initial_held_keys: frozenset[str] | None = None,
+    initial_state: controller.InputState | None = None,
 ) -> controller.KeyboardInputWrapper:
     """
     Creates the input structures and delays to describe the movement.
@@ -87,18 +91,23 @@ def move(
     appended onto the FocusedInput instance.
     :param handle:
     :param direction:
-    :param secondary_direction:
+    :param secondary_direction: A second direction held for the same duration, always
+        perpendicular to `direction` in practice - a walk carries up/down for the
+        rope or portal it is heading into, a climb carries left/right. Both axes are
+        accepted because both are used; the body treats it symmetrically with
+        `direction` and assumes nothing about which axis it is on.
     :param duration:
     :param structure:
     :param release_keys: If specified, release events are inserted before the movement,
         provided the release_keys are held.
-    :param initial_held_keys: Held movement keys to assume when `structure` is None,
-        instead of querying the live Win32 state. Enables deterministic offline
-        compilation of a movement plan's first builder call.
+    :param initial_state: The keyboard state to assume when `structure` is None - held
+        movement keys, typematic owner and how long it has owned - instead of querying
+        the live Win32 state. Enables deterministic offline compilation of a movement
+        plan's first builder call.
     :return:
     """
     initial_duration = getattr(structure, "duration", 0)
-    keys_held = _resolve_held_keys(structure, handle, initial_held_keys)
+    keys_held = _resolve_held_keys(structure, handle, initial_state)
     repeated_key: str = secondary_direction or direction
     limit = initial_duration + duration
     if isinstance(release_keys, str):
@@ -125,7 +134,7 @@ def move(
             first_steps,
             first_downs,
             [first_delay],
-            initial_held_keys=initial_held_keys,
+            initial_state=initial_state,
         )
     else:
         release_index = len(structure.keys)
@@ -153,10 +162,10 @@ def single_jump(
     jump_key: str,
     structure: controller.KeyboardInputWrapper | None = None,
     repeat_key: str | None = None,
-    initial_held_keys: frozenset[str] | None = None,
+    initial_state: controller.InputState | None = None,
 ) -> controller.KeyboardInputWrapper:
     # TODO - Adjust the hard-coded 0.75 delay appropriately
-    keys_held = _resolve_held_keys(structure, handle, initial_held_keys)
+    keys_held = _resolve_held_keys(structure, handle, initial_state)
     first_keys = [direction, jump_key] if direction not in keys_held else [jump_key]
     if structure is None:
         first_steps: list[str | list[str]] = list(first_keys)
@@ -168,7 +177,7 @@ def single_jump(
             first_steps,
             first_downs,
             [next(controller.random_delay) * 2] * len(first_keys),
-            initial_held_keys=initial_held_keys,
+            initial_state=initial_state,
         )
     else:
         for key in first_keys:
@@ -208,7 +217,7 @@ def jump_on_rope(
     direction: Literal["left", "right"],
     jump_key: str,
     structure: controller.KeyboardInputWrapper | None = None,
-    initial_held_keys: frozenset[str] | None = None,
+    initial_state: controller.InputState | None = None,
 ) -> controller.KeyboardInputWrapper:
     """
     Jump on a rope. The secondary direction is maintained after the jump.
@@ -216,8 +225,9 @@ def jump_on_rope(
     :param direction:
     :param jump_key:
     :param structure:
-    :param initial_held_keys: Held movement keys to assume when `structure` is None,
-        instead of querying the live Win32 state.
+    :param initial_state: The keyboard state to assume when `structure` is None -
+        held movement keys, typematic owner and how long it has owned - instead of
+        querying the live Win32 state.
     :return:
     """
     if structure is None:
@@ -226,7 +236,7 @@ def jump_on_rope(
             [direction],
             ["keydown"],
             [next(controller.random_delay)],
-            initial_held_keys=initial_held_keys,
+            initial_state=initial_state,
         )
 
     for key in structure.keys_held:
@@ -260,7 +270,7 @@ def teleport(
     num_times: int = 1,
     structure: controller.KeyboardInputWrapper | None = None,
     repeat_key: str | None = None,
-    initial_held_keys: frozenset[str] | None = None,
+    initial_state: controller.InputState | None = None,
 ) -> controller.KeyboardInputWrapper:
     """
     Casts teleport in a given direction.
@@ -271,12 +281,13 @@ def teleport(
     :param num_times:
     :param structure:
     :param repeat_key:
-    :param initial_held_keys: Held movement keys to assume when `structure` is None,
-        instead of querying the live Win32 state.
+    :param initial_state: The keyboard state to assume when `structure` is None -
+        held movement keys, typematic owner and how long it has owned - instead of
+        querying the live Win32 state.
     :return:
     """
     initial_duration = getattr(structure, "duration", 0)
-    keys_held = _resolve_held_keys(structure, handle, initial_held_keys)
+    keys_held = _resolve_held_keys(structure, handle, initial_state)
     limit = initial_duration + teleport_skill.animation_time * num_times
     if structure is None:
         structure = controller.KeyboardInputWrapper(
@@ -284,7 +295,7 @@ def teleport(
             [direction],
             ["keydown"],
             [next(controller.random_delay)],
-            initial_held_keys=initial_held_keys,
+            initial_state=initial_state,
         )
     # if structure is None:
     #     structure = _create_initial_input(handle, direction, None)
@@ -455,7 +466,7 @@ def telecast(
     result = controller.KeyboardInputWrapper(
         structure.handle,
         forced_key_releases=structure.forced_key_releases,
-        initial_held_keys=structure.initial_held_keys,
+        initial_state=structure.initial_state,
     )
     if ultimate_key not in result.forced_key_releases:
         result.forced_key_releases.append(ultimate_key)
@@ -481,10 +492,10 @@ def telecast(
 
 
 def telecast_compiler(
-    initial_held_keys: frozenset[str] | None,
+    initial_state: controller.InputState | None,
     *,
     movement_compiler: Callable[
-        [frozenset[str] | None], controller.KeyboardInputWrapper | None
+        [controller.InputState | None], controller.KeyboardInputWrapper | None
     ],
     handle: int,
     ign: str,
@@ -501,7 +512,7 @@ def telecast_compiler(
     It wraps `compile_movements` rather than becoming another of its parameters,
     because it is a second concern layered on the first, not a variation of it: the
     movement compile is unchanged and unaware, and the wrapper is an adapter at the
-    same seam - `Callable[[frozenset[str] | None], KeyboardInputWrapper | None]` -
+    same seam - `Callable[[InputState | None], KeyboardInputWrapper | None]` -
     that `compile_movements` and `cast_skill_compiler` already sit at. Taking the
     inner compiler as a parameter rather than naming `compile_movements` directly
     keeps this module free of any dependency on the mechanics layer (which imports
@@ -514,8 +525,9 @@ def telecast_compiler(
     rather than its key bind alone - a wider parameter at the wrapper, not a wider
     contract on the compiler it decorates.
 
-    :param initial_held_keys: Movement keys held at dispatch, from the Held-Keys
-        Ledger. Handed straight to the inner compiler, and to the fallback cast.
+    :param initial_state: The keyboard state at dispatch, from the Held-Keys Ledger -
+        movement keys held, typematic owner, and how long it has owned. Handed straight
+        to the inner compiler, and to the fallback cast.
     :param movement_compiler: The compiler whose Input Sequence gets fused - in
         practice a `compile_movements` partial over the current Movement Plan.
     :param handle: The client window the sequence targets, for the fallback cast.
@@ -529,7 +541,7 @@ def telecast_compiler(
         below is a Telemetry Record only that decision explains.
     :return: The fused Input Sequence, or a plain cast when there is nothing to fuse.
     """
-    structure = movement_compiler(initial_held_keys)
+    structure = movement_compiler(initial_state)
     if structure is None or not _has_keydown(structure, teleport_skill.key_bind(ign)):
         # Reachable even when the Movement Plan holds teleports: `total_duration` can
         # truncate the compile before the first teleport component is built. Casting
@@ -544,9 +556,7 @@ def telecast_compiler(
             dict(unavailable),
             logger_name=logger.name,
         )
-        return cast_skill(
-            handle, ign, ultimate_skill, initial_held_keys=initial_held_keys
-        )
+        return cast_skill(handle, ign, ultimate_skill, initial_state=initial_state)
     return telecast(structure, ign, teleport_skill, ultimate_skill)
 
 

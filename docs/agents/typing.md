@@ -67,6 +67,38 @@ Strict List directory are left as-is. A dedicated bulk-fix effort, if ever
 wanted, is its own decision — not something a config-landing change should
 do incidentally.
 
+## Accepted exemptions
+
+The boy-scout rule says *fix, don't suppress*. The exception is a violation whose
+root cause is **outside the file you are touching and out of reach** — a
+third-party annotation that no value can satisfy, or a base class whose shape is
+the real problem. Those may be suppressed with a targeted
+`# pyright: ignore[<rule>]` — never a blanket `# type: ignore`, never a file-level
+suppression — carrying a comment that names the root cause and why it is out of
+reach. A `cast()` is not an alternative: it silences the checker while reading as
+if it asserted something true.
+
+Recorded exemptions, so the next person meets them as decisions rather than as
+someone's shortcut:
+
+- **`pathfinding.core.diagonal_movement.DiagonalMovement`** is a plain class with
+  `int` class attributes that annotates its own parameters as
+  `diagonal_movement: DiagonalMovement`. No value of that type exists, so *every*
+  caller is a `reportArgumentType` error. `pathfinding` is one of the four
+  permanently-unstubbed dependencies above, so there is no upstream fix.
+  `MinimapGrid.adjacent_nodes` keeps the type off its own interface by taking a
+  `bool` and doing the conversion internally, which reduces the exposure to the one
+  suppressed call inside that method.
+- **`MinimapNode.connect`** takes a required `connection_type` that
+  `GridNode.connect` does not — a deliberate incompatibility, since a connection
+  that does not say how it is traversed cannot be compiled into a movement. Giving
+  the parameter a default would satisfy Pyright by permitting exactly what the
+  signature exists to forbid.
+- **`MapleMinimap.map_area_width` / `map_area_height`** override plain `int` class
+  attributes on `Minimap` whose default is the `NotImplemented` sentinel, which the
+  base then tests for by `isinstance`. A property overriding a variable is an
+  incompatible override whatever it returns; the shape belongs to the base class.
+
 ## "Strongly typed"
 
 The standard new code is written to, and the bar the ratchet is walking the

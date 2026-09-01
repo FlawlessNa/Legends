@@ -15,14 +15,16 @@ import asyncio
 import functools
 import importlib
 import pickle
+from collections.abc import Iterator
 
 import pytest
+from pytest_mock import MockerFixture
 
 from botting.controller.inputs.focused_inputs import (
     KeyboardInputWrapper,
     compile_and_send,
 )
-from botting.controller.inputs.held_keys_ledger import HeldKeysLedger
+from botting.controller.inputs.held_keys_ledger import HeldKeysLedger, InputState
 from botting.controller.inputs.shared_resources import SharedResources
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
@@ -41,7 +43,7 @@ focused_inputs_module = importlib.import_module(
 
 
 @pytest.fixture(autouse=True)
-def reset_ledger():
+def reset_ledger() -> Iterator[None]:
     """The ledger is process-wide state, so every test starts and ends from empty."""
     HeldKeysLedger.reset()
     yield
@@ -55,7 +57,7 @@ def _sequence(*keys: str, delay: float = 0.0) -> KeyboardInputWrapper:
         list(keys),
         ["keydown"] * len(keys),
         [delay] * len(keys),
-        initial_held_keys=frozenset(),
+        initial_state=InputState(),
     )
 
 
@@ -65,10 +67,14 @@ class _DispatchScenario:
     what order things happened, optionally cancelling once N Steps are delivered.
     """
 
-    def __init__(self, compiler_result, cancel_after: int = None) -> None:
+    def __init__(
+        self,
+        compiler_result: KeyboardInputWrapper | None,
+        cancel_after: int | None = None,
+    ) -> None:
         self._result = compiler_result
         self.cancel_after = cancel_after
-        self.seen_held_keys = None
+        self.seen_state: InputState | None = None
         self.locked_during_compile = None
         self.trace: list[str] = []
         self.released: list[str] = []
@@ -76,31 +82,31 @@ class _DispatchScenario:
         self.sent_count = None
         self.lock_released = None
 
-    def _compile(self, initial_held_keys):
-        self.seen_held_keys = initial_held_keys
+    def _compile(self, initial_state: InputState | None) -> KeyboardInputWrapper | None:
+        self.seen_state = initial_state
         self.locked_during_compile = SharedResources.focus_lock.locked()
         self.trace.append("compile")
         return self._result
 
-    def run(self, mocker) -> "_DispatchScenario":
+    def run(self, mocker: MockerFixture) -> _DispatchScenario:
         asyncio.run(self._run(mocker))
         return self
 
-    async def _run(self, mocker) -> None:
+    async def _run(self, mocker: MockerFixture) -> None:
         reached = asyncio.Event()
 
-        async def _fake_activate(hwnd):
+        async def _fake_activate(hwnd: int) -> bool:
             self.trace.append("activate")
             await SharedResources.focus_lock.acquire()
             return True
 
-        def _fake_send(structure):
+        def _fake_send(structure: tuple) -> None:
             self.delivered += 1
             self.trace.append("send")
             if self.delivered == self.cancel_after:
                 reached.set()
 
-        def _fake_release(keys, hwnd):
+        def _fake_release(keys: list[str], hwnd: int) -> None:
             self.released.extend(keys)
 
         # A lock created inside this test's own event loop: the class-level one is
@@ -133,7 +139,9 @@ class _DispatchScenario:
 # --- dispatch-time compilation ------------------------------------------------
 
 
-def test_compiler_reads_the_ledger_entry_for_its_own_handle(mocker):
+def test_compiler_reads_the_ledger_entry_for_its_own_handle(
+    mocker: MockerFixture,
+) -> None:
     """
     The whole point of moving the compile: the held state it sees is this
     client's, at dispatch - not a system-wide `GetAsyncKeyState` sampled in some
@@ -143,12 +151,18 @@ def test_compiler_reads_the_ledger_entry_for_its_own_handle(mocker):
 
     scenario = _DispatchScenario(_sequence("up")).run(mocker)
 
-    # Only movement keys: that is what the `initial_held_keys` seam describes.
-    assert scenario.seen_held_keys == frozenset({"right"})
-    assert isinstance(scenario.seen_held_keys, frozenset)
+    # Only movement keys: that is what the seam's held set describes. The typematic
+    # owner is deliberately not narrowed - `a` was the last keydown, so `a` owns.
+    seen = scenario.seen_state
+    assert seen is not None
+    assert seen.held_keys == frozenset({"right"})
+    assert isinstance(seen.held_keys, frozenset)
+    assert seen.typematic_owner == "a"
 
 
-def test_compile_happens_inside_the_focus_lock_critical_section(mocker):
+def test_compile_happens_inside_the_focus_lock_critical_section(
+    mocker: MockerFixture,
+) -> None:
     """
     Load-bearing: compiling before the lock is taken re-opens the same
     compile->dispatch race the ledger was built to close (ADR 0002).
@@ -161,7 +175,9 @@ def test_compile_happens_inside_the_focus_lock_critical_section(mocker):
     assert scenario.lock_released
 
 
-def test_compiled_steps_are_streamed_and_recorded_in_the_ledger(mocker):
+def test_compiled_steps_are_streamed_and_recorded_in_the_ledger(
+    mocker: MockerFixture,
+) -> None:
     """
     The dispatch path feeds the same send loop, so the ledger still describes what
     was delivered.
@@ -176,7 +192,7 @@ def test_compiled_steps_are_streamed_and_recorded_in_the_ledger(mocker):
     assert HeldKeysLedger.keys_held(HANDLE) == frozenset({"right"})
 
 
-def test_a_plan_that_compiles_to_nothing_sends_nothing(mocker):
+def test_a_plan_that_compiles_to_nothing_sends_nothing(mocker: MockerFixture) -> None:
     """
     `compile_movements` returns None for a plan with no Steps in it. The old live
     path could only discover that by compiling in the Engine process first.
@@ -189,7 +205,9 @@ def test_a_plan_that_compiles_to_nothing_sends_nothing(mocker):
     assert scenario.lock_released
 
 
-def test_cancellation_of_a_dispatch_compiled_send_still_releases_directions(mocker):
+def test_cancellation_of_a_dispatch_compiled_send_still_releases_directions(
+    mocker: MockerFixture,
+) -> None:
     """
     Moving the compile inside `focused_inputs` puts it under the same cancellation
     handling as the send loop, so D2 keeps holding on the new path.
@@ -211,19 +229,22 @@ PLAN = (
 )
 
 
-def _compile(**kwargs):
-    return compile_movements(
-        frozenset(),
+def _compile(always_release: bool = False) -> KeyboardInputWrapper:
+    """Every case here compiles to something; a `None` would be the test's own bug."""
+    wrapper = compile_movements(
+        InputState(),
         movements=PLAN,
         handle=HANDLE,
         ign=IGN,
         speed=1.0,
         total_duration=0.3,
-        **kwargs,
+        always_release=always_release,
     )
+    assert wrapper is not None
+    return wrapper
 
 
-def test_a_truncated_sequence_carries_its_direction_key_by_default():
+def test_a_truncated_sequence_carries_its_direction_key_by_default() -> None:
     """
     The Continuation case: the next route cycle picks the walk back up, so the key
     is deliberately left down.
@@ -234,7 +255,7 @@ def test_a_truncated_sequence_carries_its_direction_key_by_default():
     assert "right" not in structure.forced_key_releases
 
 
-def test_always_release_declares_every_key_still_held():
+def test_always_release_declares_every_key_still_held() -> None:
     """
     `always_release` is the flag form of what `_always_release_keys_on_actions`
     used to do by post-processing a compiled Action in the Engine process. Mule
@@ -246,7 +267,7 @@ def test_always_release_declares_every_key_still_held():
     assert "right" in structure.forced_key_releases
 
 
-def test_the_compile_inputs_survive_a_pickle_round_trip():
+def test_the_compile_inputs_survive_a_pickle_round_trip() -> None:
     """
     The plan travels to Main Process inside an ActionRequest, over a
     `multiprocessing.Pipe`. A `MovementHandler` could not make that trip - its
@@ -266,4 +287,8 @@ def test_the_compile_inputs_survive_a_pickle_round_trip():
 
     revived = pickle.loads(pickle.dumps(compiler))
 
-    assert revived(frozenset()).keys == compiler(frozenset()).keys
+    from_revived = revived(InputState())
+    from_original = compiler(InputState())
+    assert from_revived is not None
+    assert from_original is not None
+    assert from_revived.keys == from_original.keys

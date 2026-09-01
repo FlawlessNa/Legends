@@ -11,7 +11,11 @@ import pytest
 from pathfinding.finder.dijkstra import DijkstraFinder
 
 from maple.model.mechanics.maple_map import MapleMap
-from maple.model.mechanics.minimap_creation.minimap_grid import MinimapGrid, MinimapNode
+from maple.model.mechanics.minimap_creation.minimap_grid import (
+    ConnectionTypes,
+    MinimapGrid,
+    MinimapNode,
+)
 
 # Walkable/unwalkable and three distinct weights, so a node that silently falls back
 # to `walkable=True, weight=0.0` cannot pass by coincidence.
@@ -123,3 +127,122 @@ def test_a_path_can_be_computed_offline() -> None:
 
     assert (path[0].x, path[0].y) == start
     assert (path[-1].x, path[-1].y) == end
+
+
+def test_replace_nodes_preserves_coordinates_and_grid_id() -> None:
+    """
+    `MinimapGrid._replace_nodes` swaps every base `GridNode` for a `MinimapNode`.
+    `MinimapNode` is a dataclass inheriting fields (h, g, f, opened, closed, parent,
+    retain_count, tested) from `Node` ahead of (x, y, walkable, weight, grid_id,
+    connections) from `GridNode`, so positional construction silently binds `x` into
+    `h`, `y` into `g`, etc., leaving `x`, `y` and `grid_id` at their dataclass
+    defaults (0, 0, None) instead of the values being copied.
+    """
+    canvas = np.ones((4, 5), dtype=np.uint8)
+    grid = MinimapGrid(canvas, speed=1.0, grid_id="TestMap")
+
+    node = grid.node(3, 2)
+
+    assert (node.x, node.y) == (3, 2)
+    assert node.grid_id == "TestMap"
+
+
+# --- The `neighbors` / `adjacent_nodes` split (issue #107) -------------------------
+#
+# `MinimapGrid.neighbors` used to override the base with a *different* fourth
+# parameter — `include_connections: bool = True` where the base declares
+# `include_non_walkables: bool = False`. Two consequences: `include_non_walkables`
+# was unreachable through a `MinimapGrid` at all, and any positional fourth argument
+# silently changed meaning across the override. The two flags answer different
+# questions, so they are now different methods: `neighbors` is the pathfinder's and
+# belongs to the base class untouched, `adjacent_nodes` is the geometric one.
+
+
+@pytest.fixture
+def open_grid() -> MinimapGrid:
+    """
+    5x5, fully walkable except (2, 1), which sits directly above the centre node the
+    assertions below are all written about.
+    """
+    canvas = np.ones((5, 5), dtype=np.uint8)
+    canvas[1, 2] = 0
+    return MinimapGrid(canvas, speed=1.0, grid_id="open_map")
+
+
+def test_include_non_walkables_is_reachable_through_a_minimap_grid(
+    open_grid: MinimapGrid,
+) -> None:
+    """
+    The ticket's headline defect. The override occupied slot 4 with a flag of its
+    own, so the base's `include_non_walkables` could not be reached by keyword *or*
+    at all: this call used to raise `TypeError`.
+    """
+    centre = open_grid.node(2, 2)
+
+    walkable_only = open_grid.neighbors(centre)
+    with_unwalkable = open_grid.neighbors(centre, include_non_walkables=True)
+
+    assert (2, 1) not in [(n.x, n.y) for n in walkable_only]
+    assert (2, 1) in [(n.x, n.y) for n in with_unwalkable]
+
+
+def test_neighbors_keeps_connections_and_adjacent_nodes_drops_them(
+    open_grid: MinimapGrid,
+) -> None:
+    """
+    The split itself. The pathfinder needs connections — they are edges in the search
+    graph. The four geometric call sites need them gone.
+    """
+    centre = open_grid.node(2, 2)
+    far = open_grid.node(4, 4)
+    centre.connect(far, ConnectionTypes.JUMP)
+
+    assert far in open_grid.neighbors(centre)
+    assert far not in open_grid.adjacent_nodes(centre)
+    assert far not in open_grid.adjacent_nodes(centre, diagonal=True)
+
+
+def test_adjacent_nodes_is_orthogonal_by_default(open_grid: MinimapGrid) -> None:
+    """
+    `path_into_movements` relies on the default: it asks whether the next Path node
+    touches the current one, and a diagonal step is *not* a walk. The old call site
+    got this from `neighbors`' own `DiagonalMovement.never` default, so widening it
+    here would silently reclassify diagonal steps.
+    """
+    adjacent = {(n.x, n.y) for n in open_grid.adjacent_nodes(open_grid.node(2, 2))}
+
+    assert adjacent == {(1, 2), (3, 2), (2, 3)}  # (2, 1) is unwalkable
+
+
+def test_adjacent_nodes_widens_to_eight_cells_when_diagonal(
+    open_grid: MinimapGrid,
+) -> None:
+    """
+    What `is_left_edge` and `is_right_edge` ask for: a node with a walkable cell
+    diagonally below-left is not a left edge.
+    """
+    adjacent = {
+        (n.x, n.y)
+        for n in open_grid.adjacent_nodes(open_grid.node(2, 2), diagonal=True)
+    }
+
+    assert adjacent == {
+        (1, 1),
+        (3, 1),
+        (1, 2),
+        (3, 2),
+        (1, 3),
+        (2, 3),
+        (3, 3),
+    }  # (2, 1) is unwalkable
+
+
+def test_edge_detection_survives_the_split(open_grid: MinimapGrid) -> None:
+    """
+    `is_left_edge` / `is_right_edge` moved from a three-argument `neighbors` call to
+    `adjacent_nodes(diagonal=True)`; the answers must not move with them.
+    """
+    assert open_grid.is_left_edge(open_grid.node(0, 2))
+    assert not open_grid.is_left_edge(open_grid.node(2, 2))
+    assert open_grid.is_right_edge(open_grid.node(4, 2))
+    assert not open_grid.is_right_edge(open_grid.node(2, 2))

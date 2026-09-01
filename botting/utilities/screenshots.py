@@ -70,8 +70,8 @@ def take_screenshot(
     #     )
     #     time.sleep(1)
 
-    img = np.fromstring(signed_integers_array, dtype="uint8")
-    img.shape = (height, width, 4)
+    img = np.frombuffer(signed_integers_array, dtype="uint8")
+    img = img.reshape((height, width, 4))
 
     img = img[:, :, :3]
     img = np.ascontiguousarray(img)

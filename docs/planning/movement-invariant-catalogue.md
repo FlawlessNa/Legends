@@ -12,10 +12,12 @@ D1, ...) — the ids are stable.
 
 For an Input Sequence `S` of Steps `s0..s(n-1)`:
 
-- `H0` — the keys held entering `S` (`initial_held_keys`, or the live query when absent).
+- `H0` — the keys held entering `S` (`initial_state.held_keys`, or the live query when absent).
 - `t(i)` — elapsed time at which Step `i` is sent: sum over `j < i` of `delays[j] + OVERHEAD`.
 - `down(i)` — the set of keys down immediately after Step `i`, accumulated from `H0`; `down(-1) = H0`.
 - **Hold** — `(key, t_down, t_up)`, half-open over `[t_down, t_up)`; `t_up` is the sequence end when the key is never released.
+- `T0` — the key holding **typematic ownership** entering `S`, or `None`; `own(-1) = T0`.
+- `own(i)` — the key holding typematic ownership immediately after Step `i`: the key of `i`'s keydown, or `None` if `i` carried any keyup.
 - `D(k)` — the Delivered Prefix ending at Step `k`: Steps `s0..s(k-1)` plus the forced-release volley.
 - Direction keys are `left`, `right`, `up`, `down`; every other key is non-directional.
 
@@ -35,6 +37,7 @@ Checked on every compiled Input Sequence.
 | **A4 Skill Key Closure** | Every Hold whose key is non-directional has `t_up` strictly before the sequence end | Invariant | holds — fixed by [#75](https://github.com/FlawlessNa/Legends/issues/75) |
 | **A5 Delays** | Every delay is finite and `>= 0` | Invariant | holds |
 | **A6 No Phantom Release** | For every keyup of key `k` at Step `i`: `k` is in `down(i-1)` | Invariant | holds — fixed by [#28](https://github.com/FlawlessNa/Legends/issues/28) |
+| **A7 Typematic Legality** | For every keydown of key `k` at Step `i`: if `k` is in `down(i-1)` the Step is a repeat and requires `own(i-1) == k`; otherwise it is a press and sets `own(i) = k` | Invariant | checkable — `T0` carried by [#109](https://github.com/FlawlessNa/Legends/issues/109); fails at three builders, fixed by [#99](https://github.com/FlawlessNa/Legends/issues/99) |
 
 **A6** is a humanization property as much as a correctness one: a human never
 releases a key they are not holding, and the pattern is machine-distinguishable.
@@ -43,6 +46,41 @@ because compile-time held-keys state was untrustworthy;
 [#24](https://github.com/FlawlessNa/Legends/issues/24) made that state
 authoritative and [#28](https://github.com/FlawlessNa/Legends/issues/28) removed
 the blind release, so opposites are now cleared off real held state alone.
+
+**A7 generalizes what A6 and [#84](https://github.com/FlawlessNa/Legends/issues/84)
+each found one instance of.** Spy++ on a live client settles the shape: pressing a
+key gives one keydown, a ~500ms pause, then repeats every ~33ms until it is
+released — but only while that key holds **typematic ownership**. A later keydown
+takes ownership, and its keyup ends repetition outright rather than returning it to
+a key still held. The character keeps moving from the still-held direction with no
+repeats at all, which is what makes the fill a *clock* rather than something the
+game needs: movement follows key state, not repeat messages.
+
+So a keydown for an already-held key is only producible by a human when that key
+owns typematic. Three builders emit runs that are not:
+
+| Site | Shape | Verdict |
+|---|---|---|
+| `move`, direction already held | fills with no preceding press | illegal — the **Continuation** case |
+| `teleport`, `repeat_key` branch | fills `repeat_key` after the teleport keyup | illegal, unconditionally |
+| `single_jump`, `repeat_key` branch | fills `repeat_key` after the jump keydown | illegal when `repeat_key` is already held — the "arrives at a rope holding `up`" shape |
+
+A fill is legal exactly when its own first Step is a genuine press, which is why
+`move` on a fresh direction and `teleport`'s skill-key fill are fine as they stand.
+
+A7 is decidable offline from `H0`, `T0` and the Steps, so it is an Invariant — and
+`T0` was the missing half. It is not derivable from held keys alone: `{right}` is
+equally consistent with "right was just pressed and owns typematic" and "right is a
+Continuation carry whose ownership a teleport took and dropped". Ownership is therefore
+cross-sequence state, which the Held-Keys Ledger now carries and hands to compilation as
+`InputState.typematic_owner`
+([#109](https://github.com/FlawlessNa/Legends/issues/109)) — closing the same shape of
+gap **B1** still has for want of Provenance. Within a sequence, `own(i)` is
+`KeyboardInputWrapper.get_typematic_owner` walking the Steps from `T0`, exactly as
+`down(i)` walks them from `H0`. The three builders in the table above still violate A7;
+[#99](https://github.com/FlawlessNa/Legends/issues/99) fixes them. The repeat *rate* is
+deliberately not part of A7: ~33ms is a measured constant, so it is an Expectation,
+tracked as **B6**.
 
 **A3 did not really hold before #28**, despite its status here. The
 opposite-key release that `append` inserts was going in at index `-1` — *ahead of* the last existing Step, which is
@@ -88,10 +126,11 @@ teleport region into paired down/up taps and never contributed to A4 anyway.
 | Id | Statement | Tier | Status |
 |---|---|---|---|
 | **B1 Truncation Integrity** | If `S` is truncated at Step `k`, `k` falls on a Movement Plan component boundary; the cut never lands inside a `JUMP*`, `TELEPORT*`, or `ENTER_PORTAL` component | Invariant | not yet checkable — mechanism decided by [#10](https://github.com/FlawlessNa/Legends/issues/10) |
-| **B2 Fill Bound** | For a walk component of length `L`, the elapsed compile budget spent on it is at least `L/grid.speed` and less than `L/grid.speed + max_delay + OVERHEAD` | Invariant | holds |
+| **B2 Fill Bound** | For a walk component of length `L`, the elapsed compile budget spent on it is at least `L/grid.speed` and less than `L/grid.speed + max_delay + OVERHEAD` | Invariant | holds — `max_delay` moves with [#99](https://github.com/FlawlessNa/Legends/issues/99), see below |
 | **B3 Distance Fidelity** | The character's actual displacement matches the component's intent within tolerance | Expectation | needs [#13](https://github.com/FlawlessNa/Legends/issues/13)/[#14](https://github.com/FlawlessNa/Legends/issues/14) |
 | **B4 Component Non-empty** | Every component up to the cut produced at least one Step, unless its direction was already held at component start | Expectation | holds |
 | **B5 Cast Window** | For a `cast_skill` component, the skill key is pressed at least once, and its keyup is *sent* strictly before the first skill keydown plus `animation_time` | Invariant | holds — fixed by [#98](https://github.com/FlawlessNa/Legends/issues/98) |
+| **B6 Repeat Cadence** | Consecutive repeats of the key holding typematic ownership are spaced at the client's measured repeat interval (~33ms wall-clock), and the first repeat follows its press by the typematic delay (~500ms) | Expectation | still fails, but the gap is now ~1ms rather than ~8.8ms — [#110](https://github.com/FlawlessNa/Legends/issues/110) raised the timer period; [#99](https://github.com/FlawlessNa/Legends/issues/99) lands the formula |
 
 **B1 requires data the Input Sequence does not carry.** A Step has no record of
 which Movement Plan component produced it; the compiler knows the boundary and
@@ -149,6 +188,19 @@ compiles to no skill Step has silently not cast the skill, which is **B4**'s con
 one level down. That also makes the keydown unconditional, so A4's keyup needs no
 guard here and A6 has no exposure to guard against.
 
+**Both B2 and B5 are stated in terms of `OVERHEAD`, and before
+[#110](https://github.com/FlawlessNa/Legends/issues/110) that constant did not
+describe anything.** It was measured by timing `asyncio.run(...)` once per iteration
+— event-loop *startup*, which the send loop pays once per Action rather than once per
+Step — and it was fitted as an additive per-Step cost against a reality that was
+quantized: Windows' default ~15.6ms timer period meant a requested 1ms sleep took
+~14.5ms and a requested 33ms sleep took ~42ms, so the excess *changed* with the
+request and no single constant fitted any of it. #110 raises the process' timer period
+to 1ms, after which the excess is ~1ms at every requested delay and the additive model
+is true rather than merely convenient. Every bound on this page that spends `OVERHEAD`
+— B2's `max_delay + OVERHEAD`, B5's `1.05 * DELAY + OVERHEAD` — was loose by ~10ms per
+Step until then, and `t(i)` at the top of this page with it.
+
 **B2 bounds the elapsed budget, not the Hold.** Release Steps inserted ahead of
 a component consume budget without extending the direction's Hold, so the two
 diverge. If that gap turns out to matter, it becomes its own entry.
@@ -160,7 +212,7 @@ resulting position.
 
 | Id | Statement | Tier | Status |
 |---|---|---|---|
-| **C1 Inherited State Agreement** | `N+1`'s `initial_held_keys` equals `down` at the end of `N`'s Delivered Prefix, minus the keys the forced-release volley fired on | Invariant | holds |
+| **C1 Inherited State Agreement** | `N+1`'s `initial_state.held_keys` equals `down` at the end of `N`'s Delivered Prefix, minus the keys the forced-release volley fired on | Invariant | holds |
 | **C2 Boundary Opposing Release** | If `N+1` presses a direction whose opposite is in its `H0`, a release Step for that opposite precedes the press | Invariant | holds — fixed by [#97](https://github.com/FlawlessNa/Legends/issues/97) |
 | **C3 No Inherited Stuck Key** | For every `k` in `H0` of `N+1`: either `k` is a direction `N+1`'s first component uses, or `N+1` contains a keyup of `k` | Invariant | holds — fixed by [#97](https://github.com/FlawlessNa/Legends/issues/97) |
 
@@ -181,7 +233,7 @@ A direction inherited and not re-pressed by the first component was therefore
 invisible for the rest of the compile: the end-of-sequence release never released it
 (C3), and `append` never cleared it as an opposite, so a later `left` keydown went in
 with `right` still down (C2, and both horizontals held at once — A3). #97 seeds the
-property from `initial_held_keys`, which is what `down(-1) = H0` says it always meant.
+property from `initial_state.held_keys`, which is what `down(-1) = H0` says it always meant.
 
 The carry C3 permits is unaffected: it happens on **truncation**, where the
 end-of-sequence release does not run at all.

@@ -1,20 +1,24 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import logging.config
 import logging.handlers
 import multiprocessing.connection
+from typing import TYPE_CHECKING, Self
 
-from typing import Self
+from botting.controller import HeldKeysLedger, release_all
+from botting.logging_config import PARENT_LOG, full_config, new_session_dir
+from botting.telemetry import TELEMETRY_FILENAME, TelemetryHandler
+from botting.utilities import install_loop_diagnostics
 
 from .async_task_manager import AsyncTaskManager
 from .bot import Bot
 from .engine import Engine
 from .peripherals_process import PeripheralsProcess
-from botting.communications import BaseParser
-from botting.controller import HeldKeysLedger, release_all
-from botting.logging_config import PARENT_LOG, full_config, new_session_dir
-from botting.telemetry import TELEMETRY_FILENAME, TelemetryHandler
-from botting.utilities import install_loop_diagnostics
+
+if TYPE_CHECKING:
+    from botting.communications import BaseParser
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +34,9 @@ class SessionManager:
     - TaskManager
     """
 
-    def __init__(self, discord_parser: type[BaseParser], *, debug: bool = False) -> None:
+    def __init__(
+        self, discord_parser: type[BaseParser], *, debug: bool = False
+    ) -> None:
         """
         Creates all necessary objects to start a new Session.
         :param discord_parser: A callable that parses discord message and returns
@@ -46,7 +52,7 @@ class SessionManager:
             # _monitor_proxy keeps skipping it.
             debug=debug,
         )
-        self.metadata["ignored_keys"] = set(self.metadata.keys()).union(  # noqa
+        self.metadata["ignored_keys"] = set(self.metadata.keys()).union(
             {"ignored_keys"}
         )
         self._debug = debug
@@ -56,9 +62,11 @@ class SessionManager:
                 self.metadata["logging_queue"], discord_parser
             )
         else:
-            from unittest.mock import Mock, AsyncMock
+            from unittest.mock import AsyncMock, Mock
+
             async def _wait_forever(*args, **kwargs):
                 await asyncio.Event().wait()
+
             self.peripherals = Mock()
             self.peripherals.peripherals_listener = AsyncMock(side_effect=_wait_forever)
 
@@ -78,9 +86,7 @@ class SessionManager:
         # attached below - the other order would discard the sink.
         logging.config.dictConfig(full_config(self.session_dir))
 
-        self.telemetry_handler = TelemetryHandler(
-            self.session_dir / TELEMETRY_FILENAME
-        )
+        self.telemetry_handler = TelemetryHandler(self.session_dir / TELEMETRY_FILENAME)
         logging.getLogger(PARENT_LOG).addHandler(self.telemetry_handler)
 
         self.log_receiver = logging.handlers.QueueListener(

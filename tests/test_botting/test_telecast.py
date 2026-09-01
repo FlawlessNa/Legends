@@ -11,7 +11,7 @@ skill key pressed inside a movement sequence has to keep satisfying (catalogue A
 D1).
 
 Nothing here sends real input: every sequence is compiled offline against an explicit
-`initial_held_keys`, and no handle refers to a real window.
+`initial_state`, and no handle refers to a real window.
 """
 
 import functools
@@ -25,6 +25,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from botting.controller.inputs.focused_inputs import EVENTS, KeyboardInputWrapper
+from botting.controller.inputs.held_keys_ledger import InputState
 from botting.controller.inputs.inputs_helpers import OVERHEAD
 from maple.actions.movements_v2 import telecast, telecast_compiler
 from maple.model.characters.maple_skills import MapleSkill
@@ -93,7 +94,7 @@ def _sequence(*steps: tuple[str, EVENTS], delay: float = 0.1) -> KeyboardInputWr
         keys,
         events,
         [delay] * len(steps),
-        initial_held_keys=frozenset(),
+        initial_state=InputState(),
     )
 
 
@@ -142,14 +143,17 @@ def _movement_compiler(
     )
 
 
+_NOTHING_HELD = InputState()
+
+
 def _telecast(
-    inner: Callable[[frozenset[str] | None], KeyboardInputWrapper | None],
-    initial_held_keys: frozenset[str] = frozenset(),
+    inner: Callable[[InputState | None], KeyboardInputWrapper | None],
+    initial_state: InputState = _NOTHING_HELD,
     correlation_id: str | None = None,
 ) -> KeyboardInputWrapper:
     """Every case here compiles to something; a `None` would be the test's own bug."""
     result = telecast_compiler(
-        initial_held_keys,
+        initial_state,
         movement_compiler=inner,
         handle=HANDLE,
         ign=IGN,
@@ -164,16 +168,16 @@ def _telecast(
 def _compiler_for(
     result: KeyboardInputWrapper | None,
 ) -> tuple[
-    Callable[[frozenset[str] | None], KeyboardInputWrapper | None],
-    list[frozenset[str] | None],
+    Callable[[InputState | None], KeyboardInputWrapper | None],
+    list[InputState | None],
 ]:
     """An inner compiler returning `result` and recording what it was handed."""
-    seen: list[frozenset[str] | None] = []
+    seen: list[InputState | None] = []
 
     def _compile(
-        initial_held_keys: frozenset[str] | None,
+        initial_state: InputState | None,
     ) -> KeyboardInputWrapper | None:
-        seen.append(initial_held_keys)
+        seen.append(initial_state)
         return result
 
     return _compile, seen
@@ -233,7 +237,7 @@ def test_an_explicit_teleport_release_is_absorbed_into_the_tap() -> None:
 def test_the_rebuild_releases_nothing_it_did_not_press() -> None:
     """A6 No Phantom Release, over the rebuilt sequence."""
     fused = telecast(
-        _movement_compiler(_TELEPORT_PLAN)(frozenset()),
+        _movement_compiler(_TELEPORT_PLAN)(InputState()),
         IGN,
         TELEPORT_SKILL,
         UNTRUNCATED_ULTIMATE,
@@ -297,7 +301,7 @@ def test_a_three_teleport_plan_presses_the_pair_three_times() -> None:
     animation instead, which is also exactly `num_times` presses because `teleport`
     budgets `animation_time * num_times`.
     """
-    sequence = _movement_compiler(_TELEPORT_PLAN)(frozenset())
+    sequence = _movement_compiler(_TELEPORT_PLAN)(InputState())
     assert sum(1 for keys in sequence.keys if keys == TELEPORT_KEY) > 20
 
     fused = telecast(sequence, IGN, TELEPORT_SKILL, UNTRUNCATED_ULTIMATE)
@@ -308,7 +312,7 @@ def test_a_three_teleport_plan_presses_the_pair_three_times() -> None:
 def test_the_pair_is_re_pressed_once_per_teleport_animation() -> None:
     """Spacing is the teleport's own `animation_time`, not the input cadence."""
     fused = telecast(
-        _movement_compiler(_TELEPORT_PLAN)(frozenset()),
+        _movement_compiler(_TELEPORT_PLAN)(InputState()),
         IGN,
         TELEPORT_SKILL,
         UNTRUNCATED_ULTIMATE,
@@ -332,7 +336,7 @@ def test_the_gap_between_taps_is_a_single_delay_step() -> None:
     previous tap's release.
     """
     fused = telecast(
-        _movement_compiler(_TELEPORT_PLAN)(frozenset()),
+        _movement_compiler(_TELEPORT_PLAN)(InputState()),
         IGN,
         TELEPORT_SKILL,
         UNTRUNCATED_ULTIMATE,
@@ -348,7 +352,7 @@ def test_the_gap_between_taps_is_a_single_delay_step() -> None:
 def test_the_direction_key_stays_down_across_the_gaps() -> None:
     """Only its *repeating* is gone; the character keeps walking into the blinks."""
     fused = telecast(
-        _movement_compiler(_TELEPORT_PLAN)(frozenset()),
+        _movement_compiler(_TELEPORT_PLAN)(InputState()),
         IGN,
         TELEPORT_SKILL,
         UNTRUNCATED_ULTIMATE,
@@ -368,7 +372,7 @@ def test_the_rebuild_spends_the_regions_own_duration() -> None:
     Input Sequence does not already carry - and the sequence it replaces keeps its
     length, which is what keeps the plan's distance intent intact.
     """
-    sequence = _movement_compiler(_TELEPORT_PLAN)(frozenset())
+    sequence = _movement_compiler(_TELEPORT_PLAN)(InputState())
     before = sequence.duration
 
     fused = telecast(sequence, IGN, TELEPORT_SKILL, UNTRUNCATED_ULTIMATE)
@@ -448,16 +452,18 @@ def test_the_fallback_record_names_the_branch_it_took(mocker: MockerFixture) -> 
     assert payload["reason"] == "no_teleport"
 
 
-def test_the_wrapper_hands_the_held_keys_to_the_inner_compiler() -> None:
+def test_the_wrapper_hands_the_start_state_to_the_inner_compiler() -> None:
     """
-    The seam's whole contract: held keys read from the ledger at dispatch have to
-    reach the compile that shapes the sequence around them.
+    The seam's whole contract: the state read from the ledger at dispatch - held keys
+    and typematic owner alike - has to reach the compile that shapes the sequence
+    around it.
     """
     inner, seen = _compiler_for(_teleport_sequence())
+    state = InputState(frozenset({"left"}), typematic_owner="left", owner_elapsed=0.1)
 
-    _telecast(inner, initial_held_keys=frozenset({"left"}))
+    _telecast(inner, initial_state=state)
 
-    assert seen == [frozenset({"left"})]
+    assert seen == [state]
 
 
 def test_the_fallback_cast_sees_the_same_held_keys() -> None:
@@ -469,7 +475,7 @@ def test_the_fallback_cast_sees_the_same_held_keys() -> None:
     """
     inner, _ = _compiler_for(None)
 
-    result = _telecast(inner, initial_held_keys=frozenset({"left"}))
+    result = _telecast(inner, initial_state=InputState(frozenset({"left"})))
 
     released = [
         key
@@ -506,13 +512,13 @@ def test_a_plan_holding_a_teleport_compiles_to_the_teleport_key() -> None:
     whether the Movement Plan holds a `TELEPORT_*` component. That substitution is
     only sound because the teleport key reaches a sequence through no other builder.
     """
-    sequence = _movement_compiler(_TELEPORT_PLAN)(frozenset())
+    sequence = _movement_compiler(_TELEPORT_PLAN)(InputState())
 
     assert any(keys == TELEPORT_KEY for keys in sequence.keys)
 
 
 def test_a_plan_without_a_teleport_never_carries_the_teleport_key() -> None:
-    sequence = _movement_compiler(_WALK_PLAN)(frozenset())
+    sequence = _movement_compiler(_WALK_PLAN)(InputState())
 
     assert all(keys != TELEPORT_KEY for keys in sequence.keys)
 

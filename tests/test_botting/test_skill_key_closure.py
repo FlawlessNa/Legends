@@ -21,7 +21,7 @@ window arithmetic that made an empty fill possible there is pinned in
 `test_cast_window.py`.
 
 Nothing here sends real input: every sequence is compiled against an explicit
-`initial_held_keys`, and no handle refers to a real window.
+`initial_state`, and no handle refers to a real window.
 """
 
 from collections.abc import Iterator
@@ -31,6 +31,7 @@ from functools import lru_cache
 import pytest
 
 from botting.controller.inputs.focused_inputs import KeyboardInputWrapper
+from botting.controller.inputs.held_keys_ledger import InputState
 from maple.actions import movements_v2
 from maple.actions.skills_related_v2 import cast_skill
 from maple.model.characters.maple_skills import MapleSkill
@@ -76,13 +77,18 @@ def _steps(wrapper: KeyboardInputWrapper) -> Iterator[tuple[str, str]]:
             yield keys, events
 
 
+def _h0(wrapper: KeyboardInputWrapper) -> frozenset[str]:
+    """The sequence's `H0`. `__post_init__` always resolves `initial_state`."""
+    return wrapper.initial_state.held_keys if wrapper.initial_state else frozenset()
+
+
 def _latched(wrapper: KeyboardInputWrapper) -> set[str]:
     """
     The non-directional keys still down at the sequence end - exactly the Holds A4
-    forbids. Accumulated from `initial_held_keys`, as the catalogue's `down(-1) = H0`
+    forbids. Accumulated from `initial_state.held_keys`, as the catalogue's `down(-1) = H0`
     requires.
     """
-    down = set(wrapper.initial_held_keys or ())
+    down = set(_h0(wrapper))
     for key, event in _steps(wrapper):
         if event == "keydown":
             down.add(key)
@@ -93,7 +99,7 @@ def _latched(wrapper: KeyboardInputWrapper) -> set[str]:
 
 def _held_at(wrapper: KeyboardInputWrapper, index: int) -> set[str]:
     """Every key down immediately after Step `index`."""
-    down = set(wrapper.initial_held_keys or ())
+    down = set(_h0(wrapper))
     for step, (keys, events) in enumerate(zip(wrapper.keys, wrapper.events)):
         pairs = zip(keys, events) if isinstance(keys, list) else [(keys, events)]
         for key, event in pairs:
@@ -110,7 +116,7 @@ def _compile(*components: _MovementComponent) -> KeyboardInputWrapper:
     """Compiles a Movement Plan against nothing held, terminated as the planner does."""
     plan = components + (_MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),)
     sequence = compile_movements(
-        frozenset(),
+        InputState(),
         movements=plan,
         handle=HANDLE,
         ign=IGN,
@@ -151,14 +157,14 @@ def test_teleport_does_not_hold_its_skill_key_into_the_following_component() -> 
 
 def test_cast_skill_releases_its_skill_key_within_the_sequence() -> None:
     """`cast_skill` had the identical hole; #75's body claimed teleport was alone."""
-    sequence = cast_skill(HANDLE, IGN, ULTIMATE, initial_held_keys=frozenset())
+    sequence = cast_skill(HANDLE, IGN, ULTIMATE, initial_state=InputState())
     assert _latched(sequence) == set()
 
 
 @pytest.mark.parametrize("direction", [None, "left", "right"])
 def test_cast_skill_closes_its_hold_for_every_direction(direction: str | None) -> None:
     sequence = cast_skill(
-        HANDLE, IGN, ULTIMATE, direction=direction, initial_held_keys=frozenset()
+        HANDLE, IGN, ULTIMATE, direction=direction, initial_state=InputState()
     )
     assert _latched(sequence) == set()
 
@@ -174,7 +180,7 @@ def test_a_window_too_short_to_fill_still_pairs_its_press_and_release() -> None:
     which closes both: the pair is matched, so A4 holds and A6 has no exposure here.
     """
     sequence = cast_skill(
-        HANDLE, IGN, INSTANT, direction="left", initial_held_keys=frozenset()
+        HANDLE, IGN, INSTANT, direction="left", initial_state=InputState()
     )
     pressed = [key for key, event in _steps(sequence) if event == "keydown"]
     released = [key for key, event in _steps(sequence) if event == "keyup"]
@@ -205,7 +211,7 @@ def test_the_repeat_key_shape_still_carries_up_into_the_climb() -> None:
         TELEPORT,
         num_times=2,
         repeat_key="up",
-        initial_held_keys=frozenset(),
+        initial_state=InputState(),
     )
     assert "up" in sequence.keys_held
     assert _latched(sequence) == set()

@@ -5,27 +5,27 @@ Low-level module that handles sending inputs to the focused window through SendI
 import asyncio
 import ctypes
 import logging
-import win32con
-
+from collections.abc import Callable, Generator, Sequence
 from ctypes import wintypes
-from dataclasses import dataclass, field
-from typing import Any, Callable, Literal, Generator, cast
+from dataclasses import dataclass, field, replace
+from typing import Any, Literal, cast
+
+import win32con
+from win32api import HIBYTE, GetAsyncKeyState, GetKeyState
 from win32com.client import Dispatch
-from win32api import HIBYTE, GetKeyState, GetAsyncKeyState
-from win32gui import SetForegroundWindow, GetForegroundWindow
+from win32gui import GetForegroundWindow, SetForegroundWindow
 
-from .held_keys_ledger import HeldKeysLedger, require_main_process
-from .shared_resources import SharedResources
-
+from .held_keys_ledger import HeldKeysLedger, InputState, require_main_process
 from .inputs_helpers import (
     _EXPORTED_FUNCTIONS,
-    _get_virtual_key,
-    _keyboard_layout_handle,
     EXTENDED_KEYS,
     MAPVK_VK_TO_VSC_EX,
     OVERHEAD,
-    random_delay
+    _get_virtual_key,
+    _keyboard_layout_handle,
+    random_delay,
 )
+from .shared_resources import SharedResources
 
 KEYEVENTF_EXTENDEDKEY = 0x0001
 KEYEVENTF_KEYUP = 0x0002
@@ -51,7 +51,15 @@ ULONG_PTR = ctypes.POINTER(ctypes.c_ulong)
 
 logger = logging.getLogger(__name__)
 
-EVENTS = Literal["keydown", "keyup", "click", "mousedown", "mouseup"]
+KeyboardEvent = Literal["keydown", "keyup"]
+MouseEvent = Literal["mousedown", "mouseup"]
+ClickEvent = Literal["click"]
+EVENTS = KeyboardEvent | MouseEvent | ClickEvent
+InputValue = str | tuple[int, int] | None
+InputEntry = InputValue | Sequence[InputValue]
+EventValue = EVENTS | None
+EventEntry = EventValue | Sequence[EventValue]
+SendInputStructure = tuple[wintypes.UINT, Any, wintypes.INT]
 OPPOSITES = {"up": "down", "down": "up", "left": "right", "right": "left"}
 
 
@@ -135,7 +143,7 @@ class KeyboardInputWrapper:
     )
     delays: list[float] = field(default_factory=list[float])
     forced_key_releases: list[str] = field(default_factory=list[str])
-    initial_held_keys: frozenset[str] | None = None
+    initial_state: InputState | None = None
 
     def __post_init__(self) -> None:
         """
@@ -143,21 +151,24 @@ class KeyboardInputWrapper:
         relevant window).
         If opposites keys to the ones desired are held, release them.
 
-        `initial_held_keys` overrides the Held-Keys Ledger read below, so
-        offline/deterministic compilation can supply the held state instead. Compiling
+        `initial_state` overrides the Held-Keys Ledger read below, so
+        offline/deterministic compilation can supply the start state instead. Compiling
         outside Main Process must supply it: no other process owns a ledger.
 
-        The resolved set is stored back onto the field, so `initial_held_keys` is a
-        frozenset for the rest of the instance's life and `keys_held` has an `H0` to
-        accumulate from. It also stops `truncate` re-reading the ledger for the copy.
+        It is one value object rather than a held set beside a typematic owner, because
+        a call site reading one half and forgetting the other is exactly issue #97 -
+        `H0` and `T0` are one question, asked once. The resolved state is stored back
+        onto the field, so it is an `InputState` for the rest of the instance's life,
+        `keys_held` has an `H0` to accumulate from and `typematic_owner` a `T0`. It also
+        stops `truncate` re-reading the ledger for the copy.
 
         `desired_keys` stays sequence-local - what these Steps want held, which is not
         the same question as what is already down.
         """
-        if self.initial_held_keys is None:
-            self.initial_held_keys = frozenset(get_held_movement_keys(self.handle))
+        if self.initial_state is None:
+            self.initial_state = get_input_state(self.handle)
         self._clear_opposites(
-            held_keys=set(self.initial_held_keys),
+            held_keys=set(self.initial_state.held_keys),
             desired_keys=self.get_held_movement_keys(self.keys, self.events),
         )
 
@@ -176,7 +187,7 @@ class KeyboardInputWrapper:
         no keyup targets a key that is not down.
         """
         to_release: list[str] = []
-        for key in filter(lambda k: k in ('left', 'right', 'up', 'down'), desired_keys):
+        for key in filter(lambda k: k in ("left", "right", "up", "down"), desired_keys):
             if OPPOSITES[key] in held_keys:
                 to_release.append(OPPOSITES[key])
 
@@ -203,23 +214,17 @@ class KeyboardInputWrapper:
         if current_key is not None:
             result.append(f"{current_key} {current_event} for {total_delay:.3f}s")
         return "\n".join(
-            result + [
-                f'Total Duration: {self.duration:.3f}s',
-                f'Forced Key Releases: {self.forced_key_releases}',
+            result
+            + [
+                f"Total Duration: {self.duration:.3f}s",
+                f"Forced Key Releases: {self.forced_key_releases}",
             ],
         )
 
     @property
-    def c_input(self) -> list[tuple[Any, ...]]:
-        # `list` is invariant: `list[str | list[str]]` is not assignable to
-        # `input_constructor`'s wider element type even though every element of it
-        # already satisfies that type. The casts are that variance gap, not a claim
-        # about the values.
-        inputs = cast(
-            "list[str | None | tuple[int, int] | list[str | None | tuple[int, int]]]",
-            self.keys,
-        )
-        events = cast("list[EVENTS | list[EVENTS] | None]", self.events)
+    def c_input(self) -> list[SendInputStructure]:
+        inputs = cast(Sequence[InputEntry], self.keys)
+        events = cast(Sequence[EventEntry], self.events)
         return input_constructor(self.handle, inputs, events)
 
     @property
@@ -253,7 +258,7 @@ class KeyboardInputWrapper:
         index: int,
         keys: str | list[str],
         events: EVENTS | list[EVENTS],
-        delay: float
+        delay: float,
     ) -> None:
         self.keys.insert(index, keys)
         self.events.insert(index, events)
@@ -284,8 +289,8 @@ class KeyboardInputWrapper:
         The keys down at the end of this sequence: `down(n-1)` in the invariant
         catalogue's terms.
 
-        Accumulates from `initial_held_keys` - the catalogue's `down(-1) = H0` - so a
-        key the Held-Keys Ledger reported at the sequence's start is reported here
+        Accumulates from `initial_state.held_keys` - the catalogue's `down(-1) = H0` -
+        so a key the Held-Keys Ledger reported at the sequence's start is reported here
         until a Step releases it. Walking from an empty set instead meant every
         builder after the first in a Movement Plan lost the inherited state
         (issue #97): `_resolve_held_keys` returns this property whenever a structure
@@ -293,7 +298,28 @@ class KeyboardInputWrapper:
         :return:
         """
         return self.get_held_movement_keys(
-            self.keys, self.events, initial=self.initial_held_keys
+            self.keys,
+            self.events,
+            initial=self.initial_state.held_keys if self.initial_state else None,
+        )
+
+    @property
+    def typematic_owner(self) -> str | None:
+        """
+        The key entitled to repeat at the end of this sequence: `own(n-1)` in the
+        invariant catalogue's terms, and the `T0` the next sequence inherits.
+
+        Seeded from `initial_state.typematic_owner` for the same reason `keys_held` is
+        seeded from `H0`: a builder chaining onto an existing structure asks this of the
+        structure rather than of the ledger, so a walk from `None` would lose the carry
+        at the second builder in a Movement Plan - issue #97's defect, in the other half
+        of the start state.
+        :return: The owning key, or None when nobody owns.
+        """
+        return self.get_typematic_owner(
+            self.keys,
+            self.events,
+            initial=self.initial_state.typematic_owner if self.initial_state else None,
         )
 
     @staticmethod
@@ -326,6 +352,40 @@ class KeyboardInputWrapper:
                 raise TypeError(f"Invalid key {key} or event {event}")
         return keys_down
 
+    @staticmethod
+    def get_typematic_owner(
+        keys: list[str | list[str]],
+        events: list[EVENTS | list[EVENTS]],
+        initial: str | None = None,
+    ) -> str | None:
+        """
+        Walks the Steps, tracking which key owns typematic, by the rule Spy++ settled on
+        a live client: a keydown claims ownership, a later keydown takes it, and any
+        keyup ends repetition outright rather than handing it back to a key still held.
+
+        Within a simultaneous batch the walk keeps Step order, so the last keydown owns
+        and a keyup anywhere in the batch drops ownership - the same order the game
+        sees, since `SendInput` delivers the batch as a single array.
+
+        :param initial: The key owning before the first Step - the sequence's `T0`.
+            Omitted, the walk starts from nobody owning.
+        :return: The key owning after the last Step, or None when nobody owns.
+        """
+        owner = initial
+        for key, event in zip(keys, events):
+            if isinstance(key, list) and isinstance(event, list):
+                pairs = list(zip(key, event))
+            elif isinstance(key, str) and isinstance(event, str):
+                pairs = [(key, event)]
+            else:
+                raise TypeError(f"Invalid key {key} or event {event}")
+            for k, e in pairs:
+                if e == "keydown":
+                    owner = k
+                elif e == "keyup":
+                    owner = None
+        return owner
+
     async def send(self) -> int:
         return await focused_inputs(
             self.handle,
@@ -340,7 +400,7 @@ class KeyboardInputWrapper:
         result = KeyboardInputWrapper(
             self.handle,
             forced_key_releases=self.forced_key_releases,
-            initial_held_keys=self.initial_held_keys,
+            initial_state=self.initial_state,
         )
         generator = zip(self.keys, self.events, self.delays)
         while result.duration < limit:
@@ -372,7 +432,7 @@ async def activate(hwnd: int) -> bool:
     return acquired
 
 
-def release_all(hwnd: int = None) -> None:
+def release_all(hwnd: int | None = None) -> None:
     """
     Releases every key the Held-Keys Ledger holds for the window, then clears its
     entry. This is one of the two reconciliation points against physical key state -
@@ -418,7 +478,7 @@ def _physically_held(hwnd: int) -> set[str]:
     }
 
 
-def release_directions(hwnd: int = None) -> None:
+def release_directions(hwnd: int | None = None) -> None:
     """
     Releases every direction key the Held-Keys Ledger holds for the window. Unlike
     `release_all` this is not a reconciliation point: it reads the ledger and sends
@@ -443,11 +503,11 @@ def release_directions(hwnd: int = None) -> None:
 
 def input_constructor(
     hwnd: int,
-    inputs: list[str | None | tuple[int, int] | list[str | None | tuple[int, int]]],
-    events: list[EVENTS | list[EVENTS] | None],
-    as_unicode: bool | list[bool] = False,
-    mouse_data: list[int | None] | None = None,
-) -> list[tuple[Any, ...]]:
+    inputs: Sequence[InputEntry],
+    events: Sequence[EventEntry],
+    as_unicode: bool = False,
+    mouse_data: int | None = None,
+) -> list[SendInputStructure]:
     """
     Constructs the input structures for the given inputs and events.
     These must be of the same length. When an item in inputs is a list, the
@@ -461,59 +521,98 @@ def input_constructor(
     :param mouse_data: TODO
     :return: Series of input structures to be sent to the active window with SendInput.
     """
-    structures = []
+    structures: list[SendInputStructure] = []
     for lst_inputs, lst_events in zip(inputs, events):
         if isinstance(lst_inputs, str):  # Keyboard input
+            assert isinstance(lst_events, str)
+            assert lst_events in {"keydown", "keyup"}
             HeldKeysLedger.note_sent(lst_inputs)
+            input_array_class = Input * 1
+            input_array = input_array_class(
+                _single_input_constructor(
+                    hwnd,
+                    lst_inputs,
+                    cast(KeyboardEvent, lst_events),
+                    as_unicode,
+                )
+            )
             structures.append(
                 (
                     wintypes.UINT(1),
-                    ctypes.POINTER(Input * 1)(
-                        _single_input_constructor(
-                            hwnd, lst_inputs, lst_events, as_unicode
-                        )
-                    ),
+                    ctypes.POINTER(input_array_class)(input_array),
                     wintypes.INT(ctypes.sizeof(Input)),
                 )
             )
         elif isinstance(lst_inputs, tuple) and lst_events is None:  # Mouse move input
+            x, y = cast(tuple[int, int], lst_inputs)
+            input_array_class = Input * 1
+            input_array = input_array_class(
+                _single_input_mouse_constructor(x, y, None, mouse_data)
+            )
             structures.append(
                 (
                     wintypes.UINT(1),
-                    ctypes.POINTER(Input * 1)(
-                        _single_input_mouse_constructor(
-                            *lst_inputs, lst_events, mouse_data
-                        )
-                    ),
+                    ctypes.POINTER(input_array_class)(input_array),
                     wintypes.INT(ctypes.sizeof(Input)),
                 )
             )
         elif lst_inputs is None:  # Click events
+            assert lst_events in {None, "mousedown", "mouseup", "click"}
+            input_array_class = Input * 1
+            input_array = input_array_class(
+                _single_input_mouse_constructor(
+                    None,
+                    None,
+                    cast(MouseEvent | ClickEvent | None, lst_events),
+                    mouse_data,
+                )
+            )
             structures.append(
                 (
                     wintypes.UINT(1),
-                    ctypes.POINTER(Input * 1)(
-                        _single_input_mouse_constructor(
-                            None, None, lst_events, mouse_data
-                        )
-                    ),
+                    ctypes.POINTER(input_array_class)(input_array),
                     wintypes.INT(ctypes.sizeof(Input)),
                 )
             )
 
-        # Multiple inputs
         elif isinstance(lst_inputs, list) and isinstance(lst_events, list):
             assert len(lst_inputs) == len(lst_events)
-            inputs = [
-                _single_input_constructor(hwnd, i, e, as_unicode)
-                for i, e in zip(lst_inputs, lst_events)
-            ]
-            for i in lst_inputs:
-                HeldKeysLedger.note_sent(i)
-            num_inputs = len(inputs)
+            built_inputs: list[Input] = []
+            for i, e in zip(lst_inputs, lst_events):
+                if isinstance(i, str):
+                    assert isinstance(e, str)
+                    assert e in {"keydown", "keyup"}
+                    built_inputs.append(
+                        _single_input_constructor(
+                            hwnd, i, cast(KeyboardEvent, e), as_unicode
+                        )
+                    )
+                    HeldKeysLedger.note_sent(i)
+                elif isinstance(i, tuple):
+                    assert e is None
+                    x, y = i
+                    built_inputs.append(
+                        _single_input_mouse_constructor(x, y, None, mouse_data)
+                    )
+                elif i is None:
+                    assert e in {None, "mousedown", "mouseup", "click"}
+                    built_inputs.append(
+                        _single_input_mouse_constructor(
+                            None,
+                            None,
+                            cast(MouseEvent | ClickEvent | None, e),
+                            mouse_data,
+                        )
+                    )
+                else:
+                    raise TypeError(f"Unsupported input item: {i!r}")
+
+            num_inputs = len(built_inputs)
             array_class = Input * num_inputs
             array_pointer = ctypes.POINTER(array_class)
-            input_array = array_class(*inputs)
+            input_array = array_class()
+            for index, value in enumerate(built_inputs):
+                input_array[index] = value
             structures.append(
                 (
                     wintypes.UINT(num_inputs),
@@ -527,12 +626,12 @@ def input_constructor(
 
 async def focused_inputs(
     hwnd: int,
-    inputs: list[tuple] = None,
-    delays: list[float] = None,
-    forced_key_releases: list[str] = None,
-    keys: list[str | list[str]] = None,
-    events: list[EVENTS | list[EVENTS]] = None,
-    compiler: Callable[[frozenset[str]], "KeyboardInputWrapper | None"] = None,
+    inputs: list[SendInputStructure] | None = None,
+    delays: list[float] | None = None,
+    forced_key_releases: list[str] | None = None,
+    keys: list[str | list[str]] | None = None,
+    events: list[EVENTS | list[EVENTS]] | None = None,
+    compiler: Callable[[InputState | None], KeyboardInputWrapper | None] | None = None,
 ) -> int:
     """
     Sends the inputs to the active window.
@@ -546,7 +645,8 @@ async def focused_inputs(
     :param events: The events each input structure carries, index-aligned with `inputs`.
     :param compiler: Dispatch-time compilation. When provided, the Input Sequence is
     built here - after focus is acquired, from the Held-Keys Ledger - instead of being
-    handed in pre-compiled. See `compile_and_send`.
+    handed in pre-compiled. It is called with the whole `InputState`: held keys and
+    typematic owner together. See `compile_and_send`.
     :return: Nbr of inputs successfully sent.
 
     Note:
@@ -579,7 +679,7 @@ async def focused_inputs(
         acquired = await activate(hwnd)
 
         if compiler is not None:
-            structure = compiler(frozenset(get_held_movement_keys(hwnd)))
+            structure = compiler(get_input_state(hwnd))
             if structure is None:
                 return res
             inputs = structure.c_input
@@ -587,6 +687,10 @@ async def focused_inputs(
             keys = structure.keys
             events = structure.events
             forced_key_releases = structure.forced_key_releases
+
+        # Either a `compiler` produced them just above, or the caller handed them in.
+        assert inputs is not None, "focused_inputs needs inputs or a compiler"
+        assert delays is not None, "focused_inputs needs delays or a compiler"
 
         for i in range(len(inputs)):
             _send_input(inputs[i])
@@ -596,12 +700,12 @@ async def focused_inputs(
             await asyncio.sleep(delays[i])
         return res
 
-    except asyncio.CancelledError as e:
+    except asyncio.CancelledError:
         cancelled = True
-        raise e
+        raise
 
-    except Exception as e:
-        raise e
+    except Exception:
+        raise
 
     finally:
         held = HeldKeysLedger.keys_held(hwnd)
@@ -616,19 +720,20 @@ async def focused_inputs(
 
 async def compile_and_send(
     hwnd: int,
-    compiler: Callable[[frozenset[str]], "KeyboardInputWrapper | None"],
+    compiler: Callable[[InputState | None], KeyboardInputWrapper | None],
 ) -> int:
     """
     The live path's entry point: an ActionRequest procedure that carries the plan
     rather than a compiled Input Sequence, and compiles it at dispatch.
 
     Acquire focus -> read the Held-Keys Ledger for `hwnd` -> compile through the
-    `initial_held_keys` seam -> stream the Steps, all inside one critical section.
+    `initial_state` seam -> stream the Steps, all inside one critical section.
     A DecisionMaker deciding in its own process cannot do the read: only Main Process
     owns a ledger, and by dispatch its snapshot would be stale anyway (see ADR 0002).
     :param hwnd: Handle to the client window the sequence targets.
-    :param compiler: Called with the movement keys the ledger holds for `hwnd`;
-    returns the Input Sequence to send, or None when there is nothing to send.
+    :param compiler: Called with the `InputState` the ledger reports for `hwnd` - the
+    movement keys held, the typematic owner, and how long it has owned; returns the
+    Input Sequence to send, or None when there is nothing to send.
     :return: Nbr of inputs successfully sent.
     """
     return await focused_inputs(hwnd, compiler=compiler)
@@ -646,17 +751,42 @@ def get_held_movement_keys(hwnd: int) -> list[str]:
     return [key for key in OPPOSITES if key in held]
 
 
-def _send_input(structure: tuple) -> None:
+def get_input_state(hwnd: int) -> InputState:
+    """
+    The compiler seam's start state, read from the Held-Keys Ledger: the movement keys
+    held for this client, the key that owns typematic, and how long it has owned.
+
+    `held_keys` is narrowed to movement keys, which is what the seam has always
+    described - held state shapes a movement's structure and no other key's does. The
+    owner is deliberately *not* narrowed: a teleport or skill key can own typematic, and
+    collapsing that into "nobody owns" would wrongly forbid `teleport`'s own skill-key
+    fill, which is legal precisely because its first Step is a genuine press.
+
+    Only Main Process owns a ledger, so a call from an Engine process reports nothing
+    held and nobody owning (and warns once) - live compilation must be fed this at
+    dispatch instead.
+    :param hwnd: Handle to the client window.
+    :return: The state to compile that client's next Input Sequence against.
+    """
+    state = HeldKeysLedger.input_state(hwnd)
+    return replace(
+        state, held_keys=frozenset(key for key in OPPOSITES if key in state.held_keys)
+    )
+
+
+def _send_input(structure: SendInputStructure) -> None:
     """
     Sends the input structure to the active window.
     :param structure: A single input structure.
     :return:
     """
     failure_count = 0
-    array_class = Input * structure[0].value
+    count = int(structure[0].value)
+    array_class = Input * count
     pointer = ctypes.POINTER(array_class)
-    _EXPORTED_FUNCTIONS["SendInput"].argtypes = [wintypes.UINT, pointer, wintypes.INT]
-    while _EXPORTED_FUNCTIONS["SendInput"](*structure) != structure[0].value:
+    send_input: Any = _EXPORTED_FUNCTIONS["SendInput"]
+    send_input.argtypes = [wintypes.UINT, pointer, wintypes.INT]
+    while send_input(*structure) != count:
         logger.error("Failed to send input %s", structure)
         failure_count += 1
         if failure_count > 10:
@@ -667,7 +797,7 @@ def _send_input(structure: tuple) -> None:
 def _single_input_constructor(
     hwnd: int,
     key: str,
-    event: Literal["keydown", "keyup"],
+    event: KeyboardEvent,
     as_unicode: bool = False,
 ) -> Input:
     """
@@ -678,14 +808,15 @@ def _single_input_constructor(
     :param as_unicode:
     :return:
     """
-    assert isinstance(key, str) and isinstance(event, str)
+    assert isinstance(key, str)
+    assert isinstance(event, str)
     assert event in ["keyup", "keydown"], f"Event type {event} is not supported"
     flags = KEYEVENTF_EXTENDEDKEY if key in EXTENDED_KEYS else 0
     vk_key = _get_virtual_key(key, False, _keyboard_layout_handle(hwnd))
     if as_unicode:
-        assert (
-            len(key) == 1
-        ), f"Key {key} must be a single character when as_unicode=True"
+        assert len(key) == 1, (
+            f"Key {key} must be a single character when as_unicode=True"
+        )
         scan_code = _get_virtual_key(key, True, _keyboard_layout_handle(hwnd))
         vk_key = 0
         flags |= KEYEVENTF_UNICODE
@@ -711,7 +842,7 @@ def _single_input_constructor(
 def _single_input_mouse_constructor(
     x: int | None,
     y: int | None,
-    event: Literal["mousedown", "mouseup"] | None,
+    event: MouseEvent | ClickEvent | None,
     mouse_data: int | None,
 ) -> Input:
     """
@@ -738,7 +869,7 @@ def _single_input_mouse_constructor(
         else:
             raise ValueError(f"Event {event} is not supported.")
 
-    assert flags != 0, f"Either x, y or event must be provided."
+    assert flags != 0, "Either x, y or event must be provided."
     mouse_input = MouseInputStruct(
         wintypes.LONG(x),
         wintypes.LONG(y),
@@ -765,7 +896,9 @@ def _remove_num_lock() -> None:
             _single_input_constructor(GetForegroundWindow(), "num_lock", "keyup"),
         ]
 
-        input_array = array_class(*_input)
+        input_array = array_class()
+        for index, value in enumerate(_input):
+            input_array[index] = value
         _send_input(
             (
                 wintypes.UINT(2),
@@ -778,7 +911,7 @@ def _remove_num_lock() -> None:
 _remove_num_lock()
 
 
-def release_keys(keys: list[str], handle: int = None) -> None:
+def release_keys(keys: list[str], handle: int | None = None) -> None:
     """
     Releases the given keys.
     :param keys: Keys to release.
@@ -789,8 +922,12 @@ def release_keys(keys: list[str], handle: int = None) -> None:
     if handle is None:
         handle = GetForegroundWindow()
     if keys:
-        events: list[Literal] = ["keyup"] * len(keys)
-        inputs = input_constructor(handle, [keys], [events])
+        events: list[Literal["keyup"]] = ["keyup"] * len(keys)
+        inputs = input_constructor(
+            handle,
+            [keys],
+            [events],
+        )
         if inputs:
             _send_input(inputs[0])
             HeldKeysLedger.record_step(handle, list(keys), events)

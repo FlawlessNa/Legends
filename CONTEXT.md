@@ -107,9 +107,11 @@ path.
 **Step**:
 One position in an Input Sequence: the key or keys sent simultaneously at that
 position, their events, and the delay waited afterwards. Keys sent together in
-one Step reach the game as a single batch.
-_Avoid_: Keystroke, frame — a Step may carry several keys, may be a release, and
-has no fixed duration.
+one Step reach the game as a single batch. The batch may be empty, in which case
+the Step sends nothing and only its delay elapses — how an Input Sequence
+expresses time passing while a key stays held.
+_Avoid_: Keystroke, frame — a Step may carry several keys, may carry none, may be
+a release, and has no fixed duration.
 
 **Hold**:
 The span during which one key stays down — from the Step that presses it to the
@@ -133,6 +135,15 @@ in" that live compilation reads. At most one client's entry is non-empty:
 the currently focused one.
 _Avoid_: held-keys state, keys sent — the historical set of every key ever
 sent answers a different question than what is down right now.
+
+**Typematic ownership**:
+The entitlement, held by at most one key at a time, to be the one Windows repeats
+while it stays down. A keydown claims it, a later keydown takes it away, and any
+keyup ends repetition outright rather than handing it back to a key still held.
+Carried across route-cycle boundaries beside the Held-Keys Ledger, because a set
+of held keys does not say which of them may legally repeat.
+_Avoid_: Auto-repeat, key repeat — those name the repeating itself, not which key
+is entitled to it.
 
 **Telecast**:
 A movement and a skill cast performed as one: the teleport and the ultimate are

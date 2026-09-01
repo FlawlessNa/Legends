@@ -2,7 +2,7 @@
 Tests for `KeyboardInputWrapper.keys_held` reporting inherited state (issue #97).
 
 The catalogue defines the held set as accumulating from `H0`: `down(-1) = H0`, where
-`H0` is the sequence's `initial_held_keys`. `keys_held` is meant to be `down(n-1)`,
+`H0` is the sequence's `initial_state.held_keys`. `keys_held` is meant to be `down(n-1)`,
 but it walked `self.keys`/`self.events` from an **empty** set, so every key the
 Held-Keys Ledger reported at the sequence's start was invisible to it.
 
@@ -21,7 +21,7 @@ entries the suite marks as holding did not:
   horizontal key to release before a precision-sensitive jump, and found nothing.
 
 Nothing here sends real input: every wrapper is built with an explicit
-`initial_held_keys`, so construction never reads the ledger.
+`initial_state`, so construction never reads the ledger.
 """
 
 from collections.abc import Iterator
@@ -29,6 +29,7 @@ from collections.abc import Iterator
 import pytest
 
 from botting.controller.inputs.focused_inputs import KeyboardInputWrapper
+from botting.controller.inputs.held_keys_ledger import InputState
 from maple.actions import movements_v2
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
@@ -58,7 +59,7 @@ def _compile(
 ) -> KeyboardInputWrapper:
     """`compile_movements` over the test's fixed handle/ign/speed, minus the `None`."""
     wrapper = compile_movements(
-        held,
+        InputState(held),
         movements=plan,
         handle=HANDLE,
         ign=IGN,
@@ -69,13 +70,18 @@ def _compile(
     return wrapper
 
 
+def _h0(wrapper: KeyboardInputWrapper) -> frozenset[str]:
+    """The sequence's `H0`. `__post_init__` always resolves `initial_state`."""
+    return wrapper.initial_state.held_keys if wrapper.initial_state else frozenset()
+
+
 def _down_at_end(wrapper: KeyboardInputWrapper) -> set[str]:
     """
     The keys genuinely down when the sequence ends, walked independently of the
     property under test and accumulated from `H0` as the catalogue's `down(-1) = H0`
     requires. This is what `keys_held` is supposed to return.
     """
-    down = set(wrapper.initial_held_keys or ())
+    down = set(_h0(wrapper))
     for key, event in _steps(wrapper):
         if event == "keydown":
             down.add(key)
@@ -86,7 +92,7 @@ def _down_at_end(wrapper: KeyboardInputWrapper) -> set[str]:
 
 def _phantom_releases(wrapper: KeyboardInputWrapper) -> list[str]:
     """A6: every keyup must target a key that is down. Guards the fix's blast radius."""
-    down = set(wrapper.initial_held_keys or ())
+    down = set(_h0(wrapper))
     phantoms = []
     for key, event in _steps(wrapper):
         if event == "keydown":
@@ -100,7 +106,7 @@ def _phantom_releases(wrapper: KeyboardInputWrapper) -> list[str]:
 
 def _both_horizontals_ever_down(wrapper: KeyboardInputWrapper) -> bool:
     """A3: no Hold of `left` may overlap a Hold of `right`."""
-    down = set(wrapper.initial_held_keys or ())
+    down = set(_h0(wrapper))
     for key, event in _steps(wrapper):
         if event == "keydown":
             down.add(key)
@@ -116,7 +122,9 @@ def _both_horizontals_ever_down(wrapper: KeyboardInputWrapper) -> bool:
 
 def test_keys_held_reports_an_inherited_key_no_step_touches() -> None:
     """The defect in one line: the ledger held `right` and the property said nothing."""
-    wrapper = KeyboardInputWrapper(HANDLE, initial_held_keys=frozenset({"right"}))
+    wrapper = KeyboardInputWrapper(
+        HANDLE, initial_state=InputState(frozenset({"right"}))
+    )
 
     assert wrapper.keys_held == {"right"}
 
@@ -124,7 +132,11 @@ def test_keys_held_reports_an_inherited_key_no_step_touches() -> None:
 def test_keys_held_reports_an_inherited_key_alongside_a_pressed_one() -> None:
     """The ticket's second line: pressing `shift` used to erase `right` from view."""
     wrapper = KeyboardInputWrapper(
-        HANDLE, ["shift"], ["keydown"], [0.0], initial_held_keys=frozenset({"right"})
+        HANDLE,
+        ["shift"],
+        ["keydown"],
+        [0.0],
+        initial_state=InputState(frozenset({"right"})),
     )
 
     assert wrapper.keys_held == {"right", "shift"}
@@ -136,7 +148,11 @@ def test_keys_held_drops_an_inherited_key_the_sequence_releases() -> None:
     key the sequence pressed itself. Without this the property would over-report.
     """
     wrapper = KeyboardInputWrapper(
-        HANDLE, ["right"], ["keyup"], [0.0], initial_held_keys=frozenset({"right"})
+        HANDLE,
+        ["right"],
+        ["keyup"],
+        [0.0],
+        initial_state=InputState(frozenset({"right"})),
     )
 
     assert wrapper.keys_held == set()
@@ -145,7 +161,7 @@ def test_keys_held_drops_an_inherited_key_the_sequence_releases() -> None:
 def test_keys_held_is_unchanged_when_nothing_is_inherited() -> None:
     """Regression guard: the empty-`H0` case is the one that always worked."""
     wrapper = KeyboardInputWrapper(
-        HANDLE, ["right"], ["keydown"], [0.0], initial_held_keys=frozenset()
+        HANDLE, ["right"], ["keydown"], [0.0], initial_state=InputState()
     )
 
     assert wrapper.keys_held == {"right"}
@@ -161,7 +177,7 @@ def test_truncate_carries_the_inherited_state_to_the_copy() -> None:
         ["up", "up"],
         ["keydown", "keydown"],
         [0.1, 0.1],
-        initial_held_keys=frozenset({"right"}),
+        initial_state=InputState(frozenset({"right"})),
     )
 
     assert wrapper.truncate(0.05).keys_held == {"right", "up"}
@@ -176,7 +192,11 @@ def test_a_later_builder_still_sees_the_inherited_direction() -> None:
     is every builder after the first. That is where the ledger's state was dropped.
     """
     structure = KeyboardInputWrapper(
-        HANDLE, ["up"], ["keydown"], [0.0], initial_held_keys=frozenset({"right"})
+        HANDLE,
+        ["up"],
+        ["keydown"],
+        [0.0],
+        initial_state=InputState(frozenset({"right"})),
     )
 
     assert movements_v2._resolve_held_keys(structure, HANDLE, None) == {"right", "up"}
@@ -188,12 +208,14 @@ def test_jump_on_rope_does_not_re_press_an_inherited_direction() -> None:
     `else` branch and pressed `right` again while `right` was already down.
     """
     structure = KeyboardInputWrapper(
-        HANDLE, ["up"], ["keydown"], [0.0], initial_held_keys=frozenset({"right"})
+        HANDLE,
+        ["up"],
+        ["keydown"],
+        [0.0],
+        initial_state=InputState(frozenset({"right"})),
     )
 
-    result = movements_v2.jump_on_rope(
-        HANDLE, "right", JUMP_KEY, structure=structure
-    )
+    result = movements_v2.jump_on_rope(HANDLE, "right", JUMP_KEY, structure=structure)
 
     presses = [key for key, event in _steps(result) if event == "keydown"]
     assert presses.count("right") == 0
@@ -257,12 +279,14 @@ def test_the_precision_pre_stop_finds_an_inherited_direction() -> None:
     here would be asserting that ticket's fix, not this one's.
     """
     structure = KeyboardInputWrapper(
-        HANDLE, ["up"], ["keydown"], [0.5], initial_held_keys=frozenset({"right"})
+        HANDLE,
+        ["up"],
+        ["keydown"],
+        [0.5],
+        initial_state=InputState(frozenset({"right"})),
     )
 
-    held_dir = next(
-        (k for k in structure.keys_held if k in ("left", "right")), None
-    )
+    held_dir = next((k for k in structure.keys_held if k in ("left", "right")), None)
     assert held_dir == "right"
 
 
@@ -286,7 +310,12 @@ def test_always_release_covers_an_inherited_direction() -> None:
 )
 @pytest.mark.parametrize(
     "held",
-    [frozenset(), frozenset({"left"}), frozenset({"right"}), frozenset({"up", "right"})],
+    [
+        frozenset(),
+        frozenset({"left"}),
+        frozenset({"right"}),
+        frozenset({"up", "right"}),
+    ],
 )
 def test_seeding_introduces_no_phantom_release(
     plan: tuple[_MovementComponent, ...], held: frozenset[str]

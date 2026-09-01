@@ -4,38 +4,43 @@ Low-level module that handles sending inputs to any window through PostMessage()
 
 import asyncio
 import logging
+from ctypes import wintypes
+from typing import TypedDict, Unpack
+
 import win32con
 
-from ctypes import wintypes
-
 from .inputs_helpers import (
-    EXTENDED_KEYS,
     _EXPORTED_FUNCTIONS,
+    EXTENDED_KEYS,
+    MAPVK_VK_TO_VSC_EX,
     _get_virtual_key,
     _keyboard_layout_handle,
-    MAPVK_VK_TO_VSC_EX,
 )
 
 SYS_KEYS = ["alt", "alt_right", "F10"]
 logger = logging.getLogger(__name__)
 
+PostMessageTuple = tuple[wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+
+
+class LowParamKwargs(TypedDict, total=False):
+    scan_code: int | None
+    repeat_count: int
+    previous_key_state: int | None
+    context_code: int | None
+
 
 async def non_focused_input(
-    messages: list[
-        tuple[wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
-    ],
+    messages: list[PostMessageTuple],
     delays: list[float],
 ) -> None:
-    try:
-        for i in range(len(messages)):
-            _post_message(messages[i])
-            await asyncio.sleep(delays[i])
-    except Exception as e:
-        raise e
+    for i, msg in enumerate(messages):
+        _post_message(msg)
+        await asyncio.sleep(delays[i])
 
 
 def _post_message(
-    msg: tuple[wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    msg: PostMessageTuple,
 ) -> None:
     failure_count = 0
     while not _EXPORTED_FUNCTIONS["PostMessageW"](*msg):
@@ -52,8 +57,8 @@ def message_constructor(
     hwnd: int,
     keys: list[str],
     messages: list[wintypes.UINT],
-    **kwargs,
-) -> list[tuple[wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]]:
+    **kwargs: Unpack[LowParamKwargs],
+) -> list[PostMessageTuple]:
     """
     Constructs the input array that will be sent to the window through PostMessage().
     :param hwnd: Handle to the window to send the message to.
@@ -65,24 +70,25 @@ def message_constructor(
     :return: list[tuples].
      Each tuple contains all necessary argument to be passed to PostMessage.
     """
-    return_val = list()
-    assert isinstance(keys, list) and isinstance(
-        messages, list
-    ), f"Keys and messages must be lists."
-    assert len(keys) == len(
-        messages
-    ), f"Msg and keys must have the same length when they are provided as lists."
+    return_val: list[
+        tuple[wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    ] = []
+    assert isinstance(keys, list), "Keys must be a list."
+    assert isinstance(messages, list), "Messages must be a list."
+    assert len(keys) == len(messages), (
+        "Msg and keys must have the same length when they are provided as lists."
+    )
     for key, msg in zip(keys, messages):
-        return_val.append(_single_message_constructor(hwnd, key, msg, **kwargs))
+        return_val.append(_single_message_constructor(hwnd, key, int(msg), **kwargs))
     return return_val
 
 
 def _single_message_constructor(
     hwnd: int,
     key: str,
-    message: wintypes.UINT,
-    **kwargs,
-) -> tuple[wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]:
+    message: int,
+    **kwargs: Unpack[LowParamKwargs],
+) -> PostMessageTuple:
     """
     Constructs the appropriate inputs that will be sent to the window associated with the
      provided handle through PostMessage(...).
@@ -105,7 +111,7 @@ def _single_message_constructor(
     extended_key = int(key in EXTENDED_KEYS)
     vk_key = _get_virtual_key(
         key,
-        True if message == win32con.WM_CHAR else False,
+        message == win32con.WM_CHAR,
         _keyboard_layout_handle(hwnd),
     )
     l_params = _low_param_constructor(
@@ -157,8 +163,10 @@ def _low_param_constructor(
     assert repeat_count < 2**16
 
     if scan_code is None:
-        scan_code = _EXPORTED_FUNCTIONS["MapVirtualKeyExW"](
-            key, MAPVK_VK_TO_VSC_EX, _keyboard_layout_handle(hwnd)
+        scan_code = int(
+            _EXPORTED_FUNCTIONS["MapVirtualKeyExW"](
+                key, MAPVK_VK_TO_VSC_EX, _keyboard_layout_handle(hwnd)
+            )
         )
 
     # Handle the context code and correct command code if necessary
