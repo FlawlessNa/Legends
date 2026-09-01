@@ -1,10 +1,9 @@
 import math
-import numpy as np
 from dataclasses import dataclass, field
 from enum import IntEnum
 from functools import cached_property
-from typing import List
 
+import numpy as np
 from pathfinding.core.diagonal_movement import DiagonalMovement
 from pathfinding.core.grid import Grid
 from pathfinding.core.node import GridNode
@@ -14,6 +13,7 @@ class ConnectionTypes(IntEnum):
     """
     Enum to hold the different types of connections nodes.
     """
+
     JUMP_DOWN = 1
     JUMP_LEFT = 2
     JUMP_RIGHT = 3
@@ -39,6 +39,7 @@ class MinimapNode(GridNode):
     Wrapper around GridNode that retains the type of connections with each node this
     one is connected to.
     """
+
     connections: list = field(default_factory=list)
     connections_types: list[ConnectionTypes] = field(default_factory=list, init=False)
     grid_hash: int = field(default=None)
@@ -51,7 +52,7 @@ class MinimapNode(GridNode):
         """
         return hash((self.x, self.y, self.walkable, self.weight, self.grid_hash))
 
-    def __eq__(self, other: "MinimapNode") -> bool:
+    def __eq__(self, other: MinimapNode) -> bool:
         return isinstance(other, MinimapNode) and (
             self.x == other.x
             and self.y == other.y
@@ -61,9 +62,7 @@ class MinimapNode(GridNode):
         )
 
     # noinspection PyMethodOverriding
-    def connect(
-        self, other: "MinimapNode", connection_type: ConnectionTypes
-    ) -> None:  # noqa
+    def connect(self, other: MinimapNode, connection_type: ConnectionTypes) -> None:
         """
         Creates connection with another node, and retains the connection type.
         """
@@ -75,9 +74,7 @@ class MinimapNode(GridNode):
             (conn.x, conn.y, ConnectionTypes(conn_type).name)
             for conn, conn_type in zip(self.connections, self.connections_types)
         ]
-        conn_str = [
-            f"({x=}, {y=}, {conn_type=})" for x, y, conn_type in conn_list
-        ]
+        conn_str = [f"({x=}, {y=}, {conn_type=})" for x, y, conn_type in conn_list]
         return (
             f"MinimapNode(x={self.x}, y={self.y}, walkable={self.walkable}, "
             f"weight={self.weight}, grid_id={self.grid_id}, "
@@ -87,7 +84,7 @@ class MinimapNode(GridNode):
     def __repr__(self) -> str:
         return str(self)
 
-    def get_connection_type(self, other: "MinimapNode") -> ConnectionTypes:
+    def get_connection_type(self, other: MinimapNode) -> ConnectionTypes:
         """
         Returns the connection type between this node and the other.
         """
@@ -98,7 +95,8 @@ class MinimapNode(GridNode):
             # Check that the two types of connections are JUMP and corresponding TELEPORT
             # If so, retain the TELEPORT.
             connections = [
-                type_ for conn, type_ in zip(self.connections, self.connections_types)
+                type_
+                for conn, type_ in zip(self.connections, self.connections_types)
                 if conn == other
             ]
             if (
@@ -121,6 +119,7 @@ class MinimapGrid(Grid):
     """
     Wrapper around Grid that replaces all GridNodes with MinimapNodes.
     """
+
     ALL_DIAGONAL_NEIGHBORS = 1
     NO_DIAGONAL_NEIGHBORS = 2
 
@@ -181,20 +180,21 @@ class MinimapGrid(Grid):
         for y, row in enumerate(self.nodes):
             for x, node in enumerate(row):
                 self.nodes[y][x] = MinimapNode(
-                    node.x,
-                    node.y,
-                    node.walkable,
-                    node.weight,
-                    node.grid_id,
-                    node.connections or list(),
-                    grid_hash=hash(self)
+                    x=node.x,
+                    y=node.y,
+                    walkable=node.walkable,
+                    weight=node.weight,
+                    grid_id=node.grid_id,
+                    connections=node.connections or list(),
+                    grid_hash=hash(self),
                 )
 
     def neighbors(
-        self, node: GridNode,
+        self,
+        node: GridNode,
         diagonal_movement: DiagonalMovement = DiagonalMovement.never,
-        include_connections: bool = True
-    ) -> List[MinimapNode]:
+        include_connections: bool = True,
+    ) -> list[MinimapNode]:
         """
         Overwrites signature to return a list of MinimapNodes.
         Allows to exclude connections from the neighbors.
@@ -203,16 +203,21 @@ class MinimapGrid(Grid):
         if not include_connections and node.connections:
             exclude = {id(c) for c in node.connections}
             neighbors = [n for n in neighbors if id(n) not in exclude]
-        return neighbors  # noqa
+        return neighbors
 
-    def calc_cost(self, node_a: MinimapNode, node_b: MinimapNode, weighted=True) -> float:
+    def calc_cost(
+        self, node_a: MinimapNode, node_b: MinimapNode, weighted=True
+    ) -> float:
         """
         Returns the cost of moving from node_a to node_b.
         """
         ng = super().calc_cost(node_a, node_b, False)
         if node_b in node_a.connections:
             connection_type = node_a.get_connection_type(node_b)
-            if connection_type in (ConnectionTypes.JUMP_RIGHT, ConnectionTypes.JUMP_LEFT):
+            if connection_type in (
+                ConnectionTypes.JUMP_RIGHT,
+                ConnectionTypes.JUMP_LEFT,
+            ):
                 dist = abs(node_a.x - node_b.x)
             else:
                 dist = math.dist((node_a.x, node_a.y), (node_b.x, node_b.y))
@@ -227,16 +232,16 @@ class MinimapGrid(Grid):
     def is_left_edge(self, node: MinimapNode) -> bool:
         neighbors = self.neighbors(
             node,
-            diagonal_movement=self.ALL_DIAGONAL_NEIGHBORS,  # noqa
-            include_connections=False
+            diagonal_movement=self.ALL_DIAGONAL_NEIGHBORS,
+            include_connections=False,
         )
         return not any(n.x < node.x for n in neighbors)
 
     def is_right_edge(self, node: MinimapNode) -> bool:
         neighbors = self.neighbors(
             node,
-            diagonal_movement=self.ALL_DIAGONAL_NEIGHBORS,  # noqa
-            include_connections=False
+            diagonal_movement=self.ALL_DIAGONAL_NEIGHBORS,
+            include_connections=False,
         )
         return not any(n.x > node.x for n in neighbors)
 
@@ -244,5 +249,7 @@ class MinimapGrid(Grid):
     def has_portals(self) -> bool:
         return any(
             ConnectionTypes(conn) == ConnectionTypes.IN_MAP_PORTAL
-            for row in self.nodes for node in row for conn in node.connections_types
+            for row in self.nodes
+            for node in row
+            for conn in node.connections_types
         )

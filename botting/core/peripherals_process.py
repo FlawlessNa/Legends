@@ -1,12 +1,18 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import multiprocessing.connection
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+from botting.communications import DiscordIO
 from botting.screen_recorder import Recorder
-from botting.communications import DiscordIO, BaseParser
 from botting.utilities import install_loop_diagnostics, setup_child_proc_logging
 
 from .action_data import ActionRequest
+
+if TYPE_CHECKING:
+    from botting.communications import BaseParser
 
 logger = logging.getLogger(__name__)
 
