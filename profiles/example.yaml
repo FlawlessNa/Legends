@@ -68,7 +68,7 @@ settings:
 
   # -- Failsafes ------------------------------------------------------------
   # Warn over Discord when fewer than `threshold` mobs have spawned for
-  # `timer` seconds -- usually means the bot is stuck or the map got taken.
+  # `timer` seconds -- an anti-detection measure.
   mob_spawn_alert_timer: 15
   mob_spawn_alert_threshold: 4
 
