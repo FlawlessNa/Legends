@@ -9,7 +9,13 @@ import numpy as np
 from pathfinding.finder.dijkstra import DijkstraFinder
 
 from botting import PARENT_LOG
-from botting.controller import EVENTS, InputState, KeyboardInputWrapper, key_binds
+from botting.controller import (
+    EVENTS,
+    NO_COMPONENT,
+    InputState,
+    KeyboardInputWrapper,
+    key_binds,
+)
 from maple.actions import movements_v2
 from maple.model.characters.maple_skills import MapleSkill
 
@@ -125,7 +131,17 @@ def compile_movements(
     :return: The Input Sequence, or None when the plan compiles to nothing.
     """
     structure = None
-    for move, upcoming_move in pairwise(movements):
+    for origin, (move, upcoming_move) in enumerate(pairwise(movements)):
+        # Provenance: every Step the builders below emit belongs to component `origin`.
+        # The cursor moves here, ahead of the build, because a builder appends and
+        # inserts as it goes and the wrapper stamps each Step as it lands - no
+        # after-the-fact tail-fill, which an `insert` in the middle of a component
+        # would misalign. The first component is the exception: its builder
+        # *constructs* the wrapper, so there is no object to set the cursor on until it
+        # returns, and its Steps are stamped `NO_COMPONENT` by default. `attribute`
+        # below claims them.
+        if structure is not None:
+            structure.current_origin = origin
         move_type, move_length = move.movement_type, move.length
         duration = move_length / speed
         match move_type:
@@ -276,6 +292,8 @@ def compile_movements(
             case _:
                 raise NotImplementedError(f"Unhandled movement type {move_type!r}")
 
+        structure.attribute(origin)
+
         # Else just consider current move and disregard previous.
         if total_duration is not None and structure.duration >= total_duration:
             structure = structure.truncate(total_duration)
@@ -321,6 +339,11 @@ def compile_movements(
             ]
             if keys:
                 events: list[EVENTS] = ["keyup"] * len(keys)
+                # No component produced this release - it closes the sequence, not a
+                # gesture - so it carries the sentinel rather than inheriting the last
+                # component the cursor named. Same reasoning as the precision pre-stop,
+                # whose cursor `truncate` resets for it.
+                structure.current_origin = NO_COMPONENT
                 structure.append(keys, events, 0)
 
     if always_release and structure is not None:

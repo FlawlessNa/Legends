@@ -467,6 +467,10 @@ def telecast(
     its up still does, and the forced volley only fires for keys the Held-Keys Ledger
     reports down, so declaring it stays free.
 
+    Provenance survives the rebuild: copied Steps keep theirs, and the taps replacing a
+    region take the region's, so the result still answers **B1** even though its Steps
+    are not the ones `compile_movements` emitted.
+
     :param structure: A compiled Input Sequence carrying at least one teleport keydown.
     :param ign: The character's in-game name, used to resolve both key binds.
     :param teleport_skill: The teleport being cast through; its `animation_time` is the
@@ -488,6 +492,14 @@ def telecast(
     idx = 0
     while idx < len(structure.keys):
         stop = regions.get(idx)
+        # Provenance rides along: a copied Step keeps the component that produced it,
+        # and the taps replacing a region take the component of the region's first
+        # Step. The rebuild emits its own Steps, so it owns their Provenance - nothing
+        # upstream can supply it. A region spanning consecutive teleport components
+        # collapses onto the first of them, which is as fine a boundary as the rebuild
+        # leaves: the taps are no longer in one-to-one correspondence with the Steps
+        # they replace.
+        result.current_origin = structure.origins[idx]
         if stop is None:
             result.append(
                 structure.keys[idx], structure.events[idx], structure.delays[idx]

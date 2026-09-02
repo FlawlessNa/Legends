@@ -9,6 +9,7 @@ from .high_level import (
 )
 from .inputs.focused_inputs import (
     EVENTS,
+    NO_COMPONENT,
     OPPOSITES,
     KeyboardInputWrapper,
     compile_and_send,
@@ -41,6 +42,7 @@ __all__ = [
     "DELAY",
     "EVENTS",
     "KEYBOARD_MAPPING",
+    "NO_COMPONENT",
     "OPPOSITES",
     "OVERHEAD",
     "TYPEMATIC_DELAY",

@@ -570,3 +570,29 @@ def test_the_fused_plan_leaves_no_undeclared_skill_key_down_at_any_cancel_point(
         )
         undeclared = {key for key in down - declared if key not in DIRECTIONS}
         assert not undeclared
+
+
+def test_the_rebuild_carries_provenance_through_to_the_fused_sequence() -> None:
+    """
+    Provenance (#102) survives telecast. The rebuild emits Steps that
+    `compile_movements` never produced, so nothing upstream can supply their origin:
+    the taps take the component of the region's first Step, and copied Steps keep
+    their own. Without it a fused sequence would answer **B1** with an empty
+    `origins`, which is a worse answer than no answer - it reads as "no component
+    produced any of this".
+    """
+    # `UNTRUNCATED_ULTIMATE` so the cut does not fall inside the walk and take every
+    # tap with it - the walk alone runs 5s at this speed.
+    fused = telecast(
+        _movement_compiler(_WALK_THEN_TELEPORT_PLAN)(InputState()),
+        IGN,
+        TELEPORT_SKILL,
+        UNTRUNCATED_ULTIMATE,
+    )
+
+    assert len(fused.origins) == len(fused.keys)
+    # The walk is component 0 and the teleport component 1, so every tap the rebuild
+    # emitted has to name the teleport - and the Steps ahead of it the walk.
+    tap_origins = {fused.origins[idx] for idx in _tap_indices(fused)}
+    assert tap_origins == {1}
+    assert fused.origins[0] == 0

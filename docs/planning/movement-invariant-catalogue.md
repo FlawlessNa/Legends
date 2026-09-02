@@ -85,7 +85,8 @@ Continuation carry whose ownership a teleport took and dropped". Ownership is th
 cross-sequence state, which the Held-Keys Ledger now carries and hands to compilation as
 `InputState.typematic_owner`
 ([#109](https://github.com/FlawlessNa/Legends/issues/109)) — closing the same shape of
-gap **B1** still has for want of Provenance. Within a sequence, `own(i)` is
+gap **B1** had for want of Provenance, which
+[#102](https://github.com/FlawlessNa/Legends/issues/102) has since closed in turn. Within a sequence, `own(i)` is
 `KeyboardInputWrapper.get_typematic_owner` walking the Steps from `T0`, exactly as
 `down(i)` walks them from `H0`. The three builders in the table above still violate A7;
 [#99](https://github.com/FlawlessNa/Legends/issues/99) fixes them. The repeat *rate* is
@@ -135,21 +136,20 @@ teleport region into paired down/up taps and never contributed to A4 anyway.
 
 | Id | Statement | Tier | Status |
 |---|---|---|---|
-| **B1 Truncation Integrity** | If `S` is truncated at Step `k`, `k` falls on a Movement Plan component boundary; the cut never lands inside a `JUMP*`, `TELEPORT*`, or `ENTER_PORTAL` component | Invariant | not yet checkable — mechanism decided by [#10](https://github.com/FlawlessNa/Legends/issues/10) |
+| **B1 Truncation Integrity** | If `S` is truncated at Step `k`, `k` falls on a Movement Plan component boundary; the cut never lands inside a `JUMP*`, `TELEPORT*`, or `ENTER_PORTAL` component | Invariant | **checkable, and does not hold** — Provenance landed by [#102](https://github.com/FlawlessNa/Legends/issues/102); a cut mid-jump is now demonstrable, see below |
 | **B2 Fill Bound** | For a walk component of length `L`, the elapsed compile budget spent on it is at least `L/grid.speed` and less than `L/grid.speed + max_delay + OVERHEAD` | Invariant | holds — `max_delay` moves with [#99](https://github.com/FlawlessNa/Legends/issues/99), see below |
 | **B3 Distance Fidelity** | The character's actual displacement matches the component's intent within tolerance | Expectation | needs [#13](https://github.com/FlawlessNa/Legends/issues/13)/[#14](https://github.com/FlawlessNa/Legends/issues/14) |
 | **B4 Component Non-empty** | Every component up to the cut produced at least one Step, unless its direction was already held at component start | Expectation | holds |
 | **B5 Cast Window** | For a `cast_skill` component, the skill key is pressed at least once, and its keyup is *sent* strictly before the first skill keydown plus `animation_time` | Invariant | holds — fixed by [#98](https://github.com/FlawlessNa/Legends/issues/98) |
 | **B6 Repeat Cadence** | Consecutive repeats of the key holding typematic ownership are spaced at the client's measured repeat interval (~33ms wall-clock), and the first repeat follows its press by the typematic delay (~500ms) | Expectation | spacing holds — [#110](https://github.com/FlawlessNa/Legends/issues/110) raised the timer period and [#99](https://github.com/FlawlessNa/Legends/issues/99) spends `OVERHEAD` out of the interval. The ~500ms half holds only for `move`'s opening press; the `repeat_key` fills begin repeating at once |
 
-**B1 requires data the Input Sequence does not carry.** A Step has no record of
-which Movement Plan component produced it; the compiler knows the boundary and
-discards it. Requirement handed to
-[#10](https://github.com/FlawlessNa/Legends/issues/10) and
-[#15](https://github.com/FlawlessNa/Legends/issues/15): **Steps must carry
-Movement Plan provenance.** B1 is unenforceable until they do.
+**B1 used to require data the Input Sequence did not carry.** A Step had no record
+of which Movement Plan component produced it; the compiler knew the boundary and
+discarded it, so given only a truncated Input Sequence a jump that was *cut* was
+indistinguishable from a jump whose keyup was trimmed.
 
-[#10](https://github.com/FlawlessNa/Legends/issues/10) settled the mechanism:
+[#10](https://github.com/FlawlessNa/Legends/issues/10) settled the mechanism and
+[#102](https://github.com/FlawlessNa/Legends/issues/102) built it:
 **Provenance** rides as an `origins` list on `KeyboardInputWrapper`, one Movement
 Plan component index per Step, written by `compile_movements` and carried through
 `truncate` and telecast's teleport-region rebuild. Chosen over widening
@@ -159,6 +159,22 @@ that [#30](https://github.com/FlawlessNa/Legends/issues/30) and
 [#68](https://github.com/FlawlessNa/Legends/issues/68) both built adapters
 against, and over re-deriving boundaries inside the lab, which would reimplement
 the compiler in the test that checks it.
+
+Entries are written through a `current_origin` cursor that `append` and `insert`
+stamp each Step with, so `len(origins) == len(keys)` at every moment and a release
+spliced into the middle of a component shifts Provenance exactly as it shifts Steps
+— the silently-shifted index is the one failure mode Provenance could not survive.
+A Step no component produced carries the `NO_COMPONENT` sentinel rather than a
+neighbour's index: the `for...else` terminal release, the precision pre-stop, and
+anything built outside `compile_movements`.
+
+**B1 does not hold.** With the check now expressible,
+`tests/test_botting/test_movement_provenance.py` compiles a `walk -> jump -> walk`
+plan and truncates it at 2.5s: the cut lands between the jump's first Step and its
+last, and the check names the jump. That is one synthetic plan, not a measure of how
+often it happens — [#104](https://github.com/FlawlessNa/Legends/issues/104) runs B1
+over the Corpus, and the fix (the candidate being `truncate` backing off to the last
+complete atomic component) waits on knowing where the cuts actually land.
 
 Truncation is the normal case, not an edge case: rotation passes
 `total_duration=self.data.action_duration` on every Action, so essentially every
@@ -182,8 +198,9 @@ copy so the release cannot target a direction whose keydown fell past the cut
 (**A6**). The release costs one `OVERHEAD` on top of the overshoot `truncate`
 already carries. Pinned by `tests/test_botting/test_precision_pre_stop.py`.
 
-That leaves B1 as the remaining half of the truncation problem: the half that is
-not even expressible without Provenance.
+That leaves B1 as the remaining half of the truncation problem. It is now
+expressible — [#102](https://github.com/FlawlessNa/Legends/issues/102) gave Steps
+their Provenance — and expressing it showed it failing.
 
 **B5 did not hold before #98**, in both directions at once. `cast_skill` passed
 `fill` a raw `skill.animation_time`, and `fill`'s limit is an *absolute* sequence
@@ -342,6 +359,8 @@ rather than as gaps in the corpus.
    `toolkit/movement_timeline._parse_intervals` becomes its body and the Gantt
    tool consumes it.
 2. **Movement Plan provenance on Steps** — without it B1 is unenforceable.
+   Delivered by [#102](https://github.com/FlawlessNa/Legends/issues/102) as
+   `KeyboardInputWrapper.origins`.
 3. **The lab constructs Actions, not just Input Sequences** — D1 and D2 are
    about what survives cancellation, which depends on the Action's cancel
    handling.

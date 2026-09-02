@@ -123,6 +123,12 @@ class Input(ctypes.Structure):
 
 InputArray = Input * 1
 
+# The Provenance entry of a Step no Movement Plan component produced: the terminal
+# release, the precision pre-stop, anything a caller outside `compile_movements`
+# builds. A sentinel rather than a neighbouring component's index, so "belongs to
+# nothing" never reads as "belongs to whatever came before".
+NO_COMPONENT = -1
+
 
 MOUSE = wintypes.DWORD(0)
 KEYBOARD = wintypes.DWORD(1)
@@ -134,6 +140,20 @@ class KeyboardInputWrapper:
     """
     Dataclass that stores the input structure and the delay to wait before sending
     the next input.
+
+    `origins` carries the sequence's **Provenance**: one Movement Plan component index
+    per Step, so `origins[i]` says which component produced `keys[i]`. It is not
+    derivable from the Steps themselves - the compiler is the only layer that knows
+    where one component ends and the next begins, and without it a jump that was *cut*
+    is indistinguishable from a jump whose keyup was trimmed (**B1 Truncation
+    Integrity**).
+
+    Entries are written by whoever is building, through the `current_origin` cursor:
+    `append` and `insert` stamp every Step they add with it, so `len(origins)` equals
+    `len(keys)` at all times and an `insert` in the middle shifts Provenance exactly as
+    it shifts Steps. `compile_movements` moves the cursor at each component boundary;
+    everyone else leaves it at `NO_COMPONENT`, which is what makes Provenance free for
+    callers that do not want it.
     """
 
     handle: int
@@ -144,6 +164,8 @@ class KeyboardInputWrapper:
     delays: list[float] = field(default_factory=list[float])
     forced_key_releases: list[str] = field(default_factory=list[str])
     initial_state: InputState | None = None
+    origins: list[int] = field(default_factory=list[int])
+    current_origin: int = NO_COMPONENT
 
     def __post_init__(self) -> None:
         """
@@ -167,6 +189,14 @@ class KeyboardInputWrapper:
         """
         if self.initial_state is None:
             self.initial_state = get_input_state(self.handle)
+        # Steps handed in at construction predate the cursor, so they take its current
+        # value - `NO_COMPONENT` unless the caller set one. Padding here rather than
+        # demanding an `origins` of matching length is what keeps the field optional,
+        # and it has to happen before `_clear_opposites`, whose `insert` assumes the
+        # two lists are already the same length.
+        self.origins.extend(
+            [self.current_origin] * (len(self.keys) - len(self.origins))
+        )
         self._clear_opposites(
             held_keys=set(self.initial_state.held_keys),
             desired_keys=self.get_held_movement_keys(self.keys, self.events),
@@ -252,6 +282,7 @@ class KeyboardInputWrapper:
         self.keys.append(keys)
         self.events.append(events)
         self.delays.append(delay)
+        self.origins.append(self.current_origin)
 
     def insert(
         self,
@@ -260,9 +291,39 @@ class KeyboardInputWrapper:
         events: EVENTS | list[EVENTS],
         delay: float,
     ) -> None:
+        """
+        A Step spliced in at `index`, Provenance included.
+
+        `origins` is inserted into at the same index as the other three lists, never
+        appended: a release going in at the front of a component would otherwise leave
+        every Provenance entry after it naming the wrong Step - the silently-shifted
+        index B1 cannot survive.
+        """
         self.keys.insert(index, keys)
         self.events.insert(index, events)
         self.delays.insert(index, delay)
+        self.origins.insert(index, self.current_origin)
+
+    def attribute(self, origin: int) -> None:
+        """
+        Declares Movement Plan component `origin` the producer of every Step still
+        unattributed, and of every Step added until the cursor moves again.
+
+        Only `compile_movements` calls this, and only to close the one gap the cursor
+        cannot cover on its own: the first component's builder *constructs* the wrapper,
+        so its Steps are stamped before the compiler has an object to set
+        `current_origin` on. Every later component gets the cursor ahead of its build,
+        leaves no sentinel behind, and the back-fill is a no-op.
+
+        Deliberately not a tail-fill. A component whose builder `insert`s a release at
+        its own start would have that release attributed to whatever follows it in
+        `origins`, which is the silently-shifted index the sentinel exists to avoid.
+        :param origin: The component index to attribute to.
+        """
+        self.origins[:] = [
+            origin if entry == NO_COMPONENT else entry for entry in self.origins
+        ]
+        self.current_origin = origin
 
     def fill(
         self,
@@ -432,9 +493,10 @@ class KeyboardInputWrapper:
         happened to chop its budget: ~44ms while a walk emitted a Step every 33ms, and a
         whole 2.0s once issue #99 replaced an illegal fill with one delay-only Step.
         Trimming the last delay makes it exact at any Step size, which is what lets a
-        builder express duration in whichever shape **A7** allows. It does not address
-        **B1**: the cut still lands wherever the clock says, blind to which Movement Plan
-        component it is inside.
+        builder express duration in whichever shape **A7** allows. It does not fix
+        **B1**: the cut still lands wherever the clock says, blind to which Movement
+        Plan component it is inside. It does carry each Step's Provenance onto the copy,
+        which is what makes the landing spot *visible* - B1 becomes checkable, not true.
         :param limit: Absolute duration to cut at.
         :return: A new sequence, never longer than `limit`.
         """
@@ -443,12 +505,18 @@ class KeyboardInputWrapper:
             forced_key_releases=self.forced_key_releases,
             initial_state=self.initial_state,
         )
-        generator = zip(self.keys, self.events, self.delays)
+        generator = zip(self.keys, self.events, self.delays, self.origins)
         while True:
             try:
-                key, event, delay = next(generator)
+                key, event, delay, origin = next(generator)
             except StopIteration:
                 break
+            # The copy inherits the Step's own Provenance, not the cursor's: a
+            # truncated sequence has to answer "which component was this Step in" the
+            # same way the full one did, or the cut cannot be located against a
+            # component boundary at all. Set before `append` so an opposite-key release
+            # it inserts is attributed to the component it was inserted for.
+            result.current_origin = origin
             # What this Step's delay may be and still land inside the limit. Every Step
             # costs `OVERHEAD` on top of its delay, and no trim can take that back, so
             # the room has to be checked *before* appending: trimming afterwards let a
@@ -465,6 +533,10 @@ class KeyboardInputWrapper:
                 result.delays[-1] = max(
                     0.0, result.delays[-1] - (result.duration - limit)
                 )
+        # The copy is finished, so the cursor stops naming the last Step copied.
+        # `compile_movements` appends its precision pre-stop to this very object, and
+        # that release belongs to no component.
+        result.current_origin = NO_COMPONENT
         return result
 
 
