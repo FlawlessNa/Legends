@@ -31,13 +31,13 @@ Checked on every compiled Input Sequence.
 
 | Id | Statement | Tier | Status |
 |---|---|---|---|
-| **A1 Shape** | `len(keys) == len(events) == len(delays)`; at each Step, `keys[i]` and `events[i]` are both `str`, or both `list` of equal length | Invariant | holds |
-| **A2 Terminal Release** | If `S` was not truncated, `down(n-1)` is a subset of `forced_key_releases` | Invariant | holds — fixed by [#25](https://github.com/FlawlessNa/Legends/issues/25) |
+| **A1 Shape** | `len(keys) == len(events) == len(delays)`; at each Step, `keys[i]` and `events[i]` are both `str`, or both `list` of equal length | Invariant | holds — violation fixed by [#99](https://github.com/FlawlessNa/Legends/issues/99); [#113](https://github.com/FlawlessNa/Legends/issues/113)'s shape question stays open |
+| **A2 Terminal Release** | If `S` was not truncated, `down(n-1)` is a subset of `forced_key_releases` | Invariant | fails — the release volley is emitted ([#25](https://github.com/FlawlessNa/Legends/issues/25)) but is the Step [#113](https://github.com/FlawlessNa/Legends/issues/113) drops |
 | **A3 No Opposing Overlap** | No Hold of `left` overlaps a Hold of `right`; likewise `up`/`down` | Invariant | holds — fixed by [#28](https://github.com/FlawlessNa/Legends/issues/28) and [#97](https://github.com/FlawlessNa/Legends/issues/97) |
 | **A4 Skill Key Closure** | Every Hold whose key is non-directional has `t_up` strictly before the sequence end | Invariant | holds — fixed by [#75](https://github.com/FlawlessNa/Legends/issues/75) |
 | **A5 Delays** | Every delay is finite and `>= 0` | Invariant | holds |
 | **A6 No Phantom Release** | For every keyup of key `k` at Step `i`: `k` is in `down(i-1)` | Invariant | holds — fixed by [#28](https://github.com/FlawlessNa/Legends/issues/28) |
-| **A7 Typematic Legality** | For every keydown of key `k` at Step `i`: if `k` is in `down(i-1)` the Step is a repeat and requires `own(i-1) == k`; otherwise it is a press and sets `own(i) = k` | Invariant | checkable — `T0` carried by [#109](https://github.com/FlawlessNa/Legends/issues/109); fails at three builders, fixed by [#99](https://github.com/FlawlessNa/Legends/issues/99) |
+| **A7 Typematic Legality** | For every keydown of key `k` at Step `i`: if `k` is in `down(i-1)` the Step is a repeat and requires `own(i-1) == k`; otherwise it is a press and sets `own(i) = k` | Invariant | holds — `T0` carried by [#109](https://github.com/FlawlessNa/Legends/issues/109), builders fixed by [#99](https://github.com/FlawlessNa/Legends/issues/99) |
 
 **A6** is a humanization property as much as a correctness one: a human never
 releases a key they are not holding, and the pattern is machine-distinguishable.
@@ -59,14 +59,24 @@ game needs: movement follows key state, not repeat messages.
 So a keydown for an already-held key is only producible by a human when that key
 owns typematic. Three builders emit runs that are not:
 
-| Site | Shape | Verdict |
+| Site | Shape | Was |
 |---|---|---|
 | `move`, direction already held | fills with no preceding press | illegal — the **Continuation** case |
 | `teleport`, `repeat_key` branch | fills `repeat_key` after the teleport keyup | illegal, unconditionally |
 | `single_jump`, `repeat_key` branch | fills `repeat_key` after the jump keydown | illegal when `repeat_key` is already held — the "arrives at a rope holding `up`" shape |
 
 A fill is legal exactly when its own first Step is a genuine press, which is why
-`move` on a fresh direction and `teleport`'s skill-key fill are fine as they stand.
+`move` on a fresh direction and `teleport`'s and `cast_skill`'s skill-key fills were
+fine as they stood.
+
+[#99](https://github.com/FlawlessNa/Legends/issues/99) put the rule in `fill` itself
+rather than at the three call sites, so a builder cannot reintroduce the shape by
+forgetting it: where the key is down and does not own typematic, the budget rides on a
+single **delay-only Step** (`keys=[]`, `events=[]`) and the key simply stays down. It
+also found a fourth site the table missed — `teleport` constructed its opening
+`direction keydown` unconditionally, which was an illegal repeat when the direction was
+already held and a redundant double press when it was not, since the guarded append
+follows immediately.
 
 A7 is decidable offline from `H0`, `T0` and the Steps, so it is an Invariant — and
 `T0` was the missing half. It is not derivable from held keys alone: `{right}` is
@@ -130,7 +140,7 @@ teleport region into paired down/up taps and never contributed to A4 anyway.
 | **B3 Distance Fidelity** | The character's actual displacement matches the component's intent within tolerance | Expectation | needs [#13](https://github.com/FlawlessNa/Legends/issues/13)/[#14](https://github.com/FlawlessNa/Legends/issues/14) |
 | **B4 Component Non-empty** | Every component up to the cut produced at least one Step, unless its direction was already held at component start | Expectation | holds |
 | **B5 Cast Window** | For a `cast_skill` component, the skill key is pressed at least once, and its keyup is *sent* strictly before the first skill keydown plus `animation_time` | Invariant | holds — fixed by [#98](https://github.com/FlawlessNa/Legends/issues/98) |
-| **B6 Repeat Cadence** | Consecutive repeats of the key holding typematic ownership are spaced at the client's measured repeat interval (~33ms wall-clock), and the first repeat follows its press by the typematic delay (~500ms) | Expectation | still fails, but the gap is now ~1ms rather than ~8.8ms — [#110](https://github.com/FlawlessNa/Legends/issues/110) raised the timer period; [#99](https://github.com/FlawlessNa/Legends/issues/99) lands the formula |
+| **B6 Repeat Cadence** | Consecutive repeats of the key holding typematic ownership are spaced at the client's measured repeat interval (~33ms wall-clock), and the first repeat follows its press by the typematic delay (~500ms) | Expectation | spacing holds — [#110](https://github.com/FlawlessNa/Legends/issues/110) raised the timer period and [#99](https://github.com/FlawlessNa/Legends/issues/99) spends `OVERHEAD` out of the interval. The ~500ms half holds only for `move`'s opening press; the `repeat_key` fills begin repeating at once |
 
 **B1 requires data the Input Sequence does not carry.** A Step has no record of
 which Movement Plan component produced it; the compiler knows the boundary and
@@ -154,18 +164,26 @@ Truncation is the normal case, not an edge case: rotation passes
 `total_duration=self.data.action_duration` on every Action, so essentially every
 movement the bot makes is a truncated Input Sequence. The cut is made on elapsed
 time alone — `truncate` copies Steps until the budget is spent and stops wherever
-that lands, blind to components. For a walk that is harmless; for a `JUMP*`,
+that lands, blind to components. Since
+[#99](https://github.com/FlawlessNa/Legends/issues/99) it lands *exactly* on the limit,
+shortening the delay of the Step that would overshoot rather than taking it whole; that
+removes the overshoot, not the blindness, so **B1** is untouched by it. For a walk that is harmless; for a `JUMP*`,
 `TELEPORT*` or `ENTER_PORTAL` it splits an atomic in-game gesture.
 
-The compiler *attempts* the mirror-image case - `_PRECISION_PRE_STOP` releases the
-horizontal key so the chunk after the cut starts from a stopped position, ahead of
-a jump or portal the cut *precedes* - but
-[#100](https://github.com/FlawlessNa/Legends/issues/100) showed that release is
-inert: it is appended as the last Step and the `truncate` that immediately follows
-stops copying once the budget is spent, which it already is on that branch. So
-neither half of the truncation problem is handled today. B1 is the half that is
-not even expressible without Provenance; #100 is the half that is expressible and
-simply broken.
+The compiler also handles the mirror-image case - `_PRECISION_PRE_STOP` releases
+the horizontal key so the chunk after the cut starts from a stopped position,
+ahead of a jump or portal the cut *precedes*.
+[#100](https://github.com/FlawlessNa/Legends/issues/100) found that release
+inert: it was appended as the last Step and the `truncate` that immediately
+followed stopped copying once the budget was spent, which it already was on that
+branch, so the pre-stop had never emitted a Step on any path. #100 moved the
+append *after* the cut, onto the truncated copy, and reads `keys_held` off that
+copy so the release cannot target a direction whose keydown fell past the cut
+(**A6**). The release costs one `OVERHEAD` on top of the overshoot `truncate`
+already carries. Pinned by `tests/test_botting/test_precision_pre_stop.py`.
+
+That leaves B1 as the remaining half of the truncation problem: the half that is
+not even expressible without Provenance.
 
 **B5 did not hold before #98**, in both directions at once. `cast_skill` passed
 `fill` a raw `skill.animation_time`, and `fill`'s limit is an *absolute* sequence

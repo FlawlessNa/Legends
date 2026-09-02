@@ -1,0 +1,31 @@
+{
+    "_meta": {
+        "scale_x": 0.0625467102010949,
+        "scale_y": 0.04618260326870873,
+        "canvas_width": 40,
+        "canvas_height": 20
+    },
+    "title_img_path": null,
+    "mobs": [],
+    "party_rebuff_zone": null,
+    "features": {
+        "floor": {
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": [],
+            "left": 4,
+            "right": 35,
+            "top": 15,
+            "bottom": 15
+        }
+    },
+    "portals": []
+}

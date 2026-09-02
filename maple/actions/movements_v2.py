@@ -123,22 +123,35 @@ def move(
         if repeated_key not in keys_held
         else next(controller.random_delay)
     )
+    # A keydown for a key already down is a repeat, not a press (**A7**), so a
+    # Continuation arriving with the direction still held presses nothing and lets the
+    # fill carry the time. The `structure is None` branch used to press unconditionally,
+    # which made the very first Step of such a plan an illegal repeat.
+    needs_press = not all(key in keys_held for key in first_keys)
     if structure is None:
         release_index = 0
-        first_steps: list[str | list[str]] = list(first_keys)
+        first_steps: list[str | list[str]] = list(first_keys) if needs_press else []
         first_downs: list[controller.EVENTS | list[controller.EVENTS]] = [
             "keydown"
-        ] * len(first_keys)
+        ] * len(first_steps)
+        # One delay per Step. `[first_delay]` alone left a two-key opening press - a
+        # walk into a climb or a portal, which carries a secondary direction - with two
+        # Steps and one delay: an **A1 Shape** violation, and an IndexError on
+        # `delays[i]` in the send loop. Only the opening Step carries the typematic
+        # delay; the second key follows at the ordinary input cadence.
+        first_delays = [first_delay] + [
+            next(controller.random_delay) for _ in first_steps[1:]
+        ]
         structure = controller.KeyboardInputWrapper(
             handle,
             first_steps,
             first_downs,
-            [first_delay],
+            first_delays if first_steps else [],
             initial_state=initial_state,
         )
     else:
         release_index = len(structure.keys)
-        if not all(key in keys_held for key in first_keys):
+        if needs_press:
             downs: list[controller.EVENTS] = ["keydown"] * len(first_keys)
             structure.append(first_keys, downs, first_delay)
 
@@ -152,7 +165,7 @@ def move(
                 ups,
                 next(controller.random_delay),
             )
-    structure.fill(repeated_key, "keydown", controller.random_delay, limit=limit)
+    structure.fill(repeated_key, "keydown", controller.typematic_delay, limit=limit)
     return structure
 
 
@@ -186,7 +199,7 @@ def single_jump(
         structure.fill(
             repeat_key,
             "keydown",
-            controller.random_delay,
+            controller.typematic_delay,
             limit=0.75 + structure.duration,
         )
         if repeat_key not in structure.forced_key_releases:
@@ -289,13 +302,13 @@ def teleport(
     initial_duration = getattr(structure, "duration", 0)
     keys_held = _resolve_held_keys(structure, handle, initial_state)
     limit = initial_duration + teleport_skill.animation_time * num_times
+    # Opens empty and lets the single guarded press below do the work. Constructing
+    # with `[direction] keydown` pressed unconditionally: an illegal repeat (**A7**)
+    # when the direction was already held, and a redundant double press when it was
+    # not, since the guarded append fires straight afterwards.
     if structure is None:
         structure = controller.KeyboardInputWrapper(
-            handle,
-            [direction],
-            ["keydown"],
-            [next(controller.random_delay)],
-            initial_state=initial_state,
+            handle, [], [], [], initial_state=initial_state
         )
     # if structure is None:
     #     structure = _create_initial_input(handle, direction, None)
@@ -315,7 +328,7 @@ def teleport(
         structure.fill(
             teleport_skill.key_bind(ign),
             "keydown",
-            controller.random_delay,
+            controller.typematic_delay,
             limit=limit,
         )
         # The fill leaves the skill key down; release it here rather than relying on
@@ -334,7 +347,7 @@ def teleport(
         structure.append(
             teleport_skill.key_bind(ign), "keyup", next(controller.random_delay)
         )
-        structure.fill(repeat_key, "keydown", controller.random_delay, limit=limit)
+        structure.fill(repeat_key, "keydown", controller.typematic_delay, limit=limit)
     if direction == "down" and direction not in structure.forced_key_releases:
         structure.forced_key_releases.append(direction)
     if teleport_skill.key_bind(ign) not in structure.forced_key_releases:

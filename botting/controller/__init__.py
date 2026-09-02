@@ -26,7 +26,15 @@ from .inputs.held_keys_ledger import (
     in_main_process,
     require_main_process,
 )
-from .inputs.inputs_helpers import DELAY, KEYBOARD_MAPPING, OVERHEAD, random_delay
+from .inputs.inputs_helpers import (
+    DELAY,
+    KEYBOARD_MAPPING,
+    OVERHEAD,
+    TYPEMATIC_DELAY,
+    TYPEMATIC_REPEAT,
+    random_delay,
+    typematic_delay,
+)
 from .inputs.non_focused_inputs import message_constructor, non_focused_input
 
 __all__ = [
@@ -35,6 +43,8 @@ __all__ = [
     "KEYBOARD_MAPPING",
     "OPPOSITES",
     "OVERHEAD",
+    "TYPEMATIC_DELAY",
+    "TYPEMATIC_REPEAT",
     "HeldKeysLedger",
     "InputState",
     "KeyboardInputWrapper",
@@ -57,5 +67,6 @@ __all__ = [
     "release_directions",
     "release_keys",
     "require_main_process",
+    "typematic_delay",
     "write",
 ]

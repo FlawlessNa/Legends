@@ -271,12 +271,13 @@ def test_the_precision_pre_stop_finds_an_inherited_direction() -> None:
     truncating ahead of a precision-sensitive move, so the next chunk starts stopped.
     Blind, the search found nothing and the character entered the portal still moving.
 
-    This pins the *lookup*, not the emitted keyup, and deliberately so: the pre-stop's
-    release is appended once `structure.duration` has already reached `total_duration`,
-    so the `truncate` on the next line always discards it. That is a second, separate
-    defect - it bites identically when the direction was pressed by the sequence rather
-    than inherited - and is tracked on its own ticket. Asserting the release end to end
-    here would be asserting that ticket's fix, not this one's.
+    This pins the *lookup*, not the emitted keyup, and deliberately so: the release was
+    appended once `structure.duration` had already reached `total_duration`, so the
+    `truncate` on the next line always discarded it. That was a second, separate defect
+    - it bit identically when the direction was pressed by the sequence rather than
+    inherited - fixed by issue #100, which moved the append after the cut. The emission
+    is pinned in `test_precision_pre_stop.py`; asserting it here would be asserting that
+    ticket's fix, not this one's.
     """
     structure = KeyboardInputWrapper(
         HANDLE,

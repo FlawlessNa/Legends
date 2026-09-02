@@ -26,11 +26,14 @@ __all__ = [
     "KEYBOARD_MAPPING",
     "MAPVK_VK_TO_VSC_EX",
     "OVERHEAD",
+    "TYPEMATIC_DELAY",
+    "TYPEMATIC_REPEAT",
     "_EXPORTED_FUNCTIONS",
     "_get_virtual_key",
     "_keyboard_layout_handle",
     "_setup_exported_functions",
     "random_delay",
+    "typematic_delay",
 ]
 
 DELAY: float = 0.033 - time.get_clock_info("monotonic").resolution
@@ -94,6 +97,33 @@ def _measure_send_loop_overhead(iterations: int = 50) -> float:
 
 
 OVERHEAD: float = _measure_send_loop_overhead()
+
+# The client's typematic settings, read off Spy++ against a live game window (issue
+# #99): a held key repeats every ~33ms, and the first repeat follows the press by
+# ~500ms. Measured constants - Expectations in the invariant catalogue's sense, not
+# anything derivable - and both describe **wall-clock** spacing.
+TYPEMATIC_REPEAT: float = 0.033
+TYPEMATIC_DELAY: float = 0.5
+
+
+def _typematic_delay() -> Generator[float]:
+    """
+    Delays that put consecutive repeat Steps `TYPEMATIC_REPEAT` apart on the wall clock.
+
+    `random_delay` asks for 33ms and the send loop then spends `OVERHEAD` on top of it,
+    so the gap the game actually sees is 33ms + OVERHEAD - which matches no Windows
+    typematic setting, the range being ~31ms to 500ms. Spending `OVERHEAD` out of the
+    interval instead of adding to it makes the *observable* spacing the constant, which
+    is what **B6 Repeat Cadence** is stated over.
+
+    Clamped at zero: `OVERHEAD` is measured per machine and nothing guarantees it stays
+    under 33ms, and **A5 Delays** requires every delay to be non-negative.
+    """
+    while True:
+        yield random.uniform(0.95, 1.05) * max(TYPEMATIC_REPEAT - OVERHEAD, 0.0)
+
+
+typematic_delay = _typematic_delay()
 
 KEYBOARD_MAPPING = {
     "alt": win32con.VK_MENU,

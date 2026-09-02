@@ -26,7 +26,7 @@ from pytest_mock import MockerFixture
 
 from botting.controller.inputs.focused_inputs import EVENTS, KeyboardInputWrapper
 from botting.controller.inputs.held_keys_ledger import InputState
-from botting.controller.inputs.inputs_helpers import OVERHEAD
+from botting.controller.inputs.inputs_helpers import DELAY, OVERHEAD
 from maple.actions.movements_v2 import telecast, telecast_compiler
 from maple.model.characters.maple_skills import MapleSkill
 from maple.model.mechanics.movement_mechanics_v2 import (
@@ -286,7 +286,12 @@ def test_the_fused_sequence_is_truncated_to_the_ultimate_animation_time() -> Non
     fused = telecast(sequence, IGN, TELEPORT_SKILL, ULTIMATE)
 
     assert len(fused.keys) < 40
-    assert fused.duration >= ULTIMATE.animation_time
+    # The cut lands *on* the limit, not past it: since issue #99 `truncate` shortens the
+    # delay of the Step that would overshoot instead of taking it whole. `>=` held only
+    # because a whole Step used to push the total over, and against exact equality it
+    # became a coin-flip on float error - which delays the shared `random_delay`
+    # generator has handed out by this point, and so on test order.
+    assert fused.duration == pytest.approx(ULTIMATE.animation_time, abs=1e-9)
     assert _prefix_duration(fused, len(fused.keys) - 1) < ULTIMATE.animation_time
 
 
@@ -371,13 +376,22 @@ def test_the_rebuild_spends_the_regions_own_duration() -> None:
     The budget is the compiled region's own duration, so the rebuild needs nothing the
     Input Sequence does not already carry - and the sequence it replaces keeps its
     length, which is what keeps the plan's distance intent intact.
+
+    "Keeps its length" is bounded, not exact: `_append_telecast_taps` stops once less
+    than one `DELAY` of budget remains, because there is no room left to hold another
+    press. So the rebuild may fall a press short of the region and must never overrun
+    it. This was pinned at `abs=1e-6` while the teleport fill and that exit threshold
+    both ran off `DELAY` and the remainder happened to land on zero; issue #99 moved the
+    fill to the measured typematic interval and the slack became visible at ~16ms. The
+    bound is what the loop guarantees - the exact equality never was.
     """
     sequence = _movement_compiler(_TELEPORT_PLAN)(InputState())
     before = sequence.duration
 
     fused = telecast(sequence, IGN, TELEPORT_SKILL, UNTRUNCATED_ULTIMATE)
 
-    assert fused.duration == pytest.approx(before, abs=1e-6)
+    assert fused.duration <= before + 1e-6
+    assert before - fused.duration < DELAY
 
 
 # --- The compiler wrapper ------------------------------------------------------

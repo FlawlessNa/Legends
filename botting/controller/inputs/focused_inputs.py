@@ -272,14 +272,37 @@ class KeyboardInputWrapper:
         limit: float,
     ) -> None:
         """
-        Fills the structure with the given key and event until the duration reaches the
-        limit.
-        :param key:
-        :param event:
-        :param delay_generator:
-        :param limit:
-        :return:
+        Spends the sequence's budget up to `limit` holding `key` down.
+
+        A fill is a run of repeat keydowns, and **A7 Typematic Legality** makes those
+        legal only while `key` owns typematic. Three shapes reach here:
+
+        - `key` is not down. The first Step is a genuine press, which claims ownership,
+          so every Step after it is a legal repeat. `move` on a fresh direction, and
+          `teleport`'s and `cast_skill`'s skill-key fills.
+        - `key` is down and owns typematic. The repeats continue a run it already owns.
+        - `key` is down and does **not** own typematic. A later keydown took ownership
+          and its keyup ended repetition outright rather than handing it back, so no
+          human-producible input repeats the key here. The budget is carried by a single
+          delay-only Step and the key simply stays down. This is the **Continuation**
+          case in `move`, and the `repeat_key` branches of `teleport` and `single_jump`.
+
+        The key reaches the game as held either way: movement follows key *state*, not
+        repeat messages, so the silent branch moves the character exactly as the
+        repeating one did. That is what makes the fill a clock rather than something the
+        game needs - settled on a live client, see the catalogue's A7 note.
+        :param key: The key to hold for the duration of the fill.
+        :param event: The event each Step carries. Only `keydown` can be a repeat.
+        :param delay_generator: Supplies the spacing between repeat Steps. Unused on the
+            silent branch, which emits one Step whose delay is the whole remainder.
+        :param limit: Absolute sequence duration to fill up to, not a delta.
+        :return: None
         """
+        if event == "keydown" and key in self.keys_held and self.typematic_owner != key:
+            remaining = limit - self.duration - OVERHEAD
+            if remaining > 0:
+                self.append([], [], remaining)
+            return
         while self.duration < limit:
             self.append(key, event, next(delay_generator))
 
@@ -397,18 +420,51 @@ class KeyboardInputWrapper:
         )
 
     def truncate(self, limit: float) -> KeyboardInputWrapper:
+        """
+        A copy of this sequence cut at `limit` seconds.
+
+        The cut lands **exactly** on the limit: the Step that would overshoot is copied
+        with its delay shortened, rather than taken whole. A delay is elapsed time, and
+        shortening elapsed time is precisely what truncating means - the keydown still
+        reaches the game, the character just walks for less of it.
+
+        Taking whole Steps made the granularity an accident of how finely a builder
+        happened to chop its budget: ~44ms while a walk emitted a Step every 33ms, and a
+        whole 2.0s once issue #99 replaced an illegal fill with one delay-only Step.
+        Trimming the last delay makes it exact at any Step size, which is what lets a
+        builder express duration in whichever shape **A7** allows. It does not address
+        **B1**: the cut still lands wherever the clock says, blind to which Movement Plan
+        component it is inside.
+        :param limit: Absolute duration to cut at.
+        :return: A new sequence, never longer than `limit`.
+        """
         result = KeyboardInputWrapper(
             self.handle,
             forced_key_releases=self.forced_key_releases,
             initial_state=self.initial_state,
         )
         generator = zip(self.keys, self.events, self.delays)
-        while result.duration < limit:
+        while True:
             try:
                 key, event, delay = next(generator)
-                result.append(key, event, delay)
             except StopIteration:
                 break
+            # What this Step's delay may be and still land inside the limit. Every Step
+            # costs `OVERHEAD` on top of its delay, and no trim can take that back, so
+            # the room has to be checked *before* appending: trimming afterwards let a
+            # Step in whenever floating-point error left the running total a hair short,
+            # overshooting by that fixed cost.
+            room = limit - result.duration - OVERHEAD
+            if room < 0:
+                break
+            result.append(key, event, min(delay, room))
+            if result.duration > limit:
+                # `append` can also insert an opposite-key release, which spends budget
+                # this Step did not account for. **A5 Delays** forbids going negative to
+                # win it back.
+                result.delays[-1] = max(
+                    0.0, result.delays[-1] - (result.duration - limit)
+                )
         return result
 
 
@@ -617,7 +673,12 @@ def input_constructor(
                 (
                     wintypes.UINT(num_inputs),
                     array_pointer(input_array),
-                    wintypes.INT(ctypes.sizeof(input_array[0])),
+                    # `sizeof(Input)`, not `sizeof(input_array[0])`: identical for every
+                    # non-empty batch, and the empty one has no element 0 to measure. An
+                    # empty batch is a delay-only Step - nothing is sent and only its
+                    # delay elapses - and `SendInput(0, ...)` returns 0, which is the
+                    # success count `_send_input` checks against.
+                    wintypes.INT(ctypes.sizeof(Input)),
                 )
             )
 

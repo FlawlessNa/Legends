@@ -64,9 +64,8 @@ You should get one flat dict with every key you listed.
 
 ## 3. Pick or record a map
 
-Maps live in `configs/maps/` as JSON. Three ship with the repo: `Line1Area1`,
-`GhostShip1`, `MysteriousPath3`. If one of those is where you want to farm,
-skip to step 4.
+Maps live in `configs/maps/` as JSON. Two ship with the repo: `Line1Area1`
+and `GhostShip1`. If one of those is where you want to farm, skip to step 4.
 
 Otherwise, record your own. Stand your character in the map, then:
 

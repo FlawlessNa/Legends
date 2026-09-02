@@ -26,8 +26,8 @@ CANVAS = np.array(
     ]
 )
 
-# Real mapfiles under `configs/maps/`. `MysteriousPath3` is excluded: it is a
-# legacy-schema file that builds an empty canvas (see issue #10).
+# Every real mapfile under `configs/maps/`. `MysteriousPath3` used to be a third:
+# a legacy-schema file that built an empty canvas, deleted by issue #103.
 MAPFILES = ["GhostShip1", "Line1Area1"]
 
 

@@ -1,19 +1,18 @@
 import asyncio
 import logging
+
+import maple.decision_makers as dm
+import maple.parsers
 from botting import PARENT_LOG
 from botting.core import DecisionMaker, SessionManager
 from maple.bots.maple_bot import MapleBot
-import maple.decision_makers as dm
-
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
-IGN = 'StarBase'
-BOT_CONFIGS = {
-    'game_map': 'MysteriousPath3',
-    'character_class': 'Priest'
-}
+IGN = "StarBase"
+GAME_MAP = "GhostShip1"
+CHARACTER_CLASS = "Priest"
 
 
 class TestBot(MapleBot):
@@ -21,16 +20,19 @@ class TestBot(MapleBot):
         """
         Insert any decision makers you want to test here.
         """
-        return [
-            dm.Rotation
-        ]
+        return [dm.Rotation]
 
 
-async def test():
-    with SessionManager(..., debug=True) as session:  # noqa
-        bot = TestBot(IGN, session.metadata, **BOT_CONFIGS)
+async def test() -> None:
+    with SessionManager(maple.parsers.MapleParser, debug=True) as session:
+        bot = TestBot(
+            IGN,
+            session.metadata,
+            game_map=GAME_MAP,
+            character_class=CHARACTER_CLASS,
+        )
         await session.launch([bot])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(test())

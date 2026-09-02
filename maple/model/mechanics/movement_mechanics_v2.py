@@ -278,16 +278,34 @@ def compile_movements(
 
         # Else just consider current move and disregard previous.
         if total_duration is not None and structure.duration >= total_duration:
-            # Before hard-truncating: if the next move is precision-sensitive,
-            # release the horizontal key now so the next chunk starts from a
-            # stopped position and can execute the jump from the correct spot.
+            structure = structure.truncate(total_duration)
+            # The cut lands mid-walk with the horizontal key still down, and the
+            # next chunk opens on a jump or a portal - a move that misses unless
+            # the character is standing still. Release the direction so the next
+            # chunk starts from a stopped position.
+            #
+            # Appended to the *truncated* copy, not to `structure` ahead of the
+            # cut: `truncate` copies Steps `while result.duration < limit`, and
+            # this branch is only reached once the duration has already passed
+            # the limit, so a release appended before the call is past the budget
+            # by construction and is never copied. That is issue #100 - the
+            # pre-stop had never emitted a Step on any path.
+            #
+            # Reading `keys_held` off the copy rather than off the full sequence
+            # also keeps the release honest: a direction whose keydown fell past
+            # the cut is not down, and releasing it would be a phantom release
+            # (**A6**).
+            #
+            # The zero-delay Step still costs `OVERHEAD`, so the sequence
+            # overshoots `total_duration` by ~1ms. `truncate` already overshoots
+            # by the delay of the Step that crosses the limit, so this stays
+            # inside the existing contract rather than widening it.
             if upcoming_move.movement_type in _PRECISION_PRE_STOP:
                 held_dir = next(
                     (k for k in structure.keys_held if k in ("left", "right")), None
                 )
                 if held_dir:
                     structure.append(held_dir, "keyup", 0)
-            structure = structure.truncate(total_duration)
             break
     else:
         # Loop ran to completion (no truncation): release any keys still held

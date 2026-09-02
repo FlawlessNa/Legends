@@ -1,0 +1,65 @@
+{
+    "_meta": {
+        "scale_x": 0.0625467102010949,
+        "scale_y": 0.04618260326870873,
+        "canvas_width": 34,
+        "canvas_height": 32
+    },
+    "title_img_path": null,
+    "mobs": [],
+    "party_rebuff_zone": null,
+    "features": {
+        "bottom": {
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": [],
+            "left": 2,
+            "right": 31,
+            "top": 27,
+            "bottom": 27
+        },
+        "middle": {
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": [],
+            "left": 2,
+            "right": 31,
+            "top": 19,
+            "bottom": 19
+        },
+        "top": {
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": [],
+            "left": 2,
+            "right": 31,
+            "top": 11,
+            "bottom": 11
+        }
+    },
+    "portals": []
+}
