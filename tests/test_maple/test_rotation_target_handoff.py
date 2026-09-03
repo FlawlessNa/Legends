@@ -11,6 +11,8 @@ snapshot taken at hijack time, so the owner's bound method comes back intact.
 Everything is faked at the BotData level: no game client is involved.
 """
 
+from types import MethodType
+
 import pytest
 
 from botting.core import BotData
@@ -67,7 +69,7 @@ def data() -> BotData:
 
 
 @pytest.fixture
-def owner(data) -> _RotationOwner:
+def owner(data: BotData) -> _RotationOwner:
     """The rotation owner, with smart rotation on."""
     owner = _RotationOwner(data)
     owner._create_rotation_attributes(smart_rotation=True, mob_count_threshold=2)
@@ -75,7 +77,7 @@ def owner(data) -> _RotationOwner:
 
 
 @pytest.fixture
-def basic_owner(data) -> _RotationOwner:
+def basic_owner(data: BotData) -> _RotationOwner:
     """The rotation owner, with smart rotation off."""
     owner = _RotationOwner(data)
     owner._create_rotation_attributes()
@@ -83,29 +85,35 @@ def basic_owner(data) -> _RotationOwner:
 
 
 @pytest.fixture
-def hijacker(data) -> _TargetHijacker:
+def hijacker(data: BotData) -> _TargetHijacker:
     return _TargetHijacker(data)
 
 
-def _update_function(data: BotData):
+def _update_function(data: BotData) -> MethodType:
     return data._managed["next_target"].update_function
 
 
 # --- smart rotation -----------------------------------------------------------
 
 
-def test_owner_installs_its_own_smart_rotation_target(data, owner):
+def test_owner_installs_its_own_smart_rotation_target(
+    data: BotData, owner: _RotationOwner
+) -> None:
     assert data.has_smart_rotation
     assert _update_function(data).__self__ is owner
 
 
-def test_hijack_pins_the_target(data, owner, hijacker):
+def test_hijack_pins_the_target(
+    data: BotData, owner: _RotationOwner, hijacker: _TargetHijacker
+) -> None:
     hijacker._set_fixed_target((1, 2))
     data.update_attribute("next_target")
     assert data.next_target == (1, 2)
 
 
-def test_reset_restores_the_owners_update_function(data, owner, hijacker):
+def test_reset_restores_the_owners_update_function(
+    data: BotData, owner: _RotationOwner, hijacker: _TargetHijacker
+) -> None:
     hijacker._set_fixed_target((1, 2))
     hijacker._restore_rotation_target()
 
@@ -114,7 +122,9 @@ def test_reset_restores_the_owners_update_function(data, owner, hijacker):
     assert update_function.__func__ is _RotationOwner._smart_rotation_target
 
 
-def test_smart_rotation_survives_a_full_hijack_reset_cycle(data, owner, hijacker):
+def test_smart_rotation_survives_a_full_hijack_reset_cycle(
+    data: BotData, owner: _RotationOwner, hijacker: _TargetHijacker
+) -> None:
     hijacker._set_fixed_target((1, 2))
     data.update_attribute("next_target")
     hijacker._restore_rotation_target()
@@ -125,14 +135,16 @@ def test_smart_rotation_survives_a_full_hijack_reset_cycle(data, owner, hijacker
     assert data.has_smart_rotation
 
 
-def test_repeated_hijacks_still_restore_the_owner(data, owner, hijacker):
+def test_repeated_hijacks_still_restore_the_owner(
+    data: BotData, owner: _RotationOwner, hijacker: _TargetHijacker
+) -> None:
     hijacker._set_fixed_target((1, 2))
     hijacker._set_fixed_target((3, 4))
     hijacker._restore_rotation_target()
     assert _update_function(data).__self__ is owner
 
 
-def test_reset_without_rotation_attributes_is_a_noop():
+def test_reset_without_rotation_attributes_is_a_noop() -> None:
     data = BotData("NoRotation")
     hijacker = _TargetHijacker(data)
     hijacker._set_fixed_target((1, 2))
@@ -144,7 +156,9 @@ def test_reset_without_rotation_attributes_is_a_noop():
 # The same handoff, with smart rotation off.
 
 
-def test_reset_restores_the_random_target_function(data, basic_owner, hijacker):
+def test_reset_restores_the_random_target_function(
+    data: BotData, basic_owner: _RotationOwner, hijacker: _TargetHijacker
+) -> None:
     hijacker._set_fixed_target((1, 2))
     hijacker._restore_rotation_target()
 

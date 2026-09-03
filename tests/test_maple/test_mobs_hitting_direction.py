@@ -11,9 +11,12 @@ client and no `MobsHitting` instance are involved.
 """
 
 import logging
+from collections.abc import Sequence
 
+import numpy as np
 import pytest
 
+from botting.core import BotData
 from maple.decision_makers.mixins import MobsHittingMixin
 from maple.decision_makers.mobs_hitting import MobsHitting
 
@@ -26,12 +29,17 @@ MOB_NEAR_LEFT = (60, 40, 20, 30)
 MOB_NEAR_RIGHT = (130, 40, 20, 30)
 MOB_FAR_RIGHT = (400, 40, 20, 30)
 
+# The skill's on-screen mask. `_closest_mob_direction` only forwards it to the
+# detection call, stubbed out below, so nothing ever reads its contents.
+MASK = np.zeros((1, 1), dtype=np.uint8)
 
-class _FakeBotData:
+
+def _fake_data() -> BotData:
     """The two reads `_closest_mob_direction` makes before the detection call."""
-
-    current_client_img = None
-    current_mobs = ()
+    data = BotData("TestBot")
+    data.set_static("current_client_img", None)
+    data.set_static("current_mobs", ())
+    return data
 
 
 class _FakeMobsHitting(MobsHittingMixin):
@@ -43,26 +51,40 @@ class _FakeMobsHitting(MobsHittingMixin):
     detection call stubbed out below.
     """
 
-    def __init__(self, mobs, raises: Exception = None) -> None:
+    def __init__(
+        self, mobs: list[Sequence[int]], raises: Exception | None = None
+    ) -> None:
         self._mobs = mobs
         self._raises = raises
-        self.data = _FakeBotData()  # only ever forwarded to the stub below
+        self.data = _fake_data()  # only ever forwarded to the stub below
 
-    def get_mobs_positions_in_img(self, *args, **kwargs) -> list:
+    def get_mobs_positions_in_img(
+        self, *args: object, **kwargs: object
+    ) -> list[Sequence[int]]:
         if self._raises is not None:
             raise self._raises
         return self._mobs
 
 
-def _direction(mobs, raises: Exception = None) -> str | None:
+def _direction(
+    mobs: list[Sequence[int]], raises: Exception | None = None
+) -> str | None:
     fake = _FakeMobsHitting(mobs, raises)
-    return MobsHitting._closest_mob_direction(fake, CHARACTER_BOX, mask=None)
+    # `_closest_mob_direction` is nominally typed to `MobsHitting`, a DecisionMaker
+    # whose construction needs a live manager, pipe and proxy factory. Calling it
+    # unbound against the stand-in is the whole point of extracting it, so the shape
+    # rejecting the argument is the base class's, out of reach from this file.
+    return MobsHitting._closest_mob_direction(
+        fake,  # pyright: ignore[reportArgumentType]
+        CHARACTER_BOX,
+        mask=MASK,
+    )
 
 
 # --- box_center -------------------------------------------------------------
 
 
-def test_box_center_is_the_middle_of_an_x1y1x2y2_box():
+def test_box_center_is_the_middle_of_an_x1y1x2y2_box() -> None:
     assert MobsHittingMixin.box_center(CHARACTER_BOX) == (100.0, 55.0)
 
 
@@ -70,7 +92,7 @@ def test_box_center_is_the_middle_of_an_x1y1x2y2_box():
 
 
 @pytest.mark.parametrize(
-    "mobs, expected",
+    ("mobs", "expected"),
     [
         ([MOB_NEAR_LEFT], "left"),
         ([MOB_NEAR_RIGHT], "right"),
@@ -78,7 +100,9 @@ def test_box_center_is_the_middle_of_an_x1y1x2y2_box():
         ([MOB_NEAR_LEFT, MOB_FAR_RIGHT], "left"),
     ],
 )
-def test_direction_points_at_the_closest_mob(mobs, expected):
+def test_direction_points_at_the_closest_mob(
+    mobs: list[Sequence[int]], expected: str
+) -> None:
     assert (
         MobsHittingMixin.get_closest_mob_direction(
             MobsHittingMixin.box_center(CHARACTER_BOX), mobs
@@ -87,7 +111,7 @@ def test_direction_points_at_the_closest_mob(mobs, expected):
     )
 
 
-def test_direction_is_none_without_mobs():
+def test_direction_is_none_without_mobs() -> None:
     assert (
         MobsHittingMixin.get_closest_mob_direction(
             MobsHittingMixin.box_center(CHARACTER_BOX), []
@@ -99,17 +123,19 @@ def test_direction_is_none_without_mobs():
 # --- the unidirectional branch of _decide -----------------------------------
 
 
-def test_unidirectional_branch_derives_a_facing_from_the_on_screen_box():
+def test_unidirectional_branch_derives_a_facing_from_the_on_screen_box() -> None:
     """The branch that used to raise `NameError` on `(x, y)`."""
     assert _direction([MOB_FAR_LEFT, MOB_NEAR_RIGHT]) == "right"
     assert _direction([MOB_NEAR_LEFT, MOB_FAR_RIGHT]) == "left"
 
 
-def test_unidirectional_branch_returns_none_when_nothing_is_detected():
+def test_unidirectional_branch_returns_none_when_nothing_is_detected() -> None:
     assert _direction([]) is None
 
 
-def test_detection_failure_logs_and_falls_back_to_no_facing(caplog):
+def test_detection_failure_logs_and_falls_back_to_no_facing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """
     A failed detection must not lose the cast - and must not open a debugger.
     """
@@ -117,4 +143,6 @@ def test_detection_failure_logs_and_falls_back_to_no_facing(caplog):
         assert _direction([], raises=RuntimeError("detection blew up")) is None
 
     assert any(record.levelno == logging.ERROR for record in caplog.records)
-    assert any("detection blew up" in record.exc_text for record in caplog.records)
+    assert any(
+        "detection blew up" in (record.exc_text or "") for record in caplog.records
+    )

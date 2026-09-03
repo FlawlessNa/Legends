@@ -17,12 +17,12 @@ def _minimap_with_single_walkable_node() -> MapleMinimap:
     return minimap
 
 
-def test_random_point_returns_the_only_walkable_node():
+def test_random_point_returns_the_only_walkable_node() -> None:
     minimap = _minimap_with_single_walkable_node()
     assert minimap.random_point() == (7, 3)
 
 
-def test_random_point_returns_builtin_ints():
+def test_random_point_returns_builtin_ints() -> None:
     """
     `np.argwhere` yields `np.int64`. A random point is a Minimap Position like any
     other and must be a builtin `int` before it reaches a telemetry payload.

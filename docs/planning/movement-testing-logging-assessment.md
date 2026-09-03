@@ -40,7 +40,7 @@ Three layers, cheapest first:
   structure; check invariants (no key left held except `forced_key_releases`, no
   opposite keys held simultaneously, duration consistent with `grid.speed`). Golden
   snapshot tests of keystroke timelines for fixed scenarios.
-  `tests/test_royals/test_minimap_mechanics.py` already sketches this idea (10k path
+  `tests/test_maple/test_minimap_mechanics.py` already sketches this idea (10k path
   simulations) but is empty.
 - **Layer B, calibration CLI** (game running, scripted): execute one primitive at a
   time (walk N px, single jump, teleport), measure minimap position before/after,
