@@ -1,15 +1,18 @@
-import cv2
 import logging
-import numpy as np
 import os
 import string
-from paths import ROOT
+
+import cv2
+import numpy as np
+
 from botting import PARENT_LOG
-from botting.visuals import InGameDynamicVisuals
 from botting.utilities import (
     Box,
+    read_detection_image,
     take_screenshot,
 )
+from botting.visuals import InGameDynamicVisuals
+from paths import ROOT
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -19,7 +22,7 @@ class AbilityMenu(InGameDynamicVisuals):
     Implements the in-game ability menu.
     """
 
-    _menu_icon_detection_needle: np.ndarray = cv2.imread(
+    _menu_icon_detection_needle: np.ndarray = read_detection_image(
         os.path.join(ROOT, "maple/assets/detection_images/ability_menu.png")
     )
 
@@ -141,13 +144,19 @@ class AbilityMenu(InGameDynamicVisuals):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         return cv2.resize(cv2.bitwise_not(gray), None, fx=10, fy=10)
 
-    def is_displayed(self, handle: int, image: np.ndarray = None) -> bool:
-        return True if self._menu_icon_position(handle, image) is not None else False
+    def is_displayed(self, handle: int, image: np.ndarray | None = None) -> bool:
+        return self._menu_icon_position(handle, image) is not None
 
-    def get_available_ap(self, handle: int, image: np.ndarray = None) -> int | None:
+    def get_available_ap(
+        self, handle: int, image: np.ndarray | None = None
+    ) -> int | None:
         if image is None:
             image = take_screenshot(handle)
         icon = self._menu_icon_position(handle, image)
+        if icon is None:
+            raise LookupError(
+                "The ability menu is not on screen, so its boxes cannot be placed."
+            )
         box = icon + self.ability_points_box
         cropped = box.extract_client_img(image)
         try:
@@ -164,30 +173,34 @@ class AbilityMenu(InGameDynamicVisuals):
             "LUK": self.add_luk_box,
         }
 
-    def get_speed(self, handle: int, image: np.ndarray = None) -> float:
+    def get_speed(self, handle: int, image: np.ndarray | None = None) -> float:
         if image is None:
             image = take_screenshot(handle)
         icon = self._menu_icon_position(handle, image)
+        if icon is None:
+            raise LookupError(
+                "The ability menu is not on screen, so its boxes cannot be placed."
+            )
         box = icon + self.speed_box
         cropped = box.extract_client_img(image)
         try:
             return int(self.read_from_img(cropped, box.config).strip("%")) / 100
         except ValueError:
-            logger.error(
-                "Could not read Speed off the ability menu.", exc_info=True
-            )
+            logger.exception("Could not read Speed off the ability menu.")
             raise
 
-    def get_jump(self, handle: int, image: np.ndarray = None) -> float:
+    def get_jump(self, handle: int, image: np.ndarray | None = None) -> float:
         if image is None:
             image = take_screenshot(handle)
         icon = self._menu_icon_position(handle, image)
+        if icon is None:
+            raise LookupError(
+                "The ability menu is not on screen, so its boxes cannot be placed."
+            )
         box = icon + self.jump_box
         cropped = box.extract_client_img(image)
         try:
             return int(self.read_from_img(cropped, box.config).strip("%")) / 100
         except ValueError:
-            logger.error(
-                "Could not read Jump off the ability menu.", exc_info=True
-            )
+            logger.exception("Could not read Jump off the ability menu.")
             raise

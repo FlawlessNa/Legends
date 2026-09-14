@@ -3,10 +3,11 @@ import logging
 import math
 import multiprocessing.connection
 import multiprocessing.managers
+import threading
+from functools import partial
 
-from .mixins import RebuffMixin, NextTargetMixin, MinimapAttributesMixin
 from botting import PARENT_LOG
-from botting.core import ActionRequest, DecisionMaker, BotData, MetadataNamespace
+from botting.core import ActionRequest, BotData, DecisionMaker, MetadataNamespace
 from botting.utilities import cooldown
 from maple.actions import priorities
 from maple.model.characters import MapleSkill
@@ -17,6 +18,8 @@ from maple.telemetry_events import (
     REBUFF_STATE_RESET,
     RebuffPayload,
 )
+
+from .mixins import MinimapAttributesMixin, NextTargetMixin, RebuffMixin
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
@@ -31,8 +34,8 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         data: BotData,
         pipe: multiprocessing.connection.Connection,
         synchronized_buffs: list[str],
-        buff_location: tuple[int, int] = None,
-        **kwargs,
+        buff_location: tuple[int, int] | None = None,
+        **kwargs: object,
     ) -> None:
         super().__init__(metadata, data, pipe)
         self._location = buff_location or self.data.current_minimap.party_rebuff_spot
@@ -79,16 +82,16 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         self._set_ready_state()
         self._reset_flag = False
 
-    async def _decide(self, *args, **kwargs) -> None:
+    async def _decide(self) -> None:
         await self._wait_until_ready()
         self._set_fixed_target(self._location)
         try:
             await asyncio.wait_for(
                 self._attempt_party_rebuff(), timeout=self._TIME_LIMIT
             )
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             e.add_note(f"{self} timed out while attempting to party rebuff.")
-            raise e
+            raise
 
         self._reset_state()
 
@@ -229,7 +232,7 @@ class PartyRebuff(MinimapAttributesMixin, NextTargetMixin, RebuffMixin, Decision
         """
         buff_names = {buff.name for buff in self._buffs}
         statuses = self._ns.get_shared_dict("rebuffed")
-        remaining = set([item for sublist in statuses.values() for item in sublist])
+        remaining = {item for sublist in statuses.values() for item in sublist}
         return list(buff_names.intersection(remaining))
 
     def _members_all_in_range(self) -> bool:
@@ -268,9 +271,9 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
         metadata: multiprocessing.managers.DictProxy,
         data: BotData,
         pipe: multiprocessing.connection.Connection,
-        included_buffs: list[str] = None,
-        excluded_buffs: list[str] = None,
-        **kwargs,
+        included_buffs: list[str] | None = None,
+        excluded_buffs: list[str] | None = None,
+        **kwargs: object,
     ) -> None:
         super().__init__(metadata, data, pipe)
 
@@ -281,28 +284,44 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
         if excluded_buffs:
             buffs = list(filter(lambda buff: buff.name not in excluded_buffs, buffs))
         self._buffs = buffs
-        self._sub_tasks: dict[str, asyncio.Task] = dict()
-        self._tg = None
+        self._sub_tasks: dict[str, asyncio.Task] = {}
+        self._tg: asyncio.TaskGroup | None = None
 
-    async def start(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
+    async def start(self, tg: asyncio.TaskGroup) -> None:
         """
         Overwrites the DecisionMaker start method such that a new task is created for
         each buff individually.
         :return:
         """
         self._tg = tg
-        await super().start(tg, *args, **kwargs)
+        await super().start(tg)
 
-    async def task(self, *args, **kwargs) -> None:
+    async def task(self) -> None:
+        """
+        One decision loop per buff, instead of the base class's single one.
+
+        Each buff has its own duration, so each needs its own clock; they used
+        to get one by calling the base `task` with extra arguments and relying
+        on a vararg passthrough. `_decision_loop` is that same machinery, named:
+        the loops mint their own Correlation IDs and log under their own names,
+        exactly as before.
+        """
+        assert self._tg is not None, "start() must run before task()"
         for buff in self._buffs:
             ident = f"{self} - {buff.name}"
             condition = self._proxies.instance(ident, "Condition")
             self._sub_tasks[ident] = self._tg.create_task(
-                super().task(buff, condition), name=ident
+                self._decision_loop(ident, partial(self._recast, buff, condition)),
+                name=ident,
             )
 
-    async def _decide(
-        self, buff: MapleSkill, condition: multiprocessing.managers.ConditionProxy
-    ) -> None:
+    async def _recast(self, buff: MapleSkill, condition: threading.Condition) -> None:
+        """One buff's decision: cast it, then sleep out its duration."""
         await self._cast_and_confirm([buff], condition)
         await asyncio.sleep(self._randomized(buff.duration))
+
+    async def _decide(self) -> None:
+        """
+        Never called: this DecisionMaker's loops are per-buff and run `_recast`.
+        The base class still requires the method.
+        """

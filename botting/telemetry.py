@@ -26,6 +26,7 @@ from __future__ import annotations
 import datetime
 import json
 import logging
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Final
 
@@ -98,7 +99,7 @@ def _encode(envelope: dict[str, Any]) -> str:
 def emit_event(
     correlation_id: str | None,
     event_type: str,
-    payload: dict[str, Any] | None = None,
+    payload: Mapping[str, Any] | None = None,
     logger_name: str | None = None,
 ) -> None:
     """
@@ -110,7 +111,9 @@ def emit_event(
         says so rather than carrying an id that ties it to nothing.
     :param event_type: What happened. The taxonomy is a separate decision; any
         string is accepted until it lands.
-    :param payload: Event-specific detail. Defaults to an empty object.
+    :param payload: Any Mapping - a `TypedDict` from a `telemetry_events`
+        module is the intended shape, and `dict` invariance would reject one.
+        Event-specific detail. Defaults to an empty object.
     :param logger_name: The Producer's logger name. Recorded in the envelope and
         used for routing, so pass the Producer's own logger name to keep the
         record attributable; ``DecisionMaker.emit()`` does this for you.

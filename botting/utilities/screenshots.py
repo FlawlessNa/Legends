@@ -38,6 +38,7 @@ def take_screenshot(
         bottom = dimensions["bottom"]
     else:
         # Offsetting by 30 pixel to remove titlebar from screenshots
+        assert handle is not None, "A handle is needed when no dimensions are given."
         left, top, right, bottom = win32gui.GetClientRect(handle)
         left += CLIENT_HORIZONTAL_MARGIN_PX
         right += CLIENT_HORIZONTAL_MARGIN_PX
@@ -102,13 +103,13 @@ def find_image(
     locations = np.where(result >= threshold)
     locations = zip(*locations[::-1])
 
-    rectangles = list()
+    rectangles = []
     for loc in locations:
         rect = [int(loc[0]), int(loc[1]), needle.shape[1], needle.shape[0]]
         rectangles.append(rect)
         rectangles.append(rect)
 
-    rectangles, weights = group_rectangles(rectangles, group_threshold=1, eps=0.5)
+    rectangles, _weights = group_rectangles(rectangles, group_threshold=1, eps=0.5)
     if add_margins:
         return [
             Box(

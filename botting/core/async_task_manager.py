@@ -89,9 +89,7 @@ class AsyncTaskManager:
             "identifier": request.identifier,
             "priority": int(request.priority),
         }
-        emit_event(
-            request.correlation_id, event_type, dict(payload), logger_name=logger.name
-        )
+        emit_event(request.correlation_id, event_type, payload, logger_name=logger.name)
 
     async def _handle_priority(self, request: ActionRequest) -> None:
         if request.priority >= self._get_priority_blocking():
@@ -128,7 +126,7 @@ class AsyncTaskManager:
                 emit_event(
                     request.correlation_id,
                     ACTION_CANCELS_OTHER,
-                    dict(cancels),
+                    cancels,
                     logger_name=logger.name,
                 )
                 victim = self.running_tasks[task].task

@@ -6,6 +6,7 @@ with the YOLOv8 framework.
 
 import os
 import random
+
 from paths import ROOT
 
 TRAIN_PROP = 0.7
@@ -13,9 +14,7 @@ VAL_PROP = 0.2
 TEST_PROP = 0.1
 
 # The images must be saved into the same path as where the ANNOTATOR OUTPUT is saved
-ANNOTATOR_OUTPATH = os.path.join(
-    ROOT, "data/character_detection_images/GS2MobsAndChar"
-)
+ANNOTATOR_OUTPATH = os.path.join(ROOT, "data/character_detection_images/GS2MobsAndChar")
 
 # Make sure to Ctrl+R the paths within the txt files to the images folder
 TRAIN_TXT_FILE = os.path.join(

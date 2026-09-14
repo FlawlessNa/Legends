@@ -1,14 +1,33 @@
+import enum
 import logging
-import numpy as np
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
+import numpy as np
+
 logger = logging.getLogger(__name__)
+
+#: "Never" for the metadata timestamps. Timezone-aware like every other stamp
+#: in this module, because the two are compared directly.
+_EPOCH = datetime.min.replace(tzinfo=UTC)
 N_RET_VALUES = 10
 
-_SENTINEL = object()
+
+class _Unset(enum.Enum):
+    """
+    "Argument not supplied", distinct from an explicit `None`.
+
+    An `enum` member rather than a bare `object()` so that `is not _SENTINEL`
+    actually narrows the parameter to its real type.
+    """
+
+    TOKEN = enum.auto()
+
+
+_SENTINEL = _Unset.TOKEN
 
 
 @dataclass
@@ -22,9 +41,9 @@ class AttributeMetadata:
     access_count: int = 0  # Number of times the attribute has been accessed
     update_count: int = 0  # Number of times the attribute has been updated
     total_update_time: float = 0.0  # Total time spent updating the attribute
-    last_update_time: datetime = datetime.min  # Timestamp of last update
-    last_valid_update_time: datetime = datetime.min  # Timestamp of last valid update
-    last_value_change_time: datetime = datetime.min  # Timestamp of last value change
+    last_update_time: datetime = _EPOCH  # Timestamp of last update
+    last_valid_update_time: datetime = _EPOCH  # Timestamp of last valid update
+    last_value_change_time: datetime = _EPOCH  # Timestamp of last value change
     # Last N values of the attribute
     prev_values: deque[Any] = field(default_factory=lambda: deque(maxlen=N_RET_VALUES))
 
@@ -50,12 +69,12 @@ class ManagedAttribute:
     def __init__(
         self,
         name: str,
-        update_function: callable,
-        threshold: float = None,
+        update_function: Callable[..., Any],
+        threshold: float | None = None,
         initial_value: Any = None,
-        error_handler: callable = None,
+        error_handler: Callable[..., Any] | None = None,
         max_retries: int = 1,
-        **metadata_kwargs,
+        **metadata_kwargs: Any,
     ) -> None:
         self.name = name
         self.value: Any = initial_value
@@ -96,15 +115,15 @@ class ManagedAttribute:
         self.max_retries = self._snapshot["max_retries"]
         self._snapshot = None
 
-    def get(self, owner: "BotData") -> Any:
+    def get(self, owner: BotData) -> Any:
         """
         Returns the current value, automatically refreshing if the threshold
         has been exceeded since the last update.
         """
         self.metadata.access_count += 1
         threshold = self.threshold or float("inf")
-        last_update_time = self.metadata.last_update_time or datetime.min
-        if (datetime.now() - last_update_time).total_seconds() > threshold:
+        last_update_time = self.metadata.last_update_time or _EPOCH
+        if (datetime.now(UTC) - last_update_time).total_seconds() > threshold:
             logger.debug("%s Updating %s due to exceeded threshold.", owner, self.name)
             self.update(owner)
         return self.value
@@ -116,7 +135,7 @@ class ManagedAttribute:
         self.value = value
         self.metadata.prev_values.append(value)
 
-    def update(self, owner: "BotData") -> None:
+    def update(self, owner: BotData) -> None:
         """
         Refreshes the value by calling the update function. Tracks metadata
         such as update count, timing, validity, and value changes.
@@ -125,26 +144,26 @@ class ManagedAttribute:
         """
         self._update_with_retry(owner, retries_left=self.max_retries)
 
-    def _update_with_retry(self, owner: "BotData", retries_left: int) -> None:
+    def _update_with_retry(self, owner: BotData, retries_left: int) -> None:
         try:
             self._execute_update()
-        except Exception as e:
+        except Exception:
             if self.error_handler is not None and retries_left > 0:
                 self.error_handler()
                 logger.info("Finished error handling for %s.", self.name)
                 self._update_with_retry(owner, retries_left - 1)
                 logger.info("Successfully updated %s after error handling.", self.name)
             else:
-                raise e
+                raise
 
     def _execute_update(self) -> None:
         """
         Calls the update function, updates metadata, and sets the new value.
         """
-        now = datetime.now()
+        now = datetime.now(UTC)
         value = self.update_function()
         self.metadata.update_count += 1
-        self.metadata.last_update_time = datetime.now()
+        self.metadata.last_update_time = datetime.now(UTC)
 
         if _update_is_valid(value):
             self.metadata.last_valid_update_time = self.metadata.last_update_time
@@ -152,7 +171,7 @@ class ManagedAttribute:
         if _update_is_change(value, self.value):
             self.metadata.last_value_change_time = self.metadata.last_update_time
         self.set(value)
-        self.metadata.total_update_time += (datetime.now() - now).total_seconds()
+        self.metadata.total_update_time += (datetime.now(UTC) - now).total_seconds()
 
 
 def _update_is_valid(value: Any) -> bool:
@@ -225,8 +244,7 @@ class BotData:
             self._static[name] = value
         else:
             raise AttributeError(
-                f"{name} not found in {self}. "
-                f"Use create_attribute() or set_static()."
+                f"{name} not found in {self}. Use create_attribute() or set_static()."
             )
 
     def get_last_known_value(self, name: str, update: bool = True) -> Any:
@@ -253,7 +271,7 @@ class BotData:
         """
         if name in self._managed:
             return (
-                datetime.now() - self._managed[name].metadata.last_valid_update_time
+                datetime.now(UTC) - self._managed[name].metadata.last_valid_update_time
             ).total_seconds()
         raise AttributeError(f"{name} not found in {self}")
 
@@ -263,7 +281,7 @@ class BotData:
         """
         if name in self._managed:
             return (
-                datetime.now() - self._managed[name].metadata.last_value_change_time
+                datetime.now(UTC) - self._managed[name].metadata.last_value_change_time
             ).total_seconds()
         raise AttributeError(f"{name} not found in {self}")
 
@@ -273,10 +291,7 @@ class BotData:
         """
         if name in self._managed:
             prev_values = self._managed[name].metadata.prev_values
-            if all(val == prev_values[-1] or val is None for val in prev_values):
-                return False
-            else:
-                return True
+            return not all(val == prev_values[-1] or val is None for val in prev_values)
         raise AttributeError(f"{name} not found in {self}")
 
     def update_attributes(self, *names: str) -> None:
@@ -315,10 +330,10 @@ class BotData:
     def create_attribute(
         self,
         name: str,
-        update_function: callable,
-        threshold: float = None,
+        update_function: Callable[..., Any],
+        threshold: float | None = None,
         initial_value: Any = None,
-        error_handler: callable = None,
+        error_handler: Callable[..., Any] | None = None,
         max_retries: int = 1,
     ) -> None:
         """
@@ -346,9 +361,9 @@ class BotData:
     def reconfigure_attribute(
         self,
         name: str,
-        update_function: callable = _SENTINEL,
-        threshold: float = _SENTINEL,
-        error_handler: callable = _SENTINEL,
+        update_function: Callable[..., Any] | _Unset = _SENTINEL,
+        threshold: float | None | _Unset = _SENTINEL,
+        error_handler: Callable[..., Any] | None | _Unset = _SENTINEL,
     ) -> None:
         """
         Reconfigure an existing managed attribute. Preserves metadata history.
@@ -357,9 +372,7 @@ class BotData:
         error_handler).
         """
         if name not in self._managed:
-            raise AttributeError(
-                f"{name} not found in {self}. Cannot reconfigure."
-            )
+            raise AttributeError(f"{name} not found in {self}. Cannot reconfigure.")
         managed = self._managed[name]
         if update_function is not _SENTINEL:
             managed.update_function = update_function
@@ -390,10 +403,10 @@ class BotData:
     def create_or_reconfigure_attribute(
         self,
         name: str,
-        update_function: callable,
-        threshold: float = None,
+        update_function: Callable[..., Any],
+        threshold: float | None = None,
         initial_value: Any = None,
-        error_handler: callable = None,
+        error_handler: Callable[..., Any] | None = None,
         max_retries: int = 1,
     ) -> None:
         """

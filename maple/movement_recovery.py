@@ -38,7 +38,7 @@ from __future__ import annotations
 import enum
 import math
 from collections import deque
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from maple.model.mechanics.movement_mechanics_v2 import (
@@ -214,7 +214,7 @@ class StuckMonitor:
         self,
         thresholds: RecoveryThresholds | None = None,
         *,
-        emit: Callable[[str, dict], None] | None = None,
+        emit: Callable[[str, Mapping[str, object]], None] | None = None,
     ) -> None:
         """
         :param thresholds: The named shapes the detectors run on. Defaults to the
@@ -520,7 +520,7 @@ class StuckMonitor:
             "target_x": int(state.target[0]),
             "target_y": int(state.target[1]),
         }
-        self._emit(RECOVERY_LADDER_RESET, dict(payload))
+        self._emit(RECOVERY_LADDER_RESET, payload)
         state.reflex_count = 0
         state.abandoned = False
 
@@ -536,7 +536,7 @@ class StuckMonitor:
             "measure": float(measure),
             "threshold": float(threshold),
         }
-        self._emit(RECOVERY_STUCK_DETECTED, dict(payload))
+        self._emit(RECOVERY_STUCK_DETECTED, payload)
 
     def _react(self, event_type: str, reaction: Reaction) -> None:
         suspected = reaction.suspected_connection
@@ -558,9 +558,9 @@ class StuckMonitor:
             "suspected_end_x": int(suspected.end[0]) if suspected is not None else None,
             "suspected_end_y": int(suspected.end[1]) if suspected is not None else None,
         }
-        self._emit(event_type, dict(payload))
+        self._emit(event_type, payload)
 
-    def _emit(self, event_type: str, payload: dict) -> None:
+    def _emit(self, event_type: str, payload: Mapping[str, object]) -> None:
         if self._emit_fn is not None:
             self._emit_fn(event_type, payload)
 

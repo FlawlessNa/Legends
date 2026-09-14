@@ -1,6 +1,7 @@
-import os
 import logging
+import os
 from configparser import ConfigParser, SectionProxy
+
 from paths import ROOT
 
 logger = logging.getLogger(__name__)

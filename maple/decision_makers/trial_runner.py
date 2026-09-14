@@ -118,7 +118,7 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
 
     # --- the decision cycle -------------------------------------------------------
 
-    async def task(self, *args: object, **kwargs: object) -> None:
+    async def task(self) -> None:
         """
         The decision loop, with the record closed out however it ends.
 
@@ -128,7 +128,7 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         instead of a record that trails off mid-cycle.
         """
         try:
-            await super().task(*args, **kwargs)
+            await super().task()
         finally:
             self._close_record()
 

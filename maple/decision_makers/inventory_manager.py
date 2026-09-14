@@ -110,7 +110,7 @@ class InventoryManager(
         )
         self._open_shop_box: Box | None = None
 
-    async def _decide(self, *args: object, **kwargs: object) -> None:
+    async def _decide(self) -> None:
         space_left = await asyncio.wait_for(self._check_inventory_space(), timeout=10)
         await self._ensure_inventory_displayed(displayed=False)
         if space_left < self._space_left_trigger:

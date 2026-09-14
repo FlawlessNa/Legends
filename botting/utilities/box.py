@@ -1,7 +1,7 @@
-import numpy as np
 import random
-
 from dataclasses import dataclass, field
+
+import numpy as np
 
 CLIENT_HORIZONTAL_MARGIN_PX = 3
 CLIENT_VERTICAL_MARGIN_PX = 29
@@ -28,19 +28,19 @@ class Box:
     relative: bool = field(default=False, compare=False, repr=False)
     config: str | None = field(default=None, compare=False, repr=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """
         Ensures that non-offset boxes have positive dimensions.
         """
         if not self.relative:
-            assert (
-                self.width >= 0
-            ), f"Box initialized with negative Width. Left is {self.left} whereas right is {self.right}"
-            assert (
-                self.height >= 0
-            ), f"Box initialized with negative Height. Top is {self.top} whereas bottom is {self.bottom}"
+            assert self.width >= 0, (
+                f"Box initialized with negative Width. Left is {self.left} whereas right is {self.right}"
+            )
+            assert self.height >= 0, (
+                f"Box initialized with negative Height. Top is {self.top} whereas bottom is {self.bottom}"
+            )
 
-    def __add__(self, other):
+    def __add__(self, other: Box | None) -> Box:
         """
         Add two boxes together by adding all their coordinates together.
         If both boxes have a config argument which is different, raise a Value error.
@@ -75,7 +75,7 @@ class Box:
             config=config,
         )
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: str) -> int:
         """
         Allows to access the Box's attributes as if it was a dictionary.
         """

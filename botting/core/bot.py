@@ -1,11 +1,15 @@
 import asyncio
 import multiprocessing.connection
 import multiprocessing.managers
+import threading
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from functools import cached_property
+from typing import Any
 
 from botting.controller import release_keys
 from botting.utilities import client_handler
+
 from .action_data import ActionRequest
 from .bot_data import BotData
 from .decision_maker import DecisionMaker
@@ -23,20 +27,25 @@ class Bot(ABC):
     BotData instance which it shares with all its DecisionMakers.
     """
 
-    ign_finder: callable  # Method that returns the handle of a client given its IGN.
+    ign_finder: Callable[
+        ..., Any
+    ]  # Method that returns the handle of a client given its IGN.
 
     @classmethod
     def get_handle_from_ign(cls, ign: str) -> int:
         return client_handler.get_client_handle(ign, cls.ign_finder)
 
     def __init__(
-        self, ign: str, metadata: multiprocessing.managers.DictProxy, **kwargs
+        self, ign: str, metadata: multiprocessing.managers.DictProxy, **kwargs: object
     ) -> None:
         self.ign = ign
-        self.data = None
+        # Filled in by `child_init`, inside the Engine process: a Bot is built in
+        # Main Process and shipped over a pipe, and none of these three survive
+        # that trip. Everything that reads them runs after `child_init`.
+        self.data: BotData | None = None
+        self.pipe: multiprocessing.connection.Connection | None = None
+        self.barrier: threading.Barrier | None = None
         self.metadata = metadata
-        self.pipe = None
-        self.barrier = None
         self.kwargs = kwargs
 
         self._bot: asyncio.Task | None = None
@@ -68,6 +77,7 @@ class Bot(ABC):
             decision_makers = self.decision_makers  # Instantiate DecisionMakers.
 
             # Synchronizes the start of all bots at the same time.
+            assert self.barrier is not None, "child_init() must run before start()"
             await asyncio.to_thread(self.barrier.wait)
 
             for dm in decision_makers:
@@ -83,10 +93,12 @@ class Bot(ABC):
         for dm_class in self._decision_makers():
             for task in asyncio.all_tasks():
                 name = task.get_name()
-                if 'Enabler' in name or 'Disabler' in name:
+                if "Enabler" in name or "Disabler" in name:
                     continue
                 elif name.startswith(dm_class.__name__):
                     task.cancel()
+        assert self.pipe is not None
+        assert self.data is not None
         self.pipe.send(
             ActionRequest(
                 f"Releasing movement keys - {self.ign}",
@@ -104,12 +116,13 @@ class Bot(ABC):
         """
         Called in Main Process as an ActionRequest procedure.
         """
-        release_keys(['left', 'up', 'down', 'right'], handle)
+        release_keys(["left", "up", "down", "right"], handle)
 
     def resume(self) -> None:
         """
         Resumes the DecisionMakers tasks.
         """
+        assert self._tg is not None, "start() must run before resume()"
         for dm in self.decision_makers:
             task = self._tg.create_task(dm.task(), name=f"{dm}")
             dm.decision_task = task

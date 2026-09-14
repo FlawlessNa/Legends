@@ -22,7 +22,7 @@ import asyncio
 import logging
 import queue
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Protocol
 
 from botting import PARENT_LOG, controller
@@ -72,7 +72,7 @@ class MovementRecoveryMixin:
 
     data: BotData
     send: Callable[[ActionRequest], None]
-    emit: Callable[[str, dict], None]
+    emit: Callable[[str, Mapping[str, object]], None]
     _proxies: ProxyFactory
     _disable_decision_makers: Callable[..., None]
     _abandon_current_target: Callable[[], tuple[int, int]]

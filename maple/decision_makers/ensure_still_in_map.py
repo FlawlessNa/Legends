@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
@@ -9,6 +10,7 @@ from maple.telemetry_events import (
     RECOVERY_MAP_CHECK_RECOVERED,
     MapCheckPayload,
 )
+
 from .mixins import (
     MinimapAttributesMixin,
     ReactionsMixin,
@@ -25,7 +27,7 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
         metadata: multiprocessing.managers.DictProxy,
         data: BotData,
         pipe: multiprocessing.connection.Connection,
-        **kwargs,
+        **kwargs: object,
     ) -> None:
         super().__init__(metadata, data, pipe)
         if not self.data.has_minimap_attributes:
@@ -35,14 +37,11 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
     async def _decide(self) -> None:
         still_in_map = self._perform_check()
         if not still_in_map:
-
             # Reset minimap attributes and move mouse away
             checked: MapCheckPayload = {"map_name": self.map_name}
             self.emit(RECOVERY_MAP_CHECK_FAILED, checked)
-            try:
+            with contextlib.suppress(BaseException):
                 self._minimap_pos_error_handler()
-            except :
-                pass
 
             # Re-try
             if not self._perform_check():
@@ -67,7 +66,12 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
             return self.data.current_minimap.validate_in_map(
                 self.data.handle, self.map_name
             )
-        except FileNotFoundError as e:
-            raise e
-        except BaseException as e:
+        except FileNotFoundError:
+            raise
+        except Exception:
+            # Narrower than the BaseException this used to catch: a failed check
+            # means "assume we are out of the map and retry", but a
+            # KeyboardInterrupt or SystemExit is the Session being shut down and
+            # must not be reported as a map check.
+            logger.debug("%s could not validate its map.", self.data.ign, exc_info=True)
             return False

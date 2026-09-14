@@ -1,6 +1,10 @@
-import cv2
+import logging
 import os
+import time
+
+import cv2
 from ultralytics import YOLO
+
 from botting.utilities import take_screenshot
 from paths import ROOT
 
@@ -11,9 +15,11 @@ MODEL_PATH = os.path.join(ROOT, TRAINING_PROJECT_ROOT, NAME, "weights", "best.pt
 
 # Load the model
 model = YOLO(MODEL_PATH, task="detect")
+logger = logging.getLogger(__name__)
+
 i = 0
 total_time = 0
-import time
+
 while True:
     img = take_screenshot(0x014D09C0)
     start = time.time()
@@ -22,9 +28,9 @@ while True:
     i += 1
 
     for res in results:
-        cv2.imshow('Predictions', res.plot())
+        cv2.imshow("Predictions", res.plot())
         cv2.waitKey(1)
-    print(i)
+    logger.info("frame %s", i)
     # if i == 1000:
     #     break
-print('avg time', total_time / i)
+logger.info("avg time %s", total_time / i)

@@ -11,12 +11,8 @@ from maple.telemetry_events import (
     RECOVERY_MOB_SPAWN_RESTORED,
     MobSpawnRestoredPayload,
 )
-from .mixins import (
-    UIMixin,
-    MobsHittingMixin,
-    NextTargetMixin,
-    ReactionsMixin
-)
+
+from .mixins import MobsHittingMixin, NextTargetMixin, ReactionsMixin, UIMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -34,7 +30,7 @@ class CheckMobsStillSpawn(
         pipe: multiprocessing.connection.Connection,
         mob_spawn_alert_timer: float,
         mob_spawn_alert_threshold: int,
-        **kwargs,
+        **kwargs: object,
     ) -> None:
         super().__init__(metadata, data, pipe)
         self._alert_timer = mob_spawn_alert_timer
@@ -45,15 +41,13 @@ class CheckMobsStillSpawn(
         if not self.data.has_chat_feed_attributes:
             self._create_chat_feed_attributes()
 
-    async def task(self, *args, **kwargs) -> None:
+    async def task(self) -> None:
         self._last_valid_detection = time.perf_counter() + 10.0
-        await super().task(*args, **kwargs)
+        await super().task()
 
     async def _decide(self) -> None:
         mob_count = self.mob_count_in_img(
-            self.data.current_client_img,
-            self.data.current_mobs,
-            debug=True
+            self.data.current_client_img, self.data.current_mobs, debug=True
         )
 
         # Enough mobs, reset timer
@@ -75,12 +69,10 @@ class CheckMobsStillSpawn(
                 self.emit(RECOVERY_MOB_SPAWN_RESTORED, restored)
                 await self._clear_failsafe_procedure()
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Failsafe procedure failed. Pause bot and send final chat reaction
                 self._disable_decision_makers(
-                    "Rotation",
-                    "CheckMobsStillSpawn",
-                    "CheckStillInMap"
+                    "Rotation", "CheckMobsStillSpawn", "CheckStillInMap"
                 )
                 self._react("advanced")
                 logger.critical(
@@ -90,9 +82,7 @@ class CheckMobsStillSpawn(
 
     async def _setup_failsafe_procedure(self) -> None:
         self._disable_decision_makers(
-            "MobsHitting",
-            "TelecastMobsHitting",
-            "PartyRebuff"
+            "MobsHitting", "TelecastMobsHitting", "PartyRebuff"
         )
         await self._validate_request_async(
             self._toggle_chat_request(),
@@ -118,9 +108,7 @@ class CheckMobsStillSpawn(
             timeout=5.0,
         )
         self._enable_decision_makers(
-            "MobsHitting",
-            "TelecastMobsHitting",
-            "PartyRebuff"
+            "MobsHitting", "TelecastMobsHitting", "PartyRebuff"
         )
         self._last_valid_detection = time.perf_counter()
         self._restore_rotation_target()  # This resets the next_target procedure
@@ -128,10 +116,9 @@ class CheckMobsStillSpawn(
     async def _failsafe_procedure(self) -> None:
         try:
             await asyncio.wait_for(
-                self._rotate_until_mobs_detected(),
-                timeout=self.FAILSAFE_TIMER // 2
+                self._rotate_until_mobs_detected(), timeout=self.FAILSAFE_TIMER // 2
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # Still no mobs.
             self._react("light")
             logger.warning(
@@ -144,11 +131,9 @@ class CheckMobsStillSpawn(
     async def _rotate_until_mobs_detected(self) -> None:
         while True:
             mob_count = self.mob_count_in_img(
-                self.data.current_client_img,
-                self.data.current_mobs,
-                debug=False
+                self.data.current_client_img, self.data.current_mobs, debug=False
             )
-            print(f"Mob count: {mob_count}")
+            logger.debug("%s sees %s mob(s).", self.data.ign, mob_count)
             if mob_count >= self._alert_threshold:
                 break
             await asyncio.sleep(0.5)
@@ -160,5 +145,5 @@ class CheckMobsStillSpawn(
             self.data.ign,
             priorities.ANTI_DETECTION,
             block_lower_priority=True,
-            args=(self.data.handle, self.data.ign, 'Chat Toggle')
+            args=(self.data.handle, self.data.ign, "Chat Toggle"),
         )

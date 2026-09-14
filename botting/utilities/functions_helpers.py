@@ -3,15 +3,18 @@ import inspect
 import itertools
 import random
 import time
-from typing import Literal
+from collections.abc import Callable
+from typing import Any, Literal
+
+from .box import Box
 
 
-def cooldown(seconds: float):
-    def decorator(func):
+def cooldown(seconds: float) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         last_call = [0.0]
 
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             if time.perf_counter() - last_call[0] >= seconds:
                 last_call[0] = time.perf_counter()
                 return func(*args, **kwargs)
@@ -23,13 +26,13 @@ def cooldown(seconds: float):
 
 
 def randomize_params(
-    *args,
+    *args: object,
     perc_threshold: float = 0.05,
     abs_threshold: float | None = None,
     ignore_args: str | list[str] | None = None,
     convert_args: dict[str, Literal["int", "float"]] | None = None,
     enforce_sign: bool = True,
-) -> callable:
+) -> Callable[..., Any]:
     """
     This decorator randomizes any integers, floats and Box
      that the decorated function uses parameters (default).
@@ -58,11 +61,11 @@ def randomize_params(
         ignore_args = []
 
     if convert_args is None:
-        convert_args = dict()
+        convert_args = {}
 
-    def outer(func: callable) -> callable:
+    def outer(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        def inner(*func_args, **func_kwargs):
+        def inner(*func_args: Any, **func_kwargs: Any) -> Any:  # noqa: ANN401
             arguments_mapper: dict = inspect.getcallargs(
                 func, *func_args, **func_kwargs
             )
@@ -75,9 +78,9 @@ def randomize_params(
                 )
             )
             for arg in itertools.chain(params_to_randomize, ignore_args):
-                assert (
-                    arg in arguments_mapper
-                ), f"The specified argument {arg} is not part of the specified keyword arguments in the underlying function {func.__qualname__}"
+                assert arg in arguments_mapper, (
+                    f"The specified argument {arg} is not part of the specified keyword arguments in the underlying function {func.__qualname__}"
+                )
 
             if abs_threshold:
                 randomized_params = {
@@ -104,7 +107,7 @@ def randomize_params(
 
             # For Box parameters, return a random point within their box areas instead
             randomized_params = {
-                k: v.random() if hasattr(v, "random") else v
+                k: v.random() if isinstance(v, Box) else v
                 for k, v in randomized_params.items()
             }
 
@@ -116,17 +119,22 @@ def randomize_params(
                         )
 
             for k, v in convert_args.items():
-                assert (
-                    k in randomized_params.keys()
-                ), f"The specified argument {k} from convert_args is not among the parameters to be randomized {params_to_randomize}."
+                assert k in randomized_params, (
+                    f"The specified argument {k} from convert_args is not among the parameters to be randomized {params_to_randomize}."
+                )
                 assert v in [
                     "int",
                     "float",
-                ], f"Each val. in convert_args dict should either be equal to 'int' or 'float'"
-                if v == "int" and isinstance(randomized_params[k], (int, float)):
-                    randomized_params[k] = int(randomized_params[k])
-                elif v == "float" and isinstance(randomized_params[k], (int, float)):
-                    randomized_params[k] = float(randomized_params[k])
+                ], (
+                    "Each val. in convert_args dict should either be equal to 'int' or 'float'"
+                )
+                # Bound to a local: an `isinstance` guard on a subscript does
+                # not narrow the subscript on the next line.
+                value = randomized_params[k]
+                if v == "int" and isinstance(value, int | float):
+                    randomized_params[k] = int(value)
+                elif v == "float" and isinstance(value, int | float):
+                    randomized_params[k] = float(value)
 
             arguments_mapper.update(randomized_params)
             new_args = tuple(
@@ -137,7 +145,7 @@ def randomize_params(
             new_kwargs = {
                 k: v
                 for k, v in arguments_mapper.items()
-                if not func_params[k].kind == inspect.Parameter.POSITIONAL_ONLY
+                if func_params[k].kind != inspect.Parameter.POSITIONAL_ONLY
             }
 
             # If kwargs is specified in the underlying function, it is not unpacked as part of the signature. We need to manually unpack.

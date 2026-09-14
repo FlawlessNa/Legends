@@ -34,7 +34,9 @@ def install_loop_diagnostics(*, debug: bool = False) -> None:
     logger.debug("Loop diagnostics installed (asyncio debug mode: %s).", debug)
 
 
-def _log_loop_exception(loop: asyncio.AbstractEventLoop, context: dict[str, Any]):
+def _log_loop_exception(
+    loop: asyncio.AbstractEventLoop, context: dict[str, Any]
+) -> None:
     """
     asyncio exception handler. Replaces the default stderr report with a log record
     carrying the full traceback plus whatever context asyncio attached to it (the

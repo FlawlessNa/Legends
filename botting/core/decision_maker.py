@@ -2,8 +2,11 @@ import asyncio
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
+import threading
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable, Mapping
+from typing import Any
 
 from botting.logging_config import PARENT_LOG
 from botting.telemetry import emit_event
@@ -29,14 +32,18 @@ class DecisionMaker(ABC):
     which will be sent to the Main Process to be executed there.
     """
 
-    _throttle: float = None
+    _throttle: float | None = None
+
+    #: Set by whichever subclass or mixin needs one - `_validate_request_async`
+    #: falls back to it when a caller passes no condition of its own.
+    _condition: threading.Condition
 
     def __init__(
         self,
         metadata: multiprocessing.managers.DictProxy,
         data: BotData,
         pipe: multiprocessing.connection.Connection,
-        **kwargs,
+        **kwargs: object,
     ) -> None:
         self.metadata = metadata
         self.data = data
@@ -70,7 +77,7 @@ class DecisionMaker(ABC):
         return f"{self.__class__.__name__}({self.data.ign})"
 
     @abstractmethod
-    async def _decide(self, *args, **kwargs) -> None:
+    async def _decide(self) -> None:
         pass
 
     def send(self, request: ActionRequest) -> None:
@@ -87,7 +94,7 @@ class DecisionMaker(ABC):
         request.correlation_id = self.correlation_id
         self.pipe.send(request)
 
-    def emit(self, event_type: str, payload: dict | None = None) -> None:
+    def emit(self, event_type: str, payload: Mapping[str, Any] | None = None) -> None:
         """
         Emit a Telemetry Record for the _decide() call currently in flight.
 
@@ -118,7 +125,7 @@ class DecisionMaker(ABC):
                 gated: DecisionGatePayload = {"target": class_name}
                 self.emit(DECISION_DISABLED, gated)
                 with condition_proxy:
-                    condition_proxy.notify_all()  # noqa
+                    condition_proxy.notify_all()
 
     def _enable_decision_makers(self, *args: str, self_only: bool = False) -> None:
         """
@@ -133,71 +140,90 @@ class DecisionMaker(ABC):
                 gated: DecisionGatePayload = {"target": class_name}
                 self.emit(DECISION_ENABLED, gated)
                 with condition_proxy:
-                    condition_proxy.notify_all()  # noqa
+                    condition_proxy.notify_all()
 
     async def _validate_request_async(
         self,
         request: ActionRequest,
-        predicate: callable,
+        predicate: Callable[..., Any],
         timeout: float,
-        condition: multiprocessing.managers.ConditionProxy = None,  # noqa
+        condition: threading.Condition | None = None,
         max_trials: int = 10,
     ) -> None:
         validator = ActionWithValidation(
             self.pipe,
             predicate,
-            condition or getattr(self, "_condition"),
+            condition or self._condition,
             timeout,
             max_trials,
             correlation_id=self.correlation_id,
         )
         await validator.execute_async(request)
 
-    async def start(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
+    async def start(self, tg: asyncio.TaskGroup) -> None:
         tg.create_task(
-            asyncio.to_thread(self._disabler_task, tg, *args, **kwargs),
+            asyncio.to_thread(self._disabler_task, tg),
             name=f"{self} - Disabler",
         )
         tg.create_task(
-            asyncio.to_thread(self._enabler_task, tg, *args, **kwargs),
+            asyncio.to_thread(self._enabler_task, tg),
             name=f"{self} - Enabler",
         )
-        self.decision_task = tg.create_task(
-            self.task(*args, **kwargs), name=f"{self}"
-        )
+        self.decision_task = tg.create_task(self.task(), name=f"{self}")
 
-    async def task(self, *args, **kwargs) -> None:
+    async def task(self) -> None:
         """
-        The main task of the DecisionMaker.
+        The main task of the DecisionMaker: its decision loop.
+
+        The vararg chain that used to run start -> task -> _decide is gone.
+        `SoloRebuff` was the only thing that ever put anything through it, and
+        it did so to run *several* loops rather than to pass arguments to one -
+        which is what `_decision_loop` now expresses directly. Everything else
+        called it with nothing while paying for an `_decide(self)` that was an
+        incompatible override of a variadic base.
         :return:
         """
-        name = asyncio.current_task().get_name()
+        current = asyncio.current_task()
+        assert current is not None, "task() must run inside a task"
+        await self._decision_loop(current.get_name(), self._decide)
+
+    async def _decision_loop(
+        self, name: str, decide: Callable[[], Awaitable[None]]
+    ) -> None:
+        """
+        Decide, throttle, repeat, until cancelled.
+
+        Taken off `task` so a DecisionMaker that owns more than one loop can run
+        them all on the same machinery rather than reimplementing it - each loop
+        mints its own Correlation IDs and reports under its own name.
+        :param name: The task name this loop logs under.
+        :param decide: One decision.
+        """
         logger.info("%s has been enabled.", name)
         try:
             while True:
                 self.correlation_id = str(uuid.uuid4())
-                await self._decide(*args, **kwargs)
+                await decide()
                 if self._throttle:
                     await asyncio.sleep(self._throttle)
         except asyncio.CancelledError:
             logger.info("%s has been disabled.", name)
-            pass  # TODO - see if cleanup is required
+            # TODO - see if cleanup is required
         except BaseException as e:
             logger.error("Exception occurred in %s: %s.", name, e)
-            # breakpoint()
-            raise e
+            raise
 
-    def _enabler_task(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
+    def _enabler_task(self, tg: asyncio.TaskGroup) -> None:
         while True:
             with self._enabler:
                 self._enabler.wait()
                 if not self._enabled:
-                    self.decision_task = tg.create_task(
-                        self.task(*args, **kwargs), name=f"{self}"
-                    )
+                    self.decision_task = tg.create_task(self.task(), name=f"{self}")
                     self._enabled = True
 
-    def _disabler_task(self, tg: asyncio.TaskGroup, *args, **kwargs) -> None:
+    def _disabler_task(
+        self, tg: asyncio.TaskGroup, *args: object, **kwargs: object
+    ) -> None:
         """
         Listens for a disable request.
         :return:
@@ -206,6 +232,6 @@ class DecisionMaker(ABC):
             with self._disabler:
                 # When notified, cancel the task
                 self._disabler.wait()
-                if self._enabled:
+                if self._enabled and self.decision_task is not None:
                     self.decision_task.cancel()
                     self._enabled = False

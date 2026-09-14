@@ -1,16 +1,20 @@
+import os
+from abc import ABC
+from functools import lru_cache
+from typing import ClassVar
+
 import cv2
 import numpy as np
-import os
-from functools import lru_cache
-from abc import ABC
-from paths import ROOT
+
 from botting.utilities import (
-    Box,
-    take_screenshot,
     CLIENT_HORIZONTAL_MARGIN_PX,
     CLIENT_VERTICAL_MARGIN_PX,
+    Box,
+    read_detection_image,
+    take_screenshot,
 )
 from botting.visuals import InGameDynamicVisuals
+from paths import ROOT
 
 
 class Minimap(InGameDynamicVisuals, ABC):
@@ -24,33 +28,33 @@ class Minimap(InGameDynamicVisuals, ABC):
     full_map_area_left_offset: int = NotImplemented  # Subclass responsibility
     full_map_area_right_offset: int = NotImplemented  # Subclass responsibility
 
-    _menu_icon_detection_needle: np.ndarray = cv2.imread(
+    _menu_icon_detection_needle: np.ndarray = read_detection_image(
         os.path.join(
             ROOT,
             "maple/assets/detection_images/world_icon.png",
         )
     )
-    _self_color = [((136, 255, 255), (136, 255, 255))]
+    _self_color: ClassVar[list] = [((136, 255, 255), (136, 255, 255))]
     _self_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
     _self_y_offset = 2
 
-    _stranger_color = [
+    _stranger_color: ClassVar[list] = [
         ((0, 0, 255), (0, 0, 255)),
         ((0, 0, 238), (0, 0, 238)),
         ((0, 0, 221), (0, 0, 221)),
     ]
     _stranger_kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (5, 5))
     _stranger_y_offset = 0
-    _party_color = [((0, 119, 255), (0, 153, 255))]  # TODO
+    _party_color: ClassVar[list] = [((0, 119, 255), (0, 153, 255))]  # TODO
     _party_kernel = None  # TODO
     _party_y_offset = 0
-    _buddy_color = [((1, 1, 1), (0, 0, 0))]  # TODO
+    _buddy_color: ClassVar[list] = [((1, 1, 1), (0, 0, 0))]  # TODO
     _buddy_kernel = None  # TODO
     _buddy_y_offset = 0
-    _guildie_color = [((1, 1, 1), (0, 0, 0))]  # TODO
+    _guildie_color: ClassVar[list] = [((1, 1, 1), (0, 0, 0))]  # TODO
     _guildie_kernel = None  # TODO
     _guildie_y_offset = 0
-    _npc_color = [((0, 221, 0), (0, 221, 0))]
+    _npc_color: ClassVar[list] = [((0, 221, 0), (0, 221, 0))]
     _npc_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 3))
     _npc_y_offset = 0
 
@@ -63,14 +67,6 @@ class Minimap(InGameDynamicVisuals, ABC):
     _minimap_area_top_offset_partial: int = 22
     _minimap_area_top_offset_full: int = 65
 
-    @lru_cache
-    def _validation_title_img(self, map_name: str) -> np.ndarray:
-        return cv2.imread(
-            os.path.join(
-                ROOT, f"maple/assets/detection_images/{map_name}Minimap.png"
-            )
-        )
-
     def get_minimap_title_img(self, handle: int) -> np.ndarray:
         region = self.get_minimap_title_box(handle)
         img = take_screenshot(handle, region)
@@ -78,24 +74,23 @@ class Minimap(InGameDynamicVisuals, ABC):
 
     def validate_in_map(self, handle: int, map_name: str) -> bool:
         return np.array_equal(
-            self.get_minimap_title_img(handle), self._validation_title_img(map_name)
+            self.get_minimap_title_img(handle), _validation_title_img(map_name)
         )
 
-    @classmethod
     def is_displayed(
-        cls,
+        self,
         handle: int,
-        client_img: np.ndarray | None = None,
+        image: np.ndarray | None = None,
         world_icon_box: Box | None = None,
     ) -> bool:
         """
         Looks into whether the minimap is either Partially or Fully displayed.
         :param handle: Handle to the client.
-        :param client_img: If provided, read from image directly instead of taking new ones.
+        :param image: If provided, read from image directly instead of taking new ones.
         :param world_icon_box: If provided, use this box instead of detecting the world icon.
         :return: True if the minimap is either Partially or Fully displayed, False otherwise.
         """
-        return cls.get_minimap_state(handle, client_img, world_icon_box) in [
+        return self.get_minimap_state(handle, image, world_icon_box) in [
             "Partial",
             "Full",
         ]
@@ -305,6 +300,8 @@ class Minimap(InGameDynamicVisuals, ABC):
         )
         if entire_minimap_box:
             map_area_box = self.get_map_area_box(handle, client_img, world_icon_box)
+            if map_area_box is None:
+                return None
             return Box(
                 name="Minimap Title",
                 left=entire_minimap_box.left,
@@ -336,8 +333,7 @@ class Minimap(InGameDynamicVisuals, ABC):
         if world_icon_box and state in ["Partial", "Full"]:
             # Extract World icon (from top to bottom) and all region at the left of the icon.
             minimap_temp_image = client_img[
-                world_icon_box.top
-                - CLIENT_VERTICAL_MARGIN_PX : world_icon_box.bottom
+                world_icon_box.top - CLIENT_VERTICAL_MARGIN_PX : world_icon_box.bottom
                 - CLIENT_VERTICAL_MARGIN_PX,
                 : world_icon_box.right,
             ].copy()
@@ -362,6 +358,11 @@ class Minimap(InGameDynamicVisuals, ABC):
                     left_border = int(full_columns[map_border_idx + 1]) + 1
                     break
 
+            if left_border is None:
+                # No border column matched, so the minimap edge was not found.
+                # Same answer as the other unreadable cases above.
+                return None
+
             # For the right border, use the world icon. Also shift by 1 pixel to the right.
             right_border = world_icon_box.right + 1
             top_border = world_icon_box.top
@@ -372,8 +373,7 @@ class Minimap(InGameDynamicVisuals, ABC):
 
             # Temporary image with arbitrary height to detect the minimap bottom line.
             temp_img = client_img[
-                top_border
-                - CLIENT_VERTICAL_MARGIN_PX : top_border
+                top_border - CLIENT_VERTICAL_MARGIN_PX : top_border
                 + 300
                 - CLIENT_VERTICAL_MARGIN_PX,
                 left_border : right_border - CLIENT_HORIZONTAL_MARGIN_PX,
@@ -384,10 +384,7 @@ class Minimap(InGameDynamicVisuals, ABC):
 
             # There are always two lines detected below the map area and one above. Keep the first one below.
             # Also, offset by 4-5 pixels
-            if state == "Full":
-                offset = 6
-            else:
-                offset = 5
+            offset = 6 if state == "Full" else 5
             return Box(
                 name="Entire Minimap",
                 left=left_border + CLIENT_HORIZONTAL_MARGIN_PX,
@@ -395,3 +392,18 @@ class Minimap(InGameDynamicVisuals, ABC):
                 top=top_border,
                 bottom=top_border + int(detected_rows[-2]) - offset,
             )
+
+
+@lru_cache
+def _validation_title_img(map_name: str) -> np.ndarray:
+    """
+    The reference title image a map is validated against, read once per map.
+
+    Module-level rather than a method: it never consulted `self`, and an
+    `@lru_cache` on the method keyed on `self` - pinning every Minimap ever
+    built for the life of the process. Same defect `movement_mechanics_v2`
+    carries a note about, without needing a per-instance cache to fix it.
+    """
+    return read_detection_image(
+        os.path.join(ROOT, f"maple/assets/detection_images/{map_name}Minimap.png")
+    )

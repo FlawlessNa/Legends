@@ -110,7 +110,7 @@ def group_rectangles(
             np.ones(len(rects), dtype=np.int32),
         )
 
-    labels, nclasses = _partition(rects, eps)
+    labels, nclasses = _partition(list(rects), eps)
 
     sums = [[0, 0, 0, 0] for _ in range(nclasses)]
     weights = [0] * nclasses
@@ -120,8 +120,7 @@ def group_rectangles(
         weights[cls] += 1
 
     averaged = [
-        [_average(sums[i][k], weights[i]) for k in range(4)]
-        for i in range(nclasses)
+        [_average(sums[i][k], weights[i]) for k in range(4)] for i in range(nclasses)
     ]
 
     kept_rects: list[list[int]] = []

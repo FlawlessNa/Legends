@@ -1,12 +1,13 @@
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
+
 import numpy as np
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, ActionWithValidation, BotData, DecisionMaker
-from maple.actions import ensure_ability_menu_displayed
-from maple.actions import priorities
+from maple.actions import ensure_ability_menu_displayed, priorities
+
 from .mixins import (
     MenusMixin,
     UIMixin,
@@ -24,7 +25,7 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
         metadata: multiprocessing.managers.DictProxy,
         data: BotData,
         pipe: multiprocessing.connection.Connection,
-        **kwargs,
+        **kwargs: object,
     ) -> None:
         super().__init__(metadata, data, pipe)
         self._ap_menu_key = controller.key_binds(self.data.ign)[self.CONFIG_KEY]
@@ -76,10 +77,12 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
         )
         validated_action = ActionWithValidation(
             self.pipe,
-            lambda: self.data.ability_menu.get_available_ap(
-                self.data.handle, self.data.current_client_img
-            )
-            == 0,
+            lambda: (
+                self.data.ability_menu.get_available_ap(
+                    self.data.handle, self.data.current_client_img
+                )
+                == 0
+            ),
             self.condition,
             60.0,
             correlation_id=self.correlation_id,

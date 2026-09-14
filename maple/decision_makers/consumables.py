@@ -2,20 +2,23 @@ import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import random
-
 from abc import ABC, ABCMeta
+
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
+from maple.actions import priorities
+
 from .mixins import (
     UIMixin,
 )
-from maple.actions import priorities
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
 class ThrottleMeta(ABCMeta):
-    def __init__(cls, name, bases, dct):
+    def __init__(
+        cls, name: str, bases: tuple[type, ...], dct: dict[str, object]
+    ) -> None:
         if (
             "_throttle" not in [key.lower() for key in dct]
             or dct.get("_throttle", dct["_THROTTLE"]) is None
@@ -33,7 +36,11 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
     _THROTTLE = 3600  # Use this to set the interval at which a consumable is taken.
 
     @property
-    def _throttle(self) -> float:
+    def _throttle(self) -> float:  # pyright: ignore[reportIncompatibleVariableOverride]
+        # A property where the base declares a plain attribute: deliberate, so
+        # that each cycle re-rolls the interval instead of every consumable of a
+        # kind firing on the same tick. Read-only is enough - nothing assigns
+        # `_throttle` on an instance.
         return self.__class__._THROTTLE * random.uniform(0.9, 1.1)
 
     def __init__(
@@ -43,7 +50,7 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
         pipe: multiprocessing.connection.Connection,
         keyname: str,
         num_usage: int = 1,
-        **kwargs,
+        **kwargs: object,
     ) -> None:
         super().__init__(metadata, data, pipe)
         self._keyname = keyname
@@ -80,25 +87,44 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
         """
         Checks the remaining consumables.
         """
-        pass  # TODO
+        # TODO
 
 
 class PetFood(UseAndCheckConsumable):
     _THROTTLE = 720
 
-    def __init__(self, metadata, data, pipe, num_pets: int = 1, **kwargs):
+    def __init__(
+        self,
+        metadata: multiprocessing.managers.DictProxy,
+        data: BotData,
+        pipe: multiprocessing.connection.Connection,
+        num_pets: int = 1,
+        **kwargs: object,
+    ) -> None:
         super().__init__(metadata, data, pipe, "Pet Food", num_usage=num_pets)
 
 
 class MountFood(UseAndCheckConsumable):
     _THROTTLE = 720
 
-    def __init__(self, metadata, data, pipe, **kwargs):
+    def __init__(
+        self,
+        metadata: multiprocessing.managers.DictProxy,
+        data: BotData,
+        pipe: multiprocessing.connection.Connection,
+        **kwargs: object,
+    ) -> None:
         super().__init__(metadata, data, pipe, "Mount Food", num_usage=1)
 
 
 class SpeedPill(UseAndCheckConsumable):
     _THROTTLE = 600
 
-    def __init__(self, metadata, data, pipe, **kwargs):
+    def __init__(
+        self,
+        metadata: multiprocessing.managers.DictProxy,
+        data: BotData,
+        pipe: multiprocessing.connection.Connection,
+        **kwargs: object,
+    ) -> None:
         super().__init__(metadata, data, pipe, "Speed Pill", num_usage=1)

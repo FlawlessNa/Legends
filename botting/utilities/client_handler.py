@@ -1,12 +1,15 @@
+from collections.abc import Callable
 from functools import lru_cache
-import fuzzywuzzy.fuzz as fuzz
+from typing import Any
+
 import win32gui
+from fuzzywuzzy import fuzz
 
 from .config_reader import config_reader
 
 
 def get_open_clients(
-    window_title: str = config_reader("game", "Client", "Window Titles"),
+    window_title: str | None = None,
 ) -> list[int]:
     """
     Get all the windows that are titled with the provided titles.
@@ -15,7 +18,10 @@ def get_open_clients(
     :return: List of handles for each window.
     """
 
-    def _enum_window_callback(hwnd, window_list):
+    if window_title is None:
+        window_title = str(config_reader("game", "Client", "Window Titles"))
+
+    def _enum_window_callback(hwnd: int, window_list: list) -> None:
         if (
             window_title in win32gui.GetWindowText(hwnd)
             and win32gui.GetClassName(hwnd) == "MapleStoryClass"
@@ -28,7 +34,7 @@ def get_open_clients(
 
 
 @lru_cache
-def get_client_handle(ign: str, ign_finder: callable) -> int:
+def get_client_handle(ign: str, ign_finder: Callable[..., Any]) -> int:
     """
     Returns the handle of the client with the provided IGN.
     :param ign: String representing the IGN to look for.

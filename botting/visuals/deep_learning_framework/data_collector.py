@@ -1,8 +1,10 @@
-import cv2
 import os
 import time
+
+import cv2
+
+from botting.utilities import Box, take_screenshot
 from paths import ROOT
-from botting.utilities import take_screenshot, Box
 
 REGION_OF_INTEREST: Box | None = None
 HANDLE: int = 0x01290906
