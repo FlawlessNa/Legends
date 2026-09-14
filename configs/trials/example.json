@@ -1,0 +1,85 @@
+{
+  "name": "example",
+  "map": "GhostShip1",
+  "description": "Template schedule. Three convergence Trials on GhostShip1 - a long horizontal run, a cross-map climb, and a short precision hop - swept over three decision-loop intervals. Copy it, keep the shape, and replace the coordinates with the ones your own map and campaign need. The first campaign to be run for real is issue #120.",
+  "batches": [
+    {
+      "name": "baseline",
+      "trials": [
+        {
+          "name": "long-run",
+          "start": [15, 42],
+          "target": [109, 42],
+          "tolerance": 2.0,
+          "time_budget": 20.0,
+          "setup_budget": 30.0
+        },
+        {
+          "name": "cross-map-climb",
+          "start": [103, 32],
+          "target": [17, 42],
+          "tolerance": 2.0,
+          "time_budget": 25.0,
+          "setup_budget": 30.0
+        },
+        {
+          "name": "precision-hop",
+          "start": [96, 38],
+          "target": [97, 39],
+          "tolerance": 1.0,
+          "time_budget": 10.0,
+          "setup_budget": 30.0
+        }
+      ]
+    },
+    {
+      "name": "slow-loop",
+      "knobs": {
+        "decision_interval": 0.25
+      },
+      "trials": [
+        {
+          "name": "long-run",
+          "start": [15, 42],
+          "target": [109, 42],
+          "tolerance": 2.0,
+          "time_budget": 20.0,
+          "setup_budget": 30.0
+        },
+        {
+          "name": "precision-hop",
+          "start": [96, 38],
+          "target": [97, 39],
+          "tolerance": 1.0,
+          "time_budget": 10.0,
+          "setup_budget": 30.0
+        }
+      ]
+    },
+    {
+      "name": "short-actions",
+      "knobs": {
+        "action_duration": 0.5,
+        "precision_threshold": 8
+      },
+      "trials": [
+        {
+          "name": "long-run",
+          "start": [15, 42],
+          "target": [109, 42],
+          "tolerance": 2.0,
+          "time_budget": 20.0,
+          "setup_budget": 30.0
+        },
+        {
+          "name": "precision-hop",
+          "start": [96, 38],
+          "target": [97, 39],
+          "tolerance": 1.0,
+          "time_budget": 10.0,
+          "setup_budget": 30.0
+        }
+      ]
+    }
+  ]
+}

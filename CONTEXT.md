@@ -220,3 +220,154 @@ The record, carried alongside an Input Sequence, of which Movement Plan componen
 produced each Step. Not derivable from the Steps themselves; the compiler is the
 only layer that knows the boundaries.
 _Avoid_: Origin, source, mapping.
+
+## Movement calibration
+
+**Trial**:
+One closed-loop movement run under the real Session machinery — a start, a
+target, a tolerance, and a time budget — recorded cycle-by-cycle for offline
+analysis. The unit of movement calibration: judged on arrival reliability
+first and time-to-arrival second, with oscillation and stuck events counted
+as defects rather than averaged away.
+_Avoid_: Run, experiment, test — a Session run, a measured experiment, and a
+lab test are each different things here.
+
+**Calibration constant**:
+A value the movement system consumes that only the live game can settle,
+supplied per stat-value (speed% / jump%) as session config. Starts from the
+game-file physics derivations and is adjusted only when Trials demonstrate a
+systematic bias — and then as a multiplier on the derivation, never as an
+absolute minimap distance, so an adjustment fitted on one map ports to every
+map's scale. Good enough for the loop to converge is the bar; exact is not a
+goal.
+_Avoid_: Physics constant — those are the fixed game-file source values a
+calibration constant starts from.
+
+**Knob**:
+A controller parameter a Trial batch may override to sweep its effect — the
+decision-loop interval, the Action duration cap, the narrow-platform and
+edge-departure thresholds. Choosing new defaults from the measured curves is
+calibration; redesigning the controller is a different effort.
+_Avoid_: Setting, parameter — too generic to name the swept things.
+
+**Trial schedule**:
+The checked-in definition of one calibration experiment: a map, and the batches
+of Trials to walk in order. Nested Schedule -> Batch -> Trial because a **Knob**
+override is per batch, so a sweep is several batches over the same Trial list in
+one reviewable file. Lives under `configs/trials/`; it is shared project data,
+not per-user config.
+_Avoid_: Campaign, suite, plan — a campaign is a sitting at the client, and
+Movement Plan is already taken.
+
+**Trial record**:
+What a run of a Trial schedule leaves behind: per-machine JSONL, one line per
+decision cycle and one per Trial outcome, under the gitignored `trial_records/`.
+An experiment artifact, **not** Session telemetry — `telemetry.jsonl` describes a
+Session and the logging map owns it. The two are joined on the Correlation ID a
+cycle carries, never merged.
+_Avoid_: Log, trace, telemetry — each names something the engine already owns.
+
+## Movement attempts
+
+**Precision movement**:
+A Movement Plan transition whose success depends on the character being inside
+a tight positional window when the gesture fires — jumping onto a rope, landing
+on a narrow platform, jumping or teleporting from a platform's edge, entering a
+portal, grabbing a ladder from a walk. A property of the transition (the
+component, its upcoming component, and landing/departure flags), never of a
+movement type alone: the same jump is precision onto a narrow perch and not
+across open ground. The closed list of rows, with tiers and budgets, is the
+precision-movement taxonomy (`docs/planning/`), cited by row id.
+_Avoid_: Precise movement, tricky movement — the taxonomy's rows are the closed
+list, not an impression.
+
+**Attempt**:
+One delivered gesture aimed at a single precision movement — one jump toward
+the rope, one up-press at the portal — however many route cycles and
+Correlation IDs it spanned. Reconstructed offline by the analyzer from position
+history and telemetry, never delimited live. Consecutive Attempts at one
+transition may be separated by unrelated recovery movement (the climb back
+after a fall), so delimitation is "next gesture at the same transition", never
+"next cycle".
+_Avoid_: Try, retry — an Attempt includes the first try. Also avoid equating an
+Attempt with a Correlation ID, whose span is one `_decide()` call.
+
+**Attempt budget**:
+The per-tier bound on how many Attempts one instance of a precision movement
+may consume before that instance is judged failed — pass within the budget,
+fail beyond it. An efficiency target and a humanization target at once:
+repeated misses look bot-like, so a budget overrun is itself the signature
+worth flagging. An Expectation reported by the offline analyzer, never a live
+trigger — live reaction to the same symptoms belongs to Movement recovery.
+_Avoid_: Retry limit, max attempts — the budget judges an instance offline; it
+does not stop the bot mid-route.
+
+## Movement recovery
+
+**Stuck**:
+The umbrella for the live symptoms of a rotation loop that has stopped
+converging on its target — the failure family re-planning cannot fix, detected
+symptom by symptom rather than diagnosed by cause. The symptoms are Stall,
+Stagnation, Plan Churn, Target Timeout, and Starvation; each has its own
+detector, and all feed one Reaction Ladder.
+_Avoid_: Failsafe — that names the retired catch-all sentinel mechanism this
+vocabulary replaces.
+
+**Delivery Gate**:
+The precondition behind which every Stuck detector accumulates: the rotation was
+in control of the character during the window being judged. Time spent casting,
+preempted, or waiting on arbitration counts toward no Stuck threshold — a
+character that is not trying to move cannot be stuck. Control is read off
+delivery — movement Steps actually sent to the game — with one exception: a
+rotation that could produce no Movement Plan at all delivers nothing and is
+nonetheless entirely on its own time, so the gate opens for it. That is the case
+Starvation does not cover and the retired sentinels did.
+_Avoid_: Attempt gate — an Attempt is the analyzer's offline unit, and this
+gate is live.
+
+**Stall**:
+The Stuck symptom where movement was delivered yet displacement stayed within
+detection jitter over the window. The fast special case of Stagnation: walls,
+latched keys, a missed rope grab landing back on the same spot.
+_Avoid_: Static position, not moving — raw coordinate equality is exactly the
+detection this term replaces, defeated by knockback jitter.
+
+**Stagnation**:
+The Stuck symptom where the character moves but the remaining Path length stops
+shrinking over the window. Measured on the freshly recomputed Path, never on
+distance-to-target, so a legitimate detour away from the target is not
+Stagnation by construction.
+_Avoid_: No-progress — two words, and "progress" invites the distance-to-target
+reading this term exists to rule out.
+
+**Plan Churn**:
+The Stuck symptom where the same quantized start and Movement Plan keep being
+re-derived for one target without the remaining Path shrinking — the live
+signature of oscillation and of feasibility errors that re-planning amplifies
+instead of fixing.
+_Avoid_: Oscillation — that is the Trial record's offline defect counter; Plan
+Churn is the live detector whose firings the counter should corroborate.
+
+**Target Timeout**:
+The Stuck symptom where one target has not been reached within a budget derived
+from its initial Path length, regardless of apparent motion. The backstop that
+holds even when every finer detector is blind.
+_Avoid_: Unreachable — reachability is the pathfinder's word for a grid
+property; this is a live budget expiring.
+
+**Starvation**:
+The Stuck symptom where the rotation keeps producing movements but no movement
+Step is delivered at all over the window — the loop starved by arbitration, not
+blocked by terrain. Observed and reported only; it triggers no in-game
+reaction, because nothing about the map is wrong.
+_Avoid_: Deadlock, lock contention — those are causes; Starvation names the
+observable symptom whatever the cause.
+
+**Reaction Ladder**:
+The single per-target escalation every Stuck symptom advances: Reflex (release
+held keys, random jump), then Abandon (drop the target and alert), then
+Escalate (pause the bot and alert, awaiting human resume). One ladder per
+target — cascading symptoms of one incident advance it once — and real progress
+resets it entirely.
+_Avoid_: Failsafe response, escalation policy — the ladder is the mechanism's
+name, its rungs are Reflex, Abandon, Escalate.

@@ -2,8 +2,10 @@ import functools
 import itertools
 import logging
 import math
-import numpy as np
 import time
+from collections.abc import Callable, Iterator, Sequence
+
+import numpy as np
 
 from botting import PARENT_LOG
 from botting.core import BotData
@@ -11,6 +13,7 @@ from maple.model.mechanics import (
     MovementHandler,
     compile_movements,
 )
+from maple.model.mechanics.minimap_creation.minimap_edits_model import MinimapEdits
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -21,6 +24,8 @@ class NextTargetMixin:
     """
 
     data: BotData
+    # Supplied by MobsHittingMixin, which smart rotation asserts is co-inherited.
+    get_mobs_positions_in_img: Callable[..., list[Sequence[int]]]
     BASE_ROTATION_THRESHOLD = 10  # Used for basic rotation mechanism
     SMART_ROTATION_THRESHOLD = 4  # Used for "gravitate towards mobs" rotation mechanism
     TIME_ON_TARGET = 0.75  # Used for "smart rotation" mechanism
@@ -29,17 +34,17 @@ class NextTargetMixin:
     def _create_rotation_attributes(
         self,
         *,
-        cycle=None,
+        cycle: Iterator[MinimapEdits] | None = None,
         smart_rotation: bool = False,
-        mob_count_threshold: int = None,
+        mob_count_threshold: int | None = None,
     ) -> None:
 
         if smart_rotation is True:
-            self.data.set_feature('has_smart_rotation')
+            self.data.set_feature("has_smart_rotation")
             assert mob_count_threshold is not None, (
                 "Mob count threshold must be provided for smart rotation."
             )
-            self.data.set_static('mob_threshold', mob_count_threshold)
+            self.data.set_static("mob_threshold", mob_count_threshold)
 
         # If the map has a cycle provided for features, use it
         if self.data.current_minimap.feature_cycle:
@@ -100,7 +105,7 @@ class NextTargetMixin:
             self.data.update_attribute("next_feature")
             return self.data.next_feature.random()
 
-    def _update_next_random_target(self):
+    def _update_next_random_target(self) -> tuple[int, int]:
         """
         Sets the next target from the feature cycle.
         :return:
@@ -116,6 +121,30 @@ class NextTargetMixin:
                 next_target
             )
             return next_target
+
+    def _abandon_current_target(self) -> tuple[int, int]:
+        """
+        Drop the target the rotation is heading for and pick a different one.
+
+        Movement recovery's **Abandon** rung (`CONTEXT.md` -> Reaction Ladder).
+        Both update functions above return the *current* target until the
+        character is within threshold of it, which is exactly what keeps a Stuck
+        loop stuck: re-deciding cannot change where it is going. So the new target
+        is written straight onto the attribute, and each branch picks it with its
+        own machinery - advancing the feature cycle where there is one, drawing a
+        fresh random point where there is not.
+
+        The draw may of course land back on the same feature. That is not worth
+        guarding: the ladder is already at Abandon, so the next symptom escalates.
+        :return: The new target.
+        """
+        if self.data.current_minimap.feature_cycle:
+            self.data.update_attribute("next_feature")
+            self.data.next_target = self.data.next_feature.random()
+        else:
+            self.data.next_target = self.data.current_minimap.random_point()
+            self.data.update_attribute("next_feature")
+        return self.data.next_target
 
     def _set_fixed_target(self, target: tuple[int, int]) -> None:
         """
@@ -149,19 +178,20 @@ class NextTargetMixin:
         where there are most. Otherwise, move towards the next feature in the cycle.
         :return:
         """
-        assert hasattr(self.data, 'mob_threshold'), "_mob_threshold attribute must be set."
-        assert hasattr(self, 'get_mobs_positions_in_img'), (
+        assert hasattr(self.data, "mob_threshold"), (
+            "_mob_threshold attribute must be set."
+        )
+        assert hasattr(self, "get_mobs_positions_in_img"), (
             f"MobsHittingMixin must be inherited by {self} for smart rotation"
         )
-        if not hasattr(self, '_first_time_on_target'):
+        if not hasattr(self, "_first_time_on_target"):
             self._first_time_on_target = True
-        if not hasattr(self, '_last_target_reached_at'):
+        if not hasattr(self, "_last_target_reached_at"):
             self._last_target_reached_at = time.perf_counter()
 
         if (
-            math.dist(
-                self.data.current_minimap_position, self.data.next_target
-            ) > self.SMART_ROTATION_THRESHOLD
+            math.dist(self.data.current_minimap_position, self.data.next_target)
+            > self.SMART_ROTATION_THRESHOLD
         ):
             self._first_time_on_target = True
             return self.data.next_target
@@ -177,15 +207,15 @@ class NextTargetMixin:
         # Reach this code once you've been on target for > time_limit seconds.
         self._first_time_on_target = True
         # Check for mobs in the vicinity
-        self.data.update_attribute('current_client_img')
+        self.data.update_attribute("current_client_img")
         on_screen_pos = self.data.get_last_known_value("current_on_screen_position")
         if on_screen_pos is not None:
             x1, y1, x2, y2 = on_screen_pos
             shape = self.data.current_client_img.shape
             mask = np.zeros(shape, np.uint8)
             mask[
-                max(0, y1 - 100): min(shape[0], y2 + 100),
-                max(0, x1 - 500): min(shape[1], x2 + 500)
+                max(0, y1 - 100) : min(shape[0], y2 + 100),
+                max(0, x1 - 500) : min(shape[1], x2 + 500),
             ] = 255
             mobs_locations = self.get_mobs_positions_in_img(
                 self.data.current_client_img, self.data.current_mobs, mask=mask
@@ -209,7 +239,7 @@ class NextTargetMixin:
                         left_x
                     )
                     minimap_dist = min(int(avg_dist * minimap_width / map_width), 10)
-                    minimap_x, minimap_y = self.data.current_minimap_position
+                    minimap_x = self.data.current_minimap_position[0]
                     curr_feature = self.data.current_minimap.get_feature_containing(
                         self.data.next_target
                     )
@@ -218,7 +248,7 @@ class NextTargetMixin:
                         minimum_x += curr_feature.edge_threshold
                     target = (
                         max(minimap_x - minimap_dist, minimum_x),
-                        curr_feature.top
+                        curr_feature.top,
                     )
                     return target
 
@@ -228,7 +258,7 @@ class NextTargetMixin:
                         right_x
                     )
                     minimap_dist = min(int(avg_dist * minimap_width / map_width), 10)
-                    minimap_x, minimap_y = self.data.current_minimap_position
+                    minimap_x = self.data.current_minimap_position[0]
                     curr_feature = self.data.current_minimap.get_feature_containing(
                         self.data.next_target
                     )
@@ -237,11 +267,11 @@ class NextTargetMixin:
                         maximum_x -= curr_feature.edge_threshold
                     target = (
                         min(minimap_x + minimap_dist, maximum_x),
-                        curr_feature.top
+                        curr_feature.top,
                     )
                     return target
 
-        self.data.update_attribute('next_feature')
+        self.data.update_attribute("next_feature")
         return self.data.next_feature.random()
 
 
@@ -252,7 +282,21 @@ class MovementsMixin:
     def _create_pathing_attributes(
         self,
         duration: float,
+        *,
+        narrow_platform_threshold: float | None = None,
+        edge_departure_threshold: float | None = None,
     ) -> None:
+        """
+        :param duration: The Action duration cap a Movement Plan is compiled against.
+        :param narrow_platform_threshold: Overrides the platform width below which a
+            jump or teleport gets its landing direction-stop. `None` leaves
+            `MovementHandler`'s default in place, which is what production wants; a
+            Trial batch sweeping the precision-movement Knob is the one caller that
+            passes anything else.
+        :param edge_departure_threshold: Overrides the distance from a platform's end
+            within which a jump or teleport gets its pre-departure stop. Same shape
+            as `narrow_platform_threshold`.
+        """
         self.data.set_static("action_duration", duration)
         self.data.create_or_reconfigure_attribute(
             "movement_handler",
@@ -261,6 +305,8 @@ class MovementsMixin:
                 self.data.current_minimap,
                 self.data.ign,
                 self.data.character.skills.get("Teleport"),
+                narrow_platform_threshold=narrow_platform_threshold,
+                edge_departure_threshold=edge_departure_threshold,
             ),
         )
 

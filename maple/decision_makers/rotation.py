@@ -1,36 +1,43 @@
-import asyncio
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import time
+
 from botting import PARENT_LOG, controller
-from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
-from maple.actions.movements_v2 import random_jump
-from maple.actions import priorities
+from botting.core import ActionRequest, BotData, DecisionMaker
+
 from .mixins import (
     MinimapAttributesMixin,
+    MobsHittingMixin,
+    MovementRecoveryMixin,
     MovementsMixin,
     NextTargetMixin,
-    FailsafeMixin, MobsHittingMixin,
 )
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
 class Rotation(
-    FailsafeMixin,
+    MovementRecoveryMixin,
     MinimapAttributesMixin,
     MovementsMixin,
     NextTargetMixin,
     MobsHittingMixin,
     DecisionMaker,
 ):
-    # TODO - Implement logic to continuously check if character strayed too far from
-    #  path to cancel current movements
-    # TODO - improved failsafe reactions, including writing in chat after 2x or 3x
+    """
+    The rotation loop: pick a target, compute a Path, ship the Movement Plan.
+
+    Stuck detection and reaction are `MovementRecoveryMixin`'s (`CONTEXT.md` ->
+    **Movement recovery**), which replaced `FailsafeMixin`'s six raw-equality
+    sentinels. Those watched two `BotData` attributes for having not *changed* in
+    N seconds, which was wrong in both directions: a character casting in place
+    for 30s tripped them, and a character pinned at a wall while mob knockback
+    jittered its coordinates never did. The Delivery Gate fixes the first by
+    construction and the jitter bound fixes the second.
+    """
+
     _throttle = 0.1
-    STATIC_POS_KILL_SWITCH = 30.0
-    NO_PATH_KILL_SWITCH = 30.0
 
     def __init__(
         self,
@@ -38,19 +45,17 @@ class Rotation(
         data: BotData,
         pipe: multiprocessing.connection.Connection,
         movements_duration: float = 1.0,
-        static_position_threshold: float = 10.0,
-        no_path_threshold: float = 10.0,
         disable_teleport: bool = False,
         smart_rotation_enabled: bool = False,
-        mob_count_threshold: int = None,
-        **kwargs,
+        mob_count_threshold: int | None = None,
+        **kwargs: object,
     ) -> None:
         super().__init__(metadata, data, pipe)
         self._teleport_skill = self.data.character.skills.get("Teleport")
         self.lock = self._proxies.instance(repr(self), "Lock")
 
         if disable_teleport:
-            self.data.character.skills.pop('Teleport', None)
+            self.data.character.skills.pop("Teleport", None)
 
         # Minimap attributes
         self._create_minimap_attributes()
@@ -58,63 +63,23 @@ class Rotation(
         # Rotation attributes
         self._create_rotation_attributes(
             smart_rotation=smart_rotation_enabled,
-            mob_count_threshold=mob_count_threshold
+            mob_count_threshold=mob_count_threshold,
         )
         self._create_pathing_attributes(movements_duration)
 
-        # Fail safes
-        self._tb_sentinels = []
-        self._bool_sentinels = []
-        self._create_time_based_sentinel(
-            attribute="current_minimap_position",
-            method=self.data.get_time_since_last_value_change,
-            threshold=static_position_threshold,
-            response=self._failsafe_request(),
-        )
-        self._create_time_based_sentinel(
-            attribute="current_minimap_position",
-            method=self.data.get_time_since_last_value_change,
-            threshold=2 * static_position_threshold,
-            response=self._failsafe_request(f"{self.data.ign} is stuck."),
-        )
-        self._create_time_based_sentinel(
-            attribute="current_minimap_position",
-            method=self.data.get_time_since_last_value_change,
-            threshold=self.STATIC_POS_KILL_SWITCH,
-            response=...,  # TODO - Trigger Pause mechanism until resumed by user
-        )
-        self._create_time_based_sentinel(
-            attribute="path",
-            method=self.data.get_time_since_last_valid_update,
-            threshold=no_path_threshold,
-            response=self._failsafe_request(),
-        )
-        self._create_time_based_sentinel(
-            attribute="path",
-            method=self.data.get_time_since_last_valid_update,
-            threshold=2 * no_path_threshold,
-            response=self._failsafe_request(f"{self.data.ign} has no path."),
-        )
-        self._create_time_based_sentinel(
-            attribute="path",
-            method=self.data.get_time_since_last_valid_update,
-            threshold=self.NO_PATH_KILL_SWITCH,
-            response=...,  # TODO - Trigger Pause mechanism until resumed by user
-        )
-        # self._create_bool_sentinel(
-        #     attribute="movements",
-        #     method=self.data.check_if_values_have_changed,
-        #     trigger_when_true=False,
-        #     response=self._failsafe_request(),
-        # )
-        self._sentinel_starts_at = time.perf_counter() + 60.0
+        # Movement recovery
+        self._create_recovery_attributes()
 
-    async def task(self, *args, **kwargs) -> None:
-        self._sentinel_starts_at = time.perf_counter() + 10.0
+    async def task(self, *args: object, **kwargs: object) -> None:
+        self._restart_recovery_grace_period()
         await super().task(*args, **kwargs)
 
     async def _decide(self) -> None:
-        self._failsafe_checks()  # Check each time, no need to wait for lock
+        # Every cycle, before the lock is contended for: a cycle that cannot
+        # acquire the lock is a cycle the loop spent waiting its turn, and the
+        # Delivery Gate is what makes those cost nothing rather than needing to
+        # be skipped here.
+        self._recovery_check(time.perf_counter())
 
         # Only send standard request when lock is acquired, otherwise wait for lock
         if self.lock.acquire(blocking=False):
@@ -136,30 +101,9 @@ class Rotation(
             ign=self.data.ign,
             requeue_if_not_scheduled=False,
             callbacks=[self.lock.release],
+            # The Delivery Gate's input: `compile_and_send` returns the number of
+            # Steps that actually reached the client, and only a task that ran to
+            # completion reports at all. See `MovementRecoveryMixin`.
+            result_callbacks=[self._delivery.put_nowait],
             args=(self.data.handle, self._movement_compiler()),
         )
-
-    def _failsafe_request(self, disc_msg: str = None) -> ActionRequest:
-        alert = (
-            DiscordRequest(disc_msg, self.data.current_client_img) if disc_msg else None
-        )
-
-        return ActionRequest(
-            f"{self} - Failsafe",
-            self._wait_and_random_jump,
-            ign=self.data.ign,
-            priority=priorities.FAILSAFE,
-            requeue_if_not_scheduled=True,
-            block_lower_priority=True,
-            cancels_itself=True,
-            cancel_tasks=[f"{self}"],
-            discord_request=alert,
-            args=(self.data.handle, controller.key_binds(self.data.ign)["jump"]),
-        )
-
-    @staticmethod
-    async def _wait_and_random_jump(handle: int, jump_key: str) -> None:
-        for key in ['left', 'right']:
-            await controller.press(handle, key, down_or_up='keyup')
-        await asyncio.sleep(3.0)
-        await random_jump(handle, jump_key).send()

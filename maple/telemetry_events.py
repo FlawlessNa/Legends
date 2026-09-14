@@ -48,6 +48,21 @@ RECOVERY_MAP_CHECK_RECOVERED: Final = "recovery.map_check_recovered"
 #: operation resumes. Its *start* stays a text-log warning: something is wrong
 #: at that point and a human wants to see it.
 RECOVERY_MOB_SPAWN_RESTORED: Final = "recovery.mob_spawn_restored"
+#: A Stuck detector fired (CONTEXT.md -> Movement recovery). One record per
+#: firing, whatever the Reaction Ladder then does with it - Trial analysis and
+#: live detection read this same signal.
+RECOVERY_STUCK_DETECTED: Final = "recovery.stuck_detected"
+#: The Reaction Ladder's first rung: keys released, brief pause, random jump.
+RECOVERY_REFLEX: Final = "recovery.reflex"
+#: The Reaction Ladder's second rung: the target is dropped. The payload names
+#: the suspected grid connection - attribution for #120's defect filing.
+RECOVERY_ABANDON: Final = "recovery.abandon"
+#: The Reaction Ladder's last rung: the bot pauses with keys released and waits
+#: for a human resume.
+RECOVERY_ESCALATE: Final = "recovery.escalate"
+#: A Reaction Ladder that had advanced was reset - by real progress, or by a
+#: natural target change.
+RECOVERY_LADDER_RESET: Final = "recovery.ladder_reset"
 
 # --- combat ---------------------------------------------------------------
 #: Enough mobs were in range, so the training skill is being cast.
@@ -101,6 +116,50 @@ class MobSpawnRestoredPayload(TypedDict):
 
     alert_timer: float
     alert_threshold: int
+
+
+class StuckDetectedPayload(TypedDict):
+    """
+    ``recovery.stuck_detected``: which symptom, aimed at what, and by how much.
+
+    ``measure`` and ``threshold`` are in the symptom's own unit - gated seconds
+    for Stall/Stagnation/Target Timeout, repeat count for Plan Churn, wall
+    seconds for Starvation - so an analyzer can read how decisively a detector
+    fired without re-deriving its window.
+    """
+
+    symptom: str
+    target_x: int
+    target_y: int
+    measure: float
+    threshold: float
+
+
+class ReactionPayload(TypedDict):
+    """
+    ``recovery.reflex`` / ``recovery.abandon`` / ``recovery.escalate``: which
+    symptom advanced the ladder, and the suspected grid connection when the
+    Movement Plan named one. Suspect fields are None when no plan was in hand.
+    """
+
+    symptom: str
+    target_x: int
+    target_y: int
+    reflex_attempt: int
+    abandon_count: int
+    suspected_movement: str | None
+    suspected_start_x: int | None
+    suspected_start_y: int | None
+    suspected_end_x: int | None
+    suspected_end_y: int | None
+
+
+class LadderResetPayload(TypedDict):
+    """``recovery.ladder_reset``: why an engaged ladder was reset."""
+
+    reason: str
+    target_x: int
+    target_y: int
 
 
 class MobsHitPayload(TypedDict):

@@ -15,6 +15,11 @@ configs/discord.ini
 configs/keybindings.ini
 configs/recordings.ini
 
+# Trial records: per-machine movement-calibration experiment artifacts. Measured
+# on one machine, by one character, against one client -- they mean nothing
+# checked in. The *schedules* they run are tracked, under configs/trials/.
+trial_records/
+
 # Per-user launcher profiles (see profiles/example.yaml).
 profiles/*.yaml
 !profiles/example.yaml

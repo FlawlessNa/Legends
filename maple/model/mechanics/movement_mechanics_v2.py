@@ -62,9 +62,15 @@ class MovementTypes(IntEnum):
     END_OF_MOVEMENT = 99  # Last movement, used to release any remaining held key.
 
 
-_NARROW_PLATFORM_THRESHOLD = (
-    5  # platforms narrower than this (pixels) get a direction-stop after landing
-)
+# Platforms this narrow (minimap pixels) get a direction-stop after landing. The
+# default only: `MovementHandler` carries its own, so a Trial batch can sweep it as a
+# Knob without touching production's value.
+_NARROW_PLATFORM_THRESHOLD = 5
+
+# A start node this close (minimap pixels) to its platform's end, in the travel
+# direction, gets the edge-departure flag (PM3). Same shape as the threshold above:
+# module default only, `MovementHandler` carries its own per-instance value.
+_EDGE_DEPARTURE_THRESHOLD = 5
 
 _PRECISION_PRE_STOP = frozenset(
     {
@@ -85,6 +91,29 @@ _JUMP_CONNECTION_TYPES = frozenset(
     }
 )
 
+_TELEPORT_CONNECTION_TYPES = frozenset(
+    {
+        ConnectionTypes.TELEPORT_LEFT,
+        ConnectionTypes.TELEPORT_RIGHT,
+        ConnectionTypes.TELEPORT_UP,
+        ConnectionTypes.TELEPORT_DOWN,
+    }
+)
+
+# Landing width (PM2) applies to any jump or teleport that lands on a platform.
+_NARROW_CONNECTION_TYPES = _JUMP_CONNECTION_TYPES | _TELEPORT_CONNECTION_TYPES
+
+# Edge departure (PM3) only has a "travel direction" sense for horizontal gestures -
+# a platform has a left/right end, not an up/down one.
+_EDGE_DEPARTURE_CONNECTION_TYPES = frozenset(
+    {
+        ConnectionTypes.JUMP_LEFT,
+        ConnectionTypes.JUMP_RIGHT,
+        ConnectionTypes.TELEPORT_LEFT,
+        ConnectionTypes.TELEPORT_RIGHT,
+    }
+)
+
 
 class _MovementComponent(NamedTuple):
     """
@@ -93,7 +122,8 @@ class _MovementComponent(NamedTuple):
 
     movement_type: MovementTypes
     length: int
-    narrow: bool = False  # True when this jump lands on a narrow platform (≤ _NARROW_PLATFORM_THRESHOLD px)
+    narrow: bool = False  # True when this jump/teleport lands on a narrow platform (≤ narrow_platform_threshold px)
+    edge_departure: bool = False  # True when this jump/teleport starts within edge_departure_threshold px of its platform's end, in the travel direction
 
 
 def compile_movements(
@@ -318,13 +348,28 @@ def compile_movements(
             # overshoots `total_duration` by ~1ms. `truncate` already overshoots
             # by the delay of the Step that crosses the limit, so this stays
             # inside the existing contract rather than widening it.
-            if upcoming_move.movement_type in _PRECISION_PRE_STOP:
+            if (
+                upcoming_move.movement_type in _PRECISION_PRE_STOP
+                or upcoming_move.edge_departure
+            ):
                 held_dir = next(
                     (k for k in structure.keys_held if k in ("left", "right")), None
                 )
                 if held_dir:
                     structure.append(held_dir, "keyup", 0)
             break
+        elif upcoming_move.edge_departure:
+            # An edge departure wants the same stop even when no cut lands here -
+            # unlike `_PRECISION_PRE_STOP`, which only ever fires as a side effect
+            # of truncation. Safe to append directly to `structure` (not a
+            # truncated copy): this branch is only reached when no truncation
+            # happened this iteration, so the append issue #100 guards against
+            # does not apply here.
+            held_dir = next(
+                (k for k in structure.keys_held if k in ("left", "right")), None
+            )
+            if held_dir:
+                structure.append(held_dir, "keyup", 0)
     else:
         # Loop ran to completion (no truncation): release any keys still held
         # so the last Step satisfies the Terminal Release invariant. `move`
@@ -368,11 +413,39 @@ class MovementHandler:
         teleport: MapleSkill | None = None,
         *,
         debug: bool = False,
+        narrow_platform_threshold: float | None = None,
+        edge_departure_threshold: float | None = None,
     ) -> None:
+        """
+        :param narrow_platform_threshold: Platform width (minimap pixels) at or below
+            which a jump or teleport onto it is marked `narrow`, so compilation adds
+            the landing direction-stop. `None` is the module default, which is what
+            production wants. It is per-instance because it is a **Knob** a Trial
+            batch sweeps (`maple.calibration.specs.Knobs`), and it shapes the
+            Movement Plan here, in the Engine - `compile_movements` reads the
+            component's `narrow` flag and never the threshold, so the send path is
+            untouched.
+        :param edge_departure_threshold: Distance (minimap pixels) from a platform's
+            end, in the travel direction, within which a jump or teleport's start
+            node is marked `edge_departure`, so compilation adds the pre-departure
+            stop. Same shape as `narrow_platform_threshold`: `None` is the module
+            default, per-instance because it is a Knob, and read by
+            `compile_movements` only through the component's `edge_departure` flag.
+        """
         self.handle = handle
         self.minimap = minimap
         self.ign = ign
         self.teleport = teleport
+        self.narrow_platform_threshold = (
+            _NARROW_PLATFORM_THRESHOLD
+            if narrow_platform_threshold is None
+            else narrow_platform_threshold
+        )
+        self.edge_departure_threshold = (
+            _EDGE_DEPARTURE_THRESHOLD
+            if edge_departure_threshold is None
+            else edge_departure_threshold
+        )
         self._debug = debug
         # Per-instance, bounded caches: an `@lru_cache` on the method itself would key
         # on `self`, pinning every handler ever created in memory for the process
@@ -460,16 +533,36 @@ class MovementHandler:
                     movements.append(_MovementComponent(MovementTypes.ENTER_PORTAL, 1))
                 else:
                     move_type = MovementTypes[connection_type.name]
-                    if connection_type in _JUMP_CONNECTION_TYPES:
+                    is_narrow = False
+                    is_edge_departure = False
+                    if connection_type in _NARROW_CONNECTION_TYPES:
                         is_narrow = (
                             next_feature.is_platform
-                            and next_feature.width <= _NARROW_PLATFORM_THRESHOLD
+                            and next_feature.width <= self.narrow_platform_threshold
                         )
-                        movements.append(
-                            _MovementComponent(move_type, 1, narrow=is_narrow)
+                    if (
+                        connection_type in _EDGE_DEPARTURE_CONNECTION_TYPES
+                        and current_feature.is_platform
+                    ):
+                        edge_direction = connection_type.name.split("_")[-1].lower()
+                        if edge_direction == "right":
+                            is_edge_departure = (
+                                current_feature.right - current_node.x
+                                <= self.edge_departure_threshold
+                            )
+                        elif edge_direction == "left":
+                            is_edge_departure = (
+                                current_node.x - current_feature.left
+                                <= self.edge_departure_threshold
+                            )
+                    movements.append(
+                        _MovementComponent(
+                            move_type,
+                            1,
+                            narrow=is_narrow,
+                            edge_departure=is_edge_departure,
                         )
-                    else:
-                        movements.append(_MovementComponent(move_type, 1))
+                    )
             else:
                 raise NotImplementedError(
                     f"No neighbor/connection edge between {current_node} and {next_node}"
@@ -479,11 +572,16 @@ class MovementHandler:
         squeezed = []
         for k, group in groupby(movements, key=lambda x: x.movement_type):
             group_list = list(group)
-            is_narrow = group_list[0].narrow  # preserved from first element in group
+            # Both flags preserved from the first element in the group.
+            is_narrow = group_list[0].narrow
+            is_edge_departure = group_list[0].edge_departure
             for i in range(0, len(group_list), self._MAX_WALK_SIZE):
                 squeezed.append(
                     _MovementComponent(
-                        k, min(len(group_list) - i, self._MAX_WALK_SIZE), is_narrow
+                        k,
+                        min(len(group_list) - i, self._MAX_WALK_SIZE),
+                        is_narrow,
+                        is_edge_departure,
                     )
                 )
         squeezed.append(_MovementComponent(MovementTypes.END_OF_MOVEMENT, 1))

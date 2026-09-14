@@ -31,6 +31,7 @@ That file is everything MapleMap needs at runtime; no game XML files required.
 Unlike the rest of configs/, `configs/maps/` IS tracked in git -- commit a new
 map so everyone else can bot it too.
 """
+
 import argparse
 import os
 import sys

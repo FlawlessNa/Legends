@@ -1,8 +1,8 @@
 from abc import ABC
 from dataclasses import dataclass
+from typing import Any
 
 from .base_mob import BaseMob
-from typing import Any
 
 
 @dataclass
@@ -16,5 +16,6 @@ class BaseMap(ABC):
     - Connections to other minimaps
     This is merely an example. Map implementations may vary.
     """
+
     mobs: tuple[BaseMob, ...]
     minimap: Any

@@ -18,6 +18,24 @@ needed to compile it. It never carries a compiled Input Sequence — compilation
 happens at dispatch, inside the focus lock, in the engine layer. The compiled
 `action` attribute remains only as the offline movement lab's artifact.
 
+## Calibration
+
+`maple/calibration/` is the closed-loop **Trial** framework (`CONTEXT.md` ->
+Movement calibration). It knows nothing about DecisionMakers or clients, and is
+checked offline: specs, records, and `TrialDriver`, which is fed a position and a
+clock and answers. The bot around it is `CalibrationBot` + the `TrialRunner`
+DecisionMaker, which holds the plumbing and no judgement — put new logic on the
+driver's side of that seam.
+
+Two boundaries hold:
+
+- A **Trial record** (gitignored, `trial_records/`) is an experiment artifact.
+  Session telemetry is the logging map's, and the two are joined on a cycle's
+  Correlation ID, never merged.
+- A Trial ships its Movement Plan through `controller.compile_and_send` like any
+  other Action. A runner that compiled for itself would measure a copy of the
+  system.
+
 ## Telemetry
 
 Event Types are constants in `maple/telemetry_events.py`, and payloads are the

@@ -10,11 +10,11 @@ from .dataset import (
 )
 
 __all__ = [
-    'ScreenCapture',
-    'capture_burst',
-    'YOLODataset',
-    'create_dataset',
-    'import_existing_dataset',
-    'load_dataset',
-    'merge_datasets',
+    "ScreenCapture",
+    "YOLODataset",
+    "capture_burst",
+    "create_dataset",
+    "import_existing_dataset",
+    "load_dataset",
+    "merge_datasets",
 ]

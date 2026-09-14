@@ -1,11 +1,15 @@
 import asyncio
 import logging
-import time
 import multiprocessing.connection
 import multiprocessing.managers
-import numpy as np
-from dataclasses import field, dataclass
+import threading
+import time
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from functools import partial
+from typing import Any
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +28,13 @@ class ActionRequest:
     """
 
     identifier: str
-    procedure: callable
+    # `Any` rather than a coroutine type, deliberately. Main Process does
+    # `asyncio.create_task(procedure(...))`, so the de-facto contract *is* a
+    # coroutine function - but `BaseParser._kill` is a plain `def`, so declaring
+    # that would turn a latent defect into a type error at a call site this
+    # dataclass cannot fix. Issue #130 owns the real answer, which changes how
+    # the Discord KILL command behaves and needs a running Session to settle.
+    procedure: Callable[..., Any]
     ign: str
     priority: int = field(default=1)  # Higher priority tasks have more control
 
@@ -38,9 +48,18 @@ class ActionRequest:
     # Used to block lower priority tasks from being scheduled
     block_lower_priority: bool = field(default=False)
 
-    callbacks: list[callable] = field(default_factory=list)
-    task: asyncio.Task = field(default=None, init=False)
-    discord_request: "DiscordRequest" = field(default=None)
+    callbacks: list[Callable[[], object]] = field(default_factory=list)
+
+    # Called in Main Process with the procedure's return value, once its task
+    # completes successfully. Not called when the request is blocked, cancelled,
+    # or raises - a preempted send loop reports nothing, by design (its Delivered
+    # Prefix is the Held-Keys Ledger's business, not the caller's). This is the
+    # narrow slice of "handling of future result back to the DecisionMaker" that
+    # movement recovery's Delivery Gate needs; each callable must be picklable,
+    # e.g. a partial over a manager proxy.
+    result_callbacks: list[Callable[[object], object]] = field(default_factory=list)
+    task: asyncio.Task | None = field(default=None, init=False)
+    discord_request: DiscordRequest | None = field(default=None)
     args: tuple = field(default_factory=tuple)
     kwargs: dict = field(default_factory=dict)
 
@@ -48,7 +67,7 @@ class ActionRequest:
     # Stamped at send time by DecisionMaker.send(); None when no decision caused it.
     correlation_id: str | None = field(default=None)
 
-    def __lt__(self, other):
+    def __lt__(self, other: ActionRequest | None) -> bool:
         """
         Used by the PriorityQueue to determine the order of tasks.
         :param other:
@@ -58,7 +77,7 @@ class ActionRequest:
             return False
         return self.priority > other.priority
 
-    def __gt__(self, other):
+    def __gt__(self, other: ActionRequest | None) -> bool:
         """
         Used by the PriorityQueue to determine the order of tasks.
         :param other:
@@ -72,19 +91,19 @@ class ActionRequest:
 @dataclass
 class DiscordRequest:
     msg: str
-    img: np.ndarray = field(default=None)
+    img: np.ndarray | None = field(default=None)
 
 
 class ActionWithValidation:
     def __init__(
         self,
         pipe: multiprocessing.connection.Connection,
-        validator: callable,
-        condition: multiprocessing.Condition,
+        validator: Callable[[], bool],
+        condition: threading.Condition,
         timeout: float,
         max_trials: int = 10,
         correlation_id: str | None = None,
-    ):
+    ) -> None:
         self.pipe = pipe
         self.validator = validator
         self.condition = condition
@@ -151,11 +170,12 @@ class ActionWithValidation:
         self.trials += 1
         if self.trials >= self.max_trials:
             raise TimeoutError(
-                f"{action.identifier} failed validation after {self.max_trials}"
-                f" trials."
+                f"{action.identifier} failed validation after {self.max_trials} trials."
             )
 
-    def _wrap(self, procedure: callable) -> callable:
+    def _wrap(
+        self, procedure: Callable[..., Awaitable[object]]
+    ) -> Callable[..., Awaitable[None]]:
         """
         Wraps the procedure within the ActionRequest such that it acquires the Condition
         object and releases it once the procedure completes.
@@ -166,20 +186,29 @@ class ActionWithValidation:
 
     @staticmethod
     async def _wrapped_procedure(
-        procedure: callable, condition, timeout: float, *args, **kwargs
-    ):
+        procedure: Callable[..., Awaitable[object]],
+        condition: threading.Condition,
+        timeout: float,
+        *args: object,
+        **kwargs: object,
+    ) -> None:
         _conditional_proc = ActionWithValidation._conditional_procedure(
             procedure, condition, *args, **kwargs
         )
         try:
             await asyncio.wait_for(_conditional_proc, timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise TimeoutError(
                 f"Procedure {procedure} timed out after {timeout} seconds."
             )
 
     @staticmethod
-    async def _conditional_procedure(procedure: callable, condition, *args, **kwargs):
+    async def _conditional_procedure(
+        procedure: Callable[..., Awaitable[object]],
+        condition: threading.Condition,
+        *args: object,
+        **kwargs: object,
+    ) -> object:
         while True:
             logger.info("Attempting to acquire condition ID %s", id(condition))
             if not condition.acquire(timeout=0.1):

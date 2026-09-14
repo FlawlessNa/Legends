@@ -1,9 +1,10 @@
 import asyncio
 import logging
 import multiprocessing.connection
+from collections.abc import Callable
 
-from ..telemetry import emit_event
-from ..telemetry_events import (
+from botting.telemetry import emit_event
+from botting.telemetry_events import (
     ACTION_BLOCKED,
     ACTION_CANCELS_OTHER,
     ACTION_REQUEUED,
@@ -12,6 +13,7 @@ from ..telemetry_events import (
     ActionCancelsOtherPayload,
     ActionPayload,
 )
+
 from .action_data import ActionRequest
 
 logger = logging.getLogger(__name__)
@@ -60,6 +62,9 @@ class AsyncTaskManager:
         former = self.running_tasks[request.identifier]
         if request.cancels_itself:
             self._emit(ACTION_SELF_CANCELLED, request)
+            # A request reaches `running_tasks` only in `_schedule_task`, on the
+            # line after its task is created, so this is never None in practice.
+            assert former.task is not None
             former.task.cancel()
         else:
             raise ValueError(
@@ -85,7 +90,7 @@ class AsyncTaskManager:
             "priority": int(request.priority),
         }
         emit_event(
-            request.correlation_id, event_type, payload, logger_name=logger.name
+            request.correlation_id, event_type, dict(payload), logger_name=logger.name
         )
 
     async def _handle_priority(self, request: ActionRequest) -> None:
@@ -123,10 +128,12 @@ class AsyncTaskManager:
                 emit_event(
                     request.correlation_id,
                     ACTION_CANCELS_OTHER,
-                    cancels,
+                    dict(cancels),
                     logger_name=logger.name,
                 )
-                self.running_tasks[task].task.cancel()
+                victim = self.running_tasks[task].task
+                assert victim is not None  # see _handle_duplicate_request
+                victim.cancel()
 
         if request.discord_request is not None:
             self.discord_pipe.send(request.discord_request.msg)
@@ -142,10 +149,11 @@ class AsyncTaskManager:
                 request.task.add_done_callback(self.cb_wrapper(cb))
         self.running_tasks[request.identifier] = request
 
-    def _cleanup_handler(self, fut):
-        # TODO - Handling of future result ba        ck to the DecisionMaker
+    def _cleanup_handler(self, fut: asyncio.Task) -> None:
         try:
             exception = fut.exception()
+            if exception is None:
+                self._report_result(fut)
             if exception:
                 logger.error(
                     "Exception occurred in task %s: %s",
@@ -162,7 +170,33 @@ class AsyncTaskManager:
         finally:
             self.running_tasks.pop(fut.get_name(), None)
 
-    def _check_for_event_loop_overflow(self):
+    def _report_result(self, fut: asyncio.Task) -> None:
+        """
+        Hand a completed procedure's return value back to the DecisionMaker that
+        asked for it, through the request's ``result_callbacks``.
+
+        Successful completion only. A cancelled or raising task reports nothing,
+        deliberately: a preempted send loop delivered some prefix of its Input
+        Sequence and has no return value to describe it, and the one consumer of
+        this - movement recovery's Delivery Gate - wants the conservative reading
+        (nothing delivered) rather than a guess.
+
+        Callbacks are isolated from each other and from the Session: this runs in a
+        done-callback, where a raise has no caller to catch it and would be swallowed
+        by the event loop's exception handler instead.
+        :param fut: The completed task, named after its request's identifier.
+        """
+        request = self.running_tasks.get(fut.get_name())
+        if request is None or not request.result_callbacks:
+            return
+        result = fut.result()
+        for cb in request.result_callbacks:
+            try:
+                cb(result)
+            except Exception:
+                logger.exception("Result callback for %s raised.", fut.get_name())
+
+    def _check_for_event_loop_overflow(self) -> None:
         """
         Check if the event loop has too many tasks.
         This method is only called occasionally for debugging purposes.
@@ -173,7 +207,7 @@ class AsyncTaskManager:
                 len(self.running_tasks),
             )
 
-    def _check_for_queue_overflow(self):
+    def _check_for_queue_overflow(self) -> None:
         """
         Check if the queue has too many tasks.
         This method is only called occasionally for debugging purposes.
@@ -185,7 +219,7 @@ class AsyncTaskManager:
             )
 
     @staticmethod
-    def cb_wrapper(func) -> callable:
+    def cb_wrapper(func: Callable[[], object]) -> Callable[[asyncio.Task], object]:
         """
         Wraps a function to be called as a callback, ignoring the Future object
         automatically passed by task.add_done_callback.
@@ -193,7 +227,7 @@ class AsyncTaskManager:
         :return: a function.
         """
 
-        def _wrapper(fut):
+        def _wrapper(fut: asyncio.Task) -> object:
             return func()
 
         return _wrapper
