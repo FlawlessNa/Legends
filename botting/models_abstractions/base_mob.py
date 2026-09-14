@@ -1,8 +1,10 @@
+from abc import ABC, abstractmethod
+from collections.abc import Sequence
+from typing import Any
+
 import cv2
 import numpy as np
 
-from abc import ABC, abstractmethod
-from typing import Sequence
 from botting.visuals import InGameDetectionVisuals
 
 DEBUG = True
@@ -33,19 +35,18 @@ class BaseMob(InGameDetectionVisuals, ABC):
 
     @classmethod
     @abstractmethod
-    def _filter(cls, contours) -> list[np.ndarray]:
+    def _filter(cls, contours: Sequence[np.ndarray]) -> list[np.ndarray]:
         """
         Filters the contours found to only return the ones assumed to be "mob-like".
         """
-        pass
 
     def get_onscreen_mobs(
         self,
         image: np.ndarray,
         handle: int,  # must be provided if detection model is used
-        threshold: float = None,
-        mask: np.ndarray = None,
-        debug: bool = True
+        threshold: float | None = None,
+        mask: np.ndarray | None = None,
+        debug: bool = True,
     ) -> tuple[Sequence[int], ...]:
         """
         Returns a list of tuples of the coordinates for each mob found on-screen.
@@ -71,19 +72,17 @@ class BaseMob(InGameDetectionVisuals, ABC):
             except Exception as e:
                 raise RuntimeError(
                     f"Error processing contours for {self.__class__.__name__}: {e}"
-                )
+                ) from e
 
-    def get_mob_count(self, image: np.ndarray, handle: int, **kwargs) -> int:
+    def get_mob_count(self, image: np.ndarray, handle: int, **kwargs: Any) -> int:  # noqa: ANN401
         """
         Returns the number of mobs found on-screen.
         """
         multiplier = self._multiplier if self.detection_model is None else 1
-        return round(
-            len(self.get_onscreen_mobs(image, handle, **kwargs)) / multiplier
-        )
+        return round(len(self.get_onscreen_mobs(image, handle, **kwargs)) / multiplier)
 
 
-def _debug(image: np.ndarray, contours) -> None:
+def _debug(image: np.ndarray, contours: Sequence[np.ndarray]) -> None:
     # Draw all contours
     if contours:
         cv2.drawContours(image, contours, -1, (0, 255, 255), 4)

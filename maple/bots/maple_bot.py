@@ -1,6 +1,9 @@
 import multiprocessing.connection
 import multiprocessing.managers
+import threading
 from abc import ABC
+from typing import Any
+
 from botting.core import Bot
 from botting.utilities import take_screenshot
 from botting.visuals import InGameDetectionVisuals
@@ -21,12 +24,12 @@ class MapleBot(Bot, ABC):
         ign: str,
         metadata: multiprocessing.managers.DictProxy,
         game_map: str,
-        detection_configs: str = None,
+        detection_configs: str | None = None,
         client_size: str = "medium",
-        models_path: dict[str, str] = None,
-        character_class: str = None,
+        models_path: dict[str, str] | None = None,
+        character_class: str | None = None,
         open_minimap_editor: bool = False,
-        **kwargs
+        **kwargs: Any,  # noqa: ANN401
     ) -> None:
         super().__init__(ign, metadata, **kwargs)
         self.handle = self.get_handle_from_ign(ign)
@@ -43,7 +46,7 @@ class MapleBot(Bot, ABC):
     def child_init(
         self,
         pipe: multiprocessing.connection.Connection,
-        barrier: multiprocessing.managers.BarrierProxy,  # type: ignore
+        barrier: threading.Barrier,
     ) -> None:
         """
         Called by the Engine to create Bot within Child process.
@@ -52,43 +55,41 @@ class MapleBot(Bot, ABC):
         convenience.
         """
         super().child_init(pipe, barrier)
+        # `Bot.child_init` is what builds `self.data`; everything below reads it,
+        # including the lambdas, which a narrowing assert alone would not reach.
+        assert self.data is not None
+        assert self.models_path is not None
+        data = self.data
         InGameDetectionVisuals.register_models(self.models_path)
-        InGameDetectionVisuals.register_cache_id(self.data.handle)
-        self.data.create_attribute(
+        InGameDetectionVisuals.register_cache_id(data.handle)
+        data.create_attribute(
             "character",
             lambda: self.character_class(
                 self.ign, self.detection_configs, self.client_size
             ),
         )
-        self.data.create_attribute(
+        data.create_attribute(
             "current_map",
-            lambda: MapleMap(self.game_map, self.open_minimap_editor, **self.kwargs)
+            lambda: MapleMap(self.game_map, self.open_minimap_editor, **self.kwargs),
         )
-        self.data.create_attribute(
-            "current_minimap", lambda: self.data.current_map.minimap
-        )
-        self.data.create_attribute(
-            "current_grid", lambda: self.data.current_minimap.generate_grid(
-                allow_teleport=self.data.character.skills.get("Teleport") is not None,
+        data.create_attribute("current_minimap", lambda: data.current_map.minimap)
+        data.create_attribute(
+            "current_grid",
+            lambda: data.current_minimap.generate_grid(
+                allow_teleport=data.character.skills.get("Teleport") is not None,
                 speed_multiplier=(
-                    self.data.speed_multiplier if self.data.has_ap_menu_attributes
-                    else 1.00
+                    data.speed_multiplier if data.has_ap_menu_attributes else 1.00
                 ),
                 jump_multiplier=(
-                    self.data.jump_multiplier if self.data.has_ap_menu_attributes
-                    else 1.00
-                )
-            )
+                    data.jump_multiplier if data.has_ap_menu_attributes else 1.00
+                ),
+            ),
         )
-        self.data.create_attribute("current_mobs", lambda: self.data.current_map.mobs)
-        self.data.create_attribute(
+        data.create_attribute("current_mobs", lambda: data.current_map.mobs)
+        data.create_attribute(
             "current_client_img",
-            lambda: take_screenshot(self.data.handle),
+            lambda: take_screenshot(data.handle),
             threshold=0.1,
         )
-        self.data.set_static(
-            "speed_multiplier", self.kwargs.get("speed_multiplier", 1.00)
-        )
-        self.data.set_static(
-            "jump_multiplier", self.kwargs.get("jump_multiplier", 1.00)
-        )
+        data.set_static("speed_multiplier", self.kwargs.get("speed_multiplier", 1.00))
+        data.set_static("jump_multiplier", self.kwargs.get("jump_multiplier", 1.00))

@@ -3,20 +3,23 @@ Base classes for in-game visuals.
 Contains methods for reading text, detecting colors or images in the game window.
 """
 
-import cv2
 import logging
-import numpy as np
 import os
-import torch.cuda
-import pytesseract
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
+from typing import Any, ClassVar
+
+import cv2
+import numpy as np
+import pytesseract
+import torch.cuda
+from cv2.typing import MatLike
 from numpy import dtype, generic, ndarray
-from typing import Any, Sequence
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
-from paths import ROOT
-from botting.utilities import Box, take_screenshot, find_image, group_rectangles
 
+from botting.utilities import Box, find_image, group_rectangles, take_screenshot
+from paths import ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +40,6 @@ class InGameBaseVisuals(ABC):
         :param image: The image to process.
         :return: Processed image.
         """
-        pass
 
     def read_from_box(
         self,
@@ -99,7 +101,7 @@ class InGameBaseVisuals(ABC):
         :return: Whether the color was detected or not, based on the pixel threshold.
         """
         detection_array = cv2.inRange(detection_img, *color)
-        return np.count_nonzero(detection_array) > pixel_threshold
+        return bool(np.count_nonzero(detection_array) > pixel_threshold)
 
     @staticmethod
     def _needle_detection(
@@ -116,34 +118,36 @@ class InGameBaseVisuals(ABC):
         :return: Whether the needle was detected or not, based on the threshold.
         """
         res = cv2.matchTemplate(detection_img, needle_img, method)
-        return np.max(res) > threshold
+        return bool(np.max(res) > threshold)
 
     @staticmethod
     def _apply_contour_detection(
-        image: np.ndarray, **kwargs
-    ) -> Sequence[ndarray | ndarray[Any, dtype[generic | generic]] | Any]:
+        image: np.ndarray,
+        **kwargs: Any,  # noqa: ANN401
+    ) -> Sequence[ndarray | ndarray[Any, dtype[generic]] | Any]:
         contours, _ = cv2.findContours(image, **kwargs)
         return contours
 
     @staticmethod
     def _apply_bounding_rectangles(
-        contours: Sequence[ndarray | ndarray[Any, dtype[generic | generic]] | Any],
-        **kwargs,
+        contours: Sequence[MatLike],
+        **kwargs: object,
     ) -> list[Sequence[int]]:
         return [cv2.boundingRect(cnt) for cnt in contours]
 
     @staticmethod
     def _apply_rectangle_grouping(
-        rects: list[Sequence[int]], **kwargs
+        rects: list[Sequence[int]],
+        **kwargs: Any,  # noqa: ANN401
     ) -> Sequence[Sequence[int]]:
         # `groupThreshold` is spelled OpenCV's way in character_detection.ini,
         # so it is translated here rather than churning everyone's config.
         if "groupThreshold" in kwargs:
             kwargs["group_threshold"] = kwargs.pop("groupThreshold")
-        return group_rectangles(rects, **kwargs)[0]
+        return list(group_rectangles(rects, **kwargs)[0])
 
     @staticmethod
-    def _apply_convex_hull(contour: Sequence[int], **kwargs) -> Sequence[int]:
+    def _apply_convex_hull(contour: MatLike, **kwargs: Any) -> MatLike:  # noqa: ANN401
         return cv2.convexHull(contour, **kwargs)
 
     @staticmethod
@@ -179,7 +183,7 @@ class InGameToggleableVisuals(InGameBaseVisuals, ABC):
     """
 
     @abstractmethod
-    def is_displayed(self, handle: int, image: np.ndarray = None) -> bool:
+    def is_displayed(self, handle: int, image: np.ndarray | None = None) -> bool:
         """
         Checks whether the visual is currently displayed on screen.
         Must be implemented for each subclass.
@@ -190,7 +194,6 @@ class InGameToggleableVisuals(InGameBaseVisuals, ABC):
         Note that if the visual is obstructed (by cursor or other object),
          this method may fail.
         """
-        pass
 
 
 class InGameDynamicVisuals(InGameToggleableVisuals, ABC):
@@ -227,7 +230,7 @@ class InGameDynamicVisuals(InGameToggleableVisuals, ABC):
             return boxes.pop()
 
     def get_abs_box(
-        self, handle: int, relative_box: Box, image: np.ndarray = None
+        self, handle: int, relative_box: Box, image: np.ndarray | None = None
     ) -> Box | None:
         """
         Returns the absolute box coordinates of the visual. The relative box is
@@ -241,24 +244,27 @@ class InGameDynamicVisuals(InGameToggleableVisuals, ABC):
             image = take_screenshot(handle)
         if self.is_displayed(handle, image):
             icon = self._menu_icon_position(handle, image)
-            return icon + relative_box
+            if icon is not None:
+                return icon + relative_box
+        return None
 
 
 class InGameDetectionVisuals(InGameBaseVisuals, ABC):
     """
     Base class for in-game objects for which a YOLO detection model may be used
     """
-    _models: dict = {}
-    detection_model: YOLO = None
-    _prediction_cache: dict[int, Results] = {}
-    _arg_cache: dict[int, int] = {}
-    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    if device == torch.device('cpu'):
+
+    _models: ClassVar[dict] = {}
+    detection_model: YOLO | None = None
+    _prediction_cache: ClassVar[dict[int, Results]] = {}
+    _arg_cache: ClassVar[dict[int, int]] = {}
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    if device == torch.device("cpu"):
         logger.warning(
             "No CUDA device found. "
             "Using CPU for detection. Detections will be ~3x slower."
         )
-    _model_cls_name: str = None
+    _model_cls_name: str | None = None
     DEFAULT_THRESHOLD = 0.65
 
     def __init__(self) -> None:
@@ -284,9 +290,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
             if class_ not in InGameDetectionVisuals._models:
                 if not os.path.exists(path):
                     path = os.path.join(ROOT, path)
-                assert os.path.exists(path), (
-                    f"Model {path} does not exist."
-                )
+                assert os.path.exists(path), f"Model {path} does not exist."
                 model = YOLO(os.path.join(path, "weights/best.pt"), task="detect")
                 InGameDetectionVisuals._models[class_] = model
 
@@ -339,9 +343,9 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         cls,
         cache_id: int,
         image: np.ndarray,
-        threshold: float = DEFAULT_THRESHOLD,
+        threshold: float | None = None,
         debug: bool = False,
-        mask: np.ndarray = None,
+        mask: np.ndarray | None = None,
     ) -> Results:
         """
         Run the detection model on the image, and cache the result.
@@ -351,16 +355,25 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         threshold = threshold or cls.DEFAULT_THRESHOLD
         hashed_args = hash((image.tobytes(), threshold))
         if InGameDetectionVisuals._arg_cache[cache_id] != hashed_args:
-            res_list = cls.detection_model(
-                image,
-                conf=threshold,
-                verbose=False,
-                iou=0.3,
+            assert cls.detection_model is not None, (
+                f"{cls.__name__} has no detection model to run."
+            )
+            res_list = list(
+                cls.detection_model(
+                    image,
+                    conf=threshold,
+                    verbose=False,
+                    iou=0.3,
+                )
             )
             assert len(res_list) == 1, (
                 f"Expected only one YOLO detection result, got {len(res_list)}."
             )
-            InGameDetectionVisuals._prediction_cache[cache_id] = res_list.pop()
+            result = res_list.pop()
+            assert isinstance(result, Results), (
+                f"Expected a YOLO Results, got {type(result).__name__}."
+            )
+            InGameDetectionVisuals._prediction_cache[cache_id] = result
             InGameDetectionVisuals._arg_cache[cache_id] = hashed_args
         if debug:
             res = InGameDetectionVisuals._prediction_cache[cache_id].plot()
@@ -377,7 +390,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
                     # Draw a rectangle on res using the bounding box coordinates
                     cv2.rectangle(res, (x, y), (x + w, y + h), (0, 0, 0), 2)
 
-            cv2.imshow('Detection Model', res)
+            cv2.imshow("Detection Model", res)
             cv2.waitKey(1)
 
         return InGameDetectionVisuals._prediction_cache[cache_id]
@@ -387,8 +400,8 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         cls,
         res: Results,
         *,
-        mask: np.ndarray,
-        name: str = None,
+        mask: np.ndarray | None,
+        name: str | None = None,
     ) -> tuple[Sequence[int], ...]:
         """
         Extract the results from the YOLO detection model.
@@ -398,8 +411,9 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         if name is None:
             name = cls._model_cls_name
         vals = [
-            tuple(map(round, dct['box'].values())) for dct in res.summary()
-            if dct['name'] == name
+            tuple(map(round, dct["box"].values()))
+            for dct in res.summary()
+            if dct["name"] == name
         ]
 
         if mask is not None:

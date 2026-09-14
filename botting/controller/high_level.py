@@ -6,22 +6,26 @@ Contains all high-level functions necessary for interacting with the game.
 import asyncio
 import functools
 import logging
+import random
 import time
+from configparser import SectionProxy
+from typing import Any, Literal
+
 import numpy as np
 import pytweening
-import random
 import win32api
 import win32con
 import win32gui
-from typing import Literal
 
 from botting.utilities import config_reader, randomize_params
+
 from .inputs import (
-    focused_inputs,
-    non_focused_input,
-    message_constructor,
     DELAY,
+    EVENTS,
+    focused_inputs,
     input_constructor,
+    message_constructor,
+    non_focused_input,
     release_all,
     require_main_process,
 )
@@ -49,7 +53,9 @@ def key_binds(ign: str) -> dict[str, str]:
     The configs cannot be changed while the bot is running.
     In-game key binds should therefore not be changed either.
     """
-    temp = {k: eval(v) for k, v in dict(config_reader("keybindings", f"{ign}")).items()}
+    section = config_reader("keybindings", f"{ign}")
+    assert isinstance(section, SectionProxy), f"No keybindings section for {ign!r}."
+    temp = {k: eval(v) for k, v in dict(section).items()}
     final = {}
     for val in temp.values():
         final.update(val)
@@ -64,7 +70,7 @@ async def press(
     down_or_up: Literal["keydown", "keyup"] | None = None,
     nbr_times: int = 1,
     delay: float = DELAY,
-    **kwargs,
+    **kwargs: Any,  # noqa: ANN401
 ) -> None:
     """
     :param handle: Window handle to the process.
@@ -87,9 +93,9 @@ async def press(
         ], "Use the move function to move the character."
     if down_or_up is not None:
         assert down_or_up in ["keydown", "keyup"]
-        assert (
-            not silenced
-        ), "Cannot send a keydown or keyup (as stand-alone) event when silenced=True."
+        assert not silenced, (
+            "Cannot send a keydown or keyup (as stand-alone) event when silenced=True."
+        )
 
     if silenced:
         inputs = message_constructor(
@@ -98,17 +104,19 @@ async def press(
             [win32con.WM_KEYDOWN, win32con.WM_KEYUP] * nbr_times,
             **kwargs,
         )
-        delays = [random.uniform(0.95, 1.05) * delay for _ in range(2 * nbr_times)]
+        delays: list[float] = [
+            random.uniform(0.95, 1.05) * delay for _ in range(2 * nbr_times)
+        ]
         await non_focused_input(inputs, delays)
 
     else:
         inputs = []
-        keys = []
-        events = []
+        keys: list[str | list[str]] = []
+        events: list[EVENTS | list[EVENTS]] = []
         release = None
         if down_or_up in ["keydown", None]:
             keys = [[key]] * nbr_times
-            events: list[Literal | list] = [["keydown"]] * nbr_times
+            events = [["keydown"]] * nbr_times
             inputs = input_constructor(handle, keys, events)
         if down_or_up in ["keyup", None]:
             release = [key]
@@ -163,21 +171,27 @@ async def write(
         logger.info("Writing message %s in window %s LOUDLY.", message, handle)
         release_keys = list(set(message))
 
+        chars: list[str | list[str]]
+        events: list[EVENTS | list[EVENTS]] = []
+        delays: list[float]
         if delay == 0:
-            message = [[char for char in list(message) for _ in range(2)]]
-            events: list[list[Literal]] = [
-                ["keydown", "keyup"] * (len(message[0]) // 2)
-            ]
-            delays = [0]
+            # One Step carrying every keystroke: nothing to space out.
+            chars = [[char for char in list(message) for _ in range(2)]]
+            first = chars[0]
+            for _ in range(len(first) // 2):
+                events.append(["keydown", "keyup"])
+            delays = [0.0]
         else:
-            message = [[char] for char in list(message) for _ in range(2)]
-            events = [["keydown"], ["keyup"]] * (len(message) // 2)
-            delays = [random.uniform(0.95, 1.05) * delay for _ in range(len(message))]
+            chars = [[char] for char in list(message) for _ in range(2)]
+            for _ in range(len(chars) // 2):
+                events.append(["keydown"])
+                events.append(["keyup"])
+            delays = [random.uniform(0.95, 1.05) * delay for _ in range(len(chars))]
 
-        inputs = input_constructor(handle, message, events, as_unicode=True)
+        inputs = input_constructor(handle, chars, events, as_unicode=True)
         await asyncio.shield(
             focused_inputs(
-                handle, inputs, delays, release_keys, keys=message, events=events
+                handle, inputs, delays, release_keys, keys=chars, events=events
             )
         )
 
@@ -237,7 +251,7 @@ async def mouse_move(
 
     if total_duration == 0:
         x, y = [int(x1 * 65536 // WIDTH)], [int(y1 * 65536 // HEIGHT)]
-        delays = [0]
+        delays: list[float] = [0.0]
 
     else:
         step_duration: float = max(1 / REFRESH_RATE, 0.03)
@@ -247,7 +261,7 @@ async def mouse_move(
         x, y = zip(*trajectory)
         x = [int(i * 65536 // WIDTH) for i in x]
         y = [int(i * 65536 // HEIGHT) for i in y]
-        delays = [step_duration] * len(x)
+        delays = [float(step_duration)] * len(x)
 
     inputs = input_constructor(handle, list(zip(x, y)), [None] * len(x))
     await focused_inputs(handle, inputs, delays)
@@ -266,6 +280,7 @@ async def click(
     :param delay: Delay between each click.
     :return: Nbr of times the click was successful.
     """
+    events: list[EVENTS | list[EVENTS]]
     if down_or_up == "click":
         events = ["mousedown", "mouseup"] * nbr_times
     else:
@@ -295,8 +310,11 @@ async def mouse_move_and_click(
 
 def get_mouse_pos(handle: int) -> tuple[int, int]:
     """
-    Returns the position of the cursor inside the window, if it is inside the window.
-    Otherwise, returns None.
+    Returns the position of the cursor inside the window.
+
+    Raises when the cursor is outside it: the docstring used to promise None,
+    the annotation promised a tuple, and the function returned neither - it fell
+    off the end.
     :param handle:
     :return:
     """
@@ -304,3 +322,6 @@ def get_mouse_pos(handle: int) -> tuple[int, int]:
     x, y = win32api.GetCursorPos()
     if left <= x <= right and top <= y <= bottom:
         return x - left, y - top
+    raise LookupError(
+        f"The cursor is at ({x}, {y}), outside window {handle}'s rectangle."
+    )

@@ -1,4 +1,5 @@
 from .focused_inputs import (
+    EVENTS,
     OPPOSITES,
     compile_and_send,
     focused_inputs,
@@ -21,6 +22,7 @@ from .shared_resources import SharedResources
 
 __all__ = [
     "DELAY",
+    "EVENTS",
     "OPPOSITES",
     "HeldKeysLedger",
     "InputState",

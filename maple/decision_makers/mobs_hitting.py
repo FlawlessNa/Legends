@@ -3,22 +3,25 @@ import functools
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
-import numpy as np
+from collections.abc import Callable
 from functools import cached_property
-from typing import Callable
+from typing import Any
+
+import numpy as np
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
 from botting.utilities import (
-    Box,
     CLIENT_HORIZONTAL_MARGIN_PX,
     CLIENT_VERTICAL_MARGIN_PX,
+    Box,
 )
 from maple.actions.skills_related_v2 import cast_skill_compiler
-from maple.model.interface import LargeClientChatFeed
 from maple.model.characters import MapleSkill
+from maple.model.interface import LargeClientChatFeed
 from maple.telemetry_events import COMBAT_MOBS_HIT, MobsHitPayload
-from .mixins import MobsHittingMixin, MinimapAttributesMixin, NextTargetMixin
+
+from .mixins import MinimapAttributesMixin, MobsHittingMixin, NextTargetMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -34,8 +37,8 @@ class MobsHitting(
         data: BotData,
         pipe: multiprocessing.connection.Connection,
         mob_count_threshold: int,
-        training_skill: str = None,
-        **kwargs,
+        training_skill: str | None = None,
+        **kwargs: object,
     ) -> None:
         super().__init__(metadata, data, pipe)
         self.lock = self._proxies.instance(repr(self), "Lock")
@@ -49,11 +52,11 @@ class MobsHitting(
             # error_handler=...,  # TODO - Implement error handler
         )
 
-    async def task(self, *args, **kwargs) -> None:
+    async def task(self) -> None:
         # Ensures the lock is actually released before task is started, no matter what.
         self.lock.acquire(blocking=False)
         self.lock.release()
-        await super().task(*args, **kwargs)
+        await super().task()
 
     def _hit_mobs(self, direction: str | None) -> ActionRequest:
         """
@@ -106,7 +109,7 @@ class MobsHitting(
 
     @staticmethod
     async def _cap_duration(
-        handle: int, compiler: callable, timeout: float
+        handle: int, compiler: Callable[..., Any], timeout: float
     ) -> None:
         """
         Compiles the cast at dispatch (so it sees this client's held keys, read from
@@ -116,14 +119,14 @@ class MobsHitting(
             await asyncio.wait_for(
                 controller.compile_and_send(handle, compiler), timeout=timeout
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(
                 "Skill cast on handle %s exceeded its %.2fs cap and was cancelled.",
                 handle,
                 timeout,
             )
 
-    def _get_skill_from_str(self, skill_str: str) -> MapleSkill:
+    def _get_skill_from_str(self, skill_str: str | None) -> MapleSkill:
         if skill_str:
             return self.data.character.skills[skill_str]
         return self.data.character.skills[self.data.character.main_skill]
@@ -159,7 +162,7 @@ class MobsHitting(
             or self.training_skill.vertical_screen_range
         )
         # TODO -> Detection model returns x1, y1, x2, y2, while detection configs returns x, y, w, h this needs to be corrected
-        x1, y1, x2, y2 = pos
+        x1, _y1, x2, y2 = pos
         # x1, y1, w, h = pos
         # x2 = x1 + w
         # y2 = y1 + h
@@ -170,11 +173,11 @@ class MobsHitting(
             top=y2 - vertical_up // 2,
             bottom=min(
                 y2 + vertical_down // 2,
-                LargeClientChatFeed._chat_typing_area.top,  # noqa
+                LargeClientChatFeed._chat_typing_area.top,
             ),
         )
         mask = np.zeros(self.data.current_client_img.shape, np.uint8)
-        mask[region.top:region.bottom, region.left:region.right] = 255
+        mask[region.top : region.bottom, region.left : region.right] = 255
         return mask
 
     def _get_on_screen_pos(self) -> tuple[int, int, int, int] | None:
@@ -198,8 +201,8 @@ class MobsHitting(
             self.data.current_minimap.get_feature_containing(
                 self.data.current_minimap_position
             ),
-            'is_ladder',
-            False
+            "is_ladder",
+            False,
         )
 
     def _closest_mob_direction(
@@ -219,12 +222,11 @@ class MobsHitting(
             return self.get_closest_mob_direction(
                 self.box_center(on_screen_pos), mobs_locations
             )
-        except Exception:  # noqa
-            logger.error(
+        except Exception:
+            logger.exception(
                 "%s failed to determine the closest mob direction; casting without a "
                 "facing prelude.",
                 self,
-                exc_info=True,
             )
             return None
 

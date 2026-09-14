@@ -1,13 +1,16 @@
-import cv2
-import numpy as np
 import os
 import string
-from paths import ROOT
-from botting.visuals import InGameDynamicVisuals
+
+import cv2
+import numpy as np
+
 from botting.utilities import (
     Box,
+    read_detection_image,
     take_screenshot,
 )
+from botting.visuals import InGameDynamicVisuals
+from paths import ROOT
 
 
 class InventoryMenu(InGameDynamicVisuals):
@@ -15,7 +18,7 @@ class InventoryMenu(InGameDynamicVisuals):
     Implements the in-game Inventory menu.
     """
 
-    _menu_icon_detection_needle: np.ndarray = cv2.imread(
+    _menu_icon_detection_needle: np.ndarray = read_detection_image(
         os.path.join(ROOT, "maple/assets/detection_images/inventory_menu.png")
     )
     _slot_color: np.ndarray = np.array([221, 238, 238])
@@ -27,7 +30,9 @@ class InventoryMenu(InGameDynamicVisuals):
     _empty_slot_rect_height: int = 31
     _emtpy_slot_cnt_area: int = 900
     total_slots: int = 96
-    _entire_inventory_box: Box = Box(left=2, right=492, top=45, bottom=233, relative=True)
+    _entire_inventory_box: Box = Box(
+        left=2, right=492, top=45, bottom=233, relative=True
+    )
     tabs: tuple = ("Equip", "Use", "Setup", "Etc", "Cash")
 
     mesos_box: Box = Box(
@@ -47,17 +52,18 @@ class InventoryMenu(InGameDynamicVisuals):
         name="Extend Button",
         relative=True,
     )
-    merge_and_sort_button: Box = ...
+    #: Subclass responsibility - each inventory layout places it differently.
+    merge_and_sort_button: Box
 
     def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         processed = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
         return cv2.resize(processed, None, fx=10, fy=10)
 
-    def is_displayed(self, handle: int, image: np.ndarray = None) -> bool:
+    def is_displayed(self, handle: int, image: np.ndarray | None = None) -> bool:
         return self._menu_icon_position(handle, image) is not None
 
-    def is_extended(self, handle: int, image: np.ndarray = None) -> bool:
+    def is_extended(self, handle: int, image: np.ndarray | None = None) -> bool:
         if image is None:
             image = take_screenshot(handle)
         if not self.is_displayed(handle, image):
@@ -67,22 +73,24 @@ class InventoryMenu(InGameDynamicVisuals):
 
         # 30000 is generally sufficient such that even when inventory is full, there are still
         # more than 30000 pixels that are the same color as the slots.
-        if np.count_nonzero(processed) > 20000:
-            return True
-        return False
+        return bool(np.count_nonzero(processed) > 20000)
 
-    def get_current_mesos(self, handle: int, image: np.ndarray = None) -> str:
+    def get_current_mesos(self, handle: int, image: np.ndarray | None = None) -> str:
         if image is None:
             image = take_screenshot(handle, self.get_abs_box(handle, self.mesos_box))
         return self.read_from_img(image, self.mesos_box.config)
 
-    def get_active_tab(self, handle: int, image: np.ndarray = None) -> str | None:
+    def get_active_tab(
+        self, handle: int, image: np.ndarray | None = None
+    ) -> str | None:
         if image is None:
             image = take_screenshot(handle)
         if not self.is_displayed(handle, image):
             return
 
         menu_pos = self._menu_icon_position(handle, image)
+        if menu_pos is None:
+            return None
         buffer = Box(left=0, right=100, top=0, bottom=30)
         target = (menu_pos + buffer).extract_client_img(image)
 
@@ -106,7 +114,7 @@ class InventoryMenu(InGameDynamicVisuals):
                 return "Setup"
             elif 52 <= horizontal_distance < 86:
                 return "Etc"
-            elif 86 <= horizontal_distance:
+            elif horizontal_distance >= 86:
                 return "Cash"
 
     def get_tab_count(self, current: str, target: str) -> int:
@@ -120,7 +128,9 @@ class InventoryMenu(InGameDynamicVisuals):
             return 0
         return (self.tabs.index(target) - self.tabs.index(current)) % len(self.tabs)
 
-    def get_space_left(self, handle: int, image: np.ndarray = None) -> int | None:
+    def get_space_left(
+        self, handle: int, image: np.ndarray | None = None
+    ) -> int | None:
         """
         Returns the number of empty slots in the inventory.
         Only works when inventory is displayed and extended.
@@ -138,8 +148,8 @@ class InventoryMenu(InGameDynamicVisuals):
             processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
 
-        def _filter(cnt) -> bool:
-            x, y, w, h = cv2.boundingRect(cnt)
+        def _filter(cnt: np.ndarray) -> bool:
+            _x, _y, w, h = cv2.boundingRect(cnt)
             cond1 = (
                 self._empty_slot_rect_height - 1
                 <= h
@@ -157,20 +167,26 @@ class InventoryMenu(InGameDynamicVisuals):
 
         return len(list(filter(_filter, contours)))
 
-    def get_all_slots_boxes(self, handle: int, image: np.ndarray = None) -> list[Box]:
+    def get_all_slots_boxes(
+        self, handle: int, image: np.ndarray | None = None
+    ) -> list[Box]:
         """
         Returns a list of all boxes in the inventory.
         :param handle:
         :param image:
         :return:
         """
-        result = []
         if image is None:
             image = take_screenshot(handle)
         if not self.is_extended(handle, image):
-            return
+            # The inventory is not expanded, so it has no slots to box. An empty
+            # list rather than None: the annotation says list[Box], and every
+            # caller iterates the result.
+            return []
 
         inventory_box = self.get_abs_box(handle, self._entire_inventory_box)
+        if inventory_box is None:
+            return []
 
         def x_offset(n: int) -> int:
             return 1 + n * (32 + 4) + n // 4 * 5
@@ -204,10 +220,6 @@ class InventoryMenu(InGameDynamicVisuals):
             bottom=mouse_pos[1] + 50,
         )
         image = take_screenshot(handle, box)
-        cv2.imshow("test", image)
-        import time
-
-        start = time.time()
         processed = cv2.inRange(
             image, self._item_title_low_color, self._item_title_high_color
         )
@@ -216,17 +228,7 @@ class InventoryMenu(InGameDynamicVisuals):
         processed = cv2.threshold(
             processed, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
         )[1]
-        cv2.imshow("test2", cv2.resize(processed, None, fx=10, fy=10))
-        cv2.waitKey(1)
-        contours, _ = cv2.findContours(
-            processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
-        end = time.time()
-        print("Time for processing:", end - start)
-
-        res = self.read_from_img(
+        return self.read_from_img(
             processed,
-            f"--psm 7 -c tessedit_char_whitelist=0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ ",
+            "--psm 7 -c tessedit_char_whitelist=0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ ",
         )
-        print("Time for reading", time.time() - end)
-        return res

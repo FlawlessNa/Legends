@@ -56,14 +56,16 @@ def _post_message(
 def message_constructor(
     hwnd: int,
     keys: list[str],
-    messages: list[wintypes.UINT],
+    messages: list[int],
     **kwargs: Unpack[LowParamKwargs],
 ) -> list[PostMessageTuple]:
     """
     Constructs the input array that will be sent to the window through PostMessage().
     :param hwnd: Handle to the window to send the message to.
     :param keys: List of string representation of the key(s) to be pressed.
-    :param messages: Type of message to be sent.
+    :param messages: Type of message to be sent, as the `win32con.WM_*`
+     constants - plain ints, which is what `_single_message_constructor`
+     takes.
      Currently supported: WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_CHAR.
      If it is a list, it must be the same length as the keys list.
     :param kwargs: Additional arguments to be passed to _low_param_constructor method.
