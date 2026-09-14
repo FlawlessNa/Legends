@@ -1,0 +1,348 @@
+{
+    "_meta": {
+        "scale_x": 0.0634965144921497,
+        "scale_y": 0.0609910221695058,
+        "canvas_width": 116,
+        "canvas_height": 57
+    },
+    "title_img_path": "maple/assets/detection_images/LudiFMMinimap.png",
+    "mobs": [],
+    "party_rebuff_zone": null,
+    "features": {
+        "bottom": {
+            "left": 4,
+            "right": 111,
+            "top": 39,
+            "bottom": 39,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "ladder1": {
+            "left": 25,
+            "right": 25,
+            "top": 27,
+            "bottom": 38,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "ladder2": {
+            "left": 31,
+            "right": 31,
+            "top": 14,
+            "bottom": 25,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "ladder3": {
+            "left": 65,
+            "right": 65,
+            "top": 14,
+            "bottom": 25,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "ladder4": {
+            "left": 74,
+            "right": 74,
+            "top": 27,
+            "bottom": 38,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "mid": {
+            "left": 17,
+            "right": 87,
+            "top": 26,
+            "bottom": 26,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "mid_left": {
+            "left": 12,
+            "right": 14,
+            "top": 26,
+            "bottom": 26,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "mid_right": {
+            "left": 90,
+            "right": 93,
+            "top": 26,
+            "bottom": 26,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "top1": {
+            "left": 8,
+            "right": 11,
+            "top": 13,
+            "bottom": 13,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "top2": {
+            "left": 14,
+            "right": 22,
+            "top": 13,
+            "bottom": 13,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "top3": {
+            "left": 25,
+            "right": 33,
+            "top": 13,
+            "bottom": 13,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "top4": {
+            "left": 37,
+            "right": 45,
+            "top": 13,
+            "bottom": 13,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "top5": {
+            "left": 48,
+            "right": 56,
+            "top": 13,
+            "bottom": 13,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "top6": {
+            "left": 59,
+            "right": 67,
+            "top": 13,
+            "bottom": 13,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "top7": {
+            "left": 71,
+            "right": 78,
+            "top": 13,
+            "bottom": 13,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "top8": {
+            "left": 82,
+            "right": 90,
+            "top": 13,
+            "bottom": 13,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        },
+        "top9": {
+            "left": 93,
+            "right": 95,
+            "top": 13,
+            "bottom": 13,
+            "offset": [
+                0,
+                0
+            ],
+            "walkable": true,
+            "weight": 1,
+            "avoid_right_edge": false,
+            "avoid_left_edge": false,
+            "edge_threshold": 0,
+            "no_jump_connections_from_endpoints": false,
+            "rotation_indexes": []
+        }
+    },
+    "portals": [
+        {
+            "source": [
+                12,
+                39
+            ],
+            "target": [
+                13,
+                26
+            ],
+            "bidirectional": false
+        },
+        {
+            "source": [
+                13,
+                26
+            ],
+            "target": [
+                10,
+                13
+            ],
+            "bidirectional": false
+        },
+        {
+            "source": [
+                94,
+                13
+            ],
+            "target": [
+                91,
+                26
+            ],
+            "bidirectional": false
+        },
+        {
+            "source": [
+                91,
+                26
+            ],
+            "target": [
+                90,
+                39
+            ],
+            "bidirectional": false
+        }
+    ]
+}
