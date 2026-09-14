@@ -13,7 +13,7 @@ presents.
 """
 
 import queue
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 import pytest
 from pytest_mock import MockerFixture
@@ -85,7 +85,7 @@ class _Loop(MovementRecoveryMixin, NextTargetMixin):
         self.data = data
         self._proxies = _Proxies()
         self.sent: list[ActionRequest] = []
-        self.emitted: list[tuple[str, dict]] = []
+        self.emitted: list[tuple[str, Mapping[str, object]]] = []
         self.disabled: list[str] = []
         self.plan: tuple[_MovementComponent, ...] = WALK
         # Assigned rather than overridden: the mixin declares each of these as a

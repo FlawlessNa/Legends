@@ -15,7 +15,7 @@ stream will otherwise race, and a test that passes because a *different* symptom
 fired first is worse than no test.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 import pytest
 
@@ -71,7 +71,7 @@ class _Monitor:
     """
 
     def __init__(self, thresholds: RecoveryThresholds) -> None:
-        self.events: list[tuple[str, dict]] = []
+        self.events: list[tuple[str, Mapping[str, object]]] = []
         self.monitor = StuckMonitor(
             thresholds, emit=lambda e, p: self.events.append((e, p))
         )
@@ -374,7 +374,7 @@ def test_one_incident_advances_the_ladder_once_per_firing(climbing: _Monitor) ->
 
 
 def _reset_reasons(monitor: _Monitor) -> list[str]:
-    return [p["reason"] for e, p in monitor.events if e == RECOVERY_LADDER_RESET]
+    return [str(p["reason"]) for e, p in monitor.events if e == RECOVERY_LADDER_RESET]
 
 
 def test_real_progress_resets_the_ladder(climbing: _Monitor) -> None:
@@ -512,7 +512,10 @@ def test_every_firing_records_the_symptom_it_was(stalling: _Monitor) -> None:
     detections = [p for e, p in stalling.events if e == RECOVERY_STUCK_DETECTED]
     assert len(detections) == 1
     assert detections[0]["symptom"] == "stall"
-    assert detections[0]["measure"] >= detections[0]["threshold"]
+    measure, threshold = detections[0]["measure"], detections[0]["threshold"]
+    assert isinstance(measure, float)
+    assert isinstance(threshold, float)
+    assert measure >= threshold
 
 
 def test_every_rung_records_itself(climbing: _Monitor) -> None:
