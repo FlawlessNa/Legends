@@ -14,27 +14,29 @@ map handling to the current model first, which is deliberately deferred.
 """
 
 import asyncio
-import cv2
 import logging
 import math
 import multiprocessing.connection
 import multiprocessing.managers
-import numpy as np
 import os
 import random
-from botting import controller, PARENT_LOG
+from typing import ClassVar
+
+import cv2
+import numpy as np
+
+from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
 from botting.utilities import Box, find_image
-from paths import ROOT
-from maple.actions import toggle_inventory, expand_inventory, priorities
+from maple._old.maps import RoyalsMap
+from maple.actions import expand_inventory, priorities, toggle_inventory
 from maple.actions.skills_related_v2 import cast_skill_single_press
 from maple.constants import (
-    INVENTORY_DISCORD_ALERT,
-    INVENTORY_CLEANUP_WITH_TOWN_SCROLL,
-    INVENTORY_CLEANUP_WITH_SELF_DOOR,
     INVENTORY_CLEANUP_WITH_PARTY_DOOR,
+    INVENTORY_CLEANUP_WITH_SELF_DOOR,
+    INVENTORY_CLEANUP_WITH_TOWN_SCROLL,
+    INVENTORY_DISCORD_ALERT,
 )
-from maple._old.maps import RoyalsMap
 from maple.model.mechanics import MinimapConnection
 from maple.telemetry_events import (
     INVENTORY_CLEANUP_COMPLETED,
@@ -46,7 +48,9 @@ from maple.telemetry_events import (
     InventoryCleanupPayload,
     InventoryMilestonePayload,
 )
-from .mixins import MenusMixin, NextTargetMixin, MovementsMixin, MinimapAttributesMixin
+from paths import ROOT
+
+from .mixins import MenusMixin, MinimapAttributesMixin, MovementsMixin, NextTargetMixin
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
@@ -58,7 +62,7 @@ class InventoryManager(
     _throttle = 180
     _TIME_LIMIT = 300
     _DISTANCE_TO_DOOR_THRESHOLD = 2
-    TABS_OFFSETS = {
+    TABS_OFFSETS: ClassVar[dict] = {
         "Equip": Box(left=84, right=55, top=90, bottom=35, relative=True),
         "Use": Box(left=128, right=99, top=90, bottom=35, relative=True),
         "Set-up": Box(left=172, right=143, top=90, bottom=35, relative=True),
@@ -70,7 +74,9 @@ class InventoryManager(
     FIRST_SLOT_SHOP_OFFSET: Box = Box(
         left=135, right=160, top=124, bottom=80, relative=True
     )
-    SELL_BUTTON_OFFSET: Box = Box(left=268, right=227, top=34, bottom=-30, relative=True)
+    SELL_BUTTON_OFFSET: Box = Box(
+        left=268, right=227, top=34, bottom=-30, relative=True
+    )
 
     def __init__(
         self,
@@ -80,7 +86,7 @@ class InventoryManager(
         cleanup_procedure: int,
         space_left_trigger: int = 97,
         target_tab: str = "Equip",
-        **kwargs,
+        **kwargs: object,
     ) -> None:
         super().__init__(metadata, data, pipe, **kwargs)
         # Set a condition but use a standard Lock instead of RLock, allowing to use
@@ -104,7 +110,7 @@ class InventoryManager(
         )
         self._open_shop_box: Box | None = None
 
-    async def _decide(self, *args, **kwargs) -> None:
+    async def _decide(self, *args: object, **kwargs: object) -> None:
         space_left = await asyncio.wait_for(self._check_inventory_space(), timeout=10)
         await self._ensure_inventory_displayed(displayed=False)
         if space_left < self._space_left_trigger:
@@ -121,7 +127,7 @@ class InventoryManager(
             await self._check_inventory_space()
         except Exception as e:
             logger.error("Exception occurred in %s: %s.", self, e)
-            raise e
+            raise
 
     async def _ensure_inventory_displayed(self, displayed: bool = True) -> None:
         request = ActionRequest(
@@ -142,8 +148,10 @@ class InventoryManager(
         else:
             await self._validate_request_async(
                 request,
-                lambda: not self.data.inventory_menu.is_displayed(
-                    self.data.handle, self.data.current_client_img
+                lambda: (
+                    not self.data.inventory_menu.is_displayed(
+                        self.data.handle, self.data.current_client_img
+                    )
                 ),
                 timeout=10.0,
             )
@@ -183,20 +191,22 @@ class InventoryManager(
             self.data.ign,
             priorities.INVENTORY_CHECKUP,
             args=(self.data.handle, "tab"),
-            kwargs=dict(silenced=True, nbr_times=1, delay=0.25),
+            kwargs={"silenced": True, "nbr_times": 1, "delay": 0.25},
         )
         await self._validate_request_async(
             request,
-            lambda: self.data.inventory_menu.get_active_tab(
-                self.data.handle, self.data.current_client_img
-            )
-            == self._target_tab,
+            lambda: (
+                self.data.inventory_menu.get_active_tab(
+                    self.data.handle, self.data.current_client_img
+                )
+                == self._target_tab
+            ),
             timeout=10.0,
         )
         self.data.update_attribute("inventory_menu_active_tab")
 
     async def _get_space_left(self) -> int:
-        if not self.data.inventory_menu_active_tab == self._target_tab:
+        if self.data.inventory_menu_active_tab != self._target_tab:
             await self._ensure_on_target_tab()
 
         self.data.update_attribute("inventory_space_left")
@@ -256,12 +266,10 @@ class InventoryManager(
                 await asyncio.wait_for(self._move_to_town_self_door(), timeout=20.0)
                 self._setup_new_map()
                 break
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
             except Exception:
-                logger.error(
-                    "%s failed to reach town through SELF DOOR.", self, exc_info=True
-                )
+                logger.exception("%s failed to reach town through SELF DOOR.", self)
                 raise
 
         while not self._confirm_shop_open():
@@ -286,12 +294,10 @@ class InventoryManager(
                 self._setup_new_map(towards_town=False)
                 self._reset_all()
                 break
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
             except Exception:
-                logger.error(
-                    "%s failed to return to its original map.", self, exc_info=True
-                )
+                logger.exception("%s failed to return to its original map.", self)
                 raise
         self.emit(INVENTORY_CLEANUP_COMPLETED, self._milestone())
 
@@ -365,7 +371,7 @@ class InventoryManager(
                 break
             await asyncio.sleep(0.5)
 
-    def _connect_door_to_other_map(self, target: tuple[int, int] = None) -> None:
+    def _connect_door_to_other_map(self, target: tuple[int, int] | None = None) -> None:
         target = target or self._door_spot
         grid = self.data.current_minimap.grid
         # Use current spot as the more precise door spot
@@ -402,7 +408,7 @@ class InventoryManager(
         def _temp_minimap_pos():
             try:
                 return self._get_minimap_pos()
-            except Exception as e:
+            except Exception:
                 return 0, 0
 
         # Overwrite the current_minimap_position attribute to disable the error handler
@@ -474,7 +480,7 @@ class InventoryManager(
                 priorities.INVENTORY_CLEANUP,
                 block_lower_priority=True,
                 args=(self.data.handle, key),
-                kwargs=dict(delay=1.0, silenced=True),
+                kwargs={"delay": 1.0, "silenced": True},
                 callbacks=[self._condition.release],
             )
         )
@@ -493,7 +499,7 @@ class InventoryManager(
                     priorities.INVENTORY_CLEANUP,
                     block_lower_priority=True,
                     args=(self.data.handle, target),
-                    kwargs=dict(delay=1.0),
+                    kwargs={"delay": 1.0},
                     callbacks=[self._condition.release],
                 )
             )
@@ -552,7 +558,7 @@ class InventoryManager(
                 priorities.INVENTORY_CLEANUP,
                 block_lower_priority=True,
                 args=(self.data.handle,),
-                kwargs=dict(delay=0.1),
+                kwargs={"delay": 0.1},
                 callbacks=[self._condition.release],
             )
         )
@@ -566,7 +572,7 @@ class InventoryManager(
                 priorities.INVENTORY_CLEANUP,
                 block_lower_priority=True,
                 args=(self.data.handle, "y"),
-                kwargs=dict(delay=0.1),
+                kwargs={"delay": 0.1},
                 callbacks=[self._condition.release],
             )
         )

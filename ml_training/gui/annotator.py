@@ -2,11 +2,10 @@
 
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
-from PyQt6.QtCore import QPoint, QRect, Qt, QThread, pyqtSignal
+from PyQt6.QtCore import QPoint, Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QImage, QKeySequence, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
     QApplication,
@@ -20,7 +19,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ..config import config, SUPPORTED_IMAGE_PATTERNS
+from ..config import SUPPORTED_IMAGE_PATTERNS, config
 
 
 class AnnotatorAborted(Exception):
@@ -31,13 +30,7 @@ class BoundingBox:
     """Bounding box representation."""
 
     def __init__(
-        self,
-        x1: int,
-        y1: int,
-        x2: int,
-        y2: int,
-        class_id: int,
-        confidence: float = 1.0
+        self, x1: int, y1: int, x2: int, y2: int, class_id: int, confidence: float = 1.0
     ):
         self.x1 = min(x1, x2)
         self.y1 = min(y1, y2)
@@ -54,7 +47,7 @@ class BoundingBox:
         return f"{self.class_id} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}"
 
     @classmethod
-    def from_yolo(cls, line: str, img_width: int, img_height: int) -> 'BoundingBox':
+    def from_yolo(cls, line: str, img_width: int, img_height: int) -> BoundingBox:
         parts = line.strip().split()
         class_id = int(parts[0])
         x_center = float(parts[1]) * img_width
@@ -97,7 +90,7 @@ class AnnotationCanvas(QLabel):
         self.display_image()
 
     def display_image(self) -> None:
-        if not hasattr(self, 'original_image'):
+        if not hasattr(self, "original_image"):
             return
 
         # Guard: canvas has no real size yet (pre-show)
@@ -111,9 +104,13 @@ class AnnotationCanvas(QLabel):
             cv2.rectangle(display_img, (box.x1, box.y1), (box.x2, box.y2), color, 2)
             label = self.parent_window.classes[box.class_id]
             cv2.putText(
-                display_img, label,
+                display_img,
+                label,
                 (box.x1, box.y1 - 5),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1,
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                color,
+                1,
             )
 
         if self.temp_box:
@@ -122,13 +119,17 @@ class AnnotationCanvas(QLabel):
                 display_img,
                 (self.temp_box.x1, self.temp_box.y1),
                 (self.temp_box.x2, self.temp_box.y2),
-                color, 2,
+                color,
+                2,
             )
 
         height, width, _ = display_img.shape
         q_image = QImage(
-            display_img.data, width, height,
-            3 * width, QImage.Format.Format_BGR888,
+            display_img.data,
+            width,
+            height,
+            3 * width,
+            QImage.Format.Format_BGR888,
         )
         pixmap = QPixmap.fromImage(q_image)
         scaled_pixmap = pixmap.scaled(
@@ -157,8 +158,10 @@ class AnnotationCanvas(QLabel):
             if pos:
                 self.current_point = pos
                 self.temp_box = BoundingBox(
-                    self.start_point[0], self.start_point[1],
-                    pos[0], pos[1],
+                    self.start_point[0],
+                    self.start_point[1],
+                    pos[0],
+                    pos[1],
                     self.parent_window.current_class,
                 )
                 self.display_image()
@@ -166,21 +169,29 @@ class AnnotationCanvas(QLabel):
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and self.drawing:
             pos = self.get_image_coords(event.pos())
-            if pos and self.start_point:
-                if abs(pos[0] - self.start_point[0]) > 5 and abs(pos[1] - self.start_point[1]) > 5:
-                    box = BoundingBox(
-                        self.start_point[0], self.start_point[1],
-                        pos[0], pos[1],
-                        self.parent_window.current_class,
-                    )
-                    self.parent_window.add_box(box)
+            if (
+                pos
+                and self.start_point
+                and (
+                    abs(pos[0] - self.start_point[0]) > 5
+                    and abs(pos[1] - self.start_point[1]) > 5
+                )
+            ):
+                box = BoundingBox(
+                    self.start_point[0],
+                    self.start_point[1],
+                    pos[0],
+                    pos[1],
+                    self.parent_window.current_class,
+                )
+                self.parent_window.add_box(box)
             self.drawing = False
             self.start_point = None
             self.current_point = None
             self.temp_box = None
             self.display_image()
 
-    def get_image_coords(self, pos: QPoint) -> Optional[Tuple[int, int]]:
+    def get_image_coords(self, pos: QPoint) -> tuple[int, int] | None:
         if not self.pixmap():
             return None
 
@@ -193,7 +204,7 @@ class AnnotationCanvas(QLabel):
         x = int((pos.x() - x_offset) / self.scale_factor)
         y = int((pos.y() - y_offset) / self.scale_factor)
 
-        if hasattr(self, 'original_image'):
+        if hasattr(self, "original_image"):
             h, w = self.original_image.shape[:2]
             x = max(0, min(x, w - 1))
             y = max(0, min(y, h - 1))
@@ -204,7 +215,8 @@ class AnnotationCanvas(QLabel):
 
 class RetrainThread(QThread):
     """Background thread that runs the retrain computation without blocking the GUI."""
-    finished = pyqtSignal(str)   # emits new model path (or "" on failure)
+
+    finished = pyqtSignal(str)  # emits new model path (or "" on failure)
 
     def __init__(self, compute_fn, verified_count: int):
         super().__init__()
@@ -215,8 +227,9 @@ class RetrainThread(QThread):
         try:
             result = self._fn(self._verified_count)
             self.finished.emit(result or "")
-        except Exception as e:
+        except Exception:
             import traceback
+
             traceback.print_exc()
             self.finished.emit("")
 
@@ -228,7 +241,7 @@ class AnnotatorGUI(QMainWindow):
         self,
         images_dir: str,
         labels_dir: str,
-        classes: List[str],
+        classes: list[str],
         mode: str = "annotate",
         retrain_every: int = 0,
         retrain_callback=None,
@@ -253,8 +266,10 @@ class AnnotatorGUI(QMainWindow):
         else:
             self._retrain_compute_fn = None
             self._retrain_post_fn = None
-        self._max_verified_index = 0  # high-watermark: highest index user has moved past
-        self._retrain_thread = None   # keep reference so GC doesn't collect it
+        self._max_verified_index = (
+            0  # high-watermark: highest index user has moved past
+        )
+        self._retrain_thread = None  # keep reference so GC doesn't collect it
 
         self.image_files = []
         for ext in SUPPORTED_IMAGE_PATTERNS:
@@ -266,7 +281,7 @@ class AnnotatorGUI(QMainWindow):
             sys.exit(1)
 
         self.current_index = 0
-        self.boxes: List[BoundingBox] = []
+        self.boxes: list[BoundingBox] = []
         self.current_class = 0
 
         self.init_ui()
@@ -357,7 +372,9 @@ class AnnotatorGUI(QMainWindow):
         else:
             info += f"File: {self.image_files[self.current_index].name}"
             if self._retrain_every > 0:
-                next_retrain = self._retrain_every - (self._max_verified_index % self._retrain_every)
+                next_retrain = self._retrain_every - (
+                    self._max_verified_index % self._retrain_every
+                )
                 if next_retrain == self._retrain_every:
                     next_retrain = 0
                 if next_retrain > 0:
@@ -389,7 +406,7 @@ class AnnotatorGUI(QMainWindow):
         if label_path.exists():
             image = self.canvas.original_image
             h, w = image.shape[:2]
-            with open(label_path, 'r') as f:
+            with open(label_path, "r") as f:
                 for line in f:
                     if line.strip():
                         box = BoundingBox.from_yolo(line, w, h)
@@ -402,9 +419,8 @@ class AnnotatorGUI(QMainWindow):
         image = self.canvas.original_image
         h, w = image.shape[:2]
 
-        with open(label_path, 'w') as f:
-            for box in self.boxes:
-                f.write(box.to_yolo(w, h) + '\n')
+        with open(label_path, "w") as f:
+            f.writelines(box.to_yolo(w, h) + "\n" for box in self.boxes)
 
         print(f"Saved labels: {label_path}")
 
@@ -418,7 +434,7 @@ class AnnotatorGUI(QMainWindow):
             self.update_info()
             self.canvas.display_image()
 
-    def remove_box_at(self, pos: Tuple[int, int]) -> None:
+    def remove_box_at(self, pos: tuple[int, int]) -> None:
         """Remove the first box (in draw order) containing pos. Used by Ctrl+Click."""
         for box in self.boxes:
             if box.contains_point(pos[0], pos[1]):
@@ -460,7 +476,9 @@ class AnnotatorGUI(QMainWindow):
             return
 
         n = self._max_verified_index // self._retrain_every
-        self.setWindowTitle(f"Retraining #{n}… please wait (check console for progress)")
+        self.setWindowTitle(
+            f"Retraining #{n}… please wait (check console for progress)"
+        )
         self.setEnabled(False)
 
         thread = RetrainThread(self._retrain_compute_fn, self._max_verified_index)
@@ -485,7 +503,8 @@ class AnnotatorGUI(QMainWindow):
 
     def abort_session(self) -> None:
         reply = QMessageBox.question(
-            self, "Abort session?",
+            self,
+            "Abort session?",
             "Abort this session?\n\nAll captures and annotations for this run will be deleted.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
@@ -500,18 +519,25 @@ class AnnotatorGUI(QMainWindow):
             self.save_labels()
         event.accept()
 
-    def get_color(self, class_id: int) -> Tuple[int, int, int]:
-        colors = config.get('gui.colors', [
-            [255, 0, 0], [0, 255, 0], [0, 0, 255],
-            [255, 255, 0], [255, 0, 255], [0, 255, 255]
-        ])
+    def get_color(self, class_id: int) -> tuple[int, int, int]:
+        colors = config.get(
+            "gui.colors",
+            [
+                [255, 0, 0],
+                [0, 255, 0],
+                [0, 0, 255],
+                [255, 255, 0],
+                [255, 0, 255],
+                [0, 255, 255],
+            ],
+        )
         return tuple(colors[class_id % len(colors)])
 
 
 def run_annotator(
     images_dir: str,
     labels_dir: str,
-    classes: List[str],
+    classes: list[str],
     mode: str = "annotate",
     retrain_every: int = 0,
     retrain_callback=None,
@@ -535,7 +561,10 @@ def run_annotator(
         app = QApplication(sys.argv)
 
     window = AnnotatorGUI(
-        images_dir, labels_dir, classes, mode,
+        images_dir,
+        labels_dir,
+        classes,
+        mode,
         retrain_every=retrain_every,
         retrain_callback=retrain_callback,
     )
@@ -553,9 +582,11 @@ def run_annotator(
 
 
 if __name__ == "__main__":
-    sys.exit(run_annotator(
-        images_dir="data/captures/examples",
-        labels_dir="data/captures/examples_labels",
-        classes=["enemy", "item"],
-        mode="annotate"
-    ))
+    sys.exit(
+        run_annotator(
+            images_dir="data/captures/examples",
+            labels_dir="data/captures/examples_labels",
+            classes=["enemy", "item"],
+            mode="annotate",
+        )
+    )

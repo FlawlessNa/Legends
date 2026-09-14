@@ -1,5 +1,7 @@
-import numpy as np
 from enum import Enum
+
+import numpy as np
+
 
 # Physics constants sourced from Physics.img.xml (GMS v83).
 # These are game-engine constants; they do not vary per map or per character.
@@ -33,7 +35,8 @@ class VRPhysics:
     """
     Implements traditional kinetic physics.
     """
-    JUMP_HEIGHT = _CONSTANTS.JUMP_SPEED.value ** 2 / (2 * _CONSTANTS.GRAVITY_ACC.value)
+
+    JUMP_HEIGHT = _CONSTANTS.JUMP_SPEED.value**2 / (2 * _CONSTANTS.GRAVITY_ACC.value)
     JUMP_DURATION = 2 * _CONSTANTS.JUMP_SPEED.value / _CONSTANTS.GRAVITY_ACC.value
     JUMP_WIDTH = JUMP_DURATION * _CONSTANTS.WALK_SPEED.value
 
@@ -42,6 +45,7 @@ class MinimapPhysics:
     """
     Implements physics for the minimap.
     """
+
     def __init__(self, scale_x: float, scale_y: float):
         self.minimap_speed = _CONSTANTS.WALK_SPEED.value * scale_x
         self.jump_height = VRPhysics.JUMP_HEIGHT * scale_y
@@ -51,7 +55,7 @@ class MinimapPhysics:
         self.teleport_v_down_dist = self.teleport_h_dist + 2  # TODO FIGURE THIS OUT
 
     def get_jump_height(self, multiplier: float = 1.00) -> float:
-        return self.jump_height * (multiplier ** 2)
+        return self.jump_height * (multiplier**2)
 
     def get_jump_distance(
         self, speed_multiplier: float = 1.00, jump_multiplier: float = 1.00
@@ -70,27 +74,27 @@ class MinimapPhysics:
         jump_height: float,
         map_width: int,
         map_height: int,
-        fall: bool = False
+        fall: bool = False,
     ) -> list[tuple[int, int]]:
         assert direction in ["left", "right"], "Invalid direction for trajectory."
         x_values = np.arange(x_start, map_width, 0.01)
         if fall:
-            y_values = y_start - self._jump_parabola_y(
-                x_values - x_start + jump_dist / 2,
-                jump_dist,
-                jump_height,
-            ) + jump_height
+            y_values = (
+                y_start
+                - self._jump_parabola_y(
+                    x_values - x_start + jump_dist / 2,
+                    jump_dist,
+                    jump_height,
+                )
+                + jump_height
+            )
         else:
             y_values = y_start - self._jump_parabola_y(
-                x_values - x_start,
-                jump_dist,
-                jump_height
+                x_values - x_start, jump_dist, jump_height
             )
-        if direction == 'left':
+        if direction == "left":
             x_values = np.linspace(
-                x_start,
-                x_start - (x_values[-1] - x_start),
-                len(y_values)
+                x_start, x_start - (x_values[-1] - x_start), len(y_values)
             )
         # Now truncate the arrays such that they only contain points within the map area
         mask = (
@@ -127,5 +131,5 @@ class MinimapPhysics:
     @staticmethod
     def _jump_parabola_y(x, jump_distance: float, jump_height: float):
         h, k = jump_distance / 2, jump_height
-        a = k / h ** 2
+        a = k / h**2
         return -a * (x - h) ** 2 + k

@@ -66,10 +66,16 @@ def download(model: dict, repo: str, tag: str) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         result = subprocess.run(
             [
-                "gh", "release", "download", tag,
-                "--repo", repo,
-                "--pattern", model["asset"],
-                "--dir", tmp,
+                "gh",
+                "release",
+                "download",
+                tag,
+                "--repo",
+                repo,
+                "--pattern",
+                model["asset"],
+                "--dir",
+                tmp,
             ],
             capture_output=True,
             text=True,
@@ -136,7 +142,9 @@ def main() -> int:
         for model in wanted:
             ok = is_current(model)
             missing += not ok
-            print(f"  {'OK     ' if ok else 'MISSING'} {model['name']:<20} {model['dest']}")
+            print(
+                f"  {'OK     ' if ok else 'MISSING'} {model['name']:<20} {model['dest']}"
+            )
         print(
             f"\n{len(wanted) - missing}/{len(wanted)} models present and matching "
             f"{os.path.basename(MANIFEST)}."

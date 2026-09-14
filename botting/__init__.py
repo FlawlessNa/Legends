@@ -7,9 +7,11 @@ and provides abstractions into how a bot should be structured and implemented.
 import faulthandler
 import logging.config
 import multiprocessing
+
 import pytesseract
 
 from paths import TESSERACT
+
 from ._debug_names import install as _install_debug_names
 from .logging_config import PARENT_LOG, levels_config
 from .telemetry import emit_event, not_telemetry
@@ -31,10 +33,12 @@ current_process = multiprocessing.current_process()
 # interpreter-level traceback faulthandler dumps to stderr.
 try:
     faulthandler.enable()
-except (AttributeError, RuntimeError, ValueError):
+except AttributeError, RuntimeError, ValueError:
     # sys.stderr is None or has no file descriptor - the case under pythonw and some
     # IDE runners. Nothing to dump to, so carry on without the crash tracebacks.
     pass
 
 # Opt-in, debugger-only. Must happen before any thread or event loop exists.
 _install_debug_names()
+
+__all__ = ["PARENT_LOG", "emit_event", "levels_config", "not_telemetry"]

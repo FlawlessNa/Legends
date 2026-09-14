@@ -9,17 +9,19 @@ Two modes:
   - Pathfinding      : visualise computed paths and optionally execute them
 """
 
+import tkinter as tk
 from abc import ABC, abstractmethod
-from PIL import Image, ImageTk
+from tkinter import ttk
+from typing import ClassVar
+
 import cv2
 import numpy as np
-import tkinter as tk
-import tkinter.ttk as ttk
-
+from PIL import Image, ImageTk
 
 # ---------------------------------------------------------------------------
 # Top-level frame
 # ---------------------------------------------------------------------------
+
 
 class EditorView(ttk.Frame):
     def __init__(
@@ -30,8 +32,8 @@ class EditorView(ttk.Frame):
         path_handler,
         on_send_actions: callable,
         scale: int = 5,
-        *args,
-        **kwargs,
+        *args: object,
+        **kwargs: object,
     ):
         self.editor = editor
         self.editor.root.title("Minimap Editor")
@@ -59,10 +61,19 @@ class EditorView(ttk.Frame):
 # Canvas
 # ---------------------------------------------------------------------------
 
+
 class EditableCanvas(tk.Canvas):
     master: EditorView
 
-    def __init__(self, parent: EditorView, scale: int, *args, width, height, **kwargs):
+    def __init__(
+        self,
+        parent: EditorView,
+        scale: int,
+        *args: object,
+        width,
+        height,
+        **kwargs: object,
+    ):
         super().__init__(parent, width=width, height=height, *args, **kwargs)
         self.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.scale = scale
@@ -91,7 +102,7 @@ class EditableCanvas(tk.Canvas):
         pil_img = Image.fromarray(img_rgb)
         scaled = pil_img.resize(
             (img_rgb.shape[1] * self.scale, img_rgb.shape[0] * self.scale),
-            Image.NEAREST,  # noqa
+            Image.NEAREST,
         )
         self.image_displayed = ImageTk.PhotoImage(scaled)
         self.create_image(0, 0, image=self.image_displayed, anchor=tk.NW)
@@ -99,8 +110,12 @@ class EditableCanvas(tk.Canvas):
     def draw_point(self, x, y, color) -> int:
         s = self.scale
         return self.create_rectangle(
-            x * s, y * s, (x + 1) * s, (y + 1) * s,
-            fill=color, outline=color,
+            x * s,
+            y * s,
+            (x + 1) * s,
+            (y + 1) * s,
+            fill=color,
+            outline=color,
         )
 
     # ------------------------------------------------------------------
@@ -122,7 +137,9 @@ class EditableCanvas(tk.Canvas):
                 self.end_point = (x, y)
                 self.end_point_id = self.draw_point(x, y, "blue")
                 frame.update_end_pos_label(x, y)
-            elif not (isinstance(frame, PathfindingFrame) and frame.use_char_pos_var.get()):
+            elif not (
+                isinstance(frame, PathfindingFrame) and frame.use_char_pos_var.get()
+            ):
                 if self.start_point_id is not None:
                     self.delete(self.start_point_id)
                 self.start_point = (x, y)
@@ -141,15 +158,22 @@ class EditableCanvas(tk.Canvas):
         self.master.coord_label.config(text=f"Coordinates: ({cur_x:.0f}, {cur_y:.0f})")
 
     def on_key_press(self, event):
-        if self.get_current_mode() == "Pathfinding":
-            if event.keysym in ["Left", "Right", "Up", "Down"]:
-                frame = self.master.controls_frame.mode_specific_subframe
-                if event.state & 0x0004:
-                    if self.end_point is not None:
-                        self.move_point(event.keysym, "blue", "end")
-                elif not (isinstance(frame, PathfindingFrame) and frame.use_char_pos_var.get()):
-                    if self.start_point is not None:
-                        self.move_point(event.keysym, "red", "start")
+        if self.get_current_mode() == "Pathfinding" and event.keysym in [
+            "Left",
+            "Right",
+            "Up",
+            "Down",
+        ]:
+            frame = self.master.controls_frame.mode_specific_subframe
+            if event.state & 0x0004 and self.end_point is not None:
+                self.move_point(event.keysym, "blue", "end")
+            elif (
+                not (
+                    isinstance(frame, PathfindingFrame) and frame.use_char_pos_var.get()
+                )
+                and self.start_point is not None
+            ):
+                self.move_point(event.keysym, "red", "start")
 
     def move_point(self, direction, color, point_type):
         if point_type == "start":
@@ -158,13 +182,17 @@ class EditableCanvas(tk.Canvas):
         else:
             x, y = self.end_point
             point_id = self.end_point_id
-        dx, dy = {"Left": (-1, 0), "Right": (1, 0), "Up": (0, -1), "Down": (0, 1)}[direction]
+        dx, dy = {"Left": (-1, 0), "Right": (1, 0), "Up": (0, -1), "Down": (0, 1)}[
+            direction
+        ]
         x, y = x + dx, y + dy
         self.delete(point_id)
         if point_type == "start":
             self.start_point = (x, y)
             self.start_point_id = self.draw_point(x, y, color)
-            self.master.controls_frame.mode_specific_subframe.update_start_pos_label(x, y)
+            self.master.controls_frame.mode_specific_subframe.update_start_pos_label(
+                x, y
+            )
         else:
             self.end_point = (x, y)
             self.end_point_id = self.draw_point(x, y, color)
@@ -174,6 +202,7 @@ class EditableCanvas(tk.Canvas):
 # ---------------------------------------------------------------------------
 # Controls panel
 # ---------------------------------------------------------------------------
+
 
 class ControlsFrame(ttk.Frame):
     master: EditorView
@@ -202,7 +231,7 @@ class ControlsFrame(ttk.Frame):
 
         mode_class = {
             "Trail Recording": TrailRecordingFrame,
-            "Pathfinding":     PathfindingFrame,
+            "Pathfinding": PathfindingFrame,
         }[curr_mode]
 
         self.mode_specific_subframe: _ModeDependentFrame = mode_class(
@@ -212,13 +241,13 @@ class ControlsFrame(ttk.Frame):
             on_send_actions=self._on_send_actions,
         )
         self.mode_specific_subframe.create_widgets()
-        if hasattr(self.master.editor, 'view'):
+        if hasattr(self.master.editor, "view"):
             self.master.editor.refresh_mode_specific_frame()
 
 
 class _ModeSelectionSubFrame(ttk.Frame):
     master: ControlsFrame
-    _MODES = ["Trail Recording", "Pathfinding"]
+    _MODES: ClassVar[list[str]] = ["Trail Recording", "Pathfinding"]
 
     def __init__(self, parent: ControlsFrame):
         super().__init__(parent)
@@ -241,7 +270,7 @@ class _ModeSelectionSubFrame(ttk.Frame):
 class _ModeDependentFrame(ttk.Frame, ABC):
     master: ControlsFrame
 
-    def __init__(self, parent: ControlsFrame, **kwargs):
+    def __init__(self, parent: ControlsFrame, **kwargs: object):
         super().__init__(parent)
         self.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
 
@@ -254,49 +283,57 @@ class _ModeDependentFrame(ttk.Frame, ABC):
 # Trail Recording mode  (Record | Features | Portals)
 # ---------------------------------------------------------------------------
 
+
 class TrailRecordingFrame(_ModeDependentFrame):
     """
     Combined map-builder mode with three notebook tabs.
     """
 
-    def __init__(self, parent: ControlsFrame, **kwargs):
+    def __init__(self, parent: ControlsFrame, **kwargs: object):
         super().__init__(parent)
 
         # --- state variables ---
-        self.return_focus_var     = tk.BooleanVar(value=True)
-        self.bg_var               = tk.StringVar(value="black")
-        self.edit_walkable_var    = tk.BooleanVar(value=True)
+        self.return_focus_var = tk.BooleanVar(value=True)
+        self.bg_var = tk.StringVar(value="black")
+        self.edit_walkable_var = tk.BooleanVar(value=True)
         self.edit_avoid_right_var = tk.BooleanVar(value=True)
-        self.edit_avoid_left_var  = tk.BooleanVar(value=True)
-        self.edit_no_jump_var     = tk.BooleanVar(value=False)
-        self.portal_bidir_var     = tk.BooleanVar(value=False)
+        self.edit_avoid_left_var = tk.BooleanVar(value=True)
+        self.edit_no_jump_var = tk.BooleanVar(value=False)
+        self.portal_bidir_var = tk.BooleanVar(value=False)
 
         # --- always-visible widgets (gridded in create_widgets) ---
         self.return_focus_cb = ttk.Checkbutton(
-            self, text="Return focus to game after Set Dot",
+            self,
+            text="Return focus to game after Set Dot",
             variable=self.return_focus_var,
         )
         self.bg_black_rb = tk.Radiobutton(
-            self, text="Black", variable=self.bg_var, value="black",
+            self,
+            text="Black",
+            variable=self.bg_var,
+            value="black",
             command=self._on_bg_change,
         )
         self.bg_screenshot_rb = tk.Radiobutton(
-            self, text="Screenshot", variable=self.bg_var, value="screenshot",
+            self,
+            text="Screenshot",
+            variable=self.bg_var,
+            value="screenshot",
             command=self._on_bg_change,
         )
 
         # --- notebook ---
-        self.notebook        = ttk.Notebook(self)
-        self._record_tab     = ttk.Frame(self.notebook)
-        self._features_tab   = ttk.Frame(self.notebook)
-        self._portals_tab    = ttk.Frame(self.notebook)
-        self._calibrate_tab  = ttk.Frame(self.notebook)
-        self._title_tab      = ttk.Frame(self.notebook)
-        self.notebook.add(self._record_tab,    text="Record")
-        self.notebook.add(self._features_tab,  text="Features")
-        self.notebook.add(self._portals_tab,   text="Portals")
+        self.notebook = ttk.Notebook(self)
+        self._record_tab = ttk.Frame(self.notebook)
+        self._features_tab = ttk.Frame(self.notebook)
+        self._portals_tab = ttk.Frame(self.notebook)
+        self._calibrate_tab = ttk.Frame(self.notebook)
+        self._title_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self._record_tab, text="Record")
+        self.notebook.add(self._features_tab, text="Features")
+        self.notebook.add(self._portals_tab, text="Portals")
         self.notebook.add(self._calibrate_tab, text="Calibrate")
-        self.notebook.add(self._title_tab,     text="Title Img")
+        self.notebook.add(self._title_tab, text="Title Img")
 
         self._build_record_tab()
         self._build_features_tab()
@@ -305,7 +342,8 @@ class TrailRecordingFrame(_ModeDependentFrame):
         self._build_title_tab()
 
         self.save_button = tk.Button(
-            self, text="Save Edits",
+            self,
+            text="Save Edits",
             command=lambda: self.master.master.editor.save_edits(),
         )
 
@@ -318,17 +356,20 @@ class TrailRecordingFrame(_ModeDependentFrame):
         t.columnconfigure(1, weight=1)
 
         self.start_btn = tk.Button(
-            t, text="Set Start Dot",
+            t,
+            text="Set Start Dot",
             command=lambda: self.master.master.editor.begin_dot_selection("start"),
         )
         self.end_btn = tk.Button(
-            t, text="Set End Dot",
+            t,
+            text="Set End Dot",
             command=lambda: self.master.master.editor.begin_dot_selection("end"),
         )
         self.sel_label = tk.Label(t, text="Start: –   End: –", font=("", 8))
         self.feature_name_entry = tk.Entry(t)
         self.mark_btn = tk.Button(
-            t, text="Mark as Feature",
+            t,
+            text="Mark as Feature",
             command=lambda: self.master.master.editor.mark_trail_segment(
                 self.feature_name_entry.get()
             ),
@@ -352,7 +393,10 @@ class TrailRecordingFrame(_ModeDependentFrame):
         lf.columnconfigure(0, weight=1)
         lf.rowconfigure(0, weight=1)
         self.feature_listbox = tk.Listbox(
-            lf, height=6, selectmode=tk.SINGLE, exportselection=False,
+            lf,
+            height=6,
+            selectmode=tk.SINGLE,
+            exportselection=False,
         )
         self.feature_listbox.grid(row=0, column=0, sticky=tk.NSEW)
         _sb = ttk.Scrollbar(lf, orient=tk.VERTICAL, command=self.feature_listbox.yview)
@@ -365,12 +409,12 @@ class TrailRecordingFrame(_ModeDependentFrame):
         ef.columnconfigure(1, weight=1)
 
         _simple = [
-            ("Name:",           "edit_name_entry",           None),
-            ("Left:",           "edit_left_entry",           5),
-            ("Right:",          "edit_right_entry",          5),
-            ("Top:",            "edit_top_entry",            5),
-            ("Bottom:",         "edit_bottom_entry",         5),
-            ("Weight:",         "edit_weight_entry",         5),
+            ("Name:", "edit_name_entry", None),
+            ("Left:", "edit_left_entry", 5),
+            ("Right:", "edit_right_entry", 5),
+            ("Top:", "edit_top_entry", 5),
+            ("Bottom:", "edit_bottom_entry", 5),
+            ("Weight:", "edit_weight_entry", 5),
             ("Edge Threshold:", "edit_edge_threshold_entry", 5),
         ]
         for i, (lbl, attr, w) in enumerate(_simple):
@@ -396,15 +440,19 @@ class TrailRecordingFrame(_ModeDependentFrame):
         r += 1
 
         ttk.Checkbutton(ef, text="Walkable", variable=self.edit_walkable_var).grid(
-            row=r, column=0, columnspan=2, sticky=tk.W)
+            row=r, column=0, columnspan=2, sticky=tk.W
+        )
         r += 1
-        ttk.Checkbutton(ef, text="Avoid Right Edge", variable=self.edit_avoid_right_var).grid(
-            row=r, column=0, sticky=tk.W)
-        ttk.Checkbutton(ef, text="Avoid Left Edge", variable=self.edit_avoid_left_var).grid(
-            row=r, column=1, sticky=tk.W)
+        ttk.Checkbutton(
+            ef, text="Avoid Right Edge", variable=self.edit_avoid_right_var
+        ).grid(row=r, column=0, sticky=tk.W)
+        ttk.Checkbutton(
+            ef, text="Avoid Left Edge", variable=self.edit_avoid_left_var
+        ).grid(row=r, column=1, sticky=tk.W)
         r += 1
-        ttk.Checkbutton(ef, text="No Jump from Endpoints", variable=self.edit_no_jump_var).grid(
-            row=r, column=0, columnspan=2, sticky=tk.W)
+        ttk.Checkbutton(
+            ef, text="No Jump from Endpoints", variable=self.edit_no_jump_var
+        ).grid(row=r, column=0, columnspan=2, sticky=tk.W)
 
         # Update / Delete buttons
         bf = ttk.Frame(t)
@@ -412,11 +460,13 @@ class TrailRecordingFrame(_ModeDependentFrame):
         bf.columnconfigure(0, weight=1)
         bf.columnconfigure(1, weight=1)
         tk.Button(
-            bf, text="Update Feature",
+            bf,
+            text="Update Feature",
             command=lambda: self.master.master.editor.update_feature(self),
         ).grid(row=0, column=0, sticky=tk.EW, padx=(0, 2))
         tk.Button(
-            bf, text="Delete Feature",
+            bf,
+            text="Delete Feature",
             command=lambda: self.master.master.editor.delete_feature(self),
         ).grid(row=0, column=1, sticky=tk.EW)
 
@@ -435,9 +485,11 @@ class TrailRecordingFrame(_ModeDependentFrame):
         self.portal_tgt_y = tk.Entry(pf, width=5)
         self.portal_tgt_y.grid(row=1, column=2)
         ttk.Checkbutton(pf, text="Bidirectional", variable=self.portal_bidir_var).grid(
-            row=2, column=0, columnspan=3, sticky=tk.W)
+            row=2, column=0, columnspan=3, sticky=tk.W
+        )
         tk.Button(
-            pf, text="Add Portal",
+            pf,
+            text="Add Portal",
             command=lambda: self.master.master.editor.register_portal(self),
         ).grid(row=3, column=0, columnspan=3, sticky=tk.EW)
 
@@ -445,38 +497,57 @@ class TrailRecordingFrame(_ModeDependentFrame):
         t = self._calibrate_tab
         t.columnconfigure(1, weight=1)
 
-        tk.Label(t, text="Duration (s):").grid(row=0, column=0, sticky=tk.W, padx=4, pady=(6, 0))
+        tk.Label(t, text="Duration (s):").grid(
+            row=0, column=0, sticky=tk.W, padx=4, pady=(6, 0)
+        )
         self.calib_duration_entry = tk.Entry(t, width=5)
         self.calib_duration_entry.insert(0, "5")
         self.calib_duration_entry.grid(row=0, column=1, sticky=tk.W, pady=(6, 0))
 
-        tk.Label(t, text="Speed modifier:").grid(row=1, column=0, sticky=tk.W, padx=4, pady=(2, 0))
+        tk.Label(t, text="Speed modifier:").grid(
+            row=1, column=0, sticky=tk.W, padx=4, pady=(2, 0)
+        )
         self.calib_speed_entry = tk.Entry(t, width=5)
         self.calib_speed_entry.insert(0, "1.0")
         self.calib_speed_entry.grid(row=1, column=1, sticky=tk.W, pady=(2, 0))
 
         self.calib_walk_btn = tk.Button(
-            t, text="Start Walking  →  scale_x",
-            command=lambda: self.master.master.editor.start_scale_calibration('walking'),
+            t,
+            text="Start Walking  →  scale_x",
+            command=lambda: self.master.master.editor.start_scale_calibration(
+                "walking"
+            ),
         )
-        self.calib_walk_btn.grid(row=2, column=0, columnspan=2, sticky=tk.EW, padx=4, pady=(8, 2))
+        self.calib_walk_btn.grid(
+            row=2, column=0, columnspan=2, sticky=tk.EW, padx=4, pady=(8, 2)
+        )
 
         self.calib_climb_btn = tk.Button(
-            t, text="Start Climbing  →  scale_y",
-            command=lambda: self.master.master.editor.start_scale_calibration('climbing'),
+            t,
+            text="Start Climbing  →  scale_y",
+            command=lambda: self.master.master.editor.start_scale_calibration(
+                "climbing"
+            ),
         )
-        self.calib_climb_btn.grid(row=3, column=0, columnspan=2, sticky=tk.EW, padx=4, pady=(0, 6))
+        self.calib_climb_btn.grid(
+            row=3, column=0, columnspan=2, sticky=tk.EW, padx=4, pady=(0, 6)
+        )
 
         ttk.Separator(t, orient=tk.HORIZONTAL).grid(
-            row=4, column=0, columnspan=2, sticky=tk.EW, padx=4, pady=2)
+            row=4, column=0, columnspan=2, sticky=tk.EW, padx=4, pady=2
+        )
 
         self.calib_status_label = tk.Label(t, text="", font=("", 8))
         self.calib_status_label.grid(row=5, column=0, columnspan=2, sticky=tk.W, padx=4)
 
         self.calib_result_label = tk.Label(
-            t, text="scale_x: —   scale_y: —", font=("", 8),
+            t,
+            text="scale_x: —   scale_y: —",
+            font=("", 8),
         )
-        self.calib_result_label.grid(row=6, column=0, columnspan=2, sticky=tk.W, padx=4, pady=(2, 4))
+        self.calib_result_label.grid(
+            row=6, column=0, columnspan=2, sticky=tk.W, padx=4, pady=(2, 4)
+        )
 
     def _build_title_tab(self):
         t = self._title_tab
@@ -487,15 +558,22 @@ class TrailRecordingFrame(_ModeDependentFrame):
         ).grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=4, pady=(4, 0))
 
         self.capture_title_btn = tk.Button(
-            t, text="Capture Title Image",
+            t,
+            text="Capture Title Image",
             command=lambda: self.master.master.editor.capture_title_image(),
         )
-        self.capture_title_btn.grid(row=1, column=0, columnspan=2, sticky=tk.EW, padx=4, pady=(4, 2))
+        self.capture_title_btn.grid(
+            row=1, column=0, columnspan=2, sticky=tk.EW, padx=4, pady=(4, 2)
+        )
 
         self.title_preview_label = tk.Label(
-            t, text="(no image captured)", relief=tk.SUNKEN,
+            t,
+            text="(no image captured)",
+            relief=tk.SUNKEN,
         )
-        self.title_preview_label.grid(row=2, column=0, columnspan=2, padx=4, pady=4, sticky=tk.EW)
+        self.title_preview_label.grid(
+            row=2, column=0, columnspan=2, padx=4, pady=4, sticky=tk.EW
+        )
         self._title_preview_photo = None  # holds PhotoImage reference to prevent GC
 
         bf = ttk.Frame(t)
@@ -503,18 +581,24 @@ class TrailRecordingFrame(_ModeDependentFrame):
         bf.columnconfigure(0, weight=1)
         bf.columnconfigure(1, weight=1)
         self.confirm_title_btn = tk.Button(
-            bf, text="Confirm & Save", state=tk.DISABLED,
+            bf,
+            text="Confirm & Save",
+            state=tk.DISABLED,
             command=lambda: self.master.master.editor.confirm_title_image(),
         )
         self.confirm_title_btn.grid(row=0, column=0, sticky=tk.EW, padx=(0, 2))
         self.retake_title_btn = tk.Button(
-            bf, text="Retake", state=tk.DISABLED,
+            bf,
+            text="Retake",
+            state=tk.DISABLED,
             command=lambda: self.master.master.editor.capture_title_image(),
         )
         self.retake_title_btn.grid(row=0, column=1, sticky=tk.EW)
 
         self.title_status_label = tk.Label(t, text="", font=("", 8), wraplength=200)
-        self.title_status_label.grid(row=4, column=0, columnspan=2, sticky=tk.W, padx=4, pady=(2, 4))
+        self.title_status_label.grid(
+            row=4, column=0, columnspan=2, sticky=tk.W, padx=4, pady=(2, 4)
+        )
 
     # ------------------------------------------------------------------
     # create_widgets  (top-level layout within self)
@@ -529,13 +613,15 @@ class TrailRecordingFrame(_ModeDependentFrame):
         self.bg_screenshot_rb.grid(row=row, column=1, sticky=tk.W)
         row += 1
         ttk.Separator(self, orient=tk.HORIZONTAL).grid(
-            row=row, column=0, columnspan=2, sticky=tk.EW, pady=4)
+            row=row, column=0, columnspan=2, sticky=tk.EW, pady=4
+        )
         row += 1
         self.notebook.grid(row=row, column=0, columnspan=2, sticky=tk.NSEW)
         self.rowconfigure(row, weight=1)
         row += 1
         ttk.Separator(self, orient=tk.HORIZONTAL).grid(
-            row=row, column=0, columnspan=2, sticky=tk.EW, pady=4)
+            row=row, column=0, columnspan=2, sticky=tk.EW, pady=4
+        )
         row += 1
         self.save_button.grid(row=row, column=0, columnspan=2, sticky=tk.EW)
 
@@ -559,13 +645,14 @@ class TrailRecordingFrame(_ModeDependentFrame):
 # Pathfinding mode
 # ---------------------------------------------------------------------------
 
+
 class PathfindingFrame(_ModeDependentFrame):
     def __init__(
         self,
         parent: ControlsFrame,
         path_handler,
         on_send_actions: callable,
-        **kwargs,
+        **kwargs: object,
     ):
         super().__init__(parent)
 
@@ -590,11 +677,14 @@ class PathfindingFrame(_ModeDependentFrame):
         self.jump_multiplier_entry.insert(0, "1.00")
 
         self.path_handler = path_handler
-        self.master.master.editor.refresh_canvas(self.path_handler.minimap.modified_minimap)
+        self.master.master.editor.refresh_canvas(
+            self.path_handler.minimap.modified_minimap
+        )
 
         self.use_char_pos_var = tk.BooleanVar(value=False)
         self.use_char_pos_cb = ttk.Checkbutton(
-            self, text="Use character as start",
+            self,
+            text="Use character as start",
             variable=self.use_char_pos_var,
             command=self._on_use_char_pos_changed,
         )
@@ -615,15 +705,19 @@ class PathfindingFrame(_ModeDependentFrame):
             self, text="Get to target", command=on_send_actions
         )
         self.move_button = tk.Button(
-            self, text="Move",
+            self,
+            text="Move",
             command=lambda: self.master.master.editor.toggle_move(self.move_button),
         )
         self.show_timeline_button = tk.Button(
-            self, text="Show Timeline",
+            self,
+            text="Show Timeline",
             command=lambda: self.master.master.editor.show_timeline(),
         )
 
-        self._movements_frame = ttk.LabelFrame(self, text="Movement Sequence", padding=2)
+        self._movements_frame = ttk.LabelFrame(
+            self, text="Movement Sequence", padding=2
+        )
         self.movements_text = tk.Text(
             self._movements_frame,
             height=8,
@@ -632,7 +726,8 @@ class PathfindingFrame(_ModeDependentFrame):
             wrap=tk.NONE,
         )
         self._movements_scroll = ttk.Scrollbar(
-            self._movements_frame, orient=tk.VERTICAL,
+            self._movements_frame,
+            orient=tk.VERTICAL,
             command=self.movements_text.yview,
         )
         self.movements_text.config(yscrollcommand=self._movements_scroll.set)
@@ -718,9 +813,9 @@ class PathfindingFrame(_ModeDependentFrame):
         except ValueError:
             jump_multiplier = 1.00
 
-        return dict(
-            allow_teleport=self.allow_teleport_var.get(),
-            speed_multiplier=speed_multiplier,
-            jump_multiplier=jump_multiplier,
-            include_portals=self.include_portals_var.get(),
-        )
+        return {
+            "allow_teleport": self.allow_teleport_var.get(),
+            "speed_multiplier": speed_multiplier,
+            "jump_multiplier": jump_multiplier,
+            "include_portals": self.include_portals_var.get(),
+        }

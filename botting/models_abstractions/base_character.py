@@ -1,10 +1,11 @@
+from abc import ABC, abstractmethod
+from collections.abc import Sequence
+
 import numpy as np
 
-from abc import ABC, abstractmethod
-from typing import Sequence
+from botting.visuals import InGameDetectionVisuals
 
 from .base_skill import Skill
-from botting.visuals import InGameDetectionVisuals
 
 
 class BaseCharacter(InGameDetectionVisuals, ABC):
@@ -16,11 +17,10 @@ class BaseCharacter(InGameDetectionVisuals, ABC):
     The detection_box should be sufficiently large such
      that the character is always within it.
     """
+
     skills: dict[str, Skill]
 
-    def __init__(
-        self, ign: str, *args, **kwargs
-    ) -> None:
+    def __init__(self, ign: str, *args: object, **kwargs: object) -> None:
         super().__init__()
         self.ign = ign
 

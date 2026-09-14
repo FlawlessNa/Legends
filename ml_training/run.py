@@ -141,7 +141,7 @@ RETRAIN_GLOBAL_ONLY = True
 GLOBAL_DATASET_PATHS: list[str] = [
     "data/datasets/GS2MobsAndChar",
     "data/datasets/ChronosAndMp3WithCharacter",
-    "data/datasets/PacPinky_final",   # session data — the YOLO-formatted dataset, not raw captures
+    "data/datasets/PacPinky_final",  # session data — the YOLO-formatted dataset, not raw captures
     "data/datasets/Bubbling_final",
 ]
 
@@ -158,12 +158,14 @@ def get_game_handle() -> int:
 
     if len(clients) == 1:
         import win32gui
+
         title = win32gui.GetWindowText(clients[0])
         print(f"Found game window: '{title}'  (handle {clients[0]})")
         return clients[0]
 
     # Multiple clients open — let the user pick
     import win32gui
+
     print("Multiple game windows found:")
     for i, hwnd in enumerate(clients):
         print(f"  [{i}] {win32gui.GetWindowText(hwnd)}  (handle {hwnd})")
@@ -208,12 +210,12 @@ def main():
         if not GLOBAL_DATASET_PATHS:
             print("ERROR: RETRAIN_GLOBAL_ONLY=True but GLOBAL_DATASET_PATHS is empty.")
             sys.exit(1)
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("  Global model retrain (RETRAIN_GLOBAL_ONLY)")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         for p in GLOBAL_DATASET_PATHS:
             print(f"  + {p}")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
         train_global_production_model(
             dataset_paths=GLOBAL_DATASET_PATHS,
             name="global",
@@ -221,14 +223,14 @@ def main():
         )
         return
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  ML Training — Session: {SESSION_NAME}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"  Classes      : {CLASSES}")
     print(f"  Model size   : {MODEL_SIZE}")
     print(f"  Initial imgs : {INITIAL_SAMPLES}")
     print(f"  Extended imgs: {EXTENDED_SAMPLES}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     handle = get_game_handle()
 
@@ -251,19 +253,23 @@ def _run(wf: BootstrapNewClass) -> None:
     # ── Re-annotate mode: add missing classes to existing images ───────────────
     if REANNOTATE:
         wf.extended_images_dir = wf.base_path / "captures" / f"{SESSION_NAME}_extended"
-        wf.extended_annotations_dir = wf.base_path / "captures" / f"{SESSION_NAME}_extended_labels"
+        wf.extended_annotations_dir = (
+            wf.base_path / "captures" / f"{SESSION_NAME}_extended_labels"
+        )
 
         # Pre-fill boxes for missing classes using an existing model
         if REANNOTATE_PREANNOTATE_CLASSES:
             model_path = Path(PREANNOTATE_MODEL_PATH)
             if not model_path.exists():
-                print(f"WARNING: PREANNOTATE_MODEL_PATH not found: {PREANNOTATE_MODEL_PATH}")
+                print(
+                    f"WARNING: PREANNOTATE_MODEL_PATH not found: {PREANNOTATE_MODEL_PATH}"
+                )
                 print("Skipping pre-annotation — you will draw all boxes manually.")
             else:
                 print(f"\nPre-annotating with {PREANNOTATE_MODEL_PATH}…")
                 for images_dir, labels_dir in [
-                    (wf.raw_images_dir,         wf.annotations_dir),
-                    (wf.extended_images_dir,     wf.extended_annotations_dir),
+                    (wf.raw_images_dir, wf.annotations_dir),
+                    (wf.extended_images_dir, wf.extended_annotations_dir),
                 ]:
                     if images_dir.exists():
                         wf.preannotate_with_model(
@@ -273,7 +279,9 @@ def _run(wf: BootstrapNewClass) -> None:
                             target_classes=REANNOTATE_PREANNOTATE_CLASSES,
                         )
 
-        print("\nRe-annotating initial images — verify pre-filled boxes, add any missing.")
+        print(
+            "\nRe-annotating initial images — verify pre-filled boxes, add any missing."
+        )
         wf.annotate_initial_samples()
 
         wf.reannotate_extended_samples()
@@ -299,7 +307,9 @@ def _run(wf: BootstrapNewClass) -> None:
         wf.capture_initial_samples(count=INITIAL_SAMPLES)
 
         print("\nOpening annotation GUI — draw boxes around every instance.")
-        print("Controls:  A/D = prev/next   Ctrl+Click = remove box   Del = delete last box   Ctrl+S = save\n")
+        print(
+            "Controls:  A/D = prev/next   Ctrl+Click = remove box   Del = delete last box   Ctrl+S = save\n"
+        )
         wf.annotate_initial_samples()
 
         wf.train_mini_model(model_size=MODEL_SIZE)
@@ -308,11 +318,25 @@ def _run(wf: BootstrapNewClass) -> None:
         latest = wf.registry.get_latest_model(f"{SESSION_NAME}_mini")
         if latest is None:
             # Fall back to the raw training output if not registered
-            fallback = wf.base_path / "models" / "runs" / f"{SESSION_NAME}_mini" / "weights" / "best.pt"
-            alt = Path("data/models/runs") / f"{SESSION_NAME}_mini" / "weights" / "best.pt"
+            fallback = (
+                wf.base_path
+                / "models"
+                / "runs"
+                / f"{SESSION_NAME}_mini"
+                / "weights"
+                / "best.pt"
+            )
+            alt = (
+                Path("data/models/runs")
+                / f"{SESSION_NAME}_mini"
+                / "weights"
+                / "best.pt"
+            )
             candidate = fallback if fallback.exists() else alt if alt.exists() else None
             if candidate is None:
-                print("ERROR: No mini model found. Set SKIP_PHASE_1 = False to train one.")
+                print(
+                    "ERROR: No mini model found. Set SKIP_PHASE_1 = False to train one."
+                )
                 sys.exit(1)
             wf.mini_model_path = str(candidate)
         else:
@@ -362,13 +386,13 @@ def _run(wf: BootstrapNewClass) -> None:
     if CLEANUP:
         wf.cleanup_intermediate()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("  Done!")
     if global_prod_path:
         print(f'  Global model → "models_path": {{"All": "{global_prod_path}"}}')
     else:
         print(f"  Session model: {session_prod_path}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
 
 if __name__ == "__main__":

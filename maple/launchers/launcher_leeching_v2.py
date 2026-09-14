@@ -14,11 +14,12 @@ The map's JSON config (configs/maps/) must define `party_rebuff_zone` for
 PartyRebuff to know where the party gathers; alternatively, pass an explicit
 `buff_location` in the configs below.
 """
-import asyncio
-from botting.core.session_manager import SessionManager
-import maple.bots as bots
-import maple.parsers
 
+import asyncio
+
+import maple.parsers
+from botting.core.session_manager import SessionManager
+from maple import bots
 
 SYNCHRONIZED_BUFFS = ["Holy Symbol", "Maple Warrior", "Haste", "Meso Up"]
 GAME_MAP = "Line1Area1"
@@ -46,7 +47,7 @@ mule_configs = {
 }
 
 
-async def main():
+async def main() -> None:
     with SessionManager(maple.parsers.MapleParser) as session:
         leecher = bots.LeechingBot("Farmacy", session.metadata, **leeching_configs)
         mule1 = bots.LeechMuleWithBuffs(

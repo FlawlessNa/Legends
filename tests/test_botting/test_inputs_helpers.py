@@ -10,6 +10,7 @@ which is why they carry the `system` marker and stay out of the default run.
 
 import ctypes
 import string
+from collections.abc import Callable, Iterator
 
 import pytest
 import win32gui
@@ -38,7 +39,7 @@ KEPT_LOADED = ("ENG-US", "CAN-CMS")
 # --- The exported user32 entry points ---------------------------------------
 
 
-def test_setup_exported_functions_exports_the_five_user32_entry_points():
+def test_setup_exported_functions_exports_the_five_user32_entry_points() -> None:
     exported = _setup_exported_functions()
 
     assert set(exported) == {
@@ -55,7 +56,7 @@ def test_setup_exported_functions_exports_the_five_user32_entry_points():
 
 
 @pytest.fixture(scope="module")
-def cycled_layouts():
+def cycled_layouts() -> Iterator[Callable[[], None]]:
     """
     Loads every layout in `LAYOUTS`, then puts the machine back as it was.
 
@@ -68,7 +69,9 @@ def cycled_layouts():
     original = name.value
 
     # Unloading takes the HKL the load returned, not the layout string.
-    handles = {key: user32.LoadKeyboardLayoutW(code, 0) for key, code in LAYOUTS.items()}
+    handles = {
+        key: user32.LoadKeyboardLayoutW(code, 0) for key, code in LAYOUTS.items()
+    }
 
     def _next_layout() -> None:
         user32.ActivateKeyboardLayout(HKL_NEXT, 0)
@@ -94,8 +97,8 @@ def foreground_handle() -> int:
 
 @pytest.mark.system
 def test_virtual_key_is_the_same_code_whatever_the_active_layout(
-    cycled_layouts, foreground_handle
-):
+    cycled_layouts: Callable[[], None], foreground_handle: int
+) -> None:
     """The property the input layer depends on: a key name maps to one code."""
     for _ in LAYOUTS:
         cycled_layouts()
@@ -112,8 +115,8 @@ def test_virtual_key_is_the_same_code_whatever_the_active_layout(
 
 @pytest.mark.system
 def test_layout_handle_is_pinned_per_window_once_looked_up(
-    cycled_layouts, foreground_handle
-):
+    cycled_layouts: Callable[[], None], foreground_handle: int
+) -> None:
     """
     The lookup is `lru_cache`d on the handle, so one window keeps one layout for
     the life of the process even if the user switches language mid-session.

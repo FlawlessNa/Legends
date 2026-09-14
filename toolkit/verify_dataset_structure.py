@@ -1,7 +1,7 @@
 """Verify all datasets have consistent structure."""
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -56,6 +56,7 @@ def verify_dataset(dataset_path: Path) -> tuple[bool, str]:
         issues.append("Missing data.yaml")
     else:
         import yaml
+
         with open(yaml_path) as f:
             names = yaml.safe_load(f).get("names", [])
         n_classes = len(names)
@@ -104,7 +105,7 @@ def main():
         sys.exit(1)
 
     print("DATASET STRUCTURE VERIFICATION")
-    print("="*60)
+    print("=" * 60)
 
     datasets = sorted([d for d in datasets_dir.iterdir() if d.is_dir()])
     valid_count = 0
@@ -115,7 +116,7 @@ def main():
         if is_valid:
             valid_count += 1
 
-    print("="*60)
+    print("=" * 60)
     print(f"Valid: {valid_count}/{len(datasets)}")
 
     if valid_count < len(datasets):

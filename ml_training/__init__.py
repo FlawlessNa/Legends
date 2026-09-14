@@ -26,30 +26,30 @@ from .model_manager import (
 from .workflows import BootstrapNewClass
 
 __all__ = [
-    # Version
-    '__version__',
-    # Config
-    'config',
-    'get_config',
-    # Dataset Manager
-    'ScreenCapture',
-    'capture_burst',
-    'YOLODataset',
-    'create_dataset',
-    'import_existing_dataset',
-    'load_dataset',
-    'merge_datasets',
-    # Model Manager
-    'YOLOTrainer',
-    'train_model',
-    'train_mini_model',
-    'YOLOInference',
-    'predict_on_images',
-    'ModelRegistry',
-    'get_registry',
     # GUI
-    'AnnotatorGUI',
-    'run_annotator',
+    "AnnotatorGUI",
     # Workflows
-    'BootstrapNewClass',
+    "BootstrapNewClass",
+    "ModelRegistry",
+    # Dataset Manager
+    "ScreenCapture",
+    "YOLODataset",
+    "YOLOInference",
+    # Model Manager
+    "YOLOTrainer",
+    # Version
+    "__version__",
+    "capture_burst",
+    # Config
+    "config",
+    "create_dataset",
+    "get_config",
+    "get_registry",
+    "import_existing_dataset",
+    "load_dataset",
+    "merge_datasets",
+    "predict_on_images",
+    "run_annotator",
+    "train_mini_model",
+    "train_model",
 ]

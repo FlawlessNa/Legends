@@ -1,11 +1,11 @@
 import argparse
 import logging
 import multiprocessing.connection
-
 from abc import ABC, abstractmethod
 from enum import Enum
 from functools import cached_property
-from typing import Any
+from typing import ClassVar
+
 from botting.core import ActionRequest, DiscordRequest
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ class BaseParser(ABC):
     WRITE --ign IgnFromABot --m Message to write
     """
 
-    action_choices = [action.value for action in Actions]
+    action_choices: ClassVar[list[str]] = [action.value for action in Actions]
     action_choices.extend(action.value.lower() for action in Actions)
     action_choices.extend(action.value.title() for action in Actions)
 
@@ -74,7 +74,7 @@ class BaseParser(ABC):
         )
         return parser
 
-    def parse_message(self, message: str) -> Any:
+    def parse_message(self, message: str) -> ActionRequest | str | None:
         """
         Parses a message from the user and fires the appropriate actions.
         :param message: The message to parse.
@@ -85,7 +85,7 @@ class BaseParser(ABC):
         except argparse.ArgumentError as e:
             self.pipe.send(f"{e}")
             return
-        except Exception as e:
+        except Exception:
             raise
 
         action = args.action.upper()
@@ -122,9 +122,7 @@ class BaseParser(ABC):
 
         elif action == "WRITE":
             if not args.message and not args.positional_message:
-                msg = (
-                    "WRITE action requires a --message argument. " "Please provide one."
-                )
+                msg = "WRITE action requires a --message argument. Please provide one."
                 logger.warning(msg)
                 self.pipe.send(msg)
                 return
@@ -162,10 +160,11 @@ class BaseParser(ABC):
     def kill(self) -> ActionRequest:
         """
         Called from the MainProcess. Should kill all bots and stop process.
-        :return: TBD
+        :return: An ActionRequest for Main Process to run, or a string to
+            dispatch to every Engine.
         """
         return ActionRequest(
-            f"Killing all tasks",
+            "Killing all tasks",
             self._kill,
             ign="All",
             priority=999,
@@ -174,30 +173,30 @@ class BaseParser(ABC):
         )
 
     @abstractmethod
-    def pause(self, who: list[str] = None) -> Any:
+    def pause(self, who: list[str] | None = None) -> ActionRequest | str:
         """
         Called from the MainProcess. Should pause all bots or a specific bot.
         :param who: The bot to pause. If None, pauses all bots.
-        :return: TBD
+        :return: An ActionRequest for Main Process to run, or a string to
+            dispatch to every Engine.
         """
-        pass
 
     @abstractmethod
-    def resume(self, who: list[str] = None) -> Any:
+    def resume(self, who: list[str] | None = None) -> ActionRequest | str:
         """
         Called from the MainProcess. Should resume all bots or a specific bot.
         :param who: The bot to resume. If None, resumes all bots.
-        :return: TBD
+        :return: An ActionRequest for Main Process to run, or a string to
+            dispatch to every Engine.
         """
-        pass
 
     @abstractmethod
-    def write(self, message: str, who: str = None) -> Any:
+    def write(self, message: str, who: str | None = None) -> ActionRequest | str:
         """
         Called from the MainProcess. Should write a message to a specific bot.
         :param message: The message to write.
         :param who: The bot that should write the message. If None, the "Main" bot
         writes the message.
-        :return: TBD
+        :return: An ActionRequest for Main Process to run, or a string to
+            dispatch to every Engine.
         """
-        pass

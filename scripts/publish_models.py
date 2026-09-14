@@ -92,9 +92,14 @@ def ensure_release(repo: str, tag: str, dry_run: bool) -> None:
     print(f"  creating release {tag}")
     result = run(
         [
-            "gh", "release", "create", tag,
-            "--repo", repo,
-            "--title", f"Detection models ({tag})",
+            "gh",
+            "release",
+            "create",
+            tag,
+            "--repo",
+            repo,
+            "--title",
+            f"Detection models ({tag})",
             "--notes",
             (
                 "YOLO detection weights for this repo. Do not download by hand"

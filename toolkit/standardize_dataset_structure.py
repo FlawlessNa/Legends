@@ -14,9 +14,8 @@ Standard structure:
   └── data.yaml
 """
 
-import shutil
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -43,7 +42,9 @@ def convert_to_nested(dataset_path: str) -> None:
         print(f"✗ {dataset.name}: No images found")
         return
 
-    print(f"Converting {dataset.name} to nested structure ({len(flat_images)} images)...")
+    print(
+        f"Converting {dataset.name} to nested structure ({len(flat_images)} images)..."
+    )
 
     # Create nested dirs
     train_images = images_dir / "train"
@@ -76,7 +77,9 @@ def main():
         "data/datasets/PacPinky_combined",
     ]
 
-    print("Standardizing dataset structure to: images/{train,val,test} + labels/{train,val,test}\n")
+    print(
+        "Standardizing dataset structure to: images/{train,val,test} + labels/{train,val,test}\n"
+    )
 
     for dataset_path in datasets:
         if Path(dataset_path).exists():
@@ -84,9 +87,9 @@ def main():
         else:
             print(f"✗ {Path(dataset_path).name}: Not found")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("STANDARDIZATION COMPLETE")
-    print("="*60)
+    print("=" * 60)
     print("\nAll datasets now use consistent nested structure:")
     print("  images/{train,val} + labels/{train,val}")
 

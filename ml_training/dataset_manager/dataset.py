@@ -5,12 +5,10 @@ import random
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import yaml
 
-
-_IMG_EXTS = {'.jpg', '.jpeg', '.png', '.bmp'}
+_IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp"}
 
 
 def _find_split_dirs(source: Path, data_config: dict, split_name: str):
@@ -25,10 +23,10 @@ def _find_split_dirs(source: Path, data_config: dict, split_name: str):
 
     Returns (images_dir, labels_dir) as Paths, or (None, None) if not found.
     """
-    yaml_entry = data_config.get(split_name, '')
+    yaml_entry = data_config.get(split_name, "")
     if yaml_entry:
         # Resolve against the 'path' field if present, otherwise relative to source
-        base = data_config.get('path', '')
+        base = data_config.get("path", "")
         candidate: Path
         if base:
             candidate = (Path(base) / yaml_entry).resolve()
@@ -40,8 +38,8 @@ def _find_split_dirs(source: Path, data_config: dict, split_name: str):
             # Derive labels dir: swap the 'images' component for 'labels'
             parts = list(candidate.parts)
             for i, part in enumerate(parts):
-                if part == 'images':
-                    parts[i] = 'labels'
+                if part == "images":
+                    parts[i] = "labels"
                     break
             return candidate, Path(*parts)
 
@@ -57,21 +55,17 @@ def _find_split_dirs(source: Path, data_config: dict, split_name: str):
 
     return None, None
 
-from ..config import config, SUPPORTED_IMAGE_PATTERNS
+
+from ..config import SUPPORTED_IMAGE_PATTERNS, config
 
 
 class YOLODataset:
     """YOLO format dataset manager."""
-    
-    def __init__(
-        self,
-        name: str,
-        classes: List[str],
-        base_path: Optional[str] = None
-    ):
+
+    def __init__(self, name: str, classes: list[str], base_path: str | None = None):
         """
         Initialize YOLO dataset.
-        
+
         Args:
             name: Dataset name
             classes: List of class names
@@ -79,185 +73,195 @@ class YOLODataset:
         """
         self.name = name
         self.classes = classes
-        self.base_path = Path(base_path or config.get('dataset.base_path', 'data/datasets'))
+        self.base_path = Path(
+            base_path or config.get("dataset.base_path", "data/datasets")
+        )
         self.dataset_path = self.base_path / name
-        
+
         # Create directory structure
         self.images_train = self.dataset_path / "images" / "train"
         self.images_val = self.dataset_path / "images" / "val"
         self.labels_train = self.dataset_path / "labels" / "train"
         self.labels_val = self.dataset_path / "labels" / "val"
-        
+
         self.metadata_file = self.dataset_path / "metadata.json"
         self.data_yaml_file = self.dataset_path / "data.yaml"
-    
+
     def create(
-        self,
-        images_dir: str,
-        labels_dir: str,
-        train_split: Optional[float] = None
+        self, images_dir: str, labels_dir: str, train_split: float | None = None
     ) -> None:
         """
         Create YOLO dataset from images and labels.
-        
+
         Args:
             images_dir: Directory containing images
             labels_dir: Directory containing YOLO format labels
             train_split: Train/val split ratio (e.g., 0.8 for 80/20 split)
         """
-        train_split = train_split if train_split is not None else config.get('dataset.train_val_split', 0.8)
+        train_split = (
+            train_split
+            if train_split is not None
+            else config.get("dataset.train_val_split", 0.8)
+        )
 
         # Recreate directory structure from scratch. Clearing is required: the
         # split is random, so re-running with stale files left over would put
         # the same image in both train/ and val/ (train/val leakage).
-        for directory in [self.images_train, self.images_val, self.labels_train, self.labels_val]:
+        for directory in [
+            self.images_train,
+            self.images_val,
+            self.labels_train,
+            self.labels_val,
+        ]:
             if directory.exists():
                 shutil.rmtree(directory)
             directory.mkdir(parents=True, exist_ok=True)
-        
+
         images_dir = Path(images_dir)
         labels_dir = Path(labels_dir)
-        
+
         # Get all image files
         image_files = []
         for ext in SUPPORTED_IMAGE_PATTERNS:
             image_files.extend(list(images_dir.glob(ext)))
-        
+
         if not image_files:
             raise ValueError(f"No images found in {images_dir}")
-        
+
         # Filter images that have corresponding labels
         valid_pairs = []
         for img_path in image_files:
             label_path = labels_dir / f"{img_path.stem}.txt"
             if label_path.exists():
                 valid_pairs.append((img_path, label_path))
-        
+
         if not valid_pairs:
-            raise ValueError(f"No valid image-label pairs found")
-        
+            raise ValueError("No valid image-label pairs found")
+
         print(f"Found {len(valid_pairs)} valid image-label pairs")
-        
+
         # Shuffle and split
         random.shuffle(valid_pairs)
         split_idx = int(len(valid_pairs) * train_split)
         train_pairs = valid_pairs[:split_idx]
         val_pairs = valid_pairs[split_idx:]
-        
+
         print(f"Split: {len(train_pairs)} train, {len(val_pairs)} val")
-        
+
         # Copy files
         for img_path, label_path in train_pairs:
             shutil.copy(img_path, self.images_train / img_path.name)
             shutil.copy(label_path, self.labels_train / label_path.name)
-        
+
         for img_path, label_path in val_pairs:
             shutil.copy(img_path, self.images_val / img_path.name)
             shutil.copy(label_path, self.labels_val / label_path.name)
-        
+
         # Generate data.yaml
         self._generate_data_yaml()
-        
+
         # Save metadata
         self._save_metadata(len(train_pairs), len(val_pairs))
-        
+
         print(f"Dataset created: {self.dataset_path}")
-    
+
     def _generate_data_yaml(self) -> None:
         """Generate data.yaml file for YOLO training."""
         data = {
-            'path': str(self.dataset_path.absolute()),
-            'train': 'images/train',
-            'val': 'images/val',
-            'nc': len(self.classes),
-            'names': self.classes
+            "path": str(self.dataset_path.absolute()),
+            "train": "images/train",
+            "val": "images/val",
+            "nc": len(self.classes),
+            "names": self.classes,
         }
-        
-        with open(self.data_yaml_file, 'w') as f:
+
+        with open(self.data_yaml_file, "w") as f:
             yaml.dump(data, f, default_flow_style=False, sort_keys=False)
-    
+
     def _save_metadata(self, train_count: int, val_count: int) -> None:
         """
         Save dataset metadata.
-        
+
         Args:
             train_count: Number of training images
             val_count: Number of validation images
         """
         metadata = {
-            'name': self.name,
-            'classes': self.classes,
-            'num_classes': len(self.classes),
-            'train_count': train_count,
-            'val_count': val_count,
-            'total_count': train_count + val_count,
-            'created_at': datetime.now().isoformat(),
-            'data_yaml': str(self.data_yaml_file)
+            "name": self.name,
+            "classes": self.classes,
+            "num_classes": len(self.classes),
+            "train_count": train_count,
+            "val_count": val_count,
+            "total_count": train_count + val_count,
+            "created_at": datetime.now().isoformat(),
+            "data_yaml": str(self.data_yaml_file),
         }
-        
-        with open(self.metadata_file, 'w') as f:
+
+        with open(self.metadata_file, "w") as f:
             json.dump(metadata, f, indent=2)
-    
-    def get_metadata(self) -> Dict:
+
+    def get_metadata(self) -> dict:
         """
         Get dataset metadata.
-        
+
         Returns:
             Metadata dictionary
         """
         if not self.metadata_file.exists():
             return {}
-        
-        with open(self.metadata_file, 'r') as f:
+
+        with open(self.metadata_file, "r") as f:
             return json.load(f)
-    
+
     def get_data_yaml_path(self) -> str:
         """
         Get path to data.yaml file.
-        
+
         Returns:
             Path to data.yaml
         """
         return str(self.data_yaml_file)
-    
-    def get_stats(self) -> Dict:
+
+    def get_stats(self) -> dict:
         """
         Get dataset statistics.
-        
+
         Returns:
             Statistics dictionary
         """
         stats = {
-            'train': {
-                'images': len(list(self.images_train.glob('*'))),
-                'labels': len(list(self.labels_train.glob('*.txt')))
+            "train": {
+                "images": len(list(self.images_train.glob("*"))),
+                "labels": len(list(self.labels_train.glob("*.txt"))),
             },
-            'val': {
-                'images': len(list(self.images_val.glob('*'))),
-                'labels': len(list(self.labels_val.glob('*.txt')))
-            }
+            "val": {
+                "images": len(list(self.images_val.glob("*"))),
+                "labels": len(list(self.labels_val.glob("*.txt"))),
+            },
         }
-        
+
         # Count instances per class
-        class_counts = {cls: 0 for cls in self.classes}
-        
-        for label_file in list(self.labels_train.glob('*.txt')) + list(self.labels_val.glob('*.txt')):
-            with open(label_file, 'r') as f:
+        class_counts = dict.fromkeys(self.classes, 0)
+
+        for label_file in list(self.labels_train.glob("*.txt")) + list(
+            self.labels_val.glob("*.txt")
+        ):
+            with open(label_file, "r") as f:
                 for line in f:
                     if line.strip():
                         class_id = int(line.split()[0])
                         if 0 <= class_id < len(self.classes):
                             class_counts[self.classes[class_id]] += 1
-        
-        stats['class_counts'] = class_counts
-        stats['total_instances'] = sum(class_counts.values())
-        
+
+        stats["class_counts"] = class_counts
+        stats["total_instances"] = sum(class_counts.values())
+
         return stats
-    
+
     def exists(self) -> bool:
         """
         Check if dataset exists.
-        
+
         Returns:
             True if dataset exists
         """
@@ -266,21 +270,21 @@ class YOLODataset:
 
 def create_dataset(
     name: str,
-    classes: List[str],
+    classes: list[str],
     images_dir: str,
     labels_dir: str,
-    train_split: float = 0.8
+    train_split: float = 0.8,
 ) -> YOLODataset:
     """
     Convenience function to create a YOLO dataset.
-    
+
     Args:
         name: Dataset name
         classes: List of class names
         images_dir: Directory containing images
         labels_dir: Directory containing labels
         train_split: Train/val split ratio
-        
+
     Returns:
         YOLODataset instance
     """
@@ -289,33 +293,31 @@ def create_dataset(
     return dataset
 
 
-def load_dataset(name: str, base_path: Optional[str] = None) -> YOLODataset:
+def load_dataset(name: str, base_path: str | None = None) -> YOLODataset:
     """
     Load existing YOLO dataset.
-    
+
     Args:
         name: Dataset name
         base_path: Base directory for datasets
-        
+
     Returns:
         YOLODataset instance
     """
-    base_path = Path(base_path or config.get('dataset.base_path', 'data/datasets'))
+    base_path = Path(base_path or config.get("dataset.base_path", "data/datasets"))
     metadata_file = base_path / name / "metadata.json"
-    
+
     if not metadata_file.exists():
         raise ValueError(f"Dataset not found: {name}")
-    
-    with open(metadata_file, 'r') as f:
+
+    with open(metadata_file, "r") as f:
         metadata = json.load(f)
-    
-    return YOLODataset(name, metadata['classes'], base_path)
+
+    return YOLODataset(name, metadata["classes"], base_path)
 
 
 def import_existing_dataset(
-    source_path: str,
-    name: str,
-    base_path: Optional[str] = None
+    source_path: str, name: str, base_path: str | None = None
 ) -> YOLODataset:
     """
     Import an existing YOLO-format dataset into the ml_training pipeline.
@@ -338,11 +340,11 @@ def import_existing_dataset(
         raise ValueError(f"No data.yaml found in {source_path}")
 
     # Parse data.yaml
-    with open(data_yaml_path, 'r') as f:
+    with open(data_yaml_path, "r") as f:
         data_config = yaml.safe_load(f)
 
     # Handle both dict and list formats for names
-    names = data_config.get('names', [])
+    names = data_config.get("names", [])
     if isinstance(names, dict):
         # {0: "Character", 1: "Slimy", ...} -> ["Character", "Slimy", ...]
         classes = [names[k] for k in sorted(names.keys())]
@@ -354,8 +356,12 @@ def import_existing_dataset(
 
     # Create target dataset
     dataset = YOLODataset(name, classes, base_path)
-    for d in [dataset.images_train, dataset.images_val,
-              dataset.labels_train, dataset.labels_val]:
+    for d in [
+        dataset.images_train,
+        dataset.images_val,
+        dataset.labels_train,
+        dataset.labels_val,
+    ]:
         d.mkdir(parents=True, exist_ok=True)
 
     train_count = 0
@@ -363,8 +369,8 @@ def import_existing_dataset(
 
     for split_name, img_dest, lbl_dest in [
         ("train", dataset.images_train, dataset.labels_train),
-        ("val",   dataset.images_val,   dataset.labels_val),
-        ("test",  dataset.images_val,   dataset.labels_val),   # fold test → val
+        ("val", dataset.images_val, dataset.labels_val),
+        ("test", dataset.images_val, dataset.labels_val),  # fold test → val
     ]:
         split_images, split_labels = _find_split_dirs(source, data_config, split_name)
         if split_images is None:
@@ -389,7 +395,9 @@ def import_existing_dataset(
     dataset._generate_data_yaml()
     dataset._save_metadata(train_count, val_count)
 
-    print(f"Imported {train_count + val_count} images ({train_count} train, {val_count} val)")
+    print(
+        f"Imported {train_count + val_count} images ({train_count} train, {val_count} val)"
+    )
     print(f"Classes: {classes}")
     print(f"Dataset created: {dataset.dataset_path}")
 
@@ -397,9 +405,7 @@ def import_existing_dataset(
 
 
 def merge_datasets(
-    source_paths: List[str],
-    name: str,
-    base_path: Optional[str] = None
+    source_paths: list[str], name: str, base_path: str | None = None
 ) -> YOLODataset:
     """
     Merge multiple existing YOLO datasets into one unified dataset.
@@ -424,10 +430,10 @@ def merge_datasets(
         if not data_yaml_path.exists():
             raise ValueError(f"No data.yaml found in {src_path}")
 
-        with open(data_yaml_path, 'r') as f:
+        with open(data_yaml_path, "r") as f:
             data_config = yaml.safe_load(f)
 
-        names = data_config.get('names', [])
+        names = data_config.get("names", [])
         if isinstance(names, dict):
             classes = [names[k] for k in sorted(names.keys())]
         else:
@@ -446,9 +452,7 @@ def merge_datasets(
         dataset_class_maps.append(remap)
 
         # Show the mapping explicitly so a wrong data.yaml is visible at merge time
-        mapping = ', '.join(
-            f"{old}:{classes[old]}→{new}" for old, new in remap.items()
-        )
+        mapping = ", ".join(f"{old}:{classes[old]}→{new}" for old, new in remap.items())
         print(f"  {Path(src_path).name}: {mapping}")
 
     print(f"Unified classes: {unified_classes}")
@@ -457,8 +461,12 @@ def merge_datasets(
     # previous merge whose sources were since re-split would end up in both
     # train/ and val/ (train/val leakage).
     dataset = YOLODataset(name, unified_classes, base_path)
-    for d in [dataset.images_train, dataset.images_val,
-              dataset.labels_train, dataset.labels_val]:
+    for d in [
+        dataset.images_train,
+        dataset.images_val,
+        dataset.labels_train,
+        dataset.labels_val,
+    ]:
         if d.exists():
             shutil.rmtree(d)
         d.mkdir(parents=True, exist_ok=True)
@@ -475,10 +483,12 @@ def merge_datasets(
 
         for split_name, img_dest, lbl_dest in [
             ("train", dataset.images_train, dataset.labels_train),
-            ("val",   dataset.images_val,   dataset.labels_val),
-            ("test",  dataset.images_val,   dataset.labels_val),
+            ("val", dataset.images_val, dataset.labels_val),
+            ("test", dataset.images_val, dataset.labels_val),
         ]:
-            split_images, split_labels = _find_split_dirs(source, src_data_config, split_name)
+            split_images, split_labels = _find_split_dirs(
+                source, src_data_config, split_name
+            )
             if split_images is None:
                 continue
 
@@ -498,9 +508,9 @@ def merge_datasets(
                 # Always parse and remap. A class ID not declared in the source's
                 # data.yaml means the yaml and labels disagree — merging anyway
                 # would silently poison the merged dataset with wrong classes.
-                with open(label_file, 'r') as f:
+                with open(label_file, "r") as f:
                     lines = f.readlines()
-                with open(lbl_dest / dest_lbl_name, 'w') as f:
+                with open(lbl_dest / dest_lbl_name, "w") as f:
                     for line_no, line in enumerate(lines, 1):
                         parts = line.strip().split()
                         if not parts:
@@ -514,7 +524,7 @@ def merge_datasets(
                                 f"data.yaml or its labels before merging."
                             )
                         parts[0] = str(remap[old_id])
-                        f.write(' '.join(parts) + '\n')
+                        f.write(" ".join(parts) + "\n")
 
                 if split_name == "train":
                     train_count += 1
@@ -527,7 +537,9 @@ def merge_datasets(
     dataset._generate_data_yaml()
     dataset._save_metadata(train_count, val_count)
 
-    print(f"Merged {train_count + val_count} images ({train_count} train, {val_count} val)")
+    print(
+        f"Merged {train_count + val_count} images ({train_count} train, {val_count} val)"
+    )
     print(f"From {len(source_paths)} source datasets")
     print(f"Dataset created: {dataset.dataset_path}")
 

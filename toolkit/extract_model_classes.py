@@ -5,15 +5,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ultralytics import YOLO
 import yaml
+from ultralytics import YOLO
 
 
 def extract_classes_from_model(model_path: str) -> dict | None:
     """Load YOLO model and extract class names."""
     try:
         model = YOLO(model_path)
-        if hasattr(model, 'names'):
+        if hasattr(model, "names"):
             return model.names
         return None
     except Exception as e:
@@ -25,14 +25,14 @@ def update_data_yaml(dataset_path: str, class_names: dict) -> None:
     """Update data.yaml with extracted class names."""
     yaml_path = Path(dataset_path) / "data.yaml"
 
-    with open(yaml_path, 'r') as f:
+    with open(yaml_path, "r") as f:
         data = yaml.safe_load(f)
 
     # Update class names
-    data['names'] = list(class_names.values())
-    data['nc'] = len(class_names)
+    data["names"] = list(class_names.values())
+    data["nc"] = len(class_names)
 
-    with open(yaml_path, 'w') as f:
+    with open(yaml_path, "w") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
     print(f"✓ Updated {yaml_path}: {data['names']}")

@@ -2,13 +2,14 @@ import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import time
-import win32gui
 from collections.abc import Callable
 
-from maple.actions import ensure_minimap_displayed
+import win32gui
+
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, ProxyFactory
 from botting.utilities import Box
+from maple.actions import ensure_minimap_displayed
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -57,11 +58,11 @@ class MinimapAttributesMixin:
             try:
                 self._get_minimap_pos()
                 break
-            except Exception as e:
+            except Exception:
                 attempt += 1
                 logger.error("%s Attempt %s failed", identifier, attempt)
                 if attempt >= 5:
-                    raise e
+                    raise
 
         self.data.update_attributes(
             "current_client_img",
@@ -102,7 +103,7 @@ class MinimapAttributesMixin:
             controller.mouse_move,
             self.data.ign,
             args=(self.data.handle, (x, y)),
-            cancels_itself=True
+            cancels_itself=True,
         )
         self.send(request)
 
@@ -145,12 +146,14 @@ class MinimapAttributesMixin:
                 self.data.handle, self.data.current_client_img
             ),
         )
-        self.data.create_or_reconfigure_attribute(
-            "current_minimap_title_box",
-            lambda: self.data.current_minimap.get_minimap_title_box(
-                self.data.handle, self.data.current_client_img
+        (
+            self.data.create_or_reconfigure_attribute(
+                "current_minimap_title_box",
+                lambda: self.data.current_minimap.get_minimap_title_box(
+                    self.data.handle, self.data.current_client_img
+                ),
             ),
-        ),
+        )
         self.data.create_or_reconfigure_attribute(
             "current_minimap_title_img",
             lambda: self.data.current_minimap.get_minimap_title_img(self.data.handle),

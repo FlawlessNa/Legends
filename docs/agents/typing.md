@@ -67,6 +67,40 @@ Strict List directory are left as-is. A dedicated bulk-fix effort, if ever
 wanted, is its own decision — not something a config-landing change should
 do incidentally.
 
+## Off-ratchet directories
+
+The ratchet is per-file, which is exactly right for code that ships, and wrong
+for code that does not. These directories report **pyflakes and the correctness
+rules only** — no `ANN`, no `T20`, no `BLE001`/`S110`, and no Pyright diagnostics
+at all. The two lists live together in `pyproject.toml`
+(`[tool.ruff.lint.per-file-ignores]` and `[tool.pyright] ignore`) and must be
+kept in step:
+
+| Directory | Why it is off the ratchet |
+| --- | --- |
+| `ml_training/`, `toolkit/`, `scripts/` | Standalone tools, run by hand. A `print` **is** the interface, and a tool that dies mid-session because it narrowed an exception too far is worse than one that reports and carries on. |
+| `maple/model/mechanics/minimap_creation/` | The GUI map editor — same reasoning, plus its `print`s are its UI. |
+| `maple/model/mechanics/game_file_extraction/` | The older game-file parser. `map_parser.py` has no importers and is slated for removal (`maple/AGENTS.md`); annotating it is work spent on code on its way out. |
+| `maple/decision_makers/inventory_manager.py` | Parked, and raises on import. `maple/AGENTS.md` asks for exactly this: *"When lint and type gates land, exclude this file explicitly rather than editing it into compliance."* |
+
+`ignore` rather than `exclude` for Pyright, deliberately: these files are still
+parsed, so code that **is** on the ratchet still gets real types when it imports
+them.
+
+Two things this is not. It is not a place to park work you did not feel like
+doing — everything pyflakes reports (unused names, undefined names) still applies
+here and is still fixed, and so is a stray `breakpoint()`. And it is not
+permanent: a directory graduates *onto* the ratchet by being cleaned up and
+removed from both lists, the same way `botting/controller/inputs/` graduated onto
+the Strict List.
+
+One file carries a single-rule exemption rather than a directory one:
+`botting/core/bot_data.py` ignores `ANN401`. `BotData` is a dynamically-typed
+attribute store — a managed attribute holds whatever the DecisionMaker that
+registered it put there — so `Any` at that module's interface is the accurate
+type rather than a lazy one, and narrowing it would only push casts out to every
+caller. Every other rule, the rest of `ANN` included, still applies to it.
+
 ## Accepted exemptions
 
 The boy-scout rule says *fix, don't suppress*. The exception is a violation whose

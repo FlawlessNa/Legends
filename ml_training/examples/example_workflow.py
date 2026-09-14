@@ -1,8 +1,6 @@
 """Example usage of the ML Training package."""
 
-from ml_training.config import config
 from ml_training.dataset_manager import (
-    ScreenCapture,
     YOLODataset,
     capture_burst,
 )
@@ -28,7 +26,7 @@ def example_screen_capture():
         output_dir="data/captures/examples",
         prefix="burst",
         countdown=3,
-        interval=1.0
+        interval=1.0,
     )
     print(f"Saved {len(image_paths)} images")
 
@@ -44,16 +42,9 @@ def example_dataset_creation():
     labels_dir = "data/captures/examples_labels"
 
     # Create dataset
-    dataset = YOLODataset(
-        name="example_dataset",
-        classes=["enemy", "item", "boss"]
-    )
+    dataset = YOLODataset(name="example_dataset", classes=["enemy", "item", "boss"])
 
-    dataset.create(
-        images_dir=images_dir,
-        labels_dir=labels_dir,
-        train_split=0.8
-    )
+    dataset.create(images_dir=images_dir, labels_dir=labels_dir, train_split=0.8)
 
     # Get statistics
     stats = dataset.get_stats()
@@ -71,14 +62,14 @@ def example_model_training():
     print("=" * 60)
 
     # Create trainer
-    trainer = YOLOTrainer(model_size='n')  # Nano model
+    trainer = YOLOTrainer(model_size="n")  # Nano model
 
     # Train model
-    results = trainer.train(
+    trainer.train(
         data_yaml="data/datasets/example_dataset/data.yaml",
         epochs=50,
         batch_size=16,
-        name="example_model"
+        name="example_model",
     )
 
     # Evaluate
@@ -108,7 +99,7 @@ def example_inference():
     # Batch prediction and save labels
     total = inference.batch_predict_and_save(
         images_dir="data/captures/test_images",
-        output_labels_dir="data/captures/test_predictions"
+        output_labels_dir="data/captures/test_predictions",
     )
     print(f"Processed {total} images")
 
@@ -126,18 +117,9 @@ def example_model_registry():
         name="enemy_detector",
         model_path="data/models/runs/example_model/weights/best.pt",
         dataset_name="enemy_dataset_v1",
-        metrics={
-            'mAP50': 0.85,
-            'mAP50-95': 0.72,
-            'precision': 0.88,
-            'recall': 0.83
-        },
-        hyperparameters={
-            'epochs': 100,
-            'batch_size': 16,
-            'model_size': 'n'
-        },
-        notes="Initial enemy detection model"
+        metrics={"mAP50": 0.85, "mAP50-95": 0.72, "precision": 0.88, "recall": 0.83},
+        hyperparameters={"epochs": 100, "batch_size": 16, "model_size": "n"},
+        notes="Initial enemy detection model",
     )
     print(f"Registered: {model_id}")
 
@@ -161,7 +143,7 @@ def example_annotation_gui():
         images_dir="data/captures/examples",
         labels_dir="data/captures/examples_labels",
         classes=["enemy", "item", "boss"],
-        mode="annotate"
+        mode="annotate",
     )
 
 

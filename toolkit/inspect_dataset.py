@@ -8,19 +8,26 @@ Usage:
   python toolkit/inspect_dataset.py
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import cv2
-import numpy as np
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QComboBox, QSpinBox, QFileDialog
+    QApplication,
+    QComboBox,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
 )
 
 
@@ -50,12 +57,14 @@ class DatasetInspector(QMainWindow):
         selector_layout = QHBoxLayout()
         selector_layout.addWidget(QLabel("Dataset:"))
         self.dataset_combo = QComboBox()
-        self.dataset_combo.addItems([
-            "GS2MobsAndChar",
-            "ChronosAndMp3WithCharacter",
-            "Bubbling_final",
-            "PacPinky_final",
-        ])
+        self.dataset_combo.addItems(
+            [
+                "GS2MobsAndChar",
+                "ChronosAndMp3WithCharacter",
+                "Bubbling_final",
+                "PacPinky_final",
+            ]
+        )
         self.dataset_combo.currentTextChanged.connect(self._load_dataset)
         selector_layout.addWidget(self.dataset_combo)
         selector_layout.addStretch()
@@ -117,8 +126,12 @@ class DatasetInspector(QMainWindow):
 
         # Collect images from images/{train,val,test}/ (standard nested structure)
         # Also support flat structure for backward compat
-        nested_images = sorted(self.images_dir.glob("*/*.jpg")) + sorted(self.images_dir.glob("*/*.png"))
-        flat_images = sorted(self.images_dir.glob("*.jpg")) + sorted(self.images_dir.glob("*.png"))
+        nested_images = sorted(self.images_dir.glob("*/*.jpg")) + sorted(
+            self.images_dir.glob("*/*.png")
+        )
+        flat_images = sorted(self.images_dir.glob("*.jpg")) + sorted(
+            self.images_dir.glob("*.png")
+        )
         self.image_files = nested_images if nested_images else flat_images
 
         # Load class names from data.yaml if present
@@ -131,13 +144,14 @@ class DatasetInspector(QMainWindow):
         self.class_names = {}
         if yaml_path:
             import yaml
+
             try:
                 with open(yaml_path) as f:
                     data = yaml.safe_load(f)
                     if "names" in data:
                         names = data["names"]
                         if isinstance(names, list):
-                            self.class_names = {i: name for i, name in enumerate(names)}
+                            self.class_names = dict(enumerate(names))
                         else:
                             self.class_names = names
             except Exception:
@@ -152,7 +166,9 @@ class DatasetInspector(QMainWindow):
         if folder:
             self.dataset_root = None
             self.images_dir = None
-            self.image_files = sorted(Path(folder).glob("*.jpg")) + sorted(Path(folder).glob("*.png"))
+            self.image_files = sorted(Path(folder).glob("*.jpg")) + sorted(
+                Path(folder).glob("*.png")
+            )
             self.idx_spin.setRange(0, max(0, len(self.image_files) - 1))
             self.current_idx = 0
             self._display_image()
@@ -222,8 +238,7 @@ class DatasetInspector(QMainWindow):
 
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
             cv2.putText(
-                img, class_name, (x1, y1 - 5),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2
+                img, class_name, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2
             )
 
         # Display
@@ -237,21 +252,22 @@ class DatasetInspector(QMainWindow):
             max_width = int(self.canvas.width() * 0.9)
             max_height = int(self.canvas.height() * 0.9)
             scaled_pixmap = pixmap.scaled(
-                max_width, max_height,
+                max_width,
+                max_height,
                 Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
+                Qt.TransformationMode.SmoothTransformation,
             )
         else:
-            scaled_pixmap = pixmap.scaledToWidth(800, Qt.TransformationMode.SmoothTransformation)
+            scaled_pixmap = pixmap.scaledToWidth(
+                800, Qt.TransformationMode.SmoothTransformation
+            )
         self.canvas.setPixmap(scaled_pixmap)
 
         # Stats
         self.info_label.setText(
             f"{img_path.name} — {w}×{h} — {len(detections)} detections"
         )
-        self.stats_label.setText(
-            f"{self.current_idx + 1} / {len(self.image_files)}"
-        )
+        self.stats_label.setText(f"{self.current_idx + 1} / {len(self.image_files)}")
 
 
 def main():

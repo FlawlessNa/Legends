@@ -38,28 +38,32 @@ class _PortalsExtractor:
         for portal in self.tree:
             portal_name = portal.find('string[@name="pn"]').get("value")
             portal_type = portal.find('int[@name="pt"]').get("value")
-            if portal_name == 'sp' and portal_type == '0':
+            if portal_name == "sp" and portal_type == "0":
                 continue
-            elif portal_name == 'sp' or portal_type == '0':
-                breakpoint()  # This should not happen
+            elif portal_name == "sp" or portal_type == "0":
+                raise NotImplementedError(
+                    f"Portal {portal_name!r} of type {portal_type!r}: spawn name "
+                    f"and spawn type have always travelled together, and nothing "
+                    f"decides what a half-spawn portal means."
+                )
             target_map = portal.find('int[@name="tm"]').get("value")
             target_portal = portal.find('string[@name="tn"]').get("value")
             x = int(portal.find('int[@name="x"]').get("value"))
             y = int(portal.find('int[@name="y"]').get("value"))
             res.append(
                 {
-                    'name': portal_name,
-                    'type': portal_type,
-                    'target_map': target_map,
-                    'target_name': target_portal,
-                    'x': x,
-                    'y': y
+                    "name": portal_name,
+                    "type": portal_type,
+                    "target_map": target_map,
+                    "target_name": target_portal,
+                    "x": x,
+                    "y": y,
                 }
             )
         return res
 
     def get_portal(self, portal_name: str) -> dict:
         for portal in self.res:
-            if portal['name'] == portal_name:
+            if portal["name"] == portal_name:
                 return portal
         return {}

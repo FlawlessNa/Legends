@@ -8,13 +8,21 @@ except ImportError:
     AnnotatorGUI = None
     LiveInferenceViewer = None
 
-    def run_annotator(*args, **kwargs):
-        raise ImportError("PyQt6 is required for the annotation GUI. Install it with: pip install PyQt6")
+    def run_annotator(*args: object, **kwargs: object):
+        raise ImportError(
+            "PyQt6 is required for the annotation GUI. Install it with: pip install PyQt6"
+        )
 
-    def run_live_inference(*args, **kwargs):
-        raise ImportError("PyQt6 is required for the live inference viewer. Install it with: pip install PyQt6")
+    def run_live_inference(*args: object, **kwargs: object):
+        raise ImportError(
+            "PyQt6 is required for the live inference viewer. Install it with: pip install PyQt6"
+        )
+
 
 __all__ = [
-    'AnnotatorAborted', 'AnnotatorGUI', 'run_annotator',
-    'LiveInferenceViewer', 'run_live_inference',
+    "AnnotatorAborted",
+    "AnnotatorGUI",
+    "LiveInferenceViewer",
+    "run_annotator",
+    "run_live_inference",
 ]

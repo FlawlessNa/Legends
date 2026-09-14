@@ -1,8 +1,6 @@
 """Live inference viewer for verifying a trained model before proceeding."""
 
 import sys
-from pathlib import Path
-from typing import List
 
 import numpy as np
 from PyQt6.QtCore import QEventLoop, Qt, QTimer, pyqtSignal
@@ -22,8 +20,9 @@ from ultralytics import YOLO
 try:
     from botting.utilities.screenshots import take_screenshot
 except ImportError:
-    from PIL import ImageGrab
     import numpy as _np
+    from PIL import ImageGrab
+
     def take_screenshot(handle=None):
         return _np.array(ImageGrab.grab())
 
@@ -39,7 +38,7 @@ class LiveInferenceViewer(QMainWindow):
         self,
         model_path: str,
         window_handle: int,
-        classes: List[str],
+        classes: list[str],
         conf: float = 0.15,
         iou: float = 0.45,
     ):
@@ -190,7 +189,7 @@ class LiveInferenceViewer(QMainWindow):
 def run_live_inference(
     model_path: str,
     window_handle: int,
-    classes: List[str],
+    classes: list[str],
     conf: float = 0.15,
     iou: float = 0.45,
 ) -> tuple[float, float]:
@@ -212,7 +211,7 @@ def run_live_inference(
 def run_live_inference_nested(
     model_path: str,
     window_handle: int,
-    classes: List[str],
+    classes: list[str],
     conf: float = 0.15,
     iou: float = 0.45,
 ) -> tuple[float, float]:

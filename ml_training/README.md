@@ -72,7 +72,7 @@ run_annotator(
     images_dir="ml_training/data/raw_images",
     labels_dir="ml_training/data/annotations",
     classes=["enemy", "item"],
-    mode="annotate"
+    mode="annotate",
 )
 
 # 3. Create YOLO dataset
@@ -80,14 +80,12 @@ dataset = create_dataset(
     name="my_dataset",
     classes=["enemy", "item"],
     images_dir="ml_training/data/raw_images",
-    labels_dir="ml_training/data/annotations"
+    labels_dir="ml_training/data/annotations",
 )
 
 # 4. Train model
 trainer = train_model(
-    data_yaml=dataset.get_data_yaml_path(),
-    model_size='n',
-    epochs=100
+    data_yaml=dataset.get_data_yaml_path(), model_size="n", epochs=100
 )
 
 # 5. Register in model registry
@@ -96,7 +94,7 @@ registry.register_model(
     name="enemy_detector",
     model_path=trainer.get_model_path(),
     dataset_name="my_dataset",
-    metrics=trainer.evaluate()
+    metrics=trainer.evaluate(),
 )
 ```
 
@@ -202,7 +200,7 @@ dataset = create_dataset(
     classes=["enemy", "boss", "item"],
     images_dir="path/to/images",
     labels_dir="path/to/labels",
-    train_split=0.8  # 80% train, 20% validation
+    train_split=0.8,  # 80% train, 20% validation
 )
 
 # Get dataset info
@@ -227,7 +225,7 @@ count = augment_dataset(
     labels_dir="path/to/labels",
     output_images_dir="path/to/augmented/images",
     output_labels_dir="path/to/augmented/labels",
-    multiplier=3  # 3 augmented versions per image
+    multiplier=3,  # 3 augmented versions per image
 )
 ```
 
@@ -243,21 +241,14 @@ Train YOLO models with optimized settings:
 ```python
 from ml_training import YOLOTrainer
 
-trainer = YOLOTrainer(model_size='n')  # n, s, m, l, or x
+trainer = YOLOTrainer(model_size="n")  # n, s, m, l, or x
 
 # Mini-model for small datasets (aggressive augmentation)
-trainer.train_mini_model(
-    data_yaml="path/to/data.yaml",
-    epochs=50,
-    name="mini_model"
-)
+trainer.train_mini_model(data_yaml="path/to/data.yaml", epochs=50, name="mini_model")
 
 # Full training for final model
 trainer.train(
-    data_yaml="path/to/data.yaml",
-    epochs=100,
-    batch_size=16,
-    name="final_model"
+    data_yaml="path/to/data.yaml", epochs=100, batch_size=16, name="final_model"
 )
 
 # Evaluate
@@ -283,21 +274,16 @@ for det in detections:
 
 # Batch prediction and save YOLO format labels
 inference.batch_predict_and_save(
-    images_dir="path/to/images",
-    output_labels_dir="path/to/labels"
+    images_dir="path/to/images", output_labels_dir="path/to/labels"
 )
 
 # Find low confidence predictions for review
 low_conf = inference.find_low_confidence_predictions(
-    images_dir="path/to/images",
-    low_conf_threshold=0.5
+    images_dir="path/to/images", low_conf_threshold=0.5
 )
 
 # Visualize predictions
-inference.visualize_predictions(
-    "image.jpg",
-    output_path="annotated.jpg"
-)
+inference.visualize_predictions("image.jpg", output_path="annotated.jpg")
 ```
 
 ### Model Registry
@@ -314,9 +300,9 @@ model_id = registry.register_model(
     name="enemy_detector",
     model_path="path/to/model.pt",
     dataset_name="enemy_dataset_v1",
-    metrics={'mAP50-95': 0.85, 'precision': 0.90},
-    hyperparameters={'epochs': 100, 'batch_size': 16},
-    notes="First production model"
+    metrics={"mAP50-95": 0.85, "precision": 0.90},
+    hyperparameters={"epochs": 100, "batch_size": 16},
+    notes="First production model",
 )
 
 # List all models
@@ -326,10 +312,7 @@ models = registry.list_models()
 latest = registry.get_latest_model("enemy_detector")
 
 # Compare models
-comparison = registry.compare_models([
-    "enemy_detector_v1",
-    "enemy_detector_v2"
-])
+comparison = registry.compare_models(["enemy_detector_v1", "enemy_detector_v2"])
 
 # Promote to production
 prod_path = registry.promote_to_production(model_id)
@@ -347,7 +330,7 @@ run_annotator(
     images_dir="path/to/images",
     labels_dir="path/to/labels",
     classes=["enemy", "boss", "item"],
-    mode="annotate"
+    mode="annotate",
 )
 
 # Verify predictions (much faster!)
@@ -355,7 +338,7 @@ run_annotator(
     images_dir="path/to/images",
     labels_dir="path/to/predictions",
     classes=["enemy", "boss", "item"],
-    mode="verify"
+    mode="verify",
 )
 ```
 
@@ -382,11 +365,11 @@ screen_capture:
 model:
   base_model: "yolov8n.pt"
   image_size: 640
-  
+
   mini_training:
     epochs: 50
     batch_size: 8
-  
+
   final_training:
     epochs: 100
     batch_size: 16
@@ -402,8 +385,8 @@ Access configuration in code:
 ```python
 from ml_training.config import config
 
-countdown = config.get('screen_capture.countdown')
-config.set('screen_capture.countdown', 5)
+countdown = config.get("screen_capture.countdown")
+config.set("screen_capture.countdown", 5)
 ```
 
 ## Examples
@@ -484,13 +467,11 @@ aug = DataAugmentation(
     brightness_range=[0.7, 1.3],
     contrast_range=[0.7, 1.3],
     noise_std=15,
-    horizontal_flip=True
+    horizontal_flip=True,
 )
 
 aug.augment_image_and_labels(
-    image_path="image.jpg",
-    label_path="label.txt",
-    output_dir="augmented/"
+    image_path="image.jpg", label_path="label.txt", output_dir="augmented/"
 )
 ```
 
@@ -498,8 +479,7 @@ aug.augment_image_and_labels(
 
 ```python
 workflow = BootstrapNewClass(
-    class_name="fire_demon",
-    additional_classes=["ice_demon", "wind_demon"]
+    class_name="fire_demon", additional_classes=["ice_demon", "wind_demon"]
 )
 # All three classes will be trained together
 ```
@@ -508,7 +488,7 @@ workflow = BootstrapNewClass(
 
 ```python
 # Available sizes: n (nano), s (small), m (medium), l (large), x (extra large)
-trainer = YOLOTrainer(model_size='s')  # Bigger, more accurate, slower
+trainer = YOLOTrainer(model_size="s")  # Bigger, more accurate, slower
 ```
 
 ## Dependencies

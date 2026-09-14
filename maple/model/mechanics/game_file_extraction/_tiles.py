@@ -1,6 +1,8 @@
-import cv2
 import os
 import xml.etree.ElementTree as ET
+
+import cv2
+
 from paths import ROOT
 
 
@@ -36,29 +38,29 @@ class _TilesExtractor:
                 tile_data = res.setdefault(key, [])
                 # Tile data (by tile; regardless of map)
                 # x-y are offset by the origin of the object
-                x, y, z, fh = self._extract_tile_specs_general(
-                    *key, map_x=x, map_y=y
-                )
+                x, y, z, fh = self._extract_tile_specs_general(*key, map_x=x, map_y=y)
                 tile_data.append(
                     {
-                        'Layer': section_name,
-                        'ID': tile.attrib['name'],
-                        'x': x,
-                        'y': y,
-                        'zM': zM,
-                        'z': z,
-                        'f': 0,
-                        'r': 0,
-                        'footholds': fh,
-                        'Type': 'Tile'
+                        "Layer": section_name,
+                        "ID": tile.attrib["name"],
+                        "x": x,
+                        "y": y,
+                        "zM": zM,
+                        "z": z,
+                        "f": 0,
+                        "r": 0,
+                        "footholds": fh,
+                        "Type": "Tile",
                     }
                 )
         return res
 
     def get_footholds(self) -> list[dict]:
         return [
-            obj['footholds'] for obj_lst in self.res.values() for obj in obj_lst
-            if obj['footholds']
+            obj["footholds"]
+            for obj_lst in self.res.values()
+            for obj in obj_lst
+            if obj["footholds"]
         ]
 
     @staticmethod
@@ -76,22 +78,22 @@ class _TilesExtractor:
         root = ET.parse(xml_path).getroot()
         section = root.find(f".//imgdir[@name='{u}']")
         subsection = section.find(f".//canvas[@name='{no}']")
-        extended = subsection.findall('extended')
+        extended = subsection.findall("extended")
         assert len(extended) <= 1
 
         origin = subsection.find(".//vector[@name='origin']").attrib
-        z = subsection.find("int[@name='z']").attrib['value']
+        z = subsection.find("int[@name='z']").attrib["value"]
         fh = {}
-        if extended and extended[0].get('name') == 'foothold':
+        if extended and extended[0].get("name") == "foothold":
             fh = {
-                'x': tuple(
-                    int(elem.attrib['x']) + map_x
-                    for elem in extended[0].findall('vector')
+                "x": tuple(
+                    int(elem.attrib["x"]) + map_x
+                    for elem in extended[0].findall("vector")
                 ),
-                'y': tuple(
-                    int(elem.attrib['y']) + map_y
-                    for elem in extended[0].findall('vector')
-                )
+                "y": tuple(
+                    int(elem.attrib["y"]) + map_y
+                    for elem in extended[0].findall("vector")
+                ),
             }
         elif extended:
             raise NotImplementedError

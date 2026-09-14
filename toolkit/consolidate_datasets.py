@@ -11,8 +11,8 @@ This script:
 """
 
 import shutil
-from pathlib import Path
 import sys
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -100,9 +100,9 @@ def main():
     print("\nUpdating ml_training/run.py...")
     update_run_py()
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("CONSOLIDATION COMPLETE")
-    print("="*60)
+    print("=" * 60)
     print("\nNEXT STEPS:")
     print("1. Verify the new datasets in data/datasets/")
     print("2. Review the changes in ml_training/run.py")
@@ -111,7 +111,7 @@ def main():
     print(f"   Remove-Item -Recurse -Force '{legacy_root}'")
     print("\nOr if you want to delete it now:")
     response = input("\nDelete legacy folder now? (y/N): ").strip().lower()
-    if response == 'y':
+    if response == "y":
         shutil.rmtree(legacy_root)
         print(f"✓ Deleted {legacy_root}")
 

@@ -15,23 +15,22 @@ Standalone demo:
 
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 
 from botting.controller import KeyboardInputWrapper
 from botting.controller.inputs.inputs_helpers import OVERHEAD
 
-
 _KEY_COLORS = {
-    "left":  "#4C72B0",
+    "left": "#4C72B0",
     "right": "#DD8452",
-    "up":    "#55A868",
-    "down":  "#C44E52",
+    "up": "#55A868",
+    "down": "#C44E52",
 }
 _PREFERRED_ORDER = ["up", "down", "left", "right"]
 _DEFAULT_COLOR = "#8172B2"
 _MIN_BAR_WIDTH_FOR_LABEL = 0.035  # seconds
-_TIMELINE_X_MAX = 5.0             # fixed x-axis range (seconds) — change here to rescale
+_TIMELINE_X_MAX = 5.0  # fixed x-axis range (seconds) — change here to rescale
 
 
 def _parse_intervals(
@@ -45,7 +44,7 @@ def _parse_intervals(
     Keys still held at the end of the wrapper are closed at wrapper.duration.
     """
     t = 0.0
-    held: dict[str, float] = {}       # key -> time it went down
+    held: dict[str, float] = {}  # key -> time it went down
     intervals: dict[str, list[tuple[float, float]]] = {}
 
     for key_or_list, event_or_list, delay in zip(
@@ -77,8 +76,8 @@ def visualize(
     save_path: str | None = None,
     show: bool = True,
     block: bool = True,
-    fig: "plt.Figure | None" = None,
-) -> "plt.Figure | None":
+    fig: plt.Figure | None = None,
+) -> plt.Figure | None:
     """
     Render a Gantt chart of key-hold intervals from a KeyboardInputWrapper.
 
@@ -117,30 +116,49 @@ def visualize(
         for t_start, t_end in intervals[key]:
             width = max(t_end - t_start, 0.003)
             ax.barh(
-                lane, width, left=t_start, height=0.55,
-                color=color, alpha=0.85, edgecolor="white", linewidth=0.5,
+                lane,
+                width,
+                left=t_start,
+                height=0.55,
+                color=color,
+                alpha=0.85,
+                edgecolor="white",
+                linewidth=0.5,
             )
             if width >= _MIN_BAR_WIDTH_FOR_LABEL:
                 ax.text(
-                    t_start + width / 2, lane,
+                    t_start + width / 2,
+                    lane,
                     f"{width:.3f}s",
-                    ha="center", va="center",
-                    fontsize=7, color="white", fontweight="bold",
+                    ha="center",
+                    va="center",
+                    fontsize=7,
+                    color="white",
+                    fontweight="bold",
                 )
 
     # Forced releases: red dashed vertical line at wrapper.duration per key
     forced = set(wrapper.forced_key_releases)
     if forced:
         ax.axvline(
-            total, color="red", linestyle="--", linewidth=1.2, alpha=0.7,
+            total,
+            color="red",
+            linestyle="--",
+            linewidth=1.2,
+            alpha=0.7,
             label=f"forced release: {', '.join(sorted(forced))}",
         )
         for key in forced:
             if key in ordered:
                 lane = ordered.index(key)
                 ax.plot(
-                    total, lane, marker="x",
-                    color="red", markersize=8, markeredgewidth=1.5, zorder=5,
+                    total,
+                    lane,
+                    marker="x",
+                    color="red",
+                    markersize=8,
+                    markeredgewidth=1.5,
+                    zorder=5,
                 )
 
     ax.set_yticks(range(n))
@@ -163,7 +181,9 @@ def visualize(
     ]
     if forced:
         legend_patches.append(
-            mpatches.Patch(color="red", label=f"forced release: {', '.join(sorted(forced))}")
+            mpatches.Patch(
+                color="red", label=f"forced release: {', '.join(sorted(forced))}"
+            )
         )
     ax.legend(handles=legend_patches, loc="upper right", fontsize=9, framealpha=0.7)
 
@@ -187,6 +207,7 @@ def visualize(
 # ---------------------------------------------------------------------------
 # Demo
 # ---------------------------------------------------------------------------
+
 
 def _build_demo_wrapper() -> KeyboardInputWrapper:
     """

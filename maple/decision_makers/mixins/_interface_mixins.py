@@ -1,5 +1,6 @@
 import multiprocessing.connection
 import multiprocessing.managers
+import threading
 
 from botting.core import BotData, ProxyFactory
 from maple.actions import ensure_ability_menu_displayed
@@ -7,7 +8,7 @@ from maple.model.interface import (
     AbilityMenu,
     CharacterStats,
     InventoryMenu,
-    LargeClientChatFeed
+    LargeClientChatFeed,
 )
 
 
@@ -17,7 +18,9 @@ class MenusMixin:
     pipe: multiprocessing.connection.Connection
     _proxies: ProxyFactory
 
-    def _create_ap_menu_attributes(self, condition=None):
+    def _create_ap_menu_attributes(
+        self, condition: threading.Condition | None = None
+    ) -> None:
         menu = AbilityMenu()
         if condition is None:
             condition = self._proxies.instance(
@@ -67,7 +70,9 @@ class MenusMixin:
         )
         self.data.set_feature("has_ap_menu_attributes")
 
-    def _create_inventory_menu_attributes(self, condition=None):
+    def _create_inventory_menu_attributes(
+        self, condition: threading.Condition | None = None
+    ) -> None:
         menu = InventoryMenu()
         condition = condition or getattr(self, "_condition", None)
         if condition is None:
@@ -103,7 +108,12 @@ class MenusMixin:
         )
         self.data.set_feature("has_inventory_menu_attributes")
 
-    def _display_kwargs(self, identifier: str, timeout: float, condition=None) -> dict:
+    def _display_kwargs(
+        self,
+        identifier: str,
+        timeout: float,
+        condition: threading.Condition | None = None,
+    ) -> dict:
         if condition is None:
             condition = self._proxies.instance(identifier, "Condition")
         return {
@@ -120,7 +130,7 @@ class MenusMixin:
 class UIMixin:
     data: BotData
 
-    def _create_ui_attributes(self):
+    def _create_ui_attributes(self) -> None:
         stats = CharacterStats()
         self.data.create_or_reconfigure_attribute(
             "character_job", lambda: stats.get_job(self.data.handle)
