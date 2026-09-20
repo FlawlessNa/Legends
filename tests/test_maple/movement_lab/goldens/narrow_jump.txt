@@ -1,0 +1,10 @@
+Holds (key, t_down, t_up):
+  right    0.000 0.884
+  space    0.066 0.133
+
+right keydown for 0.065s
+space keydown for 0.065s
+space keyup for 0.750s
+right keyup for 0.000s
+Total Duration: 0.885s
+Forced Key Releases: ['space']

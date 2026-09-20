@@ -1,0 +1,10 @@
+Holds (key, t_down, t_up):
+  insert   0.034 0.168
+  right    0.000 0.203
+
+right keydown for 0.033s
+insert keydown for 0.133s
+insert keyup for 0.034s
+['right'] ['keyup'] for 0.000s
+Total Duration: 0.204s
+Forced Key Releases: ['insert']

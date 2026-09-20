@@ -247,12 +247,15 @@ def compile_movements(
                         handle,
                         # `direction` is 'up' for a plain JUMP and 'down' for a
                         # JUMP_DOWN, neither of which `jump_on_rope` accepts: it
-                        # presses 'up' itself, so an 'up' direction is pressed twice
-                        # and released once, leaving it held. Latent - the `**kwargs`
-                        # dict this call used to go through erased the type. Passed
-                        # through unchanged rather than guessed at, because what a
+                        # presses 'up' itself. For 'up', that's pressed twice and
+                        # released once, leaving it held (issue #111 - open; what a
                         # straight-up jump onto a rope should compile to needs a
-                        # client to settle. See issue #111.
+                        # client to settle). For 'down', `jump_on_rope` no longer
+                        # double-releases it (issue #131 - its own 'up' press can
+                        # already clear 'down' as the opposite key). Passed through
+                        # unchanged rather than guessed at either way. Latent - the
+                        # `**kwargs` dict this call used to go through erased the
+                        # type.
                         direction,  # pyright: ignore[reportArgumentType]
                         jump_key,
                         structure=structure,

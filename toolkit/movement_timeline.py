@@ -19,7 +19,6 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 
 from botting.controller import KeyboardInputWrapper
-from botting.controller.inputs.inputs_helpers import OVERHEAD
 
 _KEY_COLORS = {
     "left": "#4C72B0",
@@ -31,43 +30,6 @@ _PREFERRED_ORDER = ["up", "down", "left", "right"]
 _DEFAULT_COLOR = "#8172B2"
 _MIN_BAR_WIDTH_FOR_LABEL = 0.035  # seconds
 _TIMELINE_X_MAX = 5.0  # fixed x-axis range (seconds) — change here to rescale
-
-
-def _parse_intervals(
-    wrapper: KeyboardInputWrapper,
-) -> dict[str, list[tuple[float, float]]]:
-    """
-    Walk the wrapper's event list and produce per-key hold intervals.
-
-    Returns {key_name: [(t_down, t_up), ...]} in event order.
-    Simultaneous events (list keys/events) are all timestamped at the same t.
-    Keys still held at the end of the wrapper are closed at wrapper.duration.
-    """
-    t = 0.0
-    held: dict[str, float] = {}  # key -> time it went down
-    intervals: dict[str, list[tuple[float, float]]] = {}
-
-    for key_or_list, event_or_list, delay in zip(
-        wrapper.keys, wrapper.events, wrapper.delays
-    ):
-        pairs: list[tuple[str, str]] = (
-            [(key_or_list, event_or_list)]
-            if isinstance(key_or_list, str)
-            else list(zip(key_or_list, event_or_list))
-        )
-        for key, event in pairs:
-            intervals.setdefault(key, [])
-            if event == "keydown" and key not in held:
-                held[key] = t
-            elif event == "keyup" and key in held:
-                intervals[key].append((held.pop(key), t))
-
-        t += delay + OVERHEAD
-
-    for key, t_down in held.items():
-        intervals.setdefault(key, []).append((t_down, t))
-
-    return intervals
 
 
 def visualize(
@@ -91,7 +53,7 @@ def visualize(
     fig:        If given, clear and redraw this existing figure in place rather than
                 creating a new window.
     """
-    intervals = _parse_intervals(wrapper)
+    intervals = wrapper.holds
     if not intervals:
         print("No key events found in wrapper.")
         return fig

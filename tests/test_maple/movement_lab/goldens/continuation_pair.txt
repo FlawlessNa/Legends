@@ -1,0 +1,18 @@
+N, truncated at ACTION_DURATION=1.0s:
+
+Holds (key, t_down, t_up):
+  left     0.000 1.000
+
+left keydown for 0.999s
+Total Duration: 1.000s
+Forced Key Releases: []
+
+N+1, compiled against N's InputState (InputState(held_keys=frozenset({'left'}), typematic_owner='left', owner_elapsed=1.0)):
+
+Holds (key, t_down, t_up):
+  left     0.000 0.269
+
+left keydown for 0.268s
+['left'] ['keyup'] for 0.000s
+Total Duration: 0.270s
+Forced Key Releases: []

@@ -31,13 +31,13 @@ Checked on every compiled Input Sequence.
 
 | Id | Statement | Tier | Status |
 |---|---|---|---|
-| **A1 Shape** | `len(keys) == len(events) == len(delays)`; at each Step, `keys[i]` and `events[i]` are both `str`, or both `list` of equal length | Invariant | holds — violation fixed by [#99](https://github.com/FlawlessNa/Legends/issues/99); [#113](https://github.com/FlawlessNa/Legends/issues/113)'s shape question stays open |
-| **A2 Terminal Release** | If `S` was not truncated, `down(n-1)` is a subset of `forced_key_releases` | Invariant | fails — the release volley is emitted ([#25](https://github.com/FlawlessNa/Legends/issues/25)) but is the Step [#113](https://github.com/FlawlessNa/Legends/issues/113) drops |
+| **A1 Shape** | `len(keys) == len(events) == len(delays)`; at each Step, `keys[i]` and `events[i]` are both `str`, or both `list` of equal length | Invariant | holds — violation fixed by [#99](https://github.com/FlawlessNa/Legends/issues/99); the `structure is None` + `secondary_direction` opening pinned by [#113](https://github.com/FlawlessNa/Legends/issues/113) |
+| **A2 Terminal Release** | If `S` was not truncated, `down(n-1)` is a subset of `forced_key_releases` | Invariant | holds — the release volley is emitted ([#25](https://github.com/FlawlessNa/Legends/issues/25)) and no longer dropped by the opening-Step shape defect ([#113](https://github.com/FlawlessNa/Legends/issues/113)) |
 | **A3 No Opposing Overlap** | No Hold of `left` overlaps a Hold of `right`; likewise `up`/`down` | Invariant | holds — fixed by [#28](https://github.com/FlawlessNa/Legends/issues/28) and [#97](https://github.com/FlawlessNa/Legends/issues/97) |
 | **A4 Skill Key Closure** | Every Hold whose key is non-directional has `t_up` strictly before the sequence end | Invariant | holds — fixed by [#75](https://github.com/FlawlessNa/Legends/issues/75) |
 | **A5 Delays** | Every delay is finite and `>= 0` | Invariant | holds |
-| **A6 No Phantom Release** | For every keyup of key `k` at Step `i`: `k` is in `down(i-1)` | Invariant | holds — fixed by [#28](https://github.com/FlawlessNa/Legends/issues/28) |
-| **A7 Typematic Legality** | For every keydown of key `k` at Step `i`: if `k` is in `down(i-1)` the Step is a repeat and requires `own(i-1) == k`; otherwise it is a press and sets `own(i) = k` | Invariant | holds — `T0` carried by [#109](https://github.com/FlawlessNa/Legends/issues/109), builders fixed by [#99](https://github.com/FlawlessNa/Legends/issues/99) |
+| **A6 No Phantom Release** | For every keyup of key `k` at Step `i`: `k` is in `down(i-1)` | Invariant | holds generally, fixed by [#28](https://github.com/FlawlessNa/Legends/issues/28) — [#104](https://github.com/FlawlessNa/Legends/issues/104)'s corpus run found two narrower exceptions, [#131](https://github.com/FlawlessNa/Legends/issues/131) and [#132](https://github.com/FlawlessNa/Legends/issues/132) |
+| **A7 Typematic Legality** | For every keydown of key `k` at Step `i`: if `k` is in `down(i-1)` the Step is a repeat and requires `own(i-1) == k`; otherwise it is a press and sets `own(i) = k` | Invariant | holds generally, `T0` carried by [#109](https://github.com/FlawlessNa/Legends/issues/109), builders fixed by [#99](https://github.com/FlawlessNa/Legends/issues/99) — [#104](https://github.com/FlawlessNa/Legends/issues/104)'s corpus run found one exception, [#132](https://github.com/FlawlessNa/Legends/issues/132) |
 
 **A6** is a humanization property as much as a correctness one: a human never
 releases a key they are not holding, and the pattern is machine-distinguishable.
@@ -93,6 +93,23 @@ gap **B1** had for want of Provenance, which
 deliberately not part of A7: ~33ms is a measured constant, so it is an Expectation,
 tracked as **B6**.
 
+**A6 and A7 both hold over most of the Corpus, not all of it.**
+[#104](https://github.com/FlawlessNa/Legends/issues/104) ran every builder's output
+against real Paths rather than hand-built plans, and found two shapes the unit tests
+never exercised: `jump_on_rope` phantom-releases its passed `direction` when a
+`JUMP_DOWN` feeds into `CLIMB_UP` (it hardcodes pressing `up` regardless of what it
+was passed, and the resulting `_clear_opposites` release beats its own trailing one
+to the punch) — [#131](https://github.com/FlawlessNa/Legends/issues/131); and `move`'s
+`release_keys` argument computes its insertion index before a press that can itself
+insert a Step, so a direction whose opposite is both `release_keys`-listed and about
+to be pressed as a `secondary_direction` gets released twice (A6) and re-pressed
+without regard for whether it still owns typematic (A7) —
+[#132](https://github.com/FlawlessNa/Legends/issues/132). Both are narrow: the first
+needs a `JUMP_DOWN` directly into a `CLIMB_UP`, the second needs a `WALK_*` heading
+into `ENTER_PORTAL`/`CLIMB_UP`/`CLIMB_DOWN` with the *opposite* of the secondary
+direction already held. Neither reopens the general statement; both are filed as
+their own tickets rather than folded back into a weakened A6/A7.
+
 **A3 did not really hold before #28**, despite its status here. The
 opposite-key release that `append` inserts was going in at index `-1` — *ahead of* the last existing Step, which is
 typically the keydown of the very key being released. A plan reversing direction
@@ -137,7 +154,7 @@ teleport region into paired down/up taps and never contributed to A4 anyway.
 | Id | Statement | Tier | Status |
 |---|---|---|---|
 | **B1 Truncation Integrity** | If `S` is truncated at Step `k`, `k` falls on a Movement Plan component boundary; the cut never lands inside a `JUMP*`, `TELEPORT*`, or `ENTER_PORTAL` component | Invariant | **checkable, and does not hold** — Provenance landed by [#102](https://github.com/FlawlessNa/Legends/issues/102); a cut mid-jump is now demonstrable, see below |
-| **B2 Fill Bound** | For a walk component of length `L`, the elapsed compile budget spent on it is at least `L/grid.speed` and less than `L/grid.speed + max_delay + OVERHEAD` | Invariant | holds — `max_delay` moves with [#99](https://github.com/FlawlessNa/Legends/issues/99), see below |
+| **B2 Fill Bound** | For a walk component of length `L`, the elapsed compile budget spent on it is at least `L/grid.speed` and less than `L/grid.speed + max_delay + OVERHEAD` | Invariant | **does not hold everywhere** — `max_delay` moves with [#99](https://github.com/FlawlessNa/Legends/issues/99); [#104](https://github.com/FlawlessNa/Legends/issues/104) found the gap below is real, tied to [#132](https://github.com/FlawlessNa/Legends/issues/132) |
 | **B3 Distance Fidelity** | The character's actual displacement matches the component's intent within tolerance | Expectation | needs [#13](https://github.com/FlawlessNa/Legends/issues/13)/[#14](https://github.com/FlawlessNa/Legends/issues/14) |
 | **B4 Component Non-empty** | Every component up to the cut produced at least one Step, unless its direction was already held at component start | Expectation | holds |
 | **B5 Cast Window** | For a `cast_skill` component, the skill key is pressed at least once, and its keyup is *sent* strictly before the first skill keydown plus `animation_time` | Invariant | holds — fixed by [#98](https://github.com/FlawlessNa/Legends/issues/98) |
@@ -172,9 +189,13 @@ anything built outside `compile_movements`.
 `tests/test_botting/test_movement_provenance.py` compiles a `walk -> jump -> walk`
 plan and truncates it at 2.5s: the cut lands between the jump's first Step and its
 last, and the check names the jump. That is one synthetic plan, not a measure of how
-often it happens — [#104](https://github.com/FlawlessNa/Legends/issues/104) runs B1
-over the Corpus, and the fix (the candidate being `truncate` backing off to the last
-complete atomic component) waits on knowing where the cuts actually land.
+often it happens — [#104](https://github.com/FlawlessNa/Legends/issues/104) ran B1
+over the whole Corpus at production's own `ACTION_DURATION` (1.0s, matching
+`Rotation`'s default): every map that samples a `JUMP*`, `TELEPORT*` or
+`ENTER_PORTAL` cuts mid-gesture on a real fraction of its routes — from 4/150
+(`portal_pair`) up to 140/300 (`GhostShip1`) — so this is not a rare edge case at
+production's own default. The fix (the candidate being `truncate` backing off to the
+last complete atomic component) still waits on a design decision, not on data.
 
 Truncation is the normal case, not an edge case: rotation passes
 `total_duration=self.data.action_duration` on every Action, so essentially every
@@ -238,7 +259,16 @@ Step until then, and `t(i)` at the top of this page with it.
 
 **B2 bounds the elapsed budget, not the Hold.** Release Steps inserted ahead of
 a component consume budget without extending the direction's Hold, so the two
-diverge. If that gap turns out to matter, it becomes its own entry.
+diverge. This turned out to matter: [#104](https://github.com/FlawlessNa/Legends/issues/104)'s
+corpus run found walk components on `ladder_climb`, `portal_pair`, `teleport_shaft`
+and `GhostShip1` whose Provenance-owned Steps fall outside the stated bound in both
+directions — over, when a `move` opening onto a held opposite direction stacks an
+unbudgeted `_clear_opposites` release on top of an already-full-budget `first_delay`
+([#132](https://github.com/FlawlessNa/Legends/issues/132)'s mechanism); under, when
+`fill`'s own silent branch *does* discount a release ahead of it from `remaining`,
+which the ordinary press-and-repeat path never does. No new ticket filed for the
+`over` direction — it is [#132](https://github.com/FlawlessNa/Legends/issues/132)
+again, read from the budget side instead of the Hold side.
 
 ## C — Continuation pair
 
@@ -280,13 +310,25 @@ mid-flight.
 
 | Id | Statement | Tier | Status |
 |---|---|---|---|
-| **D1 Cancel Safety** | For every cancel point `k` in `[0, n]`, the keys in `down(k-1)` that are not in `forced_key_releases` contain no non-directional key | Invariant | fails — [#26](https://github.com/FlawlessNa/Legends/issues/26) |
+| **D1 Cancel Safety** | For every cancel point `k` in `[0, n]`, the keys in `down(k-1)` that are not in `forced_key_releases` contain no non-directional key | Invariant | holds — fixed by [#26](https://github.com/FlawlessNa/Legends/issues/26); [#104](https://github.com/FlawlessNa/Legends/issues/104) confirmed it exhaustively over the Corpus |
 | **D2 Preemption Direction Release** | After a Preemption, no direction key remains down | Invariant | holds — fixed by [#27](https://github.com/FlawlessNa/Legends/issues/27) |
 
 **Cancel points are swept exhaustively** — every `k` from `0` to `n`, not
 sampled. An Input Sequence is tens of Steps and each check is a set operation
 over the already-derived Holds, so exhaustive is cheap and removes "did we
 sample the bad index" from every future failure discussion.
+
+**[#104](https://github.com/FlawlessNa/Legends/issues/104) sweeps D1 and D2 over the
+whole Corpus as set operations over Holds and `forced_key_releases`, not by driving
+real cancelled `asyncio` tasks.** D1's statement already is one; D2's reduces to one
+given the release formula `focused_inputs`'s `finally` block implements (forced keys
+still held, plus every direction still held, released together on the cancellation
+path) — a formula real cancellation, at real Step counts across ~2,100 sampled
+routes, cannot afford to re-derive inside the suite's time budget (real `asyncio.sleep`
+per Step, the same cost implementation requirement 3 below was written against).
+That formula is exercised for real, with hand-built sequences, by
+`tests/test_botting/test_preemption_direction_release.py`; the corpus sweep is what
+confirms it against real compiled sequences instead.
 
 **D2 was stated as an outcome, not a mechanism**, because the mechanism was
 [#24](https://github.com/FlawlessNa/Legends/issues/24)'s to choose.
@@ -316,11 +358,11 @@ its own group rather than as ad-hoc asserts in the lab.
 
 | Id | Statement | Tier | Status |
 |---|---|---|---|
-| **E1 Path Terminus** | For a pair the grid reports reachable, the Path is non-empty and its last node is the requested end | Invariant | not yet checked |
-| **E2 Adjacency Legality** | Every consecutive node pair in a Path is a grid neighbour or a declared connection — `path_into_movements` reaches neither of its `NotImplementedError` branches | Invariant | not yet checked |
-| **E3 Walk Squeeze Bound** | No walk component has a length exceeding `_MAX_WALK_SIZE` | Invariant | not yet checked |
-| **E4 Plan Non-empty** | A Path of two or more nodes yields at least one component besides the `END_OF_MOVEMENT` sentinel | Invariant | not yet checked |
-| **E5 Sentinel Terminus** | A Movement Plan ends with exactly one `END_OF_MOVEMENT` and contains no other | Invariant | not yet checked |
+| **E1 Path Terminus** | For a pair the grid reports reachable, the Path is non-empty and its last node is the requested end | Invariant | holds — the reachable half pinned by [#103](https://github.com/FlawlessNa/Legends/issues/103)'s `test_the_frozen_reachability_still_matches_the_grid`, the terminus half checked by [#104](https://github.com/FlawlessNa/Legends/issues/104) |
+| **E2 Adjacency Legality** | Every consecutive node pair in a Path is a grid neighbour or a declared connection — `path_into_movements` reaches neither of its `NotImplementedError` branches | Invariant | holds — checked by [#104](https://github.com/FlawlessNa/Legends/issues/104) directly against the grid, not just inferred from the corpus having built without raising |
+| **E3 Walk Squeeze Bound** | No walk component has a length exceeding `_MAX_WALK_SIZE` | Invariant | holds — checked by [#104](https://github.com/FlawlessNa/Legends/issues/104) |
+| **E4 Plan Non-empty** | A Path of two or more nodes yields at least one component besides the `END_OF_MOVEMENT` sentinel | Invariant | holds — checked by [#104](https://github.com/FlawlessNa/Legends/issues/104) |
+| **E5 Sentinel Terminus** | A Movement Plan ends with exactly one `END_OF_MOVEMENT` and contains no other | Invariant | holds — checked by [#104](https://github.com/FlawlessNa/Legends/issues/104) |
 
 **There is no offline oracle for "sensible route".** Whether pathfinding picked a
 *good* Path is a question only a running client answers, so the group stops at
@@ -357,13 +399,21 @@ rather than as gaps in the corpus.
    existing `keys_held`, which already performs the same walk while discarding
    the timing. One traversal, one source of truth;
    `toolkit/movement_timeline._parse_intervals` becomes its body and the Gantt
-   tool consumes it.
+   tool consumes it. **Done** ([#104](https://github.com/FlawlessNa/Legends/issues/104)):
+   `KeyboardInputWrapper.holds`, seeded from `H0` and closed at `self.duration`
+   for a key never released.
 2. **Movement Plan provenance on Steps** — without it B1 is unenforceable.
    Delivered by [#102](https://github.com/FlawlessNa/Legends/issues/102) as
    `KeyboardInputWrapper.origins`.
 3. **The lab constructs Actions, not just Input Sequences** — D1 and D2 are
    about what survives cancellation, which depends on the Action's cancel
-   handling.
+   handling. **Partly reversed by [#104](https://github.com/FlawlessNa/Legends/issues/104):**
+   over the whole Corpus, both reduce to set operations over Holds and
+   `forced_key_releases` given the fixed release formula `focused_inputs`'s
+   `finally` block implements (see the note under Group D) — real cancelled
+   Actions, at corpus scale, cannot fit the suite's time budget. The formula
+   itself is still exercised for real, with hand-built sequences, by
+   `tests/test_botting/test_preemption_direction_release.py`.
 4. **Compilation parameterised on `H0`** — already delivered by
    [#7](https://github.com/FlawlessNa/Legends/issues/7). Every entry here is
    stated *given* an inherited held-keys set, so the catalogue stays valid even

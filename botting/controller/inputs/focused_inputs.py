@@ -388,6 +388,52 @@ class KeyboardInputWrapper:
         )
 
     @property
+    def holds(self) -> dict[str, list[tuple[float, float]]]:
+        """
+        Every key's **Hold** intervals in this sequence: `(t_down, t_up)` pairs,
+        half-open over `[t_down, t_up)` in the invariant catalogue's terms.
+
+        Seeded from `initial_state.held_keys` for the same reason `keys_held` is -
+        a key already down entering the sequence (`H0`) gets a Hold opening at
+        `t_down = 0.0`, the sequence's own origin, rather than being invisible until
+        a Step happens to touch it. A key still down at the end is closed at
+        `self.duration`, `down(-1) = H0`'s counterpart at the other end - the
+        catalogue's "`t_up` is the sequence end when the key is never released".
+
+        One traversal, one source of truth: `keys_held` performs the identical walk
+        while discarding the timing this keeps. `toolkit/movement_timeline.visualize`
+        consumes this rather than re-walking the Steps itself.
+        """
+        t = 0.0
+        held: dict[str, float] = dict.fromkeys(
+            self.initial_state.held_keys if self.initial_state else (), 0.0
+        )
+        intervals: dict[str, list[tuple[float, float]]] = {key: [] for key in held}
+        for key_or_list, event_or_list, delay in zip(
+            self.keys, self.events, self.delays
+        ):
+            pairs = (
+                [(key_or_list, event_or_list)]
+                if isinstance(key_or_list, str)
+                else list(zip(key_or_list, cast(list[EVENTS], event_or_list)))
+            )
+            for key, event in pairs:
+                intervals.setdefault(key, [])
+                if event == "keydown" and key not in held:
+                    held[key] = t
+                elif event == "keyup" and key in held:
+                    intervals[key].append((held.pop(key), t))
+            t += delay + OVERHEAD
+        # Closed against `self.duration`, not the loop's own running `t` - the two
+        # are the same sum taken in a different order (accumulated per Step here,
+        # `sum(delays) + OVERHEAD * len(delays)` there), and floating-point addition
+        # is not associative. A still-held key's Hold has to agree with `duration`
+        # exactly, since that is what every other caller measures the sequence end by.
+        for key, t_down in held.items():
+            intervals.setdefault(key, []).append((t_down, self.duration))
+        return intervals
+
+    @property
     def typematic_owner(self) -> str | None:
         """
         The key entitled to repeat at the end of this sequence: `own(n-1)` in the

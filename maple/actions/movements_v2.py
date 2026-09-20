@@ -125,12 +125,16 @@ def move(
     )
     # A keydown for a key already down is a repeat, not a press (**A7**), so a
     # Continuation arriving with the direction still held presses nothing and lets the
-    # fill carry the time. The `structure is None` branch used to press unconditionally,
-    # which made the very first Step of such a plan an illegal repeat.
-    needs_press = not all(key in keys_held for key in first_keys)
+    # fill carry the time. Splitting on a per-key basis - rather than the old
+    # all-or-nothing `needs_press`, which pressed every key in `first_keys` the moment
+    # any one of them needed it - matters once `first_keys` carries a
+    # secondary_direction: a Continuation on `direction` alone must press only the
+    # secondary key, or the already-owned `direction` gets an illegal repeat
+    # (issue #132).
+    keys_to_press = [key for key in first_keys if key not in keys_held]
     if structure is None:
         release_index = 0
-        first_steps: list[str | list[str]] = list(first_keys) if needs_press else []
+        first_steps: list[str | list[str]] = list(keys_to_press)
         first_downs: list[controller.EVENTS | list[controller.EVENTS]] = [
             "keydown"
         ] * len(first_steps)
@@ -151,12 +155,25 @@ def move(
         )
     else:
         release_index = len(structure.keys)
-        if needs_press:
-            downs: list[controller.EVENTS] = ["keydown"] * len(first_keys)
-            structure.append(first_keys, downs, first_delay)
+        if keys_to_press:
+            downs: list[controller.EVENTS] = ["keydown"] * len(keys_to_press)
+            structure.append(keys_to_press, downs, first_delay)
 
     if release_keys:
-        actual_releases = list(set(release_keys).intersection(keys_held))
+        # `_clear_opposites` (triggered by the press above, in `append`/`__post_init__`)
+        # already releases the opposite of anything in `keys_to_press` that is held -
+        # exactly what `release_keys` exists to do for a `secondary_direction`'s
+        # opposite (`compile_movements`' WALK_* case: `secondary="up"` pairs with
+        # `release_keys="down"`). Excluding those here is what keeps the two
+        # mechanisms from both releasing the same key: one phantom release (**A6**)
+        # sandwiching the real press between two releases at a stale `release_index`
+        # (issue #132).
+        cleared_by_press = {
+            controller.OPPOSITES[key]
+            for key in keys_to_press
+            if key in controller.OPPOSITES
+        } & keys_held
+        actual_releases = list((set(release_keys) & keys_held) - cleared_by_press)
         if actual_releases:
             ups: list[controller.EVENTS] = ["keyup"] * len(actual_releases)
             structure.insert(
@@ -258,18 +275,23 @@ def jump_on_rope(
         # Longer delay to try preventing "static" jumps
         structure.append(key, "keyup", next(controller.random_delay) * 5)
 
-    if direction in structure.keys_held:
-        structure.append([jump_key, "up"], ["keydown", "keydown"], 0.75)
-        structure.append(
-            [jump_key, direction], ["keyup", "keyup"], next(controller.random_delay) * 2
-        )
-
-    else:
+    if direction not in structure.keys_held:
         structure.append(direction, "keydown", next(controller.random_delay) * 5)
-        structure.append([jump_key, "up"], ["keydown", "keydown"], 0.75)
-        structure.append(
-            [jump_key, direction], ["keyup", "keyup"], next(controller.random_delay) * 2
-        )
+
+    structure.append([jump_key, "up"], ["keydown", "keydown"], 0.75)
+
+    # The press above can itself release `direction`: `_clear_opposites` drops the
+    # opposite of any key about to go down, and "up"'s opposite is "down" - the
+    # value a JUMP_DOWN call site passes as `direction` (issue #131). Releasing it
+    # again unconditionally below would double-release a key `_clear_opposites`
+    # already closed the Hold on, so re-check `keys_held` rather than assume this
+    # function's own press left it untouched.
+    release_keys: list[str] = [jump_key]
+    release_events: list[controller.EVENTS] = ["keyup"]
+    if direction in structure.keys_held:
+        release_keys.append(direction)
+        release_events.append("keyup")
+    structure.append(release_keys, release_events, next(controller.random_delay) * 2)
 
     structure.forced_key_releases.append(jump_key)
     return structure
