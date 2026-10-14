@@ -81,11 +81,11 @@ your own detection models.
 because that's what installs everywhere without special handling. It works, but
 detection is the bot's hot path and CPU inference is markedly slower.
 
-If you have an NVIDIA GPU, replace them with the CUDA 12.8 build:
+If you have an NVIDIA GPU, replace them with the CUDA 13.0 build:
 
 ```
 pip uninstall -y torch torchvision
-pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128
+pip install torch==2.13.0 torchvision==0.28.0 --index-url https://download.pytorch.org/whl/cu130
 ```
 
 Check which one you ended up with:
@@ -94,11 +94,12 @@ Check which one you ended up with:
 python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 ```
 
-`2.11.0+cu128 True` means the GPU is in play. `2.11.0+cpu False` means it
+`2.13.0+cu130 True` means the GPU is in play. `2.13.0+cpu False` means it
 isn't -- fine to start with, worth fixing later.
 
-CUDA 12.6 and 12.9 wheels also exist for 3.14 if 12.8 doesn't suit your driver;
-substitute `cu126` or `cu129` in the index URL above.
+CUDA 12.6 and 13.2 wheels also exist for 3.14 if 13.0 doesn't suit your driver
+(older drivers want `cu126`); substitute `cu126` or `cu132` in the index URL
+above. There is no `cu128` or `cu129` build of torch 2.13.
 
 ---
 

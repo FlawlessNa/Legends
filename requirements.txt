@@ -23,8 +23,8 @@ pillow==12.3.0
 
 # torch/torchvision below are the CPU wheels from PyPI. If you have an NVIDIA
 # GPU, install the CUDA build INSTEAD -- see docs/SETUP.md, "GPU vs CPU".
-torch==2.11.0
-torchvision==0.26.0
+torch==2.13.0
+torchvision==0.28.0
 ultralytics==8.4.135
 
 # --- OCR (chat and UI text reading) ------------------------------------------
