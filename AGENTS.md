@@ -4,6 +4,31 @@ Canonical instructions for any AI coding agent working in this repo. Claude Code
 reads this file through `CLAUDE.md`, which imports it; other agents read it
 directly. Keep tool-neutral guidance here, not in the per-tool files.
 
+## Are you working a ticket?
+
+**If you are on an `issue/<n>-*` branch, you are working a ticket in the
+factory.** Read `docs/factory/README.md` before you touch anything, and
+`docs/factory/bootstrap.md` before your first ticket.
+
+The short version, which is not a substitute for reading it:
+
+1. `.factory/<n>/intent.md` and `spec.md` are **committed before any source
+   change**, as the first commit on the branch.
+2. `plan.md` names the radius — the only paths you may touch — before you touch
+   them.
+3. A behaviour change lands with a test that was **red without it**, proven by
+   stashing the change and running it.
+4. You open the PR. **You never merge.**
+5. The PR body says what you could not verify, and which gates you checked by
+   hand rather than mechanically.
+
+Most of this is enforced by instruction rather than by a tool today. That is a
+reason to be more careful, not less: the gates that would have caught you do
+not exist yet, so the only thing standing between a wrong claim and a merged
+one is what you write in the PR body.
+
+If you are not on a ticket branch, the rest of this file is what applies.
+
 ## Orientation
 
 - `botting/` — the generic engine: process orchestration, input control,
