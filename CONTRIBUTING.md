@@ -148,6 +148,10 @@ scripts were replaced with `python -m maple.launchers.run <profile>`.
 
 ## Working with AI agents
 
-`AGENTS.md` at the root and in `botting/`, `maple/`, and `tests/` carry the
-repo's conventions for agents; `CLAUDE.md` files are thin shims that import
-them. Put project guidance in `AGENTS.md`, not `CLAUDE.md`.
+`AGENTS.md` at the root and in `botting/`, `maple/`, `tests/` and `factory/`
+carries the repo's conventions for agents. There are no `CLAUDE.md` files —
+Claude Code reads `AGENTS.md` directly from v2.1.277 onwards (see
+`docs/SETUP.md` for what happens on an older client).
+
+If you are working a ticket on an `issue/<n>-*` branch, `docs/factory/` is the
+process you are working inside.
