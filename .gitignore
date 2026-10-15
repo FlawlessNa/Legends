@@ -188,5 +188,5 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-# graft's local graph cache — regenerable, not committed (run `graft build`).
-/graft/
+# deleted -- without it, `git add -A` sweeps 11MB of regenerable cache into the
+# index. Remove this entry and the directory in the same change.
