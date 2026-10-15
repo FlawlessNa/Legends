@@ -81,17 +81,18 @@ fixture of their own — see `tests/test_botting/test_held_keys_ledger.py`.
 `pytest` from the repo root. No flags, no `--ignore`:
 
 ```
-0 failed, 0 errors, 0 xfailed, 2 deselected
+0 failed, 0 errors, 0 xfailed
 ```
 
 **That is the green baseline. Any `failed` or `error` line is yours.**
 
 Don't pin the passing count anywhere — it moved from 270 to 322 in under an hour
-once someone else's branch landed. The shape is what holds:
+once someone else's branch landed. Don't pin the deselected count either: it
+moves with the markers. The shape is what holds:
 
-- **2 deselected** — the `system`-marked keyboard-layout tests. Nothing is wrong;
-  they are opt-in. Note these are *not* `live` tests: **no test carries the `live`
-  marker today**, so `pytest -m live` selects nothing.
+- **Deselected** — the opt-in markers, and nothing else. `system` (keyboard-layout
+  tests that mutate machine-global state) and `lab` (see below). **No test carries
+  the `live` marker today**, so `pytest -m live` selects nothing.
 - **0 xfailed** — the 11 red tests parked behind issue #89 are resolved: the
   8 unwritten `test_controller.py`/`test_screenshots.py` placeholders were
   deleted (coverage question moved to #34 and #96), the minimap 2px drift was a
@@ -101,6 +102,31 @@ once someone else's branch landed. The shape is what holds:
 
 Never add an `xfail` to get a green run. It is a holding action, not a fix — see
 #89 for what that holding action actually cost to resolve.
+
+### The `lab` marker: measurements, not gates
+
+A test gates when it answers "did I just break something". A test *measures* when
+it answers "how is the system doing" — and the two cannot share an exit code.
+
+Two kinds of test measure here, and both carry `lab`:
+
+- **Readings of the real world.** `tests/test_botting/test_timer_resolution.py`
+  sleeps and times the result, so what else the machine is doing changes the
+  answer: under CPU contention `OVERHEAD` itself measures ~8.4ms against ~0.9ms
+  idle (#115). No amount of care makes that deterministic. The same module's
+  *configuration* half — is the 1ms period actually held — has one answer at any
+  moment and stays in the default run, gating.
+- **Measurements of a catalogued invariant that does not hold.** B1 and B2 in
+  `tests/test_maple/movement_lab/test_invariants.py`. Red is their correct answer
+  until #173 and #174 land, and the number they report is the point.
+
+Read them with `pytest -m lab`. Nothing is silenced: the measurements still run
+on demand and still report the same numbers.
+
+**`lab` is not a way to make a failing test stop failing.** Reach for it only
+when the test genuinely measures rather than gates, and when a ticket and a
+catalogue entry already own the thing it is measuring. If neither exists, you
+have found a bug, not a measurement.
 
 ## Proving a new test earns its place
 

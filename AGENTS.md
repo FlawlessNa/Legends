@@ -70,14 +70,22 @@ See `docs/agents/domain.md` for the full convention.
 ## Verifying your work
 
 ```
-pytest        ->  0 failed, 0 errors, 0 xfailed, 2 deselected
+pytest        ->  0 failed, 0 errors, 0 xfailed
 ```
 
 That is the green baseline, from the repo root, no flags. **Any `failed` or
-`error` line is yours.** The passing count is deliberately not pinned here — it
-moves every time anyone adds a test. What must hold is the shape: nothing failed,
-no xfails, and the 2 deselected are the `system`-marked tests.
-`docs/agents/testing.md` explains why an `XPASS` is a failure.
+`error` line is yours.** Neither the passing nor the deselected count is pinned
+here — both move every time anyone adds a test. What must hold is the shape:
+nothing failed, no xfails, and every deselected test accounted for by an opt-in
+marker (`live`, `system`, `lab`). `docs/agents/testing.md` explains why an
+`XPASS` is a failure, and what each marker is for.
+
+**A red `lab` test is not a broken build.** `lab` tests measure rather than
+gate: a reading of real-world timing, or a measurement of a catalogued invariant
+that does not hold yet. They are excluded from the default run on purpose. Read
+them with `pytest -m lab`, and do not mark something `lab` to make it stop
+failing — that is what `docs/planning/movement-invariant-catalogue.md` and a
+ticket are for.
 
 **Green means the Invariants hold. It does not mean the bot works.** Nothing in
 the default suite drives a game client, and no test is `live`-marked today — the
