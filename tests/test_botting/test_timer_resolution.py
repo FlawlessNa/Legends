@@ -16,6 +16,16 @@ and says nothing about the period *this* process actually runs under.
 Timing assertions are medians over a sample, and the two regimes they separate
 differ by an order of magnitude (~1.3ms against ~14.5ms at a 1ms request), so
 the thresholds sit several times clear of both.
+
+The module is in two halves, and only the first gates. **The period this process
+holds** is a question about configuration: it has one answer at any moment, and
+nothing another process does can change it. **The gaps the send loop actually
+pays** are readings of the real world, and a reading competes with every other
+process on the machine - under CPU contention `OVERHEAD` itself measures ~8.4ms
+against ~0.9ms idle (issue #115). No amount of care makes a measurement
+load-independent, so the second half carries `lab` and stops gating. It is still
+the only offline proof that the raised period buys what it claims; read it
+deliberately with `pytest -m lab`.
 """
 
 import asyncio
@@ -112,8 +122,15 @@ def test_the_period_can_be_released_and_re_raised(raised_period: None) -> None:
 
 
 # --- The gaps the send loop actually pays -----------------------------------
+#
+# All `lab`: every assertion below is a reading taken on this machine, at this
+# moment, against whatever else is running. That includes the two that compare
+# against `OVERHEAD` rather than sleeping - `OVERHEAD` is itself measured at
+# import, so a loaded machine moves the yardstick as well as the measurement
+# (the case for pinning it as a fitted constant: issue #110).
 
 
+@pytest.mark.lab
 def test_a_short_sleep_is_not_quantized_to_the_default_timer_tick() -> None:
     """
     The sharpest reading of the defect. Under the default ~15.6ms period a 1ms
@@ -125,6 +142,7 @@ def test_a_short_sleep_is_not_quantized_to_the_default_timer_tick() -> None:
     assert excess < MAX_EXCESS
 
 
+@pytest.mark.lab
 def test_a_step_sized_sleep_lands_near_its_request() -> None:
     """One Step's delay - what a walk pays ~150 times over."""
     excess = _median_gap(DELAY) - DELAY
@@ -132,6 +150,7 @@ def test_a_step_sized_sleep_lands_near_its_request() -> None:
     assert excess < MAX_EXCESS
 
 
+@pytest.mark.lab
 def test_the_excess_does_not_depend_on_the_requested_delay() -> None:
     """
     What makes `OVERHEAD` a constant at all. Quantization is not additive: it
@@ -144,6 +163,7 @@ def test_the_excess_does_not_depend_on_the_requested_delay() -> None:
     assert max(excesses) - min(excesses) < MAX_EXCESS_SPREAD
 
 
+@pytest.mark.lab
 def test_overhead_is_a_running_loop_residual_not_an_event_loop_startup() -> None:
     """
     `_get_asyncio_overhead` timed `asyncio.run(...)` per iteration, so the
@@ -154,6 +174,7 @@ def test_overhead_is_a_running_loop_residual_not_an_event_loop_startup() -> None
     assert 0.0 <= OVERHEAD < MAX_EXCESS
 
 
+@pytest.mark.lab
 def test_overhead_predicts_the_gap_it_models() -> None:
     """
     The claim `duration` makes, at the granularity it makes it: a Step's
