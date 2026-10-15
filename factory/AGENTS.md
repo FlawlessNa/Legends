@@ -1,5 +1,7 @@
 # factory — agent instructions
 
+<!-- Read directly by Claude Code; there is no CLAUDE.md shim (#191). -->
+
 The software factory: the commands that drive a ticket from intent to merge.
 A third top-level package beside `botting/` and `maple/`, held to the same gates
 as the rest of the tree.
