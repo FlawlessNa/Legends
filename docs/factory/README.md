@@ -39,7 +39,7 @@ earned being built.
 | 3 | Build, planning | `plan.md` | Radius named, proof named, no hard-stop path |
 | 4 | Build, implementing | The diff | Confined to the radius |
 | 5 | Test | Proof output | Suite shape holds; the test was red without the change |
-| 6 | Review | Findings against `REVIEW.md` | Verdict recorded |
+| 6 | Review | Findings against the review policy | Verdict recorded |
 | 7 | QA | `qa.md` | Criteria met on a live Session |
 | 8 | Document | Doc updates or a cleared list | Nothing coupled is left unaddressed |
 | 9 | Integrate | PR merged, ticket closed | Every artifact present |
