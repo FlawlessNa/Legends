@@ -11,7 +11,7 @@ from the artifacts themselves rather than from a separate state file.
   plan.md       # tasks, files changing, order, the radius, proof of completion
   tasks/        # per-task records, when the plan declares tasks
   qa.md         # the Run Report -- only when spec.md says the method is live
-  review.md     # findings against REVIEW.md
+  review.md     # findings against docs/factory/review-policy.md
 ```
 
 It lives on the branch, not in the issue body, for three reasons: the chain

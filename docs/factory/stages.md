@@ -52,7 +52,8 @@ untouched. If you edited a test, it was not a refactor — say what moved.
 
 ## 6 · Review → `review.md`
 
-The diff judged against `spec.md` and `REVIEW.md` — against the spec, not
+The diff judged against `spec.md` and `docs/factory/review-policy.md` —
+against the spec, not
 against taste.
 
 **Review runs before QA, deliberately.** QA is the most expensive stage in the
