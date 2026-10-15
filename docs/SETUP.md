@@ -57,6 +57,20 @@ gh auth login
 
 ---
 
+## Working with AI agents
+
+This repo's instructions live in `AGENTS.md` at the root and beside each
+package. There are no `CLAUDE.md` files.
+
+**Claude Code reads `AGENTS.md` natively from v2.1.277 onwards.** On an older
+client it reads nothing from them, and nothing tells you so — the agent simply
+behaves like a stock assistant in an unfamiliar repo. Check with
+`claude --version` and upgrade if you are below it. If you cannot upgrade, add a
+local `CLAUDE.md` containing `@AGENTS.md` and leave it untracked.
+
+A session that is loading them correctly says so at startup, with a line naming
+the `AGENTS.md` files it found.
+
 ## 2. The virtual environment
 
 ```

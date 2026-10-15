@@ -1,8 +1,16 @@
 # Legends — agent instructions
 
-Canonical instructions for any AI coding agent working in this repo. Claude Code
-reads this file through `CLAUDE.md`, which imports it; other agents read it
-directly. Keep tool-neutral guidance here, not in the per-tool files.
+Canonical instructions for any AI coding agent working in this repo, read
+directly by Claude Code and by other agents alike. There are no `CLAUDE.md`
+files: each package carries its own `AGENTS.md`, loaded when a file in that
+directory is opened.
+
+Keep guidance tool-neutral and put it here. If something is ever genuinely
+specific to one tool, `.claude/AGENTS.md` is read too — but nothing needs that
+today, and a rule that only one agent follows is a rule the others will break.
+
+Claude Code reads `AGENTS.md` natively from **v2.1.277**. On an older client
+these files load silently as nothing; see `docs/SETUP.md`.
 
 ## Are you working a ticket?
 
