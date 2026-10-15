@@ -24,15 +24,28 @@ no `print`, tested.
 ## How it runs
 
 ```
+factory <command> [--json]
 python -m factory <command> [--json]
 ```
 
-There is no console script. The repo ships no `[project]` table and runs its
-other entry points the same way (`python -m maple.launchers.run`), so this
-follows the convention already in the tree instead of introducing packaging
-metadata. If a bare `factory` command is wanted later, that is a packaging
-decision to take deliberately — it means declaring dependencies and a build
-backend, and dependency pinning is on the `AGENTS.md` hard-stop list.
+Both work and both reach the same `main`. The console script is the one hooks
+and CI call, because it does not need to know where the repo lives; `python -m`
+is the fallback when the package has not been installed.
+
+It is installed editable, once, into the project venv:
+
+```
+pip install -e . --no-deps
+```
+
+`--no-deps` is deliberate. `pyproject.toml` declares `dependencies = []` and
+packages `factory` alone: `requirements.txt` still owns the bot's dependency
+set, and pinning is a maintainer decision (`AGENTS.md`). Packaging the factory
+must never become a second, competing place where the project's dependencies
+are declared.
+
+`botting` and `maple` are not packaged and keep running as they always have
+(`python -m maple.launchers.run`).
 
 ## The exit-code contract
 

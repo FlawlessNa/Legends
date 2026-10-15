@@ -75,6 +75,16 @@ pip install -r requirements-dev.txt    :: also tests and linting -- pick this if
 Add `-r ml_training/requirements.txt` on top of either if you intend to train
 your own detection models.
 
+Finally, install the factory itself, which gives you the `factory` command the
+agent workflow and the git hooks call:
+
+```
+pip install -e . --no-deps
+```
+
+`--no-deps` is deliberate: the factory declares no dependencies of its own, and
+`requirements.txt` stays the single place the project's dependencies are pinned.
+
 ### GPU vs CPU
 
 `requirements.txt` pins the **CPU** builds of `torch` and `torchvision`,
