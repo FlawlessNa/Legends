@@ -96,8 +96,8 @@ with `spec.md` as the first commit on the branch
 
 ### Trigger
 
-`design`. Routed here when `intent.md` is accepted and `spec.md` does not exist,
-or its `reviewed_by` is `null`. Role: Specifier, then the Specification Reviewer
+`design`. Routed here when `intent.md` is accepted and either `spec.md` or
+`spec-review.md` is missing. Role: Specifier, then the Specification Reviewer
 for the gate.
 
 ### Entry gate
@@ -120,16 +120,23 @@ field is what decides whether an agent can finish the ticket at all.
 The field contract, the decidability test for a criterion, and why the radius is
 not recorded here are in [artifacts.md → `spec.md`](artifacts.md#specmd).
 
-The Specification Reviewer then reads `intent.md` against `spec.md` and records
-a verdict in `reviewed_by`. Until #180 there is no such role; the stand-ins are
-in [roles.md → Today](roles.md#today).
+The Specification Reviewer then reads `intent.md` against `spec.md` and writes
+`spec-review.md` — its own file, quoting at least one criterion and judging it.
+A verdict the Builder could have written into `spec.md` itself is not a review;
+see [artifacts.md → `spec-review.md`](artifacts.md#spec-reviewmd) for why the
+file, and what it does and does not buy. Until #180 there is no such role; the
+stand-ins are in [roles.md → Today](roles.md#today).
 
 ### The oracle
 
-Criteria and `method` both explicit, every criterion decidable, and a
-Specification Reviewer verdict recorded. For `method: live`, the schedule,
-metric and number are fixed *before* any run. **[instruction]**,
-→ **[mechanical]** at #142 and #180.
+Criteria and `method` both explicit, every criterion decidable, and
+`spec-review.md` present with a verdict that quotes a criterion. For
+`method: live`, the schedule, metric and number are fixed *before* any run.
+
+**[mechanical]** as of #189 for the *existence* of the review — the `PreToolUse`
+hook refuses every edit outside `.factory/` until it is there. Whether the
+review is any **good** stays **[instruction]** until #180, and a green hook is
+not a reviewed spec.
 
 ### Artifacts
 
@@ -154,7 +161,7 @@ exist. Role: Builder.
 
 ### Entry gate
 
-`intent.md` accepted; `spec.md` present with `reviewed_by` not `null`.
+`intent.md` accepted; `spec.md` present; `spec-review.md` present with a verdict.
 
 ### Context
 

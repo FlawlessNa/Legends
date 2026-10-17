@@ -81,6 +81,40 @@ only `sys.exit` in the package.
 `print` is unavailable: ruff's `T20` applies here. Write to `sys.stdout`
 explicitly, so a stray debugging `print` cannot masquerade as contracted output.
 
+## The hooks, and how to turn them off
+
+`factory hook <event>` answers three Claude Code events, registered in the
+tracked `.claude/settings.json`. They are the **floor**: project settings hooks
+bind every session in the repo, including a human's. SDK per-role hooks (#163)
+are a separate, narrower layer.
+
+| Event | Refuses |
+| --- | --- |
+| `session-start` | Nothing. Reports the chain state so nobody can say they did not know |
+| `pre-tool-use` | A write outside `.factory/` while `spec.md` or `spec-review.md` is missing |
+| `stop` | Finishing when source changed and `plan.md` records no proof |
+
+All three are inert off an `issue/<n>-*` branch, and writes to `.factory/`
+itself are always allowed — refusing those would forbid the only action that
+could satisfy the gate.
+
+**The override**, because a gate nobody can bypass in an emergency is a gate
+someone eventually deletes instead. In `.claude/settings.local.json`, which is
+gitignored and personal:
+
+```json
+{ "env": { "FACTORY_HOOKS": "off" } }
+```
+
+Using it is not cheating; not saying you used it is. The PR body is where that
+goes.
+
+**They enforce the sequence, not the quality.** That `spec-review.md` exists is
+a `stat`. That the review was any good needs #180. A green hook is not a
+reviewed spec, and `factory hook` is the one subcommand that does not obey the
+exit-code contract — it speaks the harness's JSON protocol and always exits 0,
+because a hook that fails must not take the session down with it.
+
 ## Gates
 
 Same as the rest of the tree: `pytest` green, `ruff check` and `ruff format`
