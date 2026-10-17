@@ -8,6 +8,7 @@ from the artifacts themselves rather than from a separate state file.
 .factory/133/
   intent.md     # what is wanted, why, under which constraints
   spec.md       # requirements, criteria, and the verification method
+  spec-review.md # a verdict on the spec, by someone who did not write it
   plan.md       # tasks, files changing, order, the radius, proof of completion
   tasks/        # per-task records, when the plan declares tasks
   qa.md         # the Run Report -- only when spec.md says the method is live
@@ -64,6 +65,28 @@ whether it was met? Then it is not a criterion yet. "Works correctly" fails;
 metric and the number — all fixed *before* any run. An agent handed both the
 data and the authority to pick the bar will fit one to the other, honestly and
 unconsciously.
+
+### `spec-review.md`
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `ticket` | int | Must match the directory. |
+| `verdict` | `pass` \| `changes-requested` | |
+| `reviewed_by` | string | Who reviewed. Never the same as `spec.md`'s `specified_by`. |
+| `reviewed_at` | date | |
+
+The body must **quote at least one criterion and judge it**. That requirement is
+the whole mechanism: a verdict is a file someone had to write, not a boolean in
+`spec.md` that the Builder also owns.
+
+**What this does and does not buy.** It cannot prove a different agent reviewed
+the spec. It makes forging one cost about what doing it costs — to write a
+review that quotes criteria and judges them, you have to read the spec against
+the intent, which is the review. Ordering is checkable too: the review commit
+touches only `.factory/<n>/` and lands before any source commit.
+
+Only #163 makes this structural, by spawning the reviewer so the Builder never
+has the chance. Until then this shapes cost rather than preventing.
 
 ### `plan.md`
 

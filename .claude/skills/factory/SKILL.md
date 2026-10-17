@@ -31,7 +31,7 @@ ticket is.
 | --- | --- | --- | --- | --- |
 | 0 | Branch is not `issue/<n>-*` | — | — | None: not a factory ticket. `AGENTS.md` applies |
 | 1 | `intent.md` missing, or `accepted_by: null` | `plan` | Clerk | 1 · Plan |
-| 2 | `spec.md` missing, or `reviewed_by: null` | `design` | Specifier / Specification Reviewer | 2 · Design |
+| 2 | `spec.md` missing, or `spec-review.md` missing | `design` | Specifier / Specification Reviewer | 2 · Design |
 | 3 | `plan.md` missing | `build-planning` | Builder | 3 · Build, planning |
 | 4 | `plan.md` → `proof.suite: null` | `build-implementing`, then `test` | Builder | 4 · Build, implementing; then 5 · Test |
 | 5 | `review.md` missing | `review` | Reviewer | 6 · Review |
