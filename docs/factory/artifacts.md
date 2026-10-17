@@ -75,7 +75,7 @@ unconsciously.
 | `tasks` | list \| null | Each with `id`, `radius`, and `parallel`: true/false. |
 | `merge_order` | list \| null | Required when any task is parallel. |
 | `proof` | object | `red_test`, `red_output_sha`, `suite` — filled at stage 5. |
-| `docs_cleared` | list \| null | Coupled documents needing no change, each with a reason. |
+| `docs_cleared` | list \| null | Coupled documents needing no change, each with a reason. `[]` when stage 8 ran and every coupled document was updated; `null` until stage 8 has run. |
 
 ### `qa.md` and `review.md`
 

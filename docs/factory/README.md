@@ -45,7 +45,11 @@ earned being built.
 | 9 | Integrate | PR merged, ticket closed | Every artifact present |
 | 10 | Maintain | A new `intent.md` | A control band was breached |
 
-[stages.md](stages.md) has what each consumes, produces and refuses.
+[stages.md](stages.md) has what each consumes, produces and refuses, in the
+same seven slots per stage ([stage-template.md](stage-template.md)). It is the
+only home of stage instructions. In an interactive session,
+`.claude/skills/factory/SKILL.md` routes to the right section and copies none
+of it.
 
 ## The rest
 
