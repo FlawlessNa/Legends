@@ -5,6 +5,7 @@ radius:
   - docs/factory/stages.md
   - docs/factory/stage-template.md
   - docs/factory/README.md
+  - docs/factory/artifacts.md
   - .claude/skills/factory/SKILL.md
   - .claude/settings.json
   - .gitignore
@@ -26,6 +27,11 @@ docs_cleared: null
   slots. Existing text, markers and issue references kept; what was missing is
   filled by pointing at the page that already owns it.
 - `docs/factory/stage-template.md` -- new, the blank seven-slot section.
+- `docs/factory/artifacts.md` -- one clarification to the `plan.md` contract:
+  `docs_cleared: []` means stage 8 ran and every coupled document was updated;
+  `null` means it has not run. Without it the stub cannot tell stage 8 from 9,
+  and a field's meaning belongs in the contract, not in the skill. *Added to the
+  radius in its own commit, before the file was touched.*
 - `docs/factory/README.md` -- one pointer to the template and the entry skill,
   so neither is discoverable only by `ls`.
 - `.claude/skills/factory/SKILL.md` -- new, the router and its stub table.
