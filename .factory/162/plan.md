@@ -14,10 +14,10 @@ radius:
 tasks: null
 merge_order: null
 proof:
-  red_test: null
-  red_output_sha: null
-  suite: null
-docs_cleared: null
+  red_test: tests/test_factory/test_models.py::test_a_name_in_unavailable_that_is_in_no_tier_is_a_table_error
+  red_output_sha: see .factory/162/plan.md -> Proof
+  suite: pass
+docs_cleared: []
 ---
 
 # Plan: the model routing table
@@ -83,8 +83,25 @@ the correct answer, not a degraded one.
 
 ## Proof
 
-The criteria this plan expects to be red without the change, with the one
-chosen as `proof.red_test` named at stage 5:
+**`pytest`: 1146 passed, 3 skipped, 25 deselected.** 0 failed, 0 errors, 0
+xfailed. ruff, ruff format and pyright clean across `factory/` and
+`tests/test_factory/`.
+
+Two red-proofs were run, because this change has two halves:
+
+1. **Emptying `configs/factory-models.toml`** to `unavailable = []` -- valid
+   TOML, no policy -- turns **10 tests red**, six of them the ones that read
+   the shipped table rather than a fixture's. A table only a fixture exercises
+   is a table nobody has checked.
+2. **Removing the two validations the review's findings 4 and 7 added** --
+   `_check_availability` and `_check_escalation` -- turns **4 tests red**,
+   including `test_a_name_in_unavailable_that_is_in_no_tier_is_a_table_error`,
+   named above as `proof.red_test`. That is the review's sharpest finding made
+   mechanical: one transposed character in the only line the design invites a
+   maintainer to edit, and `complex` resolves to a model nobody has, at exit 0,
+   with a confident reason.
+
+Everything below was checked by the suite:
 
 - an unavailable first entry in a chain is skipped
 - an override beats the stage table, and the first of two matching wins

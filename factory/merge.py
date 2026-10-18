@@ -110,6 +110,7 @@ POLICY: Final = Policy(
         "factory/exit_codes.py",
         "factory/routing.py",
         "factory/hooks.py",
+        "factory/models.py",
         "factory/merge.py",
     ),
     required_checks=("suite", "ruff-check", "ruff-format", "pyright"),

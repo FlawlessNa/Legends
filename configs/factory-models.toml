@@ -1,0 +1,102 @@
+# Which model runs which stage of the factory. Read by `factory model` (#162),
+# consumed by the Foreman (#159). An agent never chooses its own model: one
+# asked to choose picks the strong one every time, because it costs nothing it
+# can see.
+#
+# The policy, in one line: standard work on Sonnet, complex work on Fable
+# falling back to Opus, Haiku reserved for the trivial and routed to by nothing.
+#
+# This file is the policy. Editing it needs no code change, and a change to it
+# can never auto-merge, because `configs/` is not in the merge policy's
+# allowed paths. See docs/factory/stages.md and .factory/162/spec.md.
+
+
+# Models the subscription cannot reach today. A tier skips these and uses the
+# next name in its chain. **This is the one line you are meant to edit**: when
+# the subscription gains Fable, delete it and `complex` becomes `fable`.
+#
+# Availability is declared here rather than discovered by asking an API,
+# because a resolver that asks the network answers differently on different
+# days and the Foreman's choice stops being reproducible from this file.
+#
+# Every name here must appear in some tier's chain below, or loading fails.
+# Without that check a transposed "fabel" would leave `complex` resolving to
+# `fable` at exit 0, and a session would start against a model that does not
+# exist.
+unavailable = ["fable"]
+
+
+# A tier resolves to the first name in its chain that is not unavailable.
+# Ordered weakest to strongest: an override may only move a stage *up* this
+# list, never down.
+[tiers]
+trivial  = ["haiku"]
+standard = ["sonnet"]
+complex  = ["fable", "opus"]
+
+
+# Stage -> tier. The stage names are `factory.routing.Stage`; a key that is not
+# one of its members fails to load, so this table cannot drift from the
+# vocabulary `factory next` uses.
+#
+# A stage that is a member but is absent here resolves to `standard`, not to an
+# error: `standard` can never silently spend on the strong model, and halting
+# the Foreman over a stage this table forgot is the worse failure.
+#
+# `integrate` is absent on purpose and answers "no model" rather than defaulting
+# -- CI decides the merge and no agent runs (#194).
+#
+# `spec-review` is not a stage. The Specification Reviewer is a role inside
+# `design`, and both of Design's roles want `complex` anyway.
+[by_stage]
+# Writing intent.md decides what the ticket *is*. Not trivial work.
+plan = "standard"
+# A wrong spec is paid for by every stage downstream of it. This is the single
+# most expensive place to be cheap, and it covers the review of the spec too.
+design = "complex"
+# The radius is a judgement, but a narrow one.
+build-planning = "standard"
+# The safest place to be cheap: Test, Review and QA all sit downstream.
+build-implementing = "standard"
+test = "standard"
+# Judging a diff is harder than writing one, and a missed finding is paid for
+# in production.
+review = "complex"
+# Not trivial. Reading a Run Report wrong merges a broken bot. What keeps QA
+# honest is that it cannot write the threshold it reads -- a write scope (#163),
+# not a weak model.
+qa = "standard"
+document = "standard"
+
+# `trivial` is routed to by nothing above, deliberately. It exists so the tier
+# order has a floor and so "only escalate" means something. Routing a stage to
+# it is a decision to argue in a ticket, not a budget to quietly spend.
+
+
+# Overrides beat the stage table. A multi-key `when` is AND; when several match,
+# **the first in file order wins** -- the same rule the routing table uses, so a
+# reader can predict the answer without ranking overrides by how specific they
+# look.
+#
+# `when` keys come from a closed vocabulary the resolver computes from the
+# artifact chain. A key outside it fails to load, because an override that
+# silently never fires is a policy you believe is in force and is not. A key
+# that is in the vocabulary but not yet knowable at this stage simply does not
+# fire, which is a different thing and not an error.
+#
+# The vocabulary today is one fact:
+#   method_live  -- spec.md's `method` is `live` or `both`. Knowable from
+#                   stage 3 onward; empty before spec.md exists.
+#
+# `touches_hard_stop` is NOT here, though it is the sharpest complexity signal
+# we have. It needs the radius, which lives in plan.md -- the *output* of stage
+# 3 -- so at plan, design and build-planning it is not unknown but unknowable;
+# and the hard-stop list itself is still prose duplicated by hand (#143 owns a
+# machine-readable one). Consequence accepted knowingly: a ticket touching the
+# input path or an ADR gets `standard` at Build today.
+
+# A ticket that can only be settled by watching a client: every judgement on it
+# is made against evidence nobody can re-run offline.
+[[overrides]]
+when = { method_live = true }
+use  = "complex"
