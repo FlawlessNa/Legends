@@ -98,6 +98,13 @@ def front_matter(path: Path) -> dict[str, str]:
     A missing file and a file without front-matter are the same answer on
     purpose: both mean "this artifact does not tell us anything", and a gate
     that distinguishes them would be asserting something it cannot know.
+
+    One level of nesting is flattened to a dotted key, because the schema uses
+    it: `artifacts.md` contracts `plan.md`'s `proof` as an object, so the field
+    a gate wants is `proof.suite`. Read as top-level keys only that field was
+    invisible and `has_proof` could never be true, which would have wedged
+    every real ticket at build-implementing. Lists stay unread: nothing gates
+    on one yet.
     """
     try:
         text = path.read_text(encoding="utf-8")
@@ -110,12 +117,23 @@ def front_matter(path: Path) -> dict[str, str]:
     if not sep:
         return {}
     found: dict[str, str] = {}
+    parent = ""
     for line in body.splitlines():
-        if line.startswith((" ", "\t", "-", "#")) or not line.strip():
+        if not line.strip() or line.lstrip().startswith(("-", "#")):
             continue
-        match = _SCALAR.match(line)
-        if match:
-            found[match.group(1)] = match.group(2).strip()
+        indented = line.startswith((" ", "\t"))
+        match = _SCALAR.match(line.strip() if indented else line)
+        if not match:
+            continue
+        key, value = match.group(1), match.group(2).strip()
+        if indented:
+            if parent:
+                found[f"{parent}.{key}"] = value
+            continue
+        found[key] = value
+        #: An empty value opens a block: the indented keys under it belong
+        #: to it, and anything else closes it again.
+        parent = key if value == "" else ""
     return found
 
 
@@ -173,8 +191,12 @@ class Chain:
 
         `null` is how an unfilled proof block is written, so it counts as
         absent — the string is the schema's own word for "not yet".
+
+        The field is `proof.suite`, not `suite`: `artifacts.md` contracts
+        `proof` as an object holding `red_test`, `red_output_sha` and `suite`,
+        and every real `plan.md` writes it that way.
         """
-        value = self.plan.get("suite", "null")
+        value = self.plan.get("proof.suite", "null")
         return value not in {"", "null", "None"}
 
 

@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from factory.chain import front_matter, read_chain
 from factory.routing import MalformedVerdict, Next, Stage, resolve
 
 TICKET = 7
@@ -26,7 +27,24 @@ def _spec(method: str = "suite") -> str:
 
 
 def _plan(suite: str = "pass", docs: str = "[]") -> str:
-    return f"---\nticket: 7\nsuite: {suite}\ndocs_cleared: {docs}\n---\n"
+    """
+    A `plan.md` in the shape `artifacts.md` contracts: `proof` is an *object*.
+
+    This fixture used to write a top-level `suite:`, which no real `plan.md`
+    has. It passed against a reader that could not see the nested field, so
+    the suite stayed green while `has_proof` was false for every real ticket.
+    """
+    return (
+        "---\n"
+        "ticket: 7\n"
+        "radius:\n"
+        "  - factory/**\n"
+        "proof:\n"
+        "  red_test: tests/test_factory/test_routing.py::test_x\n"
+        f"  suite: {suite}\n"
+        f"docs_cleared: {docs}\n"
+        "---\n"
+    )
 
 
 def _verdict(value: str) -> str:
@@ -235,3 +253,60 @@ def test_the_same_chain_always_gives_the_same_answer(chain: Path) -> None:
     _complete(chain, "both")
     _drop(chain, "qa.md")
     assert _at(chain) == _at(chain)
+
+
+# --- The artifact shape the chain reader must actually read -------------------
+#
+# These three exist because the suite was green while `has_proof` was false for
+# every real ticket: the fixture wrote a top-level `suite:` that no `plan.md`
+# has, and the reader could not see a nested one. A fixture cannot hide that
+# again, because the last test reads the repo's own committed artifact.
+
+
+def front_matter_of(text: str, tmp_path: Path) -> dict[str, str]:
+    """`front_matter` reads a file, so give it one."""
+    path = tmp_path / "artifact.md"
+    path.write_text(text, encoding="utf-8")
+    return front_matter(path)
+
+
+def test_a_nested_proof_block_is_read(tmp_path: Path) -> None:
+    """`artifacts.md` contracts `proof` as an object, so `proof.suite` is the field."""
+    front = front_matter_of(
+        "---\nticket: 7\nproof:\n  red_test: tests/x.py::test\n  suite: pass\n---\n",
+        tmp_path,
+    )
+    assert front["proof.suite"] == "pass"
+    assert front["proof.red_test"] == "tests/x.py::test"
+    assert "suite" not in front, "a nested key must not masquerade as a top-level one"
+
+
+def test_a_block_closes_at_the_next_top_level_key(tmp_path: Path) -> None:
+    """Otherwise a later indented key is attributed to the wrong parent."""
+    front = front_matter_of(
+        "---\nproof:\n  suite: pass\ntasks: null\nother:\n  suite: fail\n---\n",
+        tmp_path,
+    )
+    assert front["proof.suite"] == "pass"
+    assert front["other.suite"] == "fail"
+    assert front["tasks"] == "null"
+
+
+def test_the_repos_own_plan_md_records_a_proof(tmp_path: Path) -> None:
+    """
+    The committed `.factory/140/plan.md` must satisfy `has_proof`.
+
+    This is the test no fixture can satisfy by accident: it reads the real
+    artifact, in the shape a real Builder wrote it.
+    """
+    repo = Path(__file__).resolve().parents[2]
+    real = repo / ".factory" / "140" / "plan.md"
+    if not real.is_file():  # pragma: no cover - the artifact is committed
+        pytest.skip("no committed plan.md to read")
+    chain_dir = tmp_path / ".factory" / str(TICKET)
+    chain_dir.mkdir(parents=True)
+    (chain_dir / "plan.md").write_text(
+        real.read_text(encoding="utf-8").replace("ticket: 140", f"ticket: {TICKET}"),
+        encoding="utf-8",
+    )
+    assert read_chain(tmp_path, TICKET).has_proof
