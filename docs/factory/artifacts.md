@@ -107,6 +107,27 @@ schedule, the **commit** it ran against, the number of trials, the measured rate
 against the criterion, and the defects counted. **A Run Report that does not name
 a commit is not evidence — it is a story about a different build.**
 
+### Verdicts: `review.md` and `qa.md`
+
+Both carry a `verdict`, and it is one of exactly three values:
+
+| `verdict` | Means | What `factory next` does |
+| --- | --- | --- |
+| `pass` | The stage is satisfied | Moves on |
+| `changes-requested` | Fixable; the Builder has work | Routes **back to Build** |
+| `fail` | Not fixable from here | Stops, exit 3 |
+
+Three rules follow, and each exists because the alternative was tried:
+
+- **A missing or `null` verdict is an unfinished artifact, not a rejection.** It
+  routes back to that stage so the review can be completed. Treating absence as
+  failure wedged tickets at exit 3 on a review nobody had finished.
+- **An unrecognised value is an error**, never guessed. Guessing `pass` merges
+  unreviewed work; guessing `fail` wedges the ticket. Both silently decide
+  something a person wrote a word about.
+- **`changes-requested` is not a dead end.** The routing table once had only
+  "stop and hand back" here, which made every rejected review a manual rescue.
+
 ## Tickets and tasks
 
 `plan.md` may declare tasks, and several Builders may work them in parallel

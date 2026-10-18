@@ -108,6 +108,7 @@ POLICY: Final = Policy(
         "factory/chain.py",
         "factory/cli.py",
         "factory/exit_codes.py",
+        "factory/routing.py",
         "factory/hooks.py",
         "factory/merge.py",
     ),

@@ -92,6 +92,7 @@ on:
 - Every module the `factory` console script imports, transitively:
   `factory/__init__.py`, `factory/__main__.py`, `factory/chain.py`,
   `factory/cli.py`, `factory/exit_codes.py`, `factory/hooks.py`,
+  `factory/routing.py`,
   `factory/merge.py`
 
 The second list is computed by a test, not trusted: a new import fails the

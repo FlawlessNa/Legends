@@ -128,6 +128,9 @@ class Chain:
     present: frozenset[str]
     spec: dict[str, str]
     plan: dict[str, str]
+    review: dict[str, str]
+    qa: dict[str, str]
+    intent: dict[str, str]
 
     @property
     def has_spec(self) -> bool:
@@ -140,6 +143,28 @@ class Chain:
     @property
     def has_plan(self) -> bool:
         return "plan.md" in self.present
+
+    @property
+    def accepted(self) -> bool:
+        """
+        Whether the intent has been accepted by a person.
+
+        `null` is the schema's own word for "not yet", so it counts as absent.
+        """
+        return self.intent.get("accepted_by", "null") not in {"", "null", "None"}
+
+    @property
+    def has_qa(self) -> bool:
+        return "qa.md" in self.present
+
+    @property
+    def has_review(self) -> bool:
+        return "review.md" in self.present
+
+    @property
+    def needs_qa(self) -> bool:
+        """Whether `spec.md`'s method calls for a Run Report at all."""
+        return self.spec.get("method", "") in {"live", "both"}
 
     @property
     def has_proof(self) -> bool:
@@ -163,4 +188,7 @@ def read_chain(repo_root: Path, ticket: int) -> Chain:
         present=present,
         spec=front_matter(root / "spec.md"),
         plan=front_matter(root / "plan.md"),
+        review=front_matter(root / "review.md"),
+        qa=front_matter(root / "qa.md"),
+        intent=front_matter(root / "intent.md"),
     )
