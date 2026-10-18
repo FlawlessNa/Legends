@@ -1,26 +1,30 @@
 repos:
   # language: system hooks call straight into the pinned .venv, so the hook
   # version always matches what `pip install -r requirements-dev.txt` gave you
-  # -- no second, drifting copy from a hook-managed environment. The leading
-  # `./` on each entry is load-bearing on Windows: CreateProcess fails to
-  # resolve `.venv/Scripts/x.exe` without it.
+  # -- no second, drifting copy from a hook-managed environment.
+  #
+  # They go through scripts/venv-tool.sh rather than naming .venv directly: a
+  # linked worktree has no .venv of its own, and these entries silently failed
+  # there with "Executable not found" (#199). The resolver walks to the main
+  # checkout, and exits non-zero when it finds nothing -- a commit that quietly
+  # skips ruff and pyright is worse than one that stops.
   - repo: local
     hooks:
       - id: ruff-check
         name: ruff check
-        entry: ./.venv/Scripts/ruff.exe check --fix
+        entry: bash scripts/venv-tool.sh ruff check --fix
         language: system
         types: [python]
 
       - id: ruff-format
         name: ruff format
-        entry: ./.venv/Scripts/ruff.exe format
+        entry: bash scripts/venv-tool.sh ruff format
         language: system
         types: [python]
 
       - id: pyright
         name: pyright
-        entry: ./.venv/Scripts/pyright.exe
+        entry: bash scripts/venv-tool.sh pyright
         language: system
         types: [python]
 
