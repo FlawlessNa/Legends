@@ -145,3 +145,19 @@ Three things stand between this page and the first auto-merge, all deliberate:
 
 Until all three change, `factory merge check` is still the way to see what CI
 would decide.
+
+
+## Why `.claude/**` is not allowlisted
+
+The policy's type and method conditions read the **ticket's labels**, and an
+agent acting through the maintainer's credentials can relabel its own ticket
+`type:chore`. The hooks and permissions that would stop it live in `.claude/`.
+
+If `.claude/**` were allowlisted, a PR could disable the gates in
+`.claude/settings.json` and merge itself, unreviewed. Settings, skills and the
+hook launcher all decide what an agent is made to do, so the whole directory is
+excluded rather than one file.
+
+**Do not add it back as a convenience.** A change under `.claude/` waits for a
+person, which is the point. The underlying cause -- that labels are trusted and
+an agent can set them -- is only fixed by per-role write scopes (#163).

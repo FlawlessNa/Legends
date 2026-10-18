@@ -151,7 +151,11 @@ def session_report(repo_root: Path, branch: str | None) -> str:
     """
     ticket = ticket_from_branch(branch)
     if ticket is None:
-        return ""
+        # The heartbeat still fires. A proof-of-life that only appears on ticket
+        # branches is not proof: on the trunk, silence was indistinguishable
+        # from the hooks being dead -- which is what #199 existed to make
+        # visible, and what it still hid (#202).
+        return HEARTBEAT
     chain = read_chain(repo_root, ticket)
     lines = [
         HEARTBEAT,

@@ -63,7 +63,19 @@ POLICY: Final = Policy(
     working_branch="movements-improvements",
     auto_merge_types=frozenset({"type:chore", "type:refactor"}),
     method="method:suite",
-    allowed_paths=("factory/**", "docs/**", ".claude/**", "tests/test_factory/**"),
+    allowed_paths=(
+        "factory/**",
+        "docs/**",
+        "tests/test_factory/**",
+        # Every factory ticket writes its artifact chain here. Without this the
+        # policy can never fire on the work it was built for.
+        ".factory/**",
+        # NOT `.claude/**`. Conditions 2 and 3 trust the ticket's labels, and an
+        # agent acting through the maintainer's credentials can relabel its own
+        # ticket `type:chore`. The hooks and permissions that would stop it live
+        # in `.claude/`, so allowing it lets a PR disable the gates and merge
+        # itself. It is the one directory that changes what is enforced (#202).
+    ),
     hard_stop_paths=(
         # Input send path, focus handling, Held-Keys Ledger (ADR 0002).
         "botting/controller/**",

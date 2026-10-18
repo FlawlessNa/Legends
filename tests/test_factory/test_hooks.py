@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from factory.chain import current_branch, read_chain, ticket_from_branch
-from factory.hooks import decide_stop, decide_write, session_report
+from factory.hooks import HEARTBEAT, decide_stop, decide_write, session_report
 
 SPEC = "---\nticket: 7\nmethod: suite\n---\n\nbody\n"
 PLAN_PROVEN = "---\nticket: 7\nsuite: pass\n---\n\nbody\n"
@@ -53,11 +53,18 @@ def test_only_an_issue_branch_names_a_ticket(
     assert ticket_from_branch(branch) == expected
 
 
-def test_ordinary_branches_are_left_alone(repo: Path) -> None:
-    """The hooks must be invisible off a ticket branch, or people disable them."""
+def test_ordinary_branches_are_never_blocked(repo: Path) -> None:
+    """
+    The hooks must not interfere off a ticket branch, or people disable them.
+
+    This used to also assert the startup report was *empty*. #202 changed that
+    deliberately: silence was indistinguishable from a dead hook, so the
+    heartbeat now fires everywhere. Not blocking is the property that matters;
+    saying nothing at all was never the point.
+    """
     assert decide_write(repo, "dev", repo / "botting" / "core.py").allowed
     assert decide_stop(repo, "dev", source_changed=True).allowed
-    assert session_report(repo, "dev") == ""
+    assert session_report(repo, "dev") == HEARTBEAT
 
 
 # --- The write gate ---------------------------------------------------------
@@ -220,3 +227,26 @@ def test_a_detached_head_names_no_branch(tmp_path: Path) -> None:
     (git / "HEAD").write_text("9a8339cdeadbeef\n", encoding="utf-8")
 
     assert current_branch(tmp_path) is None
+
+
+def test_the_heartbeat_fires_off_a_ticket_branch(repo: Path) -> None:
+    """
+    A proof-of-life that only appears on ticket branches is not proof.
+
+    On the trunk the report was empty, which is indistinguishable from the
+    hooks being dead -- the exact failure #199 existed to make visible, and
+    which it still hid until someone merged #201 and saw nothing (#202).
+    """
+    assert session_report(repo, "movements-improvements") == HEARTBEAT
+
+
+def test_the_heartbeat_does_not_narrate_at_ordinary_work(repo: Path) -> None:
+    """One line, then silence. A chatty hook is a hook people switch off."""
+    assert "\n" not in session_report(repo, "dev")
+
+
+def test_a_ticket_branch_still_gets_the_whole_report(repo: Path) -> None:
+    _write(repo, "intent.md", "---\nticket: 7\n---\n")
+    report = session_report(repo, "issue/7-x")
+    assert report.startswith(HEARTBEAT)
+    assert "ticket 7" in report

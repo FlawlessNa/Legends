@@ -675,3 +675,51 @@ def test_the_document_states_every_condition_and_value() -> None:
 def test_the_factory_readme_links_the_policy() -> None:
     readme = (REPO_ROOT / "docs" / "factory" / "README.md").read_text(encoding="utf-8")
     assert "(merge-policy.md)" in readme
+
+
+# --- The allowlist must not be able to disable the enforcement -------------
+
+
+def test_a_pull_request_touching_dot_claude_waits_for_a_human() -> None:
+    """
+    `.claude/` is the one directory that changes what is enforced.
+
+    Conditions 2 and 3 trust the ticket's labels, and an agent acting through
+    the maintainer's credentials can relabel its own ticket `type:chore`. If
+    `.claude/**` were allowlisted, such a PR could disable the hooks in
+    `.claude/settings.json` and merge itself unreviewed (#202).
+    """
+    facts = _passing(paths=("docs/factory/stages.md", ".claude/settings.json"))
+    assert _failed(facts) == {Condition.PATHS_ALLOWED}
+    assert verdict(evaluate(facts)) == ExitCode.NEEDS_HUMAN
+
+
+@pytest.mark.parametrize(
+    "path",
+    [".claude/settings.json", ".claude/skills/factory/SKILL.md", ".claude/hooks/x.sh"],
+)
+def test_no_part_of_dot_claude_is_allowlisted(path: str) -> None:
+    """Settings, skills and hooks all decide what an agent is made to do."""
+    assert _failed(_passing(paths=(path,))) == {Condition.PATHS_ALLOWED}
+
+
+def test_an_artifact_only_pull_request_is_not_refused_on_paths() -> None:
+    """
+    Every factory ticket writes `.factory/<n>/`. Before #202 the allowlist named
+    `factory/**`, a different path, so no ticket PR could ever auto-merge --
+    the policy could not fire on the work it was built for.
+    """
+    facts = _passing(paths=(".factory/202/plan.md", ".factory/202/spec.md"))
+    assert Condition.PATHS_ALLOWED not in _failed(facts)
+
+
+def test_widening_the_allowlist_cannot_relax_a_hard_stop() -> None:
+    """
+    The two lists are checked independently, and that is load-bearing: a PR
+    touching an allowlisted path *and* a hard-stop path still waits.
+    """
+    facts = _passing(paths=(".factory/202/plan.md", "botting/controller/inputs/x.py"))
+    assert Condition.PATHS_ALLOWED in _failed(
+        facts
+    ) or Condition.NO_HARD_STOP in _failed(facts)
+    assert verdict(evaluate(facts)) == ExitCode.NEEDS_HUMAN
