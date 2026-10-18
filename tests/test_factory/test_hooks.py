@@ -16,8 +16,8 @@ from factory.chain import current_branch, read_chain, ticket_from_branch
 from factory.hooks import HEARTBEAT, decide_stop, decide_write, session_report
 
 SPEC = "---\nticket: 7\nmethod: suite\n---\n\nbody\n"
-PLAN_PROVEN = "---\nticket: 7\nsuite: pass\n---\n\nbody\n"
-PLAN_UNPROVEN = "---\nticket: 7\nsuite: null\n---\n\nbody\n"
+PLAN_PROVEN = "---\nticket: 7\nproof:\n  suite: pass\n---\n\nbody\n"
+PLAN_UNPROVEN = "---\nticket: 7\nproof:\n  suite: null\n---\n\nbody\n"
 
 
 @pytest.fixture
@@ -167,7 +167,7 @@ def test_finishing_is_allowed_once_the_proof_is_recorded(repo: Path) -> None:
 def test_the_schema_s_own_word_for_not_yet_counts_as_absent(
     repo: Path, written: str
 ) -> None:
-    _write(repo, "plan.md", f"---\nticket: 7\nsuite: {written}\n---\n")
+    _write(repo, "plan.md", f"---\nticket: 7\nproof:\n  suite: {written}\n---\n")
     assert not read_chain(repo, 7).has_proof
 
 

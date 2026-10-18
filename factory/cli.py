@@ -32,6 +32,7 @@ from factory.hooks import (
     session_report,
 )
 from factory.merge import check as check_merge
+from factory.routing import MalformedVerdict, resolve
 
 #: A handler takes parsed arguments and returns its code plus a payload. The
 #: payload is rendered as JSON under `--json`, and as `key: value` lines otherwise.
@@ -75,10 +76,50 @@ def _merge(args: argparse.Namespace) -> tuple[ExitCode, dict[str, Any]]:
     return check_merge(args.pr)
 
 
+def _configure_next(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "ticket", nargs="?", type=int, help="Ticket number; defaults to the branch's."
+    )
+
+
+def _next(args: argparse.Namespace) -> tuple[ExitCode, dict[str, Any]]:
+    """
+    Which stage this ticket is in, and what to do about it.
+
+    The answer is computed from the artifact chain, never judged, so two callers
+    on the same chain get the same one. An agent's first action on any ticket is
+    this command; it does not choose a stage for itself.
+    """
+    repo_root = Path.cwd()
+    branch = f"issue/{args.ticket}-" if args.ticket else current_branch(repo_root)
+    try:
+        step = resolve(repo_root, branch)
+    except MalformedVerdict as bad:
+        return ExitCode.NEEDS_HUMAN, {"error": str(bad)}
+
+    payload: dict[str, Any] = {
+        "ticket": step.ticket,
+        "stage": str(step.stage) if step.stage else None,
+        "role": step.role,
+        "section": step.section,
+        "do": list(step.do),
+        "blocked_by": step.blocked_by,
+        "artifact_missing": step.artifact_missing,
+    }
+    if step.note:
+        payload["note"] = step.note
+    return (ExitCode.NEEDS_HUMAN if step.blocked else ExitCode.OK), payload
+
+
 #: name -> (help text, flag configuration, handler). The registry a new command
 #: joins; nothing else in this module changes when one is added.
 COMMANDS: Final[dict[str, tuple[str, Configure, Handler]]] = {
     "version": ("Print the factory's version", _no_arguments, _version),
+    "next": (
+        "Which stage a ticket is in, and what to do next",
+        _configure_next,
+        _next,
+    ),
     "merge": ("Evaluate the auto-merge policy for a PR", _configure_merge, _merge),
 }
 
