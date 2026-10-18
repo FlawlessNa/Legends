@@ -18,6 +18,7 @@ Every section has the same seven slots, in this order. A new stage starts from
 | --- | --- |
 | **Trigger** | Which stage this is, and the state of the chain that names it |
 | **Entry gate** | What must already be true before any work starts |
+| **Decide and record** | What this stage decides for itself rather than asking |
 | **Context** | What to read first, beyond the standing list |
 | **The work** | What to do, ending at an artifact — never at a merge |
 | **The oracle** | Exactly how done is demonstrated |
@@ -86,6 +87,13 @@ issue body — say so under open questions.
 with `spec.md` as the first commit on the branch
 ([bootstrap.md](bootstrap.md), rule 3).
 
+### Decide and record
+
+Anything not listed below, and not one of the four things the maintainer owns,
+is this stage's to decide: take the conservative option, record it under
+"Decisions I made", continue. See
+[README → Decide and record](README.md#decide-and-record).
+
 ### Stop and hand back
 
 - The request is too vague to shape into the five sections.
@@ -144,6 +152,13 @@ not a reviewed spec.
 From that commit on, any change to a criterion is an amendment visible in
 `git log`.
 
+### Decide and record
+
+Anything not listed below, and not one of the four things the maintainer owns,
+is this stage's to decide: take the conservative option, record it under
+"Decisions I made", continue. See
+[README → Decide and record](README.md#decide-and-record).
+
 ### Stop and hand back
 
 - No offline or live method can settle the intent.
@@ -193,6 +208,13 @@ radius first exists, and still before any code. **[instruction]**,
 [artifacts.md → `plan.md`](artifacts.md#planmd), with the `proof` fields still
 `null`. Committed before any source change.
 
+### Decide and record
+
+Anything not listed below, and not one of the four things the maintainer owns,
+is this stage's to decide: take the conservative option, record it under
+"Decisions I made", continue. See
+[README → Decide and record](README.md#decide-and-record).
+
 ### Stop and hand back
 
 - The radius intersects a hard-stop path. That needs the maintainer's scope
@@ -231,6 +253,13 @@ When this holds and the work is done, continue to stage 5 in the same role.
 ### Artifacts
 
 Commits on the ticket's branch. Nothing under `.factory/<n>/` changes here.
+
+### Decide and record
+
+Anything not listed below, and not one of the four things the maintainer owns,
+is this stage's to decide: take the conservative option, record it under
+"Decisions I made", continue. See
+[README → Decide and record](README.md#decide-and-record).
 
 ### Stop and hand back
 
@@ -281,6 +310,13 @@ Both recorded in `plan.md`'s proof block. **[instruction]**,
   what it hashes.
 - Both outputs, pasted into the PR body.
 
+### Decide and record
+
+Anything not listed below, and not one of the four things the maintainer owns,
+is this stage's to decide: take the conservative option, record it under
+"Decisions I made", continue. See
+[README → Decide and record](README.md#decide-and-record).
+
 ### Stop and hand back
 
 - The new test passes without the change. It is not testing the change.
@@ -325,6 +361,13 @@ A verdict recorded. **[unenforced]**.
 `.factory/<n>/review.md`: the findings and the verdict. Its front-matter is not
 yet contracted in [artifacts.md](artifacts.md); #152 does that.
 
+### Decide and record
+
+Anything not listed below, and not one of the four things the maintainer owns,
+is this stage's to decide: take the conservative option, record it under
+"Decisions I made", continue. See
+[README → Decide and record](README.md#decide-and-record).
+
 ### Stop and hand back
 
 - The diff does something the spec never asked for.
@@ -367,6 +410,13 @@ Criteria met, and the Run Report names the commit it ran against.
 `.factory/<n>/qa.md`, the Run Report, containing what
 [artifacts.md → `qa.md` and `review.md`](artifacts.md#qamd-and-reviewmd)
 requires.
+
+### Decide and record
+
+Anything not listed below, and not one of the four things the maintainer owns,
+is this stage's to decide: take the conservative option, record it under
+"Decisions I made", continue. See
+[README → Decide and record](README.md#decide-and-record).
 
 ### Stop and hand back
 
@@ -412,6 +462,13 @@ Documentation updates on the branch, and `plan.md` → `docs_cleared` set — `[
 when every coupled document was updated (see
 [artifacts.md → `plan.md`](artifacts.md#planmd)).
 
+### Decide and record
+
+Anything not listed below, and not one of the four things the maintainer owns,
+is this stage's to decide: take the conservative option, record it under
+"Decisions I made", continue. See
+[README → Decide and record](README.md#decide-and-record).
+
 ### Stop and hand back
 
 - A coupled document describes something you no longer understand.
@@ -445,6 +502,13 @@ Every artifact present, verdict pass. **[instruction]**.
 
 The open PR, written to the template. After a human merges it, the closed
 ticket.
+
+### Decide and record
+
+Anything not listed below, and not one of the four things the maintainer owns,
+is this stage's to decide: take the conservative option, record it under
+"Decisions I made", continue. See
+[README → Decide and record](README.md#decide-and-record).
 
 ### Stop and hand back
 
@@ -487,6 +551,13 @@ A breach files an intent; no breach files nothing.
 ### Artifacts
 
 A new ticket with its own `intent.md`, labelled `needs-triage`.
+
+### Decide and record
+
+Anything not listed below, and not one of the four things the maintainer owns,
+is this stage's to decide: take the conservative option, record it under
+"Decisions I made", continue. See
+[README → Decide and record](README.md#decide-and-record).
 
 ### Stop and hand back
 

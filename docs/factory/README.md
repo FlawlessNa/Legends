@@ -30,6 +30,35 @@ A rule that is **[instruction]** today is a ticket waiting to make it
 it would have mattered, say so on the ticket — that is the signal that it has
 earned being built.
 
+## Decide and record
+
+**When the answer is not in the repo, and is not one of the three things below,
+decide it yourself.** Choose the conservative option, write the choice and your
+reasoning into the artifact under a "Decisions I made" heading, and continue.
+
+**Do not stop to ask what you could defensibly decide.** A decision recorded and
+wrong is cheap — it is visible in a diff and reversible in a comment. A ticket
+that produced nothing is not.
+
+Exactly four things need the maintainer:
+
+1. **Scope approval** on a hard-stop path in `AGENTS.md`
+2. **Risk and trust appetite** — what may merge unreviewed, how much supervision
+3. **Product priority** — what matters, what can wait
+4. **Observation** — anything that reduces to watching the character on a
+   running client: a measured constant, a minimap trail, a timing or animation
+   number, "does the rotation look right"
+
+Anything else is yours. If one of those four really is in the way, it goes in
+the **PR body**, under "Decisions you may want to reverse" — batched, with what
+you chose and why. Never asked mid-session: one review beats ten interruptions.
+
+Item 4 is in the list, not in a footnote, deliberately. An earlier draft of this
+page named only the first three and added the observation class as a closing
+assurance — which meant an agent applying the stated test ("is it one of the
+three? no → decide") would correctly plough straight through a measured
+constant. The review caught it before it shipped. **[instruction]**
+
 ## The stages
 
 | # | Stage | Artifact | Gate to leave it |
