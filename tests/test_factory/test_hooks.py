@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from factory.chain import read_chain, ticket_from_branch
+from factory.chain import current_branch, read_chain, ticket_from_branch
 from factory.hooks import decide_stop, decide_write, session_report
 
 SPEC = "---\nticket: 7\nmethod: suite\n---\n\nbody\n"
@@ -182,3 +182,41 @@ def test_the_startup_report_stops_warning_once_the_chain_is_in_order(
     _write(repo, "spec.md", SPEC)
     _write(repo, "spec-review.md", "---\nticket: 7\n---\n")
     assert "REFUSED" not in session_report(repo, "issue/7-x")
+
+
+# --- Worktrees, where the gates are actually supposed to run ----------------
+
+
+def test_the_branch_is_found_in_a_linked_worktree(tmp_path: Path) -> None:
+    """
+    `factory claim` gives every ticket its own worktree, and in one `.git` is a
+    *file* pointing at the real git dir -- not a directory. Reading
+    `.git/HEAD` therefore found nothing, `current_branch` returned None, and
+    every gate concluded "not a ticket branch" and allowed everything (#199).
+    """
+    real = tmp_path / "main" / ".git" / "worktrees" / "wt"
+    real.mkdir(parents=True)
+    (real / "HEAD").write_text("ref: refs/heads/issue/7-slug\n", encoding="utf-8")
+
+    worktree = tmp_path / "wt"
+    worktree.mkdir()
+    (worktree / ".git").write_text(f"gitdir: {real}\n", encoding="utf-8")
+
+    assert current_branch(worktree) == "issue/7-slug"
+
+
+def test_an_ordinary_checkout_still_works(tmp_path: Path) -> None:
+    git = tmp_path / ".git"
+    git.mkdir()
+    (git / "HEAD").write_text("ref: refs/heads/issue/9-x\n", encoding="utf-8")
+
+    assert current_branch(tmp_path) == "issue/9-x"
+
+
+def test_a_detached_head_names_no_branch(tmp_path: Path) -> None:
+    """A detached HEAD holds a sha, not a ref, and names no ticket."""
+    git = tmp_path / ".git"
+    git.mkdir()
+    (git / "HEAD").write_text("9a8339cdeadbeef\n", encoding="utf-8")
+
+    assert current_branch(tmp_path) is None

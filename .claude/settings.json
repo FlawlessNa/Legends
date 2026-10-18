@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "factory hook session-start",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/factory-hook.sh\" session-start",
             "timeout": 10
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "factory hook pre-tool-use",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/factory-hook.sh\" pre-tool-use",
             "timeout": 10
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "factory hook stop",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/factory-hook.sh\" stop",
             "timeout": 15
           }
         ]

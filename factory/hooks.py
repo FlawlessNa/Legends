@@ -36,6 +36,11 @@ class Decision:
     reason: str = ""
 
 
+#: The proof-of-life every startup report opens with. An agent that does not see
+#: this line is running with no gates at all, and is told to say so before
+#: starting work -- because a dead hook and a permissive one look identical.
+HEARTBEAT = "factory gates: LIVE"
+
 #: Returned whenever the hooks have no opinion: not a ticket branch, or off.
 INDIFFERENT = Decision(allowed=True)
 
@@ -137,6 +142,11 @@ def session_report(repo_root: Path, branch: str | None) -> str:
     """
     What a session is told at startup. Never blocks; removes "I did not know".
 
+    Opens with `HEARTBEAT`, deliberately. Hooks fail open, so a hook that cannot
+    run emits nothing at all -- and nothing it emits could report that. The only
+    signal that survives is a line whose *presence* proves the toolchain is
+    reachable. Its absence is what an agent is told to notice (#199).
+
     Empty for a non-ticket branch, so ordinary work is not narrated at.
     """
     ticket = ticket_from_branch(branch)
@@ -144,6 +154,7 @@ def session_report(repo_root: Path, branch: str | None) -> str:
         return ""
     chain = read_chain(repo_root, ticket)
     lines = [
+        HEARTBEAT,
         f"You are on a factory ticket branch: ticket {ticket}.",
         (
             "Read docs/factory/README.md, then follow the `factory` skill. "

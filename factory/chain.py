@@ -47,16 +47,44 @@ def ticket_from_branch(branch: str | None) -> int | None:
     return int(found.group(1)) if found else None
 
 
+def _git_dir(repo_root: Path) -> Path | None:
+    """
+    The directory holding `HEAD`, for a normal checkout or a linked worktree.
+
+    In a worktree `.git` is a *file* containing `gitdir: <path>`, not a
+    directory — so the obvious `repo_root / ".git" / "HEAD"` silently finds
+    nothing and every gate reports "not a ticket branch". That matters because
+    `factory claim` gives each ticket its own worktree, which is precisely where
+    the gates are supposed to run (#199).
+    """
+    git = repo_root / ".git"
+    if git.is_dir():
+        return git
+    try:
+        text = git.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    prefix = "gitdir: "
+    if not text.startswith(prefix):
+        return None
+    resolved = Path(text[len(prefix) :].strip())
+    if not resolved.is_absolute():
+        resolved = (repo_root / resolved).resolve()
+    return resolved if resolved.is_dir() else None
+
+
 def current_branch(repo_root: Path) -> str | None:
     """
-    The checked-out branch, read from `.git/HEAD` rather than by running git.
+    The checked-out branch, read from `HEAD` rather than by running git.
 
-    This is called from `PreToolUse`, which fires on every edit, so the cost of
-    spawning a process would be paid hundreds of times a session.
+    This is called from `PreToolUse`, which fires on every edit, so spawning a
+    process would be paid hundreds of times a session.
     """
-    head = repo_root / ".git" / "HEAD"
+    git_dir = _git_dir(repo_root)
+    if git_dir is None:
+        return None
     try:
-        text = head.read_text(encoding="utf-8").strip()
+        text = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
     except OSError:
         return None
     prefix = "ref: refs/heads/"
