@@ -115,6 +115,22 @@ reviewed spec, and `factory hook` is the one subcommand that does not obey the
 exit-code contract — it speaks the harness's JSON protocol and always exits 0,
 because a hook that fails must not take the session down with it.
 
+## The merge policy
+
+`factory merge check <pr>` evaluates `docs/factory/merge-policy.md` for one PR,
+exactly as the workflow does, and never merges. Exit 0 means CI would merge it;
+1 means its author can fix what failed; 3 means a person merges it.
+
+`factory/merge.py` keeps three layers apart: `evaluate` is pure, `gather` reads
+GitHub through an injected `gh` runner, `check` joins them. Put a new condition
+in `evaluate` and nowhere else — not in the workflow, not in the dispatcher.
+
+**Every module the console script imports is protected**: a PR touching one
+never auto-merges, because it could change the verdict on itself. A test
+computes that closure, so adding an import to `cli.py` or anything it reaches
+fails the suite until the module is added to `POLICY.protected_paths` — and that
+edit, being to `merge.py`, waits for a person too. That is the intent.
+
 ## Gates
 
 Same as the rest of the tree: `pytest` green, `ruff check` and `ruff format`

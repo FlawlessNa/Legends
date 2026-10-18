@@ -41,6 +41,7 @@ Honestly, very little. Know which is which:
 | You cannot finish with a missing artifact | **[unenforced]** — until #149 |
 | Criteria written by someone other than the builder | **[unenforced]** — until #180 |
 | Documentation kept current | **[unenforced]** — until #185 |
+| Only the merge policy merges unreviewed | **[unenforced]** — the workflow exists (#194) but fires only from `dev`, and needs #151's checks; see [merge-policy.md](merge-policy.md#what-is-live-today) |
 
 The last three are the gaps that no amount of care closes, so do not pretend
 otherwise in a PR body. Say what you could not verify.
