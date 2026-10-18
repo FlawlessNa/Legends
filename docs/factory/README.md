@@ -25,6 +25,14 @@ one of three markers, and they are not interchangeable:
 | **[instruction]** | Written down, and nothing checks it. Honoured because you choose to. |
 | **[unenforced]** | Stated as intent. Not written down anywhere a tool could read, and not checked. |
 
+**What is [mechanical] today**, so the list can be checked rather than
+believed: artifacts before code and the spec-review gate (`PreToolUse`, #189);
+the proof before a turn ends, across every ticket worktree (`Stop`, #206); the
+stage a ticket is in (`factory next`, #140); the auto-merge conditions
+(CI, #194); and source edits in the primary checkout being refused (#209).
+Everything else in this directory is **[instruction]** or **[unenforced]**, and
+labelled.
+
 A rule that is **[instruction]** today is a ticket waiting to make it
 **[mechanical]**. If you find yourself relying on an **[instruction]** rule and
 it would have mattered, say so on the ticket — that is the signal that it has

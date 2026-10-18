@@ -75,6 +75,35 @@ becomes a keystroke — see `docs/agents/engine-architecture.md`.
 
 See `docs/agents/domain.md` for the full convention.
 
+## Where you may write
+
+**Source edits in the primary checkout are refused.** [mechanical]
+
+The primary checkout is the one whose `.git` is a directory — normally
+`dev`-or-trunk, the clone you opened. All work happens on an `issue/<n>-*`
+branch in **its own worktree**, so a direct source edit in the primary checkout
+is always wrong, whatever branch it is on. The gate does not care which branch
+that is, which is also why it cannot be talked past.
+
+Writable there: `configs/`, `profiles/`, `toolkit/`, `docs/`, `.factory/`,
+`AGENTS.md`, and `.claude/settings.local.json` — but **not** `configs/maps/`,
+which is a hard-stop path.
+
+To start work:
+
+```
+git worktree add ../<slug> -b issue/<n>-<slug>
+```
+
+and write `intent.md` and `spec.md` **in the new worktree**: `git worktree add`
+carries no uncommitted changes, so artifacts written in the primary checkout
+stay behind and the new worktree starts with an empty chain.
+
+The gate only sees file-editing tools. A write through the shell is
+**[unenforced]** — see #207. And `FACTORY_HOOKS=off` in
+`.claude/settings.local.json` disables every gate on this machine; it is a
+floor, not a lock.
+
 ## Verifying your work
 
 ```

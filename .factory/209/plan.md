@@ -14,10 +14,10 @@ radius:
 tasks: null
 merge_order: null
 proof:
-  red_test: null
-  red_output_sha: null
-  suite: null
-docs_cleared: null
+  red_test: tests/test_factory/test_hooks.py::test_a_ticket_branch_in_the_primary_checkout_is_still_refused
+  red_output_sha: see .factory/209/plan.md -> Proof
+  suite: pass
+docs_cleared: []
 ---
 
 # Plan: refuse source writes in the primary checkout
@@ -82,7 +82,51 @@ one edit, and what the monkeypatch test proves is single-source.
 
 ## Proof
 
-Red without the change, expected:
+**`pytest`: 1197 passed, 3 skipped, 25 deselected.** 0 failed, 0 errors, 0
+xfailed. ruff, ruff format and pyright clean. `tests/test_factory/` 241 -> 268.
+
+Three red-proofs, one per load-bearing piece:
+
+| Reverted | Red |
+| --- | --- |
+| row 1 removed entirely | **12** |
+| the identity check dropped | **4**, including "another repository is never refused" |
+| `_is_primary` by path name rather than by kind | **1**, the `worktrees`-named repository |
+
+The third is a one-test proof on purpose: it is the exact misclassification the
+first draft shipped, and nothing else notices it.
+
+### Two defects my own tests caught, not review
+
+1. **`_exempt_in_primary` ignored the universal exemptions**, so `.factory/`,
+   `docs/` and `AGENTS.md` were refused in the primary checkout. That is #189's
+   deadlock precisely - the gate forbidding the artifact that satisfies it -
+   and `test_the_artifacts_stay_writable_in_the_primary` went red on the first
+   run. Review had warned about this shape for a *different* constant; it bit
+   on a third one.
+
+2. **The `repo` fixture was not a worktree.** It held its own `.git`
+   *directory*, which is structurally a primary checkout, so every test using
+   it exercised a shape this repo never produces - and two report tests failed
+   because the new line correctly fired on it. Rebuilt as a genuine linked
+   worktree of `off_ticket`, with a real `gitdir:` pointer, so the pair is one
+   repository as they always claimed.
+
+   The same was true of the cross-worktree tests #206 added: they paired two
+   sibling directories, each its own repository, so
+   `test_a_ticket_session_writing_to_the_trunk_is_still_judged` never modelled
+   a Builder writing the trunk. **Two tickets' tests were passing on fixtures
+   that could not occur.**
+
+### What actually changed, against what the spec predicted
+
+`spec.md` predicted three of four tests would stay green and one would invert.
+Wrong: **three changed.** Both cross-worktree tests had to be rebuilt on real
+fixtures (the prediction assumed the sibling fixtures were one repository, and
+they were not), and `test_neither_side_a_ticket_is_indifferent` inverted as
+predicted. The suite was the arbiter, as the spec said it would be.
+
+Red without the change, also verified:
 
 - the four-root identity table (another repo refused, a `worktrees`-named repo
   misread) — only testable once `_common` exists, so this is the forward proof

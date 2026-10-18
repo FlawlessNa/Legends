@@ -22,6 +22,8 @@ from factory.cli import (
 from factory.exit_codes import ExitCode
 from factory.models import TABLE_PATH
 
+from .test_hooks import _linked, _primary
+
 
 def test_the_exit_codes_are_the_documented_contract() -> None:
     """The numbers are the interface; hooks and CI branch on them."""
@@ -363,24 +365,27 @@ def test_the_pre_tool_use_hook_judges_the_target_s_worktree(
     assert "Ticket 5" in specific["permissionDecisionReason"]
 
 
-def test_the_pre_tool_use_hook_passes_the_session_so_row_two_survives(
+def test_the_pre_tool_use_hook_still_reaches_the_session_row(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """
-    A ticket session writing into the trunk, through the hook.
+    The session row's regression detector, rebuilt for #209.
 
-    Row 2 of the jurisdiction table is the one this design lost once already --
-    the first spec dropped it while asserting it changed nothing. Dropping the
-    `session=` argument at the call site would lose it again silently, because
-    every other case is answered by row 1. This is the test that notices.
+    It used to write the trunk from a ticket worktree. #209 refuses that
+    outright, so the detector had to move to the one target the session row
+    still answers for: a **linked, non-ticket** worktree in the same
+    repository. Dropping `session=` at the call site must still be noticed.
     """
-    main = _wt(tmp_path / "main", "movements-improvements")
-    linked = _wt(tmp_path / "wt", "issue/5-x", 5)
-    monkeypatch.chdir(linked)
+    main = _primary(tmp_path / "main", "dev")
+    builder = _linked(main, tmp_path / "wt", "issue/5-x", 5)
+    sibling = _linked(main, tmp_path / "other", "scratch-branch")
+    monkeypatch.chdir(builder)
     monkeypatch.setattr(
         "sys.stdin",
         io.StringIO(
-            json.dumps({"tool_input": {"file_path": str(main / "botting" / "core.py")}})
+            json.dumps(
+                {"tool_input": {"file_path": str(sibling / "botting" / "core.py")}}
+            )
         ),
     )
 

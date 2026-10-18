@@ -148,6 +148,13 @@ that a gate cannot forbid writing the document describing its own escape hatch.
 Whether the review is any **good** stays **[instruction]** until #180, and a
 green hook is not a reviewed spec.
 
+**Where you may write, as of #209.** Source edits in the **primary checkout**
+— the one whose `.git` is a directory — are refused on any branch, including a
+ticket branch with a complete chain. All work happens in a worktree. `configs/`,
+`profiles/`, `toolkit/`, `docs/`, `.factory/`, `AGENTS.md` and
+`.claude/settings.local.json` stay writable there; `configs/maps/` does not.
+See `AGENTS.md` → Where you may write.
+
 **What the gate sees, as of #206.** A write is judged by the chain of the
 worktree **the file lives in**, not by the branch the session happens to sit
 on — and if that worktree is on no ticket branch, by the session's chain
