@@ -128,6 +128,25 @@ Three rules follow, and each exists because the alternative was tried:
 - **`changes-requested` is not a dead end.** The routing table once had only
   "stop and hand back" here, which made every rejected review a manual rescue.
 
+### `model`: reserved, not yet placed
+
+A stage artifact may carry a `model` field recording which model produced it,
+so a bad result traces back to the model that produced it rather than to a
+guess. `factory model` (#162) emits the line in a contracted shape:
+
+    model: <alias>  # tier=<tier>, rule=<rule>
+
+**No artifact is required to carry it yet, and nothing writes it today.** Four
+of the nine stages that get a model have nowhere to put one: stage 4's artifact
+is the diff, stage 5 has no artifact, and `review.md` and `qa.md` have no
+contracted front matter until #152. The field name is reserved here so that
+when the Foreman (#159) starts recording it, there is one spelling rather than
+two.
+
+The alias is what the table holds -- `opus`, `sonnet`, `haiku`, `fable` -- not a
+concrete model id. Ids churn; the policy is written in tiers and the aliases are
+what a harness accepts. See `configs/factory-models.toml`.
+
 ## Tickets and tasks
 
 `plan.md` may declare tasks, and several Builders may work them in parallel

@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from factory import __version__
-from factory.chain import current_branch
+from factory.chain import Chain, current_branch, read_chain
 from factory.exit_codes import ExitCode
 from factory.hooks import (
     decide_stop,
@@ -32,7 +32,10 @@ from factory.hooks import (
     session_report,
 )
 from factory.merge import check as check_merge
-from factory.routing import MalformedVerdict, resolve
+from factory.models import TABLE_PATH, TableError
+from factory.models import load as load_models
+from factory.models import resolve as resolve_model
+from factory.routing import MalformedVerdict, Stage, resolve
 
 #: A handler takes parsed arguments and returns its code plus a payload. The
 #: payload is rendered as JSON under `--json`, and as `key: value` lines otherwise.
@@ -111,6 +114,74 @@ def _next(args: argparse.Namespace) -> tuple[ExitCode, dict[str, Any]]:
     return (ExitCode.NEEDS_HUMAN if step.blocked else ExitCode.OK), payload
 
 
+def _configure_model(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "ticket", nargs="?", type=int, help="Ticket number; defaults to the branch's."
+    )
+    parser.add_argument(
+        "--stage",
+        help="Ask about this stage directly instead of computing it from the chain.",
+    )
+
+
+def _model(args: argparse.Namespace) -> tuple[ExitCode, dict[str, Any]]:
+    """
+    Which model runs this stage, and why.
+
+    The agent never chooses: one asked to choose picks the strong model every
+    time. Argument errors are MISUSE and table errors are NEEDS_HUMAN, because
+    "you asked wrongly" and "the maintainer's file is wrong" have nothing in
+    common but their unhappiness.
+    """
+    repo_root = Path.cwd()
+    chain: Chain | None = None
+    ticket: int | None = args.ticket
+
+    if args.stage:
+        try:
+            stage = Stage(args.stage)
+        except ValueError:
+            return ExitCode.MISUSE, {
+                "error": f"{args.stage!r} is not a stage. The stages are "
+                f"{[str(member) for member in Stage]}."
+            }
+        if ticket is not None:
+            chain = read_chain(repo_root, ticket)
+    else:
+        branch = f"issue/{ticket}-" if ticket else current_branch(repo_root)
+        try:
+            step = resolve(repo_root, branch)
+        except MalformedVerdict as bad:
+            return ExitCode.NEEDS_HUMAN, {"error": str(bad)}
+        if step.blocked:
+            return ExitCode.NEEDS_HUMAN, {
+                "ticket": step.ticket,
+                "blocked_by": step.blocked_by,
+                "error": "the chain says stop; no stage to route a model for",
+            }
+        if step.stage is None:
+            return ExitCode.MISUSE, {
+                "error": "no ticket on this branch. Pass a ticket or --stage."
+            }
+        stage, ticket = step.stage, step.ticket
+        chain = read_chain(repo_root, ticket) if ticket else None
+
+    try:
+        table = load_models(repo_root / TABLE_PATH)
+    except TableError as broken:
+        return ExitCode.NEEDS_HUMAN, {"error": str(broken), "table": str(TABLE_PATH)}
+
+    choice = resolve_model(table, stage, chain)
+    return ExitCode.OK, {
+        "ticket": ticket,
+        "stage": str(stage),
+        "model": choice.model,
+        "tier": choice.tier,
+        "rule": choice.rule,
+        "record": choice.record,
+    }
+
+
 #: name -> (help text, flag configuration, handler). The registry a new command
 #: joins; nothing else in this module changes when one is added.
 COMMANDS: Final[dict[str, tuple[str, Configure, Handler]]] = {
@@ -119,6 +190,11 @@ COMMANDS: Final[dict[str, tuple[str, Configure, Handler]]] = {
         "Which stage a ticket is in, and what to do next",
         _configure_next,
         _next,
+    ),
+    "model": (
+        "Which model runs a stage of a ticket, and why",
+        _configure_model,
+        _model,
     ),
     "merge": ("Evaluate the auto-merge policy for a PR", _configure_merge, _merge),
 }
