@@ -24,9 +24,11 @@ from pathlib import Path
 from typing import Any, Final
 
 from factory import __version__
-from factory.chain import Chain, current_branch, read_chain
+from factory.chain import Chain, current_branch, git_dir, read_chain, ticket_from_branch
 from factory.exit_codes import ExitCode
 from factory.hooks import (
+    INDIFFERENT,
+    Decision,
     decide_stop,
     decide_write,
     session_report,
@@ -332,7 +334,7 @@ def _run_hook(args: argparse.Namespace) -> int:
         raw = _read_stdin()
         target = _written_path(raw)
         if target is not None:
-            decision = decide_write(repo_root, branch, target)
+            decision = decide_write(target, session=repo_root)
             if not decision.allowed:
                 payload = {
                     "hookSpecificOutput": {
@@ -342,7 +344,7 @@ def _run_hook(args: argparse.Namespace) -> int:
                     }
                 }
     else:
-        decision = decide_stop(repo_root, branch, _source_changed(repo_root))
+        decision = _stop_everywhere(repo_root)
         if not decision.allowed:
             payload = {"decision": "block", "reason": decision.reason}
 
@@ -365,12 +367,91 @@ def _read_stdin() -> dict[str, Any]:
 
 
 def _written_path(event: dict[str, Any]) -> Path | None:
-    """The path a tool call would write, or None when it writes nothing."""
+    """
+    The absolute path a tool call would write, or None when it writes nothing.
+
+    **Anchored before it is returned.** The tool input may carry a relative
+    path -- `PreToolUse` fires on the model's raw arguments, before the tool
+    validates them -- and a relative path resolved later lands against the
+    hook's own cwd, which is the session's worktree and not the target's. The
+    gate would then walk up to the session's `.git` and answer about the wrong
+    ticket, which is the very bug #206 fixes, surviving its own fix.
+
+    The harness event carries its own `cwd`; use it when present, since it is
+    what the model's relative path was written against. Otherwise the process
+    cwd, which is the best guess available.
+    """
     tool_input = event.get("tool_input")
     if not isinstance(tool_input, dict):
         return None
     for key in _PATH_KEYS:
         value = tool_input.get(key)
         if isinstance(value, str) and value:
-            return Path(value)
+            return _anchored(Path(value), event.get("cwd"))
     return None
+
+
+def _anchored(target: Path, event_cwd: object) -> Path:
+    """An absolute target, anchored on the event's cwd when it needs one."""
+    if target.is_absolute():
+        return target
+    base = Path(event_cwd) if isinstance(event_cwd, str) and event_cwd else Path.cwd()
+    return base / target
+
+
+def ticket_worktrees(repo_root: Path) -> tuple[Path, ...]:
+    """
+    Every worktree of this repository that is on a ticket branch.
+
+    Read from `<common>/worktrees/*/gitdir`, not from `git worktree list`: the
+    same no-subprocess habit as `current_branch`, and this is a directory
+    listing. The session's own root is included when it qualifies, so a session
+    working inside its own ticket worktree is judged exactly as before.
+    """
+    found: list[Path] = []
+    here = git_dir(repo_root)
+    if here is None:
+        return ()
+    if ticket_from_branch(current_branch(repo_root)) is not None:
+        found.append(repo_root)
+
+    #: In a linked worktree this is `<main>/.git/worktrees/<name>`; the shared
+    #: directory is its grandparent, and `commondir` names it when it is not.
+    common = here.parent.parent if here.parent.name == "worktrees" else here
+    try:
+        entries = sorted((common / "worktrees").iterdir())
+    except OSError:
+        return tuple(found)
+
+    for entry in entries:
+        try:
+            root = Path((entry / "gitdir").read_text(encoding="utf-8").strip()).parent
+        except OSError:
+            continue
+        if root in found or not root.is_dir():
+            continue
+        if ticket_from_branch(current_branch(root)) is not None:
+            found.append(root)
+    return tuple(found)
+
+
+def _stop_everywhere(repo_root: Path) -> Decision:
+    """
+    The proof gate, over every ticket worktree rather than the session's.
+
+    Judged against the session's worktree alone, this gate was **dead** in the
+    workflow the factory was built under: the session sits in the main checkout
+    on a non-ticket branch, so `decide_stop` returned indifference on every turn
+    forever. The one gate that stops an agent finishing without a test enforced
+    nothing (#206).
+
+    `Stop` fires once per turn, so one `git status` per ticket worktree is
+    affordable where one per edit would not be. The first refusal wins; a turn
+    that left two tickets unproven is reported one at a time, and fixing the
+    first reveals the second.
+    """
+    for root in ticket_worktrees(repo_root):
+        decision = decide_stop(root, current_branch(root), _source_changed(root))
+        if not decision.allowed:
+            return decision
+    return INDIFFERENT

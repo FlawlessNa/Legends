@@ -2,6 +2,7 @@
 ticket: 206
 stage: build
 radius:
+  - factory/chain.py
   - factory/hooks.py
   - factory/cli.py
   - factory/merge.py
@@ -12,10 +13,10 @@ radius:
 tasks: null
 merge_order: null
 proof:
-  red_test: null
-  red_output_sha: null
-  suite: null
-docs_cleared: null
+  red_test: tests/test_factory/test_hooks.py::test_a_write_into_another_worktree_is_judged_there
+  red_output_sha: see .factory/206/plan.md -> Proof
+  suite: pass
+docs_cleared: []
 ---
 
 # Plan: resolve the gate from the file
@@ -24,6 +25,7 @@ docs_cleared: null
 
 | Path | Why |
 | --- | --- |
+| `factory/chain.py` | **amended, see below** — `_git_dir` renamed to `git_dir` |
 | `factory/hooks.py` | `governing`, `_always_writable`, `decide_write`, `session_report` |
 | `factory/cli.py` | anchoring the target, enumerating worktrees, the Stop fold |
 | `factory/merge.py` | nothing new joins the import closure, but the test is run to confirm rather than assumed |
@@ -33,10 +35,23 @@ docs_cleared: null
 
 **Not in the radius, deliberately:**
 
-- `factory/chain.py` — `_git_dir`, `current_branch` and `read_chain` are
-  imported, not changed. `_git_dir` is private to that module and the walk
-  needs its logic, so it is **exported rather than reimplemented**; if it needs
-  changing, this plan is wrong and that is a different ticket.
+- `botting/`, `maple/`, `toolkit/` — nothing here reaches them.
+
+## Radius amended, mid-build
+
+The first version of this plan put `factory/chain.py` **outside** the radius,
+on the reasoning that `_git_dir`, `current_branch` and `read_chain` are
+imported rather than changed. That was wrong in the same sentence that said it:
+the walk needs `_git_dir`'s logic, and `_git_dir` is private, so using it means
+renaming it — which is changing `chain.py`.
+
+Caught after making the edit, not before. The alternatives were to reimplement
+the `gitdir:` pointer read in `hooks.py` (two copies of the one piece of logic
+whose subtlety caused #199) or to widen the radius by one path for a rename
+with no behaviour change. The rename is the smaller lie.
+
+`read_chain` and `front_matter` are still untouched, and the exported name has
+one call site plus the new one.
 - `.claude/settings.json` — the matcher is #207's, not this ticket's. Touching
   it here would also put a privilege-escalation path in a PR about scoping
   (#202).
@@ -74,13 +89,34 @@ every existing `decide_stop` test meaning what it meant.
 
 ## Proof
 
-Two things must be shown red, because the review predicted both:
+**`pytest`: 1170 passed, 3 skipped, 25 deselected.** 0 failed, 0 errors, 0
+xfailed. ruff, ruff format and pyright clean. `tests/test_factory/` went from
+217 to 241.
 
-1. **The six inverted tests.** Run the new tests against the *old*
-   `decide_write` and confirm indifference — that is the bug, demonstrated.
-2. **The cross-worktree case**, which is the ticket: two `tmp_path` worktrees,
-   A complete and B missing `spec-review.md`, a write to source in B judged
-   from a session rooted in A.
+Four red-proofs, run separately because the change has four independent halves:
+
+1. **Reverting `decide_write` to session-branch resolution: 9 red**, including
+   `test_a_write_into_another_worktree_is_judged_there` (named above) and
+   `test_a_cross_worktree_chain_write_is_never_refused`, which is the #189
+   deadlock guard.
+2. **Dropping the Stop fold and the anchoring: 2 red** — and this is where the
+   plan was wrong. Only the *anchoring* tests failed. The three
+   `_stop_everywhere` tests all stayed green, because they called the fold
+   directly and pinned nothing about whether the hook uses it. **A gate is only
+   as enforced as its call site.** Wrote
+   `test_the_stop_hook_is_wired_to_the_fold_not_to_one_worktree`, through
+   `main`, and it now goes red on that revert.
+3. **Dropping `session=` at the write call site: 1 red.** Found the same way:
+   the first revert broke nothing, because every other case is answered by row
+   1. Row 2 is the row this design already lost once, so
+   `test_the_pre_tool_use_hook_passes_the_session_so_row_two_survives` exists
+   to notice it going a second time.
+4. **The six tests the review predicted would invert** did invert, on the old
+   `decide_write`, before the fixture gained its `.git`.
+
+The lesson from 2 and 3 is the one worth keeping: testing a pure function and
+testing that anything calls it are different tests, and the second is the one
+that makes a gate real.
 
 ## What I expect not to be able to verify
 
