@@ -49,9 +49,21 @@ Three things the factory never takes:
 
 1. **Scope approval** on anything touching the hard-stop paths in `AGENTS.md`.
 2. **Owning the machine** and the logged-in client.
-3. **Resolving escalations.**
+3. **Resolving escalations** — and an escalation is *only* one of the four
+   kinds listed in [README → Decide and record](README.md#decide-and-record).
+   Not "I was unsure". Not "there were two reasonable options". Those are
+   decisions, and they belong to whoever is holding the ticket.
+4. **Observation** — any answer that can only come from watching the character
+   on a running client. A measured constant is the maintainer's, always.
 
-Everything else is delegable — eventually.
+Everything else is delegated **now**, not eventually. An agent that cannot find
+an answer in the repo picks the conservative option, records it, and continues
+(see [README → Decide and record](README.md#decide-and-record)).
+
+The reason this is stated so sharply: the maintainer's scarcest resource is his
+own attention, and a process that routes every uncertainty at him converts a
+bottleneck into a standstill. #194 is the worked example — a whole session spent
+asking, producing no branch, no artifacts and no PR.
 
 ## Today
 

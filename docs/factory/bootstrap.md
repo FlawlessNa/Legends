@@ -61,6 +61,20 @@ otherwise in a PR body. Say what you could not verify.
    optional** and is the point of the template.
 7. Stop. The agent never merges.
 
+## Questions go in the PR, not into the session
+
+Anything you genuinely cannot decide goes in the PR body under **"Decisions you
+may want to reverse"**: what you chose, why, and what you would have needed to
+choose differently. The maintainer reads them together, once.
+
+Asking mid-session costs him an interruption per question and leaves the ticket
+unfinished while he answers. Deciding and recording costs him one paragraph in a
+review he was going to read anyway.
+
+**Every question a maintainer cannot answer is a gap in the written plan.** The
+fix is never to answer it once; it is to write the answer where the next agent
+will find it — and to say so on the ticket, so the gap gets closed.
+
 ## When to stop and hand back
 
 `AGENTS.md` already draws this line and it is unchanged here: a measured

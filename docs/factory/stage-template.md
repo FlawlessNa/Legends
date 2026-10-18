@@ -37,6 +37,16 @@ Role: <role from roles.md, or "none">.
 
 <What the stage leaves behind, and where its contract lives in artifacts.md.>
 
+### Decide and record
+
+What this stage's agent decides for itself rather than asking. Anything not in
+the Stop list below, and not one of the three things the maintainer owns
+(scope approval on a hard-stop path, risk appetite, product priority,
+or anything needing observation of a running client).
+
+The conservative option, recorded under "Decisions I made" in this stage's
+artifact, with the reasoning. Never a question asked mid-session.
+
 ### Stop and hand back
 
 - <Stage-specific stops, beyond the standing list in AGENTS.md.>
