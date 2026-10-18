@@ -142,9 +142,20 @@ Criteria and `method` both explicit, every criterion decidable, and
 `method: live`, the schedule, metric and number are fixed *before* any run.
 
 **[mechanical]** as of #189 for the *existence* of the review — the `PreToolUse`
-hook refuses every edit outside `.factory/` until it is there. Whether the
-review is any **good** stays **[instruction]** until #180, and a green hook is
-not a reviewed spec.
+hook refuses source edits until it is there. Not *every* edit outside
+`.factory/`: `docs/`, `AGENTS.md` and `CLAUDE.md` have always been exempt, so
+that a gate cannot forbid writing the document describing its own escape hatch.
+Whether the review is any **good** stays **[instruction]** until #180, and a
+green hook is not a reviewed spec.
+
+**What the gate sees, as of #206.** A write is judged by the chain of the
+worktree **the file lives in**, not by the branch the session happens to sit
+on — and if that worktree is on no ticket branch, by the session's chain
+instead, so a Builder is accountable for what it writes anywhere. Before #206
+the session's branch alone decided, which meant editing a ticket worktree from
+a non-ticket checkout was gated by nothing at all. The gate also only sees the
+edit tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`): a file written
+through the shell is **[unenforced]**, and #207 decides what to do about it.
 
 ### Artifacts
 

@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 
 import pytest
 
 from factory import __version__
-from factory.cli import COMMANDS, build_parser, main
+from factory.cli import (
+    COMMANDS,
+    _stop_everywhere,
+    _written_path,
+    build_parser,
+    ticket_worktrees,
+)
+from factory.cli import (
+    main as main_cli,
+)
 from factory.exit_codes import ExitCode
 from factory.models import TABLE_PATH
 
@@ -22,19 +32,19 @@ def test_the_exit_codes_are_the_documented_contract() -> None:
 def test_misuse_shares_argparse_s_own_failure_code() -> None:
     """A bad invocation and a refused one report the same thing to the caller."""
     with pytest.raises(SystemExit) as caught:
-        main(["no-such-command"])
+        main_cli(["no-such-command"])
     assert caught.value.code == ExitCode.MISUSE
 
 
 def test_no_command_is_misuse_not_success() -> None:
     """A bare `factory` has done nothing, so it must not look like it succeeded."""
-    assert main([]) == ExitCode.MISUSE
+    assert main_cli([]) == ExitCode.MISUSE
 
 
 def test_version_reports_the_factory_s_own_version(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    assert main(["version"]) == ExitCode.OK
+    assert main_cli(["version"]) == ExitCode.OK
     assert capsys.readouterr().out.strip() == f"version: {__version__}"
 
 
@@ -42,7 +52,7 @@ def test_json_renders_the_same_payload_as_one_object(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Every command speaks both forms, so an agent never parses prose."""
-    assert main(["--json", "version"]) == ExitCode.OK
+    assert main_cli(["--json", "version"]) == ExitCode.OK
     assert json.loads(capsys.readouterr().out) == {"version": __version__}
 
 
@@ -77,7 +87,7 @@ def _payload(capsys: pytest.CaptureFixture[str]) -> dict[str, object]:
 def test_model_answers_for_a_stage_asked_directly(
     repo: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    assert main(["--json", "model", "--stage", "design"]) == ExitCode.OK
+    assert main_cli(["--json", "model", "--stage", "design"]) == ExitCode.OK
     assert _payload(capsys)["model"] == "opus"
 
 
@@ -85,7 +95,7 @@ def test_model_names_the_rule_that_fired(
     repo: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Without this a human cannot ask why a stage got the model it got."""
-    assert main(["--json", "model", "--stage", "qa"]) == ExitCode.OK
+    assert main_cli(["--json", "model", "--stage", "qa"]) == ExitCode.OK
     payload = _payload(capsys)
     assert payload["rule"] == "stage table: qa"
     assert payload["record"] == "model: sonnet  # tier=standard, rule=stage table: qa"
@@ -98,18 +108,18 @@ def test_model_answers_integrate_with_no_model_at_exit_zero(
     A definite "nobody runs this" is an answer. Exiting non-zero would force
     the Foreman to special-case `integrate` before asking about it.
     """
-    assert main(["--json", "model", "--stage", "integrate"]) == ExitCode.OK
+    assert main_cli(["--json", "model", "--stage", "integrate"]) == ExitCode.OK
     assert _payload(capsys)["model"] is None
 
 
 def test_an_unknown_stage_is_misuse(repo: Path) -> None:
     """`maintain` is the real case: in `stages.md`, in no enum, owned by no role."""
-    assert main(["model", "--stage", "maintain"]) == ExitCode.MISUSE
+    assert main_cli(["model", "--stage", "maintain"]) == ExitCode.MISUSE
 
 
 def test_no_ticket_and_no_stage_is_misuse(repo: Path) -> None:
     """There is no stage to answer about; guessing one would be worse."""
-    assert main(["model"]) == ExitCode.MISUSE
+    assert main_cli(["model"]) == ExitCode.MISUSE
 
 
 def test_a_broken_table_needs_a_human_not_a_misuse(repo: Path) -> None:
@@ -119,12 +129,12 @@ def test_a_broken_table_needs_a_human_not_a_misuse(repo: Path) -> None:
     for a corrupt config file.
     """
     (repo / TABLE_PATH).write_text('unavailable = ["fabel"]\n', encoding="utf-8")
-    assert main(["model", "--stage", "design"]) == ExitCode.NEEDS_HUMAN
+    assert main_cli(["model", "--stage", "design"]) == ExitCode.NEEDS_HUMAN
 
 
 def test_a_missing_table_needs_a_human(repo: Path) -> None:
     (repo / TABLE_PATH).unlink()
-    assert main(["model", "--stage", "design"]) == ExitCode.NEEDS_HUMAN
+    assert main_cli(["model", "--stage", "design"]) == ExitCode.NEEDS_HUMAN
 
 
 def test_no_error_path_ever_reports_a_model(
@@ -132,7 +142,7 @@ def test_no_error_path_ever_reports_a_model(
 ) -> None:
     """A silent fallback to the strong model turns a typo into a bill."""
     (repo / TABLE_PATH).write_text("tiers = 3\n", encoding="utf-8")
-    assert main(["--json", "model", "--stage", "design"]) == ExitCode.NEEDS_HUMAN
+    assert main_cli(["--json", "model", "--stage", "design"]) == ExitCode.NEEDS_HUMAN
     assert "model" not in _payload(capsys)
 
 
@@ -145,7 +155,7 @@ def test_the_ticket_form_computes_the_stage_from_the_chain(
     (chain / "intent.md").write_text(
         "---\nticket: 7\naccepted_by: nassim\n---\n", encoding="utf-8"
     )
-    assert main(["--json", "model", "7"]) == ExitCode.OK
+    assert main_cli(["--json", "model", "7"]) == ExitCode.OK
     payload = _payload(capsys)
     assert payload["stage"] == "design"
     assert payload["model"] == "opus"
@@ -161,5 +171,220 @@ def test_a_blocked_chain_needs_a_human_and_says_why(
     chain = repo / ".factory" / "7"
     chain.mkdir(parents=True)
     (chain / "plan.md").write_text("---\nticket: 7\n---\n", encoding="utf-8")
-    assert main(["--json", "model", "7"]) == ExitCode.NEEDS_HUMAN
+    assert main_cli(["--json", "model", "7"]) == ExitCode.NEEDS_HUMAN
     assert _payload(capsys)["blocked_by"]
+
+
+# --- The hook's view of a path, and of the worktrees (#206) ------------------
+
+
+def _wt(root: Path, branch: str, ticket: int | None = None) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    (root / ".git").mkdir(exist_ok=True)
+    (root / ".git" / "HEAD").write_text(f"ref: refs/heads/{branch}\n", encoding="utf-8")
+    if ticket is not None:
+        (root / ".factory" / str(ticket)).mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def test_a_relative_target_is_anchored_on_the_event_s_cwd(tmp_path: Path) -> None:
+    """
+    `PreToolUse` fires on the model's raw arguments, before the tool validates
+    them, so a relative path is reachable. Resolved later it lands against the
+    hook's own cwd -- the session's worktree, not the target's -- and the gate
+    answers about the wrong ticket. That is the bug surviving its own fix.
+    """
+    target = _written_path(
+        {"tool_input": {"file_path": "factory/cli.py"}, "cwd": str(tmp_path / "other")}
+    )
+    assert target == tmp_path / "other" / "factory" / "cli.py"
+
+
+def test_an_absolute_target_is_left_alone(tmp_path: Path) -> None:
+    absolute = tmp_path / "a" / "factory" / "cli.py"
+    assert _written_path({"tool_input": {"file_path": str(absolute)}}) == absolute
+
+
+def test_a_relative_target_falls_back_to_the_process_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The event may not carry `cwd`; the process cwd is the best guess left."""
+    monkeypatch.chdir(tmp_path)
+    assert _written_path({"tool_input": {"file_path": "x.py"}}) == tmp_path / "x.py"
+
+
+def test_a_tool_that_writes_nothing_has_no_target() -> None:
+    assert _written_path({"tool_input": {"pattern": "foo"}}) is None
+    assert _written_path({}) is None
+
+
+def test_every_ticket_worktree_is_found_from_the_main_checkout(tmp_path: Path) -> None:
+    """
+    The Stop gate judged only the session's worktree, which in the workflow
+    this factory was built under is the main checkout on a non-ticket branch --
+    so the proof gate returned indifference on every turn, forever.
+    """
+    main = _wt(tmp_path / "main", "movements-improvements")
+    worktrees = main / ".git" / "worktrees"
+    for name, branch in (("a", "issue/1-x"), ("b", "issue/2-x"), ("c", "dev")):
+        linked = _wt(tmp_path / name, branch)
+        (worktrees / name).mkdir(parents=True)
+        (worktrees / name / "gitdir").write_text(str(linked / ".git"), encoding="utf-8")
+        (worktrees / name / "HEAD").write_text(
+            f"ref: refs/heads/{branch}\n", encoding="utf-8"
+        )
+
+    found = ticket_worktrees(main)
+    assert {root.name for root in found} == {"a", "b"}, "c is not a ticket branch"
+
+
+def test_the_session_s_own_worktree_is_included_when_it_qualifies(
+    tmp_path: Path,
+) -> None:
+    """A session inside its own ticket worktree is judged exactly as before."""
+    own = _wt(tmp_path / "own", "issue/9-x", 9)
+    assert ticket_worktrees(own) == (own,)
+
+
+def test_a_directory_that_is_not_a_repository_has_no_worktrees(tmp_path: Path) -> None:
+    assert ticket_worktrees(tmp_path) == ()
+
+
+def test_the_stop_gate_refuses_for_a_worktree_the_session_is_not_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    The gate this ticket resurrects.
+
+    The session is in the main checkout on a non-ticket branch; a ticket
+    worktree has source changed and no proof recorded. Before #206 the turn
+    ended cleanly, because the only worktree consulted was the one with nothing
+    to say.
+    """
+    main = _wt(tmp_path / "main", "movements-improvements")
+    linked = _wt(tmp_path / "wt", "issue/5-x", 5)
+    (linked / ".factory" / "5" / "plan.md").write_text(
+        "---\nticket: 5\nproof:\n  suite: null\n---\n", encoding="utf-8"
+    )
+    entry = main / ".git" / "worktrees" / "wt"
+    entry.mkdir(parents=True)
+    (entry / "gitdir").write_text(str(linked / ".git"), encoding="utf-8")
+
+    monkeypatch.setattr("factory.cli._source_changed", lambda root: root == linked)
+    decision = _stop_everywhere(main)
+    assert not decision.allowed
+    assert "5" in decision.reason
+
+
+def test_the_stop_gate_is_quiet_when_every_worktree_has_its_proof(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    main = _wt(tmp_path / "main", "movements-improvements")
+    linked = _wt(tmp_path / "wt", "issue/5-x", 5)
+    (linked / ".factory" / "5" / "plan.md").write_text(
+        "---\nticket: 5\nproof:\n  suite: pass\n---\n", encoding="utf-8"
+    )
+    entry = main / ".git" / "worktrees" / "wt"
+    entry.mkdir(parents=True)
+    (entry / "gitdir").write_text(str(linked / ".git"), encoding="utf-8")
+
+    monkeypatch.setattr("factory.cli._source_changed", lambda root: True)
+    assert _stop_everywhere(main).allowed
+
+
+def test_the_stop_gate_runs_git_in_each_worktree_not_in_the_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`git status` in the session's root cannot see another worktree's changes."""
+    main = _wt(tmp_path / "main", "movements-improvements")
+    linked = _wt(tmp_path / "wt", "issue/5-x", 5)
+    entry = main / ".git" / "worktrees" / "wt"
+    entry.mkdir(parents=True)
+    (entry / "gitdir").write_text(str(linked / ".git"), encoding="utf-8")
+
+    asked: list[Path] = []
+    monkeypatch.setattr(
+        "factory.cli._source_changed", lambda root: asked.append(root) or False
+    )
+    _stop_everywhere(main)
+    assert asked == [linked]
+
+
+def test_the_stop_hook_is_wired_to_the_fold_not_to_one_worktree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """
+    Through `main`, because the fold being correct is worth nothing if the hook
+    does not call it.
+
+    Written after reverting the wiring and watching the three `_stop_everywhere`
+    tests all stay green: they exercised the fold directly and pinned nothing
+    about the hook. A gate is only as enforced as its call site.
+    """
+    main = _wt(tmp_path / "main", "movements-improvements")
+    linked = _wt(tmp_path / "wt", "issue/5-x", 5)
+    (linked / ".factory" / "5" / "plan.md").write_text(
+        "---\nticket: 5\nproof:\n  suite: null\n---\n", encoding="utf-8"
+    )
+    entry = main / ".git" / "worktrees" / "wt"
+    entry.mkdir(parents=True)
+    (entry / "gitdir").write_text(str(linked / ".git"), encoding="utf-8")
+
+    monkeypatch.chdir(main)
+    monkeypatch.setattr("factory.cli._source_changed", lambda root: root == linked)
+    monkeypatch.setattr("sys.stdin", io.StringIO("{}"))
+
+    assert main_cli(["hook", "stop"]) == ExitCode.OK
+    answer = json.loads(capsys.readouterr().out)
+    assert answer["decision"] == "block"
+    assert "5" in answer["reason"]
+
+
+def test_the_pre_tool_use_hook_judges_the_target_s_worktree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The same, for the write gate: the call site must pass the target."""
+    main = _wt(tmp_path / "main", "movements-improvements")
+    linked = _wt(tmp_path / "wt", "issue/5-x", 5)
+    monkeypatch.chdir(main)
+    monkeypatch.setattr(
+        "sys.stdin",
+        io.StringIO(
+            json.dumps(
+                {"tool_input": {"file_path": str(linked / "botting" / "core.py")}}
+            )
+        ),
+    )
+
+    assert main_cli(["hook", "pre-tool-use"]) == ExitCode.OK
+    answer = json.loads(capsys.readouterr().out)
+    specific = answer["hookSpecificOutput"]
+    assert specific["permissionDecision"] == "deny"
+    assert "Ticket 5" in specific["permissionDecisionReason"]
+
+
+def test_the_pre_tool_use_hook_passes_the_session_so_row_two_survives(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """
+    A ticket session writing into the trunk, through the hook.
+
+    Row 2 of the jurisdiction table is the one this design lost once already --
+    the first spec dropped it while asserting it changed nothing. Dropping the
+    `session=` argument at the call site would lose it again silently, because
+    every other case is answered by row 1. This is the test that notices.
+    """
+    main = _wt(tmp_path / "main", "movements-improvements")
+    linked = _wt(tmp_path / "wt", "issue/5-x", 5)
+    monkeypatch.chdir(linked)
+    monkeypatch.setattr(
+        "sys.stdin",
+        io.StringIO(
+            json.dumps({"tool_input": {"file_path": str(main / "botting" / "core.py")}})
+        ),
+    )
+
+    assert main_cli(["hook", "pre-tool-use"]) == ExitCode.OK
+    specific = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    assert specific["permissionDecision"] == "deny"
+    assert "Ticket 5" in specific["permissionDecisionReason"]

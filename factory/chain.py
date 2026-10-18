@@ -47,7 +47,7 @@ def ticket_from_branch(branch: str | None) -> int | None:
     return int(found.group(1)) if found else None
 
 
-def _git_dir(repo_root: Path) -> Path | None:
+def git_dir(repo_root: Path) -> Path | None:
     """
     The directory holding `HEAD`, for a normal checkout or a linked worktree.
 
@@ -80,11 +80,11 @@ def current_branch(repo_root: Path) -> str | None:
     This is called from `PreToolUse`, which fires on every edit, so spawning a
     process would be paid hundreds of times a session.
     """
-    git_dir = _git_dir(repo_root)
-    if git_dir is None:
+    found = git_dir(repo_root)
+    if found is None:
         return None
     try:
-        text = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
+        text = (found / "HEAD").read_text(encoding="utf-8").strip()
     except OSError:
         return None
     prefix = "ref: refs/heads/"
