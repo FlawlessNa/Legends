@@ -89,6 +89,9 @@ of it.
 - **[bootstrap.md](bootstrap.md)** — how to work a ticket *now*, while most of
   the above is **[instruction]** rather than **[mechanical]**. **Read this
   before your first ticket.**
+- **[merge-policy.md](merge-policy.md)** — what CI merges without a person, and
+  why no agent ever merges. `factory merge check <pr>` shows what CI will
+  decide.
 
 ## What this does not restate
 

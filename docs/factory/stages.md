@@ -491,8 +491,9 @@ Every artifact present, every verdict a pass.
 ### The work
 
 **The agent never merges.** It opens the PR, if one is not already open, and
-stops. Merge is a human action until the escalation policy says otherwise, and
-even then only for ticket types on the allowlist.
+stops. Merge is a human action, or CI's when
+[merge-policy.md](merge-policy.md) holds — never the agent's. Run
+`factory merge check <pr>` to see which, and say so in the PR.
 
 ### The oracle
 

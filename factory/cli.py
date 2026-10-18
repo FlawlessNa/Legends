@@ -31,6 +31,7 @@ from factory.hooks import (
     decide_write,
     session_report,
 )
+from factory.merge import check as check_merge
 
 #: A handler takes parsed arguments and returns its code plus a payload. The
 #: payload is rendered as JSON under `--json`, and as `key: value` lines otherwise.
@@ -51,10 +52,34 @@ def _version(args: argparse.Namespace) -> tuple[ExitCode, dict[str, Any]]:
     return ExitCode.OK, {"version": __version__}
 
 
+def _pull_request_number(text: str) -> int:
+    """A PR number, refused at parse time so a typo is misuse, not a verdict."""
+    if not text.isdigit() or int(text) < 1:
+        raise argparse.ArgumentTypeError(f"not a pull request number: {text!r}")
+    return int(text)
+
+
+def _configure_merge(parser: argparse.ArgumentParser) -> None:
+    """`merge check <pr>`, nested so `merge` gains actions without new commands."""
+    actions = parser.add_subparsers(dest="merge_action", metavar="ACTION")
+    check = actions.add_parser(
+        "check", help="Evaluate the auto-merge policy, exactly as CI does"
+    )
+    check.add_argument("pr", type=_pull_request_number, help="The PR number.")
+
+
+def _merge(args: argparse.Namespace) -> tuple[ExitCode, dict[str, Any]]:
+    """Evaluate docs/factory/merge-policy.md for one PR. Never merges."""
+    if args.merge_action != "check":
+        return ExitCode.MISUSE, {"error": "usage: factory merge check <pr>"}
+    return check_merge(args.pr)
+
+
 #: name -> (help text, flag configuration, handler). The registry a new command
 #: joins; nothing else in this module changes when one is added.
 COMMANDS: Final[dict[str, tuple[str, Configure, Handler]]] = {
     "version": ("Print the factory's version", _no_arguments, _version),
+    "merge": ("Evaluate the auto-merge policy for a PR", _configure_merge, _merge),
 }
 
 
