@@ -16,6 +16,20 @@ file is wrong.
    work, and run
    `bash .claude/hooks/factory-hook.sh session-start` to see the error (#199).
 
+**Are you in a worktree?** If your working directory is the **primary
+checkout** — the clone whose `.git` is a directory — then source edits there
+are refused on any branch (#209). That includes being asked to pick up a ticket
+while sitting in the primary checkout, which is how an orchestrator is normally
+asked. Give the ticket its own worktree first:
+
+```
+git worktree add ../issue-<n>-<slug> -b issue/<n>-<slug>
+```
+
+Work there, and write `intent.md` and `spec.md` **in that worktree**: `git
+worktree add` carries no uncommitted changes, so artifacts written in the
+primary checkout stay behind and the new worktree starts with an empty chain.
+
 1. Run `factory next <ticket>`. It names the stage, the role and the section to
    read.
 2. Read `docs/factory/stages.md` → "How to read a stage section", then the

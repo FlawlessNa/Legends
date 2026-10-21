@@ -15,7 +15,10 @@ import pytest
 from factory.chain import CHAIN_DIR, current_branch, read_chain, ticket_from_branch
 from factory.hooks import (
     HEARTBEAT,
+    IN_PRIMARY,
     OFF_TICKET,
+    _common,
+    _is_primary,
     decide_stop,
     decide_write,
     governing,
@@ -43,20 +46,57 @@ def _worktree(root: Path, branch: str, ticket: int) -> Path:
     return root
 
 
-@pytest.fixture
-def repo(tmp_path: Path) -> Path:
-    """A worktree on ticket 7's branch, with an empty chain."""
-    return _worktree(tmp_path / "wt", "issue/7-x", 7)
+def _primary(root: Path, branch: str) -> Path:
+    """A primary checkout: `.git` is a DIRECTORY."""
+    root.mkdir(parents=True, exist_ok=True)
+    (root / ".git").mkdir(exist_ok=True)
+    (root / ".git" / "HEAD").write_text(f"ref: refs/heads/{branch}\n", encoding="utf-8")
+    return root
+
+
+def _linked(primary: Path, root: Path, branch: str, ticket: int | None = None) -> Path:
+    """
+    A genuine linked worktree of `primary`: `.git` is a FILE holding a pointer.
+
+    No existing fixture was one -- they were sibling directories each with
+    their own `.git` directory, which the identity rule correctly reads as
+    *separate repositories*. So the tests that claimed to cover "a ticket
+    session writing to the trunk" never modelled it (#209).
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    entry = primary / ".git" / "worktrees" / root.name
+    entry.mkdir(parents=True, exist_ok=True)
+    (entry / "HEAD").write_text(f"ref: refs/heads/{branch}\n", encoding="utf-8")
+    (entry / "gitdir").write_text(str(root / ".git") + "\n", encoding="utf-8")
+    (root / ".git").write_text(f"gitdir: {entry}\n", encoding="utf-8")
+    if ticket is not None:
+        (root / CHAIN_DIR / str(ticket)).mkdir(parents=True, exist_ok=True)
+    return root
 
 
 @pytest.fixture
 def off_ticket(tmp_path: Path) -> Path:
-    """A checkout on the trunk, for the cross-worktree cases."""
-    root = tmp_path / "trunk"
-    root.mkdir(parents=True)
-    (root / ".git").mkdir()
-    (root / ".git" / "HEAD").write_text("ref: refs/heads/dev\n", encoding="utf-8")
-    return root
+    """
+    The primary checkout, on the trunk.
+
+    `.git` is a directory, which is what makes it the primary checkout rather
+    than a worktree, so #209's gate applies to its source.
+    """
+    return _primary(tmp_path / "trunk", "dev")
+
+
+@pytest.fixture
+def repo(off_ticket: Path, tmp_path: Path) -> Path:
+    """
+    A genuine LINKED worktree on ticket 7's branch, with an empty chain.
+
+    This used to be a bare directory holding its own `.git` *directory*, which
+    is structurally a primary checkout: the fixture claimed to be a worktree
+    and was not. Every test using it exercised a shape the repo never produces,
+    and #209's report line correctly fired on it. Linked to `off_ticket`, the
+    two are one repository, which is what they always claimed to be.
+    """
+    return _linked(off_ticket, tmp_path / "wt", "issue/7-x", 7)
 
 
 def _write(repo: Path, name: str, text: str) -> None:
@@ -393,19 +433,22 @@ def test_a_write_into_another_worktree_is_judged_there(tmp_path: Path) -> None:
     assert "Ticket 2" in decision.reason, "it must name B's ticket, not A's"
 
 
-def test_a_ticket_session_writing_to_the_trunk_is_still_judged(
-    repo: Path, off_ticket: Path
-) -> None:
+def test_a_ticket_session_writing_to_the_trunk_is_refused(tmp_path: Path) -> None:
     """
-    The row the first draft dropped while asserting it changed nothing.
+    #206's row, now answered by #209's -- and the fixture had to be rebuilt.
 
-    Resolving from the target alone, the trunk is on no ticket branch, so this
-    write becomes allowed -- a Builder mid-ticket gaining the ability to write
-    source straight into the trunk, which it cannot do today.
+    This used to pair two sibling directories each holding a `.git` directory,
+    which the identity rule correctly reads as two separate repositories: the
+    test claimed to cover "a Builder mid-ticket writing the trunk" and did not
+    model it. With a genuine linked worktree the case is real, and the answer
+    is now stronger than #206's: refused because nobody writes primary-checkout
+    source, rather than judged against the session's chain.
     """
-    decision = decide_write(off_ticket / "botting" / "core.py", session=repo)
+    main = _primary(tmp_path / "main", "dev")
+    wt = _linked(main, tmp_path / "wt", "issue/7-x", 7)
+    decision = decide_write(main / "botting" / "core.py", session=wt)
     assert not decision.allowed
-    assert "Ticket 7" in decision.reason
+    assert "primary checkout" in decision.reason
 
 
 def test_the_target_s_ticket_wins_over_the_session_s(tmp_path: Path) -> None:
@@ -417,8 +460,19 @@ def test_the_target_s_ticket_wins_over_the_session_s(tmp_path: Path) -> None:
     assert "Ticket 2" in decision.reason
 
 
-def test_neither_side_a_ticket_is_indifferent(tmp_path: Path, off_ticket: Path) -> None:
-    assert decide_write(off_ticket / "botting" / "core.py", session=off_ticket).allowed
+def test_neither_side_a_ticket_is_now_refused_in_the_primary(
+    off_ticket: Path,
+) -> None:
+    """
+    This asserted indifference, and it is the one test #209 inverts.
+
+    Its fixture is a primary checkout on a non-ticket branch writing its own
+    source, which is exactly the case this gate exists to refuse -- the
+    orchestrator's seat. The old assertion was the hole, written down.
+    """
+    decision = decide_write(off_ticket / "botting" / "core.py", session=off_ticket)
+    assert not decision.allowed
+    assert "primary checkout" in decision.reason
 
 
 def test_a_cross_worktree_chain_write_is_never_refused(tmp_path: Path) -> None:
@@ -438,3 +492,246 @@ def test_a_cross_worktree_chain_write_is_never_refused(tmp_path: Path) -> None:
         b / "AGENTS.md",
     ):
         assert decide_write(exempt, session=a).allowed, exempt
+
+
+# --- The primary checkout (#209) ---------------------------------------------
+#
+# #206 closed the case where the session sits outside the worktree it edits.
+# This closes the case where NEITHER side is a ticket: the orchestrator's own
+# seat, from which a write to a hard-stop path was allowed with no artifacts
+# at all.
+
+
+def test_identity_is_required_so_another_repository_is_never_refused(
+    tmp_path: Path,
+) -> None:
+    """
+    The finding that would have cost the most.
+
+    Testing shape alone -- "is this not a linked worktree?" -- makes every git
+    repository on the machine "the primary checkout", so another project's
+    source is refused with a reason about this factory. #206 exists precisely
+    because agents write other checkouts by absolute path.
+    """
+    mine = _primary(tmp_path / "mine", "dev")
+    theirs = _primary(tmp_path / "OtherProject", "main")
+    assert decide_write(theirs / "main.py", session=mine).allowed
+
+
+def test_a_repository_whose_directory_is_named_worktrees_is_still_primary(
+    tmp_path: Path,
+) -> None:
+    """
+    The inverse failure: the gate silently off.
+
+    Reading the resolved git dir's parent for the name `worktrees` answers
+    False here, so a repository that happens to live in such a directory would
+    be ungated. `.git` being a directory rather than a file does not care.
+    """
+    trap = _primary(tmp_path / "worktrees", "dev")
+    assert _is_primary(trap)
+    assert not decide_write(trap / "botting" / "core.py", session=trap).allowed
+
+
+def test_a_linked_worktree_is_never_the_primary_checkout(tmp_path: Path) -> None:
+    main = _primary(tmp_path / "main", "dev")
+    wt = _linked(main, tmp_path / "wt", "issue/7-x", 7)
+    assert _is_primary(main)
+    assert not _is_primary(wt)
+    assert _common(main) == _common(wt), "the same repository, though"
+
+
+def test_a_ticket_branch_in_the_primary_checkout_is_still_refused(
+    tmp_path: Path,
+) -> None:
+    """
+    The bypass review found, and the reason no branch is consulted.
+
+    Create a ticket branch in the primary (through the shell, which no hook
+    sees), write intent.md, spec.md and spec-review.md -- all exempt, so all
+    allowed -- and under a rule that deferred to the target's ticket, source
+    writes are permitted again. Three permitted writes and one permitted
+    command reopened the whole hole.
+    """
+    primary = _primary(tmp_path / "main", "issue/999-sneaky")
+    chain = primary / CHAIN_DIR / "999"
+    chain.mkdir(parents=True)
+    for name in ("intent.md", "spec.md", "spec-review.md"):
+        (chain / name).write_text(SPEC, encoding="utf-8")
+
+    decision = decide_write(primary / "botting" / "core.py", session=primary)
+    assert not decision.allowed
+    assert "primary checkout" in decision.reason
+
+
+def test_the_artifacts_stay_writable_in_the_primary(tmp_path: Path) -> None:
+    """Refusing them is #189's deadlock: the gate forbidding its own remedy."""
+    primary = _primary(tmp_path / "main", "dev")
+    for exempt in (
+        primary / CHAIN_DIR / "999" / "intent.md",
+        primary / "docs" / "factory" / "stages.md",
+        primary / "AGENTS.md",
+    ):
+        assert decide_write(exempt, session=primary).allowed, exempt
+
+
+@pytest.mark.parametrize(
+    "exempt",
+    [
+        "configs/game.ini",
+        "configs/factory-models.toml",
+        "profiles/mine.yaml",
+        "toolkit/create_map.py",
+        ".claude/settings.local.json",
+    ],
+)
+def test_what_a_human_edits_in_their_own_checkout_stays_writable(
+    tmp_path: Path, exempt: str
+) -> None:
+    """
+    The settings passed into a launcher, the tools run by hand, and the escape
+    hatch. `.claude/settings.local.json` is the sharp one: `OVERRIDE` tells the
+    reader to write it, so refusing it is the gate refusing its own remedy.
+    """
+    primary = _primary(tmp_path / "main", "dev")
+    assert decide_write(primary / exempt, session=primary).allowed
+
+
+@pytest.mark.parametrize(
+    "refused",
+    [
+        "botting/controller/inputs/focus.py",
+        "maple/launchers/run.py",
+        "factory/cli.py",
+        "configs/maps/GhostShip1.json",
+        ".claude/settings.json",
+        "pyproject.toml",
+        "CONTEXT.md",
+    ],
+)
+def test_source_and_the_gates_themselves_are_refused(
+    tmp_path: Path, refused: str
+) -> None:
+    """
+    `maple/launchers/**` is source: a launcher imports the engine.
+    `configs/maps/**` is a hard-stop path inside an exempt tree, so deny wins.
+    `.claude/settings.json` holds the hooks, so exempting it would let an agent
+    turn the gates off; only `settings.local.json` is exempt.
+    """
+    primary = _primary(tmp_path / "main", "dev")
+    assert not decide_write(primary / refused, session=primary).allowed
+
+
+@pytest.mark.parametrize(
+    "tree", ["configs/game.ini", "profiles/x.yaml", "toolkit/t.py"]
+)
+def test_the_primary_exemptions_do_not_leak_into_a_ticket_worktree(
+    tmp_path: Path, tree: str
+) -> None:
+    """
+    The regression the obvious shortcut causes.
+
+    Appending these to `_ALWAYS_WRITABLE_ROOTS` would be the one-line way to
+    implement the exemption -- and that constant is shared with #206's gate, so
+    the artifacts-before-code gate would silently lose three whole top-level
+    trees inside ticket worktrees. Written before the matcher, because review
+    predicted a Builder would reach for the shortcut first.
+    """
+    main = _primary(tmp_path / "main", "dev")
+    wt = _linked(main, tmp_path / "wt", "issue/7-x", 7)
+    decision = decide_write(wt / tree, session=wt)
+    assert not decision.allowed, f"{tree} escaped the artifacts gate in a worktree"
+    assert "spec.md" in decision.reason
+
+
+def test_a_scratchpad_write_is_indifferent_whatever_the_session(
+    tmp_path: Path,
+) -> None:
+    """
+    The #206 over-reach, red against merged code.
+
+    Its session row fired for *any* target, so `_always_writable` raised for an
+    out-of-repo path, the chain was consulted, and a write to a temp file was
+    refused whenever the session's chain was incomplete -- contradicting #206's
+    own principle that the factory governs this repository, not the filesystem.
+    """
+    main = _primary(tmp_path / "repo", "dev")
+    wt = _linked(main, tmp_path / "repo-wt", "issue/7-x", 7)
+    loose = tmp_path / "scratch" / "notes.md"
+    assert decide_write(loose, session=wt).allowed
+
+
+def test_forcing_the_predicate_off_removes_every_primary_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    The revert rehearsal, and the proof this rule is single-source.
+
+    The maintainer accepted this friction provisionally, so reverting must be
+    one edit. A test that counts references to a constant pins *syntax* and is
+    satisfied by a copy-pasted literal at a second call site; forcing the one
+    predicate off and finding no refusal survives proves single-source
+    **control** instead, and survives refactors.
+    """
+    primary = _primary(tmp_path / "main", "dev")
+    refused = ("botting/core.py", "maple/launchers/run.py", "configs/maps/m.json")
+    assert all(
+        not decide_write(primary / path, session=primary).allowed for path in refused
+    ), "the gate must be refusing these before the rehearsal means anything"
+
+    monkeypatch.setattr("factory.hooks._is_primary", lambda root: False)
+    for path in refused:
+        decision = decide_write(primary / path, session=primary)
+        assert decision.allowed, f"{path} still refused with the predicate off"
+
+
+def test_the_primary_checkout_is_warned_at_startup(off_ticket: Path) -> None:
+    """
+    The one mechanism that puts the rule in context *before* the agent acts.
+
+    AGENTS.md, stages.md and the skill are lookups an agent must choose to
+    make. Without this line the first refusal arrives as a bare deny, which is
+    the "figure it out on its own" failure the rule was asked to avoid.
+    """
+    report = session_report(off_ticket, "dev")
+    assert IN_PRIMARY in report
+    assert report.startswith(HEARTBEAT)
+
+
+def test_off_ticket_no_longer_claims_the_gates_only_apply_elsewhere(
+    off_ticket: Path,
+) -> None:
+    """
+    `OFF_TICKET` used to say the gates "still apply to files in one" -- a
+    worktree -- which in the primary checkout reads as "files here are free",
+    the opposite of the new rule. A correct line beside a wrong one is worse
+    than no line, so the wrong clause is gone rather than joined.
+    """
+    assert "in one" not in session_report(off_ticket, "dev")
+
+
+def test_a_ticket_branch_in_the_primary_is_warned_too(off_ticket: Path) -> None:
+    """
+    The ticket-branch path of the report needs the line as much as the other
+    one, precisely because a ticket branch here is a refused state.
+    """
+    (off_ticket / CHAIN_DIR / "7").mkdir(parents=True)
+    report = session_report(off_ticket, "issue/7-x")
+    assert IN_PRIMARY in report
+    assert "ticket 7" in report
+
+
+def test_a_linked_worktree_is_not_warned(repo: Path) -> None:
+    """The rule does not apply there, so saying it would be noise."""
+    assert IN_PRIMARY not in session_report(repo, "issue/7-x")
+
+
+def test_a_subdirectory_of_the_primary_is_still_warned(off_ticket: Path) -> None:
+    """
+    The report receives `Path.cwd()` while the gate walks up from the file. A
+    session whose cwd is a subdirectory would otherwise get no line while its
+    writes were refused -- the exact failure this line prevents.
+    """
+    deep = off_ticket / "maple" / "model"
+    deep.mkdir(parents=True)
+    assert IN_PRIMARY in session_report(deep, "dev")
