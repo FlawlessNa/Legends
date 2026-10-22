@@ -296,7 +296,7 @@ def blob(repo_root: Path, commit: str, relpath: str) -> str | None:
     `ls-tree`, not `rev-parse <commit>:<path>^{blob}`: the peel is read as part
     of the path and fails for every file (verified on git 2.39.1). Its output
     is read as raw `-z` records, so git never quotes a path (non-ASCII, a
-    quote, a backslash, a tab), and decoded here as UTF-8 rather than in the
+    quote, a tab), and decoded here as UTF-8 rather than in the
     console's codepage. `--end-of-options` keeps a `commit` beginning with `-`
     from being read as a flag.
     """

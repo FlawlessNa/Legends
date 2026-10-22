@@ -40,8 +40,8 @@ default.
 plus one level of nesting read as dotted keys (`proof.suite`). Lists of scalars,
 in two spellings:
 
-- a block list: `key:` then indented `- item` lines, up to the next non-blank
-  line at column 0. Blank lines and `#` comments inside it are skipped.
+- a block list: `key:` then indented `- item` lines, up to the next non-blank,
+  non-comment line at column 0. Blank lines and `#` comments inside it are skipped.
 - a flow list: `key: []` or `key: [a, b]`, split on commas.
 
 Items keep their quotes. A list holding a mapping item (`- id: x`), a nested
@@ -69,8 +69,8 @@ guess. The v2 files below are read today and written by the tickets named.
 | --- | --- | --- |
 | `ticket` | int | The issue number. Must match the directory. |
 | `stage` | `plan` | Always `plan`; intent is stage 1's artifact. |
-| `accepted_by` | string \| null | Who accepted it. `null` until accepted. |
-| `accepted_at` | date \| null | When. **Retired in v2 chains** with `accepted_by`: acceptance moves to `acceptance.md` (#222). |
+| `accepted_by` | string \| null | Who accepted it. `null` until accepted. **Retired in v2 chains**, with `accepted_at`: acceptance moves to `acceptance.md` (#222). |
+| `accepted_at` | date \| null | When. |
 | `chain` | `1` \| `2` \| absent | The chain version. Absent means 1. Written by `factory feature new` (#222). |
 
 Body sections, all required, empty ones marked rather than omitted: problem
