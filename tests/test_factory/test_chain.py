@@ -148,7 +148,7 @@ def test_the_loop_s_artifacts_are_read(tmp_path: Path) -> None:
     assert chain.proof["suite"] == "pass"
     assert chain.answers["ticket"] == "7"
     assert chain.park["kind"] == "spec-gap"
-    assert {"acceptance.md", "proof.md", "park.md"} <= chain.present
+    assert {"acceptance.md", "proof.md", "answers.md", "park.md"} <= chain.present
 
 
 def test_criteria_and_radius_are_tuples(tmp_path: Path) -> None:
@@ -240,6 +240,7 @@ def crlf_repo(tmp_path: Path) -> Path:
         ("user.email", "test@example.invalid"),
         ("core.hooksPath", ""),
         ("core.autocrlf", "true"),
+        ("commit.gpgsign", "false"),
     ):
         _git(repo, "config", key, value)
     (repo / "docs").mkdir()
@@ -370,3 +371,51 @@ def test_the_repo_s_committed_chains_read_cleanly(ticket: int) -> None:
 
     assert chain.version == 1
     resolve(REPO, f"issue/{ticket}-x")
+
+
+# --- Found in review ----------------------------------------------------------
+
+
+def test_a_column_zero_comment_inside_a_list_is_skipped(tmp_path: Path) -> None:
+    """It used to close the list and drop every item after it."""
+    found = _lists("---\nradius:\n  - a.py\n# why\n  - b.py\n---\n", tmp_path)
+    assert found["radius"] == ("a.py", "b.py")
+
+
+def test_items_at_column_zero_make_the_key_unreadable(tmp_path: Path) -> None:
+    """Valid YAML, but not this grammar -- and it used to read as an empty list."""
+    assert "radius" not in _lists("---\nradius:\n- a.py\n- b.py\n---\n", tmp_path)
+
+
+def test_a_key_with_no_items_is_null_not_an_empty_list(tmp_path: Path) -> None:
+    found = _lists("---\nradius:\ndocs_cleared: []\n---\n", tmp_path)
+    assert "radius" not in found
+    assert found["docs_cleared"] == ()
+
+
+def test_a_repeated_key_takes_its_last_occurrence(tmp_path: Path) -> None:
+    found = _lists("---\nradius:\n  - a.py\nradius: none\n---\n", tmp_path)
+    assert "radius" not in found
+
+
+def test_a_tab_and_a_space_are_not_the_same_indentation(tmp_path: Path) -> None:
+    assert "radius" not in _lists("---\nradius:\n\t- a.py\n - b.py\n---\n", tmp_path)
+
+
+def test_a_nested_list_makes_the_key_unreadable(tmp_path: Path) -> None:
+    assert "radius" not in _lists("---\nradius:\n  - - a.py\n---\n", tmp_path)
+
+
+@needs_git
+@pytest.mark.parametrize("name", ["ünïcode.md", "with space.md"])
+def test_blob_finds_files_git_would_quote(crlf_repo: Path, name: str) -> None:
+    (crlf_repo / "docs" / name).write_bytes(b"x\n")
+    _git(crlf_repo, "add", ".")
+    _git(crlf_repo, "commit", "-q", "-m", "quoted")
+    expected = _git(crlf_repo, "rev-parse", f"HEAD:docs/{name}")
+    assert blob(crlf_repo, "HEAD", f"docs/{name}") == expected
+
+
+@needs_git
+def test_a_commit_that_looks_like_a_flag_is_not_one(crlf_repo: Path) -> None:
+    assert blob(crlf_repo, "--help", "docs/spec.md") is None

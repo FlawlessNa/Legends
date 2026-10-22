@@ -183,14 +183,21 @@ def front_matter_lists(path: Path) -> dict[str, tuple[str, ...]]:
     The top-level lists of scalars in a file's front-matter.
 
     Two spellings: a block list (`key:` then indented `- item` lines, up to the
-    next non-blank line at column 0) and a flow list (`key: []`, `key: [a, b]`).
-    Blank lines and `#` comments inside a block list are skipped. Items keep
-    their quotes: nothing here unquotes, so nothing here can unquote wrongly.
+    next non-blank, non-comment line at column 0) and a flow list (`key: []`,
+    `key: [a, b]`). Blank lines and whole-line `#` comments are skipped wherever
+    they sit, column 0 included. Items keep their quotes, and a trailing
+    `# comment` stays part of its item: nothing here unquotes or strips, so
+    nothing here can do either wrongly.
+
+    `key:` with no items is YAML's null, not an empty list, so it is absent;
+    `key: []` is the empty list. A key that appears twice takes its last
+    occurrence, as `front_matter` does.
 
     **A key is absent rather than half-read** when any item is a mapping
-    (`- id: x`), when its items sit at differing indentation, or when it holds
-    any indented line that is not an item -- all of which mean a nested
-    structure, which this reader does not try to understand.
+    (`- id: x`) or a nested list (`- - a`), when its items are not indented, or
+    when their indentation differs (compared literally, so a tab is not a
+    space), or when it holds any indented line that is not an item -- all of
+    which mean a structure this reader does not try to understand.
     """
     body = _front_block(path)
     if body is None:
@@ -198,21 +205,27 @@ def front_matter_lists(path: Path) -> dict[str, tuple[str, ...]]:
     found: dict[str, tuple[str, ...]] = {}
     key: str | None = None
     items: list[str] = []
-    indent: int | None = None
+    prefix: str | None = None
     broken = False
 
     for line in [*body.splitlines(), "\x00"]:
-        if not line.strip():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
             continue
         if not line.startswith((" ", "\t")):
+            if key is not None and stripped.startswith("-"):
+                #: An item at column 0 is valid YAML, but not this grammar.
+                broken = True
+                continue
             #: Column 0 closes whatever list was open, then may open the next.
-            if key is not None and not broken:
+            if key is not None and not broken and items:
                 found[key] = tuple(items)
-            key, items, indent, broken = None, [], None, False
+            key, items, prefix, broken = None, [], None, False
             match = _SCALAR.match(line)
             if not match:
                 continue
             name, value = match.group(1), match.group(2).strip()
+            found.pop(name, None)
             if value == "":
                 key = name
             elif value.startswith("[") and value.endswith("]"):
@@ -223,20 +236,17 @@ def front_matter_lists(path: Path) -> dict[str, tuple[str, ...]]:
             continue
         if key is None or broken:
             continue
-        stripped = line.strip()
-        if stripped.startswith("#"):
-            continue
-        width = len(line) - len(line.lstrip())
         if not (stripped == "-" or stripped.startswith("- ")):
             broken = True
             continue
-        if indent is None:
-            indent = width
-        elif width != indent:
+        lead = line[: len(line) - len(line.lstrip())]
+        if prefix is None:
+            prefix = lead
+        elif lead != prefix:
             broken = True
             continue
         item = stripped[1:].strip()
-        if _MAPPING_ITEM.match(item):
+        if _MAPPING_ITEM.match(item) or item == "-" or item.startswith("- "):
             broken = True
             continue
         items.append(item)
@@ -284,25 +294,38 @@ def blob(repo_root: Path, commit: str, relpath: str) -> str | None:
     spawns a process.
 
     `ls-tree`, not `rev-parse <commit>:<path>^{blob}`: the peel is read as part
-    of the path and fails for every file, verified on git 2.x when this was
-    written.
+    of the path and fails for every file (verified on git 2.39.1). Its output
+    is read as raw `-z` records, so git never quotes a path (non-ASCII, a
+    quote, a backslash, a tab), and decoded here as UTF-8 rather than in the
+    console's codepage. `--end-of-options` keeps a `commit` beginning with `-`
+    from being read as a flag.
     """
     try:
         done = subprocess.run(
-            ["git", "-C", str(repo_root), "ls-tree", commit, "--", relpath],
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "ls-tree",
+                "-z",
+                "--end-of-options",
+                commit,
+                "--",
+                relpath,
+            ],
             capture_output=True,
-            text=True,
             check=False,
         )
     except OSError:
         return None
     if done.returncode != 0:
         return None
-    for line in done.stdout.splitlines():
-        meta, _, path = line.partition("\t")
+    for record in done.stdout.split(b"\0"):
+        meta, _, raw_path = record.partition(b"\t")
         parts = meta.split()
-        if len(parts) == 3 and parts[1] == "blob" and path == relpath:
-            return parts[2]
+        path = raw_path.decode("utf-8", errors="surrogateescape")
+        if len(parts) == 3 and parts[1] == b"blob" and path == relpath:
+            return parts[2].decode("ascii")
     return None
 
 

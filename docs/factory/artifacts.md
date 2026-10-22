@@ -44,10 +44,19 @@ in two spellings:
   line at column 0. Blank lines and `#` comments inside it are skipped.
 - a flow list: `key: []` or `key: [a, b]`, split on commas.
 
-Items keep their quotes. A list holding a mapping item (`- id: x`), or items at
-differing indentation, is **not read at all** — absent, never half-read. Prose
-that merely contains `: ` mid-sentence is an ordinary item. Nothing deeper is
-read.
+Items keep their quotes. A list holding a mapping item (`- id: x`), a nested
+list (`- - a`), items at column 0, or items at differing indentation (a tab is
+not a space), is **not read at all** — absent, never half-read. Prose that
+merely contains `: ` mid-sentence is an ordinary item. Nothing deeper is read.
+
+Three traps when writing one by hand:
+
+- **Do not wrap a long item onto a second line.** The continuation is not an
+  item, so the whole key becomes unreadable.
+- **A trailing `# comment` is part of the item.** Only whole-line comments are
+  skipped.
+- **`key:` with no items is null, not an empty list.** Write `key: []` for an
+  empty list.
 
 **Chain versions.** A chain is v2 when `intent.md` carries `chain: 2`, which
 `factory feature new` writes (#222). Without the field it is v1, which is every
@@ -61,7 +70,7 @@ guess. The v2 files below are read today and written by the tickets named.
 | `ticket` | int | The issue number. Must match the directory. |
 | `stage` | `plan` | Always `plan`; intent is stage 1's artifact. |
 | `accepted_by` | string \| null | Who accepted it. `null` until accepted. |
-| `accepted_at` | date \| null | When. |
+| `accepted_at` | date \| null | When. **Retired in v2 chains** with `accepted_by`: acceptance moves to `acceptance.md` (#222). |
 | `chain` | `1` \| `2` \| absent | The chain version. Absent means 1. Written by `factory feature new` (#222). |
 
 Body sections, all required, empty ones marked rather than omitted: problem
@@ -156,6 +165,7 @@ No worker writes it: a proof written by the party it judges is not a proof.
 | `red` | `red` \| `green` \| `error` \| `none` | `red_test` against base source. See design.md §6. |
 | `red_test` | nodeid \| `none` | |
 | `base_sha` | sha | |
+| `suite_output`, `red_output` | sha256 | Digests of the two runs' output, so a later reader can tell the recorded run from a re-run. |
 
 Current when no source differs between `commit` and HEAD, ignoring `.factory/`.
 
