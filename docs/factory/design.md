@@ -103,7 +103,7 @@ anywhere: 2 attempts, 2 cycles, or factory park -> parked, ready-for-human; the 
 2. **The loop judges every dispatched turn, from its own process.** The order is fixed:
    - **Stop the worker first.** "Idle" is not "stopped": a background task can wake it.
    - Take the turn's diff: `turn_base..HEAD`, plus uncommitted and untracked changes, plus ignored files under `.claude/`.
-   - Run the same per-path rules the hooks run, then the repo's pre-commit.
+   - Run the same per-path rules the hooks run over every path in the diff, **except `.claude/` files**. Claude Code writes `settings.local.json` itself, so those are judged by `hooks_disabled` instead, which parses them (§7, last row). Then run the repo's pre-commit.
    - Compare a **fingerprint** of what lives outside the worktree and could change the judge. A change parks the ticket. The fingerprint covers:
      - the primary checkout's `factory/` and `.claude/`;
      - `~/.claude/settings*.json`;
@@ -112,7 +112,7 @@ anywhere: 2 attempts, 2 cycles, or factory park -> parked, ready-for-human; the 
    - **Pass**: commit with git hooks off. **Fail**: a failed attempt. The turn is saved to `refs/factory/<n>/rejected/<attempt>`, and the worktree is reset to `turn_base`.
 
    `turn_base` is held in memory for the turn, and must be an ancestor of HEAD.
-3. **A judge never shares a worktree with the work it judges.** It runs on a detached snapshot, and the loop copies back exactly one file. That copy-back *is* the judge's write scope. Afterwards the loop asserts that the ticket worktree's HEAD and status are unchanged, since a judge could write there by absolute path.
+3. **A judge never shares a worktree with the work it judges.** It runs on a detached snapshot, and the loop copies back exactly one file. That copy-back *is* the judge's write scope. Afterwards the loop asserts that the ticket worktree's HEAD and `status --ignored` are unchanged, since a judge could write there by absolute path. **The same assertion follows every proof run**, which executes Builder-written code (§6).
 4. **One writer per worktree, by construction.** The Designer has **its own worktree** and is never dispatched. The loop copies `intent.md`, `spec.md` and `answers.md` into the ticket branch by pathspec. The Builder alone writes the ticket worktree, and only after acceptance. The loop refuses to dispatch into a dirty worktree.
 5. **Loop state lives outside the worktrees**, in `<git-common-dir>/factory/<n>/state.json`. It is rendered into the chain as `run.md` once, just before the PR. The accepted spec blob and the base SHA are recorded there at acceptance, so a hand-written `acceptance.md` accepts nothing.
 6. **Every gate guards against error, not intent.** A worker can unset its env through the shell. What this design guarantees is that such a turn fails judgement and is recorded. It cannot slip through quietly.
@@ -125,12 +125,12 @@ anywhere: 2 attempts, 2 cycles, or factory park -> parked, ready-for-human; the 
 | `cli.py` | kept | Dispatcher, `_emit`, the exit-code contract. `COMMANDS` stays a plain dict. A registry was considered and dropped: protecting `factory/**` removes the `merge.py` collision, and a `COMMANDS` entry is a one-line conflict. |
 | `chain.py` | extends | Block lists (`criteria`, `radius`; skipped today at chain.py:122). New artifacts: `spec_review`, `acceptance`, `proof`, `answers`, `park`. `blob(commit, path)` returns git's blob id, independent of line endings. Radius syntax is files and `dir/**` only. `intent.md: chain: 2` marks a v2 chain; absence means v1. |
 | `routing.py` | rows change | **Two tables.** v1 chains keep today's rows, unchanged, because every roadmap ticket is worked by hand under v1 until #223. v2 chains get the §2 stages: the verdict for the current submission, `plan.commit` bound to it, acceptance matching the loop's record, `proof.md` currency, review staleness, caps, and `park.md`. |
-| `roles.py` | new | Role → stage, runs-in (`worktree\|snapshot\|own-worktree`), write scope, allowed commands, model key. [roles.md](roles.md) states it, and a test keeps the two equal. |
+| `roles.py` | new | Role → stage, runs-in (`worktree\|snapshot\|own-worktree`; the designer is the only `own-worktree` role), write scope, allowed commands, model key. [roles.md](roles.md) states it, and a test keeps the two equal. |
 | `hooks.py` | extends | Role-scope and radius rows in `decide_write`, keyed on `FACTORY_ROLE`. Plus `judge_paths(root, paths, role)`, which the loop calls with a turn's diff. `decide_stop` judges the session's own worktree, plus the worktrees an off-ticket session wrote into. |
 | `worktrees.py` | moved | `ticket_worktrees` from cli.py, plus `worktree_for(n)` (d2). |
 | `state.py` | new | `state.json`, written atomically, and `render_run_md`. `turn_base` is stored for the record, but the loop never trusts it back from disk during a turn (§4.2). |
 | `proof.py` | new | Runs in throwaway worktrees, with stripped credentials. It checks the suite shape at HEAD, and then `red_test` against base (§6). |
-| `loop.py` | new | `snapshot()`; `plan(snapshot)`, which is pure; `apply()`. The actions are `Dispatch`, `JudgeTurn`, `CopyBack`, `Prove`, `Park`, `OpenPR` and `Reap`. `Reap` never closes a designer pane. |
+| `loop.py` | new | `factory/loop.py`. `snapshot()`; `plan(snapshot)`, which is pure; `apply()`. The actions are `Dispatch`, `JudgeTurn`, `CopyBack`, `Prove`, `Park`, `OpenPR` and `Reap`. `Reap` never closes a designer pane. |
 | `gitops.py`, `github.py` | new | Snapshots, copy-back, pathspec commits with an `index.lock` retry, turn diff, rejected refs, `hooks_disabled`, fingerprint, `assert_untouched`. `run_gh` moves out of merge.py. **Only these modules hold credentials.** |
 | `launcher.py`, `launchers/herdr.py` | new | §8 |
 | `merge.py` | small | `protected_paths` becomes `factory/**`. The hard-stop globs stay here. |
@@ -162,7 +162,9 @@ anywhere: 2 attempts, 2 cycles, or factory park -> parked, ready-for-human; the 
 
 **The suite.** Checked by shape from junitxml, not by exit code: 0 failed, 0 errors, 0 xfailed, and every deselected test belonging to an opt-in marker. It takes about 60 s at `4296edc`.
 
-**Line endings.** `.gitattributes` sets `.factory/** text eol=lf`. Hashes are always git blob ids, never byte hashes.
+**Line endings.** #217 adds a `.gitattributes` with `.factory/** text eol=lf`. None exists at `4296edc`. Either way, hashes are always git blob ids, never byte hashes.
+
+**`configs/factory.toml`** (#218), written by the maintainer: `attempts = 2`, `cycles = 2`, `wip = 1`, `launcher = "herdr"`, `worker_timeout_min`, `poll_s`. It is outside the merge allowlist, so it never auto-merges.
 
 ## 7 · The eleven rules, and where each is enforced
 
@@ -176,7 +178,7 @@ There are three layers. The **hook** reports early, at the tool call. The **loop
 | No source in the primary checkout | PreToolUse (#213) | Never dispatched there | Shell writes in a session the maintainer opens |
 | Merge conditions | `permissions.deny` on `gh pr merge` | Workers hold no credentials. The loop never merges. | After done: the workflow and `qa-passed` |
 | Honest review | PreToolUse role scope | Copy-back for judges. A Builder turn touching another role's file fails. | — |
-| Inside the radius | PreToolUse, against `plan.md` and `acceptance.radius` | Every path in the turn diff. Plus `base_sha...HEAD` against the radius at accept and at OpenPR, failing closed, which catches commits made outside a judged turn. | — |
+| Inside the radius | PreToolUse, against `plan.md` and `acceptance.radius` | Every path in the turn diff. Plus hard-stop paths not in `hard_stop_approved`. Plus `base_sha...HEAD` against the radius **and the hard-stop list** at accept and at OpenPR, failing closed, which catches commits made outside a judged turn. | — |
 | No two tickets on one path | — | Not needed at `wip = 1`. After done: the radius lock. | Deferred |
 | Never picks its own stage | SessionStart states `FACTORY_STAGE` | The loop chooses the stage. Writing another stage's artifact fails the turn. | — |
 | 2 attempts, 2 cycles | — | `state.json` counters, then park and label `ready-for-human` | A rate-limited worker costs an attempt |
@@ -248,7 +250,11 @@ Exit codes: 0 pass · 1 gate failed · 2 misuse · 3 needs a human. Every comman
 
 `version`, `model`, `merge check` and `hook` are unchanged, except that `model <n>` reads the ticket's own worktree.
 
-The PR is opened by the loop's `OpenPR` action. That action exits 1 when *Could not verify* is empty.
+The PR is opened by the loop's `OpenPR` action. That action:
+
+- first checks every non-`.factory` path in `base_sha...HEAD` against `acceptance.radius` and `hard_stop_approved`, failing closed (X5);
+- then commits `run.md`, pushes, and opens the PR;
+- exits 1 when *Could not verify* is empty.
 
 **The Orchestrator** is the agent you talk to about everything in flight. It answers from `factory status --json`, never from memory. It may start `run` and `feature new`. It chooses no stage, role, model or retry, it cannot accept, and it writes nothing. It needs a `roles.py` row, a prompt, and a `status --json` detailed enough to answer from.
 
@@ -303,53 +309,61 @@ Order is held by GitHub's *blocked by* links. The epic is #171. The blockers bel
 - Whether Claude Code writes `settings.local.json` inside a worktree when something is approved there. This is inferred from the primary checkout's file.
 - Whether the suite writes untracked, non-ignored files.
 - Whether `claude --resume` is safe while the original Designer session is open.
+- Whether `python -I -m factory`, run from a worktree, loads the primary checkout's code in the hook's real environment. A probe in the re-check showed it does from a plain directory. #216's tests prove it.
 - Whether a ruleset with no bypass actors binds the maintainer's admin token.
 
 ## 13 · Finding ledger
 
+**How:**
+
+- *taken* means the reviewer's fix, as given.
+- *changed* means the problem is solved another way, and the row says how.
+- *deferred* means it is settled by a later ticket.
+- *fixed* means a stale fact was corrected.
+
 The first review:
 
-| Id | Finding | Where it is settled |
-| --- | --- | --- |
-| B1 | Stop over `base...HEAD` refuses later workers | §4.2: the loop judges turns. §7: base-diff radius checks at accept and OpenPR (X5). |
-| B2 | `proof.commit = HEAD` cannot be satisfied | §6 `proof.md`: compare source, not commits |
-| B3 | Stop refused for another ticket | taken: #207 judges the session's own worktree, plus a per-session target log for off-ticket sessions (X7) |
-| M1 | A draft and a finished spec are one state | R3, `spec submit` |
-| M2 | Concurrent writers; Reap closes the Designer | §4.3–4.5; the Designer in its own worktree (X2) |
-| M3 | Gates switched off from inside a worktree | `python -I` (#216); §7's last row; the fingerprint |
-| M4 | Acceptance rests on an env var | R8; §8's command table; the loop's acceptance record |
-| M5 | Workers hold credentials | R11; §8 |
-| M6 | Bindings written by those they judge | §1.3; stamped `commit` fields; `proof.md` |
-| M7 | Byte hashes vs `autocrlf` | blob ids; `.gitattributes` |
-| M8 | N > 1 does not work | R6; §11 |
-| M9 | No artifact holds *Could not verify* | the `plan.md` section; Stop; OpenPR |
-| m1 | The lock's overlap rule | radius syntax restricted (§5 `chain.py`); the lock itself is deferred |
-| m2 | herdr's `unknown` state; folder trust | §8; #215 |
-| m3 | A stale tick lock; dispatch order | §8 |
-| m4 | Stale on #213 | §3, read at 4296edc |
-| m5 | The doc test runs one way | #217 |
-| m6 | `run` is not started once | R2 |
-| m7 | No migration for v1 chains | §5 `routing.py`: two tables |
-| m8 | No path for an existing issue | `feature new --issue` |
+| Id | Finding | How | Where it is settled |
+| --- | --- | --- | --- |
+| B1 | Stop over `base...HEAD` refuses later workers | taken | §4.2: the loop judges turns. §7: base-diff radius checks at accept and OpenPR (X5). |
+| B2 | `proof.commit = HEAD` cannot be satisfied | taken | §6 `proof.md`: compare source, not commits |
+| B3 | Stop refused for another ticket | taken | #207 judges the session's own worktree, plus a per-session target log for off-ticket sessions (X7) |
+| M1 | A draft and a finished spec are one state | taken | R3, `spec submit` |
+| M2 | Concurrent writers; Reap closes the Designer | taken | §4.3–4.5; the Designer in its own worktree (X2) |
+| M3 | Gates switched off from inside a worktree | taken | `python -I` (#216); §7's last row; the fingerprint |
+| M4 | Acceptance rests on an env var | taken | R8; §8's command table; the loop's acceptance record |
+| M5 | Workers hold credentials | taken | R11; §8 |
+| M6 | Bindings written by those they judge | taken | §1.3; stamped `commit` fields; `proof.md` |
+| M7 | Byte hashes vs `autocrlf` | taken | blob ids; `.gitattributes` |
+| M8 | N > 1 does not work | changed | R6; §11 |
+| M9 | No artifact holds *Could not verify* | taken | the `plan.md` section; Stop; OpenPR |
+| m1 | The lock's overlap rule | deferred | radius syntax restricted (§5 `chain.py`); the lock itself is deferred |
+| m2 | herdr's `unknown` state; folder trust | taken | §8; #215 |
+| m3 | A stale tick lock; dispatch order | taken | §8 |
+| m4 | Stale on #213 | fixed | §3, read at 4296edc |
+| m5 | The doc test runs one way | taken | #217 |
+| m6 | `run` is not started once | changed | R2 |
+| m7 | No migration for v1 chains | changed | §5 `routing.py`: two tables |
+| m8 | No path for an existing issue | taken | `feature new --issue` |
 
 The re-check:
 
-| Id | Finding | Where it is settled |
-| --- | --- | --- |
-| X1 | Phase 1 depended on S4 and S5; S5 needed state | changed: every dependency it names is a GitHub link (§10), but its linear order is not kept; v1 routing kept (§5) |
-| X2 | The Designer is an unjudged writer | §4.4 own worktree; §4.5 the acceptance record |
-| X3 | Finished means idle, not stopped | §4.2 stop first; §6 proof in throwaway worktrees; §4.3 `assert_untouched` |
-| X4 | The `.claude` check fires on Claude Code's own writes | §7 `hooks_disabled` parses the files |
-| X5 | Radius on `base...HEAD` was half-taken | §7, at accept and OpenPR |
-| X6 | Writes outside the worktree go unjudged | §4.2 fingerprint; §4.7 hooks off; base SHA at accept |
-| X7 | S3 silently reverted #206 | §5 `hooks.py`; #207 |
-| X8 | "Red" was ill-defined | §6, the red test, precisely |
-| a | The v1 test matched every new chain | `chain: 2` |
-| b | `plan.md` was not bound to the submission | `plan.commit` |
-| c | The Reviewer's snapshot predated `proof.md` | snapshot at `proof.md`'s commit; a review is current only for that commit (§6 `review.md`) |
-| d | Glob-against-glob overlap | radius syntax restricted |
-| e | `test` in the models table | §5 `models.py` |
-| f | Pre-commit on the loop's commit | §4.2 and §4.7 |
-| g | Count stale | §3 |
-| h | Stale gate code in a long-lived `run` | §8 re-exec; the heartbeat |
-| i | A `.claude/**` radius | §7's last row |
+| Id | Finding | How | Where it is settled |
+| --- | --- | --- | --- |
+| X1 | Phase 1 depended on S4 and S5; S5 needed state | changed | every dependency it names holds in GitHub's graph, directly or transitively (§10), but its linear order is not kept; v1 routing kept (§5) |
+| X2 | The Designer is an unjudged writer | taken | §4.4 own worktree; §4.5 the acceptance record |
+| X3 | Finished means idle, not stopped | taken | §4.2 stop first; §6 proof in throwaway worktrees; §4.3 `assert_untouched` |
+| X4 | The `.claude` check fires on Claude Code's own writes | taken | §7 `hooks_disabled` parses the files |
+| X5 | Radius on `base...HEAD` was half-taken | taken | §7, at accept and OpenPR |
+| X6 | Writes outside the worktree go unjudged | taken | §4.2 fingerprint; §4.7 hooks off; base SHA at accept |
+| X7 | S3 silently reverted #206 | taken | §5 `hooks.py`; #207 |
+| X8 | "Red" was ill-defined | taken | §6, the red test, precisely |
+| a | The v1 test matched every new chain | taken | `chain: 2` |
+| b | `plan.md` was not bound to the submission | taken | `plan.commit` |
+| c | The Reviewer's snapshot predated `proof.md` | changed | snapshot at `proof.md`'s commit; a review is current only for that commit (§6 `review.md`) |
+| d | Glob-against-glob overlap | taken | radius syntax restricted |
+| e | `test` in the models table | taken | §5 `models.py` |
+| f | Pre-commit on the loop's commit | taken | §4.2 and §4.7 |
+| g | Count stale | fixed | §3 |
+| h | Stale gate code in a long-lived `run` | taken | §8 re-exec; the heartbeat |
+| i | A `.claude/**` radius | taken | §7's last row |

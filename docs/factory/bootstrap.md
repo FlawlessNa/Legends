@@ -4,7 +4,7 @@
 > until the factory loop exists (#159), so this page stays in force until then.
 > Two sections change:
 >
-> - "What is actually enforced today": changes as each Phase 0 ticket merges (design.md §3 and §10).
+> - "What is actually enforced today": changes as each Phase 0 ticket merges: #216, #217, #207, #139, #219 and #218 (design.md §3 and §10).
 > - "The checkpoint that ends the bootstrap": replaced by the dry run, #223, and the definition of done, #224.
 
 

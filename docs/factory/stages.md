@@ -11,7 +11,7 @@
 > - "7 · QA": parks until the QA phase, #218.
 > - "8 · Document": removed (ruling R9), #218.
 > - "9 · Integrate": the factory loop opens the PR, #159.
-> - "10 · Maintain": deferred.
+> - "10 · Maintain": deferred until after done, #165.
 >
 > Until then, this page is how stages run today, and it is right about today.
 

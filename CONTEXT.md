@@ -390,16 +390,13 @@ The program behind `factory run` (`factory/loop.py`). It dispatches workers,
 judges each finished turn, proves Builder work, and opens the PR. It does no
 reasoning: the same on-disk state always produces the same next action. Bare
 "the loop" is acceptable inside `docs/factory/` only.
-_Avoid_:
-- Foreman: the retired name.
-- engine: that is the bot's `Engine` (`botting/core/engine.py`).
-- orchestrator: that is the agent the maintainer talks to, below.
+_Avoid_: Foreman — the retired name; engine — that is the bot's `Engine`
+(`botting/core/engine.py`); orchestrator — that is the agent the maintainer
+talks to, below.
 
 **Orchestrator**:
 The conversational agent the maintainer talks to about every ticket in flight.
 It answers from `factory status`, and may start `factory run` and
 `factory feature new`. It decides nothing the factory loop decides: no stage,
 role, model or retry, and never acceptance.
-_Avoid_:
-- Foreman: #211 used it for this role.
-- engine: the bot's `Engine`.
+_Avoid_: Foreman — #211 used it for this role; engine — the bot's `Engine`.
