@@ -30,9 +30,11 @@ factory <command> [--json]
 python -m factory <command> [--json]
 ```
 
-Both work and both reach the same `main`. The console script is the one hooks
-and CI call, because it does not need to know where the repo lives; `python -m`
-is the fallback when the package has not been installed.
+Both work and both reach the same `main`. CI calls the console script. The
+hooks do not: the console script exists only on an activated venv's `PATH`, and
+the hook shell has none (#199). So `.claude/hooks/factory-hook.sh` finds the
+venv interpreter by path and runs `python -I -m factory hook <event>`. See
+"Which code a hook runs" below.
 
 It is installed editable, once, into the project venv:
 
@@ -108,6 +110,22 @@ gitignored and personal:
 
 Using it is not cheating; not saying you used it is. The PR body is where that
 goes.
+
+**Which code a hook runs.** The hook runs the factory installed in the venv:
+the editable install, which points at the **main checkout's** `factory/`. It
+never runs a worktree's own copy, whatever directory the session sits in.
+`-I` (isolated mode) is what guarantees this. Plain `python -m` puts the
+current directory first on the import path, and the hook runs in the session's
+directory, so a worktree editing `factory/` was judged by its own unfinished
+gates (#216). Two consequences:
+
+- The gates are whatever the main checkout has checked out. Keep it current.
+- Bash-run hook tests in a ticket worktree exercise the main checkout's
+  `factory/`, not the branch's. The in-process tests (`main([...])`) test the
+  branch.
+
+The session's directory is taken from the event's `cwd` when it names one, and
+from the process cwd otherwise.
 
 **They enforce the sequence, not the quality.** That `spec-review.md` exists is
 a `stat`. That the review was any good needs #180. A green hook is not a

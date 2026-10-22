@@ -33,7 +33,14 @@ for root in "$here" "$(main_repo || true)"; do
     [[ -n "$root" ]] || continue
     for python in "$root/.venv/Scripts/python.exe" "$root/.venv/bin/python"; do
         if [[ -x "$python" ]]; then
-            exec "$python" -m factory hook "$event"
+            # -I, isolated mode, keeps the current directory OFF the import
+            # path. The hook runs in the session's directory, and plain
+            # `-m factory` imported a `factory/` package found there first --
+            # so a worktree editing the gates was judged by its own unfinished
+            # gates, and could switch them off by "fixing" them (#216). With
+            # -I, `factory` resolves only through the venv's installed
+            # packages: the editable install of the main checkout.
+            exec "$python" -I -m factory hook "$event"
         fi
     done
 done

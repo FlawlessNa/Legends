@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -393,3 +394,117 @@ def test_the_pre_tool_use_hook_still_reaches_the_session_row(
     specific = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert specific["permissionDecision"] == "deny"
     assert "Ticket 5" in specific["permissionDecisionReason"]
+
+
+def _hook_answer(capsys: pytest.CaptureFixture[str]) -> dict[str, Any]:
+    """The hook's JSON, after asserting there is some: no answer is its own failure."""
+    out = capsys.readouterr().out
+    assert out.strip(), "the hook made no decision"
+    return json.loads(out)
+
+
+def test_the_pre_tool_use_hook_takes_the_session_from_the_event_s_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """
+    The event names the session's directory; the process cwd is only a guess (#216).
+
+    Here the process runs somewhere unrelated, and the event says the session
+    is a builder worktree. Judged from the process cwd, the session is nobody
+    and the write is waved through.
+    """
+    main = _primary(tmp_path / "main", "dev")
+    builder = _linked(main, tmp_path / "wt", "issue/5-x", 5)
+    sibling = _linked(main, tmp_path / "other", "scratch-branch")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    monkeypatch.setattr(
+        "sys.stdin",
+        io.StringIO(
+            json.dumps(
+                {
+                    "cwd": str(builder),
+                    "tool_input": {"file_path": str(sibling / "botting" / "core.py")},
+                }
+            )
+        ),
+    )
+
+    assert main_cli(["hook", "pre-tool-use"]) == ExitCode.OK
+    specific = _hook_answer(capsys)["hookSpecificOutput"]
+    assert specific["permissionDecision"] == "deny"
+    assert "Ticket 5" in specific["permissionDecisionReason"]
+
+
+def test_the_stop_hook_takes_the_session_from_the_event_s_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The same for Stop: from an unrelated directory, no worktree was ever found."""
+    main = _wt(tmp_path / "main", "dev")
+    linked = _wt(tmp_path / "wt", "issue/5-x", 5)
+    (linked / ".factory" / "5" / "plan.md").write_text(
+        "---\nticket: 5\nproof:\n  suite: null\n---\n", encoding="utf-8"
+    )
+    entry = main / ".git" / "worktrees" / "wt"
+    entry.mkdir(parents=True)
+    (entry / "gitdir").write_text(str(linked / ".git"), encoding="utf-8")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+
+    monkeypatch.chdir(elsewhere)
+    monkeypatch.setattr("factory.cli._source_changed", lambda root: root == linked)
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"cwd": str(main)})))
+
+    assert main_cli(["hook", "stop"]) == ExitCode.OK
+    answer = _hook_answer(capsys)
+    assert answer["decision"] == "block"
+    assert "5" in answer["reason"]
+
+
+def test_a_cwd_naming_no_directory_falls_back_to_the_process_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A stale or malformed `cwd` must not move the session somewhere imaginary."""
+    main = _wt(tmp_path / "main", "dev")
+    linked = _wt(tmp_path / "wt", "issue/5-x", 5)
+    (linked / ".factory" / "5" / "plan.md").write_text(
+        "---\nticket: 5\nproof:\n  suite: null\n---\n", encoding="utf-8"
+    )
+    entry = main / ".git" / "worktrees" / "wt"
+    entry.mkdir(parents=True)
+    (entry / "gitdir").write_text(str(linked / ".git"), encoding="utf-8")
+
+    monkeypatch.chdir(main)
+    monkeypatch.setattr("factory.cli._source_changed", lambda root: root == linked)
+    monkeypatch.setattr(
+        "sys.stdin", io.StringIO(json.dumps({"cwd": str(tmp_path / "gone")}))
+    )
+
+    assert main_cli(["hook", "stop"]) == ExitCode.OK
+    assert _hook_answer(capsys)["decision"] == "block"
+
+
+class _Terminal(io.StringIO):
+    """A stdin that is a terminal, and fails the test if anything reads it."""
+
+    def isatty(self) -> bool:
+        return True
+
+    def read(self, size: int | None = -1) -> str:
+        raise AssertionError("the hook read from a terminal and would hang")
+
+
+def test_a_hook_run_by_hand_in_a_terminal_does_not_read_stdin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """
+    `bash .claude/hooks/factory-hook.sh session-start` is how a person checks the
+    gates are alive (SKILL.md). Every event reads its JSON now, so a terminal on
+    stdin would wait forever for input nobody is going to type.
+    """
+    monkeypatch.chdir(_wt(tmp_path / "main", "dev"))
+    monkeypatch.setattr("sys.stdin", _Terminal())
+
+    assert main_cli(["hook", "session-start"]) == ExitCode.OK
+    assert "factory gates: LIVE" in capsys.readouterr().out
