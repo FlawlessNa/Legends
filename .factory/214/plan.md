@@ -15,7 +15,7 @@ merge_order: null
 proof:
   red_test: none
   red_output_sha: none
-  suite: null
+  suite: pass
 docs_cleared: []
 ---
 
@@ -66,3 +66,13 @@ Under the design's own cap (R4: 2 cycles per judged stage), a v2 ticket would ha
 
 - That the re-check text in the spec is verbatim. It was transcribed from the report as relayed in-session, and no file holds the original.
 - That a reader without the `.lavish/` sources can follow every cross-reference. Ticket bodies and `design.md` cite each other, and this was checked by reading, not by a tool.
+
+## Proof, recorded
+
+`pytest` from the worktree root at the build commit: `1197 passed, 3 skipped, 25 deselected in 60.94s`. 0 failed, 0 errors, 0 xfailed. The deselected tests are the opt-in markers.
+
+Mechanical checks:
+- `grep -ni engine docs/factory/design.md`: no lines.
+- `grep -rni foreman docs/factory/`: no lines.
+- `design.md` headings run from 0 to 13.
+- `git status` touched only the radius.

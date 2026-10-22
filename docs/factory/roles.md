@@ -1,5 +1,17 @@
 # Roles
 
+> **Supersedes.** The target roles are in [design.md](design.md) §8: designer,
+> spec-reviewer, planner, builder, reviewer, orchestrator. The Clerk, the
+> Documenter and the Integrator go. These sections change, each when its
+> ticket merges:
+>
+> - The opening role table: #218 (`roles.py`) and #163 (write scopes).
+> - "The human's role": #222, where the maintainer accepts the spec and never reads the plan.
+> - "Today": #163.
+>
+> Until then, this page describes today, and it is right about today.
+
+
 One rule generates all of them:
 
 **The agent that writes the criteria is not the agent that satisfies them, and

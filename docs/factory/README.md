@@ -90,6 +90,8 @@ of it.
 
 ## The rest
 
+- **[design.md](design.md)** — the agreed target design (2026-10-22) and its
+  build order. Not yet built: each part becomes true when its ticket merges.
 - **[roles.md](roles.md)** — who performs each stage, what each may write, and
   the one rule that generates all of them.
 - **[artifacts.md](artifacts.md)** — the `.factory/<n>/` chain and the
