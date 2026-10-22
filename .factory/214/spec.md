@@ -7,7 +7,7 @@ criteria:
   - the ids d1 to d6, R1 to R11, the step ids (D1, L0, S1 to S5, P1 to P8, E1, E2, DONE) and the finding ids (B, M, m, X, a to i) appear as visible text, and §4 is a numbered list in the source's order
   - design.md opens with its status, saying agreed 2026-10-22, read against 4296edc, nothing built except what §3 says holds today, each part true when its §10 ticket merges
   - every re-check finding X1 to X8 and a to i changes every section the fold table in this spec names, and §13 maps each finding to where it now lives
-  - the two folds this spec decides are applied as decided, so review staleness compares source between review.commit and proof.commit, and §13's B3 row reads taken
+  - the folds this spec decides are applied as decided, so a review is current only when its stamped commit is the commit that wrote the current proof.md, §13's B3 row reads taken and its X1 row reads changed, and §4 gains a seventh rule
   - section 0 records all eleven rulings as decided on 2026-10-22, with R1 as amended (the maintainer reads the spec, never the plan)
   - section 10 lists every roadmap ticket with its issue number and its blockers as GitHub holds them on 2026-10-22, dated
   - section 11's issue numbers match #171's Deferred list
@@ -23,7 +23,7 @@ criteria:
 specified_by: claude
 specified_at: 2026-10-22
 revised_at: 2026-10-22
-revised_after: spec-review.md (changes-requested, 13 findings)
+revised_after: spec-review-2.md (changes-requested, 4 findings)
 ---
 
 # Spec: commit the agreed factory design
@@ -92,14 +92,14 @@ Verdict: **ready after named fixes**.
 
 | Finding | Sections it changes |
 | --- | --- |
-| X1 | §5 `routing.py` (two tables; v1 kept), §5 `chain.py`, §10 |
+| X1 | §5 `routing.py` (two tables; v1 kept), §5 `chain.py`, §10, §13 (changed) |
 | X2 | §2 design row, §4 rules 4 and 5, §6 `acceptance.md`, §8 designer row, §9 `accept` |
-| X3 | §4 rules 2 and 3, §5 `proof.py`, §6 the red test, §8 `stop` |
+| X3 | §4 rules 2 and 3, §5 `proof.py`, §6 `proof.md` (the red test runs in a throwaway worktree), §8 `stop` |
 | X4 | §4 rule 2, §7 last row, §13 M3 |
 | X5 | §7 radius row, §9 `accept` and OpenPR, §13 B1 |
-| X6 | §4 rules 2, 5 and 7, §5 `gitops.py`, §6 `acceptance.md` |
+| X6 | §4 rules 2, 5 and 7, §5 `gitops.py` and `state.py`, §6 `acceptance.md` |
 | X7 | §5 `hooks.py`, §10 #207, §13 B3 |
-| X8 | §5 `proof.py`, §6 the red test and `proof.md` |
+| X8 | §5 `proof.py`, §6 `plan.md` (`red_test`, `none`) and `proof.md` (`red`) |
 | a | §5 `chain.py`, §6 `intent.md` |
 | b | §2 build-planning row, §6 `plan.md` |
 | c | §2 review row, §6 `review.md`, §8 reviewer row |
@@ -107,12 +107,14 @@ Verdict: **ready after named fixes**.
 | e | §5 `models.py` |
 | f | §4 rules 2 and 7 |
 | g | §3 |
-| h | §7 last row, §8 |
+| h | §7 last row, §8, §9 `run` |
 | i | §7 last row |
 
 ## Decided here (review finding 3)
 
-- **Review staleness.** With c, the Reviewer judges a snapshot at `proof.md`'s own commit, so `review.commit` never equals `proof.commit`. **A review is current when no source differs between `review.commit` and `proof.commit`, ignoring `.factory/`.** That is the same rule B2 set for proofs. When source changes after a review, the proof goes stale first, a new proof is made, and the old review then differs in source from it. The loop ends.
+- **Review staleness.** With c, the Reviewer judges a snapshot at `proof.md`'s own commit. **A review is current when its loop-stamped `commit` is the commit that wrote the current `proof.md`**, which is the snapshot it judged. The loop proves after *every* Builder turn, so any Builder turn makes the review stale. That includes a turn that changed only `plan.md`, where three of the Reviewer's duties live: the red test, `docs_cleared` and *Could not verify*. A rule that compared source alone would have kept a `changes-requested` review "current" after a `plan.md`-only fix, and recreated d1 (spec-review-2 finding 1).
+- **§10 follows GitHub, not X1's linear order.** Every dependency X1 names is in the graph. Its linear order is dropped on purpose: #139 may start before #216, and #221 before #218. §13's X1 row reads "changed".
+- **§4 gains a seventh rule**, appended after the six in the source: the loop's git never runs code a worker could have written (`core.hooksPath` empty, `core.fsmonitor=false`, pre-commit run as part of judgement). X6 and f fold into it.
 - **§13 B3 reads "taken".** X7 restored the per-session target log that the "changed" row had dropped.
 - **No #145 → #218 link (review finding 4).** P6 needs the `proof.md` schema (#139) and the adapters (#221), and GitHub has both links. X1's own text says "P6 needs the proof.md schema (S4)". It needs nothing from routing. P6 reads `acceptance.base_sha`, and its tests fake an acceptance rather than waiting for #222. The two documents do not contradict each other.
 
