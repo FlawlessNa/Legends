@@ -1,5 +1,15 @@
 # The artifact chain
 
+> **Supersedes.** The target chain is in [design.md](design.md) §6. These
+> sections change, each when its ticket merges:
+>
+> - "Front-matter contracts": gains `acceptance.md`, `proof.md`, `answers.md`, `park.md`, `run.md` and `intent.md: chain: 2`, #139.
+> - "`plan.md`": its proof block moves to `proof.md`, #145.
+> - "Verdicts": gains the factory loop's stamped `commit`, #218.
+>
+> Until then, this page is the contract parsers implement today.
+
+
 One directory per ticket, on the ticket's branch. Each file is markdown a person
 reads, carrying YAML front-matter a program reads — so the stage can be computed
 from the artifacts themselves rather than from a separate state file.
@@ -140,7 +150,7 @@ guess. `factory model` (#162) emits the line in a contracted shape:
 of the nine stages that get a model have nowhere to put one: stage 4's artifact
 is the diff, stage 5 has no artifact, and `review.md` and `qa.md` have no
 contracted front matter until #152. The field name is reserved here so that
-when the Foreman (#159) starts recording it, there is one spelling rather than
+when the factory loop (#159) starts recording it, there is one spelling rather than
 two.
 
 The alias is what the table holds -- `opus`, `sonnet`, `haiku`, `fable` -- not a

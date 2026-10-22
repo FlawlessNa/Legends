@@ -1,5 +1,13 @@
 # Working a ticket before the factory exists
 
+> **Supersedes.** Every roadmap ticket (#171) is worked by hand under this page
+> until the factory loop exists (#159), so this page stays in force until then.
+> Two sections change:
+>
+> - "What is actually enforced today": changes as each Phase 0 ticket merges: #216, #217, #207, #139, #219 and #218 (design.md §3 and §10).
+> - "The checkpoint that ends the bootstrap": replaced by the dry run, #223, and the definition of done, #224.
+
+
 Most of the factory is not built. This page is how to work a ticket anyway, and
 it is the page to read before your first one.
 
