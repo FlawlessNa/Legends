@@ -29,6 +29,11 @@ main_repo() {
     ( cd "$gitdir/../../.." 2>/dev/null && pwd ) || return 1
 }
 
+# A person checking the gates by hand (SKILL.md) has a terminal on stdin, and
+# the hook reads stdin to the end. Under Git Bash's mintty, python.exe sees that
+# terminal as a pipe and would wait for an end of input nobody types.
+[[ -t 0 ]] && exec </dev/null
+
 for root in "$here" "$(main_repo || true)"; do
     [[ -n "$root" ]] || continue
     for python in "$root/.venv/Scripts/python.exe" "$root/.venv/bin/python"; do

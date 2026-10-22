@@ -31,6 +31,7 @@ from factory.hooks import (
     Decision,
     decide_stop,
     decide_write,
+    governing,
     session_report,
 )
 from factory.merge import check as check_merge
@@ -384,10 +385,16 @@ def _session_root(event: dict[str, Any]) -> Path:
     place today but is not promised -- a launcher may run hooks from anywhere
     (#216). A `cwd` naming no existing directory is ignored rather than
     trusted, so a stale event cannot move the session somewhere imaginary.
+
+    **The worktree root, not the directory as given.** The session may sit in a
+    subdirectory, and everything downstream -- `current_branch`,
+    `ticket_worktrees`, `session_report` -- expects a root. Taken raw, a `cwd`
+    of `<worktree>/botting` read as "no ticket" and silenced the Stop gate.
     """
     cwd = event.get("cwd")
     if isinstance(cwd, str) and cwd and Path(cwd).is_dir():
-        return Path(cwd)
+        found = governing(Path(cwd))
+        return found.root if found is not None else Path(cwd)
     return Path.cwd()
 
 

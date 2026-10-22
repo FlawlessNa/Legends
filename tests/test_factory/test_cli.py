@@ -508,3 +508,34 @@ def test_a_hook_run_by_hand_in_a_terminal_does_not_read_stdin(
 
     assert main_cli(["hook", "session-start"]) == ExitCode.OK
     assert "factory gates: LIVE" in capsys.readouterr().out
+
+
+def test_a_cwd_inside_a_worktree_is_judged_from_the_worktree_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """
+    A session in a subdirectory is still that worktree's session.
+
+    Taken raw, a `cwd` of `<main>/botting` was not a repository root, so no
+    ticket worktree was found and the Stop gate said nothing (review of #216).
+    """
+    main = _wt(tmp_path / "main", "dev")
+    (main / "botting").mkdir()
+    linked = _wt(tmp_path / "wt", "issue/5-x", 5)
+    (linked / ".factory" / "5" / "plan.md").write_text(
+        "---\nticket: 5\nproof:\n  suite: null\n---\n", encoding="utf-8"
+    )
+    entry = main / ".git" / "worktrees" / "wt"
+    entry.mkdir(parents=True)
+    (entry / "gitdir").write_text(str(linked / ".git"), encoding="utf-8")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+
+    monkeypatch.chdir(elsewhere)
+    monkeypatch.setattr("factory.cli._source_changed", lambda root: root == linked)
+    monkeypatch.setattr(
+        "sys.stdin", io.StringIO(json.dumps({"cwd": str(main / "botting")}))
+    )
+
+    assert main_cli(["hook", "stop"]) == ExitCode.OK
+    assert _hook_answer(capsys)["decision"] == "block"
