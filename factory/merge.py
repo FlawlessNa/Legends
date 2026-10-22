@@ -40,8 +40,6 @@ class Policy:
     itself never merges -- so `git log` names who decided.
     """
 
-    #: The one base branch CI may merge into.
-    working_branch: str
     #: `auto_merge_types` (#160) at its first notch.
     auto_merge_types: frozenset[str]
     #: The ticket's only permitted `method:` label.
@@ -60,7 +58,6 @@ class Policy:
 
 
 POLICY: Final = Policy(
-    working_branch="movements-improvements",
     auto_merge_types=frozenset({"type:chore", "type:refactor"}),
     method="method:suite",
     allowed_paths=(
@@ -101,17 +98,10 @@ POLICY: Final = Policy(
         "docs/factory/merge-policy.md",
         "tests/test_factory/test_merge.py",
         ".github/**",
-        # The console script's transitive import closure, and its entry point.
-        # A test computes the closure and fails when a module joins it unlisted.
-        "factory/__init__.py",
-        "factory/__main__.py",
-        "factory/chain.py",
-        "factory/cli.py",
-        "factory/exit_codes.py",
-        "factory/routing.py",
-        "factory/hooks.py",
-        "factory/models.py",
-        "factory/merge.py",
+        # The whole package, as one path: the console script's import closure
+        # and every module that may join it. Listing modules one by one let a
+        # new module sit outside the set until someone remembered (#217).
+        "factory/**",
     ),
     required_checks=("suite", "ruff-check", "ruff-format", "pyright"),
     check_app="github-actions",
@@ -164,6 +154,9 @@ class PullRequestFacts:
     repo: str
     body: str
     base: str
+    #: The repository's default branch, read per PR. The one base CI may merge
+    #: into; named nowhere in this module, so renaming it needs no code change.
+    default_branch: str
     head_sha: str
     from_fork: bool
     draft: bool
@@ -405,11 +398,12 @@ def evaluate(facts: PullRequestFacts, policy: Policy = POLICY) -> list[Failure]:
                 needs_human=False,
             )
         )
-    if facts.base != policy.working_branch:
+    if facts.base != facts.default_branch:
         add(
             Failure(
                 Condition.WORKING_BRANCH,
-                f"Base is {facts.base}; only {policy.working_branch} is merged by CI.",
+                f"Base is {facts.base}; only the default branch, "
+                f"{facts.default_branch}, is merged by CI.",
                 needs_human=True,
             )
         )
@@ -507,6 +501,11 @@ def gather(pr: int, gh: Runner) -> PullRequestFacts:
         head_sha = str(view["headRefOid"])
         body = str(view.get("body") or "")
 
+        #: Raw text, not JSON: `--jq .default_branch` prints `dev` and a newline.
+        default_branch = gh(["api", f"repos/{repo}", "--jq", ".default_branch"]).strip()
+        if not default_branch:
+            raise FactsUnreadable(f"{repo} reports no default branch.")
+
         files = _json_lines(
             gh(
                 [
@@ -577,6 +576,7 @@ def gather(pr: int, gh: Runner) -> PullRequestFacts:
         repo=repo,
         body=body,
         base=str(view["baseRefName"]),
+        default_branch=default_branch,
         head_sha=head_sha,
         from_fork=bool(view["isCrossRepository"]),
         draft=bool(view["isDraft"]),
@@ -609,6 +609,7 @@ def check(pr: int, gh: Runner | None = None) -> tuple[ExitCode, dict[str, Any]]:
         "readable": True,
         "mergeable": code is ExitCode.OK,
         "base": facts.base,
+        "default_branch": facts.default_branch,
         "head_sha": facts.head_sha,
         "ticket": facts.ticket.number if facts.ticket else None,
         "failed": [

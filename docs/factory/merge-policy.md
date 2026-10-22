@@ -6,8 +6,8 @@ A workflow evaluates this policy on every PR and merges when **every** condition
 holds. Anything failing any condition waits for a person. **The default is to
 wait.** An agent cannot merge its own work, because an agent cannot merge at
 all — and a permission granted in conversation never reaches the next agent, so
-it is not a mechanism. **[mechanical]** once the workflow is on the default
-branch and #151's checks exist; until then nothing merges. See
+it is not a mechanism. **[mechanical]** once #151's checks exist; until then
+nothing merges. See
 [What is live today](#what-is-live-today).
 
 This is `auto_merge_types` (#160) at its first notch. It widens only by editing
@@ -37,11 +37,11 @@ kinds fail, 3 wins.
 | 1 | `closes-one-ticket` | The PR body closes exactly one ticket, an open issue in this repository | 1 |
 | 2 | `ticket-type` | Every `type:` label on the ticket is `type:chore` or `type:refactor`, and there is one | 3 |
 | 3 | `ticket-method` | The ticket's only `method:` label is `method:suite` | 3 |
-| 4 | `paths-allowed` | Every path in the diff matches `factory/**`, `docs/**`, `.claude/**` or `tests/test_factory/**` | 3 |
+| 4 | `paths-allowed` | Every path in the diff matches `factory/**`, `docs/**`, `tests/test_factory/**` or `.factory/**` | 3 |
 | 5 | `no-hard-stop` | No path is on the hard-stop list, **whatever the allowlist says** | 3 |
 | 6 | `checks-green` | `suite`, `ruff-check`, `ruff-format` and `pyright` each succeeded on the head commit, posted by `github-actions` | 1 if pending or red; 3 if one never reported |
 | 7 | `could-not-verify` | The PR body's "Could not verify" section is present and says something | 1 |
-| 8 | `working-branch` | The base is `movements-improvements` — never `dev`, never `main` | 3 |
+| 8 | `working-branch` | The base is the repository's default branch, whatever it is called. It is read from GitHub for each PR, so renaming it needs no code change | 3 |
 
 Conditions 1–8 are the issue's (#194). Three more were added when the spec was
 reviewed, each closing a way the eight could be satisfied while defeating them:
@@ -54,14 +54,13 @@ reviewed, each closing a way the eight could be satisfied while defeating them:
 
 ### Why these paths and not others
 
-`factory/`, `docs/`, `.claude/` and `tests/test_factory/` are the factory's own
+`factory/`, `docs/`, `tests/test_factory/` and `.factory/` are the factory's own
 plumbing. Nothing in `botting/` or `maple/` imports them, so a wrong merge costs
 a revert and cannot reach the bot.
 
-**`.factory/**` is not on the list**, and every factory PR touches
-`.factory/<n>/`. So, read as written, **no ticket PR auto-merges yet.** Adding
-it is a widening of trust, which is the maintainer's to decide, not an agent's;
-it is one line in `POLICY.allowed_paths`.
+**`.factory/**` is allowlisted**, because every factory PR writes its artifact
+chain to `.factory/<n>/`; without it the policy could never fire on the work it
+was built for. **`.claude/**` is not**, for the reason at the end of this page.
 
 ### The hard-stop list
 
@@ -89,16 +88,13 @@ on:
 
 - `docs/factory/merge-policy.md`, `tests/test_factory/test_merge.py`,
   `.github/**`
-- Every module the `factory` console script imports, transitively:
-  `factory/__init__.py`, `factory/__main__.py`, `factory/chain.py`,
-  `factory/cli.py`, `factory/exit_codes.py`, `factory/hooks.py`,
-  `factory/models.py`,
-  `factory/routing.py`,
-  `factory/merge.py`
+- **The whole `factory/**` package**, as one path. That covers every module the
+  console script imports, transitively, and every module that may join them
+  later; a module nobody imports yet is protected before anyone does.
 
-The second list is computed by a test, not trusted: a new import fails the
-suite until a person adds it here. The cost is real — most factory tickets touch
-`factory/cli.py`, so they wait.
+A test computes the console script's import closure and fails if any module in
+it falls outside this set. The cost is real — most factory tickets touch the
+package, so they wait for a person.
 
 ## Definitions
 
@@ -135,19 +131,13 @@ To turn it off: `gh workflow disable "Merge policy"`. To turn it down: edit
 
 ## What is live today
 
-Three things stand between this page and the first auto-merge, all deliberate:
+The workflow is on `dev`, the default branch, so it fires on every PR. It
+**merges nothing until #151 posts the required checks**: no workflow produces
+`suite`, `ruff-check`, `ruff-format` or `pyright` yet, so `checks-green` fails
+for every PR. #151 owns them, from a workflow named `CI`, with jobs named after
+those four.
 
-1. **The workflow runs from the default branch (`dev`).** GitHub reads
-   `pull_request_target` and `workflow_run` workflows from the default branch
-   only. Until this file reaches `dev`, it never fires.
-2. **No workflow posts the required checks yet.** #151 owns them, from a
-   workflow named `CI`, with jobs named `suite`, `ruff-check`, `ruff-format`
-   and `pyright`. Until then `checks-green` fails for every PR.
-3. **`.factory/**` is not allowlisted**, as above.
-
-Until all three change, `factory merge check` is still the way to see what CI
-would decide.
-
+Until then `factory merge check` is still the way to see what CI would decide.
 
 ## Why `.claude/**` is not allowlisted
 

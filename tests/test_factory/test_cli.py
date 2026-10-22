@@ -149,15 +149,27 @@ def test_no_error_path_ever_reports_a_model(
     assert "model" not in _payload(capsys)
 
 
+def _ticket_worktree(repo: Path, ticket: int, files: dict[str, str]) -> Path:
+    """A linked worktree of `repo` on `issue/<ticket>-x`, holding these chain files."""
+    root = _linked(
+        _primary(repo, "dev"),
+        repo.parent / f"{repo.name}-wt{ticket}",
+        f"issue/{ticket}-x",
+        ticket,
+    )
+    for name, text in files.items():
+        (root / ".factory" / str(ticket) / name).write_text(text, encoding="utf-8")
+    return root
+
+
+_INTENT = "---\nticket: 7\naccepted_by: nassim\n---\n"
+
+
 def test_the_ticket_form_computes_the_stage_from_the_chain(
     repo: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """`factory model <n>` and `factory next <n>` must agree on the stage."""
-    chain = repo / ".factory" / "7"
-    chain.mkdir(parents=True)
-    (chain / "intent.md").write_text(
-        "---\nticket: 7\naccepted_by: nassim\n---\n", encoding="utf-8"
-    )
+    _ticket_worktree(repo, 7, {"intent.md": _INTENT})
     assert main_cli(["--json", "model", "7"]) == ExitCode.OK
     payload = _payload(capsys)
     assert payload["stage"] == "design"
@@ -171,11 +183,81 @@ def test_a_blocked_chain_needs_a_human_and_says_why(
     An inconsistent chain is not a model question. The Foreman must report the
     chain's reason, not a model's.
     """
-    chain = repo / ".factory" / "7"
-    chain.mkdir(parents=True)
-    (chain / "plan.md").write_text("---\nticket: 7\n---\n", encoding="utf-8")
+    _ticket_worktree(repo, 7, {"plan.md": "---\nticket: 7\n---\n"})
     assert main_cli(["--json", "model", "7"]) == ExitCode.NEEDS_HUMAN
     assert _payload(capsys)["blocked_by"]
+
+
+# --- A ticket's chain is read from the ticket's own worktree (#217) ----------
+
+
+@pytest.mark.parametrize("command", [["next", "7"], ["model", "7"]])
+@pytest.mark.parametrize("subdirectory", [False, True])
+def test_the_chain_is_read_from_the_ticket_s_worktree_not_the_session_s(
+    repo: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    command: list[str],
+    subdirectory: bool,
+) -> None:
+    _ticket_worktree(repo, 7, {"intent.md": _INTENT})
+    (repo / "botting").mkdir()
+    monkeypatch.chdir(repo / "botting" if subdirectory else repo)
+    assert main_cli(["--json", *command]) == ExitCode.OK
+    assert _payload(capsys)["stage"] == "design"
+
+
+@pytest.mark.parametrize("command", [["next", "7"], ["model", "7"]])
+@pytest.mark.parametrize("subdirectory", [False, True])
+def test_the_primary_checkout_on_the_ticket_branch_is_the_ticket_s_worktree(
+    repo: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    command: list[str],
+    subdirectory: bool,
+) -> None:
+    _primary(repo, "issue/7-x")
+    (repo / ".factory" / "7").mkdir(parents=True)
+    (repo / ".factory" / "7" / "intent.md").write_text(_INTENT, encoding="utf-8")
+    (repo / "botting").mkdir()
+    monkeypatch.chdir(repo / "botting" if subdirectory else repo)
+    assert main_cli(["--json", *command]) == ExitCode.OK
+    assert _payload(capsys)["stage"] == "design"
+
+
+@pytest.mark.parametrize(
+    "command", [["next", "7"], ["model", "7"], ["model", "--stage", "qa", "7"]]
+)
+def test_a_ticket_with_no_worktree_is_misuse_and_names_its_branch(
+    repo: Path, capsys: pytest.CaptureFixture[str], command: list[str]
+) -> None:
+    _primary(repo, "dev")
+    assert main_cli(["--json", *command]) == ExitCode.MISUSE
+    assert "issue/7-*" in str(_payload(capsys)["error"])
+
+
+@pytest.mark.parametrize("command", [["next", "7"], ["model", "7"]])
+def test_two_worktrees_for_one_ticket_need_a_human_and_name_each(
+    repo: Path, capsys: pytest.CaptureFixture[str], command: list[str]
+) -> None:
+    primary = _primary(repo, "dev")
+    _linked(primary, repo.parent / f"{repo.name}-a", "issue/7-a", 7)
+    _linked(primary, repo.parent / f"{repo.name}-b", "issue/7-b", 7)
+    assert main_cli(["--json", *command]) == ExitCode.NEEDS_HUMAN
+    error = str(_payload(capsys)["error"])
+    assert f"{repo.name}-a" in error
+    assert f"{repo.name}-b" in error
+
+
+def test_the_model_table_is_the_session_s_never_the_ticket_s(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A ticket branch must not be able to change its own model routing."""
+    ticket = _ticket_worktree(repo, 7, {"intent.md": _INTENT})
+    (ticket / "configs").mkdir()
+    (ticket / TABLE_PATH).write_text("tiers = 3\n", encoding="utf-8")
+    assert main_cli(["--json", "model", "7"]) == ExitCode.OK
+    assert _payload(capsys)["model"] == "opus"
 
 
 # --- The hook's view of a path, and of the worktrees (#206) ------------------
