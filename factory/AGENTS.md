@@ -111,18 +111,20 @@ gitignored and personal:
 Using it is not cheating; not saying you used it is. The PR body is where that
 goes.
 
-**Which code a hook runs.** The hook runs the factory installed in the venv:
-the editable install, which points at the **main checkout's** `factory/`. It
-never runs a worktree's own copy, whatever directory the session sits in.
-`-I` (isolated mode) keeps the session's directory off the import path. The
-guarantee is only as good as the install: an editable install made **from a
+**Which code a hook runs.** The factory installed in the venv: the editable
+install, which points at the **main checkout's** `factory/`, whatever directory
+the session sits in. Plain `python -m` put the current directory first on the
+import path, and the hook runs in the session's directory, so a worktree
+editing `factory/` was judged by its own unfinished gates (#216). `-I`
+(isolated mode) keeps that directory off the import path.
+
+That holds only as well as the install does. An editable install made **from a
 worktree** points every session at that worktree, so install from the main
 checkout. And the hook now *needs* the install: without it, `-I -m factory`
 fails with "No module named factory" rather than the script's "unreachable"
-message. Plain `python -m` puts the
-current directory first on the import path, and the hook runs in the session's
-directory, so a worktree editing `factory/` was judged by its own unfinished
-gates (#216). Two consequences:
+message.
+
+Two consequences:
 
 - The gates are whatever the main checkout has checked out. Keep it current.
 - Bash-run hook tests in a ticket worktree exercise the main checkout's
