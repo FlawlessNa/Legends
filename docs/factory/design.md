@@ -123,7 +123,7 @@ anywhere: 2 attempts, 2 cycles, or factory park -> parked, ready-for-human; the 
 | Module | Status | Responsibility |
 | --- | --- | --- |
 | `cli.py` | kept | Dispatcher, `_emit`, the exit-code contract. `COMMANDS` stays a plain dict. A registry was considered and dropped: protecting `factory/**` removes the `merge.py` collision, and a `COMMANDS` entry is a one-line conflict. |
-| `chain.py` | extends | Block lists (`criteria`, `radius`; skipped today at chain.py:122). New artifacts: `spec_review`, `acceptance`, `proof`, `answers`, `park`. `blob(commit, path)` returns git's blob id, independent of line endings. Radius syntax is files and `dir/**` only. `intent.md: chain: 2` marks a v2 chain; absence means v1. |
+| `chain.py` | extends | Block lists (`criteria`, `radius`; skipped today at chain.py:122). New artifacts: `spec_review`, `acceptance`, `proof`, `answers`, `park`. `blob(repo, commit, path)` returns git's blob id, independent of line endings. Radius syntax is files and `dir/**` only. `intent.md: chain: 2` marks a v2 chain; absence means v1. |
 | `routing.py` | rows change | **Two tables.** v1 chains keep today's rows, unchanged, because every roadmap ticket is worked by hand under v1 until #223. v2 chains get the §2 stages: the verdict for the current submission, `plan.commit` bound to it, acceptance matching the loop's record, `proof.md` currency, review staleness, caps, and `park.md`. |
 | `roles.py` | new | Role → stage, runs-in (`worktree\|snapshot\|own-worktree`; the designer is the only `own-worktree` role), write scope, allowed commands, model key. [roles.md](roles.md) states it, and a test keeps the two equal. |
 | `hooks.py` | extends | Role-scope and radius rows in `decide_write`, keyed on `FACTORY_ROLE`. Plus `judge_paths(root, paths, role)`, which the loop calls with a turn's diff. `decide_stop` judges the session's own worktree, plus the worktrees an off-ticket session wrote into. |
@@ -164,7 +164,7 @@ anywhere: 2 attempts, 2 cycles, or factory park -> parked, ready-for-human; the 
 
 **Line endings.** #217 adds a `.gitattributes` with `.factory/** text eol=lf`. None exists at `4296edc`. Either way, hashes are always git blob ids, never byte hashes.
 
-**`configs/factory.toml`** (#218), written by the maintainer: `attempts = 2`, `cycles = 2`, `wip = 1`, `launcher = "herdr"`, `worker_timeout_min`, `poll_s`. It is outside the merge allowlist, so it never auto-merges.
+**`configs/factory.toml`**, created by #218 and owned by the maintainer: `attempts = 2`, `cycles = 2`, `wip = 1`, `launcher = "herdr"`, `worker_timeout_min`, `poll_s`. It is outside the merge allowlist, so it never auto-merges.
 
 ## 7 · The eleven rules, and where each is enforced
 
@@ -240,7 +240,7 @@ Exit codes: 0 pass · 1 gate failed · 2 misuse · 3 needs a human. Every comman
 | --- | --- | --- | --- | --- | --- |
 | `feature new <title> \| --issue <n>` | you, Orchestrator | issue (or the existing one), branch, worktrees, Designer started | — | bad args; a role not allowed | gh, git or herdr failed |
 | `spec submit` | Designer | copied in and committed; submission recorded | no `criteria` or `method` | not a ticket; after acceptance | — |
-| `accept <n>` | you | `acceptance.md` committed, and the loop's record written | review not `pass` for this submission; no valid plan; the base diff is outside the radius | not a terminal; wrong number typed | — |
+| `accept <n>` | you | `acceptance.md` committed, and the loop's record written | review not `pass` for this submission; no valid plan; the base diff is outside the radius or touches an unapproved hard-stop path | not a terminal; wrong number typed | — |
 | `run` | you, once; re-execs itself when the primary checkout's HEAD changes | stopped by you | — | another `run` holds the lock | — |
 | `run --once` | tests | acted, nothing needs you | an attempt failed | misuse | something parked |
 | `status` | anyone | nothing parked | — | — | parked items, each with its reason |
@@ -309,7 +309,7 @@ Order is held by GitHub's *blocked by* links. The epic is #171. The blockers bel
 - Whether Claude Code writes `settings.local.json` inside a worktree when something is approved there. This is inferred from the primary checkout's file.
 - Whether the suite writes untracked, non-ignored files.
 - Whether `claude --resume` is safe while the original Designer session is open.
-- Whether `python -I -m factory`, run from a worktree, loads the primary checkout's code in the hook's real environment. A probe in the re-check showed it does from a plain directory. #216's tests prove it.
+- Whether `python -I -m factory`, run from a worktree, loads the primary checkout's code in the hook's real environment. The re-check's spot check reported that it does from a plain directory holding a fake `factory/`. That was relayed in-session on 2026-10-22 and is recorded in no file. #216's tests prove it.
 - Whether a ruleset with no bypass actors binds the maintainer's admin token.
 
 ## 13 · Finding ledger
@@ -335,14 +335,14 @@ The first review:
 | M5 | Workers hold credentials | taken | R11; §8 |
 | M6 | Bindings written by those they judge | taken | §1.3; stamped `commit` fields; `proof.md` |
 | M7 | Byte hashes vs `autocrlf` | taken | blob ids; `.gitattributes` |
-| M8 | N > 1 does not work | changed | R6; §11 |
+| M8 | N > 1 does not work | changed | the accepted radius comes from `plan.md`, so `split.toml` is not needed; R6; §11 |
 | M9 | No artifact holds *Could not verify* | taken | the `plan.md` section; Stop; OpenPR |
 | m1 | The lock's overlap rule | deferred | radius syntax restricted (§5 `chain.py`); the lock itself is deferred |
 | m2 | herdr's `unknown` state; folder trust | taken | §8; #215 |
 | m3 | A stale tick lock; dispatch order | taken | §8 |
 | m4 | Stale on #213 | fixed | §3, read at 4296edc |
 | m5 | The doc test runs one way | taken | #217 |
-| m6 | `run` is not started once | changed | R2 |
+| m6 | `run` is not started once | changed | `run` never exits on its own, so nothing restarts it; R2 |
 | m7 | No migration for v1 chains | changed | §5 `routing.py`: two tables |
 | m8 | No path for an existing issue | taken | `feature new --issue` |
 
