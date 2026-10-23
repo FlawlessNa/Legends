@@ -3,6 +3,8 @@
 same shape `MobsHittingMixin.box_center` reads, so the two cannot drift apart.
 
 Faked at the BotData level, with the mobs stubbed: no game client is involved.
+The owner below is declared here with the same shape as `_RotationOwner` in
+`test_rotation_target_handoff.py`, rather than imported from it.
 """
 
 from collections.abc import Sequence
@@ -68,7 +70,7 @@ def _target(mobs: list[tuple[int, int, int, int]]) -> tuple[int, int]:
     # Skip the "already on target" gate and the wait on it.
     owner._first_time_on_target = False
     owner._last_target_reached_at = 0.0
-    return owner._smart_rotation_target()  # pyright: ignore[reportReturnType]
+    return owner._smart_rotation_target()
 
 
 @pytest.mark.parametrize(
