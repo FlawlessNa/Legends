@@ -14,8 +14,8 @@ tasks: null
 merge_order: null
 proof:
   red_test: tests/test_factory/test_stop_scope.py::test_committed_source_with_no_plan_is_refused
-  red_output_sha: see Proof below
-  suite: null
+  red_output_sha: 0e144e80c055
+  suite: pass
 docs_cleared: []
 ---
 
@@ -98,3 +98,38 @@ test changed is added here with its reason.
 
 - Protected path (`factory/**`): a human merges.
 - Who is judged changed: unrelated worktrees mid-build no longer block anyone.
+
+## Proof
+
+**Red, before the change.** `tests/test_factory/test_stop_scope.py` was run against the unchanged source: 26 failed, 13 passed (the 13 are guards that must stay green: a proven ticket stops cleanly, an invalid `session_id` writes nothing, a refused write is not logged, a vanished logged worktree is skipped, and similar). The `E` lines are in the scratchpad file `red207.txt` (sha256 prefix `0e144e80c055`). The reasons:
+
+```
+E   AttributeError: module 'factory.cli' has no attribute '_base'            (nine tests: no base is computed)
+E   AttributeError: module 'factory.cli' has no attribute '_changed_paths'   (no committed range is read)
+E   AttributeError: ... factory.cli has no attribute 'log_write'            (no write log; forced-raise test)
+E   assert not True  where Decision(allowed=True) = _stop_everywhere(wt)     (committed source with no plan allowed)
+E   assert '<worktree>' in ''                                               (a refusal does not name worktree, ticket, base)
+E   KeyError: 'decision'                                                    (a session that wrote B is not stopped for B)
+E   assert False  where is_dir() ...sessions/s1                             (no log written after an allowed write)
+E   assert 'not checked' in '<session-start report>'                         (no no-base line)
+```
+
+Two further tests are red only because Stop used to judge every worktree: an unrelated worktree mid-build blocked a session in worktree A, and blocked a session on no ticket.
+
+`test_the_default_branch_merged_in_is_not_the_ticket_s_source` and `test_a_chain_that_already_sits_on_the_default_branch` also fail when the later-of rule in `_base` is disabled (checked by hand: `if False and _is_ancestor(...)`; both red, restored), so they pin note 1 and note 3 and not merely the attribute's existence.
+
+**Green, after.** `pytest` from the worktree root: `1279 passed, 3 skipped, 25 deselected`, 0 failed, 0 errors, 0 xfailed. `ruff check`, `ruff format` and `pyright` are clean on the changed Python files, and pre-commit passed on `8c3a717`.
+
+**Named changed tests**, all seven as listed above: each now passes a `session_id` and has the worktree in that session's log (written by hand with `_logged`, because those fixtures give every worktree its own `.git` directory, which the identity rule reads as a separate repository). Nothing else was edited; `test_ticket_worktrees_is_the_same_function_the_cli_exports` still passes through a re-export in `cli.py`.
+
+## Could not verify
+
+- **The harness.** That every event carries `session_id` and `cwd`, and that a subagent's tool calls carry their own `session_id`, is assumed. Nothing here ran a live Claude Code session.
+- **A session that leaves the repository** before Stop loses its write log as well as its own-worktree scope, because the log lives under the repository's git directory and the repository is found from the session's `cwd`. The spec said only the scope would be lost. A session that only moves between worktrees of the same repository keeps both.
+- **Real `origin/HEAD`.** The tests simulate it with `update-ref` and `symbolic-ref`; no test ran against a fetched remote. The `no base` and `merge-base` paths are exercised on those refs only.
+- **A shallow boundary** is not tested directly (a root commit stands in for it); `git rev-parse <f>^` fails the same way for both.
+- **Windows case and 8.3 names** in the log: entries are keyed by the case-normalised resolved root and deduplicated by resolved `Path`, but no test makes two spellings of one path.
+- **Hook cost.** Stop now runs about five git processes per judged worktree; the review measured the history walk at 0.1 to 0.15 s here, and nothing was measured on a slower disk.
+- **Log pruning.** Session logs are never deleted (spec decision); #210 or a later ticket owns that.
+- **The red tests were committed together with the change**, not before it: pre-commit's pyright refuses a test file that names `cli._base` before it exists, and hooks were not skipped. The red run is the scratchpad file above.
+- The flaky `test_truncate_lands_exactly_on_the_limit_for_a_multi_step_walk` (#229) did not fail in the final run.
