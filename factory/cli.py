@@ -15,6 +15,7 @@ contract promised.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import subprocess
@@ -24,7 +25,13 @@ from pathlib import Path
 from typing import Any, Final
 
 from factory import __version__
-from factory.chain import Chain, current_branch, read_chain
+from factory.chain import (
+    CHAIN_DIR,
+    Chain,
+    current_branch,
+    read_chain,
+    ticket_from_branch,
+)
 from factory.exit_codes import ExitCode
 from factory.hooks import (
     INDIFFERENT,
@@ -39,7 +46,12 @@ from factory.models import TABLE_PATH, TableError
 from factory.models import load as load_models
 from factory.models import resolve as resolve_model
 from factory.routing import MalformedVerdict, Stage, resolve
-from factory.worktrees import ticket_worktrees, worktree_for
+from factory.worktrees import (
+    log_write,
+    logged_worktrees,
+    worktree_for,
+)
+from factory.worktrees import ticket_worktrees as ticket_worktrees  # noqa: PLC0414
 
 #: A handler takes parsed arguments and returns its code plus a payload. The
 #: payload is rendered as JSON under `--json`, and as `key: value` lines otherwise.
@@ -315,35 +327,118 @@ HOOK_EVENTS: Final[dict[str, str]] = {
 #: Tool inputs that name a path to be written.
 _PATH_KEYS: Final = ("file_path", "notebook_path")
 
+#: Said at session start when no base resolves for the worktree. A Stop that
+#: allows prints nothing, so this is the only place the gap can be reported.
+NO_BASE: Final = (
+    "The committed range is not checked: no base commit resolves for this "
+    "worktree (no .factory/<n>/ commit with a parent, and no origin/HEAD), so "
+    "Stop judges uncommitted changes alone. To fix origin/HEAD, run: "
+    "git remote set-head origin --auto"
+)
+
 
 def _hooks_disabled() -> bool:
     """The documented per-machine override, set in settings.local.json."""
     return os.environ.get("FACTORY_HOOKS", "").strip().lower() == "off"
 
 
-def _source_changed(repo_root: Path) -> bool:
-    """
-    Whether the working tree holds a change outside the artifact chain.
-
-    Shells out to git, which `decide_write` deliberately does not: `Stop` fires
-    once per turn, so one process is affordable where one per edit is not.
-    """
+def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str] | None:
+    """One git command in `root`; None when git cannot be run at all."""
     try:
-        out = subprocess.run(
-            ["git", "status", "--porcelain"],
-            cwd=repo_root,
+        return subprocess.run(
+            ["git", "-c", "core.quotepath=off", *args],
+            cwd=root,
             capture_output=True,
             text=True,
             timeout=10,
             check=False,
         )
     except OSError, subprocess.SubprocessError:
-        return False
-    for line in out.stdout.splitlines():
-        path = line[3:].strip().strip('"')
-        if path and not path.startswith(".factory/"):
-            return True
-    return False
+        return None
+
+
+def _rev(root: Path, *args: str) -> str | None:
+    """A single commit id git prints for `args`, or None when it prints none."""
+    done = _git(root, *args)
+    if done is None or done.returncode != 0:
+        return None
+    lines = done.stdout.split()
+    return lines[0] if lines else None
+
+
+def _is_ancestor(root: Path, older: str, newer: str) -> bool:
+    done = _git(root, "merge-base", "--is-ancestor", older, newer)
+    return done is not None and done.returncode == 0
+
+
+def _base(root: Path) -> str | None:
+    """
+    The commit this worktree's ticket started from, or None when none resolves.
+
+    **The ticket's own starting point, not a ref.** It is the parent of the
+    oldest commit on HEAD's history that touches the ticket's `.factory/<n>/`:
+    the intent-and-spec commit the process puts first. A ref cannot be it --
+    the default branch moves, a push adds refs, a child branch is cut from a
+    parent's tip -- and a merge-base against any of those would count another
+    ticket's source as this one's.
+
+    Two things can make that parent too old, and in both the merge-base of HEAD
+    and `origin/HEAD` is later, so the later of the two wins whenever one is an
+    ancestor of the other: the default branch merged into the ticket (its own
+    files would otherwise count), and a chain that already sits on the default
+    branch (a reopened ticket, or intent committed before branching).
+
+    A chain commit with no parent, or no chain commit at all, takes the
+    merge-base alone; with that missing too the answer is None, and the change
+    set is the uncommitted paths alone.
+    """
+    ticket = ticket_from_branch(current_branch(root))
+    if ticket is None:
+        return None
+    first = _rev(
+        root, "log", "--reverse", "--format=%H", "--", f"{CHAIN_DIR}/{ticket}/"
+    )
+    parent = _rev(root, "rev-parse", "--verify", "-q", f"{first}^") if first else None
+    default = _rev(root, "merge-base", "HEAD", "origin/HEAD")
+    if parent is None or default is None:
+        return parent or default
+    if _is_ancestor(root, parent, default):
+        return default
+    return parent
+
+
+def _changed_paths(root: Path) -> set[str]:
+    """
+    Every path outside `.factory/` the ticket changed: committed since its base,
+    plus whatever the working tree holds.
+
+    Committed source was invisible when only `git status` was read, so
+    committing before stopping escaped the proof gate. A git failure leaves the
+    set empty, as it always did.
+    """
+    paths: set[str] = set()
+    base = _base(root)
+    if base is not None:
+        done = _git(root, "diff", "--name-only", f"{base}...HEAD")
+        if done is not None and done.returncode == 0:
+            paths.update(line.strip() for line in done.stdout.splitlines())
+    status = _git(root, "status", "--porcelain")
+    if status is not None:
+        for line in status.stdout.splitlines():
+            #: A rename reads `old -> new`; the new path is the one that exists.
+            paths.add(line[3:].rpartition(" -> ")[2].strip().strip('"'))
+    prefix = f"{CHAIN_DIR}/"
+    return {path for path in paths if path and not path.startswith(prefix)}
+
+
+def _source_changed(root: Path) -> bool:
+    """
+    Whether the ticket changed anything outside the artifact chain.
+
+    Shells out to git, which `decide_write` deliberately does not: `Stop` fires
+    once per turn, so a few processes are affordable where one per edit is not.
+    """
+    return bool(_changed_paths(root))
 
 
 def _configure_hook(parser: argparse.ArgumentParser) -> None:
@@ -371,6 +466,8 @@ def _run_hook(args: argparse.Namespace) -> int:
 
     if args.event == "session-start":
         report = session_report(repo_root, branch)
+        if report and ticket_from_branch(branch) and _base(repo_root) is None:
+            report += "\n\n" + NO_BASE
         if report:
             payload = {
                 "hookSpecificOutput": {
@@ -382,7 +479,13 @@ def _run_hook(args: argparse.Namespace) -> int:
         target = _written_path(raw)
         if target is not None:
             decision = decide_write(target, session=repo_root)
-            if not decision.allowed:
+            if decision.allowed:
+                #: After the decision, and unable to change it: an error here
+                #: is swallowed, because a broken log must not fail a write
+                #: open or closed.
+                with contextlib.suppress(Exception):
+                    log_write(repo_root, target, raw.get("session_id"))
+            else:
                 payload = {
                     "hookSpecificOutput": {
                         "hookEventName": event,
@@ -391,7 +494,7 @@ def _run_hook(args: argparse.Namespace) -> int:
                     }
                 }
     else:
-        decision = _stop_everywhere(repo_root)
+        decision = _stop_everywhere(repo_root, raw.get("session_id"))
         if not decision.allowed:
             payload = {"decision": "block", "reason": decision.reason}
 
@@ -477,23 +580,42 @@ def _anchored(target: Path, event_cwd: object) -> Path:
     return base / target
 
 
-def _stop_everywhere(repo_root: Path) -> Decision:
+def _stop_everywhere(repo_root: Path, session_id: object = None) -> Decision:
     """
-    The proof gate, over every ticket worktree rather than the session's.
+    The proof gate, over the session's own worktree and every one it wrote.
 
     Judged against the session's worktree alone, this gate was **dead** in the
     workflow the factory was built under: the session sits in the main checkout
     on a non-ticket branch, so `decide_stop` returned indifference on every turn
-    forever. The one gate that stops an agent finishing without a test enforced
-    nothing (#206).
+    forever (#206). Judged over *every* ticket worktree it blocked a session for
+    another ticket's unfinished work (#207). The scope is now the session's own
+    worktree, when it is on a ticket branch, plus each worktree in its write log
+    (`pre-tool-use` records them); unrelated worktrees are never judged.
 
-    `Stop` fires once per turn, so one `git status` per ticket worktree is
-    affordable where one per edit would not be. The first refusal wins; a turn
-    that left two tickets unproven is reported one at a time, and fixing the
-    first reveals the second.
+    The first refusal wins; fixing it reveals the next. Every refusal names the
+    worktree, the ticket and the base it judged against, so a surprise can be
+    traced to the commit range behind it.
     """
-    for root in ticket_worktrees(repo_root):
-        decision = decide_stop(root, current_branch(root), _source_changed(root))
+    scope: dict[Path, Path] = {}
+    if ticket_from_branch(current_branch(repo_root)) is not None:
+        scope[repo_root.resolve()] = repo_root
+    logged: tuple[Path, ...] = ()
+    with contextlib.suppress(Exception):
+        logged = logged_worktrees(repo_root, session_id)
+    for root in logged:
+        scope.setdefault(root.resolve(), root)
+
+    for root in scope.values():
+        branch = current_branch(root)
+        decision = decide_stop(root, branch, _source_changed(root))
         if not decision.allowed:
-            return decision
+            base = _base(root) or "none (no base resolves; uncommitted changes only)"
+            return Decision(
+                allowed=False,
+                reason=(
+                    f"{decision.reason}\n"
+                    f"Judged: worktree {root}, ticket {ticket_from_branch(branch)}, "
+                    f"base {base}."
+                ),
+            )
     return INDIFFERENT

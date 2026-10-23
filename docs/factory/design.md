@@ -92,7 +92,7 @@ anywhere: 2 attempts, 2 cycles, or factory park -> parked, ready-for-human; the 
 
 - **d1. A rejected review can never be left.** Routing matches the verdict alone (routing.py:209–216). `test_a_rejected_review_goes_back_to_the_builder` pins one hop.
 - **d2. `factory next <n>` and `factory model <n>` read the cwd's chain** (cli.py:98, 138).
-- **d3. Stop is refused because of another ticket.** `_stop_everywhere` (cli.py:438) judges every ticket worktree.
+- **d3. Stop is refused because of another ticket.** `_stop_everywhere` (cli.py:438) judged every ticket worktree. Fixed by #207: it judges the session's own worktree plus the worktrees in its write log.
 - **d4. The hook runs the worktree's own gate code.** `factory-hook.sh` execs `python -m factory`, and `-m` puts the cwd first on the import path. The hook script and `settings.json` are themselves read from the worktree via `CLAUDE_PROJECT_DIR`.
 - **d5. `merge-policy.md` is wrong in both directions, and its test passes.** It denies that `.factory/**` is allowlisted (it is, merge.py:72). It lists `.claude/**` as allowlisted (line 40; it is not). The test checks only that each value appears.
 - **d6. Merged tickets do not close themselves.** PRs target `movements-improvements`, not the default branch, so "Closes #n" never fires. The cause was fixed on 2026-10-22: `dev` is now the default branch and the one PRs target. #140, #162, #206 and #209 stayed open after merging, until they were closed by hand in the 2026-10-22 cleanup.
