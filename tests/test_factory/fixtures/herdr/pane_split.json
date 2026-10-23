@@ -1,0 +1,10 @@
+{
+  "id": "cli:pane:split",
+  "result": {
+    "type": "pane_info",
+    "pane": {
+      "pane_id": "w1:p2",
+      "agent_status": "idle"
+    }
+  }
+}

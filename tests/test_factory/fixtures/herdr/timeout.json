@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "timeout",
+    "message": "timed out"
+  },
+  "id": "cli:x"
+}

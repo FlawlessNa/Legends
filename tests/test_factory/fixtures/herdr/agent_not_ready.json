@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "agent_not_ready",
+    "message": "agent did not become ready"
+  },
+  "id": "cli:agent:start"
+}

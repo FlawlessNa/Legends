@@ -1,0 +1,16 @@
+{
+  "id": "cli:agent:start",
+  "result": {
+    "type": "agent_started",
+    "agent": {
+      "agent": "claude",
+      "agent_session": null,
+      "agent_status": "idle",
+      "name": "t7-builder-1",
+      "pane_id": "w1:p2"
+    },
+    "argv": [
+      "claude"
+    ]
+  }
+}
