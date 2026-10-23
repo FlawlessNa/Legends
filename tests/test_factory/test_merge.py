@@ -544,8 +544,9 @@ def _module_file(name: str) -> str:
 def test_every_module_the_console_script_imports_is_protected() -> None:
     """
     A PR that changes what the verdict depends on must never merge itself. The
-    closure is computed, not listed, so a new import fails here until a person
-    adds it to the protected set.
+    closure is computed, not listed. Since #217 the whole package is protected
+    as `factory/**`, so this holds by construction; it fails only if that entry
+    is ever narrowed again.
     """
     seen: set[str] = set()
     pending = ["factory.__main__", "factory.cli"]
