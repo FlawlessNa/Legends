@@ -214,23 +214,18 @@ class Launcher(Protocol):
     def stop(self, h: Handle) -> None: ...            # returns once the process tree is gone
 ```
 
-**herdr.**
+**herdr.** Syntax is herdr 0.9.5's own `--help`. Every command is an argument list, never a shell string, and every command after `agent start` targets the pane id, not the name.
 
-- **`start`** checks `agent get <name>` first, so replaying after a crash never starts a second worker. It splits the pane through herdr's API, where `env` is a map. Then it runs `agent start --kind claude` and `agent prompt`.
-- **`status`** maps `working` and `unknown` to working, and `idle` and `done` to finished. `blocked`, or a timeout, is a failed attempt.
-- **`stop`** never closes a designer pane.
+- **`start`** checks its per-process record of the Handles it started, then `agent get <name>`, so replaying after a crash never starts a second worker. A replay that finds the agent returns a Handle marked "prompt not seen to start", so its idle reads as `blocked`, never finished, and the prompt is never sent twice. A new name takes `pane split --no-focus --cwd <cwd>` with one repeated `--env KEY=VALUE` per variable, empty-valued ones included; then `agent start <name> --kind claude --pane <id> --timeout -- --model <m> [--resume <id>]`; then `agent prompt <id> <text> --wait --until working --until blocked --timeout`, which returns at the first activity rather than at the end of the turn. Any failure after the split carries the Handle, so the loop can stop the pane.
+- **`status`** calls `agent get` with the pane id. `working` and `unknown` are working, `idle` and `done` are finished, `blocked` is blocked, `agent_not_found` is gone. Any other code, a reply that is not JSON, and a status outside herdr's five raise; none is mapped.
+- **`session_id`** reads `agent_session.value` from the `agent list` entry for the pane when its kind is `id`, and is `None` otherwise.
+- **`stop`** raises for a designer and for the launcher's own pane (`HERDR_PANE_ID`). It requires herdr's `shell_pid` in a process-table snapshot, records that pid, the foreground pids and all their descendants, closes the pane, and returns only once none is in a fresh snapshot, or raises after a timeout. `pane_not_found` means already stopped. The snapshot is Windows Toolhelp through `ctypes`; elsewhere it raises when called.
 
-**Credentials (R11).** Each worker gets `GH_TOKEN=`, `GH_CONFIG_DIR=<empty dir>`, and `credential.helper` reset through `GIT_CONFIG_COUNT`/`KEY_0`/`VALUE_0`. `proof.py` uses the same environment.
+**The trust dialog.** A fresh folder raises Claude Code's folder-trust dialog; its default is "No, exit", and it blocks startup (`agent_not_ready`, then `blocked`). The adapter reads the screen with `agent read --source recent-unwrapped`, collapses whitespace, and sends `down` then `enter` once only when the text is the question followed by "No, exit" and then, with only whitespace between, "Yes", and the cwd is a linked worktree of this repository (git's `gitdir` pairing, compared as resolved paths). Any other layout, and any other blocked screen such as the MCP approval, is never answered: start raises with the Handle. The live screen, captured in herdr 0.9.5, does not number its options.
+
+**Credentials (R11).** Each worker gets eight variables, from `stripped_credentials`: `GH_TOKEN=factory-worker-has-no-credentials` (non-empty, because an empty one lets gh read the keyring), `GH_CONFIG_DIR=<git-common-dir>/factory/gh-config-empty` (an empty directory; a non-empty one raises), `GITHUB_TOKEN=`, `GIT_ASKPASS=`, `GIT_TERMINAL_PROMPT=0`, and `credential.helper` reset through `GIT_CONFIG_COUNT=1`, `GIT_CONFIG_KEY_0`, `GIT_CONFIG_VALUE_0=`. `worker_spec` always adds them; every launcher's `start` refuses a spec that lacks one or differs. `proof.py` uses the same environment.
 
 **One `factory run` at a time**, through an OS lock that dies with the process. The dispatch record is written before the worker starts. `run` re-execs itself when the primary checkout's HEAD changes (§9).
-
-**Open questions, answered by #215 before the launcher is built:**
-
-- Does a pane's env reach hook subprocesses?
-- Does a fresh worktree raise the folder-trust prompt?
-- Which permission mode lets a worker run unattended?
-- Do hooks fire in that mode?
-- Does a worker's Bash have a terminal?
 
 ## 9 · Commands
 
@@ -304,7 +299,11 @@ Order is held by GitHub's *blocked by* links. The epic is #171. The blockers bel
 
 ## 12 · Not verified
 
-- The five launcher questions (#215).
+- Whether herdr passes an empty `--env` value through. If it drops `GIT_CONFIG_VALUE_0=`, every git command in a worker fails; if it drops `GITHUB_TOKEN=` or `GIT_ASKPASS=`, an inherited value gets through.
+- Whether `pane split` with no target divides the pane the loop is in, and whether herdr resolves a pane id (not only a name) for `agent read` and `agent send-keys` while startup is blocked. Either failing stops every dispatch, closed.
+- Whether `down` then `enter` trusts the folder in every case: it did in one live run, in herdr 0.9.5.
+- That closing a herdr pane on Windows ends background descendants. A parent-pid walk cannot see an orphan whose parent already exited, so "the process tree is gone" holds only for the tree the snapshot shows.
+- Whether Git Credential Manager is reachable by a route other than `credential.helper` and askpass.
 - Whether a background Bash task re-invokes an idle Claude session, and how herdr reports it. The loop stops workers before judging either way.
 - Whether Claude Code writes `settings.local.json` inside a worktree when something is approved there. This is inferred from the primary checkout's file.
 - Whether the suite writes untracked, non-ignored files.
