@@ -17,8 +17,8 @@ tasks: null
 merge_order: null
 proof:
   red_test: tests/test_factory/test_merge.py::test_the_protected_set_names_the_factory_package_as_one_path
-  red_output_sha: see Proof below
-  suite: null
+  red_output_sha: cb06bbefcdcc
+  suite: pass
 docs_cleared: []
 ---
 
@@ -71,3 +71,35 @@ Any other test changed is added here with its reason.
 
 - `factory model --stage S <n>` with no worktree for `n` now exits 2: the ticket form always needs the ticket's worktree, because overrides read its chain.
 - The branch is stacked on #216; the workflow still runs #226's `merge.py`, which names `movements-improvements`, so this PR fails working-branch with exit 3. Retarget to `dev` after #226 merges.
+
+## Proof
+
+**Red, before the change.** The new tests were run against the unchanged source. `PullRequestFacts` was given an inert `default_branch: str = ''` field *only* so `test_merge.py` could be collected at all (otherwise the whole module is one `TypeError`); that stub was reverted before the implementation. The `E` lines are in the scratchpad file `red217.txt` (sha256 prefix `cb06bbefcdcc`). 26 failed, 1 collection error (`test_worktrees.py`: `ModuleNotFoundError: No module named 'factory.worktrees'`). The reasons:
+
+```
+E   AssertionError: assert ['.github/**'.../cli.py', ...] == ['.github/**'...est_merge.py']
+E     At index 2 diff: 'factory/__init__.py' != 'factory/**'                  (protected set is one path)
+E   AssertionError: assert NOT_SELF_CHANGE in {WORKING_BRANCH}                (unimported factory module unprotected)
+E   AssertionError: ... reason='Base is dev; only movements-improvements is merged by CI.'   (working branch not the default branch)
+E   AssertionError: assert not True  where True = hasattr(Policy(working_branch=...))
+E   KeyError: 'default_branch'                                                (gather does not read it)
+E   assert <ExitCode.OK: 0> == <ExitCode.NEEDS_HUMAN: 3>                      (empty default branch / failing repo call not refused)
+E   AssertionError: assert 'plan' == 'design'                                 (chain read from the session, not the ticket's worktree)
+E   AssertionError: assert 0 == <ExitCode.MISUSE: 2>                          (no worktree for the ticket)
+E   AssertionError: assert 0 == <ExitCode.NEEDS_HUMAN: 3>                     (two worktrees for one ticket)
+E   AssertionError: assert 'sonnet' == 'opus'                                 (table read from the ticket's checkout)
+E   Extra items in the left set: '.claude/**' / Extra items in the right set: '.factory/**'   (condition 4 row vs allowed_paths)
+```
+
+The protected-set document test cannot be red against the old `POLICY`; it is red only as new POLICY, old document, and was run in that state (second block of `red217.txt`): the document listed the nine modules, `POLICY` held `factory/**`. Two cli tests (primary on the ticket branch, run from its root) passed before the change, because they guard against the double-count regression the change could introduce.
+
+**Green, after.** `pytest` from the worktree root: `1240 passed, 3 skipped, 25 deselected`, 0 failed, 0 errors, 0 xfailed. `ruff check`, `ruff format` and `pyright` are clean on the changed Python files, and pre-commit passed on commit `2e52753`.
+
+## Could not verify
+
+- **That the workflow is on `dev` and merges nothing.** The page now says so on the spec's word; nothing here read GitHub's state.
+- **`gh api repos/<repo> --jq .default_branch` against the live API.** `FakeGh` answers it with the raw text the spec says was recorded; the real call was not run by this builder.
+- **Real-worktree behaviour.** `worktree_for` is tested on fabricated `.git` layouts, not on `git worktree add` output. Windows case-insensitivity is covered by one test only on win32.
+- **`model --stage S <n>` with no worktree now exits 2** (previously it read the current directory). Callers that relied on that will see MISUSE.
+- **This PR fails working-branch with exit 3 until retargeted**: the workflow runs #226's `merge.py`, which still names `movements-improvements`. Retarget to `dev` after #226 merges; "Closes #217" fires only once it reaches `dev`.
+- A session in a subdirectory of a plain (non-ticket) checkout now has `factory next` (no ticket) read the worktree root rather than the subdirectory; no test pins the old behaviour.
