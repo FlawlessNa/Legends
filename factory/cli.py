@@ -21,6 +21,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final
 
@@ -243,6 +244,85 @@ def _model(args: argparse.Namespace) -> tuple[ExitCode, dict[str, Any]]:
     }
 
 
+#: The two kinds of park (artifacts.md): a person must act, or the spec has a gap.
+PARK_KINDS: Final = {"reason": "needs-human", "question": "spec-gap"}
+
+
+def _configure_park(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "ticket", nargs="?", type=int, help="Ticket number; defaults to the branch's."
+    )
+    kind = parser.add_mutually_exclusive_group(required=True)
+    kind.add_argument("--reason", help="Why a person must take over (needs-human).")
+    kind.add_argument("--question", help="A gap in the spec (spec-gap).")
+
+
+def _park(args: argparse.Namespace) -> tuple[ExitCode, dict[str, Any]]:
+    """
+    Hand the ticket back: write `park.md` in the ticket's own worktree.
+
+    Writes nothing else, and never `state.json`: the loop reads the park and
+    records it. The stage is whatever routing says at this moment, and null when
+    it names none or cannot say -- a worker parking because the chain is broken
+    must still get its park written.
+    """
+    which = "reason" if args.reason is not None else "question"
+    text = str(getattr(args, which)).strip()
+    if not text:
+        return ExitCode.MISUSE, {"error": f"--{which} must not be empty."}
+
+    session = _session_checkout()
+    root = session
+    ticket: int | None = args.ticket
+    if ticket is not None:
+        located = _ticket_root(session, ticket)
+        if isinstance(located, tuple):
+            return located
+        root = located
+    else:
+        ticket = ticket_from_branch(current_branch(session))
+        if ticket is None:
+            return ExitCode.MISUSE, {
+                "error": "no ticket on this branch. Pass a ticket number."
+            }
+
+    target = root / CHAIN_DIR / str(ticket) / "park.md"
+    kind = PARK_KINDS[which]
+    stage: str | None
+    try:
+        step = resolve(root, f"issue/{ticket}-")
+        stage = str(step.stage) if step.stage else None
+    except ValueError:
+        stage = None
+
+    stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    front = [
+        "---",
+        f"ticket: {ticket}",
+        f"kind: {kind}",
+        f"stage: {stage or 'null'}",
+        f"parked_at: {stamp}",
+        "---",
+    ]
+    body = "\n".join([*front, "", text, ""])
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with open(target, "x", encoding="utf-8", newline="\n") as handle:
+            handle.write(body)
+    except FileExistsError:
+        recorded = read_chain(root, ticket).park.get("kind", "unknown")
+        return ExitCode.NEEDS_HUMAN, {
+            "error": f"{target} already exists (kind: {recorded}). "
+            "A person or the loop decides what an existing park means."
+        }
+    return ExitCode.OK, {
+        "ticket": ticket,
+        "kind": kind,
+        "stage": stage,
+        "path": str(target),
+    }
+
+
 #: name -> (help text, flag configuration, handler). The registry a new command
 #: joins; nothing else in this module changes when one is added.
 COMMANDS: Final[dict[str, tuple[str, Configure, Handler]]] = {
@@ -258,6 +338,11 @@ COMMANDS: Final[dict[str, tuple[str, Configure, Handler]]] = {
         _model,
     ),
     "merge": ("Evaluate the auto-merge policy for a PR", _configure_merge, _merge),
+    "park": (
+        "Hand a ticket back to a person: write park.md",
+        _configure_park,
+        _park,
+    ),
 }
 
 

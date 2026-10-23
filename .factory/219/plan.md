@@ -7,6 +7,7 @@ radius:
   - factory/AGENTS.md
   - tests/test_factory/test_state.py
   - tests/test_factory/test_park.py
+  - tests/test_factory/test_cli.py
   - docs/factory/design.md
   - docs/factory/artifacts.md
   - .factory/219/**
@@ -30,6 +31,7 @@ docs_cleared: []
 | `factory/AGENTS.md` | one paragraph: where loop state lives, and that writers go through `update` |
 | `tests/test_factory/test_state.py` | new: the state, its failures, the interrupted write, the lock, `render_run_md`, `git status` |
 | `tests/test_factory/test_park.py` | new: `factory park`, on real temporary git repositories |
+| `tests/test_factory/test_cli.py` | one changed test, see Deviations: a command with a required flag cannot parse bare |
 | `docs/factory/design.md` | §9's `park` row lists the exit codes; the `park.md` row in the artifact table adds its fields |
 | `docs/factory/artifacts.md` | `park.md` adds `ticket` and `parked_at`; `run.md` lists its fields |
 
