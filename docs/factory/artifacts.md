@@ -181,15 +181,28 @@ Written by any worker through `factory park` (#219).
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `kind` | `needs-human` \| `spec-gap` | |
-| `stage` | stage name | Where it parked. |
+| `ticket` | number | The ticket parked. |
+| `kind` | `needs-human` \| `spec-gap` | `--reason` or `--question`. |
+| `stage` | stage name \| `null` | The stage routing gave at that moment; `null` when it gave none or could not say. |
+| `parked_at` | UTC timestamp | |
 
-The reason or the question is the body. Its presence blocks the ticket.
+The reason or the question is the body. Its presence blocks the ticket. It is
+written, never committed, and a second `factory park` on the same ticket exits 3
+rather than overwrite it.
 
 ### `run.md` (v2)
 
 Written once by the factory loop, just before the PR (#219, #159): its
 `state.json` for the ticket, rendered for people. Nothing reads it back.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `ticket` | number | |
+| `stage` | stage name \| `null` | The stage last dispatched. |
+| `attempt` | number | The current dispatch of that stage, 1-based. |
+| `cycles.<stage>` | number | Review rounds used, one key per judged stage, sorted. |
+
+The body is a table of the loop's log, in order: `at`, `event`, `detail`.
 
 ### `qa.md` and `review.md`
 

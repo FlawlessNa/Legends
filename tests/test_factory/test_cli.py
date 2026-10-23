@@ -62,8 +62,10 @@ def test_json_renders_the_same_payload_as_one_object(
 def test_every_registered_command_is_reachable_through_the_parser() -> None:
     """The registry is the only place a command is declared; nothing drifts."""
     parser = build_parser()
+    #: A command with a required flag cannot parse bare (`park`, #219).
+    required = {"park": ["--reason", "x"]}
     for name in COMMANDS:
-        assert parser.parse_args([name]).command == name
+        assert parser.parse_args([name, *required.get(name, [])]).command == name
 
 
 # --- `factory model` ---------------------------------------------------------
