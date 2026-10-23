@@ -191,3 +191,16 @@ cython_debug/
 
 # deleted -- without it, `git add -A` sweeps 11MB of regenerable cache into the
 # index. Remove this entry and the directory in the same change.
+
+# --- Factory discussion surfaces -------------------------------------------
+#
+# How a design gets argued: the lavish review documents, scratch explorations,
+# rejected drafts. Per feature, and deliberately NOT committed -- nobody needs
+# the arguments in git history, and committing them would make every design
+# iteration a commit.
+#
+# The artifact CHAIN (.factory/<n>/*.md) is NOT ignored and stays committed.
+# It is the PR's evidence: a reviewer who cannot see spec.md cannot review
+# against it, and CI cannot gate on a file that is not in the branch.
+.lavish/
+.factory/*/discussion/
