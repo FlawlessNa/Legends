@@ -3,7 +3,6 @@
 > **Supersedes.** The target chain is in [design.md](design.md) §6. These
 > sections change, each when its ticket merges:
 >
-> - "Front-matter contracts": gains `acceptance.md`, `proof.md`, `answers.md`, `park.md`, `run.md` and `intent.md: chain: 2`, #139.
 > - "`plan.md`": its proof block moves to `proof.md`, #145.
 > - "Verdicts": gains the factory loop's stamped `commit`, #218.
 >
@@ -37,14 +36,42 @@ A parser implements these; `factory spec check` and friends enforce them.
 Required fields are required — a missing one is an error naming the field, not a
 default.
 
+**What the reader understands** (`factory/chain.py`). Scalars, `key: value`,
+plus one level of nesting read as dotted keys (`proof.suite`). Lists of scalars,
+in two spellings:
+
+- a block list: `key:` then indented `- item` lines, up to the next non-blank,
+  non-comment line at column 0. Blank lines and `#` comments inside it are skipped.
+- a flow list: `key: []` or `key: [a, b]`, split on commas.
+
+Items keep their quotes. A list holding a mapping item (`- id: x`), a nested
+list (`- - a`), items at column 0, or items at differing indentation (a tab is
+not a space), is **not read at all** — absent, never half-read. Prose that
+merely contains `: ` mid-sentence is an ordinary item. Nothing deeper is read.
+
+Three traps when writing one by hand:
+
+- **Do not wrap a long item onto a second line.** The continuation is not an
+  item, so the whole key becomes unreadable.
+- **A trailing `# comment` is part of the item.** Only whole-line comments are
+  skipped.
+- **`key:` with no items is null, not an empty list.** Write `key: []` for an
+  empty list.
+
+**Chain versions.** A chain is v2 when `intent.md` carries `chain: 2`, which
+`factory feature new` writes (#222). Without the field it is v1, which is every
+chain written before the factory loop. Any other value is an error, never a
+guess. The v2 files below are read today and written by the tickets named.
+
 ### `intent.md`
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `ticket` | int | The issue number. Must match the directory. |
 | `stage` | `plan` | Always `plan`; intent is stage 1's artifact. |
-| `accepted_by` | string \| null | Who accepted it. `null` until accepted. |
+| `accepted_by` | string \| null | Who accepted it. `null` until accepted. **Retired in v2 chains**, with `accepted_at`: acceptance moves to `acceptance.md` (#222). |
 | `accepted_at` | date \| null | When. |
+| `chain` | `1` \| `2` \| absent | The chain version. Absent means 1. Written by `factory feature new` (#222). |
 
 Body sections, all required, empty ones marked rather than omitted: problem
 statement, proposed outcome, affected users and systems, constraints, open
@@ -104,11 +131,65 @@ has the chance. Until then this shapes cost rather than preventing.
 | --- | --- | --- |
 | `ticket` | int | |
 | `stage` | `build` | |
-| `radius` | list of globs | **The only paths Build may touch.** |
+| `radius` | list of paths | **The only paths Build may touch.** Each entry is a file (`path/to/file`) or a directory (`path/to/dir/**`), relative and POSIX, with no other glob. Overlap between two such entries is a prefix comparison; a general glob is refused, because a lock that cannot compare two globs must not guess. |
 | `tasks` | list \| null | Each with `id`, `radius`, and `parallel`: true/false. |
 | `merge_order` | list \| null | Required when any task is parallel. |
 | `proof` | object | `red_test`, `red_output_sha`, `suite` — filled at stage 5. |
 | `docs_cleared` | list \| null | Coupled documents needing no change, each with a reason. `[]` when stage 8 ran and every coupled document was updated; `null` until stage 8 has run. |
+
+### `acceptance.md` (v2)
+
+Written by `factory accept` (#222), on a terminal, by the maintainer. Valid only
+when it matches the factory loop's own record in `state.json`, so a
+hand-written one accepts nothing.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `accepted_by` | string | Who accepted. |
+| `accepted_at` | date | |
+| `commit` | sha | The commit accepted. |
+| `spec_blob` | git blob id | `spec.md` as accepted. A different blob at HEAD means not accepted. |
+| `radius` | list of paths | `plan.md`'s radius, copied verbatim. The Builder may narrow it, never widen it. |
+| `hard_stop_approved` | list of paths | The hard-stop paths the maintainer saw and accepted. |
+| `base_sha` | sha | The base, as a SHA, never a ref. |
+
+### `proof.md` (v2)
+
+Written **only** by the factory loop, after each Builder turn it judged (#145).
+No worker writes it: a proof written by the party it judges is not a proof.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `commit` | sha | The commit proven. |
+| `suite` | `pass` \| `fail` | The suite's shape at `commit`, read from junitxml. |
+| `red` | `red` \| `green` \| `error` \| `none` | `red_test` against base source. See design.md §6. |
+| `red_test` | nodeid \| `none` | |
+| `base_sha` | sha | |
+| `suite_output`, `red_output` | sha256 | Digests of the two runs' output, so a later reader can tell the recorded run from a re-run. |
+
+Current when no source differs between `commit` and HEAD, ignoring `.factory/`.
+
+### `answers.md` (v2)
+
+Written by the Designer, copied in by the factory loop (#222). Appended answers
+to spec gaps. It never changes a criterion: an answer that would change one
+parks the ticket for the maintainer instead (ruling R5).
+
+### `park.md` (v2)
+
+Written by any worker through `factory park` (#219).
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `kind` | `needs-human` \| `spec-gap` | |
+| `stage` | stage name | Where it parked. |
+
+The reason or the question is the body. Its presence blocks the ticket.
+
+### `run.md` (v2)
+
+Written once by the factory loop, just before the PR (#219, #159): its
+`state.json` for the ticket, rendered for people. Nothing reads it back.
 
 ### `qa.md` and `review.md`
 
