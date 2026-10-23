@@ -126,3 +126,101 @@ def test_a_pre_tool_use_decision_survives_the_round_trip() -> None:
     if done.stdout.strip():
         payload = json.loads(done.stdout)
         assert payload["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
+
+
+SCRIPT = Path(ROOT) / ".claude" / "hooks" / "factory-hook.sh"
+
+#: What a shadow `factory` package prints, so its presence is unmistakable.
+SHADOW = "SHADOW-FACTORY-ANSWERED"
+
+
+def _hook_python() -> Path | None:
+    """
+    The interpreter `factory-hook.sh` would find, searched the way it searches.
+
+    This checkout's `.venv` first, then the main checkout's, reached through a
+    linked worktree's `.git` file. None when neither exists, which is the only
+    case the shadow test may skip on: with an interpreter present, a hook that
+    prints "unreachable" is a failure, not a reason to skip.
+    """
+    roots = [Path(ROOT)]
+    git = Path(ROOT) / ".git"
+    if git.is_file():
+        text = git.read_text(encoding="utf-8").strip()
+        if text.startswith("gitdir: "):
+            roots.append(Path(text[len("gitdir: ") :]).parent.parent.parent)
+    for root in roots:
+        for python in (
+            root / ".venv" / "Scripts" / "python.exe",
+            root / ".venv" / "bin" / "python",
+        ):
+            if python.is_file():
+                return python
+    return None
+
+
+@needs_bash
+@pytest.mark.skipif(_hook_python() is None, reason="no venv the hook could find")
+def test_a_factory_package_in_the_session_cwd_cannot_answer_for_the_gate(
+    tmp_path: Path,
+) -> None:
+    """
+    The gate that judges a worktree must not be loaded from it (#216).
+
+    `python -m factory` puts the current directory first on the import path, and
+    the hook runs in the session's directory. A Builder editing `factory/` in its
+    worktree was therefore judged by its own unfinished code -- and an agent
+    refused by a gate could "fix" the gate and switch it off for itself.
+
+    The shadow here answers with a sentinel. The heartbeat is asserted as well:
+    without it, a hook that answered nothing at all would pass for one that
+    answered correctly.
+    """
+    shadow = tmp_path / "factory"
+    shadow.mkdir()
+    (shadow / "__init__.py").write_text("", encoding="utf-8")
+    (shadow / "__main__.py").write_text(f"print({SHADOW!r})\n", encoding="utf-8")
+
+    done = subprocess.run(
+        [str(bash), str(SCRIPT), "session-start"],
+        input="",
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        env=_minimal_env(),
+        timeout=60,
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr[:300]
+    assert SHADOW not in done.stdout, "the session's own factory package answered"
+    assert "unreachable" not in done.stderr, done.stderr[:300]
+    assert "factory gates: LIVE" in done.stdout, (
+        f"the installed factory did not answer: {done.stdout[:300]!r}"
+    )
+
+
+@needs_bash
+def test_a_hook_with_no_interpreter_says_so_and_exits_zero(tmp_path: Path) -> None:
+    """
+    Hooks fail open, so silence would be indistinguishable from "allowed" (#199).
+
+    A copy of the script in a directory with no `.git` and no `.venv` has no
+    interpreter to find, and must still say so.
+    """
+    hooks = tmp_path / ".claude" / "hooks"
+    hooks.mkdir(parents=True)
+    copy = hooks / SCRIPT.name
+    copy.write_bytes(SCRIPT.read_bytes())
+
+    done = subprocess.run(
+        [str(bash), str(copy), "session-start"],
+        input="",
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        env=_minimal_env(),
+        timeout=60,
+        check=False,
+    )
+    assert done.returncode == 0
+    assert "unreachable" in done.stderr

@@ -30,9 +30,11 @@ factory <command> [--json]
 python -m factory <command> [--json]
 ```
 
-Both work and both reach the same `main`. The console script is the one hooks
-and CI call, because it does not need to know where the repo lives; `python -m`
-is the fallback when the package has not been installed.
+Both work and both reach the same `main`. CI calls the console script. The
+hooks do not: the console script exists only on an activated venv's `PATH`, and
+the hook shell has none (#199). So `.claude/hooks/factory-hook.sh` finds the
+venv interpreter by path and runs `python -I -m factory hook <event>`. See
+"Which code a hook runs" below.
 
 It is installed editable, once, into the project venv:
 
@@ -108,6 +110,29 @@ gitignored and personal:
 
 Using it is not cheating; not saying you used it is. The PR body is where that
 goes.
+
+**Which code a hook runs.** The factory installed in the venv: the editable
+install, which points at the **main checkout's** `factory/`, whatever directory
+the session sits in. Plain `python -m` put the current directory first on the
+import path, and the hook runs in the session's directory, so a worktree
+editing `factory/` was judged by its own unfinished gates (#216). `-I`
+(isolated mode) keeps that directory off the import path.
+
+That holds only as well as the install does. An editable install made **from a
+worktree** points every session at that worktree, so install from the main
+checkout. And the hook now *needs* the install: without it, `-I -m factory`
+fails with "No module named factory" rather than the script's "unreachable"
+message.
+
+Two consequences:
+
+- The gates are whatever the main checkout has checked out. Keep it current.
+- Bash-run hook tests in a ticket worktree exercise the main checkout's
+  `factory/`, not the branch's. The in-process tests (`main([...])`) test the
+  branch.
+
+The session's directory is taken from the event's `cwd` when it names one, and
+from the process cwd otherwise.
 
 **They enforce the sequence, not the quality.** That `spec-review.md` exists is
 a `stat`. That the review was any good needs #180. A green hook is not a

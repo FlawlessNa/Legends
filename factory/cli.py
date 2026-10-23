@@ -31,6 +31,7 @@ from factory.hooks import (
     Decision,
     decide_stop,
     decide_write,
+    governing,
     session_report,
 )
 from factory.merge import check as check_merge
@@ -317,7 +318,8 @@ def _run_hook(args: argparse.Namespace) -> int:
     if _hooks_disabled():
         return int(ExitCode.OK)
 
-    repo_root = Path.cwd()
+    raw = _read_stdin()
+    repo_root = _session_root(raw)
     branch = current_branch(repo_root)
     payload: dict[str, Any] = {}
 
@@ -331,7 +333,6 @@ def _run_hook(args: argparse.Namespace) -> int:
                 }
             }
     elif args.event == "pre-tool-use":
-        raw = _read_stdin()
         target = _written_path(raw)
         if target is not None:
             decision = decide_write(target, session=repo_root)
@@ -354,8 +355,17 @@ def _run_hook(args: argparse.Namespace) -> int:
 
 
 def _read_stdin() -> dict[str, Any]:
-    """The harness event, or an empty mapping when there is nothing to read."""
+    """
+    The harness event, or an empty mapping when there is nothing to read.
+
+    **A terminal is nothing to read.** Every event reads its JSON, so a person
+    running `factory-hook.sh session-start` by hand -- which is how SKILL.md
+    says to check the gates are alive -- would otherwise wait forever on input
+    nobody is going to type.
+    """
     try:
+        if sys.stdin is None or sys.stdin.isatty():
+            return {}
         text = sys.stdin.read()
     except OSError, ValueError:
         return {}
@@ -364,6 +374,28 @@ def _read_stdin() -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return loaded if isinstance(loaded, dict) else {}
+
+
+def _session_root(event: dict[str, Any]) -> Path:
+    """
+    The session's directory: the event's `cwd` when it names one, else ours.
+
+    The event is the harness's own statement of where the session is. The
+    process cwd is where the hook happened to be started, which is the same
+    place today but is not promised -- a launcher may run hooks from anywhere
+    (#216). A `cwd` naming no existing directory is ignored rather than
+    trusted, so a stale event cannot move the session somewhere imaginary.
+
+    **The worktree root, not the directory as given.** The session may sit in a
+    subdirectory, and everything downstream -- `current_branch`,
+    `ticket_worktrees`, `session_report` -- expects a root. Taken raw, a `cwd`
+    of `<worktree>/botting` read as "no ticket" and silenced the Stop gate.
+    """
+    cwd = event.get("cwd")
+    if isinstance(cwd, str) and cwd and Path(cwd).is_dir():
+        found = governing(Path(cwd))
+        return found.root if found is not None else Path(cwd)
+    return Path.cwd()
 
 
 def _written_path(event: dict[str, Any]) -> Path | None:
