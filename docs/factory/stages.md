@@ -200,6 +200,14 @@ and a session on no ticket that wrote nowhere stops cleanly.
 - **A write into another worktree through the shell** is **[unenforced]**: the
   log is written by the edit-tool hook, so such a worktree is not in the
   session's scope. So is source committed *before* the intent commit.
+- **Two limits.**
+  - A session that leaves the repository before Stop loses its write log as well
+    as its own-worktree scope, because the log lives in the repository's git
+    directory. That is no worse than before #207.
+  - A stacked ticket whose parent was squash-merged, and which then merges `dev`
+    in, is refused for `dev`'s files: neither candidate base is an ancestor of
+    the other, so the chain commit's parent is used. That over-refuses; nothing
+    escapes. Rebasing onto `dev` instead avoids it.
 
 ### Artifacts
 

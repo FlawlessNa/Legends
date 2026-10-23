@@ -9,6 +9,10 @@ radius:
   - tests/test_factory/test_cli.py
   - docs/factory/stages.md
   - docs/factory/design.md
+  - docs/factory/README.md
+  - factory/chain.py
+  - factory/hooks.py
+  - tests/test_factory/test_worktrees.py
   - .factory/207/**
 tasks: null
 merge_order: null
@@ -27,6 +31,9 @@ docs_cleared: []
 | --- | --- |
 | `factory/cli.py` | `_base`, `_changed_paths`; `_source_changed` reads them; `_stop_everywhere` judges own and logged worktrees and names worktree, ticket and base; `_run_hook` logs after an allowed write and adds the no-base line at session start |
 | `factory/worktrees.py` | the write log: `log_write`, `logged_worktrees`, the `session_id` pattern. Still runs no git |
+| `factory/chain.py`, `factory/hooks.py` | one shared `common_dir` (review of #207): `hooks._common` delegates to it |
+| `docs/factory/README.md` | the [mechanical] list said Stop judged every worktree |
+| `tests/test_factory/test_worktrees.py` | red tests for the `worktrees`-named primary |
 | `factory/AGENTS.md` | the `stop` row of the hooks table |
 | `tests/test_factory/test_stop_scope.py` | new: the red tests, on real temporary git repositories |
 | `tests/test_factory/test_cli.py` | the seven named changed tests below |
@@ -79,7 +86,7 @@ every ticket worktree is judged, which is the behaviour B3 removes.
 | `test_a_cwd_naming_no_directory_falls_back_to_the_process_cwd` | same |
 | `test_a_cwd_inside_a_worktree_is_judged_from_the_worktree_root` | same |
 
-Each gains a `session_id` and a log entry written through `log_write`. Any other
+Each gains a `session_id` and a log entry written by hand (`_logged`). Any other
 test changed is added here with its reason.
 
 ## Decisions I made
@@ -118,9 +125,9 @@ Two further tests are red only because Stop used to judge every worktree: an unr
 
 `test_the_default_branch_merged_in_is_not_the_ticket_s_source` and `test_a_chain_that_already_sits_on_the_default_branch` also fail when the later-of rule in `_base` is disabled (checked by hand: `if False and _is_ancestor(...)`; both red, restored), so they pin note 1 and note 3 and not merely the attribute's existence.
 
-**Green, after.** `pytest` from the worktree root: `1279 passed, 3 skipped, 25 deselected`, 0 failed, 0 errors, 0 xfailed. `ruff check`, `ruff format` and `pyright` are clean on the changed Python files, and pre-commit passed on `8c3a717`.
+**Green, after.** `pytest` from the worktree root: `1284 passed, 3 skipped, 25 deselected` (after the review fixes: 1279 before; the 5 new tests are the `worktrees`-named primary, the shared-repository check and three empty-entry cases), 0 failed, 0 errors, 0 xfailed. `ruff check`, `ruff format` and `pyright` are clean on the changed Python files, and pre-commit passed on `8c3a717`.
 
-**Named changed tests**, all seven as listed above: each now passes a `session_id` and has the worktree in that session's log (written by hand with `_logged`, because those fixtures give every worktree its own `.git` directory, which the identity rule reads as a separate repository). Nothing else was edited; `test_ticket_worktrees_is_the_same_function_the_cli_exports` still passes through a re-export in `cli.py`.
+**Named changed tests**, all seven as listed above: each now passes a `session_id` and has the worktree in that session's log (the log entry is written by hand with `_logged`, not through `log_write`, because those fixtures give every worktree its own `.git` directory, which the identity rule reads as a separate repository). Nothing else was edited; `test_ticket_worktrees_is_the_same_function_the_cli_exports` still passes through a re-export in `cli.py`.
 
 ## Could not verify
 
@@ -129,7 +136,7 @@ Two further tests are red only because Stop used to judge every worktree: an unr
 - **Real `origin/HEAD`.** The tests simulate it with `update-ref` and `symbolic-ref`; no test ran against a fetched remote. The `no base` and `merge-base` paths are exercised on those refs only.
 - **A shallow boundary** is not tested directly (a root commit stands in for it); `git rev-parse <f>^` fails the same way for both.
 - **Windows case and 8.3 names** in the log: entries are keyed by the case-normalised resolved root and deduplicated by resolved `Path`, but no test makes two spellings of one path.
-- **Hook cost.** Stop now runs about five git processes per judged worktree; the review measured the history walk at 0.1 to 0.15 s here, and nothing was measured on a slower disk.
+- **Hook cost.** Stop now runs about six git processes per judged worktree, plus four more on a refusal (the base is computed again for the message); the review measured the history walk at 0.1 to 0.15 s here, and nothing was measured on a slower disk.
 - **Log pruning.** Session logs are never deleted (spec decision); #210 or a later ticket owns that.
 - **The red tests were committed together with the change**, not before it: pre-commit's pyright refuses a test file that names `cli._base` before it exists, and hooks were not skipped. The red run is the scratchpad file above.
 - The flaky `test_truncate_lands_exactly_on_the_limit_for_a_multi_step_walk` (#229) did not fail in the final run.

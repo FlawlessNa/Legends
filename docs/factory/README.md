@@ -27,7 +27,8 @@ one of three markers, and they are not interchangeable:
 
 **What is [mechanical] today**, so the list can be checked rather than
 believed: artifacts before code and the spec-review gate (`PreToolUse`, #189);
-the proof before a turn ends, across every ticket worktree (`Stop`, #206); the
+the proof before a turn ends, over the session's own worktree and the ticket
+worktrees it wrote (`Stop`, #206, #207); the
 stage a ticket is in (`factory next`, #140); the auto-merge conditions
 (CI, #194); and source edits in the primary checkout being refused (#209).
 Everything else in this directory is **[instruction]** or **[unenforced]**, and

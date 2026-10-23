@@ -21,6 +21,7 @@ from typing import Final
 from factory.chain import (
     CHAIN_DIR,
     Chain,
+    common_dir,
     current_branch,
     git_dir,
     read_chain,
@@ -412,11 +413,7 @@ def _common(root: Path) -> Path | None:
     #206 exists precisely because agents write other checkouts by absolute
     path, so that is reachable rather than theoretical.
     """
-    found = git_dir(root)
-    if found is None:
-        return None
-    #: In a linked worktree this is `<primary>/.git/worktrees/<name>`.
-    return found.parent.parent if found.parent.name == "worktrees" else found
+    return common_dir(root)
 
 
 def _is_primary(root: Path) -> bool:

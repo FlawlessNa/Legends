@@ -484,3 +484,16 @@ def test_pre_tool_use_runs_no_subprocess(
     monkeypatch.setattr(subprocess, "Popen", forbidden)
     run_hook("pre-tool-use", write_event(a, b / "src.py"), monkeypatch, capsys)
     assert sessions_dir(main, "s1").is_dir()
+
+
+@pytest.mark.parametrize("text", ["", "  ", "\n"])
+def test_an_empty_log_entry_is_skipped_not_read_as_the_current_directory(
+    main: Path, text: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`Path("")` is `.`, which would judge whatever directory the hook runs in."""
+    a = ticket(main, 1)
+    directory = sessions_dir(main, "s1")
+    directory.mkdir(parents=True)
+    (directory / "entry").write_text(text, encoding="utf-8")
+    monkeypatch.chdir(a)
+    assert worktrees.logged_worktrees(main, "s1") == ()

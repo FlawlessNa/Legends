@@ -18,7 +18,13 @@ import re
 from pathlib import Path
 from typing import Final
 
-from factory.chain import CHAIN_DIR, current_branch, git_dir, ticket_from_branch
+from factory.chain import (
+    CHAIN_DIR,
+    common_dir,
+    current_branch,
+    git_dir,
+    ticket_from_branch,
+)
 from factory.hooks import governing
 
 #: A session id the log will use as a directory name. Anything else -- a path
@@ -43,9 +49,7 @@ def ticket_worktrees(repo_root: Path) -> tuple[Path, ...]:
     if ticket_from_branch(current_branch(repo_root)) is not None:
         found.append(repo_root)
 
-    #: In a linked worktree this is `<main>/.git/worktrees/<name>`; the shared
-    #: directory is its grandparent, and `commondir` names it when it is not.
-    common = here.parent.parent if here.parent.name == "worktrees" else here
+    common = common_dir(repo_root) or here
     try:
         entries = sorted((common / "worktrees").iterdir())
     except OSError:
@@ -85,7 +89,7 @@ def worktree_for(repo_root: Path, ticket: int) -> tuple[Path, ...]:
     if here is None:
         return ()
 
-    common = here.parent.parent if here.parent.name == "worktrees" else here
+    common = common_dir(root) or here
     candidates = [*ticket_worktrees(root), common.parent]
 
     unique: dict[Path, Path] = {}
@@ -106,14 +110,6 @@ def worktree_for(repo_root: Path, ticket: int) -> tuple[Path, ...]:
 # hooks running at once create different files and neither can lose the other's
 # entry. A shared file appended to by concurrent hooks lost 26-27% of its lines
 # when the spec review measured it.
-
-
-def common_dir(root: Path) -> Path | None:
-    """The repository's shared git directory, or None when `root` is in none."""
-    here = git_dir(root)
-    if here is None:
-        return None
-    return here.parent.parent if here.parent.name == "worktrees" else here
 
 
 def _session_dir(common: Path, session_id: str) -> Path:
@@ -182,9 +178,13 @@ def logged_worktrees(session: Path, session_id: object) -> tuple[Path, ...]:
     unique: dict[Path, Path] = {}
     for entry in entries:
         try:
-            root = Path(entry.read_text(encoding="utf-8").strip())
+            text = entry.read_text(encoding="utf-8").strip()
         except OSError:
             continue
+        #: An empty entry would read as `Path(".")`, the hook's own cwd.
+        if not text:
+            continue
+        root = Path(text)
         if not root.is_dir() or ticket_from_branch(current_branch(root)) is None:
             continue
         unique.setdefault(root.resolve(), root)
