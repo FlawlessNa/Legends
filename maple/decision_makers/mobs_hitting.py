@@ -161,7 +161,9 @@ class MobsHitting(
             self.training_skill.vertical_down_screen_range
             or self.training_skill.vertical_screen_range
         )
-        # TODO -> Detection model returns x1, y1, x2, y2, while detection configs returns x, y, w, h this needs to be corrected
+        # TODO - With detection configs and no model, `Character.get_onscreen_position`
+        #  still returns x, y, w, h, so `pos` is not x1, y1, x2, y2 there. Mobs are
+        #  x1, y1, x2, y2 on both paths (#74). Fix for the character: #231.
         x1, _y1, x2, y2 = pos
         # x1, y1, w, h = pos
         # x2 = x1 + w

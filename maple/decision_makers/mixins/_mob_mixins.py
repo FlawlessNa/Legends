@@ -72,12 +72,12 @@ class MobsHittingMixin:
         Given current character position and list of detected mobs on screen,
         return the (horizontal) direction of the closest mob relative to character.
         :param character_pos: Point (x, y) - use `box_center` on a detection box.
-        :param mobs: List of rectangles (x, y, w, h), as `get_onscreen_mobs` returns.
+        :param mobs: List of rectangles (x1, y1, x2, y2), as `get_onscreen_mobs` returns.
         :return: Direction of closest mob relative to character, None if no mobs.
         """
         if not mobs:
             return None
-        centers = [(rect[0] + rect[2] / 2, rect[1] + rect[3] / 2) for rect in mobs]
+        centers = [MobsHittingMixin.box_center(rect) for rect in mobs]
         distances = [math.dist(character_pos, center) for center in centers]
 
         closest_mob_idx = int(np.argmin(distances))

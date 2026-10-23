@@ -9,6 +9,7 @@ import numpy as np
 
 from botting import PARENT_LOG
 from botting.core import BotData
+from maple.decision_makers.mixins._mob_mixins import MobsHittingMixin
 from maple.model.mechanics import (
     MovementHandler,
     compile_movements,
@@ -226,7 +227,9 @@ class NextTargetMixin:
                 self.data.mob_threshold, self.MIN_MOBS_THRESHOLD
             ):
                 # Compute "center of mass" of mobs at the character's left and right
-                center_x = [(rect[0] + rect[2]) / 2 for rect in mobs_locations]
+                center_x = [
+                    MobsHittingMixin.box_center(rect)[0] for rect in mobs_locations
+                ]
                 left_x = [rect_x for rect_x in center_x if rect_x < cx]
                 right_x = [rect_x for rect_x in center_x if rect_x >= cx]
 

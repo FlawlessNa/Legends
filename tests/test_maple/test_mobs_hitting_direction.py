@@ -23,11 +23,11 @@ from maple.decision_makers.mobs_hitting import MobsHitting
 # A character standing at x = 100, y = 55 on screen: x1, y1, x2, y2.
 CHARACTER_BOX = (90, 40, 110, 70)
 
-# Mob rectangles, in the x, y, w, h shape `get_onscreen_mobs` returns.
-MOB_FAR_LEFT = (0, 40, 20, 30)
-MOB_NEAR_LEFT = (60, 40, 20, 30)
-MOB_NEAR_RIGHT = (130, 40, 20, 30)
-MOB_FAR_RIGHT = (400, 40, 20, 30)
+# Mob rectangles, in the x1, y1, x2, y2 shape `get_onscreen_mobs` returns.
+MOB_FAR_LEFT = (0, 40, 20, 70)
+MOB_NEAR_LEFT = (60, 40, 80, 70)
+MOB_NEAR_RIGHT = (130, 40, 150, 70)
+MOB_FAR_RIGHT = (400, 40, 420, 70)
 
 # The skill's on-screen mask. `_closest_mob_direction` only forwards it to the
 # detection call, stubbed out below, so nothing ever reads its contents.
@@ -145,4 +145,12 @@ def test_detection_failure_logs_and_falls_back_to_no_facing(
     assert any(record.levelno == logging.ERROR for record in caplog.records)
     assert any(
         "detection blew up" in (record.exc_text or "") for record in caplog.records
+    )
+
+
+def test_a_mob_left_of_the_character_in_x1y1x2y2_is_to_the_left() -> None:
+    # Centre 420 in x1, y1, x2, y2; read as x, y, w, h it would be 620, to the right.
+    assert (
+        MobsHittingMixin.get_closest_mob_direction((500, 5), [(400, 0, 440, 10)])
+        == "left"
     )

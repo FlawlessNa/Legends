@@ -402,19 +402,19 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         *,
         mask: np.ndarray | None,
         name: str | None = None,
-    ) -> tuple[Sequence[int], ...]:
+    ) -> tuple[tuple[int, int, int, int], ...]:
         """
-        Extract the results from the YOLO detection model.
+        Extract the results from the YOLO detection model, as x1, y1, x2, y2.
         When hide is provided, any results fully contained within any of the hide
         regions are removed.
         """
         if name is None:
             name = cls._model_cls_name
-        vals = [
-            tuple(map(round, dct["box"].values()))
-            for dct in res.summary()
-            if dct["name"] == name
-        ]
+        vals: list[tuple[int, int, int, int]] = []
+        for dct in res.summary():
+            if dct["name"] == name:
+                x1, y1, x2, y2 = (round(v) for v in dct["box"].values())
+                vals.append((x1, y1, x2, y2))
 
         if mask is not None:
             assert mask.shape == res.orig_img.shape, (
