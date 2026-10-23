@@ -19,7 +19,7 @@ keyboard==0.13.5
 # treat cv2 behaviour changes as a suspect if image handling misbehaves.
 opencv-python==5.0.0.93
 numpy==2.5.2
-pillow==12.3.0
+pillow>=13.0.0
 
 # torch/torchvision below are the CPU wheels from PyPI. If you have an NVIDIA
 # GPU, install the CUDA build INSTEAD -- see docs/SETUP.md, "GPU vs CPU".
