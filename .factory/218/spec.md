@@ -3,21 +3,22 @@ ticket: 218
 stage: design
 method: suite
 criteria:
+  - the Stage enum gains spec-review and accept and keeps every v1 member, and routing's v1 ROWS, VERDICTS and test_routing.py are unchanged
   - factory/roles.py holds one row per role, designer, spec-reviewer, planner, builder, documenter, reviewer and orchestrator, each with its stages, where it runs (primary, own-worktree, snapshot or worktree), its write patterns and its allowed commands
-  - write patterns are globs matched the way merge.py matches paths (full_match, ** crosses directories), with a leading ! excluding, so the documenter's scope can say docs/** and **/AGENTS.md and CONTEXT.md while excluding docs/adr/** and docs/agents/typing.md, and scope(role, ticket) substitutes <n>
+  - write patterns are globs matched the way merge.py matches paths (full_match, ** crosses directories), with a leading ! excluding, so the documenter's scope can say docs/**, **/AGENTS.md (excluding .claude/**), CONTEXT.md and .factory/<n>/park.md while excluding every merge.POLICY hard-stop and protected docs path, taken from merge.py rather than copied, and scope(role, ticket) substitutes <n>
   - the builder's scope is its static patterns plus the marker RADIUS, which scope returns unexpanded and which means plan.md's radius within acceptance.radius, for #163 to enforce
-  - allowed(role, argv) matches an allowlist entry against the leading words of argv, so "spec submit" matches factory spec submit, and hook is allowed for every role because the harness invokes it
-  - role_for(stage) gives the worker role for every v2 stage that has one and None for accept, integrate and qa (no worker until the QA phase), and the v1 roles stay documented for hand-worked tickets
+  - allowed(role, argv) matches an allowlist entry against the command words that follow the global options, so "spec submit" matches both ["spec", "submit"] and ["--json", "spec", "submit"], and hook is allowed for every role because the harness invokes it
+  - role_for(stage) gives the worker role for every v2 stage that has one and None for accept, integrate, qa (no worker until the QA phase) and the v1-only stages plan and test, and the v1 roles stay documented for hand-worked tickets
   - docs/factory/roles.md states the v2 table and keeps the v1 table under its own heading, and a test checks the v2 table equals roles.py
-  - configs/factory-models.toml maps spec-review and qa to complex and document to standard, drops plan and test, keeps fable unavailable, and gains a [roles] block giving the orchestrator standard, which models.py loads, and accept joins integrate as a stage no model is resolved for
-  - an override may use attempt_at_least, an integer of at least 2 that rejects booleans, and it fires when the attempt being dispatched, which is state.dispatched(state, stage).attempt from #219, is at least that number, so a stage's second dispatch escalates to complex and a new stage's first does not
+  - configs/factory-models.toml maps spec-review and qa to complex and document to standard, drops plan and test, keeps fable unavailable, and gains a [roles] block giving the orchestrator standard, which models.py loads and answers through resolve_role(table, role), where a key that is not a role in roles.py, or a role that has stages, is a TableError, and accept joins integrate as a stage no model is resolved for
+  - an override may use attempt_at_least, an integer of at least 2 that rejects booleans, and it fires when the attempt being dispatched, which is state.dispatched(state, stage).attempt from #219 computed on the state before the dispatch is recorded, is at least that number, so a stage's second dispatch escalates to complex and a new stage's first does not, and factory model <n> reports the model for the next dispatch
   - factory model <n> passes the ticket's state for a v2 chain and no state for a v1 chain, so escalation never fires on v1, and factory model --stage S without a ticket never escalates
-  - configs/factory.toml holds attempts, cycles, wip, launcher, worker_timeout_min and poll_s, is read from the session's own checkout like the model table, and an unknown key, a missing key or a wrong type is exit 3 with the key named, and v1 routing never reads it
-  - docs/factory/design.md reverses R9 and places document after the proof and before review in §2, adds the Documenter to §5, §6 and §8, removes the Document stage from §11, and the Supersedes notes in stages.md, roles.md and artifacts.md name #237 for the routing rows
+  - configs/factory.toml requires attempts, cycles and wip (positive integers) and launcher (a string), accepts worker_timeout_min and poll_s as optional until the ticket that reads them supplies their values, is read from the session's own checkout like the model table, and an unknown key, a missing required key or a wrong type raises ConfigError, which is exit 3 with the key named, and v1 routing never reads it
+  - docs/factory/design.md reverses R9 and places document after the proof and before review in §2, adds the Documenter to §5, §6 and §8, removes the Document stage from §11, marks §6's review-staleness sentence as settled by #237, adds #237 to §10's build order, and the Supersedes notes in stages.md, roles.md and artifacts.md name #237 for the routing rows
   - test_cli.py's test_model_names_the_rule_that_fired and the shipped-table model test are named in the plan as changed, because qa moves to complex, and the full suite is green
 specified_by: claude
 specified_at: 2026-10-23
-revised_after: spec-review.md (changes-requested, 14 findings; ticket split, routing rows moved to #237)
+revised_after: spec-review-2.md (changes-requested, R1-R4)
 ---
 
 # Spec: roles.py, the model table, and configs/factory.toml
@@ -80,6 +81,10 @@ revised_after: spec-review.md (changes-requested, 14 findings; ticket split, rou
 - **The model table and `factory.toml` are always read from the session's checkout.** The same rule as #216: a ticket branch cannot change its own policy.
 
 ## Not in scope
+
+- **An obligation on #159:** resolve a worker's model *before* recording its dispatch in `state.json`. Otherwise the first dispatch of a stage escalates. A test here pins the before-recording semantics.
+- `worker_timeout_min` and `poll_s` values: supplied by #220's launcher defaults and #159, which read them. `AGENTS.md` keeps timing constants out of a builder's hands.
+- Until #237 lands, `factory model <n>` routes a v2 chain with the v1 rows. This is harmless, because no v2 chain exists before #222. The PR says so.
 
 - The routing rows (#237).
 - Enforcing write scopes (#163) and command allowlists (#222).

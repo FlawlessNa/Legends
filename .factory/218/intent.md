@@ -15,6 +15,10 @@ Today's routing table cannot drive the factory the maintainer agreed to:
 - **Its loops are uncapped,** and it has no idea of submission, acceptance, a proof the factory loop wrote, or a parked ticket.
 - **Model routing has no notion of retries.** A capped stage spends two identical cheap attempts and then parks. The maintainer decided on 2026-10-22 that a second attempt escalates.
 
+## Split, 2026-10-23
+
+On its spec review's advice, this ticket was split. The routing rows below moved to **#237**. This ticket delivers `roles.py`, the model table and `configs/factory.toml`, plus the Stage enum's two new members and the design.md amendments. The outcome below is shared between the two tickets.
+
 ## Proposed outcome
 
 A v2 ticket (`intent.md: chain: 2`) routes through the agreed stages:
