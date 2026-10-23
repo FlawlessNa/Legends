@@ -3,7 +3,7 @@ ticket: 207
 stage: design
 method: suite
 criteria:
-  - a ticket worktree's base is the nearest ancestor of HEAD among origin/HEAD and the tips of every other issue/* branch, chosen with git merge-base --independent, so a branch stacked on another ticket is judged on its own commits only, with a test on a stacked branch
+  - a ticket worktree's base is the parent of the oldest commit on HEAD's history that touches .factory/<n>/, the intent-and-spec commit the process puts first, and only when no such commit exists is it git merge-base HEAD origin/HEAD, with red tests for a stacked branch, for the default branch moving after the branch was cut, for the branch having been pushed, and for a child branch stacked on it
   - the change set is every path in git diff --name-only <base>...HEAD plus every path git status --porcelain reports, both excluding .factory/, and no branch name appears in any function this ticket adds or changes
   - committing source on a ticket branch with no plan.md and then stopping is refused, where today it is allowed
   - when no base resolves, the change set is the uncommitted paths alone, and the session-start report for that worktree says the committed range is not checked and names the command to fix origin/HEAD, with a test asserting that line
@@ -17,7 +17,7 @@ criteria:
   - docs/factory/stages.md states what Stop sees, marks shell writes into another worktree as [unenforced], and gives git remote set-head origin --auto for a stale origin/HEAD
 specified_by: claude
 specified_at: 2026-10-22
-revised_after: spec-review.md (changes-requested, 10 findings)
+revised_after: spec-review-2.md (changes-requested, criterion 1)
 ---
 
 # Spec: Stop judges the session's own worktree and what it wrote, over everything changed since its base
@@ -29,11 +29,16 @@ Issue #207 as rewritten on 2026-10-22, and `docs/factory/design.md` §3 (d3),
 
 ## Shape
 
-- **The base.**
-  - The candidates are `origin/HEAD` plus the tip of every local and remote `issue/*` branch other than the worktree's own.
-  - Keep the candidates that are ancestors of HEAD. `git merge-base --independent` over them gives the nearest. For several independent ones, take the one with the most commits in common with HEAD (`git rev-list --count`).
-  - A stacked ticket is therefore judged against its parent ticket's tip, never against the default branch, where the parent's source would be swept in (spec-review finding 1, reproduced: 12 paths from #216 and #217).
-  - No candidate means no base.
+- **The base** is the ticket's own starting point.
+  - It is the parent of the oldest commit reachable from HEAD that touches `.factory/<n>/` (`git log --reverse --format=%H -- .factory/<n>/`, first line).
+  - The process puts intent and spec first on every ticket branch (`bootstrap.md` rule 3), so that commit is where the ticket began.
+  - **It is immune to all three holes cycle 2 found:**
+    - `dev` moving after the branch was cut;
+    - the branch's own push;
+    - a child branch stacked on it.
+  - **A stacked branch gets its parent ticket's tip.** Verified in this worktree: #207's first chain commit `987af4e` has parent `016692b`, the tip of #217, and no source path differs.
+  - **The fallback**, only when no chain commit exists, is `git merge-base HEAD origin/HEAD`.
+  - **Residual:** source committed *before* the intent commit escapes. The write gate already refuses edit-tool source writes before `spec.md` exists, so that takes a shell write, and it is recorded as `[unenforced]`.
 - **The change set** is `diff --name-only <base>...HEAD` ∪ `status --porcelain`, excluding `.factory/`.
 - **Who is judged** is own ∪ logged.
   - That is the session's own worktree (resolved from the event's `cwd`, #216) when it is on a ticket branch, plus every ticket worktree in the session's write log that still exists.
@@ -60,6 +65,7 @@ Issue #207 as rewritten on 2026-10-22, and `docs/factory/design.md` §3 (d3),
 - an invalid `session_id` and a missing one;
 - the forced-raise log test;
 - the no-base session-start line;
+- the primary checkout on a ticket branch writing into worktree B;
 - the base named in the refusal.
 
 **Changed tests,** named in the plan because they assert "every worktree is judged", which this removes (B3):
@@ -73,6 +79,10 @@ These are exactly the seven that patch `_source_changed` or call `_stop_everywhe
 - **The hooks read `base...HEAD` again, although B1 rejected it.** B1 rejected it for the *factory loop's* role-scope rules, where a branch accumulates other roles' files. Here it is the hand-worked Stop gate, judging one ticket's source as a whole, which is what B1's own fix keeps on `base...HEAD`.
 - **Logs are never deleted here.** They are a handful of tiny files per session. #210 does not cover them; its PR, or a later housekeeping ticket, adds `sessions/` pruning. This is noted on #210.
 - **`has_proof` stays "any `proof.suite`"** (chain.py). The loop's `proof.md` (#145) replaces it.
+- **The remote is assumed to be named `origin`.** The fallback alone depends on it.
+- **The no-base line is computed in `cli.py`.** `hooks.py` runs no git; `session_report`'s existing tests stay unchanged.
+- **A session that `cd`s out of the repo before Stop** loses only its own-worktree scope. Its log is keyed by `session_id`, so every worktree it wrote is still judged.
+- **Log entries are keyed by the case-normalised resolved root** (`os.path.normcase`), and deduplicated by `Path` when read, so Windows case differences cannot make two entries for one worktree.
 - **The harness is assumed.** That events carry `session_id` and `cwd`, and that a subagent's tool calls carry its own `session_id`, is assumed, not verified. It goes under Could not verify.
 
 ## Not in scope
