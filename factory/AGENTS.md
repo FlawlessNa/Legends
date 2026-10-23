@@ -140,6 +140,16 @@ reviewed spec, and `factory hook` is the one subcommand that does not obey the
 exit-code contract — it speaks the harness's JSON protocol and always exits 0,
 because a hook that fails must not take the session down with it.
 
+## Loop state and `factory park`
+
+`state.py` keeps one ticket's loop state at `<git-common-dir>/factory/<n>/state.json`,
+outside every worktree. **Every writer calls `update`**, which holds an OS lock
+across read, change and write; there is no public direct write, so a caller
+cannot lose another process's update. `load` takes no lock. On Windows a
+`PermissionError` from a concurrent reader is retried, then `StateError`, and is
+never read as "no state yet". `factory park` writes `park.md` in the ticket's
+worktree and never touches `state.json`.
+
 ## The merge policy
 
 `factory merge check <pr>` evaluates `docs/factory/merge-policy.md` for one PR,

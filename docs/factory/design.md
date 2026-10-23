@@ -147,7 +147,7 @@ anywhere: 2 attempts, 2 cycles, or factory park -> parked, ready-for-human; the 
 | `proof.md` | the loop only | `commit`, `suite: pass\|fail`, `red: red\|green\|error\|none`, `red_test`, output digests, `base_sha`. Current when no source differs between `commit` and HEAD, ignoring `.factory/`. |
 | `review.md` | Reviewer, stamped by the loop | `verdict`; `commit` (written by the loop). The Reviewer judged a snapshot at `proof.md`'s own commit, so `commit` never equals `proof.commit`. The review is **current when its loop-stamped `commit` is the commit that wrote the current `proof.md`**. The loop proves after every Builder turn that passes judgement, so any proven Builder turn, even one touching only `plan.md`, makes the review stale. A turn that fails judgement writes no new `proof.md`, so the review stands and the attempt cap applies. That is what ends the loop in d1. |
 | `answers.md` | Designer, copied in by the loop | Appended answers to spec gaps |
-| `park.md` | any worker, via `factory park` | `kind: needs-human\|spec-gap`, `stage`, with the reason in the body |
+| `park.md` | any worker, via `factory park` | `ticket`, `kind: needs-human\|spec-gap`, `stage`, `parked_at`, with the reason in the body |
 | `run.md` | the loop, once | `state.json` rendered, committed just before the PR |
 
 **The red test, precisely.** In a throwaway worktree at HEAD:
@@ -241,7 +241,7 @@ Exit codes: 0 pass · 1 gate failed · 2 misuse · 3 needs a human. Every comman
 | `run` | you, once; re-execs itself when the primary checkout's HEAD changes | stopped by you | — | another `run` holds the lock | — |
 | `run --once` | tests | acted, nothing needs you | an attempt failed | misuse | something parked |
 | `status` | anyone | nothing parked | — | — | parked items, each with its reason |
-| `park --reason \| --question` | a worker | `park.md` written | — | no ticket | — |
+| `park [<n>] --reason \| --question` | a worker | `park.md` written, in the ticket's own worktree | — | flag misuse, an empty text, no ticket, or the ticket lookup's 2 (no worktree on `issue/<n>-*`) | the ticket lookup's 3 (several worktrees), or `park.md` already exists (the kind recorded is named; nothing is written) |
 | `next [<n>]` | anyone | stage, read from the ticket's own worktree | — | not a ticket; `FACTORY_STAGE` disagrees | blocked, parked, or awaiting you |
 | `plan check [<n>]` | Planner, Builder | radius valid, inside acceptance | empty, malformed, or widened | misuse | an unapproved hard-stop path |
 
