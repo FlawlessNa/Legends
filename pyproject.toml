@@ -18,7 +18,7 @@ dependencies = []
 factory = "factory.cli:main"
 
 [tool.setuptools]
-packages = ["factory"]
+packages = ["factory", "factory.launchers"]
 
 [tool.setuptools.dynamic]
 version = {attr = "factory.__version__"}
