@@ -143,7 +143,7 @@ def stripped_credentials(common_dir: Path) -> dict[str, str]:
     holds anything: a worker that wrote gh config there would otherwise hand it
     to every later worker.
     """
-    config_dir = common_dir / GH_CONFIG_SUBPATH
+    config_dir = common_dir.resolve() / GH_CONFIG_SUBPATH
     if config_dir.exists():
         if not config_dir.is_dir() or any(config_dir.iterdir()):
             raise LauncherError(

@@ -309,3 +309,15 @@ def test_after_the_fake_stops_a_worker_its_status_is_gone(common_dir: Path) -> N
     launcher.stop(handle)
     assert launcher.stopped == [handle]
     assert launcher.status(handle) is WorkerState.GONE
+
+
+def test_a_relative_common_dir_still_gives_an_absolute_gh_config_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / ".git").mkdir()
+    monkeypatch.chdir(tmp_path)
+    relative = Path(".git")
+    value = stripped_credentials(relative)["GH_CONFIG_DIR"]
+    assert Path(value).is_absolute()
+    assert Path(value).parent.parent == (tmp_path / ".git").resolve()
+    FakeLauncher(relative).start(make_spec(relative))

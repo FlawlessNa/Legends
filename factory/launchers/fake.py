@@ -28,7 +28,7 @@ class FakeLauncher:
         states: Mapping[str, Sequence[WorkerState]] | None = None,
         session_ids: Mapping[str, str | None] | None = None,
     ) -> None:
-        self._common_dir = common_dir
+        self._common_dir = common_dir.resolve()
         self._script = {name: list(seq) for name, seq in (states or {}).items()}
         self._calls: dict[str, int] = {}
         self._session_ids = dict(session_ids or {})

@@ -39,10 +39,12 @@ from factory.launchers.herdr import (
     CommandResult,
     HerdrLauncher,
     Timeouts,
+    _collect_table,
     is_linked_worktree,
     read_process_table,
     trust_dialog_matches,
 )
+from factory.launchers.herdr import default_runner as real_default_runner
 
 HERDR_VERSION = "0.9.5"
 FIXTURES = Path(__file__).parent / "fixtures" / "herdr"
@@ -73,7 +75,6 @@ PROVENANCE: dict[str, str] = {
     "agent_get_blocked.json": CONSTRUCTED,
     "agent_get_unknown.json": CONSTRUCTED,
     "agent_get_sleeping.json": CONSTRUCTED,
-    "agent_get_idle_other_pane.json": CONSTRUCTED,
     "error_other.json": CONSTRUCTED,
     "not_json.txt": CONSTRUCTED,
     "agent_not_ready.json": CONSTRUCTED,
@@ -89,10 +90,14 @@ PROVENANCE: dict[str, str] = {
     "agent_list_no_match.json": CONSTRUCTED,
     "process_info.json": CONSTRUCTED,
     "process_info_no_shell.json": CONSTRUCTED,
+    "process_info_null.json": CONSTRUCTED,
+    "process_info_bad_foreground.json": CONSTRUCTED,
+    "agent_read_null.json": CONSTRUCTED,
 }
 
 NAME = "t7-builder-1"
 PANE = "w1:p2"
+LOOP_PANE = "w1:p1"
 SHELL_PID = 1000
 
 
@@ -249,7 +254,7 @@ def launcher_for(
         repo.common_dir,
         run=herdr,
         read_process_table=table or dict,
-        environ=environ if environ is not None else {},
+        environ=environ if environ is not None else {"HERDR_PANE_ID": LOOP_PANE},
         sleep=clock.sleep,
         monotonic=clock.monotonic,
     )
@@ -333,6 +338,8 @@ def test_start_issues_split_agent_start_and_prompt_in_order(repo: Repo) -> None:
             "herdr",
             "pane",
             "split",
+            "--pane",
+            LOOP_PANE,
             "--no-focus",
             "--cwd",
             str(repo.worktree),
@@ -952,3 +959,114 @@ def test_importing_the_adapter_never_raises_on_another_platform() -> None:
         check=False,
     )
     assert done.returncode == 0, done.stderr
+
+
+# --- review findings (#220) ---------------------------------------------------
+
+
+def test_a_screen_read_of_the_wrong_shape_carries_the_handle(repo: Repo) -> None:
+    herdr = ScriptedHerdr(blocked_startup(agent_read=["agent_read_null.json"]))
+    spec = spec_for(repo)
+    error = start_error(launcher_for(repo, herdr), spec)
+    assert error.handle == handle_for(spec)
+    assert herdr.sent_keys() == []
+
+
+def test_any_exception_after_the_split_becomes_a_launcher_error_with_the_handle(
+    repo: Repo,
+) -> None:
+    herdr = ScriptedHerdr(script())
+
+    def exploding(args: Sequence[str]) -> CommandResult:
+        if args[1:3] == ["agent", "prompt"]:
+            raise ValueError("unexpected")
+        return herdr(args)
+
+    launcher = HerdrLauncher(
+        repo.common_dir,
+        run=exploding,
+        environ={"HERDR_PANE_ID": LOOP_PANE},
+    )
+    spec = spec_for(repo)
+    error = start_error(launcher, spec)
+    assert error.handle == handle_for(spec)
+
+
+@pytest.mark.parametrize(
+    "stored", ["process_info_null.json", "process_info_bad_foreground.json"]
+)
+def test_a_process_info_of_the_wrong_shape_raises_a_launcher_error(
+    repo: Repo, stored: str
+) -> None:
+    herdr = ScriptedHerdr(stop_script(pane_process_info=[stored]))
+    with pytest.raises(LauncherError):
+        launcher_for(repo, herdr, table=tables(TREE)).stop(
+            Handle(NAME, PANE, "builder", True)
+        )
+    assert "pane close" not in herdr.commands()
+
+
+def test_the_split_names_the_loops_own_pane_as_its_target(repo: Repo) -> None:
+    herdr = ScriptedHerdr(script())
+    launcher_for(repo, herdr, environ={"HERDR_PANE_ID": "w3:p9"}).start(spec_for(repo))
+    split = next(c for c in herdr.calls if c[1:3] == ["pane", "split"])
+    assert split[3:5] == ["--pane", "w3:p9"]
+
+
+def test_start_raises_before_splitting_when_the_loop_has_no_pane(repo: Repo) -> None:
+    herdr = ScriptedHerdr(script())
+    error = start_error(launcher_for(repo, herdr, environ={}), spec_for(repo))
+    assert error.handle is None
+    assert "pane split" not in herdr.commands()
+
+
+def test_the_real_runner_bounds_every_call_in_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[float | None] = []
+
+    def fake_run(
+        args: Sequence[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        timeout = kwargs.get("timeout")
+        seen.append(timeout if isinstance(timeout, float) else None)
+        return subprocess.CompletedProcess(list(args), 0, "{}", "")
+
+    monkeypatch.setattr(herdr_module.subprocess, "run", fake_run)
+    real_default_runner(["herdr", "agent", "get", "x"])
+    real_default_runner(["herdr", "agent", "wait", "p", "--timeout", "30000"])
+    plain, waited = seen
+    assert plain is not None
+    assert waited is not None
+    assert waited > 30
+
+
+def test_the_real_runner_turns_a_client_timeout_into_a_launcher_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def hang(args: Sequence[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(list(args), 1)
+
+    monkeypatch.setattr(herdr_module.subprocess, "run", hang)
+    with pytest.raises(LauncherError, match="timed out"):
+        real_default_runner(["herdr", "agent", "get", "x"])
+
+
+def test_a_failed_enumeration_raises_rather_than_ending_the_list() -> None:
+    rows = iter([(1, 0), (2, 1)])
+
+    def failing(first: bool) -> bool:
+        return False
+
+    with pytest.raises(OSError, match="enumerat"):
+        _collect_table(failing, lambda: next(rows), lambda: 5)
+
+
+def test_a_complete_enumeration_ends_on_no_more_files() -> None:
+    rows = iter([(1, 0), (2, 1)])
+    remaining = iter([True, True, False])
+
+    def advance(first: bool) -> bool:
+        return next(remaining)
+
+    assert _collect_table(advance, lambda: next(rows), lambda: 18) == {1: 0, 2: 1}

@@ -76,6 +76,22 @@ class Timeouts:
     stop_poll_s: float = 0.25
 
 
+#: How long the client waits on a herdr command that carries no timeout of its
+#: own, and the margin it adds to one that does.
+CLIENT_TIMEOUT_S: Final = 30.0
+CLIENT_MARGIN_S: Final = 15.0
+
+
+def _client_timeout(args: Sequence[str]) -> float:
+    """A bound for the whole subprocess: herdr's own `--timeout`, plus a margin."""
+    if "--timeout" in args:
+        try:
+            return int(args[list(args).index("--timeout") + 1]) / 1000 + CLIENT_MARGIN_S
+        except IndexError, ValueError:
+            pass
+    return CLIENT_TIMEOUT_S
+
+
 def default_runner(args: Sequence[str]) -> CommandResult:
     """Run herdr for real. Tests replace this and fail if it is reached."""
     try:
@@ -86,7 +102,10 @@ def default_runner(args: Sequence[str]) -> CommandResult:
             encoding="utf-8",
             check=False,
             shell=False,
+            timeout=_client_timeout(args),
         )
+    except subprocess.TimeoutExpired as error:
+        raise LauncherError(f"herdr {' '.join(args[1:3])} timed out") from error
     except OSError as error:
         raise LauncherError(f"could not run herdr: {error}") from error
     return CommandResult(done.returncode, done.stdout, done.stderr)
@@ -132,16 +151,48 @@ def read_process_table() -> dict[int, int]:
     snapshot = kernel32.CreateToolhelp32Snapshot(th32cs_snapprocess, 0)
     if snapshot is None or snapshot == wintypes.HANDLE(-1).value:
         raise OSError(ctypes.get_last_error(), "CreateToolhelp32Snapshot failed")
-    table: dict[int, int] = {}
+    entry = ProcessEntry()
+    entry.dwSize = ctypes.sizeof(ProcessEntry)
+
+    def advance(first: bool) -> bool:
+        step = kernel32.Process32FirstW if first else kernel32.Process32NextW
+        return bool(step(snapshot, ctypes.byref(entry)))
+
     try:
-        entry = ProcessEntry()
-        entry.dwSize = ctypes.sizeof(ProcessEntry)
-        more = kernel32.Process32FirstW(snapshot, ctypes.byref(entry))
-        while more:
-            table[int(entry.th32ProcessID)] = int(entry.th32ParentProcessID)
-            more = kernel32.Process32NextW(snapshot, ctypes.byref(entry))
+        return _collect_table(
+            advance,
+            lambda: (int(entry.th32ProcessID), int(entry.th32ParentProcessID)),
+            ctypes.get_last_error,
+        )
     finally:
         kernel32.CloseHandle(snapshot)
+
+
+#: What Toolhelp reports when an enumeration has simply run out of entries.
+_ERROR_NO_MORE_FILES: Final = 18
+
+
+def _collect_table(
+    advance: Callable[[bool], bool],
+    current: Callable[[], tuple[int, int]],
+    last_error: Callable[[], int],
+) -> dict[int, int]:
+    """
+    Walk an enumeration into pid -> parent pid.
+
+    The walk ends only on ERROR_NO_MORE_FILES. Any other reason it stopped
+    raises: a short table read as "everything has exited" would let `stop`
+    return for a tree that is still running.
+    """
+    table: dict[int, int] = {}
+    more = advance(True)
+    while more:
+        pid, parent = current()
+        table[pid] = parent
+        more = advance(False)
+    error = last_error()
+    if error != _ERROR_NO_MORE_FILES:
+        raise OSError(error, "process enumeration stopped before its end")
     return table
 
 
@@ -219,7 +270,7 @@ class HerdrLauncher:
         monotonic: Callable[[], float] = time.monotonic,
         timeouts: Timeouts | None = None,
     ) -> None:
-        self._common_dir = common_dir
+        self._common_dir = common_dir.resolve()
         self._run = run if run is not None else default_runner
         self._read_table = (
             read_process_table if read_process_table is not None else _default_table()
@@ -249,6 +300,12 @@ class HerdrLauncher:
             self._start_agent_and_prompt(spec, handle)
         except LauncherError as error:
             raise LauncherError(str(error), handle=handle, code=error.code) from error
+        except Exception as error:
+            # Whatever herdr sent, a pane now exists and the loop must stop it.
+            raise LauncherError(
+                f"unexpected {type(error).__name__} after the split: {error}",
+                handle=handle,
+            ) from error
         started = replace(handle, prompt_started=True)
         self._started[spec.name] = started
         return started
@@ -273,7 +330,9 @@ class HerdrLauncher:
 
     def session_id(self, handle: Handle) -> str | None:
         result = self._call(["agent", "list"])
-        for entry in result.get("agents", []):
+        for entry in result.get("agents") or []:
+            if not isinstance(entry, dict):
+                raise LauncherError("agent list returned a malformed entry")
             if entry.get("pane_id") != handle.pane_id:
                 continue
             session = entry.get("agent_session")
@@ -295,7 +354,9 @@ class HerdrLauncher:
                 self._stopped.add(handle.pane_id)
                 return
             raise
-        info = result.get("process_info", {})
+        info = result.get("process_info")
+        if not isinstance(info, dict):
+            raise LauncherError("pane process-info returned no process_info")
         shell_pid = info.get("shell_pid")
         if not isinstance(shell_pid, int):
             raise LauncherError(f"herdr reported no shell_pid for {handle.pane_id}")
@@ -306,7 +367,9 @@ class HerdrLauncher:
                 "cannot be followed"
             )
         tracked = {shell_pid}
-        for process in info.get("foreground_processes", []):
+        for process in info.get("foreground_processes") or []:
+            if not isinstance(process, dict):
+                raise LauncherError("pane process-info returned a malformed process")
             pid = process.get("pid")
             if isinstance(pid, int):
                 tracked.add(pid)
@@ -331,7 +394,21 @@ class HerdrLauncher:
         return _pane_of(agent)
 
     def _split(self, spec: WorkerSpec) -> str:
-        command = ["pane", "split", "--no-focus", "--cwd", str(spec.cwd)]
+        loop_pane = self._environ.get("HERDR_PANE_ID")
+        if not loop_pane:
+            raise LauncherError(
+                "HERDR_PANE_ID is not set, so there is no pane to split from; "
+                "herdr would split whichever pane is focused"
+            )
+        command = [
+            "pane",
+            "split",
+            "--pane",
+            loop_pane,
+            "--no-focus",
+            "--cwd",
+            str(spec.cwd),
+        ]
         for key, value in spec.env.items():
             command += ["--env", f"{key}={value}"]
         pane = self._call(command).get("pane")
@@ -388,7 +465,8 @@ class HerdrLauncher:
                 f"agent_not_ready, but the agent is {state!r}, not blocked"
             )
         read = self._call(["agent", "read", pane, "--source", "recent-unwrapped"])
-        text = read.get("read", {}).get("text", "")
+        body = read.get("read")
+        text = body.get("text") if isinstance(body, dict) else None
         if not isinstance(text, str) or not trust_dialog_matches(text):
             raise LauncherError(
                 "startup is blocked at a screen that is not the trust dialog"
