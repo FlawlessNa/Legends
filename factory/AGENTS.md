@@ -94,7 +94,7 @@ are a separate, narrower layer.
 | --- | --- |
 | `session-start` | Nothing. Reports the chain state so nobody can say they did not know |
 | `pre-tool-use` | A write outside `.factory/` while `spec.md` or `spec-review.md` is missing |
-| `stop` | Finishing when source changed and `plan.md` records no proof |
+| `stop` | Finishing when source changed since the ticket's base, in the session's own worktree or one it wrote, and `plan.md` records no proof |
 
 All three are inert off an `issue/<n>-*` branch, and writes to `.factory/`
 itself are always allowed — refusing those would forbid the only action that

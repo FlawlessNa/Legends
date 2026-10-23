@@ -178,7 +178,36 @@ instead, so a Builder is accountable for what it writes anywhere. Before #206
 the session's branch alone decided, which meant editing a ticket worktree from
 a non-ticket checkout was gated by nothing at all. The gate also only sees the
 edit tools (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`): a file written
-through the shell is **[unenforced]**, and #207 decides what to do about it.
+through the shell is **[unenforced]**.
+
+**What Stop sees, as of #207.** Stop judges the session's own worktree, when it
+is on a ticket branch, plus every ticket worktree the session wrote with an edit
+tool (`pre-tool-use` records them under `<git-common-dir>/factory/sessions/`,
+one file per worktree). An unrelated worktree that is mid-build is never judged,
+and a session on no ticket that wrote nowhere stops cleanly.
+
+- **The change set** is every path outside `.factory/` in
+  `git diff --name-only <base>...HEAD`, plus every path `git status --porcelain`
+  reports. Committing source before stopping no longer escapes the proof gate.
+- **The base** is the parent of the oldest commit on HEAD's history that touches
+  `.factory/<n>/`, or the later of that and `git merge-base HEAD origin/HEAD`
+  when one is an ancestor of the other (a merged-in default branch, or a chain
+  that already sits on it). With no chain commit or no parent, the merge-base
+  alone; with that missing too, no base, and only uncommitted changes are
+  judged. Session start says so. Fix a stale `origin/HEAD` with
+  `git remote set-head origin --auto`.
+- **Every refusal** names the worktree, the ticket and the base it judged.
+- **A write into another worktree through the shell** is **[unenforced]**: the
+  log is written by the edit-tool hook, so such a worktree is not in the
+  session's scope. So is source committed *before* the intent commit.
+- **Two limits.**
+  - A session that leaves the repository before Stop loses its write log as well
+    as its own-worktree scope, because the log lives in the repository's git
+    directory. That is no worse than before #207.
+  - A stacked ticket whose parent was squash-merged, and which then merges `dev`
+    in, is refused for `dev`'s files: neither candidate base is an ancestor of
+    the other, so the chain commit's parent is used. That over-refuses; nothing
+    escapes. Rebasing onto `dev` instead avoids it.
 
 ### Artifacts
 

@@ -272,6 +272,19 @@ def _wt(root: Path, branch: str, ticket: int | None = None) -> Path:
     return root
 
 
+def _logged(main: Path, session_id: str, root: Path) -> None:
+    """
+    Record `root` in `session_id`'s write log, as `pre-tool-use` would (#207).
+
+    Written by hand: these fixtures give each worktree its own `.git` directory,
+    which the identity rule reads as a separate repository, so `log_write` would
+    rightly refuse them. The log's shape is what Stop reads.
+    """
+    directory = main / ".git" / "factory" / "sessions" / session_id
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / root.name).write_text(str(root), encoding="utf-8")
+
+
 def test_a_relative_target_is_anchored_on_the_event_s_cwd(tmp_path: Path) -> None:
     """
     `PreToolUse` fires on the model's raw arguments, before the tool validates
@@ -355,8 +368,9 @@ def test_the_stop_gate_refuses_for_a_worktree_the_session_is_not_in(
     entry.mkdir(parents=True)
     (entry / "gitdir").write_text(str(linked / ".git"), encoding="utf-8")
 
+    _logged(main, "s1", linked)
     monkeypatch.setattr("factory.cli._source_changed", lambda root: root == linked)
-    decision = _stop_everywhere(main)
+    decision = _stop_everywhere(main, "s1")
     assert not decision.allowed
     assert "5" in decision.reason
 
@@ -373,8 +387,9 @@ def test_the_stop_gate_is_quiet_when_every_worktree_has_its_proof(
     entry.mkdir(parents=True)
     (entry / "gitdir").write_text(str(linked / ".git"), encoding="utf-8")
 
+    _logged(main, "s1", linked)
     monkeypatch.setattr("factory.cli._source_changed", lambda root: True)
-    assert _stop_everywhere(main).allowed
+    assert _stop_everywhere(main, "s1").allowed
 
 
 def test_the_stop_gate_runs_git_in_each_worktree_not_in_the_session(
@@ -387,11 +402,12 @@ def test_the_stop_gate_runs_git_in_each_worktree_not_in_the_session(
     entry.mkdir(parents=True)
     (entry / "gitdir").write_text(str(linked / ".git"), encoding="utf-8")
 
+    _logged(main, "s1", linked)
     asked: list[Path] = []
     monkeypatch.setattr(
         "factory.cli._source_changed", lambda root: asked.append(root) or False
     )
-    _stop_everywhere(main)
+    _stop_everywhere(main, "s1")
     assert asked == [linked]
 
 
@@ -415,9 +431,10 @@ def test_the_stop_hook_is_wired_to_the_fold_not_to_one_worktree(
     entry.mkdir(parents=True)
     (entry / "gitdir").write_text(str(linked / ".git"), encoding="utf-8")
 
+    _logged(main, "s1", linked)
     monkeypatch.chdir(main)
     monkeypatch.setattr("factory.cli._source_changed", lambda root: root == linked)
-    monkeypatch.setattr("sys.stdin", io.StringIO("{}"))
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"session_id": "s1"})))
 
     assert main_cli(["hook", "stop"]) == ExitCode.OK
     answer = json.loads(capsys.readouterr().out)
@@ -534,9 +551,12 @@ def test_the_stop_hook_takes_the_session_from_the_event_s_cwd(
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
 
+    _logged(main, "s1", linked)
     monkeypatch.chdir(elsewhere)
     monkeypatch.setattr("factory.cli._source_changed", lambda root: root == linked)
-    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"cwd": str(main)})))
+    monkeypatch.setattr(
+        "sys.stdin", io.StringIO(json.dumps({"cwd": str(main), "session_id": "s1"}))
+    )
 
     assert main_cli(["hook", "stop"]) == ExitCode.OK
     answer = _hook_answer(capsys)
@@ -557,10 +577,12 @@ def test_a_cwd_naming_no_directory_falls_back_to_the_process_cwd(
     entry.mkdir(parents=True)
     (entry / "gitdir").write_text(str(linked / ".git"), encoding="utf-8")
 
+    _logged(main, "s1", linked)
     monkeypatch.chdir(main)
     monkeypatch.setattr("factory.cli._source_changed", lambda root: root == linked)
     monkeypatch.setattr(
-        "sys.stdin", io.StringIO(json.dumps({"cwd": str(tmp_path / "gone")}))
+        "sys.stdin",
+        io.StringIO(json.dumps({"cwd": str(tmp_path / "gone"), "session_id": "s1"})),
     )
 
     assert main_cli(["hook", "stop"]) == ExitCode.OK
@@ -613,10 +635,12 @@ def test_a_cwd_inside_a_worktree_is_judged_from_the_worktree_root(
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
 
+    _logged(main, "s1", linked)
     monkeypatch.chdir(elsewhere)
     monkeypatch.setattr("factory.cli._source_changed", lambda root: root == linked)
     monkeypatch.setattr(
-        "sys.stdin", io.StringIO(json.dumps({"cwd": str(main / "botting")}))
+        "sys.stdin",
+        io.StringIO(json.dumps({"cwd": str(main / "botting"), "session_id": "s1"})),
     )
 
     assert main_cli(["hook", "stop"]) == ExitCode.OK

@@ -78,3 +78,31 @@ def test_ticket_worktrees_is_the_same_function_the_cli_exports() -> None:
     from factory import cli
 
     assert cli.ticket_worktrees is ticket_worktrees
+
+
+def test_a_primary_checkout_in_a_folder_named_worktrees_is_its_own_repository(
+    tmp_path: Path,
+) -> None:
+    """
+    One helper answers "which repository", and shape decides, not the name.
+
+    The old heuristic read `.git`'s parent being called `worktrees` as "this is
+    a linked worktree", so a primary checkout in a folder of that name got its
+    grandparent as the repository (review of #207).
+    """
+    from factory import worktrees
+    from factory.hooks import _common
+
+    root = _primary(tmp_path / "worktrees", "dev")
+    assert _common(root) == root / ".git"
+    assert worktrees.common_dir(root) == root / ".git"
+
+
+def test_a_linked_worktree_and_its_primary_share_one_repository(
+    tmp_path: Path,
+) -> None:
+    from factory.hooks import _common
+
+    main = _primary(tmp_path / "main", "dev")
+    own = _linked(main, tmp_path / "wt7", "issue/7-x", 7)
+    assert _common(own) == _common(main) == main / ".git"

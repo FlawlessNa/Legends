@@ -101,6 +101,35 @@ def git_dir(repo_root: Path) -> Path | None:
     return resolved if resolved.is_dir() else None
 
 
+def common_dir(repo_root: Path) -> Path | None:
+    """
+    A repository's identity: its shared git directory, or None outside one.
+
+    Equal for the primary checkout and every worktree linked to it, different
+    for any other repository. **Decided by the shape of `.git`, never by a
+    folder's name**: a primary checkout has a `.git` directory and is its own
+    answer, even when it sits in a folder called `worktrees`. A linked worktree
+    names its shared directory in the `commondir` file of its git directory. With
+    no such file -- a hand-built fixture, but also a submodule or a
+    `--separate-git-dir` checkout, which git gives none -- only the layout
+    `<common>/worktrees/<name>` counts as a linked worktree; anything else is
+    its own repository.
+    """
+    found = git_dir(repo_root)
+    if found is None:
+        return None
+    if (repo_root / ".git").is_dir():
+        return found
+    try:
+        text = (found / "commondir").read_text(encoding="utf-8").strip()
+    except OSError:
+        text = ""
+    if text:
+        common = Path(text)
+        return common if common.is_absolute() else (found / common).resolve()
+    return found.parent.parent if found.parent.name == "worktrees" else found
+
+
 def current_branch(repo_root: Path) -> str | None:
     """
     The checked-out branch, read from `HEAD` rather than by running git.
