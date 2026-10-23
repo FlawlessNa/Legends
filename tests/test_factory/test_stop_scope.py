@@ -497,3 +497,52 @@ def test_an_empty_log_entry_is_skipped_not_read_as_the_current_directory(
     (directory / "entry").write_text(text, encoding="utf-8")
     monkeypatch.chdir(a)
     assert worktrees.logged_worktrees(main, "s1") == ()
+
+
+def _git_common(root: Path) -> Path:
+    out = git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    return Path(out).resolve()
+
+
+def test_a_separate_git_dir_checkout_is_its_own_repository(tmp_path: Path) -> None:
+    """Git writes no `commondir` file there, and the directory is not a worktree's."""
+    from factory.chain import common_dir
+
+    work = tmp_path / "work"
+    work.mkdir()
+    (tmp_path / "elsewhere").mkdir()
+    git(work, "init", "-q", "--separate-git-dir", str(tmp_path / "elsewhere" / "g.git"))
+    found = common_dir(work)
+    assert found is not None
+    assert found.resolve() == _git_common(work)
+
+
+def test_a_submodule_is_its_own_repository_not_its_superproject(
+    tmp_path: Path,
+) -> None:
+    from factory.chain import common_dir
+
+    lib = tmp_path / "lib"
+    lib.mkdir()
+    git(lib, "init", "-q", "-b", "dev")
+    _configure(lib)
+    commit(lib, {"l.py": "l\n"})
+    sup = tmp_path / "sup"
+    sup.mkdir()
+    git(sup, "init", "-q", "-b", "dev")
+    _configure(sup)
+    commit(sup, {"s.py": "s\n"})
+    git(
+        sup,
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        "-q",
+        str(lib),
+        "sub",
+    )
+    found = common_dir(sup / "sub")
+    assert found is not None
+    assert found.resolve() == _git_common(sup / "sub")
+    assert found.resolve() != common_dir(sup)

@@ -125,7 +125,7 @@ Two further tests are red only because Stop used to judge every worktree: an unr
 
 `test_the_default_branch_merged_in_is_not_the_ticket_s_source` and `test_a_chain_that_already_sits_on_the_default_branch` also fail when the later-of rule in `_base` is disabled (checked by hand: `if False and _is_ancestor(...)`; both red, restored), so they pin note 1 and note 3 and not merely the attribute's existence.
 
-**Green, after.** `pytest` from the worktree root: `1284 passed, 3 skipped, 25 deselected` (after the review fixes: 1279 before; the 5 new tests are the `worktrees`-named primary, the shared-repository check and three empty-entry cases), 0 failed, 0 errors, 0 xfailed. `ruff check`, `ruff format` and `pyright` are clean on the changed Python files, and pre-commit passed on `8c3a717`.
+**Green, after.** `pytest` from the worktree root: `1286 passed, 3 skipped, 25 deselected` (after the review fixes: 1279 before; the 7 new tests: separate-git-dir and submodule, and the 5 are the `worktrees`-named primary, the shared-repository check and three empty-entry cases), 0 failed, 0 errors, 0 xfailed. `ruff check`, `ruff format` and `pyright` are clean on the changed Python files, and pre-commit passed on `8c3a717`.
 
 **Named changed tests**, all seven as listed above: each now passes a `session_id` and has the worktree in that session's log (the log entry is written by hand with `_logged`, not through `log_write`, because those fixtures give every worktree its own `.git` directory, which the identity rule reads as a separate repository). Nothing else was edited; `test_ticket_worktrees_is_the_same_function_the_cli_exports` still passes through a re-export in `cli.py`.
 
