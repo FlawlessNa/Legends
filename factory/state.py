@@ -297,6 +297,8 @@ def _read(path: Path, ticket: int) -> TicketState:
         return fresh(ticket)
     except OSError as broken:
         raise StateError(f"{path}: could not read: {broken}") from broken
+    except UnicodeDecodeError as broken:
+        raise StateError(f"{path}: not valid UTF-8: {broken}") from broken
     try:
         data = json.loads(text)
     except ValueError as broken:
@@ -422,7 +424,9 @@ def render_run_md(current: TicketState) -> str:
     `current` as `run.md`: front matter, then the log as a table.
 
     Pure and ordered, so equal states give identical text. `cycles` is a nested
-    block, which `chain.front_matter` reads back as `cycles.<stage>`.
+    block. `chain.front_matter` reads it back as `cycles.<stage>` only for stage
+    names made of letters, digits and underscores; it skips a hyphenated key such
+    as `spec-review`. Nothing reads `run.md` back, so the keys keep their names.
     """
     lines = [
         "---",

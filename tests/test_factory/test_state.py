@@ -540,3 +540,32 @@ def test_state_never_changes_git_status_in_any_worktree(repo: Path) -> None:
     load(roots[1], 7)
     render_run_md(load(roots[2], 8))
     assert _statuses(roots) == before
+
+
+def test_a_file_that_is_not_utf8_raises_state_error_naming_the_file(
+    repo: Path,
+) -> None:
+    put(repo, full_state())
+    state_file(repo, 7).write_bytes(b"\xff\xfe\x00{")
+    with pytest.raises(StateError, match="state.json"):
+        load(repo, 7)
+
+
+def test_save_fsyncs_the_temporary_file_before_it_replaces_state_json(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    events: list[str] = []
+    real_fsync, real_replace = os.fsync, os.replace
+
+    def fsync(fd: int) -> None:
+        events.append("fsync")
+        real_fsync(fd)
+
+    def replace(src: str | os.PathLike[str], dst: str | os.PathLike[str]) -> None:
+        events.append("replace")
+        real_replace(src, dst)
+
+    monkeypatch.setattr(state.os, "fsync", fsync)
+    monkeypatch.setattr(state.os, "replace", replace)
+    put(repo, full_state())
+    assert events == ["fsync", "replace"]

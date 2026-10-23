@@ -126,3 +126,8 @@ to name; every other error names the file and the field.
 - **The red tests were committed with the change**, not before it: `test_state.py` imports `factory.state`, which pre-commit's pyright refuses before it exists.
 - **`park` from a judge's snapshot, the Designer's branch name, and routing reading `park.md`** are out of scope (#159, #222, #218).
 - **No live `factory park` by a real worker** was run; the tests call `main` with the session's directory set by `chdir`.
+- **A killed process leaves `state.json.tmp-<pid>` behind.** It is never read and never shadows `state.json`; pruning it is #210's, with the state of merged tickets.
+
+## Review fixes
+
+`review.md` (changes-requested) found four things, fixed in `factory/state.py` and `test_state.py`: a non-UTF-8 `state.json` is now `StateError` (red without the fix: bare `UnicodeDecodeError`); `render_run_md`'s docstring no longer claims hyphenated keys are read back; `test_save_fsyncs_the_temporary_file_before_it_replaces_state_json` (red with the fsync removed: events are `['replace']`); and the note above. The suite now has 1573 tests passing.
