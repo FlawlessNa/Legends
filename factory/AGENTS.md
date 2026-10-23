@@ -150,11 +150,21 @@ exactly as the workflow does, and never merges. Exit 0 means CI would merge it;
 GitHub through an injected `gh` runner, `check` joins them. Put a new condition
 in `evaluate` and nowhere else — not in the workflow, not in the dispatcher.
 
-**Every module the console script imports is protected**: a PR touching one
-never auto-merges, because it could change the verdict on itself. A test
-computes that closure, so adding an import to `cli.py` or anything it reaches
-fails the suite until the module is added to `POLICY.protected_paths` — and that
-edit, being to `merge.py`, waits for a person too. That is the intent.
+**The whole package is protected, as one path** (`factory/**` in
+`POLICY.protected_paths`): a PR touching any module here never auto-merges,
+because it could change the verdict on itself. A new module is covered the
+moment it exists; nothing is added by hand. A test still computes the console
+script's import closure and fails if a module in it falls outside the set.
+
+**`worktrees.py` answers "where is this ticket's chain".** A chain is committed
+on its ticket's branch, so it lives only in the worktree that has that branch
+checked out. `factory next <n>` and `factory model <n>` read it from there
+(`worktree_for`), not from the session's directory: none is exit 2, several is
+exit 3. `factory model` still reads the model table from the **session's**
+checkout, so a ticket branch cannot change its own routing.
+
+**The working branch is the repository's default branch**, read per PR. Nothing
+in this package names it.
 
 ## Gates
 

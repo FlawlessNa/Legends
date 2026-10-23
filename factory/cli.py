@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from factory import __version__
-from factory.chain import Chain, current_branch, git_dir, read_chain, ticket_from_branch
+from factory.chain import Chain, current_branch, read_chain
 from factory.exit_codes import ExitCode
 from factory.hooks import (
     INDIFFERENT,
@@ -39,6 +39,7 @@ from factory.models import TABLE_PATH, TableError
 from factory.models import load as load_models
 from factory.models import resolve as resolve_model
 from factory.routing import MalformedVerdict, Stage, resolve
+from factory.worktrees import ticket_worktrees, worktree_for
 
 #: A handler takes parsed arguments and returns its code plus a payload. The
 #: payload is rendered as JSON under `--json`, and as `key: value` lines otherwise.
@@ -88,6 +89,37 @@ def _configure_next(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _session_checkout() -> Path:
+    """The worktree root the process runs in; a subdirectory resolves to it."""
+    found = governing(Path.cwd())
+    return found.root if found is not None else Path.cwd()
+
+
+def _ticket_root(session: Path, ticket: int) -> Path | tuple[ExitCode, dict[str, Any]]:
+    """
+    The one worktree holding ticket `ticket`'s chain, or the refusal to give.
+
+    A chain is committed on its ticket's branch, so it exists only in the
+    worktree with that branch checked out -- not in the session's, unless the
+    session happens to be there. None is misuse (the caller named a ticket
+    nobody is working); several is a person's to settle, because picking one
+    would route the ticket by accident (#217).
+    """
+    found = worktree_for(session, ticket)
+    if len(found) == 1:
+        return found[0]
+    if not found:
+        return ExitCode.MISUSE, {
+            "error": f"no worktree is on a branch named issue/{ticket}-*. "
+            "Start the ticket first, or run this from its worktree."
+        }
+    return ExitCode.NEEDS_HUMAN, {
+        "error": f"{len(found)} worktrees are on issue/{ticket}-*: "
+        + ", ".join(str(root) for root in found)
+        + ". Remove all but one."
+    }
+
+
 def _next(args: argparse.Namespace) -> tuple[ExitCode, dict[str, Any]]:
     """
     Which stage this ticket is in, and what to do about it.
@@ -96,8 +128,14 @@ def _next(args: argparse.Namespace) -> tuple[ExitCode, dict[str, Any]]:
     on the same chain get the same one. An agent's first action on any ticket is
     this command; it does not choose a stage for itself.
     """
-    repo_root = Path.cwd()
-    branch = f"issue/{args.ticket}-" if args.ticket else current_branch(repo_root)
+    session = _session_checkout()
+    repo_root = session
+    if args.ticket:
+        located = _ticket_root(session, args.ticket)
+        if isinstance(located, tuple):
+            return located
+        repo_root = located
+    branch = f"issue/{args.ticket}-" if args.ticket else current_branch(session)
     try:
         step = resolve(repo_root, branch)
     except MalformedVerdict as bad:
@@ -136,9 +174,17 @@ def _model(args: argparse.Namespace) -> tuple[ExitCode, dict[str, Any]]:
     "you asked wrongly" and "the maintainer's file is wrong" have nothing in
     common but their unhappiness.
     """
-    repo_root = Path.cwd()
+    #: The table is the **session's**, never the ticket's: a ticket branch must
+    #: not be able to change its own model routing (the principle of #216).
+    session = _session_checkout()
+    chain_root = session
     chain: Chain | None = None
     ticket: int | None = args.ticket
+    if ticket is not None:
+        located = _ticket_root(session, ticket)
+        if isinstance(located, tuple):
+            return located
+        chain_root = located
 
     if args.stage:
         try:
@@ -149,11 +195,11 @@ def _model(args: argparse.Namespace) -> tuple[ExitCode, dict[str, Any]]:
                 f"{[str(member) for member in Stage]}."
             }
         if ticket is not None:
-            chain = read_chain(repo_root, ticket)
+            chain = read_chain(chain_root, ticket)
     else:
-        branch = f"issue/{ticket}-" if ticket else current_branch(repo_root)
+        branch = f"issue/{ticket}-" if ticket else current_branch(session)
         try:
-            step = resolve(repo_root, branch)
+            step = resolve(chain_root, branch)
         except MalformedVerdict as bad:
             return ExitCode.NEEDS_HUMAN, {"error": str(bad)}
         if step.blocked:
@@ -167,10 +213,10 @@ def _model(args: argparse.Namespace) -> tuple[ExitCode, dict[str, Any]]:
                 "error": "no ticket on this branch. Pass a ticket or --stage."
             }
         stage, ticket = step.stage, step.ticket
-        chain = read_chain(repo_root, ticket) if ticket else None
+        chain = read_chain(chain_root, ticket) if ticket else None
 
     try:
-        table = load_models(repo_root / TABLE_PATH)
+        table = load_models(session / TABLE_PATH)
     except TableError as broken:
         return ExitCode.NEEDS_HUMAN, {"error": str(broken), "table": str(TABLE_PATH)}
 
@@ -429,42 +475,6 @@ def _anchored(target: Path, event_cwd: object) -> Path:
         return target
     base = Path(event_cwd) if isinstance(event_cwd, str) and event_cwd else Path.cwd()
     return base / target
-
-
-def ticket_worktrees(repo_root: Path) -> tuple[Path, ...]:
-    """
-    Every worktree of this repository that is on a ticket branch.
-
-    Read from `<common>/worktrees/*/gitdir`, not from `git worktree list`: the
-    same no-subprocess habit as `current_branch`, and this is a directory
-    listing. The session's own root is included when it qualifies, so a session
-    working inside its own ticket worktree is judged exactly as before.
-    """
-    found: list[Path] = []
-    here = git_dir(repo_root)
-    if here is None:
-        return ()
-    if ticket_from_branch(current_branch(repo_root)) is not None:
-        found.append(repo_root)
-
-    #: In a linked worktree this is `<main>/.git/worktrees/<name>`; the shared
-    #: directory is its grandparent, and `commondir` names it when it is not.
-    common = here.parent.parent if here.parent.name == "worktrees" else here
-    try:
-        entries = sorted((common / "worktrees").iterdir())
-    except OSError:
-        return tuple(found)
-
-    for entry in entries:
-        try:
-            root = Path((entry / "gitdir").read_text(encoding="utf-8").strip()).parent
-        except OSError:
-            continue
-        if root in found or not root.is_dir():
-            continue
-        if ticket_from_branch(current_branch(root)) is not None:
-            found.append(root)
-    return tuple(found)
 
 
 def _stop_everywhere(repo_root: Path) -> Decision:

@@ -35,7 +35,7 @@ All eleven were accepted at these defaults on 2026-10-22.
 | R8 | Keeping acceptance the maintainer's | `factory accept` asks for the ticket number to be typed on a real terminal, and refuses when stdin is not a terminal. |
 | R9 | Documentation | No Document stage. The Builder fills `docs_cleared`, and the Reviewer judges it. |
 | R10 | First unattended run | A factory ticket as a dry run (#223), then the bot ticket (#224). |
-| R11 | Credentials | Workers hold no GitHub token and no git credential helper. Only the factory loop pushes and opens PRs. The maintainer adds a ruleset requiring PRs on `movements-improvements`. |
+| R11 | Credentials | Workers hold no GitHub token and no git credential helper. Only the factory loop pushes and opens PRs. The maintainer adds a ruleset requiring PRs on `dev`. |
 
 ## 1 · The shape, in four sentences
 
@@ -95,7 +95,7 @@ anywhere: 2 attempts, 2 cycles, or factory park -> parked, ready-for-human; the 
 - **d3. Stop is refused because of another ticket.** `_stop_everywhere` (cli.py:438) judges every ticket worktree.
 - **d4. The hook runs the worktree's own gate code.** `factory-hook.sh` execs `python -m factory`, and `-m` puts the cwd first on the import path. The hook script and `settings.json` are themselves read from the worktree via `CLAUDE_PROJECT_DIR`.
 - **d5. `merge-policy.md` is wrong in both directions, and its test passes.** It denies that `.factory/**` is allowlisted (it is, merge.py:72). It lists `.claude/**` as allowlisted (line 40; it is not). The test checks only that each value appears.
-- **d6. Merged tickets do not close themselves.** PRs target `movements-improvements`, not the default branch, so "Closes #n" never fires. #140, #162, #206 and #209 stayed open after merging, until they were closed by hand in the 2026-10-22 cleanup.
+- **d6. Merged tickets do not close themselves.** PRs target `movements-improvements`, not the default branch, so "Closes #n" never fires. The cause was fixed on 2026-10-22: `dev` is now the default branch and the one PRs target. #140, #162, #206 and #209 stayed open after merging, until they were closed by hand in the 2026-10-22 cleanup.
 
 ## 4 · Rules the architecture follows
 
@@ -286,7 +286,7 @@ Order is held by GitHub's *blocked by* links. The epic is #171. The blockers bel
 **Only the maintainer can do these two:**
 
 - the `gh pr merge` deny in `.claude/settings.json`;
-- the ruleset on `movements-improvements`.
+- the ruleset on `dev`.
 
 ## 11 · Not built before done
 

@@ -72,7 +72,10 @@ def _passing(**changes: object) -> PullRequestFacts:
         number=42,
         repo="flawlessna/legends",
         body=BODY,
-        base=POLICY.working_branch,
+        # Not `dev`: the `base="dev"` failure cases below must keep meaning
+        # "a base that is not the default branch".
+        base="trunk",
+        default_branch="trunk",
         head_sha="abc123",
         from_fork=False,
         draft=False,
@@ -387,7 +390,11 @@ class FakeGh:
         view: dict[str, Any] | None = None,
         files: list[dict[str, Any]] | None = None,
         issue: dict[str, Any] | None = None,
+        default_branch: str = "movements-improvements\n",
+        repo_fails: bool = False,
     ) -> None:
+        self.default_branch = default_branch
+        self.repo_fails = repo_fails
         self.view = {**_VIEW, **(view or {})}
         self.files = _FILES if files is None else files
         self.issue = _ISSUE if issue is None else issue
@@ -398,6 +405,11 @@ class FakeGh:
         if args[:2] == ["pr", "view"]:
             return json.dumps(self.view)
         endpoint = args[2] if args[1] == "--paginate" else args[1]
+        if endpoint == "repos/flawlessna/legends":
+            if self.repo_fails:
+                raise FactsUnreadable("gh api failed: HTTP 502")
+            assert args[2:] == ["--jq", ".default_branch"], args
+            return self.default_branch
         if "/files" in endpoint:
             return "".join(json.dumps(f) + "\n" for f in self.files)
         if "/check-runs" in endpoint:
@@ -532,8 +544,9 @@ def _module_file(name: str) -> str:
 def test_every_module_the_console_script_imports_is_protected() -> None:
     """
     A PR that changes what the verdict depends on must never merge itself. The
-    closure is computed, not listed, so a new import fails here until a person
-    adds it to the protected set.
+    closure is computed, not listed. Since #217 the whole package is protected
+    as `factory/**`, so this holds by construction; it fails only if that entry
+    is ever narrowed again.
     """
     seen: set[str] = set()
     pending = ["factory.__main__", "factory.cli"]
@@ -659,7 +672,6 @@ def test_the_document_states_every_condition_and_value() -> None:
     for condition in Condition:
         assert f"`{condition}`" in text, condition
     values = [
-        POLICY.working_branch,
         POLICY.method,
         POLICY.check_app,
         *POLICY.auto_merge_types,
@@ -723,3 +735,88 @@ def test_widening_the_allowlist_cannot_relax_a_hard_stop() -> None:
         facts
     ) or Condition.NO_HARD_STOP in _failed(facts)
     assert verdict(evaluate(facts)) == ExitCode.NEEDS_HUMAN
+
+
+# --- The protected package, and the default branch (#217) ---------------------
+
+
+def test_the_protected_set_names_the_factory_package_as_one_path() -> None:
+    """Nine module entries could drift from the package; one glob cannot."""
+    assert sorted(POLICY.protected_paths) == sorted(
+        [
+            "factory/**",
+            "docs/factory/merge-policy.md",
+            "tests/test_factory/test_merge.py",
+            ".github/**",
+        ]
+    )
+
+
+def test_a_factory_module_the_console_script_does_not_import_is_protected() -> None:
+    """A module nothing imports yet is the one a later import quietly joins."""
+    assert Condition.NOT_SELF_CHANGE in _failed_under(
+        "factory/not_imported_by_anything.py", POLICY
+    )
+
+
+@pytest.mark.parametrize("branch", ["dev", "main", "develop", "trunk"])
+def test_the_working_branch_is_whatever_the_default_branch_is(branch: str) -> None:
+    facts = _passing(base=branch, default_branch=branch)
+    assert evaluate(facts) == []
+
+
+def test_a_base_other_than_the_default_branch_names_both() -> None:
+    failures = evaluate(_passing(base="feature", default_branch="dev"))
+    assert [f.condition for f in failures] == [Condition.WORKING_BRANCH]
+    assert verdict(failures) == ExitCode.NEEDS_HUMAN
+    assert "feature" in failures[0].reason
+    assert "dev" in failures[0].reason
+
+
+def test_the_policy_holds_no_branch_name() -> None:
+    assert not hasattr(POLICY, "working_branch")
+
+
+def test_the_default_branch_is_read_stripped_from_the_repository() -> None:
+    gh = FakeGh(default_branch="movements-improvements\n")
+    code, payload = check(42, gh)
+    assert code == ExitCode.OK
+    assert payload["default_branch"] == "movements-improvements"
+    assert ["api", "repos/flawlessna/legends", "--jq", ".default_branch"] in gh.calls
+
+
+def test_an_empty_default_branch_is_unreadable_not_guessed() -> None:
+    code, payload = check(42, FakeGh(default_branch="\n"))
+    assert code == ExitCode.NEEDS_HUMAN
+    assert payload["readable"] is False
+
+
+def test_the_repository_call_failing_is_unreadable() -> None:
+    code, payload = check(42, FakeGh(repo_fails=True))
+    assert code == ExitCode.NEEDS_HUMAN
+    assert payload["readable"] is False
+
+
+# --- The document's lists are the policy's lists -----------------------------
+
+
+def _path_tokens(text: str) -> set[str]:
+    """Backticked tokens that are paths: they hold a `/` or start with a dot."""
+    tokens = re.findall(r"`([^`]+)`", text)
+    return {t for t in tokens if "/" in t or t.startswith(".")}
+
+
+def test_condition_four_lists_exactly_the_allowed_paths() -> None:
+    row = next(
+        line
+        for line in POLICY_DOC.read_text(encoding="utf-8").splitlines()
+        if line.startswith("| 4 |")
+    )
+    assert _path_tokens(row) == set(POLICY.allowed_paths)
+
+
+def test_the_protected_set_section_lists_exactly_the_protected_paths() -> None:
+    text = POLICY_DOC.read_text(encoding="utf-8")
+    start = text.index("### The protected set")
+    section = text[start:].split("\n## ", 1)[0]
+    assert _path_tokens(section) == set(POLICY.protected_paths)
