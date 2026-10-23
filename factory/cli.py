@@ -29,6 +29,7 @@ from factory import __version__
 from factory.chain import (
     CHAIN_DIR,
     Chain,
+    UnknownChainVersion,
     current_branch,
     read_chain,
     ticket_from_branch,
@@ -47,6 +48,8 @@ from factory.models import TABLE_PATH, TableError
 from factory.models import load as load_models
 from factory.models import resolve as resolve_model
 from factory.routing import MalformedVerdict, Stage, resolve
+from factory.state import StateError, TicketState
+from factory.state import load as load_state
 from factory.worktrees import (
     log_write,
     logged_worktrees,
@@ -228,12 +231,22 @@ def _model(args: argparse.Namespace) -> tuple[ExitCode, dict[str, Any]]:
         stage, ticket = step.stage, step.ticket
         chain = read_chain(chain_root, ticket) if ticket else None
 
+    #: Escalation reads the loop's state, and only a v2 chain has any. A v1
+    #: chain, and a bare `--stage`, pass none, so neither can ever escalate.
+    loop_state: TicketState | None = None
+    if chain is not None:
+        try:
+            if chain.version == 2:
+                loop_state = load_state(chain_root, chain.ticket)
+        except (UnknownChainVersion, StateError) as unreadable:
+            return ExitCode.NEEDS_HUMAN, {"error": str(unreadable)}
+
     try:
         table = load_models(session / TABLE_PATH)
     except TableError as broken:
         return ExitCode.NEEDS_HUMAN, {"error": str(broken), "table": str(TABLE_PATH)}
 
-    choice = resolve_model(table, stage, chain)
+    choice = resolve_model(table, stage, chain, loop_state)
     return ExitCode.OK, {
         "ticket": ticket,
         "stage": str(stage),

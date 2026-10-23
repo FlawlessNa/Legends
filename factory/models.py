@@ -20,12 +20,14 @@ from __future__ import annotations
 
 import tomllib
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Final
 
 from factory.chain import Chain
+from factory.roles import ROLES
 from factory.routing import Stage
+from factory.state import TicketState, dispatched
 
 #: Where the table lives, relative to the repo root. Not inside the package:
 #: `pyproject.toml` declares no `package-data`, so a `.toml` under `factory/`
@@ -41,9 +43,12 @@ TIER_ORDER: Final[tuple[str, ...]] = ("trivial", "standard", "complex")
 #: Foreman over a stage the table forgot is the worse of the two failures.
 DEFAULT_TIER: Final = "standard"
 
-#: The stage no agent runs. CI decides the merge (#194), so the answer is a
-#: definite "nobody" rather than a refusal to answer.
-NO_AGENT: Final = Stage.INTEGRATE
+#: The stages no agent runs. CI decides the merge (#194) and the maintainer
+#: accepts the spec, so the answer is a definite "nobody", not a refusal.
+NO_AGENT: Final = frozenset({Stage.INTEGRATE, Stage.ACCEPT})
+
+#: The one fact an override states as a number: the attempt being dispatched.
+ATTEMPT_FACT: Final = "attempt_at_least"
 
 
 class TableError(Exception):
@@ -89,13 +94,19 @@ FACTS: Final[Mapping[str, Callable[[Chain | None], bool]]] = {
 class Override:
     """One `[[overrides]]` entry, keeping its file position."""
 
-    when: Mapping[str, bool]
+    when: Mapping[str, bool | int]
     use: str
     index: int
 
-    def matches(self, chain: Chain | None) -> bool:
+    def matches(self, chain: Chain | None, attempt: int = 1) -> bool:
         """Every fact must hold: a multi-key `when` is AND."""
-        return all(FACTS[key](chain) is value for key, value in self.when.items())
+        for key, value in self.when.items():
+            if key == ATTEMPT_FACT:
+                if not (isinstance(value, int) and attempt >= value):
+                    return False
+            elif FACTS[key](chain) is not value:
+                return False
+        return True
 
 
 @dataclass(frozen=True)
@@ -106,6 +117,8 @@ class Table:
     by_stage: Mapping[Stage, str]
     overrides: tuple[Override, ...]
     unavailable: frozenset[str]
+    #: Role -> tier, for roles with no stage (the Orchestrator).
+    by_role: Mapping[str, str] = field(default_factory=dict[str, str])
 
     def model_for(self, tier: str) -> str:
         """The first name in the tier's chain that is not unavailable."""
@@ -184,12 +197,19 @@ def _overrides_of(raw: dict[str, Any], tiers: Mapping[str, object]) -> list[Over
         if use not in tiers:
             raise TableError(f"override {index} names undefined tier {use!r}")
         for key, value in when.items():
-            if key not in FACTS:
+            if key not in FACTS and key != ATTEMPT_FACT:
                 raise TableError(
                     f"override {index} names unknown fact {key!r}. "
-                    f"The facts are {sorted(FACTS)}."
+                    f"The facts are {sorted([*FACTS, ATTEMPT_FACT])}."
                 )
-            if not isinstance(value, bool):
+            if key == ATTEMPT_FACT:
+                if isinstance(value, bool) or not isinstance(value, int) or value < 2:
+                    raise TableError(
+                        f"override {index} compares {ATTEMPT_FACT} to {value!r}. "
+                        f"It must be an integer of at least 2: a first attempt "
+                        f"is never a retry, and a boolean is not a number."
+                    )
+            elif not isinstance(value, bool):
                 raise TableError(
                     f"override {index} compares fact {key!r} to {value!r}. "
                     f"The facts are predicates: write true or false, or the "
@@ -197,6 +217,31 @@ def _overrides_of(raw: dict[str, Any], tiers: Mapping[str, object]) -> list[Over
                 )
         overrides.append(Override(when=dict(when), use=str(use), index=index))
     return overrides
+
+
+def _roles_of(raw: dict[str, Any], tiers: Mapping[str, object]) -> dict[str, str]:
+    """
+    The optional `[roles]` block: a tier for a role that has no stage.
+
+    A role with stages takes its model from its stage, so naming it here would
+    be a second place to disagree with the first.
+    """
+    block = raw.get("roles", {})
+    if not isinstance(block, dict):
+        raise TableError(f"[roles] must be a table, got {block!r}")
+    roles: dict[str, str] = {}
+    for name, tier in block.items():
+        if name not in ROLES:
+            raise TableError(f"{name!r} in [roles] is not a role: {list(ROLES)}.")
+        if ROLES[name].stages:
+            raise TableError(
+                f"role {name!r} has stages, so its model comes from [by_stage]; "
+                f"[roles] is for roles with no stages."
+            )
+        if tier not in tiers:
+            raise TableError(f"role {name!r} names undefined tier {tier!r}")
+        roles[name] = str(tier)
+    return roles
 
 
 def _check_availability(
@@ -264,6 +309,7 @@ def load(path: Path) -> Table:
     tiers = _tiers_of(raw)
     by_stage = _stages_of(raw, tiers)
     overrides = _overrides_of(raw, tiers)
+    by_role = _roles_of(raw, tiers)
     unavailable = frozenset(str(name) for name in raw.get("unavailable", []))
 
     _check_availability(tiers, unavailable)
@@ -274,23 +320,57 @@ def load(path: Path) -> Table:
         by_stage=by_stage,
         overrides=tuple(overrides),
         unavailable=unavailable,
+        by_role=by_role,
     )
 
 
-def resolve(table: Table, stage: Stage, chain: Chain | None = None) -> Choice:
+def resolve_role(table: Table, role: str) -> Choice:
+    """
+    The model for a role that has no stage, and the rule that chose it.
+
+    A role with stages resolves through `resolve`, by stage; asking here is a
+    table error rather than a second answer. A stageless role the table does
+    not name gets the default tier, like a stage it does not name.
+    """
+    if role not in ROLES:
+        raise TableError(f"{role!r} is not a role: {list(ROLES)}.")
+    if ROLES[role].stages:
+        raise TableError(
+            f"role {role!r} has stages, so its model comes from its stage. "
+            f"Use resolve() with one of them."
+        )
+    tier = table.by_role.get(role)
+    rule = f"role table: {role}"
+    if tier is None:
+        tier = DEFAULT_TIER
+        rule = f"default: the table does not name role {role}"
+    return Choice(model=table.model_for(tier), tier=tier, rule=rule)
+
+
+def resolve(
+    table: Table,
+    stage: Stage,
+    chain: Chain | None = None,
+    state: TicketState | None = None,
+) -> Choice:
     """
     The model for one stage of one ticket, and the rule that chose it.
 
     `chain` is optional because `--stage` can be asked with no ticket. `None`
     means every fact is "not yet knowable", so no override fires -- the correct
     answer rather than a degraded one.
+
+    `state` is the ticket's loop state **before the dispatch being routed is
+    recorded**. The attempt is then `dispatched(state, stage).attempt`: a
+    stage's second dispatch is attempt 2 and a new stage's first is 1. A caller
+    that records the dispatch first sees every stage's first dispatch escalate,
+    so #159 resolves before it records. No state is attempt 1: a v1 chain and a
+    bare `--stage` never escalate.
     """
-    if stage is NO_AGENT:
-        return Choice(
-            model=None,
-            tier=None,
-            rule="no agent runs integrate: CI decides the merge (#194)",
-        )
+    if stage in NO_AGENT:
+        who = "CI decides the merge (#194)" if stage is Stage.INTEGRATE else "a person"
+        return Choice(model=None, tier=None, rule=f"no agent runs {stage}: {who}")
+    attempt = dispatched(state, str(stage)).attempt if state is not None else 1
 
     tier = table.by_stage.get(stage)
     rule = f"stage table: {stage}"
@@ -299,7 +379,7 @@ def resolve(table: Table, stage: Stage, chain: Chain | None = None) -> Choice:
         rule = f"default: the table does not name {stage}"
 
     for override in table.overrides:
-        if not override.matches(chain):
+        if not override.matches(chain, attempt):
             continue
         #: First match wins, whether or not it raises the tier. A stage already
         #: at or above it keeps what it had: resolution never demotes.

@@ -20,8 +20,10 @@ from factory.cli import (
 from factory.cli import (
     main as main_cli,
 )
+from factory.config import CONFIG_PATH
 from factory.exit_codes import ExitCode
 from factory.models import TABLE_PATH
+from factory.state import dispatched, state_path, update
 
 from .test_hooks import _linked, _primary
 
@@ -103,7 +105,7 @@ def test_model_names_the_rule_that_fired(
     assert main_cli(["--json", "model", "--stage", "qa"]) == ExitCode.OK
     payload = _payload(capsys)
     assert payload["rule"] == "stage table: qa"
-    assert payload["record"] == "model: sonnet  # tier=standard, rule=stage table: qa"
+    assert payload["record"] == "model: opus  # tier=complex, rule=stage table: qa"
 
 
 def test_model_answers_integrate_with_no_model_at_exit_zero(
@@ -647,3 +649,127 @@ def test_a_cwd_inside_a_worktree_is_judged_from_the_worktree_root(
 
     assert main_cli(["hook", "stop"]) == ExitCode.OK
     assert _hook_answer(capsys)["decision"] == "block"
+
+
+# --- Retry escalation reads the ticket's state (#218) ------------------------
+
+_V2_INTENT = "---\nticket: 7\nchain: 2\naccepted_by: nassim\n---\n"
+_SPEC = "---\nticket: 7\nmethod: suite\n---\n"
+_REVIEWED = "---\nticket: 7\nverdict: pass\n---\n"
+
+
+def _planning_ticket(repo: Path, intent: str) -> Path:
+    """A ticket whose next stage is `build-planning`, a `standard` stage."""
+    return _ticket_worktree(
+        repo,
+        7,
+        {"intent.md": intent, "spec.md": _SPEC, "spec-review.md": _REVIEWED},
+    )
+
+
+def _dispatch_once(root: Path, stage: str) -> None:
+    update(root, 7, lambda current: dispatched(current, stage))
+
+
+def test_a_v2_ticket_with_no_recorded_dispatch_gets_the_standard_model(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _planning_ticket(repo, _V2_INTENT)
+    assert main_cli(["--json", "model", "7"]) == ExitCode.OK
+    payload = _payload(capsys)
+    assert payload["stage"] == "build-planning"
+    assert payload["model"] == "sonnet"
+
+
+def test_a_v2_ticket_s_next_dispatch_of_a_dispatched_stage_escalates(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _planning_ticket(repo, _V2_INTENT)
+    _dispatch_once(root, "build-planning")
+    assert main_cli(["--json", "model", "7"]) == ExitCode.OK
+    payload = _payload(capsys)
+    assert payload["model"] == "opus"
+    assert "attempt_at_least" in str(payload["rule"])
+
+
+def test_a_dispatch_of_another_stage_does_not_escalate_this_one(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _planning_ticket(repo, _V2_INTENT)
+    _dispatch_once(root, "spec-review")
+    assert main_cli(["--json", "model", "7"]) == ExitCode.OK
+    assert _payload(capsys)["model"] == "sonnet"
+
+
+def test_the_stage_flag_with_a_v2_ticket_escalates_too(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _planning_ticket(repo, _V2_INTENT)
+    _dispatch_once(root, "build-implementing")
+    args = ["--json", "model", "--stage", "build-implementing", "7"]
+    assert main_cli(args) == ExitCode.OK
+    assert _payload(capsys)["model"] == "opus"
+
+
+def test_a_v1_ticket_never_escalates_whatever_its_state_says(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _planning_ticket(repo, _INTENT)
+    _dispatch_once(root, "build-planning")
+    assert main_cli(["--json", "model", "7"]) == ExitCode.OK
+    assert _payload(capsys)["model"] == "sonnet"
+
+
+def test_the_stage_flag_without_a_ticket_never_escalates(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _planning_ticket(repo, _V2_INTENT)
+    _dispatch_once(root, "build-implementing")
+    assert main_cli(["--json", "model", "--stage", "build-implementing"]) == 0
+    assert _payload(capsys)["model"] == "sonnet"
+
+
+def test_malformed_state_on_a_v2_chain_needs_a_human_and_names_the_file(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _planning_ticket(repo, _V2_INTENT)
+    path = state_path(root, 7)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{not json", encoding="utf-8")
+    assert main_cli(["--json", "model", "7"]) == ExitCode.NEEDS_HUMAN
+    payload = _payload(capsys)
+    assert "state.json" in str(payload["error"])
+    assert "model" not in payload
+
+
+def test_malformed_state_on_a_v1_chain_is_never_read(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _planning_ticket(repo, _INTENT)
+    path = state_path(root, 7)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{not json", encoding="utf-8")
+    assert main_cli(["--json", "model", "7"]) == ExitCode.OK
+    assert _payload(capsys)["model"] == "sonnet"
+
+
+@pytest.mark.parametrize("extra", [[], ["--stage", "qa"]])
+def test_an_unknown_chain_version_needs_a_human_and_says_which(
+    repo: Path, capsys: pytest.CaptureFixture[str], extra: list[str]
+) -> None:
+    _planning_ticket(repo, "---\nticket: 7\nchain: 9\naccepted_by: nassim\n---\n")
+    assert main_cli(["--json", "model", *extra, "7"]) == ExitCode.NEEDS_HUMAN
+    payload = _payload(capsys)
+    assert "chain" in str(payload["error"])
+    assert "model" not in payload
+
+
+def test_a_broken_factory_toml_does_not_touch_factory_model(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """v1 routing, and `model`, never read the caps."""
+    (repo / CONFIG_PATH).parent.mkdir(exist_ok=True)
+    (repo / CONFIG_PATH).write_text("attempts = 'many'\n", encoding="utf-8")
+    _ticket_worktree(repo, 7, {"intent.md": _INTENT})
+    assert main_cli(["--json", "model", "7"]) == ExitCode.OK
+    assert main_cli(["--json", "next", "7"]) == ExitCode.OK

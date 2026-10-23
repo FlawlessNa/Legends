@@ -33,7 +33,7 @@ All eleven were accepted at these defaults on 2026-10-22.
 | R6 | Splitting a feature | One feature, one ticket, until done. Children and epics come after. |
 | R7 | Tickets that need the game | A `method: live` or `both` ticket stops at QA and parks until the QA phase gives agents a running client. The done ticket is `method: suite`. |
 | R8 | Keeping acceptance the maintainer's | `factory accept` asks for the ticket number to be typed on a real terminal, and refuses when stdin is not a terminal. |
-| R9 | Documentation | No Document stage. The Builder fills `docs_cleared`, and the Reviewer judges it. |
+| R9 | Documentation | **Reversed 2026-10-22 (#218).** The Document stage stays, between the proof and review. A Documenter fills `docs_cleared`, writing only documentation outside every hard-stop and protected path, and the Reviewer judges it. |
 | R10 | First unattended run | A factory ticket as a dry run (#223), then the bot ticket (#224). |
 | R11 | Credentials | Workers hold no GitHub token and no git credential helper. Only the factory loop pushes and opens PRs. The maintainer adds a ruleset requiring PRs on `dev`. |
 
@@ -57,6 +57,7 @@ you iterate with the Designer, then say "submit"
 you: factory accept <n>  -- reads the spec and the hard-stop line, types the number
 =========================== you are out from here ===========================
   -> Builder turn (ticket worktree) -> the loop stops it, judges, commits, proves -> proof.md
+  -> Documenter (ticket worktree) updates the coupled docs and fills docs_cleared
   -> Reviewer (snapshot at proof.md's commit)   changes-requested -> Builder (<= 2 cycles)
   -> QA: method suite -> skipped; live/both -> parks until the QA phase (R7)
   -> the loop pushes and opens the PR   <- DONE
@@ -71,11 +72,12 @@ anywhere: 2 attempts, 2 cycles, or factory park -> parked, ready-for-human; the 
 | `build-planning` | The Planner, on the same snapshot | Copies `plan.md` back, stamps `plan.commit`, and runs `plan check` | A valid radius planned against the current submission |
 | `accept` | **You**, with `factory accept <n>` | Writes `acceptance.md`, and records the accepted blob in its own state | The acceptance matches the loop's record and the spec blob at HEAD |
 | `build-implementing` | The Builder, in the ticket worktree | Stops, judges, commits and proves each turn | `proof.md` is current for the source at HEAD |
+| `document` | The Documenter, in the ticket worktree | Judges the turn like the Builder's, against the Documenter's write scope | `docs_cleared` is filled (the list may be empty) |
 | `review` | The Reviewer, on a snapshot at `proof.md`'s commit | Copies `review.md` back and stamps `commit` | `pass`, and current when its loop-stamped `commit` is the commit that wrote the current `proof.md`. `changes-requested` returns to the Builder as a cycle. `fail` parks. |
 | `qa` | Nobody, until the QA phase | A live ticket parks here | — |
 | `integrate` | The loop | Checks the base diff, pushes, opens the PR | A PR is open. Done. |
 
-**Gone from today's stages:** `plan` and the Clerk (the Designer writes the intent), `test` (the loop proves), and `document` (R9). **Moved:** acceptance, from the intent before design, to the spec before build.
+**Gone from today's stages:** `plan` and the Clerk (the Designer writes the intent), `test` (the loop proves), and the Clerk-era `document` of v1, which returns as a v2 stage (R9 reversed). **Moved:** acceptance, from the intent before design, to the spec before build.
 
 ## 3 · What holds today, at 4296edc
 
@@ -125,7 +127,7 @@ anywhere: 2 attempts, 2 cycles, or factory park -> parked, ready-for-human; the 
 | `cli.py` | kept | Dispatcher, `_emit`, the exit-code contract. `COMMANDS` stays a plain dict. A registry was considered and dropped: protecting `factory/**` removes the `merge.py` collision, and a `COMMANDS` entry is a one-line conflict. |
 | `chain.py` | extends | Block lists (`criteria`, `radius`; skipped today at chain.py:122). New artifacts: `spec_review`, `acceptance`, `proof`, `answers`, `park`. `blob(repo, commit, path)` returns git's blob id, independent of line endings. Radius syntax is files and `dir/**` only. `intent.md: chain: 2` marks a v2 chain; absence means v1. |
 | `routing.py` | rows change | **Two tables.** v1 chains keep today's rows, unchanged, because every roadmap ticket is worked by hand under v1 until #223. v2 chains get the §2 stages: the verdict for the current submission, `plan.commit` bound to it, acceptance matching the loop's record, `proof.md` currency, review staleness, caps, and `park.md`. |
-| `roles.py` | new | Role → stage, runs-in (`worktree\|snapshot\|own-worktree`; the designer is the only `own-worktree` role), write scope, allowed commands, model key. [roles.md](roles.md) states it, and a test keeps the two equal. |
+| `roles.py` | new | Role → stage (the Documenter owns `document`), runs-in (`worktree\|snapshot\|own-worktree`; the designer is the only `own-worktree` role), write scope, allowed commands, model key. [roles.md](roles.md) states it, and a test keeps the two equal. |
 | `hooks.py` | extends | Role-scope and radius rows in `decide_write`, keyed on `FACTORY_ROLE`. Plus `judge_paths(root, paths, role)`, which the loop calls with a turn's diff. `decide_stop` judges the session's own worktree, plus the worktrees an off-ticket session wrote into. |
 | `worktrees.py` | moved | `ticket_worktrees` from cli.py, plus `worktree_for(n)` (d2). |
 | `state.py` | new | `state.json`, written atomically, and `render_run_md`. `turn_base` is stored for the record, but the loop never trusts it back from disk during a turn (§4.2). |
@@ -134,7 +136,7 @@ anywhere: 2 attempts, 2 cycles, or factory park -> parked, ready-for-human; the 
 | `gitops.py`, `github.py` | new | Snapshots, copy-back, pathspec commits with an `index.lock` retry, turn diff, rejected refs, `hooks_disabled`, fingerprint, `assert_untouched`. `run_gh` moves out of merge.py. **Only these modules hold credentials.** |
 | `launcher.py`, `launchers/herdr.py` | new | §8 |
 | `merge.py` | small | `protected_paths` becomes `factory/**`. The hard-stop globs stay here. |
-| `models.py` | kept | The table gains `spec-review`, and loses `plan`, `test` and `document`, in the same PR as the `Stage` enum (models.py:162–170 rejects unknown keys). |
+| `models.py` | kept | The table gains `spec-review`, loses `plan` and `test`, moves `qa` to `complex`, and gains a `[roles]` block and the `attempt_at_least` retry escalation (#218), in the same PR as the `Stage` enum (models.py:162–170 rejects unknown keys). |
 
 ## 6 · Artifacts and who writes them
 
@@ -142,10 +144,10 @@ anywhere: 2 attempts, 2 cycles, or factory park -> parked, ready-for-human; the 
 | --- | --- | --- |
 | `intent.md`, `spec.md` | Designer, copied in by the loop | As today, plus `chain: 2`. `criteria` and `method` are now read. `accepted_by` is retired for v2. |
 | `spec-review.md` | Spec Reviewer, stamped by the loop | `verdict`, `reviewed_by`; `commit` (written by the loop) |
-| `plan.md` | Planner, then Builder | `radius` (files, `dir/**`), `red_test` (or `none` with `kind: refactor\|test-only`), `docs_cleared`, a required **`## Could not verify`** section, and `plan.commit` (written by the loop). The Builder may narrow the radius, never widen it. |
+| `plan.md` | Planner, then Builder, then Documenter (`docs_cleared` only) | `radius` (files, `dir/**`), `red_test` (or `none` with `kind: refactor\|test-only`), `docs_cleared`, a required **`## Could not verify`** section, and `plan.commit` (written by the loop). The Builder may narrow the radius, never widen it. |
 | `acceptance.md` | `factory accept` | `accepted_by`, `accepted_at`, `commit`, `spec_blob`, `radius` (copied verbatim), `hard_stop_approved`, `base_sha`. Valid only when it matches the loop's record. |
 | `proof.md` | the loop only | `commit`, `suite: pass\|fail`, `red: red\|green\|error\|none`, `red_test`, output digests, `base_sha`. Current when no source differs between `commit` and HEAD, ignoring `.factory/`. |
-| `review.md` | Reviewer, stamped by the loop | `verdict`; `commit` (written by the loop). The Reviewer judged a snapshot at `proof.md`'s own commit, so `commit` never equals `proof.commit`. The review is **current when its loop-stamped `commit` is the commit that wrote the current `proof.md`**. The loop proves after every Builder turn that passes judgement, so any proven Builder turn, even one touching only `plan.md`, makes the review stale. A turn that fails judgement writes no new `proof.md`, so the review stands and the attempt cap applies. That is what ends the loop in d1. |
+| `review.md` | Reviewer, stamped by the loop | `verdict`; `commit` (written by the loop). The Reviewer judged a snapshot at `proof.md`'s own commit, so `commit` never equals `proof.commit`. The review is **current when its loop-stamped `commit` is the commit that wrote the current `proof.md`**. The loop proves after every Builder turn that passes judgement, so any proven Builder turn, even one touching only `plan.md`, makes the review stale. A turn that fails judgement writes no new `proof.md`, so the review stands and the attempt cap applies. That is what ends the loop in d1. *The staleness rule, with the Documenter's turn between the proof and the review, is settled by #237.* |
 | `answers.md` | Designer, copied in by the loop | Appended answers to spec gaps |
 | `park.md` | any worker, via `factory park` | `ticket`, `kind: needs-human\|spec-gap`, `stage`, `parked_at`, with the reason in the body |
 | `run.md` | the loop, once | `state.json` rendered, committed just before the PR |
@@ -193,6 +195,7 @@ There are three layers. The **hook** reports early, at the tool call. The **loop
 | spec-reviewer | snapshot | `spec-review.md` (copied back) | `park` |
 | planner | snapshot | `plan.md` (copied back) | `park`, `plan check` |
 | builder | ticket worktree | source in the radius, tests, `plan.md` | `park`, `next`, `plan check` |
+| documenter | ticket worktree | docs, `AGENTS.md` files and `CONTEXT.md` outside every hard-stop and protected path, `plan.md`, `park.md` | `doc check`, `park`, `next` |
 | reviewer | snapshot at `proof.md`'s commit | `review.md` (copied back) | `park` |
 | orchestrator | primary checkout, your pane | nothing | `status`, `run`, `feature new`, `next` |
 
@@ -268,7 +271,8 @@ Order is held by GitHub's *blocked by* links. The epic is #171. The blockers bel
 | P0 | #207 S3 | Stop judges the session's own worktree, plus off-ticket targets | #217 |
 | P0 | #139 S4 | Chain v2 | #214 |
 | P0 | #219 P1 | Loop state, `factory park` | #207 |
-| P0 | #218 S5 | Routing v2 (v1 kept), `roles.py`, the models table | #139, #219 |
+| P0 | #218 S5 | `roles.py`, the models table with retry escalation, `configs/factory.toml`; the `Stage` enum | #139, #219 |
+| P0 | #237 S5b | Routing v2 rows (v1 kept) | #218 |
 | P1 | #220 P2 | Launcher, credential stripping | #215, #207 |
 | P1 | #221 P3 | Git and GitHub adapters | #207 |
 | P1 | #222 P4 | `feature new`, `spec submit`, `accept` | #219, #220, #221, #218 |
@@ -276,7 +280,7 @@ Order is held by GitHub's *blocked by* links. The epic is #171. The blockers bel
 | P1 | #145 P6 | The loop proves; `proof.md` | #221, #139 |
 | P1 | #143 P7 | `plan check` | #139, #218 |
 | P1 | #152 P8 | Role prompts and the review policy | #218 |
-| P2 | #159 E1 | The factory loop: `run`, `status`, `OpenPR` | #218, #219–#222, #163, #145, #143, #152 |
+| P2 | #159 E1 | The factory loop: `run`, `status`, `OpenPR` | #218, #237, #219–#222, #163, #145, #143, #152 |
 | P2 | #223 E2 | Dry run on a factory ticket | #159 |
 | P2 | #224 DONE | A bot ticket, request to open PR | #223 |
 
@@ -294,7 +298,7 @@ Order is held by GitHub's *blocked by* links. The epic is #171. The blockers bel
 | Merging by rule, CI on the right branch, closing issues on merge | Done ends at an open PR | #151, #160 |
 | The radius lock | `wip = 1` | — |
 | Command registry, `gates/` package | Only if conflicts hurt | — |
-| Document stage, doc lints | R9 | #181–#185, #187, #188 |
+| Doc lints | R9 | #181–#185, #187, #188 |
 | Poller, metrics, bands, in-ticket parallelism | Volume, not one ticket, and R6 | #164–#166, #170 |
 | Housekeeping | Not on the critical path; any session may pick these up | #136, #210 |
 | Harnesses other than Claude Code | `FACTORY_ROLE` keeps the gates portable | — |

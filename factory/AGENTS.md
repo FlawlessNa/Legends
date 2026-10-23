@@ -150,6 +150,17 @@ cannot lose another process's update. `load` takes no lock. On Windows a
 never read as "no state yet". `factory park` writes `park.md` in the ticket's
 worktree and never touches `state.json`.
 
+## Roles, models and the caps
+
+`roles.py` is the v2 role table: each role's stages, where it runs, its write
+globs (matched with `full_match`, as `merge.py` does) and its allowed commands.
+`docs/factory/roles.md` states the same table and a test keeps them equal.
+`models.py` resolves a stage's model from `configs/factory-models.toml`, and a
+retry escalates: `resolve` takes the state **before** the dispatch is recorded,
+so a caller that records first sees every first dispatch escalate. `config.py`
+reads `configs/factory.toml` (the caps) from the session's checkout; v1 routing
+never reads it, and a `ConfigError` is exit 3.
+
 ## The merge policy
 
 `factory merge check <pr>` evaluates `docs/factory/merge-policy.md` for one PR,

@@ -4,7 +4,7 @@
 > sections change, each when its ticket merges:
 >
 > - "`plan.md`": its proof block moves to `proof.md`, #145.
-> - "Verdicts": gains the factory loop's stamped `commit`, #218.
+> - "Verdicts": gains the factory loop's stamped `commit`, and the rows that read them, #237.
 >
 > Until then, this page is the contract parsers implement today.
 

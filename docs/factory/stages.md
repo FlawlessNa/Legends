@@ -3,13 +3,13 @@
 > **Supersedes.** [design.md](design.md) §2 sets the target stages. These
 > sections change, each when its ticket merges:
 >
-> - "1 · Plan": removed (the Designer writes the intent), #218.
-> - "2 · Design": `spec submit` and a verdict that is read, #218 and #222.
-> - "3 · Build, planning": acceptance moves after it, #218 and #143.
+> - "1 · Plan": removed (the Designer writes the intent), #237.
+> - "2 · Design": `spec submit` and a verdict that is read, #237 and #222.
+> - "3 · Build, planning": acceptance moves after it, #237 and #143.
 > - "4 · Build, implementing" and "5 · Test": the factory loop judges and proves each turn, #145 and #159.
-> - "6 · Review": #218 and #152.
-> - "7 · QA": parks until the QA phase, #218.
-> - "8 · Document": removed (ruling R9), #218.
+> - "6 · Review": #237 and #152.
+> - "7 · QA": parks until the QA phase, #237.
+> - "8 · Document": kept, between the proof and review, with a Documenter (ruling R9 reversed by #218); its routing is #237.
 > - "9 · Integrate": the factory loop opens the PR, #159.
 > - "10 · Maintain": deferred until after done, #165.
 >
