@@ -23,8 +23,8 @@ tasks: null
 merge_order: null
 proof:
   red_test: tests/test_factory/test_models.py::test_a_stage_s_second_dispatch_escalates_to_complex
-  red_output_sha: see Proof below
-  suite: null
+  red_output_sha: 942802a6ece8
+  suite: pass
 docs_cleared: []
 ---
 
@@ -141,8 +141,45 @@ read, not changed. `factory/**` is protected, so this PR is a human merge.
 
 ## Proof
 
-Filled in after the change.
+**Red, before the change.** The four test modules were run against the unchanged
+source (`--continue-on-collection-errors`); the `E` lines are in the scratchpad
+file `red218.txt` (sha256 prefix `942802a6ece8`). All four fail to collect:
+`No module named 'factory.roles'` (`test_roles.py`), `No module named
+'factory.config'` (`test_config.py`, `test_cli.py`) and `cannot import name
+'resolve_role'` (`test_models.py`). That proves only that the names did not
+exist, so behaviour was checked by hand.
+
+**By hand, the escalation.** With `Override.matches` made to return False for
+`attempt_at_least` (the rest of the change in place), six tests failed:
+`test_a_stage_s_second_dispatch_escalates_to_complex`,
+`test_the_third_dispatch_stays_at_complex`,
+`test_the_shipped_table_escalates_a_retry_and_not_a_first_attempt`,
+`test_a_multi_key_when_mixes_a_fact_and_an_attempt`, and in `test_cli.py` the
+v2 next-dispatch and `--stage` tests (`assert 'opus' == 'sonnet'` shape).
+Restored, they pass. The docs tests (design.md, the Supersedes notes, roles.md
+equality) failed against the unedited docs before I wrote them (11 failures in
+the first run) and pass now.
+
+**Green, after.** `pytest` from the worktree root: `1745 passed, 3 skipped,
+25 deselected`, 0 failed, 0 errors, 0 xfailed. `ruff check`, `ruff format` and
+`pyright` are clean on the changed Python files; pre-commit passed on the
+change commit. `test_routing.py` is unmodified and passes.
 
 ## Could not verify
 
-Filled in after the change.
+- **The red tests were committed with the change**, not before it: they import
+  `factory.roles`, `factory.config` and `resolve_role`, which pre-commit's
+  pyright refuses before they exist. Their red state is the collection errors in
+  `red218.txt` plus the by-hand mutation above.
+- **No consumer of `factory.toml` exists.** `ConfigError.exit_code` is a class
+  attribute that a test pins; no command has returned it as exit 3 yet (#159).
+- **`worker_timeout_min` and `poll_s` types are my choice** (positive integer,
+  positive number); the spec gave none.
+- **Nothing enforces the write scopes or the command lists.** `roles.py` only
+  states them; the hook and dispatcher that use them are #163 and #222.
+- **#159's resolve-before-record obligation** is pinned by a test of `resolve`,
+  not by any dispatcher, since none exists.
+- **Until #237, `factory model <n>` on a v2 chain routes with the v1 rows.**
+- **No live worker ran** a model chosen by this table; nothing here changes
+  which keys reach the game.
+- The pre-existing flaky #229 test did not fail in the full run.
