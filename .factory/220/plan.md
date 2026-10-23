@@ -15,8 +15,8 @@ tasks: null
 merge_order: null
 proof:
   red_test: tests/test_factory/test_launcher.py::test_worker_spec_carries_all_eight_credential_variables_for_every_role
-  red_output_sha: see Proof below
-  suite: null
+  red_output_sha: 3b8897455c0d
+  suite: pass
 docs_cleared: []
 ---
 
@@ -65,3 +65,28 @@ docs_cleared: []
 - `pane split` is issued without a target pane. Which pane herdr divides when none is given is not verified (see *Could not verify* in the proof).
 - Stored replies: error replies and the trust screen are captured; replies from mutating commands are constructed from the bundled schema. The test module has one table saying which, and a test fails if a file is missing from it.
 - After `stop` returns, the adapter remembers the pane id and `status` answers `gone` for it.
+
+## Proof
+
+Red, before any source existed (`red220.txt`): both new test modules fail at collection with `ModuleNotFoundError: No module named 'factory.launcher'`.
+
+Red for the right reason, after: with `"GIT_ASKPASS": ""` deleted from `stripped_credentials`, `test_launcher.py` goes red (21 failed), including `test_worker_spec_carries_all_eight_credential_variables_for_every_role` for every role. Restored, it is green.
+
+Suite: `1330 passed, 3 skipped, 25 deselected`, 0 failed, 0 errors, 0 xfailed. ruff check, ruff format and pyright (standard) are clean on the six Python files.
+
+Deviation from the spec: criterion 12 says the dialog's options are "numbered n" and "n+1". The live screen (herdr 0.9.5) has no numbers (`❯ No, exit` then `Yes, I trust this folder`). The matcher accepts unnumbered options, or numbered ones that are consecutive, and refuses numbers on only one option.
+
+## Could not verify
+
+- The adapter against a live herdr; no pane was created.
+- Whether the pane id, not only the name, works for `agent read` and `send-keys` while startup is blocked (`agent_not_ready`).
+- Which pane `pane split` divides when given no target; the adapter passes none.
+- Whether herdr passes an empty `--env` value through.
+- That `down` then `enter` trusts the folder every time (one live run only).
+- That closing a pane on Windows ends background descendants, and orphans a parent-pid walk cannot see.
+- Whether Git Credential Manager is reachable by another route.
+- Replies from mutating commands are constructed from the bundled schema, not captured.
+
+## Maintainer action
+
+`pyproject.toml` must list `packages = ["factory", "factory.launchers"]` for a non-editable build.
