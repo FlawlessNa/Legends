@@ -15,8 +15,8 @@ tasks: null
 merge_order: null
 proof:
   red_test: tests/test_factory/test_state.py::test_two_processes_updating_at_once_lose_neither_update
-  red_output_sha: see Proof below
-  suite: null
+  red_output_sha: b4ede29c4326
+  suite: pass
 docs_cleared: []
 ---
 
@@ -100,3 +100,29 @@ to name; every other error names the file and the field.
 
 - Protected path (`factory/**`): a human merges.
 - Nothing here changes which keys reach the game.
+
+## Named changed test
+
+| Test | Behaviour that moved |
+| --- | --- |
+| `test_cli.py::test_every_registered_command_is_reachable_through_the_parser` | it parsed every command bare; `park` has a required flag group by spec, so it now passes `--reason x` for `park` only. Every command is still parsed and its name checked |
+
+## Proof
+
+**Red, before the change.** `test_park.py` and `test_state.py` were run against the unchanged source (`--continue-on-collection-errors`); the `E` lines are in the scratchpad file `red219.txt` (sha256 prefix `b4ede29c4326`).
+
+- `test_state.py` (42 tests) fails to collect: `ImportError: cannot import name 'state' from 'factory'`. Every state test is red for the same reason, so that line proves only that the module did not exist. The behaviour tests below were checked by hand instead.
+- `test_park.py`: 23 failed. 18 `argparse.ArgumentError: ... invalid choice: 'park'` (exit 2 from `SystemExit`); the three flag-misuse tests also fail on their message check (`required`, `not allowed with`, `expected one argument`), so they do not pass merely because an unknown command exits 2; `design.md`'s park row lists no "already exists" code; `artifacts.md`'s `park.md` has no `ticket`.
+
+**By hand, the lock.** With the `msvcrt.locking` call in `_try_lock` replaced by `return`, `test_two_processes_updating_at_once_lose_neither_update` failed 3 runs out of 3 with `assert 1 == 2`; restored, it passes. The interrupted-write test asserts what the fake `os.replace` is given (exists, same directory, new content) before raising.
+
+**Green, after.** `pytest` from the worktree root: `1571 passed, 3 skipped, 25 deselected`, 0 failed, 0 errors, 0 xfailed. `ruff check`, `ruff format` and `pyright` are clean on the changed Python files; pre-commit passed on the change commit.
+
+## Could not verify
+
+- **The killed process was simulated by raising.** The interrupted-write test makes `os.replace` raise a `BaseException` after the temporary file is written; no process was killed with `taskkill` or `SIGKILL`, and no power loss was tried. That the OS releases `state.lock` when its holder dies is the documented behaviour of `msvcrt.locking` and `flock`, not something measured here (the test shows only that a raised exception releases it).
+- **The `fcntl` branch** did not run: this machine is Windows. It is written and not exercised, so the bounded wait on POSIX is untested.
+- **fsync reaching disk.** It is called; whether the device honours it is the OS's.
+- **The red tests were committed with the change**, not before it: `test_state.py` imports `factory.state`, which pre-commit's pyright refuses before it exists.
+- **`park` from a judge's snapshot, the Designer's branch name, and routing reading `park.md`** are out of scope (#159, #222, #218).
+- **No live `factory park` by a real worker** was run; the tests call `main` with the session's directory set by `chdir`.
