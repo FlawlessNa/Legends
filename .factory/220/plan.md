@@ -72,7 +72,7 @@ Red, before any source existed (`red220.txt`): both new test modules fail at col
 
 Red for the right reason, after: with `"GIT_ASKPASS": ""` deleted from `stripped_credentials`, `test_launcher.py` goes red (21 failed), including `test_worker_spec_carries_all_eight_credential_variables_for_every_role` for every role. Restored, it is green.
 
-Suite: `1330 passed, 3 skipped, 25 deselected`, 0 failed, 0 errors, 0 xfailed. ruff check, ruff format and pyright (standard) are clean on the six Python files.
+Suite: `1341 passed, 3 skipped, 25 deselected`, 0 failed, 0 errors, 0 xfailed. ruff check, ruff format and pyright (standard) are clean on the six Python files.
 
 Deviation from the spec: criterion 12 says the dialog's options are "numbered n" and "n+1". The live screen (herdr 0.9.5) has no numbers (`❯ No, exit` then `Yes, I trust this folder`). The matcher accepts unnumbered options, or numbered ones that are consecutive, and refuses numbers on only one option.
 
@@ -80,7 +80,7 @@ Deviation from the spec: criterion 12 says the dialog's options are "numbered n"
 
 - The adapter against a live herdr; no pane was created.
 - Whether the pane id, not only the name, works for `agent read` and `send-keys` while startup is blocked (`agent_not_ready`).
-- Which pane `pane split` divides when given no target; the adapter passes none.
+- How repeated splits of the loop's own pane behave in herdr. The adapter now passes `--pane $HERDR_PANE_ID` and raises when it is unset.
 - Whether herdr passes an empty `--env` value through.
 - That `down` then `enter` trusts the folder every time (one live run only).
 - That closing a pane on Windows ends background descendants, and orphans a parent-pid walk cannot see.
@@ -90,3 +90,7 @@ Deviation from the spec: criterion 12 says the dialog's options are "numbered n"
 ## Maintainer action
 
 `pyproject.toml` must list `packages = ["factory", "factory.launchers"]` for a non-editable build.
+
+## Review fixes
+
+The code review (`review.md`, changes-requested) was settled in `2044a36`: malformed replies after the split become launcher errors carrying the Handle, `pane split` targets `HERDR_PANE_ID`, every herdr subprocess has a client-side timeout, `GH_CONFIG_DIR` is absolute, and the process-table reader raises unless its enumeration ended on ERROR_NO_MORE_FILES. Before the fixes, 12 new tests were red (`red220-review.txt`); suite after: `1341 passed, 3 skipped, 25 deselected`.
