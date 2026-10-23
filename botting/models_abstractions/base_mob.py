@@ -47,11 +47,11 @@ class BaseMob(InGameDetectionVisuals, ABC):
         threshold: float | None = None,
         mask: np.ndarray | None = None,
         debug: bool = True,
-    ) -> tuple[Sequence[int], ...]:
+    ) -> tuple[tuple[int, int, int, int], ...]:
         """
         Returns a list of tuples of the coordinates for each mob found on-screen.
         If a detection model exists for the current mob, it is used by default.
-        :return: Coordinates are, in order, x, y, width, height.
+        :return: Coordinates are, in order, x1, y1, x2, y2 on both paths.
         """
         if self.detection_model is not None:
             detections = self.run_detection_model(
@@ -68,7 +68,10 @@ class BaseMob(InGameDetectionVisuals, ABC):
             try:
                 if DEBUG and debug:
                     _debug(image, list(self._filter(contours)))
-                return tuple([cv2.boundingRect(cnt) for cnt in self._filter(contours)])
+                return tuple(
+                    (x, y, x + w, y + h)
+                    for x, y, w, h in map(cv2.boundingRect, self._filter(contours))
+                )
             except Exception as e:
                 raise RuntimeError(
                     f"Error processing contours for {self.__class__.__name__}: {e}"
