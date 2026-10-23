@@ -77,7 +77,7 @@ anywhere: 2 attempts, 2 cycles, or factory park -> parked, ready-for-human; the 
 | `qa` | Nobody, until the QA phase | A live ticket parks here | — |
 | `integrate` | The loop | Checks the base diff, pushes, opens the PR | A PR is open. Done. |
 
-**Gone from today's stages:** `plan` and the Clerk (the Designer writes the intent), `test` (the loop proves), and the Clerk-era `document` of v1, which returns as a v2 stage (R9 reversed). **Moved:** acceptance, from the intent before design, to the spec before build.
+**Gone from today's stages:** `plan` and the Clerk (the Designer writes the intent), and `test` (the loop proves). **Kept, and moved:** `document` now sits between the proof and review (R9 reversed). **Moved:** acceptance, from the intent before design, to the spec before build.
 
 ## 3 · What holds today, at 4296edc
 
@@ -298,7 +298,7 @@ Order is held by GitHub's *blocked by* links. The epic is #171. The blockers bel
 | Merging by rule, CI on the right branch, closing issues on merge | Done ends at an open PR | #151, #160 |
 | The radius lock | `wip = 1` | — |
 | Command registry, `gates/` package | Only if conflicts hurt | — |
-| Doc lints | R9 | #181–#185, #187, #188 |
+| Doc lints and the scheduled audit | Per-change docs ride the Document stage (#186). Keeping docs current *between* changes is upkeep, not one ticket reaching a PR | #228, #181–#184, #187, #188 |
 | Poller, metrics, bands, in-ticket parallelism | Volume, not one ticket, and R6 | #164–#166, #170 |
 | Housekeeping | Not on the critical path; any session may pick these up | #136, #210 |
 | Harnesses other than Claude Code | `FACTORY_ROLE` keeps the gates portable | — |
