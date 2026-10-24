@@ -1,15 +1,18 @@
 # Roles
 
-> **Supersedes.** The target roles are in [design.md](design.md) §8: designer,
-> spec-reviewer, planner, builder, reviewer, orchestrator. The Clerk, the
-> Documenter and the Integrator go. These sections change, each when its
-> ticket merges:
+> **Supersedes.** The target roles are in [design.md](design.md) §8, and the
+> v2 table below states them: designer, spec-reviewer, planner, builder,
+> documenter, reviewer, orchestrator (the Documenter stays, ruling R9 reversed
+> by #218). The Clerk and the Integrator go. The v1 table is kept under its own
+> heading, because every roadmap ticket is worked by hand under v1. These
+> sections change, each when its ticket merges:
 >
-> - The opening role table: #218 (`roles.py`) and #163 (write scopes).
+> - The routing rows that send a ticket to these roles: #237.
+> - Enforcing the write scopes: #163. Enforcing the command lists: #222.
 > - "The human's role": #222, where the maintainer accepts the spec and never reads the plan.
 > - "Today": #163.
 >
-> Until then, this page describes today, and it is right about today.
+> Until then, the v1 table describes today, and it is right about today.
 
 
 One rule generates all of them:
@@ -23,6 +26,37 @@ success it cannot know. Better prompting is not one.
 A role is a bundle of three things: a system prompt, a tool allowlist, and a
 write scope. Not necessarily a different model, and not necessarily a different
 session — though both help.
+
+## The v2 roles
+
+`factory/roles.py` holds this table and a test keeps the two equal. A write
+pattern is a glob matched as `factory/merge.py` matches paths (`**` crosses
+directories); a leading `!` excludes, and an exclusion wins wherever it stands.
+`<n>` is the ticket number and `<radius>` stands for `plan.md`'s radius within
+`acceptance.radius`, which the enforcing hook (#163) expands. `hook` is allowed
+for every role, because the harness invokes it.
+
+The Documenter's scope also excludes **every** pattern in `merge.POLICY`'s
+`hard_stop_paths` and `protected_paths`, read from `merge.py` and never copied.
+So `**/AGENTS.md` reaches `AGENTS.md` and `docs/AGENTS.md` but not
+`factory/AGENTS.md` (`factory/**` is protected) or `.claude/AGENTS.md`.
+
+| Role | Stages | Runs in | May write | May run |
+| --- | --- | --- | --- | --- |
+| `designer` | `design` | `own-worktree` | `.factory/<n>/intent.md`, `.factory/<n>/spec.md`, `.factory/<n>/answers.md` | `spec submit`, `park`, `next` |
+| `spec-reviewer` | `spec-review` | `snapshot` | `.factory/<n>/spec-review.md` | `park` |
+| `planner` | `build-planning` | `snapshot` | `.factory/<n>/plan.md` | `park`, `plan check` |
+| `builder` | `build-implementing` | `worktree` | `<radius>`, `tests/**`, `.factory/<n>/plan.md`, `.factory/<n>/park.md` | `park`, `next`, `plan check` |
+| `documenter` | `document` | `worktree` | `docs/**`, `**/AGENTS.md`, `!.claude/**`, `CONTEXT.md`, `.factory/<n>/plan.md`, `.factory/<n>/park.md` | `doc check`, `park`, `next` |
+| `reviewer` | `review` | `snapshot` | `.factory/<n>/review.md` | `park` |
+| `orchestrator` | none | `primary` | nothing | `status`, `run`, `feature new`, `next` |
+
+`accept` is the maintainer's, `integrate` is the loop's, and `qa` has no worker
+until the QA phase; none has a role, and no model is resolved for `accept` or
+`integrate`. The `orchestrator` has no stage, so its model comes from the model
+table's `[roles]` block.
+
+## The v1 roles
 
 | Role | Owns stages | May write | May never write | Escalates when |
 | --- | --- | --- | --- | --- |

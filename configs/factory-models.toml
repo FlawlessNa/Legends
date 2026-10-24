@@ -41,32 +41,35 @@ complex  = ["fable", "opus"]
 #
 # A stage that is a member but is absent here resolves to `standard`, not to an
 # error: `standard` can never silently spend on the strong model, and halting
-# the Foreman over a stage this table forgot is the worse failure.
+# the Foreman over a stage this table forgot is the worse failure. `plan` and
+# `test` are v1-only stages and are absent for that reason.
 #
-# `integrate` is absent on purpose and answers "no model" rather than defaulting
-# -- CI decides the merge and no agent runs (#194).
-#
-# `spec-review` is not a stage. The Specification Reviewer is a role inside
-# `design`, and both of Design's roles want `complex` anyway.
+# `integrate` and `accept` are absent on purpose and answer "no model" rather
+# than defaulting -- CI decides the merge (#194) and the maintainer accepts.
 [by_stage]
-# Writing intent.md decides what the ticket *is*. Not trivial work.
-plan = "standard"
 # A wrong spec is paid for by every stage downstream of it. This is the single
-# most expensive place to be cheap, and it covers the review of the spec too.
+# most expensive place to be cheap.
 design = "complex"
+# Judging the spec is the same job at the same price.
+spec-review = "complex"
 # The radius is a judgement, but a narrow one.
 build-planning = "standard"
-# The safest place to be cheap: Test, Review and QA all sit downstream.
+# The safest place to be cheap: Review and QA sit downstream.
 build-implementing = "standard"
-test = "standard"
 # Judging a diff is harder than writing one, and a missed finding is paid for
 # in production.
 review = "complex"
-# Not trivial. Reading a Run Report wrong merges a broken bot. What keeps QA
-# honest is that it cannot write the threshold it reads -- a write scope (#163),
-# not a weak model.
-qa = "standard"
+# Reading a Run Report wrong merges a broken bot. What keeps QA honest is that
+# it cannot write the threshold it reads -- a write scope (#163) -- but a wrong
+# reading is also the costliest to miss, so the model is the strong one.
+qa = "complex"
 document = "standard"
+
+
+# Roles with no stage, by role name (`factory.roles.ROLES`). A role that has
+# stages takes its model from [by_stage], and naming it here fails to load.
+[roles]
+orchestrator = "standard"
 
 # `trivial` is routed to by nothing above, deliberately. It exists so the tier
 # order has a floor and so "only escalate" means something. Routing a stage to
@@ -84,9 +87,10 @@ document = "standard"
 # that is in the vocabulary but not yet knowable at this stage simply does not
 # fire, which is a different thing and not an error.
 #
-# The vocabulary today is one fact:
+# The vocabulary today is two facts:
 #   method_live  -- spec.md's `method` is `live` or `both`. Knowable from
 #                   stage 3 onward; empty before spec.md exists.
+#   attempt_at_least -- the attempt being dispatched is at least this integer.
 #
 # `touches_hard_stop` is NOT here, though it is the sharpest complexity signal
 # we have. It needs the radius, which lives in plan.md -- the *output* of stage
@@ -99,4 +103,13 @@ document = "standard"
 # is made against evidence nobody can re-run offline.
 [[overrides]]
 when = { method_live = true }
+use  = "complex"
+
+# A retry is the second dispatch of a stage: the first attempt failed, so the
+# cheap model has had its chance. `attempt_at_least` is the attempt being
+# dispatched, read from the ticket's loop state before the dispatch is recorded,
+# so a stage's second dispatch escalates and a new stage's first does not. It
+# never fires on a v1 chain or a bare `--stage`. An integer of at least 2.
+[[overrides]]
+when = { attempt_at_least = 2 }
 use  = "complex"

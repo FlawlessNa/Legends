@@ -28,7 +28,9 @@ class Stage(StrEnum):
 
     PLAN = "plan"
     DESIGN = "design"
+    SPEC_REVIEW = "spec-review"
     BUILD_PLANNING = "build-planning"
+    ACCEPT = "accept"
     BUILD_IMPLEMENTING = "build-implementing"
     TEST = "test"
     REVIEW = "review"

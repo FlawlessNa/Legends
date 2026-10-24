@@ -17,13 +17,16 @@ import pytest
 from factory.chain import Chain, read_chain
 from factory.models import (
     DEFAULT_TIER,
+    NO_AGENT,
     TABLE_PATH,
     TIER_ORDER,
     TableError,
     load,
     resolve,
+    resolve_role,
 )
 from factory.routing import Stage
+from factory.state import TicketState, dispatched, fresh
 
 TICKET = 7
 
@@ -75,7 +78,7 @@ def test_the_shipped_table_resolves_every_stage_to_something() -> None:
     for stage in Stage:
         choice = resolve(table, stage)
         assert choice.rule, f"{stage} resolved with no reason given"
-        if stage is not Stage.INTEGRATE:
+        if stage not in NO_AGENT:
             assert choice.model, f"{stage} resolved to no model"
 
 
@@ -174,9 +177,9 @@ def test_a_stage_absent_from_the_table_gets_the_default(tmp_path: Path) -> None:
 
 
 def test_a_table_key_that_is_not_a_stage_is_a_table_error(tmp_path: Path) -> None:
-    """`spec-review` is the real case: a role inside Design, not a stage."""
+    """`maintain` is the real case: in `stages.md`, in no enum."""
     with pytest.raises(TableError, match="is not a stage"):
-        load(_table(tmp_path, MINIMAL + '\nspec-review = "complex"\n'))
+        load(_table(tmp_path, MINIMAL + '\nmaintain = "complex"\n'))
 
 
 def test_a_stage_naming_an_undefined_tier_is_a_table_error(tmp_path: Path) -> None:
@@ -403,3 +406,179 @@ def test_a_choice_always_explains_itself(tmp_path: Path) -> None:
     table = load(_table(tmp_path, LIVE_OVERRIDE))
     for stage in Stage:
         assert resolve(table, stage, _chain(tmp_path, "live")).rule
+
+
+# --- The decided stages (#218) -----------------------------------------------
+
+
+def test_the_shipped_table_routes_the_decided_stages() -> None:
+    table = load(_shipped())
+    assert table.by_stage[Stage.SPEC_REVIEW] == "complex"
+    assert table.by_stage[Stage.QA] == "complex"
+    assert table.by_stage[Stage.DOCUMENT] == "standard"
+    assert Stage.PLAN not in table.by_stage
+    assert Stage.TEST not in table.by_stage
+
+
+def test_the_shipped_table_still_declares_fable_unavailable() -> None:
+    assert resolve(load(_shipped()), Stage.SPEC_REVIEW).model == "opus"
+
+
+def test_no_model_is_resolved_for_integrate_or_accept() -> None:
+    assert frozenset({Stage.INTEGRATE, Stage.ACCEPT}) == NO_AGENT
+    table = load(_shipped())
+    for stage in NO_AGENT:
+        choice = resolve(table, stage)
+        assert choice.model is None
+        assert choice.tier is None
+
+
+# --- The [roles] block -------------------------------------------------------
+
+WITH_ROLES = MINIMAL + '\n[roles]\norchestrator = "standard"\n'
+
+
+def test_the_shipped_table_gives_the_orchestrator_standard() -> None:
+    choice = resolve_role(load(_shipped()), "orchestrator")
+    assert choice.tier == "standard"
+    assert choice.model == "sonnet"
+    assert "orchestrator" in choice.rule
+
+
+def test_a_table_without_a_roles_block_still_loads_and_defaults_standard(
+    tmp_path: Path,
+) -> None:
+    choice = resolve_role(load(_table(tmp_path, MINIMAL)), "orchestrator")
+    assert choice.tier == DEFAULT_TIER
+    assert "does not name" in choice.rule
+
+
+def test_a_roles_key_that_is_not_a_role_is_a_table_error(tmp_path: Path) -> None:
+    with pytest.raises(TableError, match="wizard.*not a role"):
+        load(_table(tmp_path, MINIMAL + '\n[roles]\nwizard = "standard"\n'))
+
+
+def test_a_role_that_has_stages_is_a_table_error(tmp_path: Path) -> None:
+    """A builder's model comes from its stage; two places would disagree."""
+    with pytest.raises(TableError, match="builder.*stages"):
+        load(_table(tmp_path, MINIMAL + '\n[roles]\nbuilder = "complex"\n'))
+
+
+def test_a_role_naming_an_undefined_tier_is_a_table_error(tmp_path: Path) -> None:
+    with pytest.raises(TableError, match="undefined tier"):
+        load(_table(tmp_path, MINIMAL + '\n[roles]\norchestrator = "cheap"\n'))
+
+
+def test_asking_for_a_role_that_has_stages_or_does_not_exist_is_a_table_error(
+    tmp_path: Path,
+) -> None:
+    table = load(_table(tmp_path, WITH_ROLES))
+    with pytest.raises(TableError, match="stages"):
+        resolve_role(table, "reviewer")
+    with pytest.raises(TableError, match="not a role"):
+        resolve_role(table, "wizard")
+
+
+# --- Retry escalation (#218) -------------------------------------------------
+
+ESCALATING = (
+    MINIMAL.replace(
+        'qa = "standard"', 'qa = "standard"\nbuild-implementing = "standard"'
+    )
+    + '\n[[overrides]]\nwhen = { attempt_at_least = 2 }\nuse = "complex"\n'
+)
+STAGE = Stage.BUILD_IMPLEMENTING
+
+
+def _after(count: int, stage: Stage = STAGE, ticket: int = TICKET) -> TicketState:
+    """The state after `stage` has been dispatched `count` times."""
+    current = fresh(ticket)
+    for _ in range(count):
+        current = dispatched(current, str(stage))
+    return current
+
+
+def test_a_stage_s_second_dispatch_escalates_to_complex(tmp_path: Path) -> None:
+    table = load(_table(tmp_path, ESCALATING))
+    choice = resolve(table, STAGE, None, _after(1))
+    assert choice.tier == "complex"
+    assert "attempt_at_least" in choice.rule
+
+
+def test_a_stage_s_first_dispatch_does_not_escalate(tmp_path: Path) -> None:
+    """The state is read *before* the dispatch is recorded: nothing yet recorded."""
+    table = load(_table(tmp_path, ESCALATING))
+    choice = resolve(table, STAGE, None, fresh(TICKET))
+    assert choice.tier == "standard"
+    assert "stage table" in choice.rule
+
+
+def test_a_new_stage_s_first_dispatch_does_not_escalate(tmp_path: Path) -> None:
+    """Build was dispatched twice; the stage after it starts again at attempt 1."""
+    table = load(_table(tmp_path, ESCALATING))
+    choice = resolve(table, Stage.QA, None, _after(2))
+    assert choice.tier == "standard"
+
+
+def test_no_state_never_escalates(tmp_path: Path) -> None:
+    """`--stage S` with no ticket, and a v1 chain, pass no state."""
+    table = load(_table(tmp_path, ESCALATING))
+    assert resolve(table, STAGE).tier == "standard"
+    assert resolve(table, STAGE, None, None).tier == "standard"
+
+
+def test_the_third_dispatch_stays_at_complex(tmp_path: Path) -> None:
+    table = load(_table(tmp_path, ESCALATING))
+    assert resolve(table, STAGE, None, _after(2)).tier == "complex"
+
+
+def test_escalation_never_demotes_a_stage_already_at_complex(tmp_path: Path) -> None:
+    table = load(_table(tmp_path, ESCALATING))
+    choice = resolve(table, Stage.DESIGN, None, _after(1, Stage.DESIGN))
+    assert choice.tier == "complex"
+
+
+def test_the_shipped_table_escalates_a_retry_and_not_a_first_attempt() -> None:
+    table = load(_shipped())
+    assert resolve(table, STAGE, None, fresh(TICKET)).model == "sonnet"
+    assert resolve(table, STAGE, None, _after(1)).model == "opus"
+    document = _after(1, Stage.DOCUMENT)
+    assert resolve(table, Stage.DOCUMENT, None, document).model == "opus"
+
+
+def test_escalation_does_not_apply_to_a_stage_with_no_agent() -> None:
+    table = load(_shipped())
+    retried = _after(1, Stage.INTEGRATE)
+    assert resolve(table, Stage.INTEGRATE, None, retried).model is None
+
+
+@pytest.mark.parametrize("bad", ["true", "1", "0", "-3", '"2"', "2.0"])
+def test_attempt_at_least_must_be_an_integer_of_at_least_two(
+    tmp_path: Path, bad: str
+) -> None:
+    text = (
+        MINIMAL
+        + f'\n[[overrides]]\nwhen = {{ attempt_at_least = {bad} }}\nuse = "complex"\n'
+    )
+    with pytest.raises(TableError, match="attempt_at_least"):
+        load(_table(tmp_path, text))
+
+
+def test_method_live_must_still_be_a_boolean(tmp_path: Path) -> None:
+    text = MINIMAL + '\n[[overrides]]\nwhen = { method_live = 2 }\nuse = "complex"\n'
+    with pytest.raises(TableError, match="method_live"):
+        load(_table(tmp_path, text))
+
+
+def test_a_multi_key_when_mixes_a_fact_and_an_attempt(tmp_path: Path) -> None:
+    text = (
+        MINIMAL
+        + "\n[[overrides]]\nwhen = { method_live = true, attempt_at_least = 2 }"
+        + '\nuse = "complex"\n'
+    )
+    table = load(_table(tmp_path, text))
+    live = _chain(tmp_path, "live")
+    assert resolve(table, Stage.QA, live, _after(1, Stage.QA)).tier == "complex"
+    assert resolve(table, Stage.QA, live, fresh(TICKET)).tier == "standard"
+    suite = _chain(tmp_path, "suite")
+    assert resolve(table, Stage.QA, suite, _after(1, Stage.QA)).tier == "standard"

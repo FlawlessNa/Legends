@@ -1,0 +1,18 @@
+# The factory loop's caps (#218). Owned by the maintainer: it is outside the
+# merge policy's allowed paths, so a change here never auto-merges. Read from
+# the session's own checkout, never a ticket branch's, so a ticket cannot raise
+# its own caps.
+#
+# attempts, cycles and wip are positive integers; launcher is a string. An
+# unknown key, a missing one or a wrong type stops the loop with the key named.
+
+# Dispatches of one stage before the ticket parks.
+attempts = 2
+# Rounds of a judged stage (spec review, code review, QA) before it parks.
+cycles = 2
+# Tickets worked at once.
+wip = 1
+launcher = "herdr"
+
+# worker_timeout_min (positive integer) and poll_s (positive number) are
+# accepted here but not set: their values come from #159, which reads them.
