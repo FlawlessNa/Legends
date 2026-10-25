@@ -12,30 +12,35 @@ today, and a rule that only one agent follows is a rule the others will break.
 Claude Code reads `AGENTS.md` natively from **v2.1.277**. On an older client
 these files load silently as nothing; see `docs/SETUP.md`.
 
-## Are you working a ticket?
+## How work starts: intent, then a spec when it is large
 
-**If you are on an `issue/<n>-*` branch, you are working a ticket in the
-factory.** Read `docs/factory/README.md` before you touch anything, and
-`docs/factory/bootstrap.md` before your first ticket.
+The point of this section is that you and the maintainer agree on the task
+before anything changes.
 
-The short version, which is not a substitute for reading it:
+1. **Agree on the intent.** Before you change anything, talk the request
+   through until the maintainer says you agree on it. Restate it in your own
+   words, and ask rather than assume — especially about what they want, which
+   only they can answer.
+2. **Write a spec only when the change is large.** A spec is required when the
+   change does any of these:
+   - alters which keys reach the game, or when: the input send path, focus
+     handling, or the Held-Keys Ledger (ADR 0002);
+   - touches an area an ADR decides, or the telemetry envelope (ADR 0001);
+   - changes a format something else reads: a config, map JSON, or an
+     interface between modules;
+   - spans more than one package, or adds a module;
+   - can only be verified against a running client.
 
-1. `.factory/<n>/intent.md` and `spec.md` are **committed before any source
-   change**, as the first commit on the branch.
-2. `plan.md` names the radius — the only paths you may touch — before you touch
-   them.
-3. A behaviour change lands with a test that was **red without it**, proven by
-   stashing the change and running it.
-4. You open the PR. **You never merge.**
-5. The PR body says what you could not verify, and which gates you checked by
-   hand rather than mechanically.
-
-Most of this is enforced by instruction rather than by a tool today. That is a
-reason to be more careful, not less: the gates that would have caught you do
-not exist yet, so the only thing standing between a wrong claim and a merged
-one is what you write in the PR body.
-
-If you are not on a ticket branch, the rest of this file is what applies.
+   The spec says what changes, gives acceptance criteria a test can check, and
+   names what cannot be verified offline. Discuss it until the maintainer
+   approves it. Below that line, the agreed intent is enough: say in a sentence
+   or two what you will change, and go.
+3. **Record what was agreed on the GitHub issue**, the intent and any spec, so
+   the PR can point at it.
+4. **Work on a branch and open a PR. You never merge** — the maintainer does,
+   and that merge is the last point where you and they check you agree. A
+   separate worktree is optional, useful only when several sessions work in
+   parallel.
 
 ## Orientation
 
@@ -74,35 +79,6 @@ becomes a keystroke — see `docs/agents/engine-architecture.md`.
   it.
 
 See `docs/agents/domain.md` for the full convention.
-
-## Where you may write
-
-**Source edits in the primary checkout are refused.** [mechanical]
-
-The primary checkout is the one whose `.git` is a directory — normally
-`dev`-or-trunk, the clone you opened. All work happens on an `issue/<n>-*`
-branch in **its own worktree**, so a direct source edit in the primary checkout
-is always wrong, whatever branch it is on. The gate does not care which branch
-that is, which is also why it cannot be talked past.
-
-Writable there: `configs/`, `profiles/`, `toolkit/`, `docs/`, `.factory/`,
-`AGENTS.md`, and `.claude/settings.local.json` — but **not** `configs/maps/`,
-which is a hard-stop path.
-
-To start work:
-
-```
-git worktree add ../<slug> -b issue/<n>-<slug>
-```
-
-and write `intent.md` and `spec.md` **in the new worktree**: `git worktree add`
-carries no uncommitted changes, so artifacts written in the primary checkout
-stay behind and the new worktree starts with an empty chain.
-
-The gate only sees file-editing tools. A write through the shell is
-**[unenforced]** — see #207. And `FACTORY_HOOKS=off` in
-`.claude/settings.local.json` disables every gate on this machine; it is a
-floor, not a lock.
 
 ## Verifying your work
 

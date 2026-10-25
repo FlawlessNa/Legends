@@ -1,7 +1,0 @@
-{
-  "error": {
-    "code": "agent_prompt_stalled",
-    "message": "no activity"
-  },
-  "id": "cli:agent:prompt"
-}

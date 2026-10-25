@@ -1,7 +1,0 @@
-{
-  "error": {
-    "code": "agent_not_found",
-    "message": "agent target zz-no-such-agent not found"
-  },
-  "id": "cli:agent:get"
-}

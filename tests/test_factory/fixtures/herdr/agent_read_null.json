@@ -1,7 +1,0 @@
-{
-  "id": "cli:agent:read",
-  "result": {
-    "type": "pane_read",
-    "read": null
-  }
-}

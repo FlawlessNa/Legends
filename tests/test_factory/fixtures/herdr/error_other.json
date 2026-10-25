@@ -1,7 +1,0 @@
-{
-  "error": {
-    "code": "internal_error",
-    "message": "boom"
-  },
-  "id": "cli:x"
-}
