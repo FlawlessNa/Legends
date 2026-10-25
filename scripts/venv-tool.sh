@@ -2,10 +2,8 @@
 # Run a tool from the project venv, from a normal checkout or a linked worktree.
 #
 # `.pre-commit-config.yaml` used to hardcode `./.venv/Scripts/ruff.exe`, which
-# works in the main checkout and fails in every worktree -- and `factory claim`
-# gives each ticket its own worktree, so the gates would be dead exactly where
-# tickets are worked. Same root cause as #199's hooks: tooling assuming .venv
-# sits beside the code.
+# works in the main checkout and fails in every linked worktree, which has no
+# .venv of its own (#199).
 #
 # Unlike the hook launcher, this one EXITS NON-ZERO when it cannot find a venv.
 # A commit that silently skips ruff and pyright is worse than one that stops.

@@ -1,7 +1,0 @@
-{
-  "id": "cli:pane:process_info",
-  "result": {
-    "type": "pane_process_info",
-    "process_info": null
-  }
-}
