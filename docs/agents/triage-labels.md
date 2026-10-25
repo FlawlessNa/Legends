@@ -12,7 +12,18 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
-Edit the right-hand column to match whatever vocabulary you actually use.
+## The other labels
+
+- **`type:*`** says what kind of work an issue is: `bug`, `defect-live`,
+  `tuning`, `build`, `instrument`, `refactor`, `research`, `chore`,
+  `grilling` (a design question to settle by discussion) or `prototype`.
+- **`epic`** groups the issues that list it as their parent.
+- **`live-tooling`** marks work that lets agents observe or drive a live
+  session. Every one of these needs an intent discussion with the maintainer
+  before any work starts, whatever its body already says.
+
+The triage label decides who can finish an issue. The `type:*` label says what
+the issue is. There is no third axis.
 
 ## What `ready-for-agent` means here
 
