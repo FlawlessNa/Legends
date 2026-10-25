@@ -19,8 +19,9 @@ When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the 
   `grilling` (a design question to settle by discussion) or `prototype`.
 - **`epic`** groups the issues that list it as their parent.
 - **`live-tooling`** marks work that lets agents observe or drive a live
-  session. Every one of these needs an intent discussion with the maintainer
-  before any work starts, whatever its body already says.
+  session. The topic needs one intent discussion with the maintainer before
+  any of its issues are worked, whatever their bodies already say. After that,
+  each issue inherits the agreement (`AGENTS.md`, "How work starts").
 
 The triage label decides who can finish an issue. The `type:*` label says what
 the issue is. There is no third axis.

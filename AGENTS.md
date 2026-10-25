@@ -15,14 +15,14 @@ these files load silently as nothing; see `docs/SETUP.md`.
 ## How work starts: intent, then a spec when it is large
 
 The point of this section is that you and the maintainer agree on the task
-before anything changes.
+before anything changes. The agreement belongs to a **topic**, not to each
+ticket.
 
-1. **Agree on the intent.** Before you change anything, talk the request
-   through until the maintainer says you agree on it. Restate it in your own
-   words, and ask rather than assume — especially about what they want, which
-   only they can answer.
-2. **Write a spec only when the change is large.** A spec is required when the
-   change does any of these:
+1. **A topic gets one intent discussion.** Talk it through until the maintainer
+   says you agree. Restate it in your own words, and ask rather than assume —
+   especially about what they want, which only they can answer.
+2. **Write a spec for the topic only when the change is large.** A spec is
+   required when the change does any of these:
    - alters which keys reach the game, or when: the input send path, focus
      handling, or the Held-Keys Ledger (ADR 0002);
    - touches an area an ADR decides, or the telemetry envelope (ADR 0001);
@@ -33,13 +33,20 @@ before anything changes.
 
    The spec says what changes, gives acceptance criteria a test can check, and
    names what cannot be verified offline. Discuss it until the maintainer
-   approves it. Below that line, the agreed intent is enough: say in a sentence
-   or two what you will change, and go.
-3. **Record what was agreed on the GitHub issue**, the intent and any spec, so
-   the PR can point at it.
-4. **Work on a branch and open a PR. You never merge** — the maintainer does,
+   approves it.
+3. **Record the agreement on the topic's `epic` issue**, and split the work
+   into tickets that point at it. A ticket inherits the agreed intent and spec
+   and needs no discussion of its own, so tickets can be worked in parallel.
+4. **A standalone ticket carries its own intent.** A clear bug with a clear
+   acceptance test, labelled `ready-for-agent`, is already agreed: say in a
+   line what you will change, and go.
+5. **Stop and ask instead of guessing** when a ticket is a new topic no agreed
+   intent covers, when the work shows the intent is wrong, ambiguous or silent
+   on something that matters, or when the ticket crosses the spec threshold and
+   the topic's spec does not cover it.
+6. **Work on a branch and open a PR. You never merge** — the maintainer does,
    and that merge is the last point where you and they check you agree. A
-   separate worktree is optional, useful only when several sessions work in
+   separate worktree is optional, useful when several sessions work in
    parallel.
 
 ## Orientation
