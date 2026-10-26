@@ -1,19 +1,26 @@
-# Claude reviews every ticket PR into an epic branch (#244, D5).
+# Claude reviews every ticket PR into an epic branch, and merges it on
+# approval (#244, D5). PRs into dev are never touched: dev is the
+# maintainer's.
 #
 # The review runs on the maintainer's Claude subscription
-# (CLAUDE_CODE_OAUTH_TOKEN, set with `claude setup-token`), so each run draws on
-# the same usage limits as interactive sessions.
+# (CLAUDE_CODE_OAUTH_TOKEN, set with `claude setup-token`), so each run draws
+# on the same usage limits as interactive sessions.
 #
-# The job's result IS the verdict: it fails unless Claude approves. That makes
-# it usable as a required check on epic/** (#248). This workflow merges
-# nothing, and it never runs on PRs into dev.
+# It runs on `pull_request_target`, so this file and the review's rules
+# (docs/agents/code-review.md, tickets.md) come from the BASE branch. A PR
+# cannot rewrite the workflow or the rules that judge it. No PR code is
+# checked out or executed: Claude reads the change through `gh pr diff`.
+#
+# The `review` job fails unless Claude approves. The `epic/**` ruleset requires
+# it as a status check, and the `merge` job runs only after it passes. This
+# workflow is the only actor that merges into an epic branch; no agent does.
 #
 # Off switch: `gh workflow disable "Claude review"`.
 
 name: Claude review
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: ["epic/**"]
 
@@ -23,7 +30,10 @@ concurrency:
 
 jobs:
   review:
-    if: github.event.pull_request.draft == false
+    # Same-repo PRs only: a fork's PR never gets the token.
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -32,11 +42,6 @@ jobs:
       issues: read
       id-token: write
     steps:
-      # The review's rules come from the BASE branch, never from the PR, so a
-      # PR cannot loosen the rules it is judged by. The diff is read through
-      # `gh pr diff`. (The workflow file itself still comes from the PR under
-      # `pull_request`; #248 closes that gap before this becomes a required
-      # check.)
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.sha }}
@@ -75,7 +80,7 @@ jobs:
                with the verdict, then list each finding with its file and line,
                marking each one blocking or non-blocking.
             5. Return `approve` only if no finding is blocking. Otherwise return
-               `request-changes`.
+               `request-changes`. An approval merges the PR into the epic branch.
           claude_args: |
             --model opus
             --max-turns 40
@@ -90,3 +95,20 @@ jobs:
           echo "Claude's verdict: ${verdict:-none}"
           echo "$RESULT" | jq -r '.summary // empty'
           test "$verdict" = "approve"
+
+  merge:
+    needs: review
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Merge into the epic branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        # --match-head-commit: merge exactly what was reviewed, never a commit
+        # pushed after the review started.
+        run: gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --squash --match-head-commit "$HEAD_SHA"
