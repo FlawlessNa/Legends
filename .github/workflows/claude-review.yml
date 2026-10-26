@@ -30,6 +30,7 @@ jobs:
       contents: read
       pull-requests: write
       issues: read
+      id-token: write
     steps:
       # The review's rules come from the BASE branch, never from the PR, so a
       # PR cannot loosen the rules it is judged by. The diff is read through
