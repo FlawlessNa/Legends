@@ -114,4 +114,4 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         # --match-head-commit: merge exactly what was reviewed, never a commit
         # pushed after the review started.
-        run: gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --squash --match-head-commit "$HEAD_SHA"
+        run: gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --squash --delete-branch --match-head-commit "$HEAD_SHA"
