@@ -1,0 +1,104 @@
+<!doctype html>
+<html data-theme="luxury" lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TOPIC</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/daisyui.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.5.19/themes.css">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.2.4/dist/index.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :where(.grid, .flex) > * { min-width: 0; }
+  :where(p, li, td, th, h1, h2, h3) { overflow-wrap: anywhere; }
+  .md h1 { font-size: 1.6rem; font-weight: 700; margin: 0 0 .5rem; }
+  .md h2 { font-size: 1.15rem; font-weight: 700; margin: 1.4rem 0 .4rem; color: var(--color-primary); }
+  .md p, .md li { line-height: 1.6; }
+  .md ul, .md ol { padding-left: 1.4rem; margin: .4rem 0; }
+  .md ul { list-style: disc; } .md ol { list-style: decimal; }
+  .md code { font-size: .9em; background: var(--color-base-300); padding: 0 .3em; border-radius: .25rem; }
+  pre.tpl { white-space: pre-wrap; font-size: .82rem; }
+</style>
+</head>
+<body class="bg-base-100 text-base-content">
+<!--
+  The /intent page template (docs/agents/topics.md).
+  - Every block keeps a stable data-block id across iterations: that is what
+    the change highlighting compares.
+  - Never edit the inlined markdown or the runtime: edit intent.md / spec.md,
+    then run render.mjs.
+  - A settled decision collapses into a short card with the same data-block id.
+-->
+<main class="max-w-5xl mx-auto px-4 py-8 space-y-10">
+
+<header class="space-y-3" data-block="header">
+  <div class="text-sm opacity-70">Topic discussion · Legends</div>
+  <h1 class="text-3xl font-bold">TOPIC</h1>
+  <ul class="steps steps-horizontal w-full text-sm">
+    <li class="step step-primary">Intent</li>
+    <li class="step">Spec, if past the threshold</li>
+    <li class="step">Tickets</li>
+  </ul>
+</header>
+
+<section data-block="s-context" class="space-y-3">
+  <h2 class="text-xl font-bold">1 · Context</h2>
+  <div class="grid md:grid-cols-3 gap-4">
+    <div class="card bg-base-200" data-block="ctx-today"><div class="card-body p-5">
+      <h3 class="font-semibold">What exists today</h3>
+      <ul class="text-sm list-disc pl-5 space-y-1"><li>…</li></ul>
+    </div></div>
+    <div class="card bg-base-200" data-block="ctx-goals"><div class="card-body p-5">
+      <h3 class="font-semibold">Your goals</h3>
+      <ul class="text-sm list-disc pl-5 space-y-1"><li>…</li></ul>
+    </div></div>
+    <div class="card bg-base-200" data-block="ctx-settled"><div class="card-body p-5">
+      <h3 class="font-semibold">Already settled</h3>
+      <ul class="text-sm list-disc pl-5 space-y-1"><li>Nothing yet</li></ul>
+    </div></div>
+  </div>
+</section>
+
+<section data-block="s-decisions" class="space-y-6">
+  <h2 class="text-xl font-bold">2 · Decisions to make</h2>
+
+  <!-- One form per open question. Copy this one; keep D<n> ids stable. -->
+  <form class="card bg-base-200" data-lavish-question="D1" data-block="D1" onsubmit="event.preventDefault(); q(this,'D1 · QUESTION')">
+    <div class="card-body p-5 space-y-3">
+      <h3 class="font-semibold text-lg">D1 · QUESTION?</h3>
+      <div class="grid md:grid-cols-2 gap-3 text-sm">
+        <label class="border border-primary rounded-box p-3 space-y-1 cursor-pointer">
+          <div><input type="radio" name="choice" value="A: …" class="radio radio-sm" checked> <b>A · …</b> <span class="badge badge-primary badge-sm">recommended</span></div>
+          <div class="opacity-80">What it is.</div>
+          <div class="text-error/80">Costs: …</div>
+        </label>
+        <label class="border border-base-300 rounded-box p-3 space-y-1 cursor-pointer">
+          <div><input type="radio" name="choice" value="B: …" class="radio radio-sm"> <b>B · …</b></div>
+          <div class="opacity-80">What it is.</div>
+          <div class="text-error/80">Costs: …</div>
+        </label>
+      </div>
+      <textarea name="note" class="textarea textarea-bordered w-full text-sm" rows="2" placeholder="Optional note"></textarea>
+      <div><button class="btn btn-primary btn-sm">Queue answer</button></div>
+    </div>
+  </form>
+</section>
+
+<section data-block="s-intent" class="space-y-3">
+  <h2 class="text-xl font-bold">3 · <code>intent.md</code> <span class="badge badge-outline align-middle">rendered from the file</span></h2>
+  <article class="md card bg-base-200 p-6" data-md-target="intent.md"></article>
+  <script type="text/markdown" data-md="intent.md"></script>
+  <form data-lavish-question="intent-edit" onsubmit="event.preventDefault(); const t=this.edit.value.trim(); if(t) window.lavish?.queuePrompt('Edit intent.md: '+t,{tag:'intent-edit',text:'Edit intent.md',element:this,data:{edit:t}});" class="space-y-2">
+    <textarea name="edit" class="textarea textarea-bordered w-full text-sm" rows="2" placeholder="Describe a change to intent.md, or annotate the text directly"></textarea>
+    <button class="btn btn-sm">Queue edit</button>
+  </form>
+</section>
+
+<!-- Past the threshold, paste spec-section.html (beside this template) here. -->
+
+</main>
+<!-- intent:runtime -->
+<!-- /intent:runtime -->
+</body>
+</html>
