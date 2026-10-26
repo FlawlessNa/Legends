@@ -1,0 +1,92 @@
+# Claude reviews every ticket PR into an epic branch (#244, D5).
+#
+# The review runs on the maintainer's Claude subscription
+# (CLAUDE_CODE_OAUTH_TOKEN, set with `claude setup-token`), so each run draws on
+# the same usage limits as interactive sessions.
+#
+# The job's result IS the verdict: it fails unless Claude approves. That makes
+# it usable as a required check on epic/** (#248). This workflow merges
+# nothing, and it never runs on PRs into dev.
+#
+# Off switch: `gh workflow disable "Claude review"`.
+
+name: Claude review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: ["epic/**"]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+    steps:
+      # The review's rules come from the BASE branch, never from the PR, so a
+      # PR cannot loosen the rules it is judged by. The diff is read through
+      # `gh pr diff`. (The workflow file itself still comes from the PR under
+      # `pull_request`; #248 closes that gap before this becomes a required
+      # check.)
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+
+      - name: Review
+        id: review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            BASE: ${{ github.event.pull_request.base.ref }}
+
+            You are reviewing a ticket PR into an epic branch. The working
+            directory holds the BASE branch, not the PR: read the change only
+            through `gh pr diff` and `gh pr view`, and read the repo's rules
+            from the working directory.
+
+            1. Read docs/agents/code-review.md and follow it.
+            2. Read the PR (`gh pr view`, `gh pr diff`). Its body names the ticket
+               it implements; read that ticket with `gh issue view`, then the
+               epic the ticket is "Part of": read the epic's intent in full, and
+               the spec sections the ticket names.
+            3. Judge the diff against:
+               - the ticket's acceptance criteria, one by one;
+               - the epic's intent, since correct but unwanted work is a finding;
+               - docs/agents/tickets.md, "What you may change". A change to an
+                 area listed under "not without asking" is blocking unless the
+                 ticket explicitly covers it;
+               - the PR body's "Could not verify" list, against the risk of the
+                 diff.
+            4. Post exactly one top-level comment with `gh pr comment`. Start it
+               with the verdict, then list each finding with its file and line,
+               marking each one blocking or non-blocking.
+            5. Return `approve` only if no finding is blocking. Otherwise return
+               `request-changes`.
+          claude_args: |
+            --model opus
+            --max-turns 40
+            --allowedTools "Read,Grep,Glob,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*)"
+            --json-schema '{"type":"object","properties":{"verdict":{"type":"string","enum":["approve","request-changes"]},"summary":{"type":"string"}},"required":["verdict","summary"]}'
+
+      - name: Gate on the verdict
+        env:
+          RESULT: ${{ steps.review.outputs.structured_output }}
+        run: |
+          verdict="$(jq -r '.verdict // empty' <<<"$RESULT")"
+          echo "Claude's verdict: ${verdict:-none}"
+          echo "$RESULT" | jq -r '.summary // empty'
+          test "$verdict" = "approve"
