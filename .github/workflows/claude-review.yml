@@ -30,10 +30,15 @@ jobs:
       contents: read
       pull-requests: write
       issues: read
-      id-token: write
     steps:
+      # The review's rules come from the BASE branch, never from the PR, so a
+      # PR cannot loosen the rules it is judged by. The diff is read through
+      # `gh pr diff`. (The workflow file itself still comes from the PR under
+      # `pull_request`; #248 closes that gap before this becomes a required
+      # check.)
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 0
 
       - name: Review
@@ -47,8 +52,10 @@ jobs:
             PR NUMBER: ${{ github.event.pull_request.number }}
             BASE: ${{ github.event.pull_request.base.ref }}
 
-            You are reviewing a ticket PR into an epic branch. The PR branch is
-            checked out in the working directory.
+            You are reviewing a ticket PR into an epic branch. The working
+            directory holds the BASE branch, not the PR: read the change only
+            through `gh pr diff` and `gh pr view`, and read the repo's rules
+            from the working directory.
 
             1. Read docs/agents/code-review.md and follow it.
             2. Read the PR (`gh pr view`, `gh pr diff`). Its body names the ticket
