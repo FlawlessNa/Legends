@@ -1,0 +1,99 @@
+<script>
+// Topic page runtime, injected by render.mjs: answers, markdown sections, change highlighting.
+// Every [data-block] is compared with the previous iteration that
+// render.mjs embedded; a new or changed block is outlined and listed at the top.
+function q(form, title) {
+  const fd = new FormData(form);
+  const choice = fd.get('choice'), note = (fd.get('note') || '').trim();
+  if (!choice) return;
+  window.lavish?.queuePrompt(title + ': ' + choice + (note ? ' — note: ' + note : ''),
+    { tag: 'choice', text: title + ': ' + choice, element: form, queueKey: form.dataset.lavishQuestion,
+      data: { question: form.dataset.lavishQuestion, answer: choice, note } });
+}
+document.addEventListener('DOMContentLoaded', function () {
+  // Render each inlined markdown file into its target, one block per heading.
+  function renderMarkdown(doc) {
+    for (const src of doc.querySelectorAll('script[type="text/markdown"][data-md]')) {
+      const name = src.dataset.md;
+      const target = doc.querySelector(`[data-md-target="${name}"]`);
+      if (!target) continue;
+      const tmp = doc.createElement('div');
+      tmp.innerHTML = marked.parse(src.textContent.split('<\\/script').join('<' + '/script'));
+      const blocks = [];
+      let cur = null;
+      for (const node of [...tmp.childNodes]) {
+        const heading = /^H[12]$/.test(node.nodeName);
+        if (heading || !cur) {
+          cur = doc.createElement('div');
+          cur.dataset.block = name + ' › ' + (heading ? node.textContent.trim() : 'preamble');
+          blocks.push(cur);
+        }
+        cur.appendChild(node);
+      }
+      target.replaceChildren(...blocks);
+    }
+  }
+  const ownText = (el) => {
+    const c = el.cloneNode(true);
+    c.querySelectorAll('[data-block]').forEach((n) => n.remove());
+    c.querySelectorAll('.chg-badge').forEach((n) => n.remove());
+    c.querySelectorAll('script, style').forEach((n) => n.remove());
+    return c.textContent.replace(/\s+/g, ' ').trim();
+  };
+  const collect = (root) => new Map([...root.querySelectorAll('[data-block]')].map((el) => [el.dataset.block, el]));
+
+  renderMarkdown(document);
+  const prevData = document.getElementById('lavish-prev');
+  if (!prevData) return;
+  const prev = JSON.parse(prevData.textContent);
+  const prevDoc = new DOMParser().parseFromString(prev.html, 'text/html');
+  renderMarkdown(prevDoc);
+  const before = collect(prevDoc), now = collect(document);
+  const changes = [];
+  for (const [id, el] of now) {
+    const old = before.get(id);
+    const kind = !old ? 'new' : ownText(old) !== ownText(el) ? 'changed' : null;
+    if (!kind) continue;
+    el.classList.add('chg', 'chg-' + kind);
+    const badge = document.createElement('span');
+    badge.className = 'chg-badge chg-badge-' + kind;
+    badge.textContent = kind;
+    el.prepend(badge);
+    changes.push({ id, kind, el });
+  }
+  const removed = [...before.keys()].filter((id) => !now.has(id));
+  const bar = document.createElement('div');
+  bar.className = 'chg-bar';
+  const n = (k) => changes.filter((c) => c.kind === k).length;
+  bar.innerHTML = `<b>Since iteration ${prev.iteration}:</b> ${n('new')} new · ${n('changed')} changed · ${removed.length} removed
+    <span class="chg-links"></span>
+    <label class="chg-toggle"><input type="checkbox" checked> highlight</label>`;
+  const links = bar.querySelector('.chg-links');
+  for (const c of changes) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chg-link chg-link-' + c.kind; b.textContent = c.id;
+    b.onclick = () => c.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    links.appendChild(b);
+  }
+  for (const id of removed) {
+    const s = document.createElement('span');
+    s.className = 'chg-link chg-link-removed'; s.textContent = id + ' (removed)';
+    links.appendChild(s);
+  }
+  bar.querySelector('input').onchange = (e) => document.body.classList.toggle('chg-off', !e.target.checked);
+  document.body.prepend(bar);
+});
+</script>
+<style>
+  .chg { outline: 2px solid var(--color-warning); outline-offset: 4px; border-radius: .5rem; position: relative; }
+  .chg-new { outline-color: var(--color-success); }
+  .chg-badge { position: absolute; top: -.7rem; right: .5rem; z-index: 2; font-size: .7rem; font-weight: 700; padding: 0 .45rem; border-radius: .4rem; background: var(--color-warning); color: var(--color-warning-content); text-transform: uppercase; letter-spacing: .04em; }
+  .chg-badge-new { background: var(--color-success); color: var(--color-success-content); }
+  .chg-off .chg { outline: none; } .chg-off .chg-badge { display: none; }
+  .chg-bar { position: sticky; top: 0; z-index: 10; padding: .6rem 1rem; font-size: .85rem; background: var(--color-base-300); border-bottom: 1px solid var(--color-base-content); display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+  .chg-links { display: flex; flex-wrap: wrap; gap: .35rem; flex: 1 1 auto; min-width: 0; }
+  .chg-link { font-size: .75rem; padding: .05rem .5rem; border-radius: .4rem; border: 1px solid currentColor; background: transparent; cursor: pointer; overflow-wrap: anywhere; }
+  .chg-link-new { color: var(--color-success); } .chg-link-changed { color: var(--color-warning); }
+  .chg-link-removed { color: var(--color-error); text-decoration: line-through; cursor: default; }
+  .chg-toggle { display: inline-flex; gap: .3rem; align-items: center; }
+</style>
