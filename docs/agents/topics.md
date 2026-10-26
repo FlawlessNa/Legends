@@ -121,6 +121,10 @@ names the sections it needs.
    `issue-tracker.md`), and add it to the checklist.
 3. The agent that ran the discussion writes the tickets, at the split, while it
    still has the full context.
+4. Create the epic branch off `dev`:
+   `git push origin origin/dev:refs/heads/epic/<slug>`. Tickets merge into it
+   through the epic flow (`tickets.md`). Skip this when every ticket can land
+   on `dev` on its own and the maintainer prefers to merge each one.
 
 ### The ticket template
 
