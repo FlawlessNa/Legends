@@ -148,7 +148,8 @@ scripts were replaced with `python -m maple.launchers.run <profile>`.
 
 ## Working with AI agents
 
-`AGENTS.md` at the root and in `botting/`, `maple/` and `tests/`
-carries the repo's conventions for agents. There are no `CLAUDE.md` files —
-Claude Code reads `AGENTS.md` directly from v2.1.277 onwards (see
-`docs/SETUP.md` for what happens on an older client).
+`AGENTS.md` is the agents' entry point: two universal rules, and a table that
+sends each kind of work to its doc under `docs/agents/`. A topic is discussed
+first (`docs/agents/topics.md`, started with `/intent`), then worked as
+tickets (`docs/agents/tickets.md`). There are no `CLAUDE.md` files — Claude
+Code reads `AGENTS.md` directly from v2.1.277 onwards (see `docs/SETUP.md`).
