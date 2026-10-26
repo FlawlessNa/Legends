@@ -16,10 +16,33 @@ spec threshold (`topics.md`) and no spec covers it.
 
 ## Branch and PR
 
-- **Ticket of an epic:** branch off `epic/<slug>`, and open the PR into it.
-- **Standalone ticket:** branch off `dev`, and open the PR into it.
-- **You never merge into `dev`.** A separate worktree is optional; it is
-  useful when several sessions work in parallel.
+- **Standalone ticket:** branch off `dev`, and open the PR into it. The
+  maintainer reviews and merges it.
+- **Ticket of an epic:** branch off `epic/<slug>`, and open the PR into it. Say
+  `Closes #<ticket>` in the body.
+- **You never merge anything.** A separate worktree is optional; it is useful
+  when several sessions work in parallel.
+
+### The epic flow
+
+A PR into `epic/**` is reviewed and merged without the maintainer
+(`.github/workflows/claude-review.yml`):
+
+1. Claude reviews it against the ticket, the epic's intent, and this file,
+   then posts one comment that starts with its verdict.
+2. **On approve,** the workflow squash-merges exactly the reviewed commit.
+3. **On request-changes,** the `review` check fails. Read the comment, fix
+   every blocking finding, and push. The push triggers a fresh review.
+   If you disagree with a finding, say so in the PR and stop: the maintainer
+   decides.
+
+The `epic/**` ruleset requires a PR and a passing `review` check, so nothing
+reaches an epic branch any other way. When every ticket is merged, open one PR
+from `epic/<slug>` into `dev`, which the maintainer reviews against the spec's
+acceptance criteria.
+
+Every review draws on the maintainer's usage limits, so push a PR when it is
+ready, not to see what the reviewer says.
 
 ## Proving it
 
