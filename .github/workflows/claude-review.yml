@@ -6,10 +6,13 @@
 # (CLAUDE_CODE_OAUTH_TOKEN, set with `claude setup-token`), so each run draws
 # on the same usage limits as interactive sessions.
 #
-# It runs on `pull_request_target`, so this file and the review's rules
-# (docs/agents/code-review.md, tickets.md) come from the BASE branch. A PR
-# cannot rewrite the workflow or the rules that judge it. No PR code is
-# checked out or executed: Claude reads the change through `gh pr diff`.
+# It runs on `pull_request_target`, so GitHub takes this file from the DEFAULT
+# branch (dev), and the job checks out dev for the review's rules
+# (docs/agents/code-review.md, tickets.md). Neither a PR nor an epic branch
+# can change the workflow or the rules that judge it: only the maintainer's
+# merges into dev can. No PR code is checked out or executed: Claude reads the
+# change through `gh pr diff`. A change to this file therefore takes effect
+# only once it is merged into dev.
 #
 # The `review` job fails unless Claude approves. The `epic/**` ruleset requires
 # it as a status check, and the `merge` job runs only after it passes. This
@@ -44,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
 
       - name: Review
@@ -59,9 +62,9 @@ jobs:
             BASE: ${{ github.event.pull_request.base.ref }}
 
             You are reviewing a ticket PR into an epic branch. The working
-            directory holds the BASE branch, not the PR: read the change only
-            through `gh pr diff` and `gh pr view`, and read the repo's rules
-            from the working directory.
+            directory holds the default branch, not the PR: read the change
+            only through `gh pr diff` and `gh pr view`, and read the repo's
+            rules from the working directory.
 
             1. Read docs/agents/code-review.md and follow it.
             2. Read the PR (`gh pr view`, `gh pr diff`). Its body names the ticket
