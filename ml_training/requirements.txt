@@ -6,6 +6,12 @@
 
 -r ../requirements.txt
 
+# Security floors, repeated from ../requirements.txt so the dependency graph
+# sees them here too: it kept resolving this file's include to the old pins
+# (pillow 12.3.0, torch 2.11.0) after the root file was bumped.
+pillow>=13.0.0
+torch>=2.13.0
+
 # Annotation GUI
 PyQt6==6.11.0
 
