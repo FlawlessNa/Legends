@@ -13,22 +13,17 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 
 Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
 
-## Pull requests as a triage surface
+## Epics and sub-issues
 
-**PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_
+An epic holds a topic's intent and spec, and its tickets are linked to it as
+GitHub sub-issues (`topics.md`).
 
-When set to `yes`, PRs run through the same labels and states as issues, using the `gh pr` equivalents:
-
-- **Read a PR**: `gh pr view <number> --comments` and `gh pr diff <number>` for the diff.
-- **List external PRs for triage**: `gh pr list --state open --json number,title,body,labels,author,authorAssociation,comments` then keep only `authorAssociation` of `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, or `NONE` (drop `OWNER`/`MEMBER`/`COLLABORATOR`).
-- **Comment / label / close**: `gh pr comment`, `gh pr edit --add-label`/`--remove-label`, `gh pr close`.
+- **Link a ticket to its epic:**
+  `gh api --method POST repos/FlawlessNa/Legends/issues/<epic>/sub_issues -F sub_issue_id=<id>`,
+  where `<id>` is the ticket's database id
+  (`gh api repos/FlawlessNa/Legends/issues/<n> -q .id`), not its number.
+- **List an epic's tickets:** `gh api repos/FlawlessNa/Legends/issues/<epic>/sub_issues -q '.[] | "\(.number) \(.state) \(.title)"'`.
+- **A ticket's first line** is `Part of #<epic>`, plus `Blocked by #<n>` when it
+  depends on another ticket.
 
 GitHub shares one number space across issues and PRs, so a bare `#42` may be either — resolve with `gh pr view 42` and fall back to `gh issue view 42`.
-
-## When a skill says "publish to the issue tracker"
-
-Create a GitHub issue.
-
-## When a skill says "fetch the relevant ticket"
-
-Run `gh issue view <number> --comments`.
