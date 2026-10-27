@@ -10,6 +10,7 @@
     cat.skill_duration("Magic Claw")  -> int, in milliseconds
     cat.maps_spawning("Snail")        -> list[MapRef]
     cat.search("henes")     -> list[Ref]
+    cat.ids("mob")          -> list[int]
     cat.physics()           -> dict[str, float]
 
 **Names first, IDs accepted.** A lookup takes a name or an ID: an `int`, or a
@@ -479,6 +480,20 @@ class Catalogue:
                 ):
                     found.append(Ref(each, found_id, full))
         return found
+
+    def ids(self, kind: str) -> list[int]:
+        """
+        The ID of every map, mob or skill (`kind`: `map`, `mob` or `skill`),
+        ascending.
+
+        :raises LookupError: `kind` is none of those.
+        """
+        if kind not in KINDS:
+            raise LookupError(f"no kind {kind!r}; the kinds are {', '.join(KINDS)}")
+        return [
+            _int(found_id)
+            for (found_id,) in self._all(f"SELECT id FROM {KINDS[kind]} ORDER BY id")
+        ]
 
     def physics(self) -> dict[str, float]:
         """`Map/Physics.img`'s values, by key."""

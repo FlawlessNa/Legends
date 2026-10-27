@@ -32,11 +32,12 @@ from .images import ImageStore, pixel_hash, png
 from .manifest import ExtractionError, Failure, Manifest
 from .raw import CanvasImage, Json, UnstorableNode, encode_tree
 from .status import Freshness, Status, status
-from .store import KEEP, Store
+from .store import KEEP, RAW, Store
 
 __all__ = [
     "EXTRACTOR_VERSION",
     "KEEP",
+    "RAW",
     "ArchiveFile",
     "CanvasImage",
     "CatalogueHook",
