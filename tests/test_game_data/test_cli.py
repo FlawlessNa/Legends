@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from game_data.cli import main
+from game_data.extraction.store import referenced_images
 from tests.test_game_data.test_extraction import write_client
 
 
@@ -43,6 +44,29 @@ def test_extracting_again_says_the_build_is_the_latest_again(
     assert main(arguments) == 0
 
     assert "was already extracted: it is the latest again" in capsys.readouterr().out
+
+
+def test_a_relative_root_extracts_and_runs_retention_twice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    first = write_client(tmp_path / "a" / "Data", 1)
+    second = write_client(tmp_path / "b" / "Data", 2)
+    monkeypatch.chdir(tmp_path)
+
+    codes = [
+        main(["extract", "--client", str(client), "--root", "store"])
+        for client in (first, second)
+    ]
+
+    assert codes == [0, 0], capsys.readouterr().err
+    store = tmp_path / "store"
+    builds = [folder.name for folder in (store / "extractions").iterdir()]
+    assert len(builds) == 2
+    assert not any(build.startswith(".") for build in builds)
+    referenced: set[str] = set()
+    for build in builds:
+        referenced |= referenced_images(store / "extractions" / build / "raw.sqlite")
+    assert {file.stem for file in (store / "images").rglob("*.png")} == referenced
 
 
 def test_status_reports_missing_then_fresh_then_stale(

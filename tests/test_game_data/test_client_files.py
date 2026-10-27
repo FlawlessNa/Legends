@@ -182,24 +182,42 @@ def test_every_data_side_canvas_reaches_its_pixels(data: Path) -> None:
     assert failures == [], f"{len(failures)} of {canvases} canvases failed"
 
 
-def test_extracting_the_client_into_a_temporary_store_completes(
+# The slice of the client the extraction check copies: one data tree with its
+# `_Canvas` sibling, one with raw data (`Effect`), and the pack whose images
+# join the first. About 22 MB, so the check takes seconds. The whole client
+# takes about 16 minutes to extract, and is extracted only on demand, with
+# `python -m game_data extract`, never by a test.
+SLICE_TREES = ("Mob", "Effect")
+SLICE_PACKS = ("Mob_00000.ms",)
+
+
+def test_extracting_a_slice_of_the_client_into_a_temporary_store_completes(
     data: Path, tmp_path: Path
 ) -> None:
     """
-    The whole client, into a store under `tmp_path`, never the real one. The
-    only failures it may record are links naming nothing (`BrokenLink`). The
-    store is deleted afterwards, pass or fail: pytest keeps recent `tmp_path`
-    folders, and this one holds the client's data.
+    `SLICE_TREES` and `SLICE_PACKS`, copied as a client of their own, into a
+    store under `tmp_path`, never the real one. The only failures it may record
+    are links naming nothing (`BrokenLink`). The copy and the store are deleted
+    afterwards, pass or fail: pytest keeps recent `tmp_path` folders, and these
+    hold the client's data.
     """
+    client = tmp_path / "Data"
     root = tmp_path / "store"
     try:
-        done = extract(data, root)
+        for tree in SLICE_TREES:
+            shutil.copytree(data / tree, client / tree)
+        (client / "Packs").mkdir()
+        for pack in SLICE_PACKS:
+            shutil.copy2(data / "Packs" / pack, client / "Packs" / pack)
+
+        done = extract(client, root)
 
         manifest = done.manifest
         assert done.created
         assert manifest.images > 0
         assert manifest.canvases > 0
         assert all("names nothing" in f.reason for f in manifest.failures)
-        assert status(data, root).freshness is Freshness.FRESH
+        assert status(client, root).freshness is Freshness.FRESH
     finally:
+        shutil.rmtree(client, ignore_errors=True)
         shutil.rmtree(root, ignore_errors=True)

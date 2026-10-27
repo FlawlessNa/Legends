@@ -41,9 +41,14 @@ _REPORT = re.compile(r"(?P<old>[0-9a-f]+)__(?P<new>[0-9a-f]+)\.html")
 class Store:
     """
     A store of extractions, at `root`. Nothing is created until written.
+
+    :param root: Resolved here, once: a relative root is taken from the working
+        directory, and every path below it is absolute (`referenced_images`
+        opens `raw.sqlite` by its `file:` URI, which needs one).
     """
 
     def __init__(self, root: Path) -> None:
+        root = root.resolve()
         self.root = root
         self.extractions = root / EXTRACTIONS
         self.images = ImageStore(root / IMAGES)

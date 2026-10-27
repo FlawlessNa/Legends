@@ -31,25 +31,38 @@ python -m game_data status  [--client PATH] [--root PATH]
 ```
 
 `--root` is the store, `data/game_data` by default (gitignored, like all of
-`data/`). Everything `game_data` writes goes under it.
+`data/`). A relative `--root` is taken from the current directory. Everything
+`game_data` writes goes under it.
 
 - **`extract`** extracts the installed client into the store. After a patch,
   running it again is the whole update. It prints the build id, how many
   images and canvases it stored, how many new images it added, and the
-  failures. Extracting the full client takes a long time: every canvas is
-  decoded and written as a PNG.
+  failures. Extracting the full client takes about 16 minutes, because every
+  canvas is decoded and written as a PNG. Re-extracting a Build the store has
+  takes seconds.
 - **`status`** prints `missing` (no extraction yet), `fresh` (the installed
   client is the latest extraction's Build) or `stale` (it isn't: run
   `extract`). It only `stat`s the archives, so it is quick enough for every
   bot startup. It reads an archive only when its size matches but its
-  modification time doesn't, to tell a touched file from a changed one.
+  modification time doesn't, to tell a touched file from a changed one. The
+  manifest isn't updated afterwards, so a touched archive is read again on
+  every call until the next new extraction.
 
-Both exit with 1 and a message on stderr when something goes wrong.
+**Errors.** When the client path isn't set or isn't a folder, an archive
+doesn't read, or the store isn't as expected, a command prints a one-line
+message on stderr and exits with 1. Any other failure, such as a full disk or a
+file another program holds open, ends with a Python traceback and exit code 1.
+An `extract` that fails before its new extraction is renamed into place leaves
+the existing extractions and images as they were (see "The store"). One that
+fails during retention, after the rename, can leave an older extraction half
+deleted: on Windows, `rmtree` stops at a file another program holds open.
 
 The same functions, for code: `game_data.extraction.extract(client, root)` and
 `status(client, root)`. Every entry point takes the store root. **Tests and
 `client_files` runs pass a temporary root, never the real store**, because
-extracting deletes old extractions.
+extracting deletes old extractions. No test extracts the whole client:
+`pytest -m client_files` extracts a small slice of it (about 40 seconds), and
+the default run uses synthetic clients only.
 
 ## The store
 
