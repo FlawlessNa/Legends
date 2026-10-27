@@ -30,8 +30,11 @@ and there are no `CLAUDE.md` files (see `docs/SETUP.md`).
   knows nothing about MapleStory.
 - `maple/`: the game layer built on it (movement, decisions, minimap,
   interface reading).
-- `tests/`: the pytest suite. `configs/`: `.ini` settings, plus one JSON per
-  map under `configs/maps/`.
+- `game_data/`: reads the MapleStory Classic client's files into game data. It
+  imports neither `maple` nor `botting`.
+- `tests/`: the pytest suite. Opt-in markers `live`, `system`, `lab` and
+  `client_files` are deselected by default (`docs/agents/testing.md`).
+  `configs/`: `.ini` settings, plus one JSON per map under `configs/maps/`.
 - `toolkit/`: standalone scripts that nothing imports. `ml_training/`: model
   training.
 - `docs/adr/`: architecture decisions. Contradicting one is allowed; doing it

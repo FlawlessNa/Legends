@@ -12,6 +12,7 @@ runs/
 # and IS tracked: map definitions, detection tuning, client settings.
 # Each of these has a committed .example.ini template beside it.
 configs/discord.ini
+configs/game_data.ini
 configs/keybindings.ini
 configs/recordings.ini
 
