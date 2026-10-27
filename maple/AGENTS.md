@@ -53,9 +53,8 @@ Event Types are constants in `maple/telemetry_events.py`, and payloads are the
 The live path is **JSON, one file per map, under `configs/maps/`**, authored
 with the GUI editor in `maple/model/mechanics/minimap_creation/`.
 
-`maple/model/mechanics/game_file_extraction/` parses game files directly and is
-the older approach; `map_parser.py` has no remaining importers and is slated for
-removal. Don't build new features on it.
+Game files are read by `game_data/` (top level, importing neither `maple` nor
+`botting`), not by this package. See `docs/agents/game-data.md`.
 
 ## Parked code
 

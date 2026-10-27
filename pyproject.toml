@@ -43,12 +43,6 @@ extend-select = ["W", "E4", "E7", "E9", "TID", "PT", "ANN", "T20"]
     "T20", "ANN", "TID252", "BLE001", "S110", "B019", "B026", "PIE796",
     "DTZ", "E402",
 ]
-# The older game-file parser. `map_parser.py` has no importers and is slated for
-# removal (maple/AGENTS.md); annotating it is work spent on code on its way out.
-"maple/model/mechanics/game_file_extraction/**" = [
-    "T20", "ANN", "TID252", "BLE001", "S110", "B019", "B026", "PIE796",
-    "DTZ", "E402",
-]
 # `BotData` is a dynamically-typed attribute store: a managed attribute holds
 # whatever the DecisionMaker that registered it puts there, so `Any` at this
 # module's interface is the accurate type rather than a lazy one, and narrowing
@@ -81,13 +75,12 @@ strict = ["botting/controller/inputs", "game_data"]
 # `ignore` rather than `exclude` on purpose - these files are still parsed, so
 # code that *is* on the ratchet still gets real types when it imports them.
 # Same list as the ANN per-file-ignores above, and the same reasoning: tools,
-# dead code, and one parked module. See docs/agents/typing.md.
+# and one parked module. See docs/agents/typing.md.
 ignore = [
   "ml_training",
   "toolkit",
   "scripts",
   "maple/model/mechanics/minimap_creation",
-  "maple/model/mechanics/game_file_extraction",
   "maple/decision_makers/inventory_manager.py",
   "botting/visuals/deep_learning_framework",
 ]

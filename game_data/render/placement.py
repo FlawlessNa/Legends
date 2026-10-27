@@ -2,8 +2,8 @@
 Where a map's tiles, objects and backgrounds go, in virtual coordinates, and in
 what order they're drawn. Nothing here touches pixels.
 
-Ported from the v83 module, `maple/model/mechanics/game_file_extraction/`
-(`_objects.py`, `_tiles.py` and `map_parser.py`), keeping what holds for
+Ported from the retired v83 map parser, whose modules were
+`_objects.py`, `_tiles.py` and `map_parser.py`, keeping what holds for
 Classic:
 
 - **Origin.** An item at `(x, y)` puts its frame's `origin` there, so the

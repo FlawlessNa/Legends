@@ -27,7 +27,6 @@ from functools import cache
 from pathlib import Path
 from typing import Literal, NamedTuple
 
-from maple.model.mechanics.game_file_extraction.map_physics import MinimapPhysics
 from maple.model.mechanics.maple_map import MapleMap, MapleMinimap
 from maple.model.mechanics.minimap_creation.minimap_edits_model import (
     MinimapEditsManager,
@@ -38,6 +37,7 @@ from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
     _MovementComponent,
 )
+from maple.model.mechanics.physics import MinimapPhysics
 
 _LAB_ROOT = Path(__file__).parent
 MAPS_ROOT = _LAB_ROOT / "maps"

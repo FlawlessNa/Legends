@@ -1,8 +1,8 @@
 """
 The footholds and ropes drawn on objects and tiles, in virtual coordinates.
 
-Ported from the v83 module, `maple/model/mechanics/game_file_extraction/`
-(`_objects.py`, `_tiles.py`, `_footholds.py` and `_ladder_rope.py`), keeping
+Ported from the retired v83 map parser, whose modules were
+`_objects.py`, `_tiles.py`, `_footholds.py` and `_ladder_rope.py`, keeping
 what holds for Classic:
 
 - **Where they are.** An object's frame 0, and a tile's canvas, may carry a
