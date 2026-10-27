@@ -7,7 +7,7 @@ its intent and spec are the issue body.
 
 This page covers setting it up, the commands, looking things up in code, and
 the store's layout, the catalogue's tables included, for anyone reading it
-directly. Later tickets add mobs and skills, the patch report and the renderer.
+directly. Later tickets add the patch report and the renderer.
 
 ## On a new machine
 
@@ -28,8 +28,8 @@ fails, naming the file to create.
 ```
 python -m game_data extract [--client PATH] [--root PATH]
 python -m game_data status  [--client PATH] [--root PATH]
-python -m game_data show map NAME [--root PATH]
-python -m game_data search TEXT [--kind map] [--root PATH]
+python -m game_data show map|mob|skill NAME [--level N] [--root PATH]
+python -m game_data search TEXT [--kind map|mob|skill] [--root PATH]
 ```
 
 `--root` is the store, `data/game_data` by default (gitignored, like all of
@@ -54,14 +54,21 @@ python -m game_data search TEXT [--kind map] [--root PATH]
   ropes, portals and spawns. `NAME` is a name or an ID (see "Looking things
   up"). For example, `show map Henesys`, `show map "Victoria Road: Henesys"`
   or `show map <id>`.
-- **`search TEXT`** prints, as JSON, every map whose name contains `TEXT`, case
-  aside, with its ID and its `street: map name`.
+- **`show mob NAME`** prints one mob: its stats, and every frame of every
+  action. For example, `show mob Snail`.
+- **`show skill NAME`** prints one skill with every level, and
+  **`--level N`** only that level, with the actions the skill plays. For
+  example, `show skill "Magic Claw" --level 20`. `--level` with `show map` or
+  `show mob` is a usage error.
+- **`search TEXT`** prints, as JSON, every map, mob and skill whose name
+  contains `TEXT`, case aside, with its kind, its ID and its name (a map's
+  `street: map name`). `--kind` keeps one kind.
 
 `show` and `search` read the latest extraction's catalogue, and need no client.
 
 **Errors.** When the client path isn't set or isn't a folder, an archive
-doesn't read, the store isn't as expected, or a name names no map or several,
-a command prints a one-line
+doesn't read, the store isn't as expected, a name names nothing or several
+things, or a skill has no such level, a command prints a one-line
 message on stderr and exits with 1. Any other failure, such as a full disk or a
 file another program holds open, ends with a Python traceback and exit code 1.
 An `extract` that fails before its new extraction is renamed into place leaves
@@ -74,8 +81,9 @@ The same functions, for code: `game_data.extraction.extract(client, root)` and
 hook, `catalogue=game_data.catalogue.build_catalogue`, as the command does. Every entry point takes the store root. **Tests and
 `client_files` runs pass a temporary root, never the real store**, because
 extracting deletes old extractions. No test extracts the whole client:
-`pytest -m client_files` extracts a small slice of it (about 40 seconds), and
-the default run uses synthetic clients only.
+`pytest -m client_files` extracts slices of it (several minutes, most of it
+decoding the maps' and skills' canvases), and the default run uses synthetic
+clients only.
 
 ## Looking things up
 
@@ -85,6 +93,12 @@ from game_data.catalogue import Catalogue
 with Catalogue.latest() as cat:           # or Catalogue.open(build_id, root=...)
     henesys = cat.map("Henesys")           # MapData; or cat.map(map_id)
     layers = cat.map_layers("Henesys")     # tuple[MapLayer, ...], with frames
+    snail = cat.mob("Snail")               # MobData: stats and frames
+    claw = cat.skill("Magic Claw")         # SkillData, with every level
+    level = claw.level(20)                 # SkillLevel, with the skill's actions
+    cat.action_duration("swingO1")         # int: milliseconds
+    cat.skill_duration("Magic Claw")       # int: its first action's
+    cat.maps_spawning("Snail")             # list[MapRef]: id, name, spawns
     found = cat.search("henes")            # list[Ref]: kind, id, name
     physics = cat.physics()                # dict[str, float]
 ```
@@ -94,15 +108,22 @@ default). Every lookup returns frozen dataclasses (`game_data.catalogue.model`)
 in virtual coordinates. A catalogue holds its file open until it's closed, so
 use it in a `with`.
 
-**Names first, IDs accepted.** A lookup takes a name or an ID, as an `int` or a
-string of digits. A name matches whole, case aside, and a map's also matches as
+**Names first, IDs accepted.** A map, mob or skill lookup takes a name or an
+ID, as an `int` or a string of digits, and looks among its own kind only. A
+name matches whole, case aside, and a map's also matches as
 `street: map name`, because many maps share a name:
 
-- a name that matches one map gives it;
-- a name that matches several raises `LookupError`, listing each as
-  `street: map name (id)`. Nothing is picked for you;
+- a name that matches one gives it;
+- a name that matches several raises `LookupError`, listing each with its ID,
+  a map as `street: map name (id)`. Nothing is picked for you: two skills
+  named MP Eater are asked for by ID;
 - a name that matches none raises `LookupError`, listing up to five of the
   closest names (`difflib.get_close_matches`).
+
+`skill(...).level(n)` raises `LookupError` for a level the skill doesn't have.
+`action_duration` raises it for an action the character doesn't have, or one
+none of whose frames has a delay (`prone`, `sit`, `dead`), and
+`skill_duration` for a skill that plays no action, as passive skills don't.
 
 **A catalogue is rebuilt when it's out of date.** Opening an extraction whose
 manifest has another `catalogue_schema_version`, or which has no catalogue,
@@ -214,7 +235,8 @@ If one ever does, extraction stops rather than store something ambiguous.
 ### `catalogue.sqlite`
 
 The typed layer: one row per map, foothold, rope, portal, spawn and layer
-item, read from `raw.sqlite` and nothing else. Code reads it through
+item, mob and mob frame, skill and skill level, and character action frame,
+read from `raw.sqlite` and nothing else. Code reads it through
 `Catalogue` ("Looking things up"); anyone may query it directly with any
 SQLite tool. Its tables and columns are stable within a schema version, the
 `catalogue_schema_version` in the manifest (and the file's `user_version`).
@@ -226,21 +248,28 @@ so the client's `000000100` is `100`. Booleans are 0 or 1. A flag the client
 leaves out, such as `town` or a spawn's `f`, is 0. Where a column says NULL,
 the client has no value there.
 
-Where it comes from: `String/Map.img`, `String/Mob.img` and `String/Npc.img`
-for `strings`; each `Map/Map/Map<n>/<id>.img`, and the `Map/Obj`, `Map/Tile`
-and `Map/Back` images it draws from, for the map tables; `Map/Physics.img` for
-`physics`. A client without one of these leaves its tables empty. One that is
+Where it comes from: `String/Map.img`, `String/Mob.img`, `String/Npc.img`
+and `String/Skill.img` for `strings`; each `Map/Map/Map<n>/<id>.img`, and the
+`Map/Obj`, `Map/Tile` and `Map/Back` images it draws from, for the map tables;
+`Map/Physics.img` for `physics`; each `Mob/<id>.img` for `mobs` and
+`mob_frames` (Classic keeps them in `Packs/Mob_00000.ms`); each job's
+`Skill/<job>.img` for `skills` and `skill_levels` (`Skill/Attacktype.img`,
+`Skill/ItemSkill.img` and `Skill/MobSkill/` aren't read); and the body,
+`Character/00002000.img`, for `actions`. A client without one of these leaves its tables empty. One that is
 there but isn't as expected stops the build, naming the image and the node,
 and the extraction with it.
 
 #### `strings`
 
-| column        | type    | what                                               |
-| ------------- | ------- | -------------------------------------------------- |
-| `kind`        | TEXT    | `map`, `mob` or `npc`                              |
-| `id`          | INTEGER | the map's, mob's or NPC's ID                       |
-| `name`        | TEXT    | its name; a map's is `mapName`, without its street |
-| `description` | TEXT    | a map's `mapDesc`; NULL otherwise                  |
+| column        | type    | what                                                |
+| ------------- | ------- | --------------------------------------------------- |
+| `kind`        | TEXT    | `map`, `mob`, `npc` or `skill`                      |
+| `id`          | INTEGER | the map's, mob's, NPC's or skill's ID               |
+| `name`        | TEXT    | its name; a map's is `mapName`, without its street  |
+| `description` | TEXT    | a map's `mapDesc`, a skill's `desc`; NULL otherwise |
+
+`String/Skill.img` also names each job's skill book (`bookName`); those
+entries aren't skills, and aren't here.
 
 #### `maps`
 
@@ -379,6 +408,115 @@ A background with no image (an empty `bS`) has no asset and no frames.
 | ------- | ---- | -------------------------------------------- |
 | `key`   | TEXT | a `Map/Physics.img` key, such as `walkSpeed` |
 | `value` | REAL | its value                                    |
+
+#### `mobs`
+
+| column         | type    | what                                                                    |
+| -------------- | ------- | ----------------------------------------------------------------------- |
+| `id`           | INTEGER | the mob's ID; the client's `0100100` is `100100`                        |
+| `name`         | TEXT    | from `strings`; NULL when `String/Mob.img` doesn't name it              |
+| `link`         | INTEGER | `info/link`: the mob whose sprites it shares; NULL when it has its own  |
+| `level`        | INTEGER | `level`                                                                 |
+| `max_hp`       | INTEGER | `maxHP`                                                                 |
+| `max_mp`       | INTEGER | `maxMP`                                                                 |
+| `speed`        | INTEGER | `speed`, as the client gives it (often negative); NULL when it has none |
+| `fly_speed`    | INTEGER | `flySpeed`; NULL for a mob that doesn't fly                             |
+| `exp`          | INTEGER | `exp`; NULL when it has none                                            |
+| `pa_damage`    | INTEGER | `PADamage`, its physical attack, what touching it does                  |
+| `ma_damage`    | INTEGER | `MADamage`, its magic attack                                            |
+| `pd_damage`    | INTEGER | `PDDamage`, its physical defence                                        |
+| `md_damage`    | INTEGER | `MDDamage`, its magic defence                                           |
+| `acc`          | INTEGER | `acc`, its accuracy                                                     |
+| `eva`          | INTEGER | `eva`, its avoidability                                                 |
+| `pushed`       | INTEGER | `pushed`: the damage that knocks it back                                |
+| `body_attack`  | INTEGER | `bodyAttack`: 1 when touching it hurts                                  |
+| `boss`         | INTEGER | `boss`                                                                  |
+| `undead`       | INTEGER | `undead`                                                                |
+| `first_attack` | INTEGER | `firstAttack`: 1 when it attacks before it's attacked                   |
+| `elem_attr`    | TEXT    | `elemAttr`, its elements as the client writes them; NULL for none       |
+
+#### `mob_frames`
+
+One row per frame of each of a mob's actions (`stand`, `move`, `hit1`,
+`attack1`...), in the image's order. A mob with a `link` has the linked mob's
+frames under its own ID, so this table answers for it directly.
+
+| column     | type    | what                                                              |
+| ---------- | ------- | ----------------------------------------------------------------- |
+| `mob`      | INTEGER | the mob                                                           |
+| `action`   | TEXT    | the action, such as `stand`                                       |
+| `frame`    | INTEGER | the frame's number, from 0                                        |
+| `image`    | TEXT    | its image in `images/`; NULL when its pixels couldn't be found    |
+| `origin_x` | INTEGER | the frame's origin: the pixel drawn at the mob's position         |
+| `origin_y` | INTEGER |                                                                   |
+| `lt_x`     | INTEGER | the body hitbox's top left, `lt`, relative to the mob's position  |
+| `lt_y`     | INTEGER | NULL, like the next four, when the frame has none                 |
+| `rb_x`     | INTEGER | the body hitbox's bottom right, `rb`                              |
+| `rb_y`     | INTEGER |                                                                   |
+| `head_x`   | INTEGER | where its head is, `head`                                         |
+| `head_y`   | INTEGER |                                                                   |
+| `delay`    | INTEGER | how long it's shown, in milliseconds; NULL when it doesn't say    |
+
+A frame that's a UOL to another frame of the image is stored as the frame it
+leads to. Whether the hitboxes line up with the game is to be checked by eye
+(#259).
+
+#### `skills`
+
+| column        | type    | what                                                                     |
+| ------------- | ------- | ------------------------------------------------------------------------ |
+| `id`          | INTEGER | the skill's ID, such as `2001003`                                        |
+| `job`         | INTEGER | the job whose image it's in, `Skill/<job>.img`, such as `200`            |
+| `name`        | TEXT    | from `strings`; NULL when `String/Skill.img` doesn't name it             |
+| `description` | TEXT    | its `desc` there; likewise                                               |
+| `type`        | INTEGER | `info/type`; NULL when it has none                                       |
+| `max_level`   | INTEGER | how many levels it has in `skill_levels`                                 |
+| `actions`     | TEXT    | the character actions it plays, a JSON array such as `["swingO1"]`       |
+| `icon`        | TEXT    | its `icon` in `images/`; NULL when it has none                           |
+
+#### `skill_levels`
+
+One row per level of each skill. A skill's `common` fields hold at every
+level, so they're in every level's row, as if each level had them. A skill
+with only `common` has `common/maxLevel` levels of them.
+
+| column         | type    | what                                                                   |
+| -------------- | ------- | ---------------------------------------------------------------------- |
+| `skill`        | INTEGER | the skill                                                              |
+| `level`        | INTEGER | the level, from 1                                                      |
+| `mp_con`       | INTEGER | `mpCon`, its MP cost; NULL, like every column below, when not set      |
+| `time`         | INTEGER | `time`, how long it lasts, in seconds                                  |
+| `lt_x`         | INTEGER | `lt` and `rb`: the box it reaches, relative to the character           |
+| `lt_y`         | INTEGER |                                                                        |
+| `rb_x`         | INTEGER |                                                                        |
+| `rb_y`         | INTEGER |                                                                        |
+| `mob_count`    | INTEGER | `mobCount`, how many mobs it hits                                      |
+| `attack_count` | INTEGER | `attackCount`, how many times it hits each                             |
+| `range`        | INTEGER | `range`                                                                |
+| `cooltime`     | INTEGER | `cooltime`, its cooldown, in seconds                                   |
+| `other`        | TEXT    | every other field, a JSON object by the client's names, such as `mad`  |
+
+In `other`, an integer of any type, or a string of digits, is a number; a
+vector is `{"x", "y"}`; anything else, such as a level's animation, is as
+`raw.sqlite` has it. Many attack skills have neither `lt`/`rb` nor `range`:
+Magic Claw is one. Their reach isn't in the skill's data.
+
+#### `actions`
+
+The character's actions, from the body, `Character/00002000.img`: one row per
+frame.
+
+| column     | type    | what                                                                       |
+| ---------- | ------- | -------------------------------------------------------------------------- |
+| `action`   | TEXT    | the action, such as `swingO1`                                              |
+| `frame`    | INTEGER | the frame's number, from 0                                                 |
+| `delay`    | INTEGER | its `delay` in milliseconds, as the client gives it; NULL when it has none |
+| `duration` | INTEGER | the action's: its frames' delays added up; NULL when none has one          |
+
+Some actions borrow other actions' poses, and give some frames a negative
+delay (`alert3`, `magic1`...). `duration` adds each delay's magnitude, so it's
+how long the action is shown. What the sign means isn't known here, and
+`delay` keeps it as the client gives it.
 
 ### `images/`
 

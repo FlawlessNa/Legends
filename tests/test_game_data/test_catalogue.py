@@ -11,6 +11,9 @@ The catalogue, built from the raw layer of a synthetic client's extraction.
 - `101`, "Victoria Road: Henesys Hunting Ground".
 - `200` and `201`, both "Mushroom Town", on different streets.
 - `300`, which `String/Map.img` doesn't name, has no VR bounds and no minimap.
+
+Its strings also name the mobs and skills of `test_catalogue_mobs_skills`,
+whose client adds them to this one.
 """
 
 import dataclasses
@@ -391,8 +394,31 @@ def strings() -> list[w.Img]:
                 ),
             ],
         ),
-        w.Img("Mob.img", [w.Prop("100100", [w.String("name", "Snail")])]),
+        w.Img(
+            "Mob.img",
+            [
+                w.Prop("100100", [w.String("name", "Snail")]),
+                w.Prop("100101", [w.String("name", "Blue Snail")]),
+                w.Prop("130100", [w.String("name", "Stump")]),
+            ],
+        ),
         w.Img("Npc.img", [w.Prop("1012000", [w.String("name", "Regular Cab")])]),
+        w.Img(
+            "Skill.img",
+            [
+                w.Prop("200", [w.String("bookName", "Magician")]),
+                w.Prop(
+                    "2001002",
+                    [w.String("name", "Energy Bolt"), w.String("desc", "A bolt.")],
+                ),
+                w.Prop(
+                    "2001003",
+                    [w.String("name", "Magic Claw"), w.String("desc", "Two claws.")],
+                ),
+                w.Prop("2100000", [w.String("name", "MP Eater")]),
+                w.Prop("2200000", [w.String("name", "MP Eater")]),
+            ],
+        ),
     ]
 
 
@@ -705,7 +731,7 @@ def test_physics_is_every_value_of_physics_img(cat: Catalogue) -> None:
     assert cat.physics() == {"gravityAcc": 2000.0, "walkSpeed": 125.0}
 
 
-def test_strings_hold_map_mob_and_npc_names(extracted: str, root: Path) -> None:
+def test_strings_hold_map_mob_npc_and_skill_names(extracted: str, root: Path) -> None:
     found = rows(root, extracted, "SELECT * FROM strings ORDER BY kind, id")
 
     assert found == [
@@ -714,7 +740,13 @@ def test_strings_hold_map_mob_and_npc_names(extracted: str, root: Path) -> None:
         ("map", 200, "Mushroom Town", None),
         ("map", 201, "Mushroom Town", None),
         ("mob", 100100, "Snail", None),
+        ("mob", 100101, "Blue Snail", None),
+        ("mob", 130100, "Stump", None),
         ("npc", 1012000, "Regular Cab", None),
+        ("skill", 2001002, "Energy Bolt", "A bolt."),
+        ("skill", 2001003, "Magic Claw", "Two claws."),
+        ("skill", 2100000, "MP Eater", None),
+        ("skill", 2200000, "MP Eater", None),
     ]
 
 
@@ -863,7 +895,7 @@ def test_a_raw_layer_with_no_maps_or_strings_builds_empty_tables(
             table: database.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
             for table in tables
         }
-    assert len(counts) == 9
+    assert len(counts) == 14
     assert set(counts.values()) == {0}
 
 

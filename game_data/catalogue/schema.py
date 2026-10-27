@@ -9,7 +9,7 @@ version has it rebuilt from its raw layer when it's opened.
 
 from typing import Final
 
-SCHEMA_VERSION: Final = 1
+SCHEMA_VERSION: Final = 2
 CATALOGUE: Final = "catalogue.sqlite"
 
 TABLES: Final = (
@@ -124,10 +124,83 @@ TABLES: Final = (
         key TEXT PRIMARY KEY,
         value REAL NOT NULL
     )""",
+    """CREATE TABLE mobs (
+        id INTEGER PRIMARY KEY,
+        name TEXT,
+        link INTEGER,
+        level INTEGER NOT NULL,
+        max_hp INTEGER NOT NULL,
+        max_mp INTEGER NOT NULL,
+        speed INTEGER,
+        fly_speed INTEGER,
+        exp INTEGER,
+        pa_damage INTEGER NOT NULL,
+        ma_damage INTEGER NOT NULL,
+        pd_damage INTEGER NOT NULL,
+        md_damage INTEGER NOT NULL,
+        acc INTEGER NOT NULL,
+        eva INTEGER NOT NULL,
+        pushed INTEGER NOT NULL,
+        body_attack INTEGER NOT NULL,
+        boss INTEGER NOT NULL,
+        undead INTEGER NOT NULL,
+        first_attack INTEGER NOT NULL,
+        elem_attr TEXT
+    )""",
+    """CREATE TABLE mob_frames (
+        mob INTEGER NOT NULL,
+        action TEXT NOT NULL,
+        frame INTEGER NOT NULL,
+        image TEXT,
+        origin_x INTEGER NOT NULL,
+        origin_y INTEGER NOT NULL,
+        lt_x INTEGER,
+        lt_y INTEGER,
+        rb_x INTEGER,
+        rb_y INTEGER,
+        head_x INTEGER,
+        head_y INTEGER,
+        delay INTEGER,
+        PRIMARY KEY (mob, action, frame)
+    )""",
+    """CREATE TABLE skills (
+        id INTEGER PRIMARY KEY,
+        job INTEGER NOT NULL,
+        name TEXT,
+        description TEXT,
+        type INTEGER,
+        max_level INTEGER NOT NULL,
+        actions TEXT NOT NULL,
+        icon TEXT
+    )""",
+    """CREATE TABLE skill_levels (
+        skill INTEGER NOT NULL,
+        level INTEGER NOT NULL,
+        mp_con INTEGER,
+        time INTEGER,
+        lt_x INTEGER,
+        lt_y INTEGER,
+        rb_x INTEGER,
+        rb_y INTEGER,
+        mob_count INTEGER,
+        attack_count INTEGER,
+        range INTEGER,
+        cooltime INTEGER,
+        other TEXT NOT NULL,
+        PRIMARY KEY (skill, level)
+    )""",
+    """CREATE TABLE actions (
+        action TEXT NOT NULL,
+        frame INTEGER NOT NULL,
+        delay INTEGER,
+        duration INTEGER,
+        PRIMARY KEY (action, frame)
+    )""",
 )
 
 INDEXES: Final = (
     "CREATE INDEX portals_map ON portals (map)",
     "CREATE INDEX spawns_map ON spawns (map)",
     "CREATE INDEX map_layers_map ON map_layers (map)",
+    "CREATE INDEX spawns_life ON spawns (kind, id)",
 )
