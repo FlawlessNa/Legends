@@ -15,8 +15,9 @@ Start a topic with `/intent`.
    intent is agreed. If it is crossed, write the spec and discuss it until the
    maintainer approves it.
 3. **Tickets.** Once the spec is approved (or the intent, if no spec was
-   needed), publish the agreement to an `epic` issue and split the work into
-   tickets. The maintainer approves the list of tickets, not each body.
+   needed), draft the tickets. If there is a spec, have them reviewed
+   independently (below). Then the maintainer approves the list of tickets,
+   not each body, and you publish the epic.
 
 **A standalone ticket carries its own intent.** A clear bug with a clear
 acceptance test, labelled `ready-for-agent`, needs no topic: see `tickets.md`.
@@ -27,9 +28,10 @@ The discussion happens on a lavish page, under `.lavish/<topic>/`, which is
 gitignored:
 
 ```
-.lavish/<topic>/index.html   the page, started from the /intent template
-.lavish/<topic>/intent.md    the working copy of the intent
-.lavish/<topic>/spec.md      the working copy of the spec, if one is needed
+.lavish/<topic>/index.html         the page, started from the /intent template
+.lavish/<topic>/intent.md          the working copy of the intent
+.lavish/<topic>/spec.md            the working copy of the spec, if needed
+.lavish/<topic>/draft-tickets.md   the drafted tickets, then the review
 ```
 
 The page has these sections, in order. It grows a section per phase:
@@ -42,6 +44,8 @@ The page has these sections, in order. It grows a section per phase:
 3. **`intent.md`:** rendered from the file.
 4. **`spec.md`:** rendered from the file, once past the threshold, with an
    approve control.
+5. **`draft-tickets.md`:** the drafted tickets and the review's findings,
+   rendered the same way, with an approve control for the list.
 
 ### Rules
 
@@ -112,15 +116,47 @@ Status: draft | approved <date>
 **It may be as long as it needs.** No agent reads it in full: each ticket
 names the sections it needs.
 
+## The independent review
+
+The agent that wrote the spec is the worst judge of it: it fills the gaps from
+the conversation without noticing. So once the tickets are drafted, and before
+the maintainer sees the list, a reviewer with **none of the conversation**
+checks them. It runs whenever there is a spec.
+
+- **Who:** a fresh subagent on the strongest model, or a fresh session. Give
+  it only the paths to `intent.md`, `spec.md` and `draft-tickets.md`, and
+  the task below. Do not summarise the discussion for it: the missing
+  context is what it is there to find.
+- **The task:**
+  1. For each ticket: could you finish it from its body and the documents it
+     points at, without asking? List what you would have to guess.
+  2. For each acceptance criterion: can a test or a reading of the diff check
+     it? If not, it belongs under "Can't be verified offline".
+  3. Does anything in the spec or the tickets contradict the intent, or reach
+     outside it?
+  4. Report findings only, each naming the ticket or section. Change nothing.
+- **Once, not a loop.** Fix each finding or argue against it, and record both
+  under `## Review` at the end of `draft-tickets.md`: the finding, then
+  what you did about it. The maintainer sees what was caught. A finding
+  that would change the approved spec goes back to the maintainer as a
+  decision.
+- **It blocks nothing.** Its job is to make the list the maintainer approves
+  a better one.
+
+This is on trial with the first epics. If it keeps finding nothing a ticket
+agent would have tripped over, drop it.
+
 ## Publishing and splitting
+
+Once the maintainer approves the list of tickets:
 
 1. Create the epic: `gh issue create --label epic`. Its body is `intent.md`,
    then `spec.md`, then a `## Tickets` checklist. The epic is the durable
    record; the `.lavish/` files are not.
 2. File each ticket, link it as a sub-issue of the epic (see
    `issue-tracker.md`), and add it to the checklist.
-3. The agent that ran the discussion writes the tickets, at the split, while it
-   still has the full context.
+3. The agent that ran the discussion writes the tickets, while it still has
+   the full context, and files them as drafted and reviewed.
 4. Create the epic branch off `dev`:
    `git push origin origin/dev:refs/heads/epic/<slug>`. Tickets merge into it
    through the epic flow (`tickets.md`). Skip this when every ticket can land
