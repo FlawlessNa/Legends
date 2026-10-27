@@ -33,6 +33,23 @@ such as `Map/Map/Map0/000001000.img/info/bgm`.
 - `ClientData.resolve(path)` is the same, but follows every `UolNode` on the
   way, and at the end. A link's path is relative to the link's parent node,
   and `..` may climb out of the image into the directories.
+- `ClientData.canvas(path)` is the canvas at `path`, resolved as `resolve`
+  does, with its pixels decoded: a `Canvas`.
+
+**Canvases** keep their pixels in one of three places. Most of a tree's
+canvases are 1x1 placeholders whose pixels are in the tree's `_Canvas`
+directory, a sibling tree of its own:
+
+- **`_outlink`**, a string property, names the canvas holding the pixels by its
+  path from the top of the namespace. It's usually the same image and node path
+  in `_Canvas`, but not always.
+- **`_inlink`** names it by its path from the root of the same image.
+- **With neither**, the canvas holds its own pixels.
+
+A canvas a link names may link on in turn: an `_inlink` can name a placeholder
+with an `_outlink`. The properties (`origin`, `delay`, `lt`, `rb`, `_hash`...)
+stay on the canvas `path` names, and `Canvas.properties` keeps them; the
+canvases in `_Canvas` carry none.
 
 Lookups raise `NodeNotFound`, naming the path and what was missing.
 """
@@ -44,13 +61,19 @@ from functools import partial
 from pathlib import Path
 from typing import Protocol
 
+from .canvas import Pixels
 from .errors import CorruptArchive, NodeNotFound
 from .ms import MsPack, PackEntry
-from .nodes import Node, PropertyNode, UolNode
+from .nodes import CanvasNode, CanvasRef, Node, PropertyNode, StringNode, UolNode
 from .wz import ImageEntry, WzArchive, WzDirectory
 
-# How many links one `resolve` follows before it decides they form a loop.
+# How many links one `resolve`, or one `canvas`, follows before it decides they
+# form a loop.
 MAX_LINKS = 64
+
+# The properties that send a canvas to the one holding its pixels.
+OUTLINK = "_outlink"
+INLINK = "_inlink"
 
 # How many parsed images `ClientData` keeps for `node` and `resolve`.
 CACHED_TREES = 32
@@ -73,6 +96,8 @@ class _Container[E](Protocol):
 
     def parse(self, entry: E, /) -> PropertyNode: ...
 
+    def pixels(self, entry: E, canvas: CanvasRef, node: str, /) -> Pixels: ...
+
 
 class Image:
     """
@@ -86,7 +111,7 @@ class Image:
         `PackEntry` in a pack.
     """
 
-    __slots__ = ("_parse", "_read", "archive", "entry", "name", "path")
+    __slots__ = ("_parse", "_pixels", "_read", "archive", "entry", "name", "path")
 
     def __init__[E: (ImageEntry, PackEntry)](
         self, path: str, archive: _Container[E], entry: E
@@ -97,6 +122,7 @@ class Image:
         self.entry: ImageEntry | PackEntry = entry
         self._read = partial(archive.read, entry)
         self._parse = partial(archive.parse, entry)
+        self._pixels = partial(archive.pixels, entry)
 
     def read(self) -> bytes:
         """The image's bytes, decrypted when it is in a pack."""
@@ -112,8 +138,39 @@ class Image:
         """
         return self._parse()
 
+    def pixels(self, canvas: CanvasRef, node: str) -> Pixels:
+        """
+        The pixels of a canvas in this image, decoded.
+
+        :param canvas: The canvas's reference, from this image's tree.
+        :param node: The canvas's path inside the image, for errors.
+        :raises UnsupportedFormat: The pixel format isn't supported.
+        :raises CorruptArchive: The pixels don't decode.
+        """
+        return self._pixels(canvas, node)
+
     def __repr__(self) -> str:
         return f"Image({self.path!r}, archive={str(self.archive)!r})"
+
+
+@dataclass(frozen=True, slots=True, kw_only=True, eq=False)
+class Canvas:
+    """
+    A canvas with its pixels, from `ClientData.canvas`.
+
+    :ivar path: The canvas asked for, from the top of the namespace, after
+        following links (`UolNode`s) to it.
+    :ivar properties: That canvas's children, as stored: `origin`, `delay`,
+        `_outlink`...
+    :ivar source: The path of the canvas whose pixels these are: `path` itself,
+        or where its `_outlink` or `_inlink` led.
+    :ivar pixels: `(height, width, 4)`, RGBA.
+    """
+
+    path: str
+    properties: Mapping[str, Node]
+    source: str
+    pixels: Pixels
 
 
 type _Contents = tuple[dict[str, "Directory"], dict[str, Image]]
@@ -243,14 +300,7 @@ class ClientData:
         :raises NodeNotFound: There is none.
         :raises CorruptArchive: The image doesn't parse.
         """
-        image, steps = self._locate(_steps(path))
-        node: Node = self._tree(image)
-        for index, step in enumerate(steps):
-            child = node.children.get(step)
-            if child is None:
-                raise self._missing(image, steps[:index], step)
-            node = child
-        return node
+        return self._at(_steps(path))[2]
 
     def resolve(self, path: str) -> Node:
         """
@@ -259,6 +309,105 @@ class ClientData:
         :raises NodeNotFound: The path, or a link on it, names nothing.
         :raises CorruptArchive: An image doesn't parse, or the links loop.
         """
+        return self._resolve(path)[2]
+
+    def canvas(self, path: str) -> Canvas:
+        """
+        The canvas at `path`, resolved as `resolve` does, with its pixels.
+
+        :raises NodeNotFound: The path names nothing, or no canvas, or a link
+            to the pixels names nothing.
+        :raises CorruptArchive: A canvas has both links, or a link that isn't a
+            string, or one naming something other than a canvas, or the links
+            loop. Also: an image doesn't parse, or the pixels don't decode.
+        :raises UnsupportedFormat: The pixel format isn't supported.
+        """
+        image, inner, node = self._resolve(path)
+        where = _node_path(image, inner)
+        if not isinstance(node, CanvasNode):
+            raise NodeNotFound(
+                image.archive,
+                image.name,
+                "/".join(inner),
+                f"it's a {node.type}, not a canvas",
+            )
+        properties = node.children
+        visited = {where}
+        while (target := self._link(image, inner, node)) is not None:
+            image, inner, linked = target
+            source = _node_path(image, inner)
+            if source in visited or len(visited) > MAX_LINKS:
+                raise CorruptArchive(
+                    image.archive,
+                    image.name,
+                    "/".join(inner),
+                    f"the links from {where!r} to its pixels loop",
+                )
+            visited.add(source)
+            if not isinstance(linked, CanvasNode):
+                raise CorruptArchive(
+                    image.archive,
+                    image.name,
+                    "/".join(inner),
+                    f"{where!r} links here for its pixels, but this is a "
+                    f"{linked.type}, not a canvas",
+                )
+            node = linked
+        return Canvas(
+            path=where,
+            properties=properties,
+            source=_node_path(image, inner),
+            pixels=image.pixels(node.canvas, "/".join(inner)),
+        )
+
+    def _link(
+        self, image: Image, inner: list[str], node: CanvasNode
+    ) -> tuple[Image, list[str], Node] | None:
+        """Where a canvas's `_outlink` or `_inlink` leads, or `None`."""
+        found = [key for key in (OUTLINK, INLINK) if key in node.children]
+        if not found:
+            return None
+        here = "/".join(inner)
+        if len(found) > 1:
+            raise CorruptArchive(
+                image.archive, image.name, here, f"it has both {OUTLINK} and {INLINK}"
+            )
+        key = found[0]
+        link = node.children[key]
+        if not isinstance(link, StringNode):
+            raise CorruptArchive(
+                image.archive,
+                image.name,
+                f"{here}/{key}",
+                f"it's a {link.type}, not a string",
+            )
+        if key == OUTLINK:
+            steps = _steps(link.value)
+        else:
+            steps = _steps(image.path) + _steps(link.value)
+        try:
+            return self._at(steps)
+        except NodeNotFound as error:
+            raise NodeNotFound(
+                image.archive,
+                image.name,
+                f"{here}/{key}",
+                f"the {key} {link.value!r} names nothing ({error})",
+            ) from error
+
+    def _at(self, steps: list[str]) -> tuple[Image, list[str], Node]:
+        """The node at a path, its image, and its steps inside the image."""
+        image, inner = self._locate(steps)
+        node: Node = self._tree(image)
+        for index, step in enumerate(inner):
+            child = node.children.get(step)
+            if child is None:
+                raise self._missing(image, inner[:index], step)
+            node = child
+        return image, inner, node
+
+    def _resolve(self, path: str) -> tuple[Image, list[str], Node]:
+        """`resolve`, with the image the node is in and its steps inside it."""
         steps = _steps(path)
         links = 0
         while True:
@@ -283,7 +432,7 @@ class ClientData:
                     break
                 node = child
             else:
-                return node
+                return image, inner, node
 
     def _tree(self, image: Image) -> PropertyNode:
         tree = self._trees.get(image.path)
@@ -519,6 +668,10 @@ def _check_disjoint(
 
 def _steps(path: str) -> list[str]:
     return [step for step in path.split("/") if step]
+
+
+def _node_path(image: Image, inner: list[str]) -> str:
+    return "/".join([image.path, *inner])
 
 
 def _follow(parent: list[str], link: UolNode, image: Image) -> list[str]:

@@ -41,10 +41,11 @@ from collections.abc import Buffer
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .canvas import Pixels, decode_canvas
 from .chacha20 import BLOCK_SIZE, NONCE_SIZE, ChaCha20
 from .errors import CorruptArchive, UnsupportedFormat
 from .image import parse_image
-from .nodes import PropertyNode
+from .nodes import CanvasRef, PropertyNode
 from .reader import BadFormat, ByteReader, OutOfBounds
 
 VERSION = 4
@@ -158,6 +159,45 @@ class MsPack:
         :raises CorruptArchive: The entry doesn't parse.
         """
         return parse_image(self.read(entry), archive=self.path, image=entry.name)
+
+    def pixels(self, entry: PackEntry, canvas: CanvasRef, node: str) -> Pixels:
+        """
+        One canvas's pixels, decoded: `(height, width, 4)`, RGBA (`canvas`).
+
+        :param entry: The image the canvas is in.
+        :param canvas: The canvas, from that image's tree. Its offset counts
+            from the entry's first decrypted byte.
+        :param node: The canvas's path inside the image, for errors.
+        :raises UnsupportedFormat: The pixel format isn't supported.
+        :raises CorruptArchive: The entry ends before the pixels do, or they
+            don't decode.
+        """
+        end = canvas.offset + canvas.length
+        if end > entry.size:
+            raise CorruptArchive(
+                self.path,
+                entry.name,
+                node,
+                f"the canvas is {canvas.length} bytes at offset {canvas.offset}, "
+                f"but the entry is {entry.size}",
+            )
+        if canvas.offset < ENCRYPTED_SIZE:
+            data = self.read(entry)[canvas.offset : end]
+        else:
+            # Past the encrypted start, the entry is plain: read only the pixels.
+            with self.path.open("rb") as file:
+                file.seek(entry.offset + canvas.offset)
+                data = file.read(canvas.length)
+            if len(data) != canvas.length:
+                raise CorruptArchive(
+                    self.path,
+                    entry.name,
+                    node,
+                    f"the file ends {canvas.length - len(data)} bytes into the canvas",
+                )
+        return decode_canvas(
+            data, canvas, archive=self.path, image=entry.name, node=node
+        )
 
 
 class _TableParser:

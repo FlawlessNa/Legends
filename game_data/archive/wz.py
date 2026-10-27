@@ -16,8 +16,9 @@ The layout, as Classic's client stores it:
   compressed size and checksum, and an encrypted `uint32` offset
   (`decode_offset`). A directory's entries are at its offset.
 
-Images are read on demand: `WzArchive.read` returns one image's bytes, and
-`WzArchive.parse` its property tree.
+Images are read on demand: `WzArchive.read` returns one image's bytes,
+`WzArchive.parse` its property tree, and `WzArchive.pixels` one canvas's
+pixels.
 """
 
 import mmap
@@ -25,9 +26,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from .canvas import Pixels, decode_canvas
 from .errors import CorruptArchive
 from .image import parse_image
-from .nodes import PropertyNode
+from .nodes import CanvasRef, PropertyNode
 from .reader import BadFormat, ByteReader
 
 MAGIC = b"PKG1"
@@ -196,18 +198,7 @@ class WzArchive:
 
         :raises CorruptArchive: The file ends before the image does.
         """
-        with self.path.open("rb") as file:
-            file.seek(entry.offset)
-            data = file.read(entry.size)
-        if len(data) != entry.size:
-            raise CorruptArchive(
-                self.path,
-                entry.name,
-                None,
-                f"the image is {entry.size} bytes at offset {entry.offset}, "
-                f"but the file ends after {len(data)}",
-            )
-        return data
+        return self._bytes_at(entry.offset, entry.size, entry.name, None, "the image")
 
     def parse(self, entry: ImageEntry) -> PropertyNode:
         """
@@ -218,6 +209,38 @@ class WzArchive:
         return parse_image(
             self.read(entry), archive=self.path, image=entry.name, base=entry.offset
         )
+
+    def pixels(self, entry: ImageEntry, canvas: CanvasRef, node: str) -> Pixels:
+        """
+        One canvas's pixels, decoded: `(height, width, 4)`, RGBA (`canvas`).
+
+        :param entry: The image the canvas is in.
+        :param canvas: The canvas, from that image's tree. Its offset counts
+            from the start of the file.
+        :param node: The canvas's path inside the image, for errors.
+        :raises UnsupportedFormat: The pixel format isn't supported.
+        :raises CorruptArchive: The file ends before the pixels do, or they
+            don't decode.
+        """
+        image = entry.name
+        data = self._bytes_at(canvas.offset, canvas.length, image, node, "the canvas")
+        return decode_canvas(data, canvas, archive=self.path, image=image, node=node)
+
+    def _bytes_at(
+        self, offset: int, size: int, image: str, node: str | None, what: str
+    ) -> bytes:
+        with self.path.open("rb") as file:
+            file.seek(offset)
+            data = file.read(size)
+        if len(data) != size:
+            raise CorruptArchive(
+                self.path,
+                image,
+                node,
+                f"{what} is {size} bytes at offset {offset}, "
+                f"but the file ends after {len(data)}",
+            )
+        return data
 
     def images(self) -> list[tuple[str, ImageEntry]]:
         """Every image in the archive, with its path from the archive's root."""
