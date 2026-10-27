@@ -8,7 +8,6 @@ from botting import PARENT_LOG
 from botting.models_abstractions import BaseMap, BaseMob
 from maple.model.interface import Minimap
 
-from .game_file_extraction.map_physics import MinimapPhysics
 from .maple_mob import MapleMob
 from .minimap_creation.minimap_edits_model import (
     _DEFAULT_NODE_INFO,
@@ -16,6 +15,7 @@ from .minimap_creation.minimap_edits_model import (
     MinimapEditsManager,
 )
 from .minimap_creation.minimap_grid import ConnectionTypes, MinimapGrid, MinimapNode
+from .physics import MinimapPhysics
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 

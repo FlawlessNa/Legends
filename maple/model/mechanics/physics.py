@@ -16,7 +16,7 @@ class _PhysicsValues(Enum):
     FLOAT_COEFFICIENT = 0.01
     SWIM_FORCE = 120000.0
     SWIM_SPEED = 140.0
-    FLY_FORCE = 120000.0
+    FLY_FORCE = 120000.0  # noqa: PIE796 - same value as SWIM_FORCE in the client
     FLY_SPEED = 200.0
     GRAVITY_ACC = 2000.0
     FALL_SPEED = 670.0
@@ -46,7 +46,7 @@ class MinimapPhysics:
     Implements physics for the minimap.
     """
 
-    def __init__(self, scale_x: float, scale_y: float):
+    def __init__(self, scale_x: float, scale_y: float) -> None:
         self.minimap_speed = _CONSTANTS.WALK_SPEED.value * scale_x
         self.jump_height = VRPhysics.JUMP_HEIGHT * scale_y
         self.jump_distance = VRPhysics.JUMP_WIDTH * scale_x
@@ -129,7 +129,9 @@ class MinimapPhysics:
         return sorted(set(trajectory), key=trajectory.index)
 
     @staticmethod
-    def _jump_parabola_y(x, jump_distance: float, jump_height: float):
+    def _jump_parabola_y(
+        x: np.ndarray, jump_distance: float, jump_height: float
+    ) -> np.ndarray:
         h, k = jump_distance / 2, jump_height
         a = k / h**2
         return -a * (x - h) ** 2 + k
