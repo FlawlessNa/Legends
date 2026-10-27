@@ -19,8 +19,10 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from pytest_mock import MockerFixture
 
 from game_data.archive import (
+    BrokenLink,
     ClientData,
     CorruptArchive,
     IntNode,
@@ -194,13 +196,42 @@ def test_a_path_to_something_other_than_a_canvas_raises(client: ClientData) -> N
 
 
 def test_a_link_naming_nothing_raises_naming_the_link(client: ClientData) -> None:
-    with pytest.raises(NodeNotFound) as raised:
+    with pytest.raises(BrokenLink) as raised:
         client.canvas("Mob/0100100.img/bad/dangling")
 
     error = raised.value
     assert error.archive.endswith("Mob.wz")
     assert (error.image, error.node) == ("0100100.img", "bad/dangling/_outlink")
     assert "names nothing" in error.reason
+
+
+def test_a_path_naming_nothing_is_not_a_broken_link(client: ClientData) -> None:
+    with pytest.raises(NodeNotFound) as raised:
+        client.canvas("Mob/0100100.img/stand/nothing")
+
+    assert not isinstance(raised.value, BrokenLink)
+
+
+def test_canvas_source_finds_the_pixels_without_decoding_them(
+    client: ClientData, mocker: MockerFixture
+) -> None:
+    decode = mocker.patch("game_data.archive.wz.decode_canvas")
+
+    found = client.canvas_source("Mob/0100100.img/stand/4")
+
+    decode.assert_not_called()
+    assert found.path == "Mob/0100100.img/stand/4"
+    assert found.source == "Mob/_Canvas/0100100.img/stand/0"
+    assert found.image.path == "Mob/_Canvas/0100100.img"
+    assert found.node == "stand/0"
+    assert (found.ref.width, found.ref.height) == (2, 2)
+    assert found.properties["origin"] == VectorNode(name="origin", x=1, y=2)
+
+
+def test_a_canvas_sources_pixels_decode_to_the_canvas(client: ClientData) -> None:
+    found = client.canvas_source("Mob/0100100.img/stand/1")
+
+    np.testing.assert_array_equal(found.pixels(), rgba(SHARED, 1))
 
 
 @pytest.mark.parametrize(

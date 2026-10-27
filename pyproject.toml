@@ -55,6 +55,9 @@ extend-select = ["W", "E4", "E7", "E9", "TID", "PT", "ANN", "T20"]
 # it would only push casts out to every caller. ANN401 alone - every other rule,
 # including the rest of ANN, still applies to this file.
 "botting/core/bot_data.py" = ["ANN401"]
+# `game_data`'s command line. All of the package's output goes through this one
+# module, so it is the one place `print` is allowed in it.
+"game_data/cli.py" = ["T20"]
 # Parked, and raises on import. maple/AGENTS.md: "When lint and type gates land,
 # exclude this file explicitly rather than editing it into compliance."
 "maple/decision_makers/inventory_manager.py" = [

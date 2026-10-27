@@ -16,15 +16,16 @@ import pytest
 
 from game_data.archive import (
     ArchiveError,
+    BrokenLink,
     CanvasNode,
     ClientData,
     MsPack,
-    NodeNotFound,
     Pixels,
     PropertyNode,
     WzArchive,
 )
 from game_data.config import ClientPathNotSet, client_data_path
+from game_data.extraction import Freshness, extract, status
 
 pytestmark = pytest.mark.client_files
 
@@ -171,11 +172,29 @@ def test_every_data_side_canvas_reaches_its_pixels(data: Path) -> None:
             canvases += 1
             try:
                 client.canvas(f"{image.path}/{node_path}")
-            except NodeNotFound as error:
-                if not (error.node or "").endswith(("/_outlink", "/_inlink")):
-                    failures.append(str(error))
+            except BrokenLink:
+                pass
             except ArchiveError as error:
                 failures.append(str(error))
 
     assert canvases > 0
     assert failures == [], f"{len(failures)} of {canvases} canvases failed"
+
+
+def test_extracting_the_client_into_a_temporary_store_completes(
+    data: Path, tmp_path: Path
+) -> None:
+    """
+    The whole client, into a store under `tmp_path`, never the real one. The
+    only failures it may record are links naming nothing (`BrokenLink`).
+    """
+    root = tmp_path / "store"
+
+    done = extract(data, root)
+
+    manifest = done.manifest
+    assert done.created
+    assert manifest.images > 0
+    assert manifest.canvases > 0
+    assert all("names nothing" in failure.reason for failure in manifest.failures)
+    assert status(data, root).freshness is Freshness.FRESH

@@ -8,7 +8,8 @@ idea what a map or a mob is. The public API:
   `directory`, `image`, `node` and `resolve` take paths such as
   `Map/Map/Map0/000001000.img/info/bgm`, and `resolve` follows links (`client`).
   `canvas` returns a `Canvas`: a canvas's properties with its pixels, wherever
-  the client keeps them.
+  the client keeps them. `canvas_source` finds them without decoding them: a
+  `CanvasSource`.
 - `Directory` and `Image`: what the namespace holds. A directory lists its
   `directories` and `images`. An image knows its `archive` and its `entry`,
   and `parse()` returns its tree.
@@ -25,13 +26,21 @@ idea what a map or a mob is. The public API:
 - The errors (`errors`): `ArchiveError`, the base, names the archive, the image
   and the node path. `CorruptArchive` is malformed or truncated input,
   `UnsupportedFormat` a known format this reader doesn't implement, and
-  `NodeNotFound` a path that names nothing. Nothing returns a partial tree.
+  `NodeNotFound` a path that names nothing. `BrokenLink`, a `NodeNotFound`, is
+  a canvas's `_outlink` or `_inlink` naming nothing. Nothing returns a partial
+  tree.
 """
 
 from .canvas import Pixels, decode_canvas
 from .chacha20 import ChaCha20
-from .client import Canvas, ClientData, Directory, Image
-from .errors import ArchiveError, CorruptArchive, NodeNotFound, UnsupportedFormat
+from .client import Canvas, CanvasSource, ClientData, Directory, Image
+from .errors import (
+    ArchiveError,
+    BrokenLink,
+    CorruptArchive,
+    NodeNotFound,
+    UnsupportedFormat,
+)
 from .image import parse_image
 from .ms import MsPack, PackEntry
 from .nodes import (
@@ -59,9 +68,11 @@ from .wz import ImageEntry, WzArchive, WzDirectory
 
 __all__ = [
     "ArchiveError",
+    "BrokenLink",
     "Canvas",
     "CanvasNode",
     "CanvasRef",
+    "CanvasSource",
     "ChaCha20",
     "ClientData",
     "ConvexNode",

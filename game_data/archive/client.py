@@ -35,6 +35,8 @@ such as `Map/Map/Map0/000001000.img/info/bgm`.
   and `..` may climb out of the image into the directories.
 - `ClientData.canvas(path)` is the canvas at `path`, resolved as `resolve`
   does, with its pixels decoded: a `Canvas`.
+- `ClientData.canvas_source(path)` finds the same pixels without decoding
+  them: a `CanvasSource`, whose `pixels()` decodes them.
 
 **Canvases** keep their pixels in one of three places. Most of a tree's
 canvases are 1x1 placeholders whose pixels are in the tree's `_Canvas`
@@ -51,7 +53,8 @@ with an `_outlink`. The properties (`origin`, `delay`, `lt`, `rb`, `_hash`...)
 stay on the canvas `path` names, and `Canvas.properties` keeps them; the
 canvases in `_Canvas` carry none.
 
-Lookups raise `NodeNotFound`, naming the path and what was missing.
+Lookups raise `NodeNotFound`, naming the path and what was missing. A link to
+the pixels that names nothing raises `BrokenLink`, a `NodeNotFound`.
 """
 
 from collections import OrderedDict
@@ -62,7 +65,7 @@ from pathlib import Path
 from typing import Protocol
 
 from .canvas import Pixels
-from .errors import CorruptArchive, NodeNotFound
+from .errors import BrokenLink, CorruptArchive, NodeNotFound
 from .ms import MsPack, PackEntry
 from .nodes import CanvasNode, CanvasRef, Node, PropertyNode, StringNode, UolNode
 from .wz import ImageEntry, WzArchive, WzDirectory
@@ -171,6 +174,36 @@ class Canvas:
     properties: Mapping[str, Node]
     source: str
     pixels: Pixels
+
+
+@dataclass(frozen=True, slots=True, kw_only=True, eq=False)
+class CanvasSource:
+    """
+    Where a canvas's pixels are, from `ClientData.canvas_source`, undecoded.
+
+    :ivar path: The canvas asked for, as in `Canvas`.
+    :ivar properties: That canvas's children, as in `Canvas`.
+    :ivar source: The path of the canvas holding the pixels, as in `Canvas`.
+    :ivar image: The image `source` is in.
+    :ivar node: `source`'s path inside `image`.
+    :ivar ref: `source`'s pixels: their format and size (`width`, `height`).
+    """
+
+    path: str
+    properties: Mapping[str, Node]
+    source: str
+    image: Image
+    node: str
+    ref: CanvasRef
+
+    def pixels(self) -> Pixels:
+        """
+        The pixels, decoded: `(height, width, 4)`, RGBA.
+
+        :raises UnsupportedFormat: The pixel format isn't supported.
+        :raises CorruptArchive: The pixels don't decode.
+        """
+        return self.image.pixels(self.ref, self.node)
 
 
 type _Contents = tuple[dict[str, "Directory"], dict[str, Image]]
@@ -315,12 +348,31 @@ class ClientData:
         """
         The canvas at `path`, resolved as `resolve` does, with its pixels.
 
-        :raises NodeNotFound: The path names nothing, or no canvas, or a link
-            to the pixels names nothing.
+        :raises NodeNotFound: The path names nothing, or no canvas.
+        :raises BrokenLink: A link to the pixels names nothing.
         :raises CorruptArchive: A canvas has both links, or a link that isn't a
             string, or one naming something other than a canvas, or the links
             loop. Also: an image doesn't parse, or the pixels don't decode.
         :raises UnsupportedFormat: The pixel format isn't supported.
+        """
+        found = self.canvas_source(path)
+        return Canvas(
+            path=found.path,
+            properties=found.properties,
+            source=found.source,
+            pixels=found.pixels(),
+        )
+
+    def canvas_source(self, path: str) -> CanvasSource:
+        """
+        Where the pixels of the canvas at `path` are, found as `canvas` finds
+        them, without decoding them.
+
+        :raises NodeNotFound: The path names nothing, or no canvas.
+        :raises BrokenLink: A link to the pixels names nothing.
+        :raises CorruptArchive: A canvas has both links, or a link that isn't a
+            string, or one naming something other than a canvas, or the links
+            loop. Also: an image doesn't parse.
         """
         image, inner, node = self._resolve(path)
         where = _node_path(image, inner)
@@ -353,11 +405,13 @@ class ClientData:
                     f"{linked.type}, not a canvas",
                 )
             node = linked
-        return Canvas(
+        return CanvasSource(
             path=where,
             properties=properties,
             source=_node_path(image, inner),
-            pixels=image.pixels(node.canvas, "/".join(inner)),
+            image=image,
+            node="/".join(inner),
+            ref=node.canvas,
         )
 
     def _link(
@@ -388,7 +442,7 @@ class ClientData:
         try:
             return self._at(steps)
         except NodeNotFound as error:
-            raise NodeNotFound(
+            raise BrokenLink(
                 image.archive,
                 image.name,
                 f"{here}/{key}",

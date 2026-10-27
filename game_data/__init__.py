@@ -11,7 +11,13 @@ It is built in layers, and each one imports only the layers to its left:
     archive/ <- extraction/ <- catalogue/ <- report/, render/
 
 - `archive/`: bytes to property trees. It knows nothing about the game.
-- `config`: where the installed client's `Data` folder is, per machine.
+- `extraction/`: the installed client into a store of Extractions, losslessly,
+  with every canvas as a PNG. It knows nothing about the game either.
+- `config`: where the installed client's `Data` folder is, per machine, and
+  where the store is by default.
+- `cli`: `python -m game_data`, and the only module that prints.
+
+`docs/agents/game-data.md` covers the commands and the store.
 
 The later layers arrive with their tickets (epic #259).
 """
