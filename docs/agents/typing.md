@@ -18,7 +18,8 @@ Three mechanisms, all in `[tool.pyright]` in `pyproject.toml`:
 2. **The Strict List** — `strict = [...]`. Directories held to Pyright
    `strict`. **Append-only**: an entry is never removed, and no override may
    ever *loosen* a strict-listed directory below what `strict` would already
-   catch. Today it holds one entry: `botting/controller/inputs/`.
+   catch. Today it holds two entries: `botting/controller/inputs/`, and
+   `game_data/`, which joined clean from its first commit (epic #259).
 3. **`reportMissingTypeStubs = "none"`**, set explicitly rather than left at
    its default. Four third-party dependencies — `pytesseract`, `pathfinding`,
    `pytweening`, `fuzzywuzzy` — ship no type stubs and never have any

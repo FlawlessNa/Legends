@@ -8,11 +8,15 @@ editing a test; what follows is only the shape of the suite.
 - Plain module-level `test_*` functions, `@pytest.fixture` for setup, bare
   `assert`. No `TestCase`, and nothing under `tests/` imports `unittest` —
   spies come from `pytest-mock`'s `mocker` fixture.
-- **Two opt-in markers**, both deselected by default: `@pytest.mark.live` for
-  tests driving a real, focused game client (`pytest -m live`), and
+- **Four opt-in markers**, all deselected by default: `@pytest.mark.live` for
+  tests driving a real, focused game client (`pytest -m live`),
   `@pytest.mark.system` for tests that mutate machine-global state such as the
-  machine's keyboard layouts (`pytest -m system`). Anything that needs a game
-  window, or leaves a trace outside the test process, belongs behind one.
+  machine's keyboard layouts (`pytest -m system`), `@pytest.mark.lab` for
+  measurements rather than gates (`pytest -m lab`), and
+  `@pytest.mark.client_files` for tests that read the installed client's files
+  at the path `configs/game_data.ini` sets (`pytest -m client_files`). Anything
+  that needs a game window or the client's files, or leaves a trace outside the
+  test process, belongs behind one.
 - **`held_movement_keys`** (root `conftest.py`) pins what
   `KeyboardInputWrapper` construction sees as already held, so the
   Held-Keys Ledger's cross-test state doesn't leak into your assertions.
@@ -27,9 +31,10 @@ editing a test; what follows is only the shape of the suite.
   (`--check` reports drift without writing). A pair whose reachability changed is a
   red test, not a file to quietly regenerate.
 - `pytest` from the repo root — no flags, no `--ignore`. The green baseline is
-  **0 failed, 0 errors, 0 xfailed, 2 deselected**; any `failed` or `error` line
-  is yours, and don't pin the passing count — it drifts. Don't add an `xfail`
-  to get a green run — issue #89 is what it costs to actually resolve one.
+  **0 failed, 0 errors, 0 xfailed**, with every deselected test carrying an
+  opt-in marker; any `failed` or `error` line is yours, and don't pin the
+  passing count — it drifts. Don't add an `xfail` to get a green run — issue
+  #89 is what it costs to actually resolve one.
 - **A new test must fail without the change it covers** — stash the source, run
   the test, watch it go red for the reason you expect. Refactors are the
   inverse: no new test, existing ones pass unmodified. `docs/agents/testing.md`

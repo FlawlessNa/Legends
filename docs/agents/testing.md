@@ -62,12 +62,15 @@ There are no longer any exceptions. The last three fell with issues #40 and #69:
 re-deriving what they configure. Two things there are worth knowing before you write
 a test:
 
-- **Two opt-in markers.** `@pytest.mark.live` is for tests that drive a real,
+- **Four opt-in markers.** `@pytest.mark.live` is for tests that drive a real,
   focused game client; `@pytest.mark.system` is for tests that mutate
-  machine-global state, such as the keyboard layouts loaded on the machine. Both
-  are excluded from a default run — `pytest -m live`, `pytest -m system`.
-  Anything needing a game window, or leaving a trace outside the test process,
-  belongs behind one of them.
+  machine-global state, such as the keyboard layouts loaded on the machine;
+  `@pytest.mark.lab` is for measurements (see below); and
+  `@pytest.mark.client_files` is for tests that read the installed MapleStory
+  Classic client's files, at the path `configs/game_data.ini` sets. All four
+  are excluded from a default run — `pytest -m live`, `-m system`, `-m lab`,
+  `-m client_files`. Anything needing a game window or the client's files, or
+  leaving a trace outside the test process, belongs behind one of them.
 - **The `held_movement_keys` fixture.** Constructing a `KeyboardInputWrapper` reads
   the Held-Keys Ledger, which only Main Process owns and which carries state between
   tests. Request this fixture to pin what construction sees as already held, so the
@@ -91,7 +94,9 @@ once someone else's branch landed. Don't pin the deselected count either: it
 moves with the markers. The shape is what holds:
 
 - **Deselected** — the opt-in markers, and nothing else. `system` (keyboard-layout
-  tests that mutate machine-global state) and `lab` (see below). **No test carries
+  tests that mutate machine-global state), `lab` (see below) and `client_files`
+  (the installed client's files, which can't be committed: the agent on a machine
+  with the client runs them and reports the summary line). **No test carries
   the `live` marker today**, so `pytest -m live` selects nothing.
 - **0 xfailed** — the 11 red tests parked behind issue #89 are resolved: the
   8 unwritten `test_controller.py`/`test_screenshots.py` placeholders were
