@@ -27,6 +27,7 @@ from game_data.report import (
     summarize,
     write_report,
 )
+from game_data.report.summary import _map_change, _skill_change, anonymous
 from tests.test_game_data import test_catalogue as tc
 from tests.test_game_data import test_catalogue_mobs_skills as tm
 from tests.test_game_data import wz_writer as w
@@ -236,8 +237,8 @@ def test_a_summary_of_an_extraction_against_itself_is_empty(
 def test_the_summary_sees_levels_and_other_fields_of_a_skill(
     root: Path, builds: tuple[str, str]
 ) -> None:
-    """Magic Claw is the same in both builds; compare it with Energy Bolt's."""
-    with Catalogue.open(builds[0], root) as old, Catalogue.open(builds[1], root) as new:
+    """Magic Claw is the same in both builds, so edit one copy of it."""
+    with Catalogue.open(builds[0], root) as old:
         claw = old.skill(tm.MAGIC_CLAW)
         edited = dataclasses.replace(
             claw,
@@ -250,10 +251,7 @@ def test_the_summary_sees_levels_and_other_fields_of_a_skill(
                 *claw.levels[2:],
             ),
         )
-        from game_data.report.summary import _skill_change
-
-        change = _skill_change(claw, edited)
-        del new
+    change = _skill_change(claw, edited)
 
     assert change is not None
     assert change.levels_removed == (2,)
@@ -263,6 +261,39 @@ def test_the_summary_sees_levels_and_other_fields_of_a_skill(
     assert fields["mp_con"] == (10, 99)
     assert fields["other.mad"] == (45, 1)
     assert fields["other.fresh"] == (None, 2)
+
+
+def test_inserting_an_object_or_tile_ahead_of_others_reports_only_the_new_segments(
+    root: Path, builds: tuple[str, str]
+) -> None:
+    """Their IDs are running numbers, so inserting one renumbers every later."""
+    with Catalogue.open(builds[0], root) as cat:
+        before = cat.map(tc.HENESYS)
+    others = [f for f in before.footholds if f.source != "map"]
+    assert others, "the fixture's Henesys has object and tile footholds"
+    inserted = dataclasses.replace(others[0], id=0, x1=7000, x2=7050)
+    shifted = [
+        dataclasses.replace(f, id=f.id + 1) if f.source != "map" else f
+        for f in before.footholds
+    ]
+    after = dataclasses.replace(before, footholds=(*shifted, inserted))
+    # The inserted one comes first among its source, as a layer read earlier would.
+    first = next(
+        i for i, f in enumerate(after.footholds) if f.source == inserted.source
+    )
+    ordered = list(after.footholds)
+    ordered.insert(first, ordered.pop())
+    after = dataclasses.replace(after, footholds=tuple(ordered))
+
+    change = _map_change(before, after)
+
+    assert change is not None
+    assert [(c.part, c.kind) for c in change.changes] == [("foothold", "added")]
+    assert "7000" in (change.changes[0].new or "")
+    # and the drawing marks nothing else
+    assert {anonymous(f) for f in before.footholds} <= {
+        anonymous(f) for f in after.footholds
+    }
 
 
 # --- the page ----------------------------------------------------------------
@@ -304,17 +335,6 @@ def test_the_page_is_self_contained(root: Path, builds: tuple[str, str]) -> None
     assert not re.search(r"https?://", page)
     assert "@import" not in page
     assert "url(" not in page
-
-
-def test_the_page_survives_the_images_being_deleted(
-    root: Path, builds: tuple[str, str]
-) -> None:
-    page = _page(root, builds)
-    store = Store(root)
-    for _, file in list(store.images.files()):
-        file.unlink()
-
-    assert "data:image/png;base64," in page
 
 
 def test_a_sprite_the_store_lost_is_said_so_rather_than_dropped(

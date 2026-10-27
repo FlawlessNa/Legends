@@ -5,8 +5,9 @@ Maps, mobs and skills are compared by ID. One only the new catalogue has is
 **added**, and one only the old has is **removed**. Of those both have:
 
 - a **map** is changed when its geometry is: its VR bounds, footholds, ropes,
-  portals or spawns. Footholds and ropes are matched by their `source` and ID,
-  portals and spawns by what they are, since the client gives them no ID. A
+  portals or spawns. A map's own footholds and ropes are matched by ID,
+  portals, spawns and the segments drawn on objects and tiles by what they are,
+  since the client gives them no ID (`anonymous`). A
   portal or spawn that is gone while another of the same name (or the same mob
   or NPC) appeared is one that changed.
 - a **mob** is changed when a stat is: any value of `MobData` but its name,
@@ -20,7 +21,7 @@ thing the client names nowhere is told by its ID.
 
 from collections import Counter
 from collections.abc import Callable, Hashable, Sequence
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from typing import Final
 
 from game_data.catalogue import (
@@ -210,22 +211,20 @@ def _map_change(old: MapData, new: MapData) -> MapChange | None:
     changes: list[GeometryChange] = []
     if old.vr != new.vr or old.vr_derived != new.vr_derived:
         changes.append(GeometryChange("vr", "changed", "VR bounds", _vr(old), _vr(new)))
-    changes += _keyed(
-        "foothold",
-        old.footholds,
-        new.footholds,
-        key=lambda f: (f.source, f.id),
-        subject=lambda f: f"{f.source} foothold {f.id}",
-        text=_foothold,
-    )
-    changes += _keyed(
-        "rope",
-        old.ropes,
-        new.ropes,
-        key=lambda r: (r.source, r.id),
-        subject=lambda r: f"{r.source} rope {r.id}",
-        text=_rope,
-    )
+    for source in ("map", "object", "tile"):
+        changes += _segments(
+            "foothold",
+            [f for f in old.footholds if f.source == source],
+            [f for f in new.footholds if f.source == source],
+            text=_foothold,
+        )
+    for source in ("map", "object"):
+        changes += _segments(
+            "rope",
+            [r for r in old.ropes if r.source == source],
+            [r for r in new.ropes if r.source == source],
+            text=_rope,
+        )
     changes += _unkeyed(
         "portal",
         old.portals,
@@ -248,6 +247,47 @@ def _map_change(old: MapData, new: MapData) -> MapChange | None:
     if new.name is not None:
         name = f"{new.street}: {new.name}" if new.street else new.name
     return MapChange(new.id, name, tuple(changes), old, new)
+
+
+def anonymous[T: (Foothold, Rope)](segment: T) -> T:
+    """
+    A segment as it can be compared across extractions: a map's own keeps its
+    ID, which the client gives it, and one drawn on an object or tile has its
+    running number zeroed, since that is only its place in the order the layers
+    were read, and shifts when any earlier one is added or removed.
+    """
+    return segment if segment.source == "map" else replace(segment, id=0)
+
+
+def _segments[T: (Foothold, Rope)](
+    part: str, old: list[T], new: list[T], *, text: Callable[[T], str]
+) -> list[GeometryChange]:
+    """
+    The footholds or ropes of one `source` that are gone, new or different. The
+    map's own are matched by ID. The others have no ID of their own, so they
+    are compared by value, as portals and spawns are, and one that is moved is
+    one removed and one added.
+    """
+    if not old and not new:
+        return []
+    source = (old or new)[0].source
+    if source == "map":
+        return _keyed(
+            part,
+            old,
+            new,
+            key=lambda x: x.id,
+            subject=lambda x: f"map {part} {x.id}",
+            text=text,
+        )
+    return _unkeyed(
+        part,
+        [anonymous(x) for x in old],
+        [anonymous(x) for x in new],
+        key=lambda x: x,
+        subject=lambda x: f"{source} {part}",
+        text=text,
+    )
 
 
 def _vr(map_data: MapData) -> str:

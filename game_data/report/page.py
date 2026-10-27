@@ -32,6 +32,7 @@ from .summary import (
     SkillChange,
     Summary,
     Value,
+    anonymous,
     label,
 )
 
@@ -232,13 +233,13 @@ def _drawing(shown: MapData, other: MapData, *, gone: bool) -> str:
     for r in shown.ropes:
         drawn.append(
             f'<line x1="{r.x}" y1="{r.y1}" x2="{r.x}" y2="{r.y2}" '
-            f'stroke="{colour(r in other.ropes)}" stroke-width="1.5" '
+            f'stroke="{colour(anonymous(r) in {anonymous(x) for x in other.ropes})}" stroke-width="1.5" '
             'vector-effect="non-scaling-stroke" opacity=".7"/>'
         )
     for f in shown.footholds:
         drawn.append(
             f'<line x1="{f.x1}" y1="{f.y1}" x2="{f.x2}" y2="{f.y2}" '
-            f'stroke="{colour(f in other.footholds)}" stroke-width="2.5" '
+            f'stroke="{colour(anonymous(f) in {anonymous(x) for x in other.footholds})}" stroke-width="2.5" '
             'vector-effect="non-scaling-stroke"/>'
         )
     radius = 4 / scale

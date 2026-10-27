@@ -104,7 +104,7 @@ def diff_raw(old: Path, new: Path) -> RawDiff:
                 "SELECT o.path, o.tree, n.tree FROM main.images o "
                 "JOIN newer.images n ON n.path = o.path "
                 "WHERE o.sha256 != n.sha256 ORDER BY o.path"
-            ).fetchall()
+            )
         ]
     return RawDiff(tuple(added), tuple(removed), tuple(changed))
 
