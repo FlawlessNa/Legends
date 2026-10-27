@@ -400,6 +400,18 @@ def test_an_archive_cut_after_its_directory_raises_rather_than_listing_less(
     assert caught.value.archive == str(path)
 
 
+def test_an_archive_longer_than_its_header_says_raises(
+    every_type: tuple[Path, w.Layout],
+) -> None:
+    path, _ = every_type
+    path.write_bytes(path.read_bytes() + b"\x00" * 16)
+
+    with pytest.raises(CorruptArchive, match="the header says") as caught:
+        WzArchive.open(path)
+
+    assert caught.value.archive == str(path)
+
+
 def test_an_image_whose_tree_ends_early_raises(tmp_path: Path) -> None:
     data, _ = w.image_bytes([w.Int("v", 1)])
 
