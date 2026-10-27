@@ -125,8 +125,8 @@ checks them. It runs whenever there is a spec.
 
 - **Who:** a fresh subagent on the strongest model, or a fresh session. Give
   it only the paths to `intent.md`, `spec.md` and `draft-tickets.md`, and
-  the task below. Do not summarise the discussion for it: the missing context is what
-  it is there to find.
+  the task below. Do not summarise the discussion for it: the missing
+  context is what it is there to find.
 - **The task:**
   1. For each ticket: could you finish it from its body and the documents it
      points at, without asking? List what you would have to guess.
@@ -137,8 +137,9 @@ checks them. It runs whenever there is a spec.
   4. Report findings only, each naming the ticket or section. Change nothing.
 - **Once, not a loop.** Fix each finding or argue against it, and record both
   under `## Review` at the end of `draft-tickets.md`: the finding, then
-  what you did about it. The maintainer sees what was caught. A finding that would change
-  the approved spec goes back to the maintainer as a decision.
+  what you did about it. The maintainer sees what was caught. A finding
+  that would change the approved spec goes back to the maintainer as a
+  decision.
 - **It blocks nothing.** Its job is to make the list the maintainer approves
   a better one.
 
