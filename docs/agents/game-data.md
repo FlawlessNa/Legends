@@ -7,7 +7,7 @@ its intent and spec are the issue body.
 
 This page covers setting it up, the commands, looking things up in code, and
 the store's layout, the catalogue's tables included, for anyone reading it
-directly. Later tickets add the patch report and the renderer.
+directly. A later ticket adds the renderer.
 
 ## On a new machine
 
@@ -28,6 +28,7 @@ fails, naming the file to create.
 ```
 python -m game_data extract [--client PATH] [--root PATH]
 python -m game_data status  [--client PATH] [--root PATH]
+python -m game_data report  [OLD NEW] [--root PATH]
 python -m game_data show map|mob|skill NAME [--level N] [--root PATH]
 python -m game_data search TEXT [--kind map|mob|skill] [--root PATH]
 ```
@@ -50,6 +51,11 @@ python -m game_data search TEXT [--kind map|mob|skill] [--root PATH]
   manifest isn't updated afterwards, so a touched archive is read again on
   every call until the next new extraction.
 
+- **`report [OLD NEW]`** rebuilds the patch report from build `OLD` to build
+  `NEW`, and prints its path. With neither, it compares the two kept
+  extractions, the older to the latest. `extract` writes the report by itself
+  when a new Build lands after another, so this is for rebuilding one, or for
+  comparing a pair `extract` didn't. See "The patch report".
 - **`show map NAME`** prints one map as JSON: its bounds, flags, footholds,
   ropes, portals and spawns. `NAME` is a name or an ID (see "Looking things
   up"). For example, `show map Henesys`, `show map "Victoria Road: Henesys"`
@@ -130,6 +136,38 @@ manifest has another `catalogue_schema_version`, or which has no catalogue,
 rebuilds it from `raw.sqlite` first, and updates the manifest. That needs the
 store only, not the client.
 
+## The patch report
+
+`reports/<old>__<new>.html` is one self-contained page: inline CSS and SVG,
+with sprites embedded as `data:` URIs. It opens with no network, and survives
+retention deleting the extractions it was made from. It is written when
+`extract` lands a new Build after another extraction, and `extract` prints its
+path. It has:
+
+- a table of counts: maps, mobs, skills and raw images, added, removed and
+  changed;
+- **maps** added and removed, and the maps whose geometry changed: VR bounds,
+  footholds, ropes, portals and spawns, each change listed, with the map drawn
+  before and after (what is gone or different is red, what is new or different
+  is green);
+- **mobs** added and removed, and the mobs whose stats changed, with their
+  sprite (first `stand` frame) before and after;
+- **skills** added and removed, and the levels added, removed or changed, field
+  by field;
+- the **raw differences**, collapsed: images added or removed, and for a changed
+  image the nodes that differ, each with its path, old value and new value. A
+  canvas whose pixels changed shows as a changed `image` (its hash). A real
+  patch can change thousands of images, so only the first 300 changed images
+  and 40 nodes of each are listed, and the page says how many it left out.
+
+Everything is named through the client's `strings`; a thing it names nowhere is
+told by its ID. A raw difference is judged by the `sha256` of an image's stored
+tree, so it sees what the typed summary doesn't read (a map's background, a
+mob's sprite).
+
+Reading the page is for the maintainer, on the next real patch. Only that tells
+whether it reads well.
+
 ## The store
 
 ```
@@ -139,7 +177,7 @@ data/game_data/
     raw.sqlite             every image's tree, losslessly
     catalogue.sqlite       the typed layer, built from raw.sqlite
   images/<hh>/<name>.png   every canvas's pixels, shared by all extractions
-  reports/<old>__<new>.html  the patch reports (#266)
+  reports/<old>__<new>.html  the patch reports
 ```
 
 ### Builds and extractions

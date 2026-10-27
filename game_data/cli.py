@@ -5,6 +5,9 @@
 - `extract [--client PATH] [--root PATH]`: extract the installed client into
   the store, build its catalogue, and say what was done.
 - `status [--client PATH] [--root PATH]`: `missing`, `fresh` or `stale`.
+- `report [OLD NEW] [--root PATH]`: rebuild the patch report from build OLD to
+  build NEW, by default from the older kept extraction to the latest, and say
+  where it is. `extract` writes it by itself when a new Build lands.
 - `show map|mob|skill NAME [--level N] [--root PATH]`: one map, mob or
   skill, by name or ID, as JSON; with `--level`, one level of a skill.
 - `search TEXT [--kind map|mob|skill] [--root PATH]`: what matches, with IDs,
@@ -34,14 +37,15 @@ from .extraction import (
     ExtractionError,
     Freshness,
     ReportHook,
+    Store,
     extract,
-    no_report,
     status,
 )
+from .report import report_path, write_report
 
-# The catalogue and the patch report (#266) are built through these.
+# The catalogue and the patch report are built through these.
 CATALOGUE: CatalogueHook = build_catalogue
-REPORT: ReportHook = no_report
+REPORT: ReportHook = write_report
 
 # What `show` and `search` look up.
 KINDS = ("map", "mob", "skill")
@@ -54,6 +58,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Runs one command. Returns the exit code: 0, or 1 on an error."""
     parser = _parser()
     arguments = parser.parse_args(argv)
+    if arguments.command == "report" and len(arguments.builds) not in (0, 2):
+        parser.error("give both OLD and NEW, or neither")
     if (
         arguments.command == "show"
         and arguments.level is not None
@@ -68,6 +74,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             case "search":
                 return _search(arguments.text, arguments.kind, arguments.root)
+            case "report":
+                return _report(arguments.builds, arguments.root)
             case "extract":
                 return _extract(client_data_path(arguments.client), arguments.root)
             case _:
@@ -103,6 +111,14 @@ def _parser() -> argparse.ArgumentParser:
             help="the client's MSCW\\Data folder, instead of configs/game_data.ini",
         )
         _root_argument(command)
+    report = commands.add_parser("report", help="rebuild the patch report")
+    report.add_argument(
+        "builds",
+        nargs="*",
+        metavar="OLD NEW",
+        help="the build ids to compare (default: the older kept, to the latest)",
+    )
+    _root_argument(report)
     show = commands.add_parser("show", help="print one map, mob or skill as JSON")
     show.add_argument("kind", choices=KINDS, help="what to show")
     show.add_argument("name", help="its name, or its ID")
@@ -168,6 +184,23 @@ def _summary(done: Extracted) -> str:
         else "0 failures"
     )
     return "\n".join(lines)
+
+
+def _report(builds: Sequence[str], root: Path) -> int:
+    store = Store(root)
+    if builds:
+        old, new = builds
+    else:
+        manifests = store.manifests()
+        if len(manifests) < 2:
+            raise ExtractionError(
+                f"{root} has {len(manifests)} extraction{'s' if len(manifests) != 1 else ''}"
+                ": a report needs two; extract a new Build first"
+            )
+        new, old = manifests[0].build, manifests[1].build
+    write_report(store, old, new)
+    print(f"report: {report_path(store, old, new)}")
+    return 0
 
 
 def _status(client: Path, root: Path) -> int:
