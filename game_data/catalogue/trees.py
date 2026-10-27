@@ -160,14 +160,18 @@ class Tree:
 
     def number(self, name: str) -> float:
         """The child `name`: a float, a double, or an integer type."""
-        node = self.at(name).expect("float", "double", "int", "short", "long")
-        if node.type in ("int", "short", "long"):
-            return float(node.int_value())
-        value = node.value
+        return self.at(name).number_value()
+
+    def number_value(self) -> float:
+        """This node's value: a float, a double, or an integer type."""
+        self.expect("float", "double", "int", "short", "long")
+        if self.type in ("int", "short", "long"):
+            return float(self.int_value())
+        value = self.value
         if isinstance(value, dict):
             value = value.get("value")
         if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise node.error("its value isn't a number")
+            raise self.error("its value isn't a number")
         return float(value)
 
     def text(self, name: str) -> str:

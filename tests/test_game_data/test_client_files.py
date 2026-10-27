@@ -227,13 +227,20 @@ def test_extracting_a_slice_of_the_client_into_a_temporary_store_completes(
         shutil.rmtree(root, ignore_errors=True)
 
 
-# The slice the catalogue checks extract: every map and what it draws from, and
-# the strings that name them. About 140 MB, decoded once for the module.
-CATALOGUE_TREES = ("Map", "String")
+# The slice the catalogue checks extract: every map and what it draws from, the
+# strings that name them, every mob and skill with the packs that hold them,
+# and the character's body, whose actions time the skills: `Character`'s own
+# archives and its `_Canvas`, not the equipment beside them. About 280 MB,
+# decoded once for the module, in several minutes.
+CATALOGUE_TREES = ("Map", "String", "Mob", "Skill")
+CATALOGUE_PACKS = ("Mob_00000.ms", "Skill_00000.ms")
+BODY = "Character"
 
 
 @pytest.fixture(scope="module")
-def map_store(data: Path, tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
+def catalogue_store(
+    data: Path, tmp_path_factory: pytest.TempPathFactory
+) -> Iterator[Path]:
     """
     `CATALOGUE_TREES`, copied as a client of their own, extracted with the
     catalogue into a temporary store; the store. Both are deleted afterwards,
@@ -245,6 +252,13 @@ def map_store(data: Path, tmp_path_factory: pytest.TempPathFactory) -> Iterator[
     try:
         for tree in CATALOGUE_TREES:
             shutil.copytree(data / tree, client / tree)
+        (client / "Packs").mkdir()
+        for pack in CATALOGUE_PACKS:
+            shutil.copy2(data / "Packs" / pack, client / "Packs" / pack)
+        shutil.copytree(data / BODY / "_Canvas", client / BODY / "_Canvas")
+        for file in (data / BODY).iterdir():
+            if file.is_file():
+                shutil.copy2(file, client / BODY / file.name)
         extract(client, root, catalogue=build_catalogue)
         yield root
     finally:
@@ -260,10 +274,10 @@ def _count(root: Path, sql: str) -> int:
         return database.execute(sql).fetchone()[0]
 
 
-def test_the_catalogue_builds_from_the_clients_maps_and_strings(
-    map_store: Path,
+def test_the_catalogue_builds_from_the_clients_maps_mobs_skills_and_strings(
+    catalogue_store: Path,
 ) -> None:
-    manifest = Store(map_store).latest()
+    manifest = Store(catalogue_store).latest()
 
     assert manifest is not None
     assert manifest.catalogue_schema_version == SCHEMA_VERSION
@@ -277,12 +291,17 @@ def test_the_catalogue_builds_from_the_clients_maps_and_strings(
         "map_layers",
         "layer_frames",
         "physics",
+        "mobs",
+        "mob_frames",
+        "skills",
+        "skill_levels",
+        "actions",
     ):
-        assert _count(map_store, f"SELECT count(*) FROM {table}") > 0, table
+        assert _count(catalogue_store, f"SELECT count(*) FROM {table}") > 0, table
 
 
 def test_every_map_image_is_a_map_with_vr_bounds_given_or_derived(
-    data: Path, map_store: Path, record_property: Callable[[str, object], None]
+    data: Path, catalogue_store: Path, record_property: Callable[[str, object], None]
 ) -> None:
     """The PR counts the derived bounds and the maps with no minimap."""
     images = sum(
@@ -290,21 +309,84 @@ def test_every_map_image_is_a_map_with_vr_bounds_given_or_derived(
         for folder in ClientData(data).directory("Map/Map").directories
     )
 
-    assert _count(map_store, "SELECT count(*) FROM maps") == images
-    assert _count(map_store, "SELECT count(*) FROM maps WHERE vr_left IS NULL") == 0
+    assert _count(catalogue_store, "SELECT count(*) FROM maps") == images
+    assert (
+        _count(catalogue_store, "SELECT count(*) FROM maps WHERE vr_left IS NULL") == 0
+    )
     record_property(
-        "vr_derived", _count(map_store, "SELECT count(*) FROM maps WHERE vr_derived")
+        "vr_derived",
+        _count(catalogue_store, "SELECT count(*) FROM maps WHERE vr_derived"),
     )
     record_property(
         "no_minimap",
-        _count(map_store, "SELECT count(*) FROM maps WHERE minimap_mag IS NULL"),
+        _count(catalogue_store, "SELECT count(*) FROM maps WHERE minimap_mag IS NULL"),
     )
 
 
-def test_a_known_town_is_found_by_name(map_store: Path) -> None:
-    with Catalogue.latest(map_store) as cat:
+def test_a_known_town_is_found_by_name(catalogue_store: Path) -> None:
+    with Catalogue.latest(catalogue_store) as cat:
         henesys = cat.map("Henesys")
 
     assert henesys.town
     assert henesys.name == "Henesys"
     assert henesys.footholds
+
+
+def test_swing_o1_takes_800_ms(catalogue_store: Path) -> None:
+    with Catalogue.latest(catalogue_store) as cat:
+        assert cat.action_duration("swingO1") == 800
+
+
+def test_magic_claw_takes_800_ms_and_costs_mp_at_every_level(
+    catalogue_store: Path,
+) -> None:
+    """800 ms is `animation_time=0.8` in `maple/model/characters/magicians.py`."""
+    with Catalogue.latest(catalogue_store) as cat:
+        claw = cat.skill("Magic Claw")
+        duration = cat.skill_duration("Magic Claw")
+
+    assert duration == 800
+    assert claw.levels
+    assert len(claw.levels) == claw.max_level
+    assert all(level.mp_con is not None for level in claw.levels)
+
+
+def test_snail_is_found_by_name_with_its_frames(catalogue_store: Path) -> None:
+    with Catalogue.latest(catalogue_store) as cat:
+        snail = cat.mob("Snail")
+        spawning = cat.maps_spawning("Snail")
+
+    assert snail.name == "Snail"
+    assert snail.frames
+    assert spawning
+
+
+def test_every_mob_and_skill_image_is_in_the_catalogue(
+    data: Path, catalogue_store: Path, record_property: Callable[[str, object], None]
+) -> None:
+    """The PR counts the linked mobs, the skills and their levels."""
+    client = ClientData(data)
+    mob_images = [name for name in client.directory("Mob").images if name[0].isdigit()]
+    job_images = [
+        name for name in client.directory("Skill").images if name[:-4].isdigit()
+    ]
+
+    assert _count(catalogue_store, "SELECT count(*) FROM mobs") == len(mob_images)
+    assert _count(catalogue_store, "SELECT count(DISTINCT job) FROM skills") == len(
+        job_images
+    )
+    assert (
+        _count(
+            catalogue_store,
+            "SELECT count(*) FROM mobs WHERE link IS NOT NULL AND id NOT IN "
+            "(SELECT mob FROM mob_frames)",
+        )
+        == 0
+    )
+    for name, sql in {
+        "mobs_linked": "SELECT count(*) FROM mobs WHERE link IS NOT NULL",
+        "skills": "SELECT count(*) FROM skills",
+        "skill_levels": "SELECT count(*) FROM skill_levels",
+        "actions": "SELECT count(DISTINCT action) FROM actions",
+    }.items():
+        record_property(name, _count(catalogue_store, sql))

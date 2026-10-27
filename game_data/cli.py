@@ -5,8 +5,10 @@
 - `extract [--client PATH] [--root PATH]`: extract the installed client into
   the store, build its catalogue, and say what was done.
 - `status [--client PATH] [--root PATH]`: `missing`, `fresh` or `stale`.
-- `show map NAME [--root PATH]`: one map, by name or ID, as JSON.
-- `search TEXT [--kind map] [--root PATH]`: what matches, with IDs, as JSON.
+- `show map|mob|skill NAME [--level N] [--root PATH]`: one map, mob or
+  skill, by name or ID, as JSON; with `--level`, one level of a skill.
+- `search TEXT [--kind map|mob|skill] [--root PATH]`: what matches, with IDs,
+  as JSON.
 
 `--client` overrides `configs/game_data.ini` (`config`). `show` and `search`
 read the latest extraction's catalogue and need no client. `--root` is the
@@ -42,7 +44,7 @@ CATALOGUE: CatalogueHook = build_catalogue
 REPORT: ReportHook = no_report
 
 # What `show` and `search` look up.
-KINDS = ("map",)
+KINDS = ("map", "mob", "skill")
 
 # How many failures `extract` lists before it only counts them.
 SHOWN_FAILURES = 20
@@ -50,13 +52,22 @@ SHOWN_FAILURES = 20
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Runs one command. Returns the exit code: 0, or 1 on an error."""
-    arguments = _parser().parse_args(argv)
+    parser = _parser()
+    arguments = parser.parse_args(argv)
+    if (
+        arguments.command == "show"
+        and arguments.level is not None
+        and (arguments.kind != "skill")
+    ):
+        parser.error("--level is a skill's level: use it with `show skill`")
     try:
         match arguments.command:
             case "show":
-                return _show(arguments.name, arguments.root)
+                return _show(
+                    arguments.kind, arguments.name, arguments.level, arguments.root
+                )
             case "search":
-                return _search(arguments.text, arguments.root)
+                return _search(arguments.text, arguments.kind, arguments.root)
             case "extract":
                 return _extract(client_data_path(arguments.client), arguments.root)
             case _:
@@ -92,9 +103,10 @@ def _parser() -> argparse.ArgumentParser:
             help="the client's MSCW\\Data folder, instead of configs/game_data.ini",
         )
         _root_argument(command)
-    show = commands.add_parser("show", help="print one map as JSON")
+    show = commands.add_parser("show", help="print one map, mob or skill as JSON")
     show.add_argument("kind", choices=KINDS, help="what to show")
     show.add_argument("name", help="its name, or its ID")
+    show.add_argument("--level", type=int, help="only this level of the skill")
     _root_argument(show)
     search = commands.add_parser("search", help="list what matches, as JSON")
     search.add_argument("text", help="part of a name, or an ID")
@@ -176,15 +188,22 @@ def _status(client: Path, root: Path) -> int:
     return 0
 
 
-def _show(name: str, root: Path) -> int:
+def _show(kind: str, name: str, level: int | None, root: Path) -> int:
     with Catalogue.latest(root) as catalogue:
-        found = catalogue.map(name)
-    print(json.dumps(asdict(found), indent=2, ensure_ascii=False))
+        match kind:
+            case "map":
+                found = asdict(catalogue.map(name))
+            case "mob":
+                found = asdict(catalogue.mob(name))
+            case _:
+                skill = catalogue.skill(name)
+                found = asdict(skill if level is None else skill.level(level))
+    print(json.dumps(found, indent=2, ensure_ascii=False))
     return 0
 
 
-def _search(text: str, root: Path) -> int:
+def _search(text: str, kind: str | None, root: Path) -> int:
     with Catalogue.latest(root) as catalogue:
-        found = catalogue.search(text)
+        found = catalogue.search(text, kind)
     print(json.dumps([asdict(ref) for ref in found], indent=2, ensure_ascii=False))
     return 0

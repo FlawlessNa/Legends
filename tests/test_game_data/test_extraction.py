@@ -53,6 +53,19 @@ def placeholder(name: str, *children: w.Property) -> w.Canvas:
     return w.Canvas(name, 1, 1, bgra([(255, 0, 255, 255)]), format=2, children=children)
 
 
+def mob_info(level: int) -> w.Prop:
+    """A mob's `info`, with the stats every mob has, which the catalogue reads."""
+    stats = ("maxHP", "maxMP", "PADamage", "MADamage", "PDDamage", "MDDamage")
+    return w.Prop(
+        "info",
+        [
+            w.Int("level", level),
+            w.Short("speed", -10),
+            *(w.Int(key, 1) for key in (*stats, "acc", "eva", "pushed")),
+        ],
+    )
+
+
 def write_client(data: Path, version: int = 1) -> Path:
     w.write_tree(
         data / "Mob",
@@ -61,10 +74,7 @@ def write_client(data: Path, version: int = 1) -> Path:
             w.Img(
                 "0100100.img",
                 [
-                    w.Prop(
-                        "info",
-                        [w.Int("level", version), w.Short("speed", -10)],
-                    ),
+                    mob_info(version),
                     w.Prop(
                         "stand",
                         [
@@ -127,6 +137,7 @@ def write_client(data: Path, version: int = 1) -> Path:
             w.Img(
                 "Mob/0100200.img",
                 [
+                    mob_info(1),
                     w.Prop(
                         "stand",
                         [
@@ -139,7 +150,7 @@ def write_client(data: Path, version: int = 1) -> Path:
                                 children=[w.String("_hash", PACK_HASH)],
                             )
                         ],
-                    )
+                    ),
                 ],
             )
         ],
