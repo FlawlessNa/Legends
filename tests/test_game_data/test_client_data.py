@@ -420,28 +420,16 @@ def test_an_image_in_a_pack_and_in_a_part_raises_naming_both(tmp_path: Path) -> 
     assert str(root / "Mob" / "Mob_000.wz") in str(caught.value)
 
 
-def test_an_image_in_a_stub_gives_way_to_the_packs(tmp_path: Path) -> None:
+def test_an_image_in_a_pack_and_in_a_stub_raises_naming_both(tmp_path: Path) -> None:
     root = _classic(
         tmp_path / "Data",
         mob_stub=[w.Dir("_Canvas"), w.Img("0000002.img", [w.Int("stub", 1)])],
     )
-    client = ClientData(root)
-
-    assert client.image("Mob/0000002.img").archive == root / "Packs" / "Mob_00000.ms"
-
-
-def test_an_image_in_a_tree_without_an_ini_raises(tmp_path: Path) -> None:
-    root = _classic(tmp_path / "Data")
-    w.write_tree(
-        root / "Mob",
-        stub=[w.Dir("_Canvas"), w.Img("0000002.img", [w.Int("wz", 1)])],
-        ini=False,
-    )
-    (root / "Mob" / "Mob.ini").unlink()
 
     with pytest.raises(CorruptArchive) as caught:
         _ = ClientData(root).directory("Mob").images
 
+    assert caught.value.archive == str(root / "Packs" / "Mob_00000.ms")
     assert caught.value.image == "Mob/0000002.img"
     assert str(root / "Mob" / "Mob.wz") in str(caught.value)
 
