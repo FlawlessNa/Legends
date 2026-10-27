@@ -28,7 +28,7 @@ three at once.
 ```
 git fetch
 herdr worktree create --branch ticket/<n>-<slug> --base origin/epic/<slug> --no-focus
-herdr agent start t<n> --kind claude --pane <.result.root_pane.pane_id> -- --model sonnet
+herdr agent start t<n> --kind claude --pane <.result.root_pane.pane_id> -- --model <sonnet|opus>
 herdr agent prompt t<n> "<the brief>"
 ```
 
@@ -36,7 +36,6 @@ The fetch makes the base include every ticket merged so far. The worktree
 gets its own Herdr workspace under `~/.herdr/worktrees/`, and the agent starts
 in auto mode. Read IDs from each command's JSON, never guess them.
 
-**Builders run on Sonnet.** A second attempt at the same ticket runs on Opus.
 The brief is short, because the ticket carries the context:
 
 > Work ticket #<n>. Read `docs/agents/tickets.md` and follow it: you are on
@@ -44,6 +43,33 @@ The brief is short, because the ticket carries the context:
 > `git push -u origin HEAD`, since the branch tracks the epic. This worktree
 > has no `.venv`: use `<repo root>/.venv/Scripts/python`. Stop and say so when
 > the ticket tells you to, or when you need the maintainer.
+
+### Choosing the model
+
+Pick per ticket, and give the choice and the reason in the plan you show the
+maintainer, who can override it.
+
+- **Sonnet by default:** the ticket is well specified, and its acceptance
+  criteria pin the behaviour down.
+- **Opus when the ticket needs judgment its body can't fully carry:**
+  - it crosses the spec threshold on its own (`topics.md`);
+  - it designs an interface that later tickets build on;
+  - it decodes or ports something subtle, where tests may miss a wrong answer.
+
+### A second attempt
+
+A ticket's first agent has **failed** when it:
+
+- stopped without a PR, for a reason that is not in "When to stop and hand
+  back" (`tickets.md`);
+- got three request-changes reviews in a row;
+- stalled: it settled again without progress after you prompted it to carry
+  on.
+
+Then close its PR, if any, and start a fresh agent **on Opus** in a fresh
+worktree off the current epic branch. Add to the brief what the first attempt
+ran into, with a link to its PR. If the second attempt fails too, stop that
+ticket and ask the maintainer.
 
 ## Watching
 
