@@ -1,5 +1,6 @@
 """
-The installed client's files, read by `game_data.archive`.
+The installed client's files, read by `game_data.archive`, extracted, and
+built into a catalogue.
 
 Marked `client_files`, so the default run deselects them: they need the MSCW
 client's data on disk, at the path `configs/game_data.ini` sets. Run them with
@@ -9,7 +10,9 @@ nothing they read.
 """
 
 import shutil
-from collections.abc import Callable
+import sqlite3
+from collections.abc import Callable, Iterator
+from contextlib import closing
 from functools import partial
 from pathlib import Path
 
@@ -25,8 +28,9 @@ from game_data.archive import (
     PropertyNode,
     WzArchive,
 )
+from game_data.catalogue import CATALOGUE, SCHEMA_VERSION, Catalogue, build_catalogue
 from game_data.config import ClientPathNotSet, client_data_path
-from game_data.extraction import Freshness, extract, status
+from game_data.extraction import Freshness, Store, extract, status
 
 pytestmark = pytest.mark.client_files
 
@@ -221,3 +225,86 @@ def test_extracting_a_slice_of_the_client_into_a_temporary_store_completes(
     finally:
         shutil.rmtree(client, ignore_errors=True)
         shutil.rmtree(root, ignore_errors=True)
+
+
+# The slice the catalogue checks extract: every map and what it draws from, and
+# the strings that name them. About 140 MB, decoded once for the module.
+CATALOGUE_TREES = ("Map", "String")
+
+
+@pytest.fixture(scope="module")
+def map_store(data: Path, tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
+    """
+    `CATALOGUE_TREES`, copied as a client of their own, extracted with the
+    catalogue into a temporary store; the store. Both are deleted afterwards,
+    pass or fail, as in the extraction check above.
+    """
+    base = tmp_path_factory.mktemp("catalogue")
+    client = base / "Data"
+    root = base / "store"
+    try:
+        for tree in CATALOGUE_TREES:
+            shutil.copytree(data / tree, client / tree)
+        extract(client, root, catalogue=build_catalogue)
+        yield root
+    finally:
+        shutil.rmtree(client, ignore_errors=True)
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def _count(root: Path, sql: str) -> int:
+    manifest = Store(root).latest()
+    assert manifest is not None
+    file = Store(root).extraction(manifest.build) / CATALOGUE
+    with closing(sqlite3.connect(file)) as database:
+        return database.execute(sql).fetchone()[0]
+
+
+def test_the_catalogue_builds_from_the_clients_maps_and_strings(
+    map_store: Path,
+) -> None:
+    manifest = Store(map_store).latest()
+
+    assert manifest is not None
+    assert manifest.catalogue_schema_version == SCHEMA_VERSION
+    for table in (
+        "strings",
+        "maps",
+        "footholds",
+        "ropes",
+        "portals",
+        "spawns",
+        "map_layers",
+        "layer_frames",
+        "physics",
+    ):
+        assert _count(map_store, f"SELECT count(*) FROM {table}") > 0, table
+
+
+def test_every_map_image_is_a_map_with_vr_bounds_given_or_derived(
+    data: Path, map_store: Path, record_property: Callable[[str, object], None]
+) -> None:
+    """The PR counts the derived bounds and the maps with no minimap."""
+    images = sum(
+        len(ClientData(data).directory(f"Map/Map/{folder}").images)
+        for folder in ClientData(data).directory("Map/Map").directories
+    )
+
+    assert _count(map_store, "SELECT count(*) FROM maps") == images
+    assert _count(map_store, "SELECT count(*) FROM maps WHERE vr_left IS NULL") == 0
+    record_property(
+        "vr_derived", _count(map_store, "SELECT count(*) FROM maps WHERE vr_derived")
+    )
+    record_property(
+        "no_minimap",
+        _count(map_store, "SELECT count(*) FROM maps WHERE minimap_mag IS NULL"),
+    )
+
+
+def test_a_known_town_is_found_by_name(map_store: Path) -> None:
+    with Catalogue.latest(map_store) as cat:
+        henesys = cat.map("Henesys")
+
+    assert henesys.town
+    assert henesys.name == "Henesys"
+    assert henesys.footholds
