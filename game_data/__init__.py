@@ -14,12 +14,15 @@ It is built in layers, and each one imports only the layers to its left:
 - `extraction/`: the installed client into a store of Extractions, losslessly,
   with every canvas as a PNG. It knows nothing about the game either.
 - `catalogue/`: an Extraction's typed tables, built from its raw layer alone,
-  and the lookups over them: maps by name or ID, so far.
+  and the lookups over them: maps, mobs and skills by name or ID.
+- `report/`: the patch report, the differences between two Extractions as
+  one HTML page.
+- `render/`: a map's full screen in virtual coordinates, from the catalogue
+  and the image store. The only layer that imports `cv2`.
 - `config`: where the installed client's `Data` folder is, per machine, and
   where the store is by default.
 - `cli`: `python -m game_data`, and the only module that prints.
 
-`docs/agents/game-data.md` covers the commands, the lookups and the store.
-
-`report/` and `render/` arrive with their tickets (epic #259).
+`docs/agents/game-data.md` covers the commands, the lookups, the report, the
+renderer and the store.
 """

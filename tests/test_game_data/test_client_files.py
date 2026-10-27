@@ -31,6 +31,7 @@ from game_data.archive import (
 from game_data.catalogue import CATALOGUE, SCHEMA_VERSION, Catalogue, build_catalogue
 from game_data.config import ClientPathNotSet, client_data_path
 from game_data.extraction import Freshness, Store, extract, status
+from game_data.render import render_map
 
 pytestmark = pytest.mark.client_files
 
@@ -390,3 +391,69 @@ def test_every_mob_and_skill_image_is_in_the_catalogue(
         "actions": "SELECT count(DISTINCT action) FROM actions",
     }.items():
         record_property(name, _count(catalogue_store, sql))
+
+
+# --- render ------------------------------------------------------------------
+
+
+def test_a_town_renders_whole_with_its_overlays_and_hitboxes(
+    catalogue_store: Path,
+) -> None:
+    with Catalogue.latest(catalogue_store) as cat:
+        henesys = cat.map("Henesys")
+        screen = render_map(cat, henesys.id, overlays=True, hitboxes=True)
+
+    vr = henesys.vr
+    assert screen.shape == (vr.bottom - vr.top, vr.right - vr.left, 4)
+    assert screen[..., 3].any()
+
+
+def test_every_map_renders(
+    catalogue_store: Path, record_property: Callable[[str, object], None]
+) -> None:
+    """Each map is drawn at a quarter size, its spawns and hitboxes included."""
+    manifest = Store(catalogue_store).latest()
+    assert manifest is not None
+    file = Store(catalogue_store).extraction(manifest.build) / CATALOGUE
+    with closing(sqlite3.connect(file)) as database:
+        map_ids = [
+            row[0] for row in database.execute("SELECT id FROM maps ORDER BY id")
+        ]
+    rendered = 0
+    with Catalogue.latest(catalogue_store) as cat:
+        for map_id in map_ids:
+            screen = render_map(cat, map_id, scale=0.25, hitboxes=True)
+            assert screen.ndim == 3, map_id
+            rendered += 1
+
+    assert rendered > 0
+    record_property("maps_rendered", rendered)
+
+
+def test_the_backgrounds_the_reading_of_rx_moves_are_counted(
+    catalogue_store: Path, record_property: Callable[[str, object], None]
+) -> None:
+    """
+    The PR counts, never lists, the backgrounds `STORED_AT_RX` decides for: the
+    two readings place every background a camera's centre apart, which shows
+    on any axis it doesn't tile along.
+    """
+    drawn = "kind = 'back' AND asset IS NOT NULL"
+    for name, where in {
+        "backgrounds": drawn,
+        "backgrounds_still_rx_ry_0": f"{drawn} AND type = 0 AND rx = 0 AND ry = 0",
+        "backgrounds_rx_ry_0": f"{drawn} AND rx = 0 AND ry = 0",
+        "backgrounds_untiled_on_an_axis": f"{drawn} AND type NOT IN (3, 6, 7)",
+    }.items():
+        record_property(
+            name,
+            _count(catalogue_store, f"SELECT count(*) FROM map_layers WHERE {where}"),
+        )
+    record_property(
+        "maps_with_still_rx_ry_0",
+        _count(
+            catalogue_store,
+            "SELECT count(DISTINCT map) FROM map_layers WHERE "
+            f"{drawn} AND type = 0 AND rx = 0 AND ry = 0",
+        ),
+    )

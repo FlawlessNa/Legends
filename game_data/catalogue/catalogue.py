@@ -76,10 +76,12 @@ class Catalogue:
     One extraction's catalogue. Open one with `latest` or `open`.
 
     :ivar build: The extraction's build id.
+    :ivar store: The store it's in, whose image store holds its images.
     """
 
-    def __init__(self, build: str, database: sqlite3.Connection) -> None:
+    def __init__(self, build: str, database: sqlite3.Connection, store: Store) -> None:
         self.build = build
+        self.store = store
         self._db = database
 
     @classmethod
@@ -114,7 +116,7 @@ class Catalogue:
             build_from_raw(folder)
             replace(manifest, catalogue_schema_version=SCHEMA_VERSION).write(folder)
         database = sqlite3.connect(f"{file.resolve().as_uri()}?mode=ro", uri=True)
-        return cls(build, database)
+        return cls(build, database, Store(root))
 
     def close(self) -> None:
         self._db.close()

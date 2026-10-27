@@ -12,9 +12,12 @@
   skill, by name or ID, as JSON; with `--level`, one level of a skill.
 - `search TEXT [--kind map|mob|skill] [--root PATH]`: what matches, with IDs,
   as JSON.
+- `render MAP [--overlays] [--hitboxes] [--scale S] [--out PATH] [--root PATH]`:
+  a map's full screen as a PNG, by default `<root>/renders/<map id>.png`.
 
-`--client` overrides `configs/game_data.ini` (`config`). `show` and `search`
-read the latest extraction's catalogue and need no client. `--root` is the
+`--client` overrides `configs/game_data.ini` (`config`). `show`, `search` and
+`render` read the latest extraction's catalogue and need no client. `render`
+is imported only when it runs, because it alone loads `cv2`. `--root` is the
 store, `data/game_data` by default.
 
 It sits beside the layers, not in one, and wires them together: the catalogue
@@ -76,6 +79,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return _search(arguments.text, arguments.kind, arguments.root)
             case "report":
                 return _report(arguments.builds, arguments.root)
+            case "render":
+                return _render(
+                    arguments.map,
+                    arguments.root,
+                    out=arguments.out,
+                    scale=arguments.scale,
+                    overlays=arguments.overlays,
+                    hitboxes=arguments.hitboxes,
+                )
             case "extract":
                 return _extract(client_data_path(arguments.client), arguments.root)
             case _:
@@ -128,7 +140,29 @@ def _parser() -> argparse.ArgumentParser:
     search.add_argument("text", help="part of a name, or an ID")
     search.add_argument("--kind", choices=KINDS, help="only this kind")
     _root_argument(search)
+    render = commands.add_parser("render", help="draw a map's full screen as a PNG")
+    render.add_argument("map", help="its name, or its ID")
+    render.add_argument(
+        "--overlays", action="store_true", help="draw footholds, ropes, portals, spawns"
+    )
+    render.add_argument(
+        "--hitboxes", action="store_true", help="draw spawns with their hitboxes"
+    )
+    render.add_argument(
+        "--scale", type=_scale, default=1.0, help="multiply both sides by S"
+    )
+    render.add_argument(
+        "--out", type=Path, help="the PNG to write (default <root>/renders/<id>.png)"
+    )
+    _root_argument(render)
     return parser
+
+
+def _scale(text: str) -> float:
+    value = float(text)
+    if not value > 0:
+        raise argparse.ArgumentTypeError(f"a scale must be positive, not {text}")
+    return value
 
 
 def _root_argument(command: argparse.ArgumentParser) -> None:
@@ -232,6 +266,34 @@ def _show(kind: str, name: str, level: int | None, root: Path) -> int:
                 skill = catalogue.skill(name)
                 found = asdict(skill if level is None else skill.level(level))
     print(json.dumps(found, indent=2, ensure_ascii=False))
+    return 0
+
+
+def _render(
+    name: str,
+    root: Path,
+    *,
+    out: Path | None,
+    scale: float,
+    overlays: bool,
+    hitboxes: bool,
+) -> int:
+    # Here, not at the top: `render` loads `cv2`, which `status` must not.
+    from .render import RenderError, render_map, render_path, write_png
+
+    with Catalogue.latest(root) as catalogue:
+        found = catalogue.map(name)
+        try:
+            pixels = render_map(
+                catalogue, found.id, scale=scale, overlays=overlays, hitboxes=hitboxes
+            )
+        except RenderError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 1
+        path = render_path(catalogue, found.id) if out is None else out
+    write_png(pixels, path)
+    height, width = pixels.shape[:2]
+    print(f"rendered {found.name or found.id} ({found.id}), {width}x{height}: {path}")
     return 0
 
 
