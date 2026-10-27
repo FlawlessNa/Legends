@@ -96,6 +96,18 @@ workflow already deleted the remote one.
 
 ## Coming back to the maintainer
 
+**Decide first whether to ask at all.** If the question has one obvious,
+low-risk answer (a ticket needs a small amendment, a finding has a single
+sensible reading), make the change yourself: comment on the ticket or
+brief the agent, and mention it in the next phase report. Ask only when the
+options differ in ways the maintainer would care about.
+
+**Write for someone who hasn't seen the tickets.** The maintainer took part in
+the intent and spec, not in splitting or reviewing the tickets. Don't cite
+ticket numbers, field names or internal terms they've never seen: say what is
+being built and what happened in plain words, and name a ticket only as a
+pointer.
+
 Ask in one message, with everything they need to answer: the ticket, what the
 agent did, the question, and your recommendation. Raise
 `herdr notification show "<epic>: needs you" --sound request` so they notice.
