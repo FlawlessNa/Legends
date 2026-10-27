@@ -77,6 +77,15 @@ Run `herdr agent wait t<n>` as a background job for each live agent, so you
 are woken when it settles rather than polling. Then `herdr agent read t<n>`
 and `gh pr list --head ticket/<n>-<slug>`, and act:
 
+Watch each PR for **both** outcomes, not only the merge. A reviewer that
+requests changes fails the `review` check and merges nothing, so a watcher that
+waits for `MERGED` alone sits forever while the agent idles. Poll
+`gh pr list --head <branch> --state all` and `gh pr checks <pr>` together, and
+wake on a merge, a close, or a `review` failure you haven't handled yet (track
+the last review comment's id). Also check every open PR whenever you wake for
+any reason. `herdr agent wait` can miss a settle, and an agent that looks idle
+may still have a background shell running, so don't treat idle alone as done.
+
 | You see                                  | Do                                                      |
 | ---------------------------------------- | ------------------------------------------------------- |
 | PR open, review running                  | `gh pr checks <pr> --watch` in the background           |
