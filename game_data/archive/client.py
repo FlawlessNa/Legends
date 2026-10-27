@@ -18,11 +18,9 @@ under `Data`.
 there: a pack's image is listed and resolved exactly as an archive's is, and a
 directory only a pack has is listed too. Entries that aren't `.img`, such as
 `Mob/pack_ignore.txt`, aren't parsed: `ClientData.skipped` lists their paths.
-An image both in a pack and in one of a tree's parts raises `CorruptArchive`,
-naming both, rather than one silently winning, and so does one in a
-`<Tree>.wz` that has no `.ini` and so is the whole tree. An image in a stub
-(a `<Tree>.wz` with an `.ini`) gives way to the pack's. Packs are read when
-the namespace is first listed.
+An image both in a pack and in any `.wz` raises `CorruptArchive`, naming both,
+rather than one silently winning. Packs are read when the namespace is first
+listed.
 
 **Paths** are `/`-separated: directories, then an image, then nodes inside it,
 such as `Map/Map/Map0/000001000.img/info/bgm`.
@@ -189,7 +187,6 @@ class ClientData:
             "", "", lambda: self._overlay("", self._trees_in(data), {})
         )
         self._trees: OrderedDict[str, PropertyNode] = OrderedDict()
-        self._stubs: set[Path] = set()
         self._packs: _PackIndex | None = None
 
     @property
@@ -343,9 +340,6 @@ class ClientData:
 
     def _read_tree(self, folder: Path, path: str) -> _Contents:
         archives = [WzArchive.open(file) for file in _tree_files(folder)]
-        if (folder / f"{folder.name}.ini").is_file():
-            # Without an `.ini`, `<Tree>.wz` is the whole tree, not a stub.
-            self._stubs.add(archives[0].path)
         directories: dict[str, Directory] = {}
         listed: dict[str, list[tuple[WzArchive, WzDirectory]]] = {}
         for archive in archives:
@@ -401,7 +395,7 @@ class ClientData:
         added = packs.images.get(path, {})
         for name, image in added.items():
             existing = images.get(name)
-            if existing is not None and existing.archive not in self._stubs:
+            if existing is not None:
                 raise CorruptArchive(
                     image.archive,
                     image.path,
