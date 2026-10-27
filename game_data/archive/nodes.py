@@ -31,7 +31,9 @@ down by a `/`-separated path, and raises `KeyError` for a missing step.
 
 Canvases, sounds and raw data are references, not data. `CanvasRef`,
 `SoundRef` and `RawDataRef` say where the bytes are in the image's archive,
-and nothing here decodes them.
+and nothing here decodes them. For an image in a `.ms` pack, whose first bytes
+are encrypted in the file, their offsets count from the image's first
+decrypted byte instead (`MsPack.parse`).
 
 All nodes are frozen dataclasses, so two trees compare equal when they hold the
 same names, types and values in the same order.

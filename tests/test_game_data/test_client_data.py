@@ -9,7 +9,9 @@ The fixture client:
         Map/          Map.wz (stub: Map0), no .ini
           Map0/       Map0.wz (empty stub), Map0.ini (1 part), Map0_000.wz
       Mob/            Mob.wz, Mob.ini (LastWzIndex|-1: no parts)
-      Packs/          no stub, so not a tree
+      Packs/          an empty pack, and no stub, so not a tree
+
+The packs section has its own client, `classic`, whose images are in packs.
 """
 
 from pathlib import Path
@@ -21,8 +23,10 @@ from game_data.archive import (
     CorruptArchive,
     IntNode,
     NodeNotFound,
+    PackEntry,
     PropertyNode,
     StringNode,
+    UnsupportedFormat,
     UolNode,
 )
 from tests.test_game_data import wz_writer as w
@@ -84,8 +88,7 @@ def data(tmp_path: Path) -> Path:
         ],
     )
     w.write_tree(root / "Mob", stub=[w.Dir("_Canvas")])
-    (root / "Packs").mkdir()
-    (root / "Packs" / "Mob_00000.ms").write_bytes(b"not an archive")
+    w.write_pack(root / "Packs" / "Mob_00000.ms", [])
     return root
 
 
@@ -303,3 +306,173 @@ def test_a_corrupt_image_raises_through_the_namespace(tmp_path: Path) -> None:
     assert caught.value.archive == str(root / "Etc" / "Etc_000.wz")
     assert caught.value.image == "bad.img"
     assert caught.value.node == "p/x"
+
+
+# --- packs -----------------------------------------------------------------
+#
+#     Data/
+#       Mob/          Mob.wz (stub: _Canvas), Mob.ini (no parts)
+#       Skill/        Skill.wz (stub: MobSkill), Skill.ini (no parts)
+#         MobSkill/   MobSkill.wz (empty stub), MobSkill.ini (no parts)
+#       Packs/        Mob_00000.ms, Skill_00000.ms, digest.md5
+
+MOB_PACK: list[w.Img | w.Blob] = [
+    w.Img(
+        "Mob/0000001.img",
+        [w.Prop("info", [w.Int("level", 1), w.Uol("same", "../../0000002.img/info")])],
+    ),
+    w.Img("Mob/0000002.img", [w.Prop("info", [w.Int("level", 2)])]),
+    w.Blob("Mob/pack_ignore.txt", b"ignore\r\n"),
+]
+SKILL_PACK: list[w.Img | w.Blob] = [
+    w.Img("Skill/110.img", [w.Prop("skill", [w.Int("maxLevel", 20)])]),
+    w.Img("Skill/MobSkill/200.img", [w.Prop("level", [w.Int("1", 5)])]),
+    w.Img("Skill/Extra/1.img", [w.Int("only", 1)]),
+    w.Blob("Skill/pack_ignore.txt", b"ignore\r\n"),
+]
+
+
+def _classic(root: Path, *, mob_stub: list[w.Dir | w.Img] | None = None) -> Path:
+    w.write_tree(root / "Mob", stub=mob_stub or [w.Dir("_Canvas")])
+    w.write_tree(root / "Skill", stub=[w.Dir("MobSkill")])
+    w.write_tree(root / "Skill" / "MobSkill", stub=[])
+    w.write_pack(root / "Packs" / "Mob_00000.ms", MOB_PACK)
+    w.write_pack(root / "Packs" / "Skill_00000.ms", SKILL_PACK)
+    (root / "Packs" / "digest.md5").write_text("not a pack\n")
+    return root
+
+
+@pytest.fixture
+def classic(tmp_path: Path) -> ClientData:
+    return ClientData(_classic(tmp_path / "Data"))
+
+
+def test_pack_images_are_listed_under_their_tree(classic: ClientData) -> None:
+    assert list(classic.root.directories) == ["Mob", "Skill"]
+    assert list(classic.directory("Mob").images) == ["0000001.img", "0000002.img"]
+    assert list(classic.directory("Mob").directories) == ["_Canvas"]
+    assert list(classic.directory("Skill").images) == ["110.img"]
+    assert list(classic.directory("Skill/MobSkill").images) == ["200.img"]
+
+
+def test_a_directory_only_a_pack_has_is_listed(classic: ClientData) -> None:
+    assert sorted(classic.directory("Skill").directories) == ["Extra", "MobSkill"]
+    assert list(classic.directory("Skill/Extra").images) == ["1.img"]
+
+
+def test_a_pack_image_resolves_to_its_pack(classic: ClientData) -> None:
+    image = classic.image("Skill/MobSkill/200.img")
+
+    assert image.archive == classic.data / "Packs" / "Skill_00000.ms"
+    assert image.name == "200.img"
+    assert image.path == "Skill/MobSkill/200.img"
+    assert classic.node("Skill/110.img/skill/maxLevel") == IntNode(
+        name="maxLevel", value=20
+    )
+    assert classic.node("Skill/MobSkill/200.img/level/1") == IntNode(name="1", value=5)
+
+
+def test_a_pack_image_reads_decrypted(classic: ClientData) -> None:
+    image = classic.image("Mob/0000002.img")
+    written = MOB_PACK[1]
+    assert isinstance(written, w.Img)
+
+    assert image.read() == w.image_bytes(written.children)[0]
+    assert isinstance(classic.image("Mob/0000001.img").entry, PackEntry)
+
+
+def test_links_resolve_between_pack_images(classic: ClientData) -> None:
+    assert classic.resolve("Mob/0000001.img/info/same/level") == IntNode(
+        name="level", value=2
+    )
+
+
+def test_walk_reaches_pack_images(classic: ClientData) -> None:
+    assert sorted(image.path for image in classic.root.walk()) == [
+        "Mob/0000001.img",
+        "Mob/0000002.img",
+        "Skill/110.img",
+        "Skill/Extra/1.img",
+        "Skill/MobSkill/200.img",
+    ]
+
+
+def test_entries_that_are_not_images_are_skipped(classic: ClientData) -> None:
+    assert classic.skipped == ["Mob/pack_ignore.txt", "Skill/pack_ignore.txt"]
+    assert "pack_ignore.txt" not in classic.directory("Mob").images
+    with pytest.raises(NodeNotFound):
+        classic.image("Mob/pack_ignore.txt")
+
+
+def test_an_image_in_a_pack_and_in_a_part_raises_naming_both(tmp_path: Path) -> None:
+    root = _classic(tmp_path / "Data")
+    w.write_tree(
+        root / "Mob",
+        stub=[w.Dir("_Canvas")],
+        parts=[[w.Img("0000002.img", [w.Int("wz", 1)])]],
+    )
+
+    with pytest.raises(CorruptArchive) as caught:
+        _ = ClientData(root).directory("Mob").images
+
+    assert caught.value.archive == str(root / "Packs" / "Mob_00000.ms")
+    assert caught.value.image == "Mob/0000002.img"
+    assert str(root / "Mob" / "Mob_000.wz") in str(caught.value)
+
+
+def test_an_image_in_a_stub_gives_way_to_the_packs(tmp_path: Path) -> None:
+    root = _classic(
+        tmp_path / "Data",
+        mob_stub=[w.Dir("_Canvas"), w.Img("0000002.img", [w.Int("stub", 1)])],
+    )
+    client = ClientData(root)
+
+    assert client.image("Mob/0000002.img").archive == root / "Packs" / "Mob_00000.ms"
+
+
+def test_an_image_in_a_tree_without_an_ini_raises(tmp_path: Path) -> None:
+    root = _classic(tmp_path / "Data")
+    w.write_tree(
+        root / "Mob",
+        stub=[w.Dir("_Canvas"), w.Img("0000002.img", [w.Int("wz", 1)])],
+        ini=False,
+    )
+    (root / "Mob" / "Mob.ini").unlink()
+
+    with pytest.raises(CorruptArchive) as caught:
+        _ = ClientData(root).directory("Mob").images
+
+    assert caught.value.image == "Mob/0000002.img"
+    assert str(root / "Mob" / "Mob.wz") in str(caught.value)
+
+
+def test_an_image_in_two_packs_raises(tmp_path: Path) -> None:
+    root = _classic(tmp_path / "Data")
+    w.write_pack(root / "Packs" / "Mob_00001.ms", [MOB_PACK[0]])
+
+    with pytest.raises(CorruptArchive, match="also in") as caught:
+        _ = ClientData(root).root.directories
+
+    assert caught.value.archive == str(root / "Packs" / "Mob_00001.ms")
+    assert caught.value.image == "Mob/0000001.img"
+
+
+def test_a_pack_that_is_not_v2_raises_when_the_namespace_is_listed(
+    tmp_path: Path,
+) -> None:
+    root = _classic(tmp_path / "Data")
+    w.write_pack(root / "Packs" / "Mob_00000.ms", MOB_PACK, version=2)
+
+    with pytest.raises(UnsupportedFormat, match="decodes to 2,") as caught:
+        _ = ClientData(root).root.directories
+
+    assert caught.value.archive == str(root / "Packs" / "Mob_00000.ms")
+
+
+def test_a_top_level_directory_only_a_pack_has_is_listed(tmp_path: Path) -> None:
+    root = _classic(tmp_path / "Data")
+    w.write_pack(root / "Packs" / "Etc_00000.ms", [w.Img("Etc/Only.img", [])])
+    client = ClientData(root)
+
+    assert sorted(client.root.directories) == ["Etc", "Mob", "Skill"]
+    assert client.image("Etc/Only.img").archive == root / "Packs" / "Etc_00000.ms"

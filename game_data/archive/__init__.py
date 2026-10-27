@@ -12,6 +12,8 @@ idea what a map or a mob is. The public API:
   and `parse()` returns its tree.
 - `WzArchive`: one `.wz` file, its version detected from the header, and its
   directory (`wz`). `WzDirectory` and `ImageEntry` are that directory.
+- `MsPack`: one `.ms` pack, v2 (ChaCha20), with its entry table (`ms`).
+  `PackEntry` is one entry. `ChaCha20` is the cipher (`chacha20`).
 - `parse_image`: one image's bytes to its tree (`image`).
 - The nodes of the tree, one class per WZ property type, all subclasses of
   `Node` (`nodes`). `CanvasRef`, `SoundRef` and `RawDataRef` say where
@@ -22,9 +24,11 @@ idea what a map or a mob is. The public API:
   `NodeNotFound` a path that names nothing. Nothing returns a partial tree.
 """
 
+from .chacha20 import ChaCha20
 from .client import ClientData, Directory, Image
 from .errors import ArchiveError, CorruptArchive, NodeNotFound, UnsupportedFormat
 from .image import parse_image
+from .ms import MsPack, PackEntry
 from .nodes import (
     CanvasNode,
     CanvasRef,
@@ -52,6 +56,7 @@ __all__ = [
     "ArchiveError",
     "CanvasNode",
     "CanvasRef",
+    "ChaCha20",
     "ClientData",
     "ConvexNode",
     "CorruptArchive",
@@ -62,10 +67,12 @@ __all__ = [
     "ImageEntry",
     "IntNode",
     "LongNode",
+    "MsPack",
     "Node",
     "NodeNotFound",
     "NodeType",
     "NullNode",
+    "PackEntry",
     "PropertyNode",
     "RawDataNode",
     "RawDataRef",

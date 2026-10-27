@@ -13,6 +13,17 @@ them raises `CorruptArchive` rather than one silently winning.
 in `Map/Map/Map0/Map0_000.wz`. The top of the namespace is every tree directly
 under `Data`.
 
+**Packs.** Each `Data/Packs/*.ms` holds images under their full path, such as
+`Mob/0000001.img` or `Skill/MobSkill/200.img`, and they join the namespace
+there: a pack's image is listed and resolved exactly as an archive's is, and a
+directory only a pack has is listed too. Entries that aren't `.img`, such as
+`Mob/pack_ignore.txt`, aren't parsed: `ClientData.skipped` lists their paths.
+An image both in a pack and in one of a tree's parts raises `CorruptArchive`,
+naming both, rather than one silently winning, and so does one in a
+`<Tree>.wz` that has no `.ini` and so is the whole tree. An image in a stub
+(a `<Tree>.wz` with an `.ini`) gives way to the pack's. Packs are read when
+the namespace is first listed.
+
 **Paths** are `/`-separated: directories, then an image, then nodes inside it,
 such as `Map/Map/Map0/000001000.img/info/bgm`.
 
@@ -30,9 +41,13 @@ Lookups raise `NodeNotFound`, naming the path and what was missing.
 
 from collections import OrderedDict
 from collections.abc import Callable, Iterator, Mapping
+from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
+from typing import Protocol
 
 from .errors import CorruptArchive, NodeNotFound
+from .ms import MsPack, PackEntry
 from .nodes import Node, PropertyNode, UolNode
 from .wz import ImageEntry, WzArchive, WzDirectory
 
@@ -44,6 +59,22 @@ CACHED_TREES = 32
 
 _INI_KEY = "LastWzIndex"
 
+# The folder under `Data` that holds the packs.
+PACKS = "Packs"
+_PACK_SUFFIX = ".ms"
+_IMAGE_SUFFIX = ".img"
+
+
+class _Container[E](Protocol):
+    """A file that holds images: a `WzArchive` or an `MsPack`."""
+
+    @property
+    def path(self) -> Path: ...
+
+    def read(self, entry: E, /) -> bytes: ...
+
+    def parse(self, entry: E, /) -> PropertyNode: ...
+
 
 class Image:
     """
@@ -52,33 +83,36 @@ class Image:
     :ivar name: Such as `000001000.img`.
     :ivar path: From the top of the namespace, such as
         `Map/Map/Map0/000001000.img`.
-    :ivar archive: The `.wz` file it is in.
-    :ivar entry: Where it is in that file.
+    :ivar archive: The `.wz` archive or `.ms` pack it is in.
+    :ivar entry: Where it is in that file: an `ImageEntry` in an archive, a
+        `PackEntry` in a pack.
     """
 
-    __slots__ = ("_archive", "entry", "name", "path")
+    __slots__ = ("_parse", "_read", "archive", "entry", "name", "path")
 
-    def __init__(self, path: str, archive: WzArchive, entry: ImageEntry) -> None:
-        self.name = entry.name
+    def __init__[E: (ImageEntry, PackEntry)](
+        self, path: str, archive: _Container[E], entry: E
+    ) -> None:
+        self.name = path.rpartition("/")[2]
         self.path = path
-        self.entry = entry
-        self._archive = archive
-
-    @property
-    def archive(self) -> Path:
-        return self._archive.path
+        self.archive = archive.path
+        self.entry: ImageEntry | PackEntry = entry
+        self._read = partial(archive.read, entry)
+        self._parse = partial(archive.parse, entry)
 
     def read(self) -> bytes:
-        """The image's bytes."""
-        return self._archive.read(self.entry)
+        """The image's bytes, decrypted when it is in a pack."""
+        return self._read()
 
     def parse(self) -> PropertyNode:
         """
-        The image's property tree, parsed afresh on every call.
+        The image's property tree, parsed afresh on every call. In a pack, its
+        canvas, sound and raw-data offsets count from the image's first
+        decrypted byte (`MsPack.parse`).
 
         :raises CorruptArchive: The image doesn't parse.
         """
-        return self._archive.parse(self.entry)
+        return self._parse()
 
     def __repr__(self) -> str:
         return f"Image({self.path!r}, archive={str(self.archive)!r})"
@@ -128,6 +162,17 @@ class Directory:
         return f"Directory({self.path!r})"
 
 
+@dataclass
+class _PackIndex:
+    """Every pack's entries, by the directory they are in."""
+
+    images: dict[str, dict[str, Image]] = field(
+        default_factory=dict[str, dict[str, Image]]
+    )
+    directories: dict[str, set[str]] = field(default_factory=dict[str, set[str]])
+    skipped: list[str] = field(default_factory=list[str])
+
+
 class ClientData:
     """
     The namespace over a client's `Data` folder.
@@ -140,8 +185,23 @@ class ClientData:
         if not data.is_dir():
             raise NotADirectoryError(f"the client data folder {data} doesn't exist")
         self.data = data
-        self.root = Directory("", "", lambda: (self._trees_in(data), {}))
+        self.root = Directory(
+            "", "", lambda: self._overlay("", self._trees_in(data), {})
+        )
         self._trees: OrderedDict[str, PropertyNode] = OrderedDict()
+        self._stubs: set[Path] = set()
+        self._packs: _PackIndex | None = None
+
+    @property
+    def skipped(self) -> list[str]:
+        """
+        The paths of the pack entries that aren't images, and so aren't parsed,
+        such as `Mob/pack_ignore.txt`.
+
+        :raises UnsupportedFormat: A pack isn't v2.
+        :raises CorruptArchive: A pack doesn't decode.
+        """
+        return list(self._pack_index().skipped)
 
     def directory(self, path: str) -> Directory:
         """
@@ -275,10 +335,17 @@ class ClientData:
         return trees
 
     def _tree_directory(self, folder: Path, path: str) -> Directory:
-        return Directory(folder.name, path, lambda: self._read_tree(folder, path))
+        return Directory(
+            folder.name,
+            path,
+            lambda: self._overlay(path, *self._read_tree(folder, path)),
+        )
 
     def _read_tree(self, folder: Path, path: str) -> _Contents:
         archives = [WzArchive.open(file) for file in _tree_files(folder)]
+        if (folder / f"{folder.name}.ini").is_file():
+            # Without an `.ini`, `<Tree>.wz` is the whole tree, not a stub.
+            self._stubs.add(archives[0].path)
         directories: dict[str, Directory] = {}
         listed: dict[str, list[tuple[WzArchive, WzDirectory]]] = {}
         for archive in archives:
@@ -318,9 +385,77 @@ class ClientData:
             }
             images = _merge_images(path, parts)
             _check_disjoint(parts[0][0].path, directories, images)
-            return directories, images
+            return self._overlay(path, directories, images)
 
         return Directory(name, path, load)
+
+    def _pack_directory(self, name: str, path: str) -> Directory:
+        """A directory that only packs have."""
+        return Directory(name, path, lambda: self._overlay(path, {}, {}))
+
+    def _overlay(
+        self, path: str, directories: dict[str, Directory], images: dict[str, Image]
+    ) -> _Contents:
+        """A directory's contents from its archives, with its packs' added."""
+        packs = self._pack_index()
+        added = packs.images.get(path, {})
+        for name, image in added.items():
+            existing = images.get(name)
+            if existing is not None and existing.archive not in self._stubs:
+                raise CorruptArchive(
+                    image.archive,
+                    image.path,
+                    None,
+                    f"the image is also in {existing.archive}",
+                )
+            images[name] = image
+        for name in sorted(packs.directories.get(path, set()) - directories.keys()):
+            directories[name] = self._pack_directory(name, _join(path, name))
+        if added or path in packs.directories:
+            _check_disjoint(self.data / PACKS, directories, images)
+        return directories, images
+
+    def _pack_index(self) -> _PackIndex:
+        if self._packs is None:
+            self._packs = _read_packs(self.data / PACKS)
+        return self._packs
+
+
+def _read_packs(folder: Path) -> _PackIndex:
+    """Every pack in `folder`, indexed by directory. No folder: no packs."""
+    index = _PackIndex()
+    if not folder.is_dir():
+        return index
+    seen: dict[str, Path] = {}
+    for file in sorted(folder.glob(f"*{_PACK_SUFFIX}")):
+        pack = MsPack.open(file)
+        for entry in pack.entries:
+            steps = entry.name.split("/")
+            if not all(steps):
+                raise CorruptArchive(
+                    file, entry.name, None, "the entry's path has an empty step"
+                )
+            if entry.name in seen:
+                raise CorruptArchive(
+                    file, entry.name, None, f"the entry is also in {seen[entry.name]}"
+                )
+            seen[entry.name] = file
+            if not entry.name.endswith(_IMAGE_SUFFIX):
+                index.skipped.append(entry.name)
+                continue
+            parent = "/".join(steps[:-1])
+            index.images.setdefault(parent, {})[steps[-1]] = Image(
+                entry.name, pack, entry
+            )
+            for depth in range(len(steps) - 1):
+                index.directories.setdefault("/".join(steps[:depth]), set()).add(
+                    steps[depth]
+                )
+    return index
+
+
+def _join(path: str, name: str) -> str:
+    return f"{path}/{name}" if path else name
 
 
 def _tree_files(folder: Path) -> list[Path]:

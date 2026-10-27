@@ -3,7 +3,7 @@ Writes synthetic WZ archives, so tests never need the real client's files.
 
 Test-only. It writes the format `game_data.archive` reads, independently of the
 reader's code: a tree described with the classes below goes to bytes, and the
-tests read it back. #261 extends it with `.ms` packs.
+tests read it back. `write_pack` writes a `.ms` v2 pack of images.
 
 - `Img` and `Dir` describe an archive's directory. `write_archive` writes one
   `.wz` file and `write_tree` writes a split tree: a stub, its parts and the
@@ -23,6 +23,8 @@ import struct
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from game_data.archive.chacha20 import ChaCha20
 
 DATA_START = 0x3C
 COPYRIGHT = b"Package file v1.0 Copyright 2002 Wizet, ZMS\x00"
@@ -521,3 +523,197 @@ def write_tree(
     if ini:
         (folder / f"{name}.ini").write_text(f"LastWzIndex|{len(parts) - 1}\n")
     return layouts
+
+
+# --- .ms packs -------------------------------------------------------------
+#
+# The layout follows wzlib-rs's `build_ms_file_v2` (`src/wz/ms_file.rs`, MIT,
+# Copyright (c) 2026 wzlib-rs contributors). The key derivation is written
+# here again rather than imported from the reader, so the two can disagree.
+# The cipher itself is the reader's `ChaCha20`, which the RFC 8439 vector pins.
+
+PACK_VERSION = 4
+PACK_SALT = "s4lt#Synthetic!"
+
+_OBSCURE = bytes.fromhex(
+    "7b2f3548439502b9 ae91a6e1d8d624b4 33101d3dc1bbc6f4 a5feb3696b56e475"
+)
+
+
+@dataclass(frozen=True)
+class Blob:
+    """A pack entry that isn't an image, such as `pack_ignore.txt`."""
+
+    name: str
+    data: bytes
+
+
+def _fnv(text: str) -> int:
+    value = 0x811C9DC5
+    for unit in text.encode("utf-16-le")[::2]:
+        value = ((value ^ unit) * 0x01000193) % 2**32
+    return value
+
+
+def _xor(left: bytes, right: bytes) -> bytes:
+    return bytes(a ^ b for a, b in zip(left, right, strict=True))
+
+
+def _pack_key(text: str, *, entry: bool) -> bytes:
+    """The header key, or with `entry` the entry table's, for name + salt."""
+    raw = bytearray()
+    for i in range(32):
+        if entry:
+            char = ord(text[len(text) - 1 - i % len(text)]) % 256
+            raw.append((i + (i % 3 + 2) * char) % 256)
+        else:
+            raw.append((ord(text[i % len(text)]) + i) % 256)
+    return _xor(bytes(raw), _OBSCURE)
+
+
+def _image_key(salt: str, name: str, entry_key: bytes) -> bytes:
+    digits = [ord(c) - ord("0") for c in str(_fnv(salt))]
+    n = len(digits)
+    raw = bytearray()
+    for i in range(32):
+        factor = (
+            digits[i % n] % 2
+            + entry_key[(digits[(i + 2) % n] + i) % 16]
+            + (digits[(i + 1) % n] + i) % 5
+        )
+        raw.append((i + ord(name[i % len(name)]) * factor) % 256)
+    return _xor(bytes(raw), _OBSCURE)
+
+
+def _image_nonce(salt: str) -> tuple[bytes, int]:
+    first = _fnv(salt)
+    data = bytearray(struct.pack("<III", first, first >> 1, (first >> 1) ^ 0x6C))
+    for i in range(12):
+        mix = -i + 11 * (i // 11) + ((90 + 43 * i) ^ (i >> 2)) + ((8 * i) ^ (17 * i))
+        data[i] ^= mix % 256
+    return b"\x00" * 4 + bytes(data[:8]), struct.unpack("<I", data[8:])[0]
+
+
+class _TableWriter:
+    """Mirrors the reader's stream: rewinds the counter when a write fills a block."""
+
+    def __init__(self, key: bytes) -> None:
+        self.cipher = ChaCha20(key, bytes(12))
+        self.out = bytearray()
+        self.pending = bytearray()
+
+    def write(self, data: bytes) -> None:
+        for byte in data:
+            self.pending.append(byte)
+            if len(self.pending) == 64:
+                self.out += self.cipher.process(bytes(self.pending))
+                self.pending.clear()
+        if data and not self.pending:
+            self.cipher.reset_counter()
+
+    def i32(self, value: int) -> None:
+        self.write(struct.pack("<i", value))
+
+    def finish(self) -> bytes:
+        if self.pending:
+            self.out += self.cipher.process(bytes(self.pending).ljust(64, b"\x00"))
+        return bytes(self.out)
+
+
+def _align(size: int) -> int:
+    return -(-size // 1024) * 1024
+
+
+def pack_bytes(
+    file_name: str,
+    entries: Sequence[Img | Blob],
+    *,
+    salt: str = PACK_SALT,
+    version: int = PACK_VERSION,
+) -> bytes:
+    """
+    A whole `.ms` v2 pack. Each `Img`'s name is its full path, such as
+    `Mob/0000001.img`.
+
+    :param version: The version the header stores. Anything but 4 writes only
+        the prefix, the version byte and padding, which is as far as a reader
+        gets before refusing it.
+    """
+    lower = file_name.lower().encode()
+    prefix = bytes(
+        (i * 0x41C64E6D + 0x3039) // 65536 % 256 for i in range(sum(lower) % 312 + 30)
+    )
+    shifted = bytes((b - 256 if b > 127 else b) // 2 % 256 for b in prefix)
+    out = bytearray(prefix)
+    out.append(version ^ shifted[0])
+    if version != PACK_VERSION:
+        return bytes(out + bytes(256))
+
+    stored_length = len(salt) ^ shifted[0]
+    out += struct.pack("<i", stored_length)
+    unit_sum = 0
+    for i, char in enumerate(salt):
+        a = next(a for a in range(256) if ((a | 0x4B) * 2 - a - 75) % 256 == ord(char))
+        low = a ^ shifted[i]
+        high = 0xFF if low > 127 else 0
+        out += bytes([low, high])
+        unit_sum += low + 256 * high
+
+    key = file_name.lower() + salt
+    total = stored_length + out[len(prefix)] + PACK_VERSION + len(entries) + unit_sum
+    header = struct.pack("<iI", total, len(entries)).ljust(64, b"\x00")
+    out += ChaCha20(_pack_key(key, entry=False), bytes(12)).process(header)
+    out += bytes(8 + sum(3 * b for b in lower) % 212)
+
+    contents = [
+        (
+            entry.name,
+            image_bytes(entry.children)[0] if isinstance(entry, Img) else entry.data,
+        )
+        for entry in entries
+    ]
+    table = _TableWriter(_pack_key(key, entry=True))
+    block = 0
+    keys: list[bytes] = []
+    for index, (name, data) in enumerate(contents):
+        entry_key = bytes((index * 31 + i * 7 + 1) % 256 for i in range(16))
+        keys.append(entry_key)
+        aligned = _align(len(data))
+        table.i32(len(name))
+        table.write(name.encode("utf-16-le"))
+        for value in (
+            block + len(data) + aligned + sum(entry_key),  # checksum
+            0,  # flags
+            block,
+            len(data),
+            aligned,
+            0,
+            0,
+        ):
+            table.i32(value)
+        table.write(entry_key)
+        table.i32(0)
+        table.i32(0)
+        block += aligned // 1024
+    out += table.finish()
+    out += bytes(_align(len(out)) - len(out))
+
+    nonce, counter = _image_nonce(salt)
+    for (name, data), entry_key in zip(contents, keys, strict=True):
+        head = ChaCha20(_image_key(salt, name, entry_key), nonce, counter).process(
+            data[:1024]
+        )
+        out += (head + data[1024:]).ljust(_align(len(data)), b"\x00")
+    return bytes(out)
+
+
+def write_pack(
+    path: Path,
+    entries: Sequence[Img | Blob],
+    *,
+    salt: str = PACK_SALT,
+    version: int = PACK_VERSION,
+) -> None:
+    """A pack at `path`, keyed by its file name, as the client's are."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(pack_bytes(path.name, entries, salt=salt, version=version))
