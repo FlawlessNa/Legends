@@ -31,9 +31,10 @@ down by a `/`-separated path, and raises `KeyError` for a missing step.
 
 Canvases, sounds and raw data are references, not data. `CanvasRef`,
 `SoundRef` and `RawDataRef` say where the bytes are in the image's archive,
-and nothing here decodes them. For an image in a `.ms` pack, whose first bytes
-are encrypted in the file, their offsets count from the image's first
-decrypted byte instead (`MsPack.parse`).
+and nothing here decodes them: `canvas` decodes pixels, and nothing
+decodes sound or raw data. For an image in a `.ms` pack, whose first
+bytes are encrypted in the file, their offsets count from the image's
+first decrypted byte instead (`MsPack.parse`).
 
 All nodes are frozen dataclasses, so two trees compare equal when they hold the
 same names, types and values in the same order.
@@ -117,8 +118,10 @@ class CanvasRef:
     :ivar offset: The first byte of the pixel data, from the start of the
         archive file. It's the byte after the block's leading flag byte.
     :ivar length: The number of bytes of pixel data, flag byte excluded.
-    :ivar format: The pixel format, as stored (1 is BGRA4444, 2 is BGRA8888).
-    :ivar scale: The byte stored after the format, a power-of-two scale.
+    :ivar format: The pixel format, as stored (1 is BGRA4444, 2 is BGRA8888;
+        `canvas` lists them all).
+    :ivar scale: The byte stored after the format, a power-of-two scale: the
+        data holds one pixel for every `2**scale` by `2**scale` square.
     :ivar width: In pixels.
     :ivar height: In pixels.
     """
