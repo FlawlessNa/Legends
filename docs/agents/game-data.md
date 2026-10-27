@@ -5,9 +5,9 @@ into a store, so the bot can look up maps, mobs and skills instead of having
 them typed in by hand. It never touches the running game. The epic is #259;
 its intent and spec are the issue body.
 
-This page covers setting it up, the commands, looking things up in code, and
-the store's layout, the catalogue's tables included, for anyone reading it
-directly. A later ticket adds the renderer.
+This page covers setting it up, the commands, looking things up in code, the
+patch report, rendering a map, and the store's layout, the catalogue's tables
+included, for anyone reading it directly.
 
 ## On a new machine
 
@@ -31,6 +31,7 @@ python -m game_data status  [--client PATH] [--root PATH]
 python -m game_data report  [OLD NEW] [--root PATH]
 python -m game_data show map|mob|skill NAME [--level N] [--root PATH]
 python -m game_data search TEXT [--kind map|mob|skill] [--root PATH]
+python -m game_data render MAP [--overlays] [--hitboxes] [--scale S] [--out PATH] [--root PATH]
 ```
 
 `--root` is the store, `data/game_data` by default (gitignored, like all of
@@ -70,7 +71,14 @@ python -m game_data search TEXT [--kind map|mob|skill] [--root PATH]
   contains `TEXT`, case aside, with its kind, its ID and its name (a map's
   `street: map name`). `--kind` keeps one kind.
 
-`show` and `search` read the latest extraction's catalogue, and need no client.
+- **`render MAP`** draws a map's full screen and writes it as a PNG, by
+  default to `<root>/renders/<map id>.png`, and prints the path. `MAP` is a
+  name or an ID. `--overlays` adds footholds, ropes, portals and spawns,
+  `--hitboxes` adds each spawn's body hitbox, `--scale S` multiplies both sides
+  by `S`, and `--out PATH` writes elsewhere. See "Rendering a map".
+
+`show`, `search` and `render` read the latest extraction's catalogue, and need
+no client.
 
 **Errors.** When the client path isn't set or isn't a folder, an archive
 doesn't read, the store isn't as expected, a name names nothing or several
@@ -168,6 +176,49 @@ mob's sprite).
 Reading the page is for the maintainer, on the next real patch. Only that tells
 whether it reads well.
 
+## Rendering a map
+
+```python
+from pathlib import Path
+
+from game_data.catalogue import Catalogue
+from game_data.render import render_map, write_png
+
+with Catalogue.latest() as cat:
+    screen = render_map(cat, "Henesys", overlays=True)   # RGBA numpy array
+    write_png(screen, Path("henesys.png"))
+```
+
+`render_map(cat, map, *, scale=1.0, frame=0, viewport=(1366, 768),
+overlays=False, hitboxes=False)` draws a map in virtual coordinates. The VR
+bounds' top left is pixel (0, 0), and the image is the bounds' size times
+`scale`. It reads the catalogue and the image store only, never the client.
+
+- **Draw order.** First the backgrounds behind, by number. Then layers 0 to 7:
+  in each, its objects by `z`, then its tiles by their canvas's `z`, with ties
+  kept in the map's order. Then the backgrounds in front. Each item puts its
+  frame's `origin` at its position. A flipped item mirrors about its position.
+- **Animated items** are drawn at `frame % frame_count`.
+- **Backgrounds** are placed for a camera of `viewport`'s size centred on the
+  map, as the client does. A background moves by `(rx + 100) / 100` of the
+  camera's centre: `rx = -100` is fixed to the map, and `rx = 0` is fixed to
+  the camera, as a sky is. Likewise `ry`. A background whose type tiles is
+  repeated every `cx` (or `cy`, or its size when that's 0) across the whole
+  map, not only the viewport. Types 4 to 7 also scroll over time, which a
+  still render doesn't show.
+  `game_data.render.STORED_AT_RX` holds which `rx` is fixed to the map, and is
+  the one line to change if renders show the other reading is right.
+- **Overlays** are drawn after scaling, one pixel wide. They are the map's own
+  footholds (white), footholds on tiles (blue) and on objects (green), the
+  map's own ropes (cyan) and ropes on objects (yellow), and portals (red
+  dots). Each mob spawn is drawn as its mob's first `stand` frame (`fly` when
+  it has no `stand`) where it stands, `(x, cy)`. NPCs, and mobs with no frame
+  to draw, get an orange dot. `hitboxes=True` draws the spawns and their
+  `lt`/`rb` boxes in magenta, with or without the other overlays.
+
+Whether a render looks like the game can't be tested offline: a person
+compares renders against in-game screenshots.
+
 ## The store
 
 ```
@@ -178,6 +229,7 @@ data/game_data/
     catalogue.sqlite       the typed layer, built from raw.sqlite
   images/<hh>/<name>.png   every canvas's pixels, shared by all extractions
   reports/<old>__<new>.html  the patch reports
+  renders/<map id>.png     what `render` writes by default
 ```
 
 ### Builds and extractions
