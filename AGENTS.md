@@ -23,6 +23,7 @@ and there are no `CLAUDE.md` files (see `docs/SETUP.md`).
 | Reviewing a PR                            | `docs/agents/code-review.md`                           |
 | Filing, labelling or reading issues       | `docs/agents/issue-tracker.md`, `triage-labels.md`     |
 | Tracing how a decision becomes a keypress | `docs/agents/engine-architecture.md`                   |
+| Extracting or reading the client's data   | `docs/agents/game-data.md`                             |
 
 ## The repo
 

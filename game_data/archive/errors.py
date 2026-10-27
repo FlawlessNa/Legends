@@ -58,3 +58,11 @@ class NodeNotFound(ArchiveError, LookupError):
     `archive` is the client's `Data` folder when the missing piece is a
     directory or an image, and the image's archive when it is a node inside it.
     """
+
+
+class BrokenLink(NodeNotFound):
+    """
+    A canvas's `_outlink` or `_inlink` names nothing, so its pixels can't be
+    found. `node` is the link's path. The client has one: an icon under
+    `Character/Weapon` whose `_inlink` names a node its image doesn't have.
+    """

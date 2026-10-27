@@ -18,6 +18,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.test_game_data.wz_writer import Img, Int, write_tree
+
 PACKAGE = Path(__file__).resolve().parents[2] / "game_data"
 LAYERS = ["archive", "extraction", "catalogue", "report", "render"]
 
@@ -36,7 +38,7 @@ FORBIDDEN = ["maple", "botting", "torch", "ultralytics", "cv2"]
 
 def _modules() -> list[str]:
     """`game_data` and every module in its existing layers, `render/` excepted."""
-    modules = ["game_data", "game_data.config"]
+    modules = ["game_data", "game_data.config", "game_data.cli"]
     for layer in LAYERS:
         folder = PACKAGE / layer
         if layer == "render" or not folder.is_dir():
@@ -72,6 +74,41 @@ def test_importing_game_data_loads_neither_the_bot_nor_its_detection_stack() -> 
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "[]"
+
+
+def test_python_m_game_data_status_loads_neither_the_bot_nor_its_detection_stack(
+    tmp_path: Path,
+) -> None:
+    """`status` runs at bot startup, so its whole path is held to the guard."""
+    data = tmp_path / "Data"
+    write_tree(data / "Etc", [Img("1.img", [Int("a", 1)])], ini=False)
+    argv = ["game_data", "status", "--client", str(data), "--root", str(tmp_path)]
+    code = "\n".join(
+        [
+            "import runpy, sys",
+            f"sys.path.insert(0, {str(PACKAGE.parent)!r})",
+            f"sys.argv = {argv!r}",
+            "try:",
+            "    runpy.run_module('game_data', run_name='__main__', alter_sys=True)",
+            "except SystemExit as exit:",
+            "    assert exit.code == 0, exit.code",
+            f"print(sorted(m for m in {FORBIDDEN!r} if m in sys.modules))",
+        ]
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", code],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [
+        f"missing: {tmp_path} has no extraction; run `python -m game_data extract`",
+        "[]",
+    ]
 
 
 def _imported_layers(source: str, package: tuple[str, ...]) -> set[str]:

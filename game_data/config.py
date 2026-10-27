@@ -10,6 +10,9 @@ The path comes from, in order:
 With neither, `client_data_path` raises `ClientPathNotSet`, naming the file to
 create. There is no default, so a machine with the client somewhere else can't
 quietly read the wrong folder.
+
+`STORE` is where extractions go by default: `data/game_data`, which is
+gitignored. Every entry point takes the store root, so tests use their own.
 """
 
 import configparser
@@ -18,6 +21,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 CONFIG = REPO / "configs" / "game_data.ini"
 EXAMPLE = REPO / "configs" / "game_data.example.ini"
+STORE = REPO / "data" / "game_data"
 
 _SECTION = "Client"
 _KEY = "Data"
