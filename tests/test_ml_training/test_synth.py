@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pytest_mock import MockerFixture
 
 from game_data.catalogue import build_catalogue
 from game_data.extraction import extract
@@ -153,6 +154,38 @@ def test_rerunning_from_the_recipe_gives_the_same_dataset(
     assert len(before) == 12
     assert before == after
     assert (again / "recipe.json").read_text() == (first / "recipe.json").read_text()
+
+
+@pytest.mark.parametrize(
+    ("given", "used"),
+    [
+        (None, {"drops": (0, 8), "damage": (0, 4)}),
+        ({"drops": [1, 1]}, {"drops": (1, 1)}),
+        ({}, {}),
+    ],
+)
+def test_scenes_draw_the_recipes_occluders_or_by_default_drops_and_damage(
+    store: Path,
+    data: Path,
+    mocker: MockerFixture,
+    given: dict[str, list[int]] | None,
+    used: dict[str, tuple[int, int]],
+) -> None:
+    spy = mocker.spy(module, "compose_scene")
+    settings = SMALL_CLIENT if given is None else SMALL_CLIENT | {"occluders": given}
+
+    folder = synth(
+        FIELD,
+        recipe=write_recipe(data / "r.json", compose_scene=settings),
+        root=store,
+        trainer=Trainer(),
+    )
+
+    assert [call.kwargs["occluders"] for call in spy.call_args_list] == [used] * 6
+    recipe = json.loads((folder / "recipe.json").read_text(encoding="utf-8"))
+    assert recipe["compose_scene"]["occluders"] == {
+        kind: list(count) for kind, count in used.items()
+    }
 
 
 def test_flags_override_the_recipe(store: Path, data: Path) -> None:

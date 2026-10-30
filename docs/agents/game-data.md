@@ -115,6 +115,9 @@ with Catalogue.latest() as cat:           # or Catalogue.open(build_id, root=...
     cat.maps_spawning("Snail")             # list[MapRef]: id, name, spawns
     found = cat.search("henes")            # list[Ref]: kind, id, name
     physics = cat.physics()                # dict[str, float]
+    cat.item_icons()                       # tuple[ItemIcon, ...], by item
+    cat.meso_frames()                      # tuple[MesoFrame, ...]
+    cat.damage_digits()                    # tuple[DamageDigit, ...]
 ```
 
 `latest` and `open` take the store root (`root=`, `data/game_data` by
@@ -235,11 +238,11 @@ with Catalogue.latest() as cat:
 ```
 
 `compose_scene(cat, map, rng, *, client=(1366, 768), mobs=(0, 15),
-visibility_floor=0.3, cameras=None)` is one synthetic client screen of a map,
-with its mobs drawn on their spawns, for training a detection model on. It
-reads the catalogue and the image store, never the client, and knows nothing
-of YOLO or `ml_training`. No occluders (drops, damage numbers, players) are
-drawn yet.
+visibility_floor=0.3, cameras=None, occluders=None)` is one synthetic client
+screen of a map, with its mobs drawn on their spawns, and what the client
+draws over them, for training a detection model on. It reads the catalogue
+and the image store, never the client, and knows nothing of YOLO or
+`ml_training`. Players and the UI aren't drawn.
 
 - **The view.** A camera of `client`'s size. On an axis where the VR bounds
   are at least that size, its centre is drawn uniformly in them, then clamped
@@ -261,11 +264,33 @@ drawn yet.
   0 to 150 pixels, no higher than the view's top. Its action is drawn among
   those it has of `stand`, `move`, `hit1`, `die1`, its frame uniformly, and it
   faces either way. The mobs are drawn in a random order.
+- **Occluders.** `occluders` maps each kind to draw to the fewest and most of
+  it per scene, both included, such as `{"drops": (0, 8), "damage": (0, 4)}`.
+  A kind left out is off, and `None`, the default, draws none. The kinds are
+  `game_data.scenes.OCCLUDERS`.
+  - `drops` lie on a spawn drawn as a mob's is, `x` uniform in its
+    `[rx0, rx1]`, on its foothold's height there. Half are mesos, at a frame
+    of their spin drawn uniformly; the rest are item icons, drawn uniformly
+    among the `Consume`, `Etc` and `Install` items (not `Cash`). An icon is
+    placed as in a 32-pixel inventory slot centred on `x`, its bottom on the
+    ground, which is where its `origin` puts it. Each drop is behind or in
+    front of the mobs at random.
+  - `damage` numbers are above a mob with a pixel in the view, drawn
+    uniformly among them: its frame's `head` (mirrored when it faces the
+    other way), or else the middle of its opaque pixels' top. A number's bottom is 0 to 60 pixels above that,
+    and it's centred there. It has 1 to 6 digits, the first never 0, from a
+    pair of digit sets of `NoRed` or `NoCri`: `<set><2k + 1>` for the first
+    digit, `<set><2k>` for the rest, each overlapping the one before by 8
+    pixels. Numbers are in front of everything.
+
+  A kind the catalogue has no sprites for is left out, with a warning. The
+  constants (the share of mesos, the slot, the rise, the overlap) are first
+  guesses, in `game_data/scenes/occluders.py`, to be judged by eye.
 - **Labels.** `Label(cls, box, visible)`. `box` is `(x1, y1, x2, y2)` in the
   view's pixels, `x2` and `y2` one past the last: the bounds of the drawn
   sprite's opaque pixels (alpha > 0) inside the view, not its `lt`/`rb`
-  hitbox. `visible` is the share of those pixels that no mob drawn after it
-  covers. A label under `visibility_floor` is dropped; the mob stays in the
+  hitbox. `visible` is the share of those pixels that nothing drawn after it
+  covers: a mob, a drop in front, or a damage number. A label under `visibility_floor` is dropped; the mob stays in the
   image. A mob with no pixel in the view has no label.
 - **Class names** are the catalogue's mob names with spaces and dots removed
   (`class_name`), the form the bot's `_is_detectable_by_model` compares. Two
@@ -276,13 +301,15 @@ drawn yet.
   catalogue build, map, arguments and seed give the same pixels and labels.
   `SCENES_VERSION` changes whenever that output would.
 
-`draw_mobs(view, placements, images)` is the step that draws: it lays each
-`Placement(mob, action, frame, x, y, flip)` over an RGB view, its origin at
-view pixel `(x, y)`, and returns one label per placement, unfloored (`None`
-for a mob outside the view). Tests place mobs through it directly.
+`draw_mobs(view, placements, images, overlays=())` is the step that draws: it
+lays each `Placement(mob, action, frame, x, y, flip)` over an RGB view, its
+origin at view pixel `(x, y)`, then each `Overlay(pixels, left, top)` over
+them, and returns one label per placement, unfloored (`None` for a mob
+outside the view), the overlays counted against `visible`. Tests place mobs
+through it directly.
 
-Whether scenes look like the game (views, placement, parallax) is the
-maintainer's to judge, by eye, on the extract.
+Whether scenes look like the game (views, placement, parallax, occluders) is
+the maintainer's to judge, by eye, on the extract.
 
 ## The store
 
@@ -390,8 +417,8 @@ If one ever does, extraction stops rather than store something ambiguous.
 ### `catalogue.sqlite`
 
 The typed layer: one row per map, foothold, rope, portal, spawn and layer
-item, mob and mob frame, skill and skill level, and character action frame,
-read from `raw.sqlite` and nothing else. Code reads it through
+item, mob and mob frame, skill and skill level, character action frame, item
+icon, meso frame and damage digit, read from `raw.sqlite` and nothing else. Code reads it through
 `Catalogue` ("Looking things up"); anyone may query it directly with any
 SQLite tool. Its tables and columns are stable within a schema version, the
 `catalogue_schema_version` in the manifest (and the file's `user_version`).
@@ -410,7 +437,9 @@ and `String/Skill.img` for `strings`; each `Map/Map/Map<n>/<id>.img`, and the
 `mob_frames` (Classic keeps them in `Packs/Mob_00000.ms`); each job's
 `Skill/<job>.img` for `skills` and `skill_levels` (`Skill/Attacktype.img`,
 `Skill/ItemSkill.img` and `Skill/MobSkill/` aren't read); and the body,
-`Character/00002000.img`, for `actions`. A client without one of these leaves its tables empty. One that is
+`Character/00002000.img`, for `actions`; each `Item/<category>/<prefix>.img`
+for `item_icons`, `Item/Special/0900.img` for `meso_frames`, and
+`Effect/BasicEff.img` for `damage_digits`. A client without one of these leaves its tables empty. One that is
 there but isn't as expected stops the build, naming the image and the node,
 and the extraction with it.
 
@@ -672,6 +701,57 @@ Some actions borrow other actions' poses, and give some frames a negative
 delay (`alert3`, `magic1`...). `duration` adds each delay's magnitude, so it's
 how long the action is shown. What the sign means isn't known here, and
 `delay` keeps it as the client gives it.
+
+#### `item_icons`
+
+One row per item with an icon, from each `Item/<category>/<prefix>.img`
+(`Item/Consume/0200.img`...): its `info/iconRaw`, the icon a drop of it shows.
+An item with no `info/iconRaw` has no row. The pets' images,
+`Item/Pet/<id>.img`, aren't read; nor are equipment's, which are in
+`Character`.
+
+| column     | type    | what                                                                  |
+| ---------- | ------- | --------------------------------------------------------------------- |
+| `item`     | INTEGER | the item's ID, such as `2000000`                                      |
+| `category` | TEXT    | its image's folder: `Consume`, `Etc`, `Install`, `Cash`...            |
+| `image`    | TEXT    | its icon in `images/`; NULL when its pixels couldn't be found         |
+| `origin_x` | INTEGER | the icon's origin, as in an inventory slot: `(-3, 30)` for a 27x27    |
+| `origin_y` | INTEGER |                                                                       |
+
+An `iconRaw` that's a UOL to another item's is stored as the icon it leads
+to.
+
+#### `meso_frames`
+
+One row per frame of each meso sprite's spin, `Item/Special/0900.img`'s
+`<id>/iconRaw/<n>`. Classic has eight sprites, `9000000` to `9000007`, of 4 or
+10 frames.
+
+| column     | type    | what                                                          |
+| ---------- | ------- | ------------------------------------------------------------- |
+| `meso`     | INTEGER | the sprite's ID, such as `9000000`                            |
+| `frame`    | INTEGER | the frame's number, from 0                                    |
+| `image`    | TEXT    | its image in `images/`; NULL when its pixels couldn't be found |
+| `origin_x` | INTEGER | the frame's origin, as an item icon's                         |
+| `origin_y` | INTEGER |                                                               |
+
+#### `damage_digits`
+
+One row per digit of each set the client draws numbers with,
+`Effect/BasicEff.img`'s `No<colour><n>` (`NoRed0`, `NoCri1`, `NoViolet0`...).
+A set's other children, such as `Miss` or `effect`, aren't digits. In
+Classic, `NoRed` and `NoCri` come in pairs, `0`/`1` and `2`/`3`, the odd set
+the larger; scenes draw a number's first digit from the odd set and the rest
+from the even one. That this is how the client draws them, and which colour
+shows what, aren't checked here.
+
+| column      | type    | what                                                          |
+| ----------- | ------- | ------------------------------------------------------------- |
+| `digit_set` | TEXT    | the set, such as `NoRed0`                                     |
+| `digit`     | INTEGER | 0 to 9                                                        |
+| `image`     | TEXT    | its image in `images/`; NULL when its pixels couldn't be found |
+| `origin_x`  | INTEGER | the digit's origin: about its bottom middle                   |
+| `origin_y`  | INTEGER |                                                               |
 
 ### `images/`
 

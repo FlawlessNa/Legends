@@ -48,6 +48,12 @@ TRAIN_SPLIT: Final = 0.85
 SAMPLES: Final = 20
 JPEG_QUALITY: Final = 95
 
+OCCLUDERS: Final = {"drops": (0, 8), "damage": (0, 4)}
+"""
+The occluders a scene draws, by kind, unless the recipe says otherwise: a
+first guess, to be judged against real screens.
+"""
+
 Trainer = Callable[[Path, Mapping[str, Any], str], Path]
 """Trains on a `data.yaml` with the settings, under a run name; returns `best.pt`."""
 
@@ -136,6 +142,10 @@ def synth(
         "mobs": tuple(given.get("mobs", MOBS)),
         "visibility_floor": given.get("visibility_floor", VISIBILITY_FLOOR),
         "cameras": given.get("cameras"),
+        "occluders": {
+            kind: (low, high)
+            for kind, (low, high) in given.get("occluders", OCCLUDERS).items()
+        },
     }
     settings = {**(read.get("final_training") or final_training()), **(training or {})}
 
@@ -167,6 +177,11 @@ def synth(
             "compose_scene": {
                 key: list(value) if isinstance(value, tuple) else value
                 for key, value in compose.items()
+            }
+            | {
+                "occluders": {
+                    kind: list(count) for kind, count in compose["occluders"].items()
+                }
             },
             "classes": classes,
             "final_training": settings,

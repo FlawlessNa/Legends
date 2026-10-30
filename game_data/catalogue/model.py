@@ -391,3 +391,54 @@ class SkillData:
             if self.max_level
             else f"{self.name or self.id} has no levels"
         )
+
+
+@dataclass(frozen=True, slots=True)
+class ItemIcon:
+    """
+    An item's icon, `info/iconRaw`: what a drop of it shows.
+
+    :ivar category: Its image's folder, such as `Consume` or `Etc`.
+    :ivar image: Its image in the image store; `None` when its pixels
+        couldn't be found.
+    """
+
+    item: int
+    category: str
+    image: str | None
+    origin_x: int
+    origin_y: int
+
+
+@dataclass(frozen=True, slots=True)
+class MesoFrame:
+    """
+    One frame of a meso sprite's spin, `Item/Special/0900.img`.
+
+    :ivar meso: The sprite's ID, such as `9000000`.
+    :ivar image: As `ItemIcon.image`.
+    """
+
+    meso: int
+    frame: int
+    image: str | None
+    origin_x: int
+    origin_y: int
+
+
+@dataclass(frozen=True, slots=True)
+class DamageDigit:
+    """
+    One digit of a set the client draws damage numbers with,
+    `Effect/BasicEff.img`.
+
+    :ivar digit_set: The set, such as `NoRed0`.
+    :ivar digit: 0 to 9.
+    :ivar image: As `ItemIcon.image`.
+    """
+
+    digit_set: str
+    digit: int
+    image: str | None
+    origin_x: int
+    origin_y: int
