@@ -28,7 +28,6 @@ same catalogue, map, arguments and seed give the same scene.
 """
 
 import logging
-import weakref
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Final
@@ -219,11 +218,17 @@ class _State:
     views: list[tuple[Camera, np.ndarray]]
 
 
-# Keyed by the `rng`, so that a fresh generator of the same seed starts over.
-_STATES: Final = weakref.WeakKeyDictionary[
-    np.random.Generator,
-    dict[tuple[str, str, int, tuple[int, int], int | None], _State],
-]()
+type _Key = tuple[str, str, int, tuple[int, int], int | None]
+
+_KEPT: Final = 8
+"""
+How many generators' states are kept, the latest used. A generator's state is
+keyed by its identity, so that a fresh one of the same seed starts over; it
+can't be weakly referenced, so each entry holds it, which keeps its `id` from
+being reused while kept. A generator that falls out draws its cameras again.
+"""
+
+_STATES: Final = dict[int, tuple[np.random.Generator, dict[_Key, _State]]]()
 
 
 def _state(
@@ -233,7 +238,11 @@ def _state(
     client: tuple[int, int],
     cameras: int | None,
 ) -> _State:
-    states = _STATES.setdefault(rng, {})
+    kept = _STATES.pop(id(rng), None)
+    states = {} if kept is None else kept[1]
+    _STATES[id(rng)] = (rng, states)
+    while len(_STATES) > _KEPT:
+        del _STATES[next(iter(_STATES))]
     key = (cat.build, str(cat.store.root), data.id, client, cameras)
     found = states.get(key)
     if found is not None:

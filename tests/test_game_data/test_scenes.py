@@ -6,8 +6,8 @@ catalogue and image store.
 whose images are blocks of plain colours:
 
 - `200`, "Scene Road: Field", VR `(0, 0)` to `(600, 300)`. A grey background
-  tiled over the whole map, and a red one fixed to the camera's centre. Two
-  footholds: `1`, flat at y 250 from x 0 to 300, then `2`, up to y 150 at x
+  tiled over the whole map, a red one fixed to the camera's centre, and a
+  50x50 white one fixed to the map at (300, 150). Two footholds: `1`, flat at y 250 from x 0 to 300, then `2`, up to y 150 at x
   600. A Block spawns on `1` with `[rx0, rx1] = [20, 500]`, so it walks onto
   `2`; a Bat, which flies, on `1` in `[100, 200]`; a Crab in `[400, 500]`;
   and a Ghost, which has no sprite.
@@ -109,6 +109,7 @@ def field_map() -> list[w.Property]:
             "back",
             _back(0, type=3),
             _back(1, rx=0, ry=0),
+            _back(2, x=300, y=150),
         ),
     ]
 
@@ -130,9 +131,9 @@ def back_assets() -> list[w.Property]:
         w.Prop(
             "back",
             [
-                solid("0", 1, 1, GREY, origin(0, 0)),
+                solid("0", 50, 50, GREY, origin(0, 0)),
                 solid("1", 2, 2, RED, origin(0, 0)),
-                solid("2", 1, 1, WHITE, origin(0, 0)),
+                solid("2", 50, 50, WHITE, origin(0, 0)),
             ],
         )
     ]
@@ -430,7 +431,7 @@ def test_cameras_none_renders_the_map_for_each_scene(
 
 
 def test_cameras_n_renders_n_cameras_once_and_each_scene_picks_one(
-    cat: Catalogue, mocker: MockerFixture
+    cat: Catalogue, drawn: Drawn, mocker: MockerFixture
 ) -> None:
     spy = mocker.spy(compose, "render_map")
     generator = rng()
@@ -441,8 +442,14 @@ def test_cameras_n_renders_n_cameras_once_and_each_scene_picks_one(
     ]
 
     assert spy.call_count == 3
-    distinct = {view.image.tobytes() for view in views}
-    assert 1 < len(distinct) <= 3
+    assert len(set(drawn.cameras)) == 3
+    crops = {
+        render_map(cat, FIELD, camera=c)[
+            c.top : c.top + c.height, c.left : c.left + c.width, :3
+        ].tobytes()
+        for c in drawn.cameras
+    }
+    assert {view.image.tobytes() for view in views} <= crops
 
 
 def test_mobs_drawn_on_a_shared_camera_dont_stay_on_it(cat: Catalogue) -> None:
@@ -623,7 +630,8 @@ def test_a_mob_half_covered_by_a_later_one_is_half_visible(cat: Catalogue) -> No
 
     under, over = draw_mobs(view, placements, Images(cat.store.images))
 
-    assert under is not None and over is not None
+    assert under is not None
+    assert over is not None
     assert under.visible == pytest.approx(0.5, abs=0.05)
     assert over.visible == 1.0
     assert under.box == (45, 40, 55, 50)
