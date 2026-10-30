@@ -53,7 +53,8 @@ pytest        ->  0 failed, 0 errors, 0 xfailed
 That is the green baseline, from the repo root with no flags. **Any `failed`
 or `error` line is yours.** The passing and deselected counts move as tests
 are added. What must hold is the shape: nothing failed, no xfails, and every
-deselected test accounted for by an opt-in marker (`live`, `system`, `lab`).
+deselected test accounted for by an opt-in marker (`live`, `system`, `lab`,
+`client_files`).
 
 - **A behaviour change lands with a test that fails without it.** Stash the
   source change, keep the test, run it, and confirm it goes red for the reason

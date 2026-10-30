@@ -371,3 +371,33 @@ target — cascading symptoms of one incident advance it once — and real progr
 resets it entirely.
 _Avoid_: Failsafe response, escalation policy — the ladder is the mechanism's
 name, its rungs are Reflex, Abandon, Escalate.
+
+## Game data
+
+**Build**:
+One version of the installed client's files, identified by its build id: a
+short SHA-256 over every archive and pack's path, size and contents. The same
+bytes are the same Build wherever they are installed. A patch makes a new one.
+_Avoid_: Version, client version: the archives carry a version number, which
+says nothing about their contents.
+
+**Extraction**:
+One Build's extracted data in the store: its manifest, its raw layer (every
+image's tree, losslessly) and its Catalogue, plus the images they name. The
+store keeps the two latest, and re-extracting a kept Build makes it the latest
+again rather than creating another.
+_Avoid_: Snapshot: the codebase already uses "snapshot" for a copy of bot data
+(see **Golden**). Dump, export.
+
+**Catalogue**:
+The typed layer built from one Extraction's raw layer: tables of maps, mobs,
+skills and actions, and the query API over them. It's rebuilt from the raw
+layer, never from the client, so changing it needs no client.
+_Avoid_: Database, game DB: the raw layer is a database too.
+
+**Virtual coordinates**:
+The map's own coordinate system, the one its footholds, ropes, portals, spawns
+and layers are stored in, and in which a map is rendered with its VR bounds'
+top-left at pixel (0, 0). Distinct from screen coordinates, which move with the
+camera, and from minimap coordinates, which are scaled.
+_Avoid_: Map coordinates, world coordinates.
