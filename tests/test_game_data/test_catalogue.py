@@ -895,7 +895,7 @@ def test_a_raw_layer_with_no_maps_or_strings_builds_empty_tables(
             table: database.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
             for table in tables
         }
-    assert len(counts) == 14
+    assert len(counts) == 17
     assert set(counts.values()) == {0}
 
 

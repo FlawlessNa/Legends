@@ -17,10 +17,15 @@ no higher than the view's top. Its action is drawn among those it has of
 `ACTIONS`, its frame uniformly, and its facing either way. They are drawn in a
 random order.
 
+**Occluders** (`occluders`), each kind on when `occluders` gives it a count
+range: drops on the mobs' spawns, behind or in front of the mobs, and damage
+numbers above the mobs with a pixel in the view, in front.
+
 **Labels** (`draw_mobs`). A mob's box is the bounds of its drawn sprite's
 opaque pixels (alpha > 0) inside the view, not its `lt`/`rb` hitbox.
-`visible` is the share of those pixels that nothing drawn after it covers. A
-label under `visibility_floor` is dropped; the mob stays in the image.
+`visible` is the share of those pixels that nothing drawn after it covers,
+mobs and occluders alike. A label under `visibility_floor` is dropped; the
+mob stays in the image.
 
 **Determinism.** Every draw comes from the `rng`, in a fixed order, so the
 same catalogue, map, arguments and seed give the same scene.
@@ -28,18 +33,29 @@ same catalogue, map, arguments and seed give the same scene.
 """
 
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Final
 
 import numpy as np
 
 from game_data.archive import Pixels
-from game_data.catalogue import Bounds, Catalogue, Foothold, MapData, MobData, Spawn
+from game_data.catalogue import (
+    Bounds,
+    Catalogue,
+    Foothold,
+    MapData,
+    MobData,
+    MobFrame,
+    Spawn,
+)
 from game_data.render import VIEWPORT, Camera, Images, render_map
 from game_data.render.placement import top_left
 
-SCENES_VERSION: Final = 1
+from . import occluders as occ
+from .occluders import Overlay, Sprites
+
+SCENES_VERSION: Final = 2
 """Bumped whenever the same arguments and seed would give another scene."""
 
 ACTIONS: Final = ("stand", "move", "hit1", "die1")
@@ -139,6 +155,7 @@ def compose_scene(
     mobs: tuple[int, int] = MOBS,
     visibility_floor: float = VISIBILITY_FLOOR,
     cameras: int | None = None,
+    occluders: Mapping[str, tuple[int, int]] | None = None,
 ) -> Scene:
     """
     One synthetic screen of a map, and its labels.
@@ -150,17 +167,22 @@ def compose_scene(
     :param cameras: `None` renders the background for each scene. An integer
         `n` renders `n` cameras of the map once, drawn from `rng` the first
         time this `rng` composes the map, and each scene picks one of them.
+    :param occluders: The occluders drawn, by kind (`occluders.KINDS`:
+        `drops`, `damage`), each with the fewest and most drawn, both
+        included. A kind left out isn't drawn; `None` draws none.
     :raises LookupError: As `Catalogue.map` does.
     :raises SceneError: Two species of the map share a class name.
     :raises RenderError: As `render_map` does.
-    :raises ValueError: `mobs` isn't `0 <= min <= max`, or `cameras` isn't
-        positive.
+    :raises ValueError: `mobs` isn't `0 <= min <= max`, `cameras` isn't
+        positive, or `occluders` names another kind or a range out of order.
     """
     low, high = mobs
     if not 0 <= low <= high:
         raise ValueError(f"mobs must be (min, max) with 0 <= min <= max, not {mobs}")
     if cameras is not None and cameras < 1:
         raise ValueError(f"cameras must be positive, not {cameras}")
+    occluders = occluders or {}
+    occ.check(occluders)
     data = cat.map(map)
     state = _state(cat, data, rng, client, cameras)
     if state.views:
@@ -171,7 +193,10 @@ def compose_scene(
         view = _view(cat, data, camera, int(rng.integers(FRAMES)), state.images)
     count = int(rng.integers(low, high + 1))
     placements = _placements(data, state.species, camera, count, rng)
-    drawn = draw_mobs(view, placements, state.images)
+    behind, over = _occluders(cat, data, state, camera, placements, occluders, rng)
+    for overlay in behind:
+        _paste(view, overlay.pixels, overlay.left, overlay.top)
+    drawn = draw_mobs(view, placements, state.images, over)
     labels = tuple(
         label
         for label in drawn
@@ -181,13 +206,19 @@ def compose_scene(
 
 
 def draw_mobs(
-    view: np.ndarray, placements: Sequence[Placement], images: Images
+    view: np.ndarray,
+    placements: Sequence[Placement],
+    images: Images,
+    overlays: Sequence[Overlay] = (),
 ) -> tuple[Label | None, ...]:
     """
-    Draws the mobs over `view`, in place, in order, and labels each.
+    Draws the mobs over `view`, in place, in order, then the `overlays` over
+    them, and labels each mob.
 
     :param view: `(height, width, 3)` RGB pixels.
     :param images: Where the frames' images are read.
+    :param overlays: Occluders drawn in front of every mob, which count
+        against each one's `visible`.
     :returns: One label per placement, in their order, none floored; `None`
         for a mob with no opaque pixel in the view.
     :raises LookupError: A placement's mob has no such frame, or no image for
@@ -199,6 +230,11 @@ def draw_mobs(
         sprite, left, top = _sprite(placement, images)
         masks.append(_paste(view, sprite, left, top))
     covered = np.zeros((height, width), dtype=bool)
+    for overlay in overlays:
+        found = _paste(view, overlay.pixels, overlay.left, overlay.top)
+        if found is not None:
+            mask, (x0, y0, x1, y1) = found
+            covered[y0:y1, x0:x1] |= mask
     labels: list[Label | None] = []
     for placement, found in zip(reversed(placements), reversed(masks), strict=True):
         if found is None:
@@ -229,6 +265,7 @@ class _State:
     images: Images
     species: dict[int, MobData]
     views: list[tuple[Camera, np.ndarray]]
+    sprites: Sprites | None = None
 
 
 type _Key = tuple[str, str, int, tuple[int, int], int | None]
@@ -358,15 +395,10 @@ def _view(
     return view
 
 
-def _placements(
-    data: MapData,
-    species: dict[int, MobData],
-    camera: Camera,
-    count: int,
-    rng: np.random.Generator,
-) -> list[Placement]:
+def _spawns(data: MapData, species: dict[int, MobData], camera: Camera) -> list[Spawn]:
+    """The map's spawns of `species` whose `[rx0, rx1]` overlaps the view."""
     right = camera.left + camera.width
-    spawns = [
+    return [
         spawn
         for spawn in data.spawns
         if spawn.kind == "mob"
@@ -374,14 +406,29 @@ def _placements(
         and min(spawn.rx0, spawn.rx1) < right
         and max(spawn.rx0, spawn.rx1) >= camera.left
     ]
+
+
+def _on_spawn(data: MapData, spawn: Spawn, rng: np.random.Generator) -> tuple[int, int]:
+    """A point on the spawn's ground, `x` uniform in its `[rx0, rx1]`."""
+    x = int(rng.integers(min(spawn.rx0, spawn.rx1), max(spawn.rx0, spawn.rx1) + 1))
+    return x, _ground(data.footholds, spawn, x)
+
+
+def _placements(
+    data: MapData,
+    species: dict[int, MobData],
+    camera: Camera,
+    count: int,
+    rng: np.random.Generator,
+) -> list[Placement]:
+    spawns = _spawns(data, species, camera)
     if not spawns:
         return []
     placements: list[Placement] = []
     for _ in range(count):
         spawn = spawns[int(rng.integers(len(spawns)))]
         mob = species[spawn.id]
-        x = int(rng.integers(min(spawn.rx0, spawn.rx1), max(spawn.rx0, spawn.rx1) + 1))
-        y = _ground(data.footholds, spawn, x)
+        x, y = _on_spawn(data, spawn, rng)
         if mob.fly_speed is not None:
             y = max(y - int(rng.integers(FLY_LIFT + 1)), camera.top)
         actions = _actions(mob)
@@ -394,6 +441,90 @@ def _placements(
         )
     rng.shuffle(placements)
     return placements
+
+
+def _occluders(
+    cat: Catalogue,
+    data: MapData,
+    state: _State,
+    camera: Camera,
+    placements: Sequence[Placement],
+    occluders: Mapping[str, tuple[int, int]],
+    rng: np.random.Generator,
+) -> tuple[list[Overlay], list[Overlay]]:
+    """
+    The occluders behind the mobs and those in front of them: the drops, then
+    the damage numbers, each kind when `occluders` has it.
+    """
+    behind: list[Overlay] = []
+    front: list[Overlay] = []
+    if not occluders:
+        return behind, front
+    sprites = _sprites(cat, data, state, occluders)
+    if "drops" in occluders:
+        low, high = occluders["drops"]
+        count = int(rng.integers(low, high + 1))
+        spawns = _spawns(data, state.species, camera)
+        if spawns and sprites.has("drops"):
+            for _ in range(count):
+                spawn = spawns[int(rng.integers(len(spawns)))]
+                x, y = _on_spawn(data, spawn, rng)
+                overlay = occ.drop(
+                    sprites, state.images, x - camera.left, y - camera.top, rng
+                )
+                (front if rng.integers(2) else behind).append(overlay)
+    if "damage" in occluders:
+        low, high = occluders["damage"]
+        count = int(rng.integers(low, high + 1))
+        drawn = [p for p in placements if _in_view(p, state.images, camera)]
+        if drawn and sprites.has("damage"):
+            for _ in range(count):
+                placement = drawn[int(rng.integers(len(drawn)))]
+                x, y = _head(placement, state.images)
+                front += occ.damage(sprites, state.images, x, y, rng)
+    return behind, front
+
+
+def _sprites(
+    cat: Catalogue,
+    data: MapData,
+    state: _State,
+    occluders: Mapping[str, tuple[int, int]],
+) -> Sprites:
+    """
+    The catalogue's occluder sprites, read once per state, with a warning for
+    each kind asked for that the catalogue has none of.
+    """
+    if state.sprites is None:
+        state.sprites = Sprites.read(cat)
+        for kind in occluders:
+            if not state.sprites.has(kind):
+                _log.warning(
+                    "map %s: the catalogue has no sprites for %s; none are drawn",
+                    data.id,
+                    kind,
+                )
+    return state.sprites
+
+
+def _in_view(placement: Placement, images: Images, camera: Camera) -> bool:
+    """Whether any of a placed mob's opaque pixels is in the view."""
+    pixels, left, top = _sprite(placement, images)
+    x0, y0 = max(-left, 0), max(-top, 0)
+    x1 = min(camera.width - left, pixels.shape[1])
+    y1 = min(camera.height - top, pixels.shape[0])
+    return x0 < x1 and y0 < y1 and bool((pixels[y0:y1, x0:x1, 3] > 0).any())
+
+
+def _head(placement: Placement, images: Images) -> tuple[int, int]:
+    """Where a placed mob's head is in the view (`occluders.head`)."""
+    frame = _frame(placement)
+    pixels, left, top = _sprite(placement, images)
+    head_at = None
+    if frame.head_x is not None and frame.head_y is not None:
+        head_x = -frame.head_x if placement.flip else frame.head_x
+        head_at = (placement.x + head_x, placement.y + frame.head_y)
+    return occ.head(pixels, left, top, head_at)
 
 
 def _ground(footholds: Iterable[Foothold], spawn: Spawn, x: int) -> int:
@@ -434,15 +565,19 @@ def _height(foothold: Foothold, x: int) -> int:
     return round(foothold.y1 + share * (foothold.y2 - foothold.y1))
 
 
-def _sprite(placement: Placement, images: Images) -> tuple[Pixels, int, int]:
-    """The placement's RGBA pixels, mirrored when flipped, and their top left."""
+def _frame(placement: Placement) -> MobFrame:
+    """The placement's frame of its mob."""
     for frame in placement.mob.frames:
         if frame.action == placement.action and frame.frame == placement.frame:
-            break
-    else:
-        raise LookupError(
-            f"mob {placement.mob.id} has no frame {placement.action}/{placement.frame}"
-        )
+            return frame
+    raise LookupError(
+        f"mob {placement.mob.id} has no frame {placement.action}/{placement.frame}"
+    )
+
+
+def _sprite(placement: Placement, images: Images) -> tuple[Pixels, int, int]:
+    """The placement's RGBA pixels, mirrored when flipped, and their top left."""
+    frame = _frame(placement)
     if frame.image is None:
         raise LookupError(
             f"mob {placement.mob.id}'s frame {placement.action}/{placement.frame} "

@@ -16,6 +16,9 @@ It reads:
 - every mob image, `Mob/<id>.img`, into `mobs` and `mob_frames` (`mobs`).
 - every job's skill image, `Skill/<job>.img`, into `skills` and
   `skill_levels`, and `Character/00002000.img` into `actions` (`skills`).
+- every item image, `Item/<category>/<prefix>.img`, into `item_icons`;
+  `Item/Special/0900.img` into `meso_frames`; and `Effect/BasicEff.img` into
+  `damage_digits` (`occluders`).
 
 An image the client doesn't have, such as `String/Map.img` in a client of only
 mobs, leaves its tables empty. One that is there but isn't as expected is an
@@ -37,6 +40,14 @@ from game_data.extraction import ImageStore
 
 from .maps import MAP_IMAGE, Assets, MapReader, Row
 from .mobs import MOB_IMAGE, read_mobs
+from .occluders import (
+    DIGITS_IMAGE,
+    ITEM_IMAGE,
+    MESO_IMAGE,
+    read_damage_digits,
+    read_item_icons,
+    read_meso_frames,
+)
 from .schema import CATALOGUE, INDEXES, SCHEMA_VERSION, TABLES
 from .skills import ACTIONS_IMAGE, SKILL_IMAGE, read_actions, read_skills
 from .trees import CatalogueError, Tree
@@ -100,6 +111,20 @@ class _Raw:
     def maps(self) -> list[tuple[int, str]]:
         """Every map image's ID and path, by ID."""
         return self._numbered("Map/Map/Map[0-9]/*.img", MAP_IMAGE)
+
+    def item_trees(self) -> list[tuple[str, Tree]]:
+        """Each item image's category and tree, by path."""
+        rows = self._connection.execute(
+            "SELECT path FROM images WHERE path GLOB 'Item/*/*.img' ORDER BY path"
+        ).fetchall()
+        found: list[tuple[str, Tree]] = []
+        for (path,) in rows:
+            match = ITEM_IMAGE.fullmatch(path)
+            if match:
+                tree = self.tree(path)
+                assert tree is not None
+                found.append((match["category"], tree))
+        return found
 
     def numbered_trees(self, glob: str, pattern: re.Pattern[str]) -> dict[int, Tree]:
         """
@@ -166,6 +191,13 @@ def _write(raw: _Raw, catalogue: sqlite3.Connection) -> None:
     actions = raw.tree(ACTIONS_IMAGE)
     if actions is not None:
         _insert(catalogue, "actions", read_actions(actions))
+    _insert(catalogue, "item_icons", read_item_icons(raw.item_trees()))
+    mesos = raw.tree(MESO_IMAGE)
+    if mesos is not None:
+        _insert(catalogue, "meso_frames", read_meso_frames(mesos))
+    digits = raw.tree(DIGITS_IMAGE)
+    if digits is not None:
+        _insert(catalogue, "damage_digits", read_damage_digits(digits))
     for index in INDEXES:
         catalogue.execute(index)
     catalogue.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")

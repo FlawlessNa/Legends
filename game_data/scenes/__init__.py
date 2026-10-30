@@ -9,8 +9,12 @@ The public API (`compose`):
 - `compose_scene(cat, map, rng, ...)`: one `Scene`, an RGB image of the
   client's size and a `Label(cls, box, visible)` per mob drawn above the
   visibility floor.
-- `draw_mobs(view, placements, images)`: draws `Placement`s over a view and
-  labels each, the step `compose_scene` draws its mobs through.
+- `draw_mobs(view, placements, images, overlays)`: draws `Placement`s over a
+  view, then `Overlay`s over them, and labels each mob, the step
+  `compose_scene` draws its mobs through.
+- `occluders`: the drops and damage numbers `compose_scene` draws over mobs
+  when its `occluders` asks for them, laid out as `Overlay`s. `OCCLUDERS`
+  names their kinds.
 - `draw_camera`: a scene's camera, drawn inside the map's VR bounds.
 - `class_name`: a mob's class, its name with spaces and dots removed, the form
   the bot compares a model's classes with.
@@ -19,9 +23,10 @@ The public API (`compose`):
   another scene.
 - `SceneError`: two species of a map share a class name.
 
-No occluders are drawn yet.
+Players and the UI aren't drawn.
 """
 
+from . import occluders
 from .compose import (
     ACTIONS,
     FLY_LIFT,
@@ -38,14 +43,18 @@ from .compose import (
     draw_mobs,
     map_classes,
 )
+from .occluders import KINDS as OCCLUDERS
+from .occluders import Overlay
 
 __all__ = [
     "ACTIONS",
     "FLY_LIFT",
     "MOBS",
+    "OCCLUDERS",
     "SCENES_VERSION",
     "VISIBILITY_FLOOR",
     "Label",
+    "Overlay",
     "Placement",
     "Scene",
     "SceneError",
@@ -54,4 +63,5 @@ __all__ = [
     "draw_camera",
     "draw_mobs",
     "map_classes",
+    "occluders",
 ]
