@@ -117,6 +117,19 @@ def class_name(name: str) -> str:
     return name.replace(" ", "").replace(".", "")
 
 
+def map_classes(cat: Catalogue, map: str | int) -> list[str]:
+    """
+    The classes a map's scenes can label, sorted by name: those of the species
+    `compose_scene` draws.
+
+    :param map: Its name or ID, as `Catalogue.map` takes.
+    :raises LookupError: As `Catalogue.map` does.
+    :raises SceneError: Two species of the map share a class name.
+    """
+    species = _species(cat, cat.map(map))
+    return sorted(class_name(str(mob.name)) for mob in species.values())
+
+
 def compose_scene(
     cat: Catalogue,
     map: str | int,
