@@ -5,6 +5,7 @@ from typing import Any
 
 import cv2
 import numpy as np
+from ultralytics.engine.results import Results
 
 from botting.models_abstractions import BaseCharacter
 from botting.utilities import (
@@ -14,6 +15,7 @@ from botting.utilities import (
 )
 
 from .maple_skills import MapleSkill
+from .own_character import Candidate, OwnCharacterPicker
 
 DEBUG = True
 
@@ -50,11 +52,26 @@ class Character(BaseCharacter, ABC):
         self._detection_offset: tuple[int, int] | None = None
         if detection_configs is not None:
             self._set_detection_configs(detection_configs)
+        self._own_character_picker = OwnCharacterPicker(ign)
         assert client_size.lower() in ("large", "medium", "small")
         self._client_size = client_size
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.ign})"
+
+    def _character_candidates(
+        self, detections: Results, mask: np.ndarray | None
+    ) -> list[Candidate]:
+        """The `Character` boxes `extract_results` keeps, with their confidences."""
+        kept = set(self.extract_results(detections, mask=mask))
+        candidates = []
+        for dct in detections.summary():
+            if dct["name"] != "Character":
+                continue
+            box = tuple(round(v) for v in dct["box"].values())
+            if box in kept:
+                candidates.append(Candidate(box, dct["confidence"]))  # type: ignore[arg-type]
+        return candidates
 
     def _set_detection_configs(self, section: str) -> None:
         """
@@ -119,18 +136,11 @@ class Character(BaseCharacter, ABC):
             detections = self.run_detection_model(
                 handle, image, acceptance_threshold, debug=DEBUG
             )
-            found = self.extract_results(detections, mask=mask)
-
-            if len(found) > 1:
-                # TODO - Cross validate with VR coordinates and take closest.
-                # For now, just return the one with highest confidence.
-                best = max(
-                    [dct for dct in detections.summary() if dct["name"] == "Character"],
-                    key=lambda dct: dct["confidence"],
-                )["box"].values()
-                model_res = tuple(map(round, best))
-            elif len(found) == 1:
-                model_res = found[0]
+            kept = self._own_character_picker.pick(
+                image, self._character_candidates(detections, mask)
+            )
+            if kept is not None:
+                model_res = kept
 
         if self._detection_methods is not None:
             if mask is not None:
