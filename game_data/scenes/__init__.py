@@ -14,6 +14,7 @@ The public API (`compose`):
 - `draw_camera`: a scene's camera, drawn inside the map's VR bounds.
 - `class_name`: a mob's class, its name with spaces and dots removed, the form
   the bot compares a model's classes with.
+- `map_classes`: the classes a map's scenes can label, sorted by name.
 - `SCENES_VERSION`: bumped whenever the same arguments and seed would give
   another scene.
 - `SceneError`: two species of a map share a class name.
@@ -35,6 +36,7 @@ from .compose import (
     compose_scene,
     draw_camera,
     draw_mobs,
+    map_classes,
 )
 
 __all__ = [
@@ -51,4 +53,5 @@ __all__ = [
     "compose_scene",
     "draw_camera",
     "draw_mobs",
+    "map_classes",
 ]

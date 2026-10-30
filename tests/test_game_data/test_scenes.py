@@ -37,6 +37,7 @@ from game_data.scenes import (
     compose,
     compose_scene,
     draw_mobs,
+    map_classes,
 )
 from tests.test_game_data import wz_writer as w
 from tests.test_game_data.test_catalogue import foothold_tree
@@ -733,3 +734,12 @@ def test_the_same_seed_gives_the_same_scene_and_another_seed_another(
     assert scenes(7) == first
     assert scenes(8) != first
     assert any(labels for _, labels in first)
+
+
+def test_map_classes_are_the_drawable_species_sorted_by_name(cat: Catalogue) -> None:
+    assert map_classes(cat, FIELD) == ["Bat", "Block", "Crab"]
+
+
+def test_map_classes_raise_for_two_species_of_one_name(cat: Catalogue) -> None:
+    with pytest.raises(SceneError, match="share the class name"):
+        map_classes(cat, TWINS)
