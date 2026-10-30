@@ -9,9 +9,10 @@ can be rebuilt wherever the store is. The public API:
   `map_layers` look a map up by name or ID, `mob` a mob, and `skill` a skill
   with its levels; `action_duration` and `skill_duration` say how long a
   character action and a skill's first action take; `maps_spawning` lists
-  the maps a mob is on; `search` lists what matches some text; and `physics`
-  gives `Map/Physics.img` (`catalogue`). Each returns frozen dataclasses
-  (`model`).
+  the maps a mob is on; `search` lists what matches some text; `physics`
+  gives `Map/Physics.img`; and `item_icons`, `meso_frames` and
+  `damage_digits` give the sprites drawn over mobs (`catalogue`). Each
+  returns frozen dataclasses (`model`).
 - `build_catalogue`: the catalogue hook `extract` calls (`build`).
 - `SCHEMA_VERSION` and the tables (`schema`). `docs/agents/game-data.md`
   documents every column, for anyone querying the file directly.
@@ -19,8 +20,9 @@ can be rebuilt wherever the store is. The public API:
   the image and node (`trees`).
 
 How maps are read is `maps`, and the footholds and ropes drawn on objects and
-tiles, ported from the v83 module, are `geometry`. Mobs are read in `mobs`, and
-skills and the character's actions in `skills`.
+tiles, ported from the v83 module, are `geometry`. Mobs are read in `mobs`,
+skills and the character's actions in `skills`, and item icons, mesos and
+damage digits in `occluders`.
 """
 
 from .build import build, build_catalogue
@@ -28,11 +30,14 @@ from .catalogue import Catalogue
 from .model import (
     Background,
     Bounds,
+    DamageDigit,
     Foothold,
+    ItemIcon,
     LayerFrame,
     MapData,
     MapLayer,
     MapRef,
+    MesoFrame,
     Minimap,
     MobData,
     MobFrame,
@@ -53,11 +58,14 @@ __all__ = [
     "Bounds",
     "Catalogue",
     "CatalogueError",
+    "DamageDigit",
     "Foothold",
+    "ItemIcon",
     "LayerFrame",
     "MapData",
     "MapLayer",
     "MapRef",
+    "MesoFrame",
     "Minimap",
     "MobData",
     "MobFrame",

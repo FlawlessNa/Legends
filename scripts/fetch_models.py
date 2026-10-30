@@ -102,6 +102,12 @@ def download(model: dict, repo: str, tag: str) -> None:
         # half-written model where the bot would happily load it.
         shutil.move(downloaded, dest)
 
+    if "recipe" in model:
+        recipe = os.path.join(os.path.dirname(os.path.dirname(dest)), "recipe.json")
+        with open(recipe, "w", encoding="utf-8", newline="\n") as fh:
+            json.dump(model["recipe"], fh, indent=2, ensure_ascii=False)
+            fh.write("\n")
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[1])
