@@ -242,7 +242,8 @@ visibility_floor=0.3, cameras=None, occluders=None)` is one synthetic client
 screen of a map, with its mobs drawn on their spawns, and what the client
 draws over them, for training a detection model on. It reads the catalogue
 and the image store, never the client, and knows nothing of YOLO or
-`ml_training`. Players and the UI aren't drawn.
+`ml_training`. Players and the UI aren't drawn (players can be composed on
+their own: "Composing a player").
 
 - **The view.** A camera of `client`'s size. On an axis where the VR bounds
   are at least that size, its centre is drawn uniformly in them, then clamped
@@ -310,6 +311,52 @@ through it directly.
 
 Whether scenes look like the game (views, placement, parallax, occluders) is
 the maintainer's to judge, by eye, on the extract.
+
+## Composing a player
+
+```python
+import numpy as np
+
+from game_data.catalogue import Catalogue
+from game_data.scenes import Outfit, Wardrobe
+
+with Catalogue.latest() as cat, Wardrobe(cat) as wardrobe:
+    outfit = Outfit.drawn(np.random.default_rng(7))
+    player = wardrobe.compose(outfit, "walk1", 2, name="Legends", tag=None)
+    player.pixels            # RGBA, the character and its tag
+    player.origin            # (x, y) of its feet in pixels
+    player.box, player.tag   # the character's opaque bounds, and the tag's
+```
+
+A feasibility composer (#289), not drawn in scenes yet. It reads the raw
+layer (`raw.sqlite`) and the image store, because the catalogue has no tables
+for characters.
+
+- **Pieces.** A body `Character/0000200n.img` and head `Character/0001200n.img`
+  (`n` the skin, `SKINS`), a face, a hair, and a cap, coat, pants, shoes and
+  one-handed weapon, each drawn from `PIECES` (five per slot, in the code).
+  Each piece's `<action>/<frame>` node gives its parts, one per canvas; a part
+  held once per skin (a hair's `hairShade`) is the skin's. A piece lacking the
+  frame is left out, with a warning. `stand1` and `walk1` are checked
+  (`PLAYER_ACTIONS`).
+- **Anchoring.** The body's `body` part has its origin on the feet. Each part
+  is placed so that the first of its `map` points (`navel`, `neck`, `hand`,
+  `brow`...) already known coincides, then adds its others. A part sharing no
+  point with the rest raises `CatalogueError`.
+- **Order and hiding.** Parts are drawn back to front by their `z` in
+  `Base/zmap.img` (its first entry is the front). A part is hidden when every
+  slot code of its `z` in `Base/smap.img` is in another piece's `info/vslot`,
+  as a skullcap hides `hairOverHead`. `flip=True` mirrors the character about
+  its feet.
+- **Name tag**, `TAG_GAP` pixels under the feet, centred. `UI/NameTag.img`
+  holds only decorative styles (from `3`): `tag=n` lays its west, centre and
+  east pieces around the text, in its `clr`. The plain tag isn't in the files;
+  `tag=None` draws it as a dark translucent box with white text. The game's
+  font (`UI/Font/NotoSansKRMedium.img`) is stored as a hash only, so the text
+  is in Pillow's bundled default font, a stand-in.
+
+Whether players look like the game, and the tag's sizes and gap, are the
+maintainer's to judge against real screenshots.
 
 ## The store
 

@@ -23,7 +23,14 @@ The public API (`compose`):
   another scene.
 - `SceneError`: two species of a map share a class name.
 
-Players and the UI aren't drawn.
+Players (`players`), a feasibility composer not yet drawn in scenes:
+
+- `Wardrobe(cat).compose(outfit, action, frame, name=..., tag=...)`: one
+  character from `Character.wz`, its parts anchored by their `map` points,
+  with a name tag under it, as a `Player`.
+- `Outfit`: what it wears, `Outfit.drawn(rng)` drawing it from `PIECES`.
+
+Players and the UI aren't drawn in scenes.
 """
 
 from . import occluders
@@ -45,19 +52,35 @@ from .compose import (
 )
 from .occluders import KINDS as OCCLUDERS
 from .occluders import Overlay
+from .players import (
+    PIECES,
+    PLAYER_ACTIONS,
+    SKINS,
+    SLOTS,
+    Outfit,
+    Player,
+    Wardrobe,
+)
 
 __all__ = [
     "ACTIONS",
     "FLY_LIFT",
     "MOBS",
     "OCCLUDERS",
+    "PIECES",
+    "PLAYER_ACTIONS",
     "SCENES_VERSION",
+    "SKINS",
+    "SLOTS",
     "VISIBILITY_FLOOR",
     "Label",
+    "Outfit",
     "Overlay",
     "Placement",
+    "Player",
     "Scene",
     "SceneError",
+    "Wardrobe",
     "class_name",
     "compose_scene",
     "draw_camera",
