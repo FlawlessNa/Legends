@@ -13,6 +13,9 @@ The public API:
 - `STORED_AT_RX`: which `rx` puts a background at its stored position, the one
   reading of the client's parallax that the maintainer's visual check decides
   (`placement`).
+- `Camera`: the camera `render_map(camera=...)` places backgrounds for; and
+  `Images`, the image store's images read once each, which `game_data.scenes`
+  shares with it.
 - `RenderError`: the image store lacks an image the catalogue names, or the
   map has an item this doesn't know how to draw.
 
@@ -22,13 +25,22 @@ imports `cv2`.
 """
 
 from .placement import STORED_AT_RX, Camera
-from .screen import RENDERS, VIEWPORT, RenderError, render_map, render_path, write_png
+from .screen import (
+    RENDERS,
+    VIEWPORT,
+    Images,
+    RenderError,
+    render_map,
+    render_path,
+    write_png,
+)
 
 __all__ = [
     "RENDERS",
     "STORED_AT_RX",
     "VIEWPORT",
     "Camera",
+    "Images",
     "RenderError",
     "render_map",
     "render_path",

@@ -6,8 +6,8 @@ them typed in by hand. It never touches the running game. The epic is #259;
 its intent and spec are the issue body.
 
 This page covers setting it up, the commands, looking things up in code, the
-patch report, rendering a map, and the store's layout, the catalogue's tables
-included, for anyone reading it directly.
+patch report, rendering a map, composing a scene, and the store's layout, the
+catalogue's tables included, for anyone reading it directly.
 
 ## On a new machine
 
@@ -190,7 +190,7 @@ with Catalogue.latest() as cat:
 ```
 
 `render_map(cat, map, *, scale=1.0, frame=0, viewport=(1366, 768),
-overlays=False, hitboxes=False)` draws a map in virtual coordinates. The VR
+camera=None, images=None, overlays=False, hitboxes=False)` draws a map in virtual coordinates. The VR
 bounds' top left is pixel (0, 0), and the image is the bounds' size times
 `scale`. It reads the catalogue and the image store only, never the client.
 
@@ -200,7 +200,7 @@ bounds' top left is pixel (0, 0), and the image is the bounds' size times
   frame's `origin` at its position. A flipped item mirrors about its position.
 - **Animated items** are drawn at `frame % frame_count`.
 - **Backgrounds** are placed for a camera of `viewport`'s size centred on the
-  map, as the client does. A background moves by `(rx + 100) / 100` of the
+  map, as the client does, or for `camera` when one is given (a scene's). A background moves by `(rx + 100) / 100` of the
   camera's centre: `rx = -100` is fixed to the map, and `rx = 0` is fixed to
   the camera, as a sky is. Likewise `ry`. A background whose type tiles is
   repeated every `cx` (or `cy`, or its size when that's 0) across the whole
@@ -218,6 +218,71 @@ bounds' top left is pixel (0, 0), and the image is the bounds' size times
 
 Whether a render looks like the game can't be tested offline: a person
 compares renders against in-game screenshots.
+
+## Composing a scene
+
+```python
+import numpy as np
+
+from game_data.catalogue import Catalogue
+from game_data.scenes import compose_scene
+
+with Catalogue.latest() as cat:
+    rng = np.random.default_rng(42)
+    scene = compose_scene(cat, "Henesys Hunting Ground I", rng)
+    scene.image              # (768, 1366, 3) RGB
+    scene.labels             # tuple[Label(cls, box, visible), ...]
+```
+
+`compose_scene(cat, map, rng, *, client=(1366, 768), mobs=(0, 15),
+visibility_floor=0.3, cameras=None)` is one synthetic client screen of a map,
+with its mobs drawn on their spawns, for training a detection model on. It
+reads the catalogue and the image store, never the client, and knows nothing
+of YOLO or `ml_training`. No occluders (drops, damage numbers, players) are
+drawn yet.
+
+- **The view.** A camera of `client`'s size. On an axis where the VR bounds
+  are at least that size, its centre is drawn uniformly in them, then clamped
+  so the view stays inside, so views flush with an edge come up more often
+  than others. On an axis where the map is smaller, it's centred and the rest
+  is black, as the client shows it. The background is `render_map` at that
+  camera, so backgrounds' parallax follows it, cropped. Every animated item is
+  at one `frame` drawn for the scene.
+- **Render reuse.** `cameras=None` renders the map for every scene, which on a
+  large map is most of a scene's time. `cameras=n` renders `n` cameras of the
+  map once, the first time an `rng` composes it, and each scene then picks
+  one. The views are held for as long as that `rng` is.
+- **The mobs.** Their number is drawn from `mobs`, both ends included. Each
+  comes from a spawn drawn uniformly among the map's `mob` spawns whose
+  `[rx0, rx1]` overlaps the view's columns: its species, `x` uniform in
+  `[rx0, rx1]`, and `y` its foothold's height at `x`. When the range runs past
+  that foothold, the height is the first foothold along its `prev`/`next`
+  chain that spans `x` (walls skipped). A mob with a `fly_speed` is raised by
+  0 to 150 pixels, no higher than the view's top. Its action is drawn among
+  those it has of `stand`, `move`, `hit1`, `die1`, its frame uniformly, and it
+  faces either way. The mobs are drawn in a random order.
+- **Labels.** `Label(cls, box, visible)`. `box` is `(x1, y1, x2, y2)` in the
+  view's pixels, `x2` and `y2` one past the last: the bounds of the drawn
+  sprite's opaque pixels (alpha > 0) inside the view, not its `lt`/`rb`
+  hitbox. `visible` is the share of those pixels that no mob drawn after it
+  covers. A label under `visibility_floor` is dropped; the mob stays in the
+  image. A mob with no pixel in the view has no label.
+- **Class names** are the catalogue's mob names with spaces and dots removed
+  (`class_name`), the form the bot's `_is_detectable_by_model` compares. Two
+  species of one class name in a map raise `SceneError`, naming both IDs. A
+  species the catalogue lacks, with no name, or with no frame of those four
+  actions that has an image, is left out, with a warning naming it.
+- **Determinism.** Every draw comes from `rng`, in a fixed order: the same
+  catalogue build, map, arguments and seed give the same pixels and labels.
+  `SCENES_VERSION` changes whenever that output would.
+
+`draw_mobs(view, placements, images)` is the step that draws: it lays each
+`Placement(mob, action, frame, x, y, flip)` over an RGB view, its origin at
+view pixel `(x, y)`, and returns one label per placement, unfloored (`None`
+for a mob outside the view). Tests place mobs through it directly.
+
+Whether scenes look like the game (views, placement, parallax) is the
+maintainer's to judge, by eye, on the extract.
 
 ## The store
 

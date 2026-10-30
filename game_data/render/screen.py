@@ -91,6 +91,8 @@ def render_map(
     scale: float = 1.0,
     frame: int = 0,
     viewport: tuple[int, int] = VIEWPORT,
+    camera: Camera | None = None,
+    images: Images | None = None,
     overlays: bool = False,
     hitboxes: bool = False,
 ) -> Pixels:
@@ -104,6 +106,11 @@ def render_map(
         for a camera of that size centred on the map: their parallax moves
         them by the camera's centre, which a centred camera puts at the map's
         centre whatever its size, so it changes them only by rounding.
+    :param camera: The camera the backgrounds are placed for instead, when
+        it isn't centred: a scene's (`game_data.scenes`). `viewport` is then
+        unused.
+    :param images: The images to draw from, when they're shared with other
+        renders; by default, the catalogue's image store's, read for this one.
     :param overlays: Draw footholds, ropes, portals and spawns.
     :param hitboxes: Draw spawns with their body hitboxes.
     :raises LookupError: As `Catalogue.map` does.
@@ -114,12 +121,14 @@ def render_map(
     if scale <= 0:
         raise ValueError(f"a scale must be positive, not {scale}")
     data = cat.map(map)
-    images = _Images(cat.store.images)
+    if images is None:
+        images = Images(cat.store.images)
     bounds = data.vr
     screen = np.zeros(
         (bounds.bottom - bounds.top, bounds.right - bounds.left, 4), dtype=np.uint8
     )
-    camera = Camera.centred(bounds, viewport)
+    if camera is None:
+        camera = Camera.centred(bounds, viewport)
     try:
         for item in draw_order(cat.map_layers(data.id)):
             _draw_item(screen, images, item, frame, camera, data)
@@ -155,8 +164,8 @@ def write_png(pixels: Pixels, path: Path) -> None:
     path.write_bytes(np.asarray(encoded, dtype=np.uint8).tobytes())
 
 
-class _Images:
-    """The image store's images, each read once per render, as RGBA."""
+class Images:
+    """The image store's images, each read once, as RGBA."""
 
     def __init__(self, store: ImageStore) -> None:
         self._store = store
@@ -186,7 +195,7 @@ class _Images:
 
 def _draw_item(
     screen: Pixels,
-    images: _Images,
+    images: Images,
     item: MapLayer,
     frame: int,
     camera: Camera,
