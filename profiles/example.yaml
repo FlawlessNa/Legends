@@ -32,7 +32,9 @@ settings:
   # Maps a mob class to the directory holding its weights. "All" means one
   # model handles every class. Paths are relative to the repo root and must
   # contain weights/best.pt -- run `python scripts/fetch_models.py` to get them.
-  # See models.manifest.json for what each model detects.
+  # See models.manifest.json for what each model detects. A model trained
+  # from a recipe (`synth`) has it there too, and fetching writes it back to
+  # recipe.json beside the weights.
   models_path:
     All: data/models/production/global
 
