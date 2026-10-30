@@ -143,6 +143,20 @@ ml_training/
         └── production/        # Production models
 ```
 
+### Live Check, Recording and Scoring
+
+`run_live_inference(model, window_handle)` takes a model folder
+(`<folder>/weights/best.pt`) or a weights path. Its **Record** toggle (off by
+default) saves a frame and its detections every 3 seconds under
+`ml_training/data/recordings/<model name>/<YYYY-MM-DD_HHMMSS>/` as `images/`,
+`labels/` and `classes.txt`: open it with
+`run_annotator(images_dir, labels_dir, classes, mode="verify")` to correct the
+labels, then score a model on them:
+
+```bash
+python -m ml_training score MODEL RECORDING   # precision, recall, mAP50
+```
+
 ## Active Learning Workflow
 
 The bootstrap workflow implements an efficient active learning approach:
