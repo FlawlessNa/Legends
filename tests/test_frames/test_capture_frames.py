@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import pytest
 
-from botting.screen import Frame
+from botting.screen import Frame, Reading
 from tests import frame_set
 
 SCRIPT = Path(__file__).resolve().parents[2] / "toolkit" / "capture_frames.py"
@@ -25,6 +25,20 @@ def capture() -> ModuleType:
     return module
 
 
+class StubCheck:
+    """Passes a frame unless it is not `ok`, or `ui_ok` is false."""
+
+    def __init__(self, ui_ok: bool = True) -> None:
+        self.ui_ok = ui_ok
+
+    def frame_usable(self, frame: Frame) -> Reading[None] | None:
+        if not frame.ok:
+            return Reading.unsure(frame.captured_at, frame.reason)
+        if not self.ui_ok:
+            return Reading.unsure(frame.captured_at, "UI not found at 1:1")
+        return None
+
+
 def frame(ok: bool) -> Frame:
     return Frame(
         pixels=np.zeros((6, 8, 3), np.uint8),
@@ -37,15 +51,23 @@ def frame(ok: bool) -> Frame:
 
 
 def test_unusable_frames_are_not_kept(capture: ModuleType, tmp_path: Path) -> None:
-    assert capture.save_frame(frame(ok=False), tmp_path) is None
+    assert capture.save_frame(frame(ok=False), tmp_path, StubCheck()) is None
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_a_frame_the_check_rejects_is_not_kept(
+    capture: ModuleType, tmp_path: Path
+) -> None:
+    """An ok frame at another UI Size passes `Frame.ok` but not the frame check."""
+    assert capture.save_frame(frame(ok=True), tmp_path, StubCheck(ui_ok=False)) is None
     assert list(tmp_path.iterdir()) == []
 
 
 def test_a_usable_frame_is_written_with_a_stub(
     capture: ModuleType, tmp_path: Path
 ) -> None:
-    first = capture.save_frame(frame(ok=True), tmp_path)
-    second = capture.save_frame(frame(ok=True), tmp_path)
+    first = capture.save_frame(frame(ok=True), tmp_path, StubCheck())
+    second = capture.save_frame(frame(ok=True), tmp_path, StubCheck())
 
     written = cv2.imread(str(tmp_path / first))
     assert written is not None
@@ -61,7 +83,7 @@ def test_a_usable_frame_is_written_with_a_stub(
 
 
 def test_a_stub_is_not_a_finished_file(capture: ModuleType, tmp_path: Path) -> None:
-    capture.save_frame(frame(ok=True), tmp_path)
+    capture.save_frame(frame(ok=True), tmp_path, StubCheck())
     raw = json.loads((tmp_path / "frames.json").read_text(encoding="utf-8"))
 
     with pytest.raises(frame_set.FrameSetError, match="stub"):
