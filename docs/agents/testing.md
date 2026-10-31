@@ -95,6 +95,23 @@ line in the PR: review can't re-run them. New frames are a capture
 (`python toolkit/capture_frames.py OUT_DIR`, which writes a stub entry per frame
 to complete), a new tag in the private repository and a new `<tag>.json`.
 
+A `value` holds only the fields a person can check by eye, and a test compares
+those fields. In `v1`:
+
+- `status_bar`: `level`, `hp`, `max_hp`, `mp`, `max_mp`, `exp`, `exp_percent`.
+- `quick_slots`: every slot of the panel, row-major, as `{row, column, key,
+  count}`. `row` and `column` count from 1, `key` is the `UI/QuickSlot.img/key`
+  node name (a scan code, such as `42` for Shift), and `count` is `null` where no
+  item count is drawn. A skill on cooldown is still listed; its seconds left are
+  not a count.
+- `minimap`: `{state}`.
+- `buffs`: buff name to `{shown}`.
+- `chat`: the kind of each visible row of the log, top to bottom. A message
+  wrapped over two rows gives two entries.
+
+A frame has no entry for a reader whose answer depends on a choice its ticket
+hasn't made yet: `notes` says why.
+
 Modules that touch the Held-Keys Ledger directly reset it through an `autouse`
 fixture of their own — see `tests/test_botting/test_held_keys_ledger.py`.
 
