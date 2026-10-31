@@ -9,18 +9,20 @@ Supports two modes:
 
 import asyncio
 import contextlib
-import os
 import threading
 import time
 import tkinter as tk
 
-import cv2
 import numpy as np
 
 from botting import controller
 from botting.controller import KeyboardInputWrapper
+from botting.screen import Status, frame_source
 from maple.model.characters.magicians import Magician
 from maple.model.mechanics.maple_map import MapleMinimap
+from maple.screen.locator import FrameCheck
+from maple.screen.minimap import MINIMAP, MinimapReader
+from maple.screen.sprites import FRAME_CHECK, Profile, load_reader_sprites
 
 from ..movement_mechanics_v2 import MovementHandler
 from .map_editor_view import EditorView, PathfindingFrame, TrailRecordingFrame
@@ -51,6 +53,18 @@ _PATH_COLORS: dict = {
 }
 
 
+def _minimap_reader(map_name: str, edits: MinimapEditsManager) -> MinimapReader:
+    """
+    A minimap reader for the editor, with `edits.map_id`'s canvas when it has
+    one. Raises `StartupRefused` when the game data store can't provide it.
+    """
+    sprites = load_reader_sprites(
+        [FRAME_CHECK, MINIMAP],
+        Profile(job="", game_map=map_name, map_id=edits.map_id),
+    )
+    return MinimapReader(sprites, FrameCheck(sprites))
+
+
 class MinimapEditor:
     """
     Opens a Tkinter minimap editor for the given MapleMinimap.
@@ -75,6 +89,7 @@ class MinimapEditor:
         self._timeline_fig = None
         self._move_stop_event: threading.Event | None = None
         self._map_area_box = None
+        self._minimap_reader: MinimapReader | None = None
         self.handle = 0
         self.lock = self.q = None
 
@@ -84,24 +99,30 @@ class MinimapEditor:
             self.handle = find_client()
             self.lock = asyncio.Lock()
             self.q = asyncio.Queue()
-            if include_character_position:
-                self._map_area_box = self.minimap.get_map_area_box(self.handle)
-        except ValueError, Exception:
+        except Exception:
             pass
 
-        # Capture screenshot for background display; measure canvas dimensions on first run
-        # (before the first save) so they are persisted and reused on every subsequent load.
-        if self.handle != 0 and self._map_area_box is not None:
+        # Capture the map area for background display; measure canvas dimensions on
+        # first run (before the first save) so they are persisted and reused on
+        # every subsequent load.
+        if self.handle != 0 and include_character_position:
             try:
-                from botting.utilities import take_screenshot
-
-                img = take_screenshot(self.handle, self._map_area_box)
+                self._minimap_reader = _minimap_reader(minimap.map_name, self.edits)
+                frame = frame_source().grab(self.handle)
+                reading = self._minimap_reader.read(frame)
+                if reading.value is None:
+                    raise LookupError(
+                        f"minimap {reading.status.value}: {reading.detail}"
+                    )
+                box = reading.value.map_area
+                self._map_area_box = box
+                img = frame.pixels[box.top : box.bottom, box.left : box.right].copy()
                 self._screenshot_bg = img
                 self._bg_mode = "screenshot"
                 if self.edits.canvas_width is None:
                     self.edits.canvas_height, self.edits.canvas_width = img.shape[:2]
             except Exception as e:
-                print(f"Could not capture minimap screenshot: {e}")
+                print(f"Could not read the minimap: {e}")
 
         # Build the editor canvas from features at the correct (now saved) dimensions.
         raw = self.edits.build_canvas()
@@ -194,9 +215,11 @@ class MinimapEditor:
             print("No game client connected — screenshot background unavailable.")
             return
         try:
-            from botting.utilities import take_screenshot
-
-            self._screenshot_bg = take_screenshot(self.handle, self._map_area_box)
+            box = self._map_area_box
+            pixels = frame_source().grab(self.handle).pixels
+            self._screenshot_bg = pixels[
+                box.top : box.bottom, box.left : box.right
+            ].copy()
         except Exception as e:
             print(f"Screenshot capture failed: {e}")
 
@@ -249,7 +272,7 @@ class MinimapEditor:
             sub.refresh_feature_list(self.edits.names)
             sub.feature_listbox.bind("<<ListboxSelect>>", self.on_feature_select)
             self._refresh_scale_display(sub)
-            self._refresh_title_display(sub)
+            self._refresh_map_id_display(sub)
 
     def _refresh_scale_display(self, sub: TrailRecordingFrame) -> None:
         sx = self.edits.scale_x
@@ -258,10 +281,11 @@ class MinimapEditor:
         sy_str = f"{sy:.6f}" if sy is not None else "—"
         sub.calib_result_label.config(text=f"scale_x: {sx_str}   scale_y: {sy_str}")
 
-    def _refresh_title_display(self, sub: TrailRecordingFrame) -> None:
-        path = self.edits.title_img_path
-        if path:
-            sub.title_status_label.config(text=f"Saved: {path}")
+    def _refresh_map_id_display(self, sub: TrailRecordingFrame) -> None:
+        if self.edits.map_id is not None:
+            sub.map_id_entry.delete(0, tk.END)
+            sub.map_id_entry.insert(0, str(self.edits.map_id))
+            sub.map_id_status_label.config(text=f"Set: {self.edits.map_id}")
 
     # ------------------------------------------------------------------
     # Feature list: select, update, delete
@@ -392,62 +416,58 @@ class MinimapEditor:
         self.modified_minimap = self.edits.apply_grid_edits(raw, apply_weights=False)
 
     # ------------------------------------------------------------------
-    # Minimap title image capture
+    # Map id
     # ------------------------------------------------------------------
 
-    def capture_title_image(self) -> None:
+    def set_map_id(self) -> None:
+        """
+        Set the map file's `map_id`, once the minimap on screen is confirmed to
+        show that map's own `miniMap` canvas.
+        """
         sub: TrailRecordingFrame = self.view.controls_frame.mode_specific_subframe
         if not isinstance(sub, TrailRecordingFrame):
-            return
-        if self.handle == 0:
-            sub.title_status_label.config(text="Error: no game client connected.")
             return
         try:
-            img = self.minimap.get_minimap_title_img(self.handle)
+            map_id = int(sub.map_id_entry.get())
+        except ValueError:
+            sub.map_id_status_label.config(text="Error: the map id is a number.")
+            return
+        if self.handle == 0:
+            sub.map_id_status_label.config(text="Error: no game client connected.")
+            return
+        try:
+            edits = MinimapEditsManager(map_id=map_id)
+            reader = _minimap_reader(self.minimap.map_name, edits)
+            reading = reader.is_expected_map(frame_source().grab(self.handle), map_id)
         except Exception as e:
-            sub.title_status_label.config(text=f"Error: {e}")
+            sub.map_id_status_label.config(text=f"Error: {e}")
             return
-        if img is None:
-            sub.title_status_label.config(
-                text="Failed: minimap must be in Full display mode."
+        if reading.value is True:
+            self.edits.map_id = map_id
+            self._minimap_reader = reader
+            sub.map_id_status_label.config(text=f"Set: {map_id} ({reading.detail})")
+        elif reading.status is Status.READ:
+            sub.map_id_status_label.config(
+                text=f"Not set: the minimap isn't map {map_id} ({reading.detail})."
             )
-            return
+        else:
+            sub.map_id_status_label.config(
+                text=f"Not set: minimap {reading.status.value} ({reading.detail})."
+            )
 
-        self._pending_title_img = img
+    def _character_position(self) -> tuple[int, int]:
+        """
+        The character's minimap position, read from a fresh capture.
 
-        from PIL import Image, ImageTk
-
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        scale = max(1, 48 // img_rgb.shape[0])  # ensure at least ~48px tall
-        pil = Image.fromarray(img_rgb).resize(
-            (img_rgb.shape[1] * scale, img_rgb.shape[0] * scale),
-            Image.NEAREST,
-        )
-        photo = ImageTk.PhotoImage(pil)
-        sub._title_preview_photo = photo  # keep reference
-        sub.title_preview_label.config(image=photo, text="")
-        sub.confirm_title_btn.config(state=tk.NORMAL)
-        sub.retake_title_btn.config(state=tk.NORMAL)
-        sub.title_status_label.config(text="Preview ready — confirm to save.")
-
-    def confirm_title_image(self) -> None:
-        sub: TrailRecordingFrame = self.view.controls_frame.mode_specific_subframe
-        if not isinstance(sub, TrailRecordingFrame):
-            return
-        img = getattr(self, "_pending_title_img", None)
-        if img is None:
-            return
-        from paths import ROOT
-
-        rel_path = f"maple/assets/detection_images/{self.minimap.map_name}Minimap.png"
-        abs_path = os.path.join(ROOT, rel_path)
-        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-        cv2.imwrite(abs_path, img)
-        self.edits.title_img_path = rel_path
-        self._pending_title_img = None
-        sub.confirm_title_btn.config(state=tk.DISABLED)
-        sub.retake_title_btn.config(state=tk.DISABLED)
-        sub.title_status_label.config(text=f"Saved: {rel_path}")
+        :raises LookupError: No client, the minimap isn't read, or the
+            character's marker isn't found on it.
+        """
+        if self._minimap_reader is None or self.handle == 0:
+            raise LookupError("no minimap reader")
+        reading = self._minimap_reader.read(frame_source().grab(self.handle))
+        if reading.value is None or reading.value.self_position is None:
+            raise LookupError(f"minimap {reading.status.value}: {reading.detail}")
+        return reading.value.self_position
 
     # ------------------------------------------------------------------
     # Scale calibration
@@ -468,10 +488,8 @@ class MinimapEditor:
             return
 
         try:
-            start_pos = self.minimap.get_character_positions(
-                self.handle, map_area_box=self._map_area_box
-            ).pop()
-        except KeyError, IndexError:
+            start_pos = self._character_position()
+        except LookupError:
             print(
                 "Cannot detect character position — is the character visible on the minimap?"
             )
@@ -494,10 +512,8 @@ class MinimapEditor:
 
         def _finish():
             try:
-                end_pos = self.minimap.get_character_positions(
-                    self.handle, map_area_box=self._map_area_box
-                ).pop()
-            except KeyError, IndexError:
+                end_pos = self._character_position()
+            except LookupError:
                 if status_lbl.winfo_exists():
                     status_lbl.config(text="Error: could not read end position.")
                 walk_btn.config(state=tk.NORMAL)
@@ -552,9 +568,7 @@ class MinimapEditor:
         if not self.update_char_pos or self._map_area_box is None:
             return
         try:
-            pos = self.minimap.get_character_positions(
-                self.handle, map_area_box=self._map_area_box
-            ).pop()
+            pos = self._character_position()
             coords = (
                 pos[0] * self.scale,
                 pos[1] * self.scale,
@@ -578,7 +592,7 @@ class MinimapEditor:
                         self.start_point = (x, y)
                         frame.start_pos_label.config(text=f"Start Position: ({x}, {y})")
                         self._calculate_and_display_path()
-        except KeyError, IndexError:
+        except LookupError:
             pass
         self.root.after(100, self.update_character_position)
 
@@ -590,13 +604,11 @@ class MinimapEditor:
         assert which in ("start", "end")
         if self._map_area_box is not None:
             try:
-                pos = self.minimap.get_character_positions(
-                    self.handle, map_area_box=self._map_area_box
-                ).pop()
+                pos = self._character_position()
                 self._set_trail_point(which, int(pos[0]), int(pos[1]))
                 self._maybe_return_focus()
                 return
-            except KeyError, IndexError:
+            except LookupError:
                 pass
         # Fallback: wait for canvas click
         self._dot_selection_pending = which
@@ -824,10 +836,8 @@ class MinimapEditor:
                             await lock.acquire()
                             print("Lock Acquired - Recomputing")
                             try:
-                                pos = self.minimap.get_character_positions(
-                                    self.handle, map_area_box=self._map_area_box
-                                ).pop()
-                            except KeyError, IndexError:
+                                pos = self._character_position()
+                            except LookupError:
                                 print("Could not detect character position — stopping.")
                                 await q.put(None)
                                 break
@@ -897,10 +907,8 @@ class MinimapEditor:
                     try:
                         while not stop_event.is_set():
                             try:
-                                pos = self.minimap.get_character_positions(
-                                    self.handle, map_area_box=self._map_area_box
-                                ).pop()
-                            except KeyError, IndexError:
+                                pos = self._character_position()
+                            except LookupError:
                                 await asyncio.sleep(0.1)
                                 continue
 
