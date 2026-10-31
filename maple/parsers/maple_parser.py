@@ -1,8 +1,8 @@
 from botting.communications import BaseParser
-from botting.utilities import take_screenshot
 from botting.core.action_data import ActionRequest
-from maple.actions import write_in_chat, priorities
-from maple.bots.maple_bot import MapleBot
+from botting.utilities import take_screenshot
+from maple.actions import priorities, write_in_chat
+from maple.screen.client import find_client
 
 
 class MapleParser(BaseParser):
@@ -13,18 +13,19 @@ class MapleParser(BaseParser):
     - Write functions to General and Whisper chat channels  # TODO
     """
 
-    def pause(self, who: list[str] = None) -> str:
+    def pause(self, who: list[str] | None = None) -> str:
         if who is None:
             who = ["All"]
         return f"PAUSE {' '.join(who)}"
 
-    def resume(self, who: list[str] = None) -> str:
+    def resume(self, who: list[str] | None = None) -> str:
         if who is None:
             who = ["All"]
         return f"RESUME {' '.join(who)}"
 
-    def write(self, message: str, who: str = None) -> ActionRequest:
-        handle = MapleBot.get_handle_from_ign(who)
+    def write(self, message: str, who: str | None = None) -> ActionRequest:
+        assert who is not None, "BaseParser names the IGN before it calls write"
+        handle = find_client()
         return ActionRequest(
             "Writing Message received from Discord",
             write_in_chat,

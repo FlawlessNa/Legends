@@ -2,9 +2,8 @@ import os
 
 import cv2
 
-from botting.utilities import client_handler
-from maple import maple_ign_finder
 from maple.model.interface import Minimap
+from maple.screen.client import find_client
 from paths import ROOT
 
 
@@ -13,7 +12,7 @@ class DummyMinimap(Minimap):
         pass
 
 
-HANDLE = client_handler.get_client_handle("StarBase", maple_ign_finder)
+HANDLE = find_client()
 MAP_NAME = "BuddhaMinimap"
 
 if __name__ == "__main__":

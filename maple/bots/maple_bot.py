@@ -5,19 +5,18 @@ from abc import ABC
 from typing import Any
 
 from botting.core import Bot
-from botting.utilities import take_screenshot
+from botting.screen import frame_source
 from botting.visuals import InGameDetectionVisuals
-from maple import maple_ign_finder, maple_job_finder
 from maple.model.characters import MAPPING as CHARACTER_MAPPING
 from maple.model.mechanics import MapleMap
+from maple.screen.client import find_client
 
 
 class MapleBot(Bot, ABC):
     """
-    A Bot subclass that defines the ign_finder callable and extends the init behavior.
+    A Bot on the MapleStory client: it finds the client by its window class and
+    executable, and takes its job from the profile's `character_class`.
     """
-
-    ign_finder = maple_ign_finder
 
     def __init__(
         self,
@@ -32,9 +31,12 @@ class MapleBot(Bot, ABC):
         **kwargs: Any,  # noqa: ANN401
     ) -> None:
         super().__init__(ign, metadata, **kwargs)
-        self.handle = self.get_handle_from_ign(ign)
-        class_name = character_class or maple_job_finder(self.handle)
-        self.character_class = CHARACTER_MAPPING[class_name.title()]
+        if not character_class:
+            raise ValueError(
+                f"{type(self).__name__} for {ign!r} needs `character_class` in the "
+                "profile's settings, one of: " + ", ".join(sorted(CHARACTER_MAPPING))
+            )
+        self.character_class = CHARACTER_MAPPING[character_class.title()]
         self.detection_configs = detection_configs
         self.client_size = client_size
         self.models_path = models_path
@@ -42,6 +44,9 @@ class MapleBot(Bot, ABC):
         self.open_minimap_editor = open_minimap_editor
         self.kwargs = kwargs
         self.kwargs.update(ign=ign)
+
+    def find_handle(self) -> int:
+        return find_client()
 
     def child_init(
         self,
@@ -88,7 +93,7 @@ class MapleBot(Bot, ABC):
         data.create_attribute("current_mobs", lambda: data.current_map.mobs)
         data.create_attribute(
             "current_client_img",
-            lambda: take_screenshot(data.handle),
+            lambda: frame_source().grab(data.handle).pixels,
             threshold=0.1,
         )
         data.set_static("speed_multiplier", self.kwargs.get("speed_multiplier", 1.00))

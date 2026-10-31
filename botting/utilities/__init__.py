@@ -1,6 +1,5 @@
 from .box import Box
 from .child_process import setup_child_proc_logging
-from .client_handler import get_open_clients
 from .config_reader import config_reader
 from .functions_helpers import cooldown, randomize_params
 from .images import read_detection_image
@@ -22,7 +21,6 @@ __all__ = [
     "cooldown",
     "find_image",
     "get_object_by_id",
-    "get_open_clients",
     "group_rectangles",
     "install_loop_diagnostics",
     "randomize_params",

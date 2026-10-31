@@ -3,12 +3,9 @@ import multiprocessing.connection
 import multiprocessing.managers
 import threading
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from functools import cached_property
-from typing import Any
 
 from botting.controller import release_keys
-from botting.utilities import client_handler
 
 from .action_data import ActionRequest
 from .bot_data import BotData
@@ -26,14 +23,6 @@ class Bot(ABC):
     A bot represents a single game client entity and is assigned a single
     BotData instance which it shares with all its DecisionMakers.
     """
-
-    ign_finder: Callable[
-        ..., Any
-    ]  # Method that returns the handle of a client given its IGN.
-
-    @classmethod
-    def get_handle_from_ign(cls, ign: str) -> int:
-        return client_handler.get_client_handle(ign, cls.ign_finder)
 
     def __init__(
         self, ign: str, metadata: multiprocessing.managers.DictProxy, **kwargs: object
@@ -60,7 +49,7 @@ class Bot(ABC):
         Called by the Engine to create Bot within Child process.
         """
         self.data = BotData(self.ign)
-        self.data.set_static("handle", self.get_handle_from_ign(self.ign))
+        self.data.set_static("handle", self.find_handle())
         self.pipe = pipe
         self.barrier = barrier
 
@@ -139,6 +128,13 @@ class Bot(ABC):
             class_(self.metadata, self.data, self.pipe, **self.kwargs)
             for class_ in self._decision_makers()
         ]
+
+    @abstractmethod
+    def find_handle(self) -> int:
+        """
+        The handle of this Bot's game window, looked up now. Input goes to it, so
+        a game layer finds it by what the window is, never by guessing.
+        """
 
     @abstractmethod
     def _decision_makers(self) -> list[type[DecisionMaker]]:

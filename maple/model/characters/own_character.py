@@ -23,7 +23,7 @@ TAG_STRIP_GAP_PX = 0  # between the box's bottom edge and the strip
 TAG_STRIP_EXTRA_WIDTH_PX = 40  # added to the box's width, centred on the box
 TAG_STRIP_HEIGHT_PX = 18
 
-# Same threshold `client_handler.get_client_handle` matches an IGN with.
+# The threshold the IGN was fuzzy-matched with when it located the client.
 TAG_MATCH_RATIO = 90  # fuzz.ratio, 0..100, strictly exceeded
 
 # Continuity between frames.

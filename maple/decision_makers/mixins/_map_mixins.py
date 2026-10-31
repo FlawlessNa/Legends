@@ -90,8 +90,7 @@ class MinimapAttributesMixin:
             region_to_avoid = Box(left=0, right=500, top=0, bottom=500)
 
         # Choose a random point on the window that is not on the minimap.
-        left, top, right, bottom = win32gui.GetWindowRect(self.data.handle)
-        width, height = right - left, bottom - top
+        _, _, width, height = win32gui.GetClientRect(self.data.handle)
         client_box = Box(left=0, right=width, top=0, bottom=height)
         while True:
             x, y = client_box.random()
