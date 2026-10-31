@@ -45,7 +45,7 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
         if (
             level is not None
             and self._prev_level is not None
-            and level != self._prev_level
+            and level > self._prev_level
         ):
             logger.info("Level up detected for %s.", self.data.ign)
             ensure_ability_menu_displayed(

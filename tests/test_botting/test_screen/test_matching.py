@@ -6,7 +6,15 @@ import time
 import numpy as np
 import pytest
 
-from botting.screen import Reading, Status, match, match_best, read_glyphs
+from botting.screen import (
+    Reading,
+    Status,
+    find_glyphs,
+    match,
+    match_best,
+    matches_at,
+    read_glyphs,
+)
 
 
 def make_glyph(seed: int, w: int = 5, h: int = 7) -> np.ndarray:
@@ -152,3 +160,42 @@ def test_glyph_over_strip_runs_under_1ms() -> None:
         match(strip, glyph)
     ms = (time.perf_counter() - t0) / runs * 1000
     assert ms < 1.0, f"match 5x7 over 340x16 took {ms:.3f} ms"
+
+
+def test_matches_at_agrees_with_match_at_one_position() -> None:
+    sprite, hay = make_glyph(1), blank()
+    stamp(hay, sprite, 17, 9)
+
+    assert matches_at(hay, sprite, 17, 9)
+    assert not matches_at(hay, sprite, 18, 9)
+    # One opaque pixel off by 8 in one channel is rejected, as `match` does.
+    y, x = np.argwhere(sprite[:, :, 3] == 255)[0]
+    hay[9 + y, 17 + x, 0] = (int(hay[9 + y, 17 + x, 0]) + 8) % 256
+    assert not matches_at(hay, sprite, 17, 9)
+    assert match(hay, sprite) == []
+
+
+@pytest.mark.parametrize(("x", "y"), [(-1, 0), (0, -1), (56, 0), (0, 25)])
+def test_matches_at_is_false_when_the_sprite_would_leave_the_image(
+    x: int, y: int
+) -> None:
+    sprite = make_glyph(2)
+    hay = blank()
+    stamp(hay, sprite, 0, 0)
+
+    assert not matches_at(hay, sprite, x, y)
+
+
+def test_find_glyphs_says_where_each_glyph_is() -> None:
+    glyphs = {"a": make_glyph(3), "b": make_glyph(4)}
+    hay = blank()
+    stamp(hay, glyphs["a"], 4, 6)
+    stamp(hay, glyphs["b"], 11, 6)
+
+    hits = find_glyphs(hay, glyphs)
+
+    assert [(h.name, h.x, h.y, h.width, h.height) for h in hits] == [
+        ("a", 4, 6, 5, 7),
+        ("b", 11, 6, 5, 7),
+    ]
+    assert read_glyphs(hay, glyphs) == "ab"

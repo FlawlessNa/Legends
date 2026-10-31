@@ -39,17 +39,18 @@ def noise(w: int, h: int) -> np.ndarray:
 
 
 def _label() -> np.ndarray:
-    return noise(300, 4)
+    return noise(320, 4)
 
 
 def _background() -> np.ndarray:
     # A frame: opaque at the top and the bottom, open where the numbers go.
-    rgba = noise(340, 36)
+    rgba = noise(360, 36)
     rgba[6:28, :, 3] = 0
+    rgba[14:28, :60, 3] = 255  # the panel the level is drawn on
     return rgba
 
 
-VECTORS = {_LEVEL_AT: (2, 16), _HP_AT: (60, 16), _MP_AT: (125, 16), _EXP_AT: (190, 16)}
+VECTORS = {_LEVEL_AT: (14, 16), _HP_AT: (80, 16), _MP_AT: (145, 16), _EXP_AT: (210, 16)}
 LABEL_ORIGIN = (-20, -9)
 BACKGROUND_ORIGIN = (-2, -2)
 
@@ -202,7 +203,7 @@ def test_a_covered_background_is_covered_not_misread(
 def test_a_covered_label_leaves_the_frame_unusable(reader: StatusBarReader) -> None:
     pixels = bar()
     lx, ly = POINT[0] - LABEL_ORIGIN[0], POINT[1] - LABEL_ORIGIN[1]
-    pixels[ly : ly + 4, lx : lx + 300] = 0
+    pixels[ly : ly + 4, lx : lx + 320] = 0
 
     reading = reader.read(frame(pixels))
 
@@ -243,7 +244,7 @@ def test_numbers_drawn_over_the_bar_do_not_hide_it() -> None:
     """The client draws the numbers over the bar's own sprites, so their pixels
     aren't compared: with an opaque background under them, the bar still reads."""
     closed = dict(SPRITES.canvases)
-    solid = noise(340, 36)
+    solid = noise(360, 36)
     solid[7:11, :, 3] = 0  # where the label is drawn
     closed[BACKGROUND] = Sprite(BACKGROUND, solid, BACKGROUND_ORIGIN)
     sprites = ReaderSprites("test", closed, dict(VECTORS))
@@ -282,3 +283,57 @@ def test_what_follows_the_closing_bracket_is_not_read(
 
     assert reading.value is not None
     assert reading.value.hp == 1500
+
+
+# -- a glyph that is hidden is never a different number --------------------------
+
+
+def hide(pixels: np.ndarray, at: tuple[int, int], offset: int, w: int = 5) -> None:
+    """Paint over `w` columns of a string drawn from `at`, `offset` px in."""
+    x, y = POINT[0] + at[0] + offset, POINT[1] + at[1]
+    pixels[y : y + 13, x : x + w] = (200, 100, 50)
+
+
+def test_a_hidden_inner_digit_is_not_read_as_a_shorter_number(
+    reader: StatusBarReader,
+) -> None:
+    # "[1500/2000]": the second digit of the HP is the glyph at 5 + 5 + 1 px.
+    pixels = bar(hp="[1500/2000]")
+    hide(pixels, VECTORS[_HP_AT], 11)
+
+    reading = reader.read(frame(pixels))
+
+    assert reading.status is Status.UNSURE
+    assert reading.value is None
+    assert reading.detail.startswith("hp:")
+
+
+def test_a_hidden_closing_bracket_is_not_read(reader: StatusBarReader) -> None:
+    pixels = bar(hp="[1500/2000]")
+    string_width = 5 + 8 * 6 - 1 + 1  # brackets and eight digits, a pixel apart
+    hide(pixels, VECTORS[_HP_AT], string_width - 5)
+
+    reading = reader.read(frame(pixels))
+
+    assert reading.status is Status.UNSURE
+
+
+def test_a_hidden_first_glyph_of_the_exp_is_not_read(reader: StatusBarReader) -> None:
+    pixels = bar(exp="98765[12.34%]")
+    hide(pixels, VECTORS[_EXP_AT], 0)
+
+    assert reader.read(frame(pixels)).status is Status.UNSURE
+
+
+@pytest.mark.parametrize("which", ["first", "last"])
+def test_a_hidden_end_digit_of_the_level_is_not_read(
+    reader: StatusBarReader, which: str
+) -> None:
+    pixels = bar(level="25")
+    # The two digits are 11 px wide and a pixel apart.
+    hide(pixels, VECTORS[_LEVEL_AT], 0 if which == "first" else 12, w=11)
+
+    reading = reader.read(frame(pixels))
+
+    assert reading.status is Status.UNSURE
+    assert reading.value is None

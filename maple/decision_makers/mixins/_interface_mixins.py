@@ -3,14 +3,12 @@ import multiprocessing.managers
 import threading
 
 from botting.core import BotData, ProxyFactory
-from botting.screen import frame_source
 from maple.actions import ensure_ability_menu_displayed
 from maple.model.interface import (
     AbilityMenu,
     InventoryMenu,
     LargeClientChatFeed,
 )
-from maple.screen.status_bar import StatusBarReader
 
 
 class MenusMixin:
@@ -133,20 +131,16 @@ class UIMixin:
 
     def _create_status_bar_attributes(self) -> None:
         """
-        `current_frame` and `status_bar` (a `Reading[StatusBar]`). A consumer
-        updates `current_frame` first, then `status_bar`, and reads
+        `status_bar`, a `Reading[StatusBar]` from the bot's one `status_bar_reader`
+        and its `current_frame`. `current_frame` is the bot's own, created with
+        its refresh threshold in `MapleBot.child_init`, and is left as it is: a
+        consumer updates `current_frame` and then `status_bar`, and reads
         `status_bar.status` before `status_bar.value`.
 
-        The reader is shared: the last DecisionMaker to call this replaces the
-        attribute, and every consumer reads that one.
-
         The DecisionMaker must name `STATUS_BAR` in its `screen_readers`, so
-        the sprites are loaded when the bot starts.
+        the reader exists when the bot starts.
         """
-        reader = StatusBarReader(self.data.reader_sprites, self.data.frame_check)
-        self.data.create_or_reconfigure_attribute(
-            "current_frame", lambda: frame_source().grab(self.data.handle)
-        )
+        reader = self.data.status_bar_reader
         self.data.create_or_reconfigure_attribute(
             "status_bar", lambda: reader.read(self.data.current_frame)
         )

@@ -14,11 +14,12 @@ with the string as `detail`, never a guessed number.
 
 import re
 from dataclasses import dataclass
+from itertools import pairwise
 
 import numpy as np
 from numpy.typing import NDArray
 
-from botting.screen import Frame, Reading, read_glyphs
+from botting.screen import Frame, GlyphHit, Reading, find_glyphs
 from game_data.sprites import Sprite
 from maple.screen.locator import FrameCheck, Located, Locator, Part, unreadable
 from maple.screen.sprites import GAUGE_LABEL, Declaration, ReaderSprites
@@ -57,7 +58,12 @@ STATUS_BAR = Declaration(
     vectors=(_LEVEL_AT, _HP_AT, _MP_AT, _EXP_AT),
 )
 
-_HP_MP = re.compile(r"\[?(\d+)/(\d+)\]?")
+# Glyphs of one string are drawn a pixel apart (frames); a wider gap, or a string
+# that doesn't start where its strip does, means a glyph isn't there to be read:
+# something (the cursor, a window) is over it.
+_MAX_GLYPH_GAP = 2
+_DIGIT_SPACING = 1
+_HP_MP = re.compile(r"\[(\d+)/(\d+)\]")
 # The client groups the EXP in thousands: "2,869[6.08%]".
 _EXP = re.compile(r"(\d{1,3}(?:,\d{3})*|\d+)\[(\d+(?:\.\d+)?)%\]")
 _LEVEL = re.compile(r"\d{1,3}")
@@ -80,15 +86,17 @@ class StatusBarReader:
     """
     Reads the status bar from a `Frame`, remembering where it was.
 
-    One per consumer; the `FrameCheck` is the bot's shared one.
+    One per bot, built with the bot's shared `FrameCheck`.
     """
 
     def __init__(self, sprites: ReaderSprites, frame_check: FrameCheck) -> None:
         self._frame_check = frame_check
+        self._background = sprites.canvas(BACKGROUND)
         self._level_glyphs = _glyphs(sprites, _LEVEL_DIGITS)
         self._gauge_glyphs = _glyphs(sprites, _GAUGE_GLYPHS)
         label = sprites.canvas(GAUGE_LABEL)
         level_w, level_h = _size(self._level_glyphs["0"])
+        self._digit = (level_w, level_h)
         _, gauge_h = _size(self._gauge_glyphs["0"])
         level_x, level_y = sprites.vector(_LEVEL_AT)
         hp_x, hp_y = sprites.vector(_HP_AT)
@@ -145,10 +153,10 @@ class StatusBarReader:
             return missing
         assert located is not None
 
-        level = self._read_strip(frame, located, "level", self._level_glyphs)
-        hp = self._read_strip(frame, located, "hp", self._gauge_glyphs)
-        mp = self._read_strip(frame, located, "mp", self._gauge_glyphs)
-        exp = self._read_strip(frame, located, "exp", self._gauge_glyphs)
+        level = self._read_level(frame, located)
+        hp = self._read_gauge(frame, located, "hp")
+        mp = self._read_gauge(frame, located, "mp")
+        exp = self._read_gauge(frame, located, "exp")
 
         level_match = _LEVEL.fullmatch(level)
         hp_match = _HP_MP.fullmatch(hp)
@@ -161,7 +169,13 @@ class StatusBarReader:
             ("exp", exp, exp_match),
         ):
             if parsed is None:
-                return Reading.unsure(frame.captured_at, f"{name}: {string!r}")
+                detail = string.removeprefix("!")
+                hidden = (
+                    " (a glyph is missing or hidden)"
+                    if string.startswith("!") and detail
+                    else ""
+                )
+                return Reading.unsure(frame.captured_at, f"{name}: {detail!r}{hidden}")
         assert level_match
         assert hp_match
         assert mp_match
@@ -179,21 +193,79 @@ class StatusBarReader:
             frame.captured_at,
         )
 
-    def _read_strip(
+    def _hits(
         self,
         frame: Frame,
         located: Located,
         name: str,
         glyphs: dict[str, NDArray[np.uint8]],
-    ) -> str:
+    ) -> tuple[list[GlyphHit], tuple[int, int]]:
+        """The glyphs of a strip, and the strip's top-left in the frame."""
         x, y, w, h = self._strips[name]
         px, py = located.position((x, y))
-        text = read_glyphs(_crop(frame.pixels, px, py, w, h), glyphs)
-        if glyphs is self._gauge_glyphs:
-            # The strip runs on to the next number's label, whose letters match
-            # the small glyphs: the string ends at its closing bracket.
-            text = text[: text.find("]") + 1] if "]" in text else text
+        return find_glyphs(_crop(frame.pixels, px, py, w, h), glyphs), (px, py)
+
+    def _read_gauge(self, frame: Frame, located: Located, name: str) -> str:
+        """
+        The string of an HP, MP or EXP strip, or a description of what is wrong
+        with it, prefixed `!`. It starts at the strip's start and ends at its
+        closing bracket: the strip runs on to the next number's label, whose
+        letters match the small glyphs.
+        """
+        hits, _ = self._hits(frame, located, name, self._gauge_glyphs)
+        closing = next((i for i, hit in enumerate(hits) if hit.name == "]"), None)
+        if closing is not None:
+            hits = hits[: closing + 1]
+        text = "".join(hit.name for hit in hits)
+        if not hits or hits[0].x > _MAX_GLYPH_GAP or _has_gap(hits):
+            return f"!{text}"
         return text
+
+    def _read_level(self, frame: Frame, located: Located) -> str:
+        hits, (px, py) = self._hits(frame, located, "level", self._level_glyphs)
+        text = "".join(hit.name for hit in hits)
+        if not hits or _has_gap(hits):
+            return f"!{text}"
+        # The cells either side of the digits must show the bar's own background:
+        # a digit hidden at either end leaves its cell showing what hides it.
+        width, height = self._digit
+        step = width + _DIGIT_SPACING
+        for cell_x in (hits[0].x - step, hits[-1].x + step):
+            if not self._shows_background(
+                frame, located, (px + cell_x, py, width, height)
+            ):
+                return f"!{text}"
+        return text
+
+    def _shows_background(
+        self,
+        frame: Frame,
+        located: Located,
+        cell: tuple[int, int, int, int],
+    ) -> bool:
+        """Whether the bar's background sprite matches `cell`, where it is opaque.
+        A cell with no opaque background pixel can't be judged, and passes."""
+        sprite = self._background
+        left, top = located.position(Part(sprite).offset)
+        x, y, w, h = cell
+        x0, y0 = max(x, left), max(y, top)
+        x1 = min(x + w, left + sprite.rgba.shape[1], frame.pixels.shape[1])
+        y1 = min(y + h, top + sprite.rgba.shape[0], frame.pixels.shape[0])
+        if x1 <= x0 or y1 <= y0:
+            return True
+        rgba = sprite.rgba[y0 - top : y1 - top, x0 - left : x1 - left]
+        opaque = rgba[:, :, 3] == 255
+        if not opaque.any():
+            return True
+        shown = frame.pixels[y0:y1, x0:x1]
+        return bool((shown[opaque] == rgba[:, :, 2::-1][opaque]).all())
+
+
+def _has_gap(hits: list[GlyphHit]) -> bool:
+    return any(
+        later.x - (earlier.x + earlier.width) > _MAX_GLYPH_GAP
+        for earlier, later in pairwise(hits)
+    )
 
 
 def _glyphs(

@@ -27,7 +27,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from botting.screen import Frame, Reading, Status, match, match_best
+from botting.screen import Frame, Reading, Status, match_best, matches_at
 from game_data.sprites import Sprite
 
 from .sprites import GAUGE_LABEL, ReaderSprites
@@ -152,9 +152,7 @@ class Locator:
         self, pixels: NDArray[np.uint8], part: Part, point: tuple[int, int]
     ) -> bool:
         x, y = _top_left(part, point)
-        h, w = part.sprite.rgba.shape[:2]
-        hits = match(pixels, part.sprite.rgba, (x, y, w, h), self.tolerance)
-        return any(hit.x == x and hit.y == y for hit in hits)
+        return matches_at(pixels, part.sprite.rgba, x, y, self.tolerance)
 
 
 def _top_left(part: Part, point: tuple[int, int]) -> tuple[int, int]:
