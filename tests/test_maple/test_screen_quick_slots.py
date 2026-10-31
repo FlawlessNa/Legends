@@ -11,6 +11,7 @@ from botting.screen import Frame, Reading, Status
 from game_data.sprites import Sprite
 from maple.screen.locator import UI_NOT_FOUND, FrameCheck
 from maple.screen.quick_slots import (
+    CURSOR_PATHS,
     DIGITS,
     KEY_NAMES,
     SEARCH_EVERY,
@@ -40,10 +41,14 @@ DIGIT_SPRITES = {
     d: sprite(f"UI/Basic.img/ItemNo/{d}", 5 if d == "1" else 8, 11) for d in DIGITS
 }
 GAUGE = sprite(GAUGE_LABEL, 20, 8)
+CURSORS = {path: sprite(path, 20, 26) for path in CURSOR_PATHS}
 
 
 def sprites() -> ReaderSprites:
-    canvases = {s.path: s for s in (*LABELS.values(), *DIGIT_SPRITES.values(), GAUGE)}
+    canvases = {
+        s.path: s
+        for s in (*LABELS.values(), *DIGIT_SPRITES.values(), GAUGE, *CURSORS.values())
+    }
     return ReaderSprites("build", canvases)
 
 
@@ -227,7 +232,10 @@ def test_a_short_label_matching_inside_a_longer_one_is_dropped() -> None:
     inner = Sprite(
         LABELS["9"].path, LABELS["8"].rgba[:6, :6].copy(), LABELS["8"].origin
     )
-    canvases = {s.path: s for s in (*LABELS.values(), *DIGIT_SPRITES.values(), GAUGE)}
+    canvases = {
+        s.path: s
+        for s in (*LABELS.values(), *DIGIT_SPRITES.values(), GAUGE, *CURSORS.values())
+    }
     canvases[inner.path] = inner
     built = ReaderSprites("build", canvases)
     pixels = screen()
@@ -522,7 +530,7 @@ def test_a_cell_with_no_label_keeps_the_numbering_unsettled() -> None:
     assert "row 2, column 2" in reading.detail
 
 
-def test_a_settled_reader_keeps_a_slots_key_while_a_cooldown_shades_it() -> None:
+def test_a_label_shaded_past_what_fits_reads_covered_not_read() -> None:
     quick_slots = reader()
     pixels = drawn_grid()
     settle(quick_slots, pixels)
@@ -534,15 +542,18 @@ def test_a_settled_reader_keeps_a_slots_key_while_a_cooldown_shades_it() -> None
 
     reading = quick_slots.read(frame(shaded, at=SEARCH_EVERY + 1.0))
 
-    assert reading.status is Status.READ
-    assert slots_of(reading.value)["7"].column == 3
+    assert reading.status is Status.COVERED
+    assert reading.value is None
 
 
 def test_a_label_a_longer_one_would_also_draw_is_not_taken_for_a_slot() -> None:
     # Like `P`, drawn inside `PgUp`: shaded by a cooldown, the longer label
     # would leave exactly this behind, so the cell is a hole.
     inner = Sprite(LABELS["9"].path, LABELS["8"].rgba[:6, :6].copy(), (0, 0))
-    canvases = {s.path: s for s in (*LABELS.values(), *DIGIT_SPRITES.values(), GAUGE)}
+    canvases = {
+        s.path: s
+        for s in (*LABELS.values(), *DIGIT_SPRITES.values(), GAUGE, *CURSORS.values())
+    }
     canvases[inner.path] = inner
     built = ReaderSprites("build", canvases)
     pixels = screen()
@@ -573,3 +584,23 @@ def test_a_grid_first_seen_with_a_menu_over_the_panel_is_read_once_it_closes() -
     slot = after[1].value.slot(1)
     assert slot is not None
     assert (slot.key, slot.count) == ("1", 12)
+
+
+def test_a_cursor_over_a_count_never_turns_it_into_a_smaller_one() -> None:
+    quick_slots = reader()
+    pixels = drawn_grid()
+    draw_count(pixels, 181, 1, 1)
+    assert settle(quick_slots, pixels).status is Status.READ
+
+    # The cursor hides "81" of the count, not the label above it.
+    x, y = label_at(1, 1)
+    hidden = pixels.copy()
+    paste(hidden, CURSORS[CURSOR_PATHS[0]], x + 2, y + 14)
+    reading = quick_slots.read(frame(hidden, at=SEARCH_EVERY + 0.5))
+
+    assert reading.status is Status.COVERED
+    assert reading.value is None
+    assert "cursor" in reading.detail
+    # Moved away, the count reads whole again.
+    again = quick_slots.read(frame(pixels, at=SEARCH_EVERY + 1.0))
+    assert slots_of(again.value)["6"].count == 181

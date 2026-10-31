@@ -1286,7 +1286,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. quick_slots: Pup and Pdn are shaded past what the reader follows: a settled reader says COVERED, never a guessed key.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1301,8 +1301,81 @@
           }
         },
         "quick_slots": {
-          "status": "covered",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 81
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",
@@ -1338,7 +1411,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. quick_slots: Pup and Pdn are shaded past what the reader follows: a settled reader says COVERED, never a guessed key.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1353,8 +1426,81 @@
           }
         },
         "quick_slots": {
-          "status": "covered",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 81
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",
@@ -1390,7 +1536,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. quick_slots: Pup and Pdn are shaded past what the reader follows: a settled reader says COVERED, never a guessed key.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1405,8 +1551,81 @@
           }
         },
         "quick_slots": {
-          "status": "covered",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 81
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",
@@ -1442,7 +1661,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. quick_slots: Pup and Pdn are shaded past what the reader follows: a settled reader says COVERED, never a guessed key.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1457,8 +1676,81 @@
           }
         },
         "quick_slots": {
-          "status": "covered",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",
@@ -1494,7 +1786,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. quick_slots: Pup and Pdn are shaded past what the reader follows: a settled reader says COVERED, never a guessed key.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1509,8 +1801,81 @@
           }
         },
         "quick_slots": {
-          "status": "covered",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",
@@ -1546,7 +1911,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. quick_slots: Pup and Pdn are shaded past what the reader follows: a settled reader says COVERED, never a guessed key.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1561,8 +1926,81 @@
           }
         },
         "quick_slots": {
-          "status": "covered",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",
@@ -1598,7 +2036,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. quick_slots: Pup and Pdn are shaded past what the reader follows: a settled reader says COVERED, never a guessed key.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1613,8 +2051,81 @@
           }
         },
         "quick_slots": {
-          "status": "covered",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",
@@ -1650,7 +2161,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. quick_slots: Pup and Pdn are shaded past what the reader follows: a settled reader says COVERED, never a guessed key.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1665,8 +2176,81 @@
           }
         },
         "quick_slots": {
-          "status": "covered",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",
@@ -4477,7 +5061,7 @@
         800,
         600
       ],
-      "notes": "The UI isn't drawn at 1:1: the 800x600 resolution hasn't been applied yet. quick_slots: No unshaded 800x600 frame: a fresh reader has not seen the slots unshaded, and says UNSURE.",
+      "notes": "The UI isn't drawn at 1:1: the 800x600 resolution hasn't been applied yet.",
       "expect": {
         "status_bar": {
           "status": "unsure",
@@ -4507,7 +5091,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. quick_slots: No unshaded 800x600 frame: a fresh reader has not seen the slots unshaded, and says UNSURE.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -4522,8 +5106,81 @@
           }
         },
         "quick_slots": {
-          "status": "unsure",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",
@@ -4559,7 +5216,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the skill window overlaps the chat log. quick_slots: No unshaded 800x600 frame: a fresh reader has not seen the slots unshaded, and says UNSURE.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the skill window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -4574,8 +5231,81 @@
           }
         },
         "quick_slots": {
-          "status": "unsure",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",
@@ -4602,7 +5332,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. quick_slots: No unshaded 800x600 frame: a fresh reader has not seen the slots unshaded, and says UNSURE.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -4617,8 +5347,81 @@
           }
         },
         "quick_slots": {
-          "status": "unsure",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",
@@ -4654,7 +5457,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the stat window overlaps the chat log. quick_slots: No unshaded 800x600 frame: a fresh reader has not seen the slots unshaded, and says UNSURE.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the stat window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -4669,8 +5472,81 @@
           }
         },
         "quick_slots": {
-          "status": "unsure",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",
@@ -4697,7 +5573,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the stat window overlaps the chat log. quick_slots: No unshaded 800x600 frame: a fresh reader has not seen the slots unshaded, and says UNSURE.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the stat window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -4712,8 +5588,81 @@
           }
         },
         "quick_slots": {
-          "status": "unsure",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",
@@ -4740,7 +5689,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. quick_slots: No unshaded 800x600 frame: a fresh reader has not seen the slots unshaded, and says UNSURE.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -4755,8 +5704,81 @@
           }
         },
         "quick_slots": {
-          "status": "unsure",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",
@@ -4792,7 +5814,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the options window overlaps the chat log. quick_slots: No unshaded 800x600 frame: a fresh reader has not seen the slots unshaded, and says UNSURE.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the options window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -4807,8 +5829,81 @@
           }
         },
         "quick_slots": {
-          "status": "unsure",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",
@@ -4835,7 +5930,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the options window overlaps the chat log. quick_slots: No unshaded 800x600 frame: a fresh reader has not seen the slots unshaded, and says UNSURE.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the options window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -4850,8 +5945,81 @@
           }
         },
         "quick_slots": {
-          "status": "unsure",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",
@@ -4878,15 +6046,88 @@
         800,
         600
       ],
-      "notes": "The mouse cursor is over the status bar's top edge. Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the options window overlaps the chat log. quick_slots: No unshaded 800x600 frame: a fresh reader has not seen the slots unshaded, and says UNSURE.",
+      "notes": "The mouse cursor is over the status bar's top edge. Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the options window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "covered",
           "value": null
         },
         "quick_slots": {
-          "status": "unsure",
-          "value": null
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
         },
         "minimap": {
           "status": "read",

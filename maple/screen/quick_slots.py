@@ -25,9 +25,14 @@ numbered from the wrong end.
 
 **Known gap.** The number of rows isn't known, so a cover over a whole top row
 during both settling searches settles with the remaining rows numbered from 1
-(`slot(1)` is then another slot). Nor can a cursor or tooltip over a slot's
-count be told from no count drawn, or a shorter one: a hidden count reads
-`None` or a smaller number, as `READ`.
+(`slot(1)` is then another slot).
+
+**The cursor.** The mouse cursor hides digits as readily as a label, and a count
+under it would read as none, or as a shorter number, with `READ`. So the cursor's
+sprites (`UI/Basic.img/Cursor`) are looked for over the slots' area, and one there
+makes the reading `COVERED`. A tooltip or window over a count also covers the
+labels beside it, which `COVERED`s the reading the same way (a label is drawn
+only when `_fits`, not when part of it is).
 
 **Columns.** The layout is `COLUMNS` slots to a row, so labels found in fewer
 columns mean part of the panel isn't visible (a window over it): `COVERED`, and
@@ -38,9 +43,9 @@ for good.
 **Holes.** The grid the labels found make should have a label in every cell.
 A cell with none is a slot that is unbound, covered, or shaded by a cooldown, and
 a fresh reader can't tell which, nor read a shaded key: the numbering isn't
-settled and the reading is `UNSURE`. A reader that settled on a full grid keeps
-its keys through a cooldown (`_at`). So a slot with no key bound keeps the reader
-`UNSURE`.
+settled and the reading is `UNSURE`. So a slot with no key bound keeps the
+reader `UNSURE`. A reader that settled on a full grid reads `COVERED` while a
+cooldown shades a label past `_fits`.
 
 **Suspect labels.** A label whose pixels are all drawn by a longer one (`P`, key
 25, starts `PgUp` and `PgDn`) can't be told from the longer label shaded by a
@@ -108,10 +113,6 @@ SAME_LINE = 12
 column: the tallest label is 12 pixels high, and slots are well over twice that
 apart."""
 
-MIN_SHARE = 0.25
-"""A label already found still counts as drawn when this share of its opaque
-pixels is exactly as drawn: the rows of it a cooldown hasn't shaded. Provisional:
-chosen on a few frames (f020's `PgUp` has 0.38 of them)."""
 MIN_CORRELATION = 0.95
 """How well the brightness of a label's shaded rows must follow the sprite's.
 Provisional: chosen on a few frames (the right label scored 1.0, the next best
@@ -133,11 +134,38 @@ _SAMPLES = 8
 _FEW = 64
 """The first pass stops early once this few positions remain."""
 
+_CURSOR_FRAMES = {
+    0: "0",
+    1: "01",
+    2: "0123456",
+    3: "012345",
+    4: "01",
+    5: "0123",
+    6: "0123456",
+    7: "0124",
+    8: "0124",
+    9: "0",
+    10: "0",
+    11: "0",
+    12: "0",
+    13: "01",
+    14: "0",
+    15: "01",
+    16: "0123",
+}
+CURSOR_PATHS = tuple(
+    f"UI/Basic.img/Cursor/{state}/{frame}"
+    for state, frames in _CURSOR_FRAMES.items()
+    for frame in frames
+)
+"""The game's mouse cursor, every state and frame of `UI/Basic.img/Cursor`."""
+
 QUICK_SLOTS = Declaration(
     "quick slots",
     canvases=(
         *(f"{_KEY}/{name}" for name in KEY_NAMES),
         *(f"{_ITEM_NO}/{digit}" for digit in DIGITS),
+        *CURSOR_PATHS,
     ),
 )
 
@@ -212,6 +240,7 @@ class QuickSlotsReader:
             name: int((label.rgba[:, :, 3] == 255).sum())
             for name, label in self._labels.items()
         }
+        self._cursors = [sprites.canvas(path).rgba for path in CURSOR_PATHS]
         self._suspect = _suspects(self._labels)
         self._digits = {d: sprites.canvas(f"{_ITEM_NO}/{d}") for d in DIGITS}
         self._found: dict[str, tuple[int, int]] = {}
@@ -284,23 +313,8 @@ class QuickSlotsReader:
         return self._counts(frame)
 
     def _at(self, pixels: np.ndarray, name: str, at: tuple[int, int]) -> bool:
-        """
-        Whether the label still looks drawn at `at`: `_fits`, or at least
-        `MIN_SHARE` of it exactly drawn, since a cooldown shades a label in ways
-        `_fits` can't always follow (the shade isn't one constant change) and
-        the slot is still the same slot.
-        """
-        if self._fits(pixels, name, at):
-            return True
-        rgba = self._labels[name].rgba
-        h, w = rgba.shape[:2]
-        x, y = at
-        if x < 0 or y < 0 or y + h > pixels.shape[0] or x + w > pixels.shape[1]:
-            return False
-        mask = rgba[:, :, 3] == 255
-        drawn = pixels[y : y + h, x : x + w][mask]
-        exact = np.all(drawn == rgba[:, :, 2::-1][mask], axis=1)
-        return float(exact.mean()) >= MIN_SHARE
+        """Whether the label still looks drawn at `at` (`_fits`)."""
+        return self._fits(pixels, name, at)
 
     def _fits(self, pixels: np.ndarray, name: str, at: tuple[int, int]) -> bool:
         """
@@ -447,6 +461,11 @@ class QuickSlotsReader:
             columns[-1] + span_x - left,
             rows[-1] + span_y - rows[0],
         )
+        if self._cursor_over(frame.pixels, region):
+            return Reading.covered(
+                frame.captured_at,
+                "the mouse cursor is over the quick slots: it can hide a count",
+            )
         counts: dict[str, int] = {}
         for run in self._runs(frame.pixels, region):
             if any(
@@ -487,6 +506,29 @@ class QuickSlotsReader:
             key=lambda s: (s.row, s.column),
         )
         return Reading.read(QuickSlots(tuple(slots)), frame.captured_at)
+
+    def _cursor_over(self, pixels: np.ndarray, area: tuple[int, int, int, int]) -> bool:
+        """Whether the mouse cursor is drawn over `area` (x, y, width, height).
+        It hides digits as readily as it hides a label, so a count read under it
+        would be wrong without saying so."""
+        ax, ay, aw, ah = area
+        reach = max(max(c.shape[:2]) for c in self._cursors)
+        x0, y0 = max(ax - reach, 0), max(ay - reach, 0)
+        crop = pixels[y0 : ay + ah + reach, x0 : ax + aw + reach]
+        packed = _pack(crop)
+        for rgba in self._cursors:
+            at = self._find(crop, packed, rgba)
+            if at is None:
+                continue
+            h, w = rgba.shape[:2]
+            if (
+                x0 + at[0] < ax + aw
+                and ax < x0 + at[0] + w
+                and y0 + at[1] < ay + ah
+                and ay < y0 + at[1] + h
+            ):
+                return True
+        return False
 
     def _runs(
         self, pixels: np.ndarray, region: tuple[int, int, int, int]
