@@ -8,6 +8,14 @@ were found, later frames re-check just those spots, and a label found earlier
 that no longer matches makes the reading `COVERED`. The slot background isn't
 an anchor (its alpha is 0 to 39).
 
+**Searching again.** A first search may see a partly covered panel, which would
+number the slots wrongly, so the numbering is trusted only once two searches at
+least `SEARCH_EVERY` seconds apart find the same labels: until then the reading
+is `UNSURE`, and the search repeats. A label that no longer matches reads
+`COVERED`, and repeats the search at that rate too, adopting what it finds (a
+rebound key, a moved panel), and settling again the same way. Nothing is
+searched for between those times, so the reader's cost is a few small matches.
+
 **Grid.** A slot's `row` and `column` (from 1) are counted from the labels'
 positions: labels that start within `SAME_LINE` pixels of each other are one
 row, likewise one column. They are the numbering of `QuickSlots.slot`, so an
@@ -22,8 +30,8 @@ with no run has `count` `None`. A run that clearly belongs to no slot (no label
 there, farther from its label than the labels' own spacing, or two runs for one
 slot) makes the reading `UNSURE`, not a guess.
 
-A run that starts within `SAME_LINE` of a label's top is beside the label, not
-under it, and isn't a count: it is a cooldown number, which the client draws
+A run that starts within `SAME_LINE` of a label's top and right of the label is
+beside it, not under it, and isn't a count: it is a cooldown number, which the client draws
 with the same digits at the slot's top right while the slot recharges. It is
 skipped, and the slot keeps the count drawn below.
 """
@@ -61,6 +69,10 @@ SAME_LINE = 12
 """Labels whose top-left corners are closer than this are in the same row or
 column: the tallest label is 12 pixels high, and slots are well over twice that
 apart."""
+
+SEARCH_EVERY = 3.0
+"""Seconds between searches for labels while the grid isn't settled or a label
+has moved. A search takes 1 to 2 s, so it is not done every frame."""
 
 RUN_GAP = 2
 """Digits no further apart than this, in pixels, are one count. Provisional:
@@ -128,6 +140,7 @@ class QuickSlots:
 class _Run:
     """Digits drawn together: where they start, their centre, and their value."""
 
+    left: int
     top: int
     centre: int
     value: int
@@ -147,6 +160,9 @@ class QuickSlotsReader:
         self._labels = {name: sprites.canvas(f"{_KEY}/{name}") for name in KEY_NAMES}
         self._digits = {d: sprites.canvas(f"{_ITEM_NO}/{d}") for d in DIGITS}
         self._found: dict[str, tuple[int, int]] = {}
+        self._settled = False
+        self._searched_at: float | None = None
+        self.searches = 0
         self._client_size: tuple[int, int] | None = None
 
     def read(self, frame: Frame) -> Reading[QuickSlots]:
@@ -157,21 +173,34 @@ class QuickSlotsReader:
         if frame.client_size != self._client_size:
             self._client_size = frame.client_size
             self._found = {}
+            self._settled = False
+            self._searched_at = None
+        moved = [
+            name for name, at in self._found.items() if not self._at(pixels, name, at)
+        ]
+        due = (
+            self._searched_at is None
+            or frame.captured_at - self._searched_at >= SEARCH_EVERY
+        )
+        if due and (not self._found or moved or not self._settled):
+            found = self._search(pixels)
+            self._searched_at = frame.captured_at
+            self._settled = bool(found) and found == self._found
+            self._found = found
+            moved = []
         if not self._found:
-            self._found = self._search(pixels)
-            if not self._found:
-                return Reading.absent(frame.captured_at, "no key label found")
-        else:
-            moved = [
-                name
-                for name, at in self._found.items()
-                if not self._at(pixels, name, at)
-            ]
-            if moved:
-                return Reading.covered(
-                    frame.captured_at,
-                    "label not where it was found: " + ", ".join(moved),
-                )
+            return Reading.absent(frame.captured_at, "no key label found")
+        if moved:
+            return Reading.covered(
+                frame.captured_at,
+                "label not where it was found: " + ", ".join(moved),
+            )
+        if not self._settled:
+            return Reading.unsure(
+                frame.captured_at,
+                "slot numbering not settled: the labels found must be the same "
+                f"in two searches {SEARCH_EVERY:g} s apart",
+            )
         return self._counts(frame)
 
     def _at(self, pixels: np.ndarray, name: str, at: tuple[int, int]) -> bool:
@@ -187,6 +216,7 @@ class QuickSlotsReader:
         `S` can match inside the drawing of `Shift`, which is the better
         evidence.
         """
+        self.searches += 1
         packed = _pack(pixels)
         found: dict[str, tuple[int, int]] = {}
         for name, label in self._labels.items():
@@ -270,8 +300,12 @@ class QuickSlotsReader:
         )
         counts: dict[str, int] = {}
         for run in self._runs(frame.pixels, region):
-            if any(abs(run.top - line) < SAME_LINE for line in rows):
-                continue  # beside a label, where a cooldown number is drawn
+            if any(
+                abs(run.top - y) < SAME_LINE
+                and run.left >= x + self._labels[name].rgba.shape[1]
+                for name, (x, y) in labels.items()
+            ):
+                continue  # right of a label, level with it: a cooldown number
             row = _line_at_or_before(rows, run.top)
             column = _line_at_or_before(columns, run.centre)
             if (
@@ -338,6 +372,7 @@ class QuickSlotsReader:
             runs.append([item])
         return [
             _Run(
+                left=run[0][0],
                 top=run[0][1],
                 centre=(run[0][0] + run[-1][0] + run[-1][2]) // 2,
                 value=int("".join(item[4] for item in run)),

@@ -7,12 +7,13 @@ painted over them. No client pixels.
 import numpy as np
 import pytest
 
-from botting.screen import Frame, Status
+from botting.screen import Frame, Reading, Status
 from game_data.sprites import Sprite
 from maple.screen.locator import UI_NOT_FOUND, FrameCheck
 from maple.screen.quick_slots import (
     DIGITS,
     KEY_NAMES,
+    SEARCH_EVERY,
     QuickSlots,
     QuickSlotsReader,
     Slot,
@@ -85,9 +86,24 @@ def draw_cooldown(pixels: np.ndarray, number: int, row: int, column: int) -> Non
     paste(pixels, DIGIT_SPRITES[str(number)], x + 24, y)
 
 
-def frame(pixels: np.ndarray, ok: bool = True, reason: str = "") -> Frame:
+def frame(
+    pixels: np.ndarray, ok: bool = True, reason: str = "", at: float = 3.0
+) -> Frame:
     h, w = pixels.shape[:2]
-    return Frame(pixels, (w, h), 3.0, True, ok, reason)
+    return Frame(pixels, (w, h), at, True, ok, reason)
+
+
+def settle(
+    quick_slots: QuickSlotsReader, pixels: np.ndarray, at: float = 0.0
+) -> Reading[QuickSlots]:
+    """Read `pixels` twice, `SEARCH_EVERY` apart, which is what it takes for the
+    numbering to be trusted. Returns the second reading."""
+    quick_slots.read(frame(pixels, at=at))
+    return quick_slots.read(frame(pixels, at=at + SEARCH_EVERY))
+
+
+def settled(pixels: np.ndarray) -> Reading[QuickSlots]:
+    return settle(reader(), pixels)
 
 
 def occlude(pixels: np.ndarray, x: int, y: int, w: int, h: int) -> None:
@@ -128,10 +144,10 @@ def test_every_label_found_gives_its_grid_position_key_and_count() -> None:
     draw_count(pixels, 181, 0, 0)
     draw_count(pixels, 5, 1, 1)
 
-    reading = reader().read(frame(pixels))
+    reading = settled(pixels)
 
     assert reading.status is Status.READ
-    assert reading.frame_time == 3.0
+    assert reading.frame_time == SEARCH_EVERY
     slots = slots_of(reading.value)
     assert {k: (s.row, s.column, s.count) for k, s in slots.items()} == {
         "1": (1, 1, 181),
@@ -148,7 +164,7 @@ def test_every_label_found_gives_its_grid_position_key_and_count() -> None:
 def test_a_slot_with_no_count_drawn_reads_none() -> None:
     pixels = drawn_grid()
 
-    reading = reader().read(frame(pixels))
+    reading = settled(pixels)
 
     assert reading.status is Status.READ
     assert all(s.count is None for s in slots_of(reading.value).values())
@@ -159,7 +175,7 @@ def test_a_count_belongs_to_the_label_above_it_not_the_one_below() -> None:
     pixels = drawn_grid()
     draw_count(pixels, 42, 0, 1)
 
-    slots = slots_of(reader().read(frame(pixels)).value)
+    slots = slots_of(settled(pixels).value)
 
     assert slots["2"].count == 42
     assert slots["6"].count is None
@@ -171,7 +187,7 @@ def test_a_cooldown_number_beside_a_label_is_not_a_count() -> None:
     draw_cooldown(pixels, 2, 1, 0)
     draw_cooldown(pixels, 1, 0, 3)
 
-    reading = reader().read(frame(pixels))
+    reading = settled(pixels)
 
     assert reading.status is Status.READ
     slots = slots_of(reading.value)
@@ -189,7 +205,7 @@ def test_a_short_label_matching_inside_a_longer_one_is_dropped() -> None:
     pixels = screen()
     draw_label(pixels, "8", 0, 0)
 
-    reading = QuickSlotsReader(built, FrameCheck(built)).read(frame(pixels))
+    reading = settle(QuickSlotsReader(built, FrameCheck(built)), pixels)
 
     assert list(slots_of(reading.value)) == ["8"]
 
@@ -198,7 +214,7 @@ def test_a_short_label_matching_inside_a_longer_one_is_dropped() -> None:
 
 
 def test_slot_n_is_one_based_and_row_major_four_to_a_row() -> None:
-    value = reader().read(frame(drawn_grid())).value
+    value = settled(drawn_grid()).value
     assert value is not None
 
     keys = {n: s.key for n in (1, 2, 3, 4, 5, 6, 7) if (s := value.slot(n))}
@@ -207,7 +223,7 @@ def test_slot_n_is_one_based_and_row_major_four_to_a_row() -> None:
 
 
 def test_slot_n_is_none_when_its_label_was_not_found() -> None:
-    value = reader().read(frame(drawn_grid())).value
+    value = settled(drawn_grid()).value
     assert value is not None
 
     assert value.slot(8) is None
@@ -215,7 +231,7 @@ def test_slot_n_is_none_when_its_label_was_not_found() -> None:
 
 
 def test_slot_zero_is_refused() -> None:
-    value = reader().read(frame(drawn_grid())).value
+    value = settled(drawn_grid()).value
     assert value is not None
 
     with pytest.raises(ValueError, match="from 1"):
@@ -235,11 +251,11 @@ def test_no_labels_reads_absent_with_no_value() -> None:
 def test_a_label_found_earlier_that_no_longer_matches_reads_covered() -> None:
     quick_slots = reader()
     pixels = drawn_grid()
-    assert quick_slots.read(frame(pixels)).status is Status.READ
+    assert settle(quick_slots, pixels).status is Status.READ
 
     x, y = label_at(1, 1)
     occlude(pixels, x, y, 6, 12)
-    reading = quick_slots.read(frame(pixels))
+    reading = quick_slots.read(frame(pixels, at=SEARCH_EVERY + 0.5))
 
     assert reading.status is Status.COVERED
     assert reading.value is None
@@ -249,22 +265,96 @@ def test_a_label_found_earlier_that_no_longer_matches_reads_covered() -> None:
 def test_it_reads_again_once_the_label_is_uncovered() -> None:
     quick_slots = reader()
     pixels = drawn_grid()
-    quick_slots.read(frame(pixels))
+    settle(quick_slots, pixels)
     x, y = label_at(1, 1)
     covered = pixels.copy()
     occlude(covered, x, y, 6, 12)
-    quick_slots.read(frame(covered))
+    quick_slots.read(frame(covered, at=SEARCH_EVERY + 0.5))
 
-    assert quick_slots.read(frame(pixels)).status is Status.READ
+    reading = quick_slots.read(frame(pixels, at=SEARCH_EVERY + 1.0))
+
+    assert reading.status is Status.READ
+
+
+def test_the_first_read_is_unsure_until_two_searches_agree() -> None:
+    quick_slots = reader()
+    pixels = drawn_grid()
+
+    first = quick_slots.read(frame(pixels, at=0.0))
+    early = quick_slots.read(frame(pixels, at=SEARCH_EVERY / 2))
+    second = quick_slots.read(frame(pixels, at=SEARCH_EVERY))
+
+    assert (first.status, early.status) == (Status.UNSURE, Status.UNSURE)
+    assert second.status is Status.READ
+
+
+def test_a_first_read_partly_covered_is_corrected_when_it_is_uncovered() -> None:
+    # Row 0 covered at first: the labels left are row 1's, which would number
+    # as row 1 and make `slot(5)` the wrong slot, for good.
+    quick_slots = reader()
+    pixels = drawn_grid()
+    covered = pixels.copy()
+    x, y = label_at(0, 0)
+    occlude(covered, x - 5, y - 5, 4 * PITCH + 10, 20)
+    unsettled = quick_slots.read(frame(covered, at=0.0))
+    readings = [
+        quick_slots.read(frame(pixels, at=t))
+        for t in (1.0, SEARCH_EVERY, 2 * SEARCH_EVERY)
+    ]
+
+    assert unsettled.status is Status.UNSURE
+    assert [r.status for r in readings] == [Status.UNSURE] * 2 + [Status.READ]
+    value = readings[-1].value
+    assert value is not None
+    slot = value.slot(5)
+    assert slot is not None
+    assert slot.key == "5"
+
+
+def test_a_label_that_legitimately_changed_is_found_again() -> None:
+    quick_slots = reader()
+    pixels = drawn_grid()
+    settle(quick_slots, pixels)
+    rebound = pixels.copy()
+    draw_label(rebound, "9", 1, 1)  # key 6's slot is bound to 9 now
+
+    covered = quick_slots.read(frame(rebound, at=SEARCH_EVERY + 1.0))
+    adopted = quick_slots.read(frame(rebound, at=2 * SEARCH_EVERY))
+    settled_again = quick_slots.read(frame(rebound, at=3 * SEARCH_EVERY))
+
+    assert covered.status is Status.COVERED
+    assert adopted.status is Status.UNSURE
+    assert settled_again.status is Status.READ
+    assert "6" not in slots_of(settled_again.value)
+    assert slots_of(settled_again.value)["9"].row == 2
+
+
+def test_labels_are_not_searched_for_every_frame() -> None:
+    quick_slots = reader()
+    pixels = drawn_grid()
+    settle(quick_slots, pixels)
+    searches = quick_slots.searches
+
+    for t in (7.0, 8.0, 9.0):
+        quick_slots.read(frame(pixels, at=t))
+
+    assert quick_slots.searches == searches
+
+    x, y = label_at(1, 1)
+    occlude(pixels, x, y, 6, 12)
+    for t in (10.0, 10.5, 11.0):
+        quick_slots.read(frame(pixels, at=t))
+
+    assert quick_slots.searches == searches + 1
 
 
 def test_labels_are_searched_again_when_the_client_size_changes() -> None:
     quick_slots = reader()
-    assert quick_slots.read(frame(drawn_grid())).status is Status.READ
+    assert settle(quick_slots, drawn_grid()).status is Status.READ
 
     bigger = screen(800, 600)
     draw_label(bigger, "1", 2, 2)
-    reading = quick_slots.read(frame(bigger))
+    reading = settle(quick_slots, bigger, at=10.0)
 
     assert reading.status is Status.READ
     assert list(slots_of(reading.value)) == ["1"]
@@ -274,7 +364,7 @@ def test_a_count_in_a_slot_with_no_label_found_reads_unsure() -> None:
     pixels = drawn_grid()
     draw_count(pixels, 9, 1, 3)
 
-    reading = reader().read(frame(pixels))
+    reading = settled(pixels)
 
     assert reading.status is Status.UNSURE
 
@@ -285,7 +375,7 @@ def test_two_counts_for_one_slot_read_unsure() -> None:
     x, y = label_at(0, 0)
     paste(pixels, DIGIT_SPRITES["7"], x + 14, y + 16)
 
-    reading = reader().read(frame(pixels))
+    reading = settled(pixels)
 
     assert reading.status is Status.UNSURE
 
@@ -297,7 +387,7 @@ def test_digits_outside_the_slots_area_are_not_counts() -> None:
     x, y = label_at(1, 0)
     paste(pixels, DIGIT_SPRITES["3"], x, y + PITCH + 2)
 
-    reading = reader().read(frame(pixels))
+    reading = settled(pixels)
 
     assert reading.status is Status.READ
     assert all(s.count is None for s in slots_of(reading.value).values())
@@ -316,7 +406,7 @@ def test_a_frame_without_the_ui_at_one_to_one_reads_unsure() -> None:
     pixels = np.full((480, 640, 3), BACKGROUND, dtype=np.uint8)
     draw_label(pixels, "1", 0, 0)
 
-    reading = reader().read(frame(pixels))
+    reading = settled(pixels)
 
     assert reading.status is Status.UNSURE
     assert reading.detail == UI_NOT_FOUND
