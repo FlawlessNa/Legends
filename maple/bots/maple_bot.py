@@ -10,6 +10,8 @@ from botting.visuals import InGameDetectionVisuals
 from maple.model.characters import MAPPING as CHARACTER_MAPPING
 from maple.model.mechanics import MapleMap
 from maple.screen.client import find_client
+from maple.screen.locator import FrameCheck
+from maple.screen.sprites import Profile, enabled_readers, load_reader_sprites
 
 
 class MapleBot(Bot, ABC):
@@ -36,7 +38,8 @@ class MapleBot(Bot, ABC):
                 f"{type(self).__name__} for {ign!r} needs `character_class` in the "
                 "profile's settings, one of: " + ", ".join(sorted(CHARACTER_MAPPING))
             )
-        self.character_class = CHARACTER_MAPPING[character_class.title()]
+        self.job = character_class.title()
+        self.character_class = CHARACTER_MAPPING[self.job]
         self.detection_configs = detection_configs
         self.client_size = client_size
         self.models_path = models_path
@@ -65,6 +68,15 @@ class MapleBot(Bot, ABC):
         assert self.data is not None
         assert self.models_path is not None
         data = self.data
+        # The readers' sprites are loaded once, before any reader attribute
+        # exists: a missing or stale store refuses the start here, not mid-cycle.
+        reader_sprites = load_reader_sprites(
+            enabled_readers(self._decision_makers()),
+            Profile(job=self.job, game_map=self.game_map),
+        )
+        data.set_static("reader_sprites", reader_sprites)
+        if reader_sprites.build is not None:
+            data.set_static("frame_check", FrameCheck(reader_sprites))
         InGameDetectionVisuals.register_models(self.models_path)
         InGameDetectionVisuals.register_cache_id(data.handle)
         data.create_attribute(
