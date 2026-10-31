@@ -111,9 +111,10 @@ may still have a background shell running, so don't treat idle alone as done.
 
 `Closes #<n>` does not fire on a merge into an epic branch, so close the
 ticket yourself. **Clean up only what you created,** once its PR is merged or
-abandoned: `hc kill t<n>` then `hc rm t<n>` ends the agent, `git worktree remove
-../Legends-worktrees/t<n>` removes the checkout, and
-workflow already deleted the remote one.
+abandoned: `hc kill t<n>` then `hc rm t<n>` ends the agent,
+`git worktree remove ../Legends-worktrees/t<n>` removes the checkout, and
+`git branch -D ticket/<n>-<slug>` drops the local branch. The workflow already
+deleted the remote one.
 
 ## Coming back to the maintainer
 
