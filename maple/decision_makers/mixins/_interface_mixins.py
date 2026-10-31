@@ -3,13 +3,14 @@ import multiprocessing.managers
 import threading
 
 from botting.core import BotData, ProxyFactory
+from botting.screen import frame_source
 from maple.actions import ensure_ability_menu_displayed
 from maple.model.interface import (
     AbilityMenu,
-    CharacterStats,
     InventoryMenu,
     LargeClientChatFeed,
 )
+from maple.screen.status_bar import StatusBarReader
 
 
 class MenusMixin:
@@ -130,19 +131,26 @@ class MenusMixin:
 class UIMixin:
     data: BotData
 
-    def _create_ui_attributes(self) -> None:
-        stats = CharacterStats()
+    def _create_status_bar_attributes(self) -> None:
+        """
+        `current_frame` and `status_bar` (a `Reading[StatusBar]`). A consumer
+        updates `current_frame` first, then `status_bar`, and reads
+        `status_bar.status` before `status_bar.value`.
+
+        The reader is shared: the last DecisionMaker to call this replaces the
+        attribute, and every consumer reads that one.
+
+        The DecisionMaker must name `STATUS_BAR` in its `screen_readers`, so
+        the sprites are loaded when the bot starts.
+        """
+        reader = StatusBarReader(self.data.reader_sprites, self.data.frame_check)
         self.data.create_or_reconfigure_attribute(
-            "character_job", lambda: stats.get_job(self.data.handle)
+            "current_frame", lambda: frame_source().grab(self.data.handle)
         )
         self.data.create_or_reconfigure_attribute(
-            "character_level", lambda: stats.get_level(self.data.handle)
+            "status_bar", lambda: reader.read(self.data.current_frame)
         )
-        self.data.create_or_reconfigure_attribute(
-            "current_level_img",
-            lambda: stats.level_box.extract_client_img(self.data.current_client_img),
-        )
-        self.data.set_feature("has_ui_attributes")
+        self.data.set_feature("has_status_bar_attributes")
 
     def _create_chat_feed_attributes(self) -> None:
         feed = LargeClientChatFeed()

@@ -2,12 +2,12 @@ import logging
 import multiprocessing.connection
 import multiprocessing.managers
 
-import numpy as np
-
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, ActionWithValidation, BotData, DecisionMaker
+from botting.screen import Status
 from botting.utilities import CLIENT_HORIZONTAL_MARGIN_PX, CLIENT_VERTICAL_MARGIN_PX
 from maple.actions import ensure_ability_menu_displayed, priorities
+from maple.screen.status_bar import STATUS_BAR
 
 from .mixins import (
     MenusMixin,
@@ -19,6 +19,7 @@ logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
     CONFIG_KEY = "Ability Menu"
+    screen_readers = (STATUS_BAR,)
     _throttle = 30.0
 
     def __init__(
@@ -32,13 +33,20 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
         self._ap_menu_key = controller.key_binds(self.data.ign)[self.CONFIG_KEY]
         self.condition = self._proxies.instance(repr(self), "Condition")
         self._create_ap_menu_attributes(self.condition)
-        self._create_ui_attributes()
-        self._prev_level_img = self.data.current_level_img.copy()
+        self._create_status_bar_attributes()
+        self._unreadable: str | None = None
+        self._prev_level = self._level()
 
     async def _decide(self) -> None:
-        self.data.update_attribute("current_level_img")
+        level = self._level()
 
-        if not np.array_equal(self.data.current_level_img, self._prev_level_img):
+        # A level that couldn't be read is not a level up, and doesn't replace
+        # the last one read: the next readable level is compared with it.
+        if (
+            level is not None
+            and self._prev_level is not None
+            and level != self._prev_level
+        ):
             logger.info("Level up detected for %s.", self.data.ign)
             ensure_ability_menu_displayed(
                 **self._display_kwargs("Ability Menu Trigger", 2.0, self.condition)
@@ -61,7 +69,21 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
                     ensure_displayed=False,
                 )
 
-        self._prev_level_img = self.data.current_level_img.copy()
+        if level is not None:
+            self._prev_level = level
+
+    def _level(self) -> int | None:
+        """The level on the status bar now, or `None` when it can't be read."""
+        self.data.update_attributes("current_frame", "status_bar")
+        reading = self.data.status_bar
+        if reading.status is not Status.READ:
+            # Logged once per change, not on every decision.
+            if self._unreadable != reading.detail:
+                logger.warning("%s can't read the level: %s", self, reading.detail)
+            self._unreadable = reading.detail
+            return None
+        self._unreadable = None
+        return reading.value.level
 
     def _distribute_ap(self, num_points: int) -> None:
         target = self.data.ability_menu.stat_mapper[self.data.character.main_stat]
