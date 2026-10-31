@@ -86,6 +86,10 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
     def _check_remaining_consumables(self) -> None:
         """
         Checks the remaining consumables.
+
+        Not built: what to do when potions run low is a later topic. The counts
+        are read by `maple.screen.quick_slots`; `QuickSlots.slot(n)` resolves the
+        `Quick slots` setting's numbers to them.
         """
         # TODO
 
