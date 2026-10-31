@@ -34,6 +34,7 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
         self.condition = self._proxies.instance(repr(self), "Condition")
         self._create_ap_menu_attributes(self.condition)
         self._create_status_bar_attributes()
+        self._unreadable: str | None = None
         self._prev_level = self._level()
 
     async def _decide(self) -> None:
@@ -76,8 +77,12 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
         self.data.update_attributes("current_frame", "status_bar")
         reading = self.data.status_bar
         if reading.status is not Status.READ:
-            logger.warning("%s can't read the level: %s", self, reading.detail)
+            # Logged once per change, not on every decision.
+            if self._unreadable != reading.detail:
+                logger.warning("%s can't read the level: %s", self, reading.detail)
+            self._unreadable = reading.detail
             return None
+        self._unreadable = None
         return reading.value.level
 
     def _distribute_ap(self, num_points: int) -> None:

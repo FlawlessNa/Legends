@@ -137,6 +137,9 @@ class UIMixin:
         updates `current_frame` first, then `status_bar`, and reads
         `status_bar.status` before `status_bar.value`.
 
+        The reader is shared: the last DecisionMaker to call this replaces the
+        attribute, and every consumer reads that one.
+
         The DecisionMaker must name `STATUS_BAR` in its `screen_readers`, so
         the sprites are loaded when the bot starts.
         """
