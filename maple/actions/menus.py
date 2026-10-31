@@ -1,10 +1,14 @@
 import multiprocessing.connection
 import random
-from typing import Literal
+import threading
+from typing import Any, Literal
 
 from botting import controller
 from botting.core import ActionRequest, ActionWithValidation
-from maple.model.interface import Minimap, AbilityMenu
+from botting.screen import Status, frame_source
+from maple.model.interface import AbilityMenu
+from maple.screen.minimap import MinimapReader, MinimapState
+
 from .priorities import ERROR_HANDLING
 
 
@@ -32,7 +36,7 @@ async def toggle_ability_menu(
     await toggle_menu(handle, ign, "Ability Menu")
 
 
-async def expand_inventory(handle: int, target: tuple[int, int], **kwargs) -> None:
+async def expand_inventory(handle: int, target: tuple[int, int], **kwargs: Any) -> None:  # noqa: ANN401
     """
     Must be called after the inventory menu is displayed.
     :param handle:
@@ -56,15 +60,29 @@ async def toggle_inventory(
     await toggle_menu(handle, ign, "Inventory Menu")
 
 
+def minimap_state(minimap: MinimapReader, handle: int) -> MinimapState | None:
+    """
+    The minimap's state in a fresh capture of the client: `ABSENT` when it isn't
+    found at all, and `None` when that can't be told (covered, or the frame
+    unusable).
+    """
+    reading = minimap.read(frame_source().grab(handle))
+    if reading.value is not None:
+        return reading.value.state
+    if reading.status is Status.ABSENT:
+        return MinimapState.ABSENT
+    return None
+
+
 def ensure_minimap_displayed(
     identifier: str,
     handle: int,
     ign: str,
     pipe: multiprocessing.connection.Connection,
-    minimap: Minimap,
-    condition: multiprocessing.Condition,
+    minimap: MinimapReader,
+    condition: threading.Condition,
     timeout: float,
-    desired_state: Literal["Hidden", "Partial", "Full"] = "Full",
+    desired_state: MinimapState = MinimapState.EXPANDED,
     mode: Literal["Blocking", "Async"] = "Blocking",
     priority: int = ERROR_HANDLING,
 ) -> None:
@@ -79,14 +97,15 @@ def ensure_minimap_displayed(
     )
     validated_action = ActionWithValidation(
         pipe,
-        lambda: minimap.get_minimap_state(handle) == desired_state,
+        lambda: minimap_state(minimap, handle) is desired_state,
         condition,
         timeout,
     )
     if mode == "Blocking":
         validated_action.execute_blocking(request)
     elif mode == "Async":
-        validated_action.execute_async(request)
+        # Never awaited, so this mode does nothing; no caller uses it.
+        validated_action.execute_async(request)  # pyright: ignore[reportUnusedCoroutine]
 
 
 def ensure_ability_menu_displayed(
@@ -95,12 +114,12 @@ def ensure_ability_menu_displayed(
     ign: str,
     pipe: multiprocessing.connection.Connection,
     menu: AbilityMenu,
-    condition: multiprocessing.Condition,
+    condition: threading.Condition,
     timeout: float,
     ensure_displayed: bool = True,
     mode: Literal["Blocking", "Async"] = "Blocking",
     priority: int = ERROR_HANDLING,
-):
+) -> None:
     request = ActionRequest(
         identifier,
         toggle_ability_menu,
@@ -117,4 +136,5 @@ def ensure_ability_menu_displayed(
     if mode == "Blocking":
         validated_action.execute_blocking(request)
     elif mode == "Async":
-        validated_action.execute_async(request)
+        # Never awaited, so this mode does nothing; no caller uses it.
+        validated_action.execute_async(request)  # pyright: ignore[reportUnusedCoroutine]

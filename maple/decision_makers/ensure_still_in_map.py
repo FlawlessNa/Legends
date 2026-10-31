@@ -5,6 +5,7 @@ import multiprocessing.managers
 
 from botting import PARENT_LOG
 from botting.core import BotData, DecisionMaker
+from botting.screen import Status
 from maple.telemetry_events import (
     RECOVERY_MAP_CHECK_FAILED,
     RECOVERY_MAP_CHECK_RECOVERED,
@@ -61,16 +62,27 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
             self.emit(RECOVERY_MAP_CHECK_RECOVERED, recovered)
 
     def _perform_check(self) -> bool:
-        try:
-            return self.data.current_minimap.validate_in_map(
-                self.data.handle, self.map_name
+        """
+        Whether the bot is still in its map: the minimap shows the map's own
+        `miniMap` canvas when the map file names its `map_id`, or, without one,
+        the minimap is shown at all. Anything but a reading that says so counts
+        as not in the map, which the caller retries once after recovering.
+        """
+        self.data.update_attribute("current_frame")
+        frame = self.data.current_frame
+        reader = self.data.minimap_reader
+        map_id = self.data.current_minimap.map_id
+        if map_id is None:
+            reading = reader.read(frame)
+            in_map = reading.status is Status.READ
+        else:
+            reading = reader.is_expected_map(frame, map_id)
+            in_map = reading.value is True
+        if not in_map:
+            logger.debug(
+                "%s map check: %s %s",
+                self.data.ign,
+                reading.status.value,
+                reading.detail,
             )
-        except FileNotFoundError:
-            raise
-        except Exception:
-            # Narrower than the BaseException this used to catch: a failed check
-            # means "assume we are out of the map and retry", but a
-            # KeyboardInterrupt or SystemExit is the Session being shut down and
-            # must not be reported as a map check.
-            logger.debug("%s could not validate its map.", self.data.ign, exc_info=True)
-            return False
+        return in_map

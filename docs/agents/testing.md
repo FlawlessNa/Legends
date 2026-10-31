@@ -62,19 +62,38 @@ There are no longer any exceptions. The last three fell with issues #40 and #69:
 re-deriving what they configure. Two things there are worth knowing before you write
 a test:
 
-- **Four opt-in markers.** `@pytest.mark.live` is for tests that drive a real,
+- **Five opt-in markers.** `@pytest.mark.live` is for tests that drive a real,
   focused game client; `@pytest.mark.system` is for tests that mutate
   machine-global state, such as the keyboard layouts loaded on the machine;
   `@pytest.mark.lab` is for measurements (see below); and
   `@pytest.mark.client_files` is for tests that read the installed MapleStory
-  Classic client's files, at the path `configs/game_data.ini` sets. All four
+  Classic client's files, at the path `configs/game_data.ini` sets. All five
   are excluded from a default run — `pytest -m live`, `-m system`, `-m lab`,
-  `-m client_files`. Anything needing a game window or the client's files, or
+  `-m client_files`. `@pytest.mark.frames` is for tests that read the real MSCW
+  frame set (below). Anything needing a game window or the client's files, or
   leaving a trace outside the test process, belongs behind one of them.
 - **The `held_movement_keys` fixture.** Constructing a `KeyboardInputWrapper` reads
   the Held-Keys Ledger, which only Main Process owns and which carries state between
   tests. Request this fixture to pin what construction sees as already held, so the
   opposite-key releases inserted at construction are a function of your test alone.
+
+### The frame set
+
+Real MSCW frames are release assets of the private repository `legends-frames`:
+they can show other players' names, so **never commit a frame, a crop or any
+client pixel**. `python scripts/fetch_frames.py [TAG]` downloads a tag into
+`data/frames/<tag>/` (gitignored); with no tag it uses `tests/frames/CURRENT`.
+What each frame should read as is committed in `tests/frames/<tag>.json`: per
+frame `file`, `client_size`, `notes` and `expect` (reader name to
+`{status, value}`). The default suite validates every committed file
+(`tests/frame_set.py`); it never needs the pixels.
+
+A test of the readings on real frames takes the `frames` fixture and carries
+`@pytest.mark.frames`; the fixture skips, printing the fetch command, when the
+frames aren't on disk. Run them with `pytest -m frames` and report the summary
+line in the PR: review can't re-run them. New frames are a capture
+(`python toolkit/capture_frames.py OUT_DIR`, which writes a stub entry per frame
+to complete), a new tag in the private repository and a new `<tag>.json`.
 
 Modules that touch the Held-Keys Ledger directly reset it through an `autouse`
 fixture of their own — see `tests/test_botting/test_held_keys_ledger.py`.
@@ -96,7 +115,8 @@ moves with the markers. The shape is what holds:
 - **Deselected** — the opt-in markers, and nothing else. `system` (keyboard-layout
   tests that mutate machine-global state), `lab` (see below) and `client_files`
   (the installed client's files, which can't be committed: the agent on a machine
-  with the client runs them and reports the summary line). **No test carries
+  with the client runs them and reports the summary line), `frames` (the real
+  frame set, which lives in a private repository: same). **No test carries
   the `live` marker today**, so `pytest -m live` selects nothing.
 - **0 xfailed** — the 11 red tests parked behind issue #89 are resolved: the
   8 unwritten `test_controller.py`/`test_screenshots.py` placeholders were

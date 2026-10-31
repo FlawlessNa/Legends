@@ -128,10 +128,6 @@ someone's shortcut:
   that does not say how it is traversed cannot be compiled into a movement. Giving
   the parameter a default would satisfy Pyright by permitting exactly what the
   signature exists to forbid.
-- **`MapleMinimap.map_area_width` / `map_area_height`** override plain `int` class
-  attributes on `Minimap` whose default is the `NotImplemented` sentinel, which the
-  base then tests for by `isinstance`. A property overriding a variable is an
-  incompatible override whatever it returns; the shape belongs to the base class.
 - **`MinimapEdits.name`** re-declares `Box.name`,
   which is `str | None = None`, as a required `str`: a minimap feature must be
   named. Pyright reports any re-declaration that drops an inherited default,
