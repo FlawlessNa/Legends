@@ -10,15 +10,18 @@ import sqlite3
 from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Self
 
 import numpy as np
 import pytest
 
 from botting.core import DecisionMaker
+from game_data.catalogue.model import Ref, SkillData
 from game_data.extraction import Manifest, Store
 from maple.bots import maple_bot
 from maple.bots.maple_bot import MapleBot
 from maple.screen import client
+from maple.screen import sprites as sprites_module
 from maple.screen.sprites import (
     FRAME_CHECK,
     GAUGE_LABEL,
@@ -26,7 +29,9 @@ from maple.screen.sprites import (
     Profile,
     StartupRefused,
     enabled_readers,
+    job_line,
     load_reader_sprites,
+    skill_icon_path,
 )
 
 BUILD = "0123456789abcdef"
@@ -284,3 +289,154 @@ def test_child_init_keeps_the_loaded_sprites_and_a_frame_check(
     assert bot.data is not None
     assert bot.data.reader_sprites.build == BUILD
     assert bot.data.frame_check.locator.anchor.sprite.path == GAUGE_LABEL
+
+
+# Skill icons: found in the catalogue by name and the profile's job.
+
+
+class _Catalogue:
+    """The `Catalogue` calls `skill_icon_path` makes, over a few skills."""
+
+    def __init__(self, skills: dict[int, tuple[str, int]]) -> None:
+        self.skills = skills
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *_: object) -> None: ...
+
+    def search(self, text: str, kind: str | None = None) -> list[Ref]:
+        assert kind == "skill"
+        return [
+            Ref("skill", id_, name)
+            for id_, (name, _) in self.skills.items()
+            if text.casefold() in name.casefold()
+        ]
+
+    def skill(self, name_or_id: str | int) -> SkillData:
+        name, job = self.skills[int(name_or_id)]
+        return SkillData(int(name_or_id), job, name, None, None, 20, (), None, ())
+
+
+CATALOGUE = _Catalogue(
+    {
+        1001: ("Recovery", 0),
+        2001000: ("Magic Guard", 200),
+        2301003: ("Bless", 230),
+        4101001: ("Haste", 410),
+        4201001: ("Haste", 420),
+        2000000: ("Improved MP Recovery", 200),
+    }
+)
+
+
+@pytest.mark.parametrize(
+    ("job", "line"),
+    [
+        ("Beginner", {0}),
+        ("Magician", {0, 200}),
+        ("Cleric", {0, 200, 230}),
+        ("bishop", {0, 200, 230, 231, 232}),
+        ("Hermit", {0, 400, 410, 411}),
+        ("Wizardfirepoison", {0, 200, 210}),
+    ],
+)
+def test_a_jobs_line_is_it_and_every_job_before_it(job: str, line: set[int]) -> None:
+    assert job_line(job) == line
+
+
+def test_an_unknown_job_has_no_line() -> None:
+    with pytest.raises(LookupError, match="no job id for 'Hero'"):
+        job_line("Hero")
+
+
+@pytest.mark.parametrize(
+    ("name", "job", "path"),
+    [
+        ("Bless", "Priest", "Skill/230.img/skill/2301003/icon"),
+        ("magic guard", "Cleric", "Skill/200.img/skill/2001000/icon"),
+        ("Recovery", "Magician", "Skill/000.img/skill/0001001/icon"),
+        ("Haste", "Assassin", "Skill/410.img/skill/4101001/icon"),
+        ("Haste", "Bandit", "Skill/420.img/skill/4201001/icon"),
+    ],
+)
+def test_a_skill_icon_is_the_jobs_skill_of_that_whole_name(
+    name: str, job: str, path: str
+) -> None:
+    assert skill_icon_path(CATALOGUE, name, job) == path
+
+
+def test_a_skill_another_job_has_isnt_found() -> None:
+    with pytest.raises(LookupError, match=r"'Bless'.*has none"):
+        skill_icon_path(CATALOGUE, "Bless", "Assassin")
+
+
+ICON_PATH = "Skill/230.img/skill/2301003/icon"
+STORE_ICONS = {
+    "skill": {
+        "2301003": {
+            "icon": {
+                "$type": "canvas",
+                "image": ICON_NAME,
+                "w": 4,
+                "h": 4,
+                "origin": {"$type": "vector", "x": 0, "y": 4},
+            }
+        }
+    }
+}
+NAMED_BUFFS = Declaration("buffs", skill_icons=lambda profile: profile.buffs)
+
+
+@pytest.fixture
+def icon_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    root = tmp_path / "icon_store"
+    build_store(root)
+    db = sqlite3.connect(Store(root).extraction(BUILD) / "raw.sqlite")
+    with closing(db):
+        db.execute(
+            "UPDATE images SET tree = ? WHERE path = 'Skill/230.img'",
+            (json.dumps(STORE_ICONS),),
+        )
+        db.commit()
+    monkeypatch.setattr(sprites_module.Catalogue, "open", lambda *_: CATALOGUE)
+    return root
+
+
+def test_declared_skill_icons_are_loaded_by_skill_name(
+    icon_root: Path, config: Path
+) -> None:
+    profile = Profile(job="Priest", game_map="x", buffs=("Bless",))
+
+    sprites = load_reader_sprites([NAMED_BUFFS], profile, icon_root, config=config)
+
+    assert sprites.skill_icon("Bless").path == ICON_PATH
+    assert sprites.skill_icon("Bless").origin == (0, 4)
+    with pytest.raises(KeyError, match="'Haste' icon"):
+        sprites.skill_icon("Haste")
+
+
+def test_a_skill_the_job_doesnt_have_is_refused_naming_it(
+    icon_root: Path, config: Path
+) -> None:
+    profile = Profile(job="Assassin", game_map="x", buffs=("Bless",))
+
+    with pytest.raises(
+        StartupRefused,
+        match=r"buffs reader can't find the 'Bless' icon.*character_class",
+    ):
+        load_reader_sprites([NAMED_BUFFS], profile, icon_root, config=config)
+
+
+def test_no_skill_named_opens_no_catalogue(
+    root: Path, config: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse(*_: object) -> None:
+        raise AssertionError("the catalogue was opened")
+
+    monkeypatch.setattr(sprites_module.Catalogue, "open", refuse)
+
+    assert (
+        load_reader_sprites([NAMED_BUFFS], PROFILE, root, config=config).skill_icons
+        == {}
+    )

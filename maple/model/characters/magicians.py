@@ -1,16 +1,14 @@
-from .maple_skills import MapleSkill, MapleBuff, MaplePartyBuff
 from .character import Character
+from .maple_skills import MapleBuff, MaplePartyBuff, MapleSkill
 
 
 class Magician(Character):
     main_stat = "INT"
-    skills = {
+    skills = {  # noqa: RUF012 - the job's skill table, as `Character` declares it
         "Magic Guard": MapleBuff(
             "Magic Guard",
             duration=600,
             animation_time=0.6,
-            match_template_threshold=0.61,
-            match_icon_threshold=0.80,
         ),
         "Magic Claw": MapleSkill(
             "Magic Claw",
@@ -54,7 +52,7 @@ class FPArchMage(FPMage):
 
 
 class Cleric(Magician):
-    skills = {
+    skills = {  # noqa: RUF012 - the job's skill table, as `Character` declares it
         **Magician.skills,
         "Heal": MapleSkill(
             "Heal",
@@ -76,16 +74,12 @@ class Cleric(Magician):
             "Invincible",
             animation_time=0.6,
             duration=300,
-            # match_template_threshold=0.68,
-            # match_icon_threshold=0.81,
-            match_template_threshold=0.63,
-            match_icon_threshold=0.78,
         ),
     }
 
 
 class Priest(Cleric):
-    skills = {
+    skills = {  # noqa: RUF012 - the job's skill table, as `Character` declares it
         **Cleric.skills,
         "Holy Symbol": MaplePartyBuff(
             "Holy Symbol",
@@ -95,10 +89,6 @@ class Priest(Cleric):
             horizontal_screen_range=300,
             vertical_screen_range=200,
             _use_by_default=True,
-            # match_template_threshold=0.675,
-            # match_icon_threshold=0.79,
-            match_template_threshold=0.64,
-            match_icon_threshold=0.79,
         ),
         "Shining Ray": MapleSkill(
             "Shining Ray",
@@ -128,7 +118,7 @@ class Priest(Cleric):
 
 class Bishop(Priest):
     main_skill = "Genesis"
-    skills = {
+    skills = {  # noqa: RUF012 - the job's skill table, as `Character` declares it
         **Priest.skills,
         "Genesis": MapleSkill(
             "Genesis",
@@ -148,8 +138,6 @@ class Bishop(Priest):
             horizontal_screen_range=400,
             vertical_screen_range=300,
             duration=300,
-            match_template_threshold=0.59,
-            match_icon_threshold=0.80,
         ),
         "Resurrection": MapleSkill(
             "Resurrection",
