@@ -195,3 +195,4 @@ cython_debug/
 
 # Lavish review documents and scratch explorations: never committed.
 .lavish/
+.scratch/

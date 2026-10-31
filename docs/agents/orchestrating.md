@@ -7,9 +7,10 @@ Agents are run with `hc` (herdr-core's CLI); `hc --skill` prints its manual.
 `herdr-app` only changes what the maintainer sees, so the orchestrator rarely
 needs it.
 
-**The orchestrator reads no code and writes none.** Ticket agents build, the
-review workflow judges, and the orchestrator moves tickets along. Keeping it
-out of diffs is what keeps it cheap enough to run for hours.
+**The orchestrator writes no code.** Ticket agents build, the review workflow
+judges, and the orchestrator moves tickets along. It does not read diffs as a
+matter of course, which keeps it cheap enough to run for hours. It reads the
+code, narrowly, when that is the only way to settle a dispute (below).
 
 ## Before the first ticket
 
@@ -105,7 +106,8 @@ may still have a background shell running, so don't treat idle alone as done.
 | PR merged into the epic                  | Close the ticket, tick it on the epic, clean up, start what it unblocked |
 | Agent stopped and asks a question        | Answer from the ticket or epic if they answer it; otherwise ask the maintainer |
 | Agent `blocked` (`hc get tk<n>`) on an approval dialog    | Ask the maintainer. Never approve it yourself           |
-| Agent disagrees with the review          | Ask the maintainer: they decide                         |
+| Agent disagrees with the review          | Settle it yourself: see "Disputes" below                |
+| `review` failed with no verdict          | Infrastructure, not a verdict: `gh run rerun <run> --failed` (see "Disputes") |
 | Agent stopped on a human-only check      | Ask the maintainer, quoting what it needs               |
 | Second attempt failed                    | Stop that ticket and ask the maintainer                 |
 
@@ -115,6 +117,30 @@ abandoned: `hc kill tk<n>` then `hc rm tk<n>` ends the agent,
 `git worktree remove ../Legends-worktrees/t<n>` removes the checkout, and
 `git branch -D ticket/<n>-<slug>` drops the local branch. The workflow already
 deleted the remote one.
+
+## Disputes
+
+An agent that disputes a review finding, or a finding you doubt, is yours to
+settle, not the maintainer's:
+
+1. Read the finding, the agent's evidence, and **the cited code** (the file and
+   lines on the ticket branch, in its worktree). Check the claim yourself.
+2. If the agent is right, say so on the PR (a comment naming what you checked)
+   and have the agent push a change that makes the code or its comment
+   unambiguous, then let the review run again.
+3. If the reviewer is right, send the agent back with the finding.
+4. Ask the maintainer only when you read the code and the disagreement
+   remains a design choice (two defensible behaviours), or the PR touches a
+   "not without asking" area (`tickets.md`) that the ticket does not cover.
+
+A `review` check that fails with no verdict comment (for example the job log
+says `error_max_turns`, or the comment is missing) did not judge anything:
+re-run it with `gh run rerun <run-id> --failed` before acting. If it fails the
+same way twice on a large PR, ask the agent to shrink or split the PR.
+
+The epic branch is protected, so nothing but a ticket PR reaches it. A change
+to `docs/` or the skills that the tickets need goes through its own PR into
+`dev`; tickets branch off the epic as it is.
 
 ## Coming back to the maintainer
 
