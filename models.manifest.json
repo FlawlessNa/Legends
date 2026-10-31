@@ -1,5 +1,5 @@
 {
-  "_comment": "Pins the YOLO weights this commit expects. Weights are NOT in git -- run `python scripts/fetch_models.py` to download them from the GitHub Release named by `release_tag`. Regenerate this file with `python scripts/publish_models.py` after promoting a new model.",
+  "_comment": "Pins the YOLO weights this commit expects. Weights are NOT in git -- run `python scripts/fetch_models.py` to download them from the GitHub Release named by `release_tag`. Regenerate this file with `python scripts/publish_models.py` after promoting a new model. A model trained by `synth` carries its `recipe` here: `classes` comes from it, and fetching writes it back to `recipe.json` beside the weights.",
   "repo": "FlawlessNa/Legends",
   "release_tag": "models-v1",
   "models": [

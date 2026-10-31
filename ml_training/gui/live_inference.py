@@ -7,6 +7,7 @@ from PyQt6.QtCore import QEventLoop, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -16,6 +17,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from ultralytics import YOLO
+
+from ..model_manager.recording import FrameRecorder, resolve_model
 
 try:
     from botting.utilities.screenshots import take_screenshot
@@ -38,19 +41,26 @@ class LiveInferenceViewer(QMainWindow):
         self,
         model_path: str,
         window_handle: int,
-        classes: list[str],
+        classes: list[str] | None,
         conf: float = 0.15,
         iou: float = 0.45,
     ):
         super().__init__()
         self.window_handle = window_handle
-        self.classes = classes
         self._conf = conf
         self._iou = iou
         self._running = True
 
-        print(f"Loading model: {model_path}")
-        self.model = YOLO(model_path)
+        weights, model_name, recipe_classes = resolve_model(model_path)
+        print(f"Loading model: {weights}")
+        self.model = YOLO(str(weights))
+        # The recipe's classes win, then the caller's, then the model's own names.
+        self.classes = (
+            recipe_classes
+            or classes
+            or [self.model.names[i] for i in sorted(self.model.names)]
+        )
+        self.recorder = FrameRecorder(model_name, self.classes)
 
         self._build_ui()
 
@@ -106,6 +116,13 @@ class LiveInferenceViewer(QMainWindow):
         self.iou_val_label.setFixedWidth(36)
         controls.addWidget(self.iou_val_label)
 
+        controls.addSpacing(24)
+
+        # Record toggle: off by default, saves a frame every few seconds
+        self.record_box = QCheckBox("Record")
+        self.record_box.toggled.connect(self._on_record_toggled)
+        controls.addWidget(self.record_box)
+
         controls.addStretch()
 
         # Proceed button
@@ -130,6 +147,9 @@ class LiveInferenceViewer(QMainWindow):
         self._iou = value / 100.0
         self.iou_val_label.setText(f"{self._iou:.2f}")
 
+    def _on_record_toggled(self, on: bool) -> None:
+        self.recorder.enabled = on
+
     def _on_proceed(self) -> None:
         self._running = False
         self.proceed_signal.emit()
@@ -151,6 +171,15 @@ class LiveInferenceViewer(QMainWindow):
         results = self.model(frame, conf=self._conf, iou=self._iou, verbose=False)
         n_det = len(results[0].boxes)
 
+        boxes = results[0].boxes
+        self.recorder.record(
+            frame,
+            [
+                (int(c), xyxy)
+                for c, xyxy in zip(boxes.cls.tolist(), boxes.xyxy.tolist())
+            ],
+        )
+
         # results[0].plot() returns a BGR numpy array with boxes drawn
         annotated: np.ndarray = results[0].plot()
 
@@ -163,8 +192,12 @@ class LiveInferenceViewer(QMainWindow):
         )
         self.canvas.setPixmap(pixmap)
 
+        recording = (
+            f"   |   recorded: {self.recorder.saved}" if self.recorder.enabled else ""
+        )
         self.info_label.setText(
             f"Detections: {n_det}   |   conf={self._conf:.2f}   iou={self._iou:.2f}"
+            f"{recording}"
             f"   |   classes: {', '.join(self.classes)}"
         )
 
@@ -189,12 +222,15 @@ class LiveInferenceViewer(QMainWindow):
 def run_live_inference(
     model_path: str,
     window_handle: int,
-    classes: list[str],
+    classes: list[str] | None = None,
     conf: float = 0.15,
     iou: float = 0.45,
 ) -> tuple[float, float]:
     """
     Open live inference viewer as the top-level window (uses app.exec).
+    `model_path` is a model folder (`<folder>/weights/best.pt`) or a weights file;
+    classes come from the folder's recipe.json when it has one, else from
+    `classes`, else from the model's names.
     Returns (conf, iou) chosen by the user.
     """
     app = QApplication.instance()
@@ -211,7 +247,7 @@ def run_live_inference(
 def run_live_inference_nested(
     model_path: str,
     window_handle: int,
-    classes: list[str],
+    classes: list[str] | None = None,
     conf: float = 0.15,
     iou: float = 0.45,
 ) -> tuple[float, float]:

@@ -12,6 +12,9 @@
     cat.search("henes")     -> list[Ref]
     cat.ids("mob")          -> list[int]
     cat.physics()           -> dict[str, float]
+    cat.item_icons()        -> tuple[ItemIcon, ...]
+    cat.meso_frames()       -> tuple[MesoFrame, ...]
+    cat.damage_digits()     -> tuple[DamageDigit, ...]
 
 **Names first, IDs accepted.** A lookup takes a name or an ID: an `int`, or a
 string of digits. A name matches whole and case-insensitively, and a map's
@@ -45,11 +48,14 @@ from .build import build as build_from_raw
 from .model import (
     Background,
     Bounds,
+    DamageDigit,
     Foothold,
+    ItemIcon,
     LayerFrame,
     MapData,
     MapLayer,
     MapRef,
+    MesoFrame,
     Minimap,
     MobData,
     MobFrame,
@@ -503,6 +509,33 @@ class Catalogue:
             _str(key): float(_int_or_float(value))
             for key, value in self._all("SELECT key, value FROM physics ORDER BY key")
         }
+
+    def item_icons(self) -> tuple[ItemIcon, ...]:
+        """Every item's icon, by item ID."""
+        return tuple(
+            ItemIcon(_int(item), _str(category), _text(image), _int(x), _int(y))
+            for item, category, image, x, y in self._all(
+                "SELECT * FROM item_icons ORDER BY item"
+            )
+        )
+
+    def meso_frames(self) -> tuple[MesoFrame, ...]:
+        """Every frame of every meso sprite, by sprite and then frame."""
+        return tuple(
+            MesoFrame(_int(meso), _int(frame), _text(image), _int(x), _int(y))
+            for meso, frame, image, x, y in self._all(
+                "SELECT * FROM meso_frames ORDER BY meso, frame"
+            )
+        )
+
+    def damage_digits(self) -> tuple[DamageDigit, ...]:
+        """Every digit of every damage digit set, by set and then digit."""
+        return tuple(
+            DamageDigit(_str(digit_set), _int(digit), _text(image), _int(x), _int(y))
+            for digit_set, digit, image, x, y in self._all(
+                "SELECT * FROM damage_digits ORDER BY digit_set, digit"
+            )
+        )
 
     def _id(self, kind: str, name_or_id: str | int) -> int:
         """The ID of the map, mob or skill (`kind`) a name or an ID names."""

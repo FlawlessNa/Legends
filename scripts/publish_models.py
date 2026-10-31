@@ -56,29 +56,46 @@ def discover() -> list[dict]:
         weights = os.path.join(PRODUCTION, name, "weights", "best.pt")
         if not os.path.exists(weights):
             continue
-        found.append(
-            {
-                "name": name,
-                "asset": f"{name}.pt",
-                "dest": f"data/models/production/{name}/weights/best.pt",
-                "sha256": sha256_of(weights),
-                "size_bytes": os.path.getsize(weights),
-                "_source": weights,
-            }
-        )
+        entry = {
+            "name": name,
+            "asset": f"{name}.pt",
+            "dest": f"data/models/production/{name}/weights/best.pt",
+            "sha256": sha256_of(weights),
+            "size_bytes": os.path.getsize(weights),
+            "_source": weights,
+        }
+        recipe = os.path.join(PRODUCTION, name, "recipe.json")
+        if os.path.isfile(recipe):
+            with open(recipe, encoding="utf-8") as fh:
+                entry["recipe"] = json.load(fh)
+        found.append(entry)
     if not found:
         sys.exit(f"No */weights/best.pt under {PRODUCTION}.")
     return found
 
 
 def carry_over_docs(models: list[dict], previous: list[dict]) -> None:
-    """Keep the hand-written description/classes from the existing manifest."""
+    """
+    Keep the hand-written description/classes from the existing manifest.
+
+    A model with a recipe always takes `classes` from it (the training order,
+    which the weights depend on), and keeps a description only if the entry
+    already has one.
+    """
     by_name = {m["name"]: m for m in previous}
     for model in models:
         prior = by_name.get(model["name"], {})
+        recipe = model.get("recipe")
         for field in ("description", "classes"):
-            if field in prior:
+            if field in prior and not (recipe and field == "classes"):
                 model[field] = prior[field]
+        if recipe:
+            model["classes"] = recipe["classes"]
+            if "description" not in model:
+                model["description"] = (
+                    f"Synthetic model for {recipe['map_name']} ({recipe['map_id']}): "
+                    f"{', '.join(recipe['classes'])}."
+                )
 
 
 def ensure_release(repo: str, tag: str, dry_run: bool) -> None:

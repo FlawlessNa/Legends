@@ -9,7 +9,7 @@ version has it rebuilt from its raw layer when it's opened.
 
 from typing import Final
 
-SCHEMA_VERSION: Final = 2
+SCHEMA_VERSION: Final = 3
 CATALOGUE: Final = "catalogue.sqlite"
 
 TABLES: Final = (
@@ -195,6 +195,29 @@ TABLES: Final = (
         delay INTEGER,
         duration INTEGER,
         PRIMARY KEY (action, frame)
+    )""",
+    """CREATE TABLE item_icons (
+        item INTEGER PRIMARY KEY,
+        category TEXT NOT NULL,
+        image TEXT,
+        origin_x INTEGER NOT NULL,
+        origin_y INTEGER NOT NULL
+    )""",
+    """CREATE TABLE meso_frames (
+        meso INTEGER NOT NULL,
+        frame INTEGER NOT NULL,
+        image TEXT,
+        origin_x INTEGER NOT NULL,
+        origin_y INTEGER NOT NULL,
+        PRIMARY KEY (meso, frame)
+    )""",
+    """CREATE TABLE damage_digits (
+        digit_set TEXT NOT NULL,
+        digit INTEGER NOT NULL,
+        image TEXT,
+        origin_x INTEGER NOT NULL,
+        origin_y INTEGER NOT NULL,
+        PRIMARY KEY (digit_set, digit)
     )""",
 )
 
