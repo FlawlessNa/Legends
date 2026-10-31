@@ -19,6 +19,109 @@
             "exp": 2869,
             "exp_percent": 6.08
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 198
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "general",
+            "general",
+            "megaphone"
+          ]
         }
       }
     },
@@ -31,6 +134,22 @@
       "notes": "Not the client: the desktop and taskbar over a black screen.",
       "expect": {
         "status_bar": {
+          "status": "unsure",
+          "value": null
+        },
+        "quick_slots": {
+          "status": "unsure",
+          "value": null
+        },
+        "minimap": {
+          "status": "unsure",
+          "value": null
+        },
+        "buffs": {
+          "status": "unsure",
+          "value": null
+        },
+        "chat": {
           "status": "unsure",
           "value": null
         }
@@ -55,6 +174,109 @@
             "exp": 2869,
             "exp_percent": 6.08
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 198
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "general",
+            "general",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -77,6 +299,109 @@
             "exp": 2869,
             "exp_percent": 6.08
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 198
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "general",
+            "general",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -99,6 +424,109 @@
             "exp": 2869,
             "exp_percent": 6.08
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 198
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "general",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -121,6 +549,109 @@
             "exp": 2869,
             "exp_percent": 6.08
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 198
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -130,7 +661,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -143,6 +674,109 @@
             "exp": 2869,
             "exp_percent": 6.08
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 198
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": true
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -152,7 +786,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -165,6 +799,109 @@
             "exp": 2892,
             "exp_percent": 6.13
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 198
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": true
+            },
+            "Nimble Feet": {
+              "shown": true
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -174,7 +911,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -187,6 +924,109 @@
             "exp": 2993,
             "exp_percent": 6.34
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": true
+            },
+            "Nimble Feet": {
+              "shown": true
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -196,7 +1036,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -209,6 +1049,109 @@
             "exp": 3016,
             "exp_percent": 6.39
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": true
+            },
+            "Nimble Feet": {
+              "shown": true
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -218,7 +1161,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -231,6 +1174,109 @@
             "exp": 3101,
             "exp_percent": 6.57
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": true
+            },
+            "Nimble Feet": {
+              "shown": true
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -240,7 +1286,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -253,6 +1299,109 @@
             "exp": 3101,
             "exp_percent": 6.57
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 81
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": true
+            },
+            "Nimble Feet": {
+              "shown": true
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -262,7 +1411,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -275,6 +1424,109 @@
             "exp": 3124,
             "exp_percent": 6.62
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 81
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": true
+            },
+            "Nimble Feet": {
+              "shown": true
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -284,7 +1536,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -297,6 +1549,109 @@
             "exp": 3186,
             "exp_percent": 6.75
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 81
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": true
+            },
+            "Nimble Feet": {
+              "shown": true
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -306,7 +1661,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -319,6 +1674,109 @@
             "exp": 3294,
             "exp_percent": 6.98
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": true
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -328,7 +1786,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -341,6 +1799,109 @@
             "exp": 3317,
             "exp_percent": 7.03
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -350,7 +1911,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -363,6 +1924,109 @@
             "exp": 3317,
             "exp_percent": 7.03
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -372,7 +2036,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -385,6 +2049,109 @@
             "exp": 3317,
             "exp_percent": 7.03
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -394,7 +2161,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -407,6 +2174,109 @@
             "exp": 3340,
             "exp_percent": 7.07
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -416,7 +2286,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -429,6 +2299,109 @@
             "exp": 3362,
             "exp_percent": 7.12
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 181
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -438,7 +2411,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -451,6 +2424,109 @@
             "exp": 3435,
             "exp_percent": 7.28
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 81
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -460,7 +2536,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -473,6 +2549,109 @@
             "exp": 3435,
             "exp_percent": 7.28
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 81
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -482,7 +2661,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -495,6 +2674,109 @@
             "exp": 3481,
             "exp_percent": 7.37
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 81
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -504,7 +2786,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -517,6 +2799,109 @@
             "exp": 3503,
             "exp_percent": 7.42
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 81
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -526,7 +2911,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -539,6 +2924,109 @@
             "exp": 3565,
             "exp_percent": 7.55
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 81
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -548,7 +3036,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -561,6 +3049,109 @@
             "exp": 3588,
             "exp_percent": 7.6
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 81
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -570,7 +3161,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -583,6 +3174,109 @@
             "exp": 3588,
             "exp_percent": 7.6
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 81
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -592,7 +3286,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -605,6 +3299,109 @@
             "exp": 3611,
             "exp_percent": 7.65
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 81
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 180
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -614,7 +3411,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -627,6 +3424,109 @@
             "exp": 3650,
             "exp_percent": 7.73
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -636,7 +3536,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -649,6 +3549,109 @@
             "exp": 3689,
             "exp_percent": 7.81
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -658,7 +3661,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: a quest-complete notice overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -671,6 +3674,100 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
         }
       }
     },
@@ -680,7 +3777,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: a quest-complete notice overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -692,6 +3789,100 @@
             "max_mp": 443,
             "exp": 3705,
             "exp_percent": 7.85
+          }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
           }
         }
       }
@@ -702,7 +3893,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: a quest-complete notice overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -715,6 +3906,100 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
         }
       }
     },
@@ -724,7 +4009,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -737,6 +4022,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -746,7 +4134,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -759,6 +4147,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -768,7 +4259,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -781,6 +4272,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -790,7 +4384,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The minimap is minimised: only its title bar shows.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -803,6 +4397,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "minimised"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -812,7 +4509,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The minimap is expanded without its map-name banner.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -825,6 +4522,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -834,7 +4634,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -847,6 +4647,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -856,7 +4759,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "The system menu covers the quick slots' left columns.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -869,6 +4772,36 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "covered",
+          "value": null
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -878,7 +4811,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -891,6 +4824,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -900,7 +4936,7 @@
         1366,
         768
       ],
-      "notes": "",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -913,6 +4949,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -927,6 +5066,22 @@
         "status_bar": {
           "status": "unsure",
           "value": null
+        },
+        "quick_slots": {
+          "status": "unsure",
+          "value": null
+        },
+        "minimap": {
+          "status": "unsure",
+          "value": null
+        },
+        "buffs": {
+          "status": "unsure",
+          "value": null
+        },
+        "chat": {
+          "status": "unsure",
+          "value": null
         }
       }
     },
@@ -936,7 +5091,7 @@
         800,
         600
       ],
-      "notes": "",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -949,6 +5104,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -958,7 +5216,7 @@
         800,
         600
       ],
-      "notes": "",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the skill window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -970,6 +5228,100 @@
             "max_mp": 443,
             "exp": 3705,
             "exp_percent": 7.85
+          }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
           }
         }
       }
@@ -980,7 +5332,7 @@
         800,
         600
       ],
-      "notes": "",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -993,6 +5345,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -1002,7 +5457,7 @@
         800,
         600
       ],
-      "notes": "",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the stat window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1015,6 +5470,100 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
         }
       }
     },
@@ -1024,7 +5573,7 @@
         800,
         600
       ],
-      "notes": "",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the stat window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1036,6 +5585,100 @@
             "max_mp": 443,
             "exp": 3705,
             "exp_percent": 7.85
+          }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
           }
         }
       }
@@ -1046,7 +5689,7 @@
         800,
         600
       ],
-      "notes": "",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1059,6 +5702,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -1068,7 +5814,7 @@
         800,
         600
       ],
-      "notes": "",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the options window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1081,6 +5827,100 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
         }
       }
     },
@@ -1090,7 +5930,7 @@
         800,
         600
       ],
-      "notes": "",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the options window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1102,6 +5942,100 @@
             "max_mp": 443,
             "exp": 3705,
             "exp_percent": 7.85
+          }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
           }
         }
       }
@@ -1112,11 +6046,105 @@
         800,
         600
       ],
-      "notes": "The mouse cursor is over the status bar's top edge.",
+      "notes": "The mouse cursor is over the status bar's top edge. Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the options window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "covered",
           "value": null
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
         }
       }
     },
@@ -1126,7 +6154,7 @@
         1024,
         768
       ],
-      "notes": "",
+      "notes": "The system menu covers the quick slots' left columns.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1139,6 +6167,36 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "covered",
+          "value": null
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -1161,6 +6219,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -1183,6 +6344,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -1192,7 +6456,7 @@
         1024,
         768
       ],
-      "notes": "",
+      "notes": "The system menu covers the quick slots' left columns.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1205,6 +6469,36 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "covered",
+          "value": null
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -1227,6 +6521,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -1249,6 +6646,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -1261,6 +6761,22 @@
       "notes": "The UI isn't drawn at 1:1: the 1920x1080 resolution hasn't been applied yet.",
       "expect": {
         "status_bar": {
+          "status": "unsure",
+          "value": null
+        },
+        "quick_slots": {
+          "status": "unsure",
+          "value": null
+        },
+        "minimap": {
+          "status": "unsure",
+          "value": null
+        },
+        "buffs": {
+          "status": "unsure",
+          "value": null
+        },
+        "chat": {
           "status": "unsure",
           "value": null
         }
@@ -1285,6 +6801,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -1307,6 +6926,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -1316,7 +7038,7 @@
         1920,
         1080
       ],
-      "notes": "",
+      "notes": "The system menu covers the quick slots' left columns.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1329,6 +7051,36 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "covered",
+          "value": null
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -1351,6 +7103,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "megaphone",
+            "megaphone"
+          ]
         }
       }
     },
@@ -1373,6 +7228,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "system",
+            "system"
+          ]
         }
       }
     },
@@ -1395,6 +7353,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "system",
+            "system"
+          ]
         }
       }
     },
@@ -1417,6 +7478,109 @@
             "exp": 3705,
             "exp_percent": 7.85
           }
+        },
+        "quick_slots": {
+          "status": "read",
+          "value": [
+            {
+              "row": 1,
+              "column": 1,
+              "key": "22",
+              "count": 197
+            },
+            {
+              "row": 1,
+              "column": 2,
+              "key": "11",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 3,
+              "key": "12",
+              "count": null
+            },
+            {
+              "row": 1,
+              "column": 4,
+              "key": "13",
+              "count": null
+            },
+            {
+              "row": 2,
+              "column": 1,
+              "key": "42",
+              "count": 82
+            },
+            {
+              "row": 2,
+              "column": 2,
+              "key": "82",
+              "count": 178
+            },
+            {
+              "row": 2,
+              "column": 3,
+              "key": "71",
+              "count": 179
+            },
+            {
+              "row": 2,
+              "column": 4,
+              "key": "73",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 1,
+              "key": "29",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 2,
+              "key": "83",
+              "count": 30
+            },
+            {
+              "row": 3,
+              "column": 3,
+              "key": "79",
+              "count": null
+            },
+            {
+              "row": 3,
+              "column": 4,
+              "key": "81",
+              "count": null
+            }
+          ]
+        },
+        "minimap": {
+          "status": "read",
+          "value": {
+            "state": "expanded"
+          }
+        },
+        "buffs": {
+          "status": "read",
+          "value": {
+            "Recovery": {
+              "shown": false
+            },
+            "Nimble Feet": {
+              "shown": false
+            }
+          }
+        },
+        "chat": {
+          "status": "read",
+          "value": [
+            "megaphone",
+            "megaphone",
+            "system",
+            "system"
+          ]
         }
       }
     }
