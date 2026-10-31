@@ -17,6 +17,12 @@
 5. **Retention** (`store`), then the **report** hook, when an older
    extraction exists.
 
+**Font blobs.** The bytes of every `raw_data` node under `UI/Font/` are written
+to `blobs/<sha256>` (`blobs`), since the raw layer keeps only their length and
+SHA-256. When the Build is already extracted, the blobs it names that the store
+lacks are written, re-reading only the images that hold them; an unchanged
+`raw.sqlite` is not rewritten, so `EXTRACTOR_VERSION` stays.
+
 `raw.sqlite` has two tables:
 
 - `images(path PRIMARY KEY, sha256, tree)`: every image, by its path such as
@@ -50,10 +56,12 @@ from game_data.archive import (
     ImageEntry,
     Pixels,
     PropertyNode,
+    RawDataNode,
     StringNode,
 )
 from game_data.config import STORE
 
+from .blobs import FONT, BlobStore, referenced_blobs
 from .build import archive_files, build_id, hash_archives
 from .images import ImageStore, is_name, pixel_hash
 from .manifest import MANIFEST, ExtractionError, Failure, Manifest
@@ -143,13 +151,14 @@ def extract(
     if (store.extraction(build) / MANIFEST).is_file():
         manifest = replace(Manifest.read(store.extraction(build)), extracted_at=now())
         manifest.write(store.extraction(build))
+        _write_missing_blobs(ClientData(client), store, build)
         store.retain()
         return Extracted(manifest, False, 0, None, time.perf_counter() - started)
 
     folder = store.extractions / f"{TEMPORARY}{build}-{os.getpid()}"
     try:
         folder.mkdir(parents=True)
-        raw = _RawWriter(ClientData(client), store.images)
+        raw = _RawWriter(ClientData(client), store.images, store.blobs)
         raw.write(folder / RAW, progress)
         manifest = Manifest(
             build=build,
@@ -176,9 +185,12 @@ def extract(
 class _RawWriter:
     """Writes one `raw.sqlite`, and the images its canvases name."""
 
-    def __init__(self, client: ClientData, images: ImageStore) -> None:
+    def __init__(
+        self, client: ClientData, images: ImageStore, blobs: BlobStore
+    ) -> None:
         self._client = client
         self._images = images
+        self._blobs = blobs
         # The image each pixel source's canvas became, by the source's path.
         self._by_source: dict[str, str] = {}
         self.referenced: set[str] = set()
@@ -220,7 +232,7 @@ class _RawWriter:
             )
         payloads = _Payloads(image)
         try:
-            return encode_tree(
+            tree = encode_tree(
                 root,
                 canvas=lambda path, node: self._canvas(image, path, node),
                 payload_sha256=payloads.sha256,
@@ -229,6 +241,9 @@ class _RawWriter:
             raise ExtractionError(
                 f"archive {image.archive}, image {image.path}: {error}"
             ) from error
+        if image.path.startswith(FONT):
+            _write_blobs(root, payloads, self._blobs)
+        return tree
 
     def _canvas(self, image: Image, path: str, node: CanvasNode) -> CanvasImage:
         self.canvases += 1
@@ -263,8 +278,44 @@ class _RawWriter:
             self.written += 1
 
 
+def _write_blobs(root: PropertyNode, payloads: _Payloads, blobs: BlobStore) -> None:
+    """Writes the bytes of every raw-data node in an image."""
+    for _, node in root.walk():
+        if isinstance(node, RawDataNode):
+            blobs.write(payloads.chunk(node.data.offset, node.data.length))
+
+
+def _write_missing_blobs(client: ClientData, store: Store, build: str) -> None:
+    """
+    Writes the blobs an extraction's `UI/Font/` trees name that the store
+    lacks, reading only the images that hold them.
+    """
+    wanted = referenced_blobs(store.extraction(build) / RAW)
+    if all(store.blobs.has(name) for name in wanted):
+        return
+    with closing(
+        sqlite3.connect(f"{(store.extraction(build) / RAW).as_uri()}?mode=ro", uri=True)
+    ) as database:
+        paths = [
+            path
+            for (path,) in database.execute(
+                "SELECT path FROM images WHERE substr(path, 1, ?) = ? ORDER BY path",
+                (len(FONT), FONT),
+            )
+        ]
+    for path in paths:
+        image = client.image(path)
+        _write_blobs(image.parse(), _Payloads(image), store.blobs)
+    missing = sorted(name for name in wanted if not store.blobs.has(name))
+    if missing:
+        raise ExtractionError(
+            f"the client's {FONT} images don't hold the blobs {missing} that "
+            f"extraction {build} names: the client changed under the same Build"
+        )
+
+
 class _Payloads:
-    """The SHA-256 of a sound's or raw data's bytes, read with the image's."""
+    """A sound's or raw data's bytes, read with the image's."""
 
     def __init__(self, image: Image) -> None:
         self._image = image
@@ -275,6 +326,9 @@ class _Payloads:
         self._base = entry.offset if isinstance(entry, ImageEntry) else 0
 
     def sha256(self, offset: int, length: int) -> str:
+        return hashlib.sha256(self.chunk(offset, length)).hexdigest()
+
+    def chunk(self, offset: int, length: int) -> bytes:
         if self._data is None:
             self._data = self._image.read()
         start = offset - self._base
@@ -286,4 +340,4 @@ class _Payloads:
                 None,
                 f"{length} bytes at offset {offset} are outside the image",
             )
-        return hashlib.sha256(chunk).hexdigest()
+        return chunk
