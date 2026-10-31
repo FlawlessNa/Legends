@@ -16,6 +16,8 @@ from maple.screen.client import find_client
 from maple.screen.locator import FrameCheck
 from maple.screen.minimap import NW, MinimapReader
 from maple.screen.sprites import Profile, enabled_readers, load_reader_sprites
+from maple.screen.status_bar import BACKGROUND as STATUS_BAR_BACKGROUND
+from maple.screen.status_bar import StatusBarReader
 
 
 class MapleBot(Bot, ABC):
@@ -87,6 +89,10 @@ class MapleBot(Bot, ABC):
         if reader_sprites.build is not None:
             frame_check = FrameCheck(reader_sprites)
             data.set_static("frame_check", frame_check)
+            if STATUS_BAR_BACKGROUND in reader_sprites.canvases:
+                data.set_static(
+                    "status_bar_reader", StatusBarReader(reader_sprites, frame_check)
+                )
             if NW in reader_sprites.canvases:
                 data.set_static(
                     "minimap_reader", MinimapReader(reader_sprites, frame_check)

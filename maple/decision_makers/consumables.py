@@ -7,6 +7,7 @@ from abc import ABC, ABCMeta
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
 from maple.actions import priorities
+from maple.screen.status_bar import STATUS_BAR
 
 from .mixins import (
     UIMixin,
@@ -33,6 +34,8 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
     It also checks for the number of remaining consumables within the QuickSlots.
     """
 
+    screen_readers = (STATUS_BAR,)
+
     _THROTTLE = 3600  # Use this to set the interval at which a consumable is taken.
 
     @property
@@ -56,7 +59,7 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
         self._keyname = keyname
         self._key = controller.key_binds(self.data.ign)[keyname]
         self.num_usage = num_usage
-        self._create_ui_attributes()
+        self._create_status_bar_attributes()
 
     async def _decide(self) -> None:
         self._use_consumable()
