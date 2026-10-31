@@ -81,9 +81,7 @@ class CheckMobsStillSpawn(
                 )
 
     async def _setup_failsafe_procedure(self) -> None:
-        self._disable_decision_makers(
-            "MobsHitting", "TelecastMobsHitting", "PartyRebuff"
-        )
+        self._disable_decision_makers("MobsHitting", "TelecastMobsHitting")
         await self._validate_request_async(
             self._toggle_chat_request(),
             lambda: not self.data.chat_feed.is_displayed(self.data.handle),
@@ -107,9 +105,7 @@ class CheckMobsStillSpawn(
             lambda: self.data.chat_feed.is_displayed(self.data.handle),
             timeout=5.0,
         )
-        self._enable_decision_makers(
-            "MobsHitting", "TelecastMobsHitting", "PartyRebuff"
-        )
+        self._enable_decision_makers("MobsHitting", "TelecastMobsHitting")
         self._last_valid_detection = time.perf_counter()
         self._restore_rotation_target()  # This resets the next_target procedure
 

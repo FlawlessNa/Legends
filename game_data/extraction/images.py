@@ -62,6 +62,39 @@ def png(pixels: Pixels) -> bytes:
     )
 
 
+def read_png(data: bytes) -> Pixels:
+    """
+    A PNG that `png` wrote, as `(height, width, 4)` RGBA pixels.
+
+    :raises ValueError: It isn't an 8-bit RGBA PNG without filtering or
+        interlace, which is all `png` writes.
+    """
+    if not data.startswith(_SIGNATURE):
+        raise ValueError("it isn't a PNG")
+    header: tuple[int, ...] = ()
+    compressed: list[bytes] = []
+    at = len(_SIGNATURE)
+    while at + 8 <= len(data):
+        (length,) = struct.unpack(">I", data[at : at + 4])
+        kind = data[at + 4 : at + 8]
+        body = data[at + 8 : at + 8 + length]
+        if kind == b"IHDR":
+            header = struct.unpack(">IIBBBBB", body)
+        elif kind == b"IDAT":
+            compressed.append(body)
+        at += 12 + length
+    if len(header) != 7 or header[2:] != _RGBA8:
+        raise ValueError("it isn't an 8-bit RGBA PNG without interlace")
+    width, height = header[0], header[1]
+    rows = np.frombuffer(zlib.decompress(b"".join(compressed)), dtype=np.uint8)
+    if rows.size != height * (width * 4 + 1):
+        raise ValueError("its pixel data has the wrong size")
+    rows = rows.reshape(height, width * 4 + 1)
+    if rows[:, 0].any():
+        raise ValueError("it is filtered, which `png` never writes")
+    return rows[:, 1:].reshape(height, width, 4).copy()
+
+
 def _chunk(kind: bytes, data: bytes) -> bytes:
     crc = zlib.crc32(kind + data)
     return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", crc)
@@ -83,6 +116,15 @@ class ImageStore:
 
     def has(self, name: str) -> bool:
         return self.path(name).is_file()
+
+    def read(self, name: str) -> Pixels:
+        """
+        The pixels of the image `name`.
+
+        :raises FileNotFoundError: The store has no such image.
+        :raises ValueError: The file isn't a PNG that `png` wrote.
+        """
+        return read_png(self.path(name).read_bytes())
 
     def write(self, name: str, pixels: Pixels) -> bool:
         """

@@ -8,13 +8,16 @@ and `game_data` has to start in well under a second.
 
 It is built in layers, and each one imports only the layers to its left:
 
-    archive/ <- extraction/ <- catalogue/ <- report/, render/
+    archive/ <- extraction/ <- catalogue/ <- sprites/, report/, render/
 
 - `archive/`: bytes to property trees. It knows nothing about the game.
 - `extraction/`: the installed client into a store of Extractions, losslessly,
   with every canvas as a PNG. It knows nothing about the game either.
 - `catalogue/`: an Extraction's typed tables, built from its raw layer alone,
   and the lookups over them: maps, mobs and skills by name or ID.
+- `sprites/`: any canvas's pixels and origin, any vector, a node's children
+  and the client font's bytes, by path, from an Extraction's raw layer and the
+  stores.
 - `report/`: the patch report, the differences between two Extractions as
   one HTML page.
 - `render/`: a map's full screen in virtual coordinates, from the catalogue

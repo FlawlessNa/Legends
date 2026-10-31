@@ -89,33 +89,3 @@ settings:
   # Teleport is used for movement where available. Set true for classes where
   # it misbehaves.
   # disable_teleport: true
-
-# ============================================================================
-# Multi-client setups (a main character plus mules) go here. Each mule takes
-# the same ign/bot/settings shape as above, and every mule needs its own
-# section in configs/keybindings.ini and its own running game client.
-#
-# The mules launch as a second Engine group, mirroring
-# maple/launchers/launcher_leeching_v2.py -- see that file for the maintainer's
-# own six-client layout.
-#
-# For PartyRebuff to work, the map's JSON in configs/maps/ must define a
-# `party_rebuff_zone` so the bots know where the party gathers. Otherwise pass
-# an explicit `buff_location` in the settings below.
-#
-# mules:
-#   - ign: YourMuleName
-#     bot: LeechMuleWithBuffs
-#     settings:
-#       game_map: Line1Area1
-#       client_size: large
-#       character_class: Hermit
-#       synchronized_buffs: [Holy Symbol, Maple Warrior, Haste, Meso Up]
-#       skills_to_reset: [Haste, Meso Up]
-#
-#   - ign: YourOtherMule
-#     bot: LeechMuleWithoutBuffs
-#     settings:
-#       game_map: Line1Area1
-#       client_size: large
-# ============================================================================

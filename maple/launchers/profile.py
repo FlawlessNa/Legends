@@ -40,11 +40,10 @@ class BotSpec:
 
 @dataclass
 class Profile:
-    """A whole launch: one main bot, plus any mules that ride along with it."""
+    """A whole launch: one bot."""
 
     name: str
     main: BotSpec
-    mules: list[BotSpec] = field(default_factory=list)
 
 
 def available() -> list[str]:
@@ -108,20 +107,20 @@ def load(name: str) -> Profile:
     if not isinstance(raw, dict):
         raise ProfileError(f"{path} must contain a top-level mapping.")
 
-    unknown = set(raw) - {"ign", "bot", "settings", "mules"}
+    if "mules" in raw:
+        raise ProfileError(
+            f"{path} has a 'mules:' key. Mules were removed: the leeching and "
+            "mule bots no longer exist. Delete the 'mules:' block."
+        )
+
+    unknown = set(raw) - {"ign", "bot", "settings"}
     if unknown:
         raise ProfileError(
             f"{path} has unexpected top-level key(s): {', '.join(sorted(unknown))}."
         )
 
-    main = _parse_bot(
-        {k: v for k, v in raw.items() if k != "mules"}, f"{os.path.basename(path)}"
-    )
-    mules = [
-        _parse_bot(entry, f"{os.path.basename(path)} mules[{i}]")
-        for i, entry in enumerate(raw.get("mules") or [])
-    ]
-    return Profile(name=name, main=main, mules=mules)
+    main = _parse_bot(raw, os.path.basename(path))
+    return Profile(name=name, main=main)
 
 
 def check_models(spec: BotSpec) -> None:

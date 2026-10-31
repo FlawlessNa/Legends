@@ -58,12 +58,20 @@ Game files are read by `game_data/` (top level, importing neither `maple` nor
 
 ## Parked code
 
+Two files are parked, both for the same reason: they predate the MapleStory
+Classic World (MSCW) client and have not been updated for it.
+
+- `maple/model/interface/dynamic_components/inventory.py` reads the inventory
+  with private-server pixel boxes and OCR. It needs an MSCW update before use,
+  and says so in its module docstring. Its code is unchanged.
+- `maple/decision_makers/inventory_manager.py`, below.
+
 `maple/decision_makers/inventory_manager.py` is **parked**: it predates the JSON
 minimap rewrite, still imports `maple._old.maps` and
 `maple.model.mechanics.MinimapConnection` — both gone — and therefore raises on
 import. It is disconnected at the import boundary (commented-out lines in
-`decision_makers/__init__.py` and `bots/leeching.py`), so nothing executes it and
-it never reaches test collection.
+`decision_makers/__init__.py`), so nothing executes it and it never reaches test
+collection.
 
 Leave it parked. Don't delete it, don't comment out its body, and don't
 re-enable the import as a drive-by — reconnecting it means porting its map

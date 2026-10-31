@@ -1,7 +1,7 @@
 """
 Regression tests for the next_target hijack/reset handoff (issue #48).
 
-A DecisionMaker such as PartyRebuff temporarily pins `next_target` to a fixed
+A DecisionMaker (a since-removed party rebuff was one) temporarily pins `next_target` to a fixed
 point, then hands rotation back to whoever owns it. It used to hand it back by
 re-running `_create_rotation_attributes` from its *own* instance, which rebound
 the update function to a DecisionMaker that cannot read mobs off the screen -
@@ -12,6 +12,7 @@ Everything is faked at the BotData level: no game client is involved.
 """
 
 from types import MethodType
+from typing import cast
 
 import pytest
 
@@ -51,7 +52,7 @@ class _RotationOwner(MobsHittingMixin, NextTargetMixin):
 
 class _TargetHijacker(NextTargetMixin):
     """
-    Stands in for PartyRebuff: pins the target, then resets it. Deliberately does
+    Stands in for a DecisionMaker that pins the target, then resets it. Deliberately does
     *not* inherit MobsHittingMixin - that is what made the old reset fatal.
     """
 
@@ -90,7 +91,7 @@ def hijacker(data: BotData) -> _TargetHijacker:
 
 
 def _update_function(data: BotData) -> MethodType:
-    return data._managed["next_target"].update_function
+    return cast(MethodType, data._managed["next_target"].update_function)
 
 
 # --- smart rotation -----------------------------------------------------------
