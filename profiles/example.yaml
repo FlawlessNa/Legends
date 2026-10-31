@@ -6,3 +6,86 @@
 #
 # Everything under profiles/ except this template is gitignored, so your setup
 # stays yours and nobody has to resolve merge conflicts over a character name.
+# ============================================================================
+
+# Your character's exact in-game name. This is used to find the game window AND
+# to look up your keys, so it must match the section name in
+# configs/keybindings.ini exactly.
+ign: YourCharacterName
+
+# Which bot to run. Accepts the class name from maple/bots/__init__.py or its
+# "Bot"-less shorthand, so `training` and `TrainingBot` are the same thing.
+# Run `python -m maple.launchers.run --list` to see your profiles; an unknown
+# bot name here prints the list of what is actually exported.
+bot: training
+
+# Everything below is passed straight to the bot's constructor. Anything the
+# bot accepts is valid here, whether or not it is shown in this template.
+settings:
+  # -- Map ------------------------------------------------------------------
+  # Must match a file in configs/maps/, without the .json extension.
+  # Shipped maps: Line1Area1, GhostShip1, MysteriousPath3.
+  # To bot somewhere else, record it first: python toolkit/create_map.py --help
+  game_map: Line1Area1
+
+  # -- Detection model ------------------------------------------------------
+  # Maps a mob class to the directory holding its weights. "All" means one
+  # model handles every class. Paths are relative to the repo root and must
+  # contain weights/best.pt -- run `python scripts/fetch_models.py` to get them.
+  # See models.manifest.json for what each model detects. A model trained
+  # from a recipe (`synth`) has it there too, and fetching writes it back to
+  # recipe.json beside the weights.
+  models_path:
+    All: data/models/production/global
+
+  # How your character is located on screen. Names a section in
+  # configs/character_detection.ini. Omit to use the default detection.
+  # detection_configs: Elephant Cape
+
+  # Client window size: "large" or "medium". Must match the game client's
+  # actual size -- see configs/game.ini.
+  client_size: large
+
+  # Overrides the class auto-detected from the character. Only needed when
+  # detection is unreliable. One of the keys in maple/model/characters/__init__.py
+  # (Magician, Cleric, Priest, Bishop, Rogue, Assassin, Hermit, ...).
+  # character_class: Bishop
+
+  # -- Combat ---------------------------------------------------------------
+  # The attack used on rotation. Must be a skill your class has AND a key you
+  # bound in configs/keybindings.ini.
+  training_skill: Genesis
+
+  # Minimum mobs on screen before the training skill is worth casting.
+  mob_count_threshold: 8
+
+  # Buffs the bot keeps up on itself. Each must be bound in keybindings.ini.
+  included_buffs:
+    - Maple Warrior
+    - Holy Symbol
+
+  # -- Upkeep ---------------------------------------------------------------
+  # Number of pets to feed. 0 disables pet food entirely.
+  num_pets: 1
+
+  # -- Failsafes ------------------------------------------------------------
+  # Warn over Discord when fewer than `threshold` mobs have spawned for
+  # `timer` seconds -- an anti-detection measure.
+  mob_spawn_alert_timer: 15
+  mob_spawn_alert_threshold: 4
+
+  # -- Movement tuning ------------------------------------------------------
+  # Leave these out unless movement is visibly mistimed. Speed and jump
+  # multipliers correct for gear/buffs the physics model doesn't know about;
+  # measure them in the map editor (`python toolkit/create_map.py --map
+  # <MapName> --ign <YourIGN>`) rather than guessing.
+  # speed_multiplier: 1.4
+  # jump_multiplier: 1.23
+
+  # Smart rotation picks targets from live mob positions instead of walking a
+  # fixed route. Off by default -- it is the less-tested path.
+  smart_rotation_enabled: false
+
+  # Teleport is used for movement where available. Set true for classes where
+  # it misbehaves.
+  # disable_teleport: true

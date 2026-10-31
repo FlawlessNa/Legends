@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from maple.launchers import profile
+from maple.launchers import profile, run
 from paths import ROOT
 
 
@@ -40,3 +40,11 @@ def test_list_exits_zero_and_lists_the_example_profile() -> None:
 
     assert result.returncode == 0, result.stderr
     assert "example" in result.stdout.split()
+
+
+def test_the_example_profile_loads_and_resolves_to_the_training_bot() -> None:
+    loaded = profile.load("example")
+
+    assert loaded.main.bot == "training"
+    assert loaded.main.settings
+    assert run._resolve(loaded.main).__name__ == "TrainingBot"
