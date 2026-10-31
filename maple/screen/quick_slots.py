@@ -11,10 +11,35 @@ an anchor (its alpha is 0 to 39).
 **Searching again.** A first search may see a partly covered panel, which would
 number the slots wrongly, so the numbering is trusted only once two searches at
 least `SEARCH_EVERY` seconds apart find the same labels: until then the reading
-is `UNSURE`, and the search repeats. A label that no longer matches reads
-`COVERED`, and repeats the search at that rate too, adopting what it finds (a
-rebound key, a moved panel), and settling again the same way. Nothing is
-searched for between those times, so the reader's cost is a few small matches.
+is `UNSURE`, and the search repeats.
+
+Once settled, the labels found are kept for good: while one doesn't match where
+it was found the reading is `COVERED`, however long that lasts, and it reads
+again the moment the label is back. A search (at most every `SEARCH_EVERY`
+seconds, while covered) replaces the remembered labels only when the result
+cannot renumber a slot: it has a label at every remembered position and numbers
+each as before (a key rebound in the slot, a label found that was missed), or it
+is a filled grid with at least as many rows and columns (the panel moved). A
+covered first row or column never replaces anything, since what's left would be
+numbered from the wrong end.
+
+**Columns.** The layout is `COLUMNS` slots to a row, so labels found in fewer
+columns mean part of the panel isn't visible (a window over it): `COVERED`, since
+what is left can't be numbered. A slot with no key bound has no label, so a whole
+column unbound reads `COVERED` too.
+
+**Holes.** The grid the labels found make should have a label in every cell.
+A cell with none is a slot that is unbound, covered, or shaded by a cooldown, and
+a fresh reader can't tell which, nor read a shaded key: the numbering isn't
+settled and the reading is `UNSURE`. A reader that settled on a full grid keeps
+its keys through a cooldown (`_at`). So a slot with no key bound keeps the reader
+`UNSURE`.
+
+**Shaded labels.** A cooldown shades part of a slot's label, so it isn't found
+by the exact search. At each cell of the grid the exact matches make, the label
+with the most opaque pixels wins among those drawn there, exactly or shaded
+(`_fits`): a long label shaded beats a short one wholly drawn. Two
+keys can look identical (`0` and `O`); the first in `KEY_NAMES` is reported.
 
 **Grid.** A slot's `row` and `column` (from 1) are counted from the labels'
 positions: labels that start within `SAME_LINE` pixels of each other are one
@@ -69,6 +94,18 @@ SAME_LINE = 12
 """Labels whose top-left corners are closer than this are in the same row or
 column: the tallest label is 12 pixels high, and slots are well over twice that
 apart."""
+
+MIN_SHARE = 0.25
+"""A label already found still counts as drawn when this share of its opaque
+pixels is exactly as drawn: the rows of it a cooldown hasn't shaded. Provisional:
+chosen on a few frames (f020's `PgUp` has 0.38 of them)."""
+MIN_CORRELATION = 0.95
+"""How well the brightness of a label's shaded rows must follow the sprite's.
+Provisional: chosen on a few frames (the right label scored 1.0, the next best
+0.89)."""
+MIN_SHADED_PIXELS = 6
+"""Fewer opaque pixels than this in a label's shaded rows say nothing."""
+_EVEN_SHADE = 12.0
 
 SEARCH_EVERY = 3.0
 """Seconds between searches for labels while the grid isn't settled or a label
@@ -158,6 +195,10 @@ class QuickSlotsReader:
         self._frame_check = frame_check
         self._tolerance = tolerance
         self._labels = {name: sprites.canvas(f"{_KEY}/{name}") for name in KEY_NAMES}
+        self._opaque = {
+            name: int((label.rgba[:, :, 3] == 255).sum())
+            for name, label in self._labels.items()
+        }
         self._digits = {d: sprites.canvas(f"{_ITEM_NO}/{d}") for d in DIGITS}
         self._found: dict[str, tuple[int, int]] = {}
         self._settled = False
@@ -182,12 +223,20 @@ class QuickSlotsReader:
             self._searched_at is None
             or frame.captured_at - self._searched_at >= SEARCH_EVERY
         )
-        if due and (not self._found or moved or not self._settled):
+        if due and (not self._found or not self._settled):
             found = self._search(pixels)
             self._searched_at = frame.captured_at
-            self._settled = bool(found) and found == self._found
+            self._settled = bool(found) and found == self._found and not _holes(found)
             self._found = found
             moved = []
+        elif due and moved:
+            # Settled: a covered label is not a reason to forget it. Take what
+            # a search finds only if it keeps every slot's number.
+            found = self._search(pixels)
+            self._searched_at = frame.captured_at
+            if _replaces(self._found, found):
+                self._found = found
+                moved = []
         if not self._found:
             return Reading.absent(frame.captured_at, "no key label found")
         if moved:
@@ -196,25 +245,118 @@ class QuickSlotsReader:
                 "label not where it was found: " + ", ".join(moved),
             )
         if not self._settled:
+            holes = _holes(self._found)
+            why = (
+                "no label found for the slot at row "
+                f"{holes[0][0] + 1}, column {holes[0][1] + 1}: unbound, shaded "
+                "by a cooldown or covered, and which isn't known until it is seen"
+                if holes
+                else "the labels found must be the same in two searches "
+                f"{SEARCH_EVERY:g} s apart"
+            )
             return Reading.unsure(
+                frame.captured_at, f"slot numbering not settled: {why}"
+            )
+        columns = len(_lines(x for x, _ in self._found.values()))
+        if columns < COLUMNS:
+            return Reading.covered(
                 frame.captured_at,
-                "slot numbering not settled: the labels found must be the same "
-                f"in two searches {SEARCH_EVERY:g} s apart",
+                f"labels found in {columns} of the layout's {COLUMNS} columns",
             )
         return self._counts(frame)
 
     def _at(self, pixels: np.ndarray, name: str, at: tuple[int, int]) -> bool:
+        """
+        Whether the label still looks drawn at `at`: `_fits`, or at least
+        `MIN_SHARE` of it exactly drawn, since a cooldown shades a label in ways
+        `_fits` can't always follow (the shade isn't one constant change) and
+        the slot is still the same slot.
+        """
+        if self._fits(pixels, name, at):
+            return True
         rgba = self._labels[name].rgba
         h, w = rgba.shape[:2]
-        hits = match(pixels, rgba, (at[0], at[1], w, h), self._tolerance)
-        return any((hit.x, hit.y) == at for hit in hits)
+        x, y = at
+        if x < 0 or y < 0 or y + h > pixels.shape[0] or x + w > pixels.shape[1]:
+            return False
+        mask = rgba[:, :, 3] == 255
+        drawn = pixels[y : y + h, x : x + w][mask]
+        exact = np.all(drawn == rgba[:, :, 2::-1][mask], axis=1)
+        return float(exact.mean()) >= MIN_SHARE
+
+    def _fits(self, pixels: np.ndarray, name: str, at: tuple[int, int]) -> bool:
+        """
+        Whether the label is drawn at `at`: exactly, or with a cooldown's shade
+        over its lower (or upper) rows. The shade sweeps across a slot, so the
+        rows on one side of a boundary are exact and the rows on the other have
+        every pixel changed the same way, which keeps their brightness
+        correlated with the sprite's (at least `MIN_CORRELATION`).
+        """
+        rgba = self._labels[name].rgba
+        h, w = rgba.shape[:2]
+        x, y = at
+        if x < 0 or y < 0 or y + h > pixels.shape[0] or x + w > pixels.shape[1]:
+            return False
+        mask = rgba[:, :, 3] == 255
+        drawn = pixels[y : y + h, x : x + w]
+        same = np.all(drawn == rgba[:, :, 2::-1], axis=2) | ~mask
+        row_exact = same.all(axis=1)
+        if row_exact.all():
+            return True
+        sprite = rgba[:, :, :3].astype(float).mean(axis=2)
+        seen = drawn.astype(float).mean(axis=2)
+        for rows in (
+            slice(int(np.argmin(row_exact)), h),  # exact above the boundary
+            slice(0, h - int(np.argmin(row_exact[::-1]))),  # exact below it
+        ):
+            shaded = np.zeros_like(mask)
+            shaded[rows] = mask[rows]
+            if int(shaded.sum()) < MIN_SHADED_PIXELS:
+                continue
+            ours, theirs = sprite[shaded], seen[shaded]
+            if ours.std() < 1e-6:
+                # Nothing to correlate with: the rows must be evenly shaded.
+                if theirs.std() < _EVEN_SHADE:
+                    return True
+                continue
+            if theirs.std() < 1e-6:
+                continue
+            if float(np.corrcoef(ours, theirs)[0, 1]) >= MIN_CORRELATION:
+                return True
+        return False
+
+    def _resolve(
+        self, pixels: np.ndarray, found: dict[str, tuple[int, int]]
+    ) -> dict[str, tuple[int, int]]:
+        """
+        Each slot's label, chosen where the exact search found some: a cooldown
+        shades part of a label so it isn't found exactly, and a short label can
+        match inside a longer one. So at every cell of the grid the found labels
+        make, the label drawn there (`_fits`) with the most opaque pixels wins
+        (a long label shaded beats a short one wholly drawn: it explains more),
+        and a tie between identical-looking labels (`0` and `O`) goes to the
+        first in `KEY_NAMES`.
+        """
+        rows = _lines(y for _, y in found.values())
+        columns = _lines(x for x, _ in found.values())
+        resolved: dict[str, tuple[int, int]] = {}
+        for y in rows:
+            for x in columns:
+                best: tuple[int, str] | None = None
+                for name in self._labels:
+                    if not self._fits(pixels, name, (x, y)):
+                        continue
+                    size = self._opaque[name]
+                    if best is None or size > best[0]:
+                        best = (size, name)
+                if best is not None and best[1] not in resolved:
+                    resolved[best[1]] = (x, y)
+        return resolved
 
     def _search(self, pixels: np.ndarray) -> dict[str, tuple[int, int]]:
         """
-        Every label found in `pixels`. Where a label overlaps another found
-        one, the one with fewer opaque pixels is dropped: a short label like
-        `S` can match inside the drawing of `Shift`, which is the better
-        evidence.
+        Every slot's label in `pixels`: the exact matches give the grid, and
+        `_resolve` picks each slot's label.
         """
         self.searches += 1
         packed = _pack(pixels)
@@ -224,22 +366,7 @@ class QuickSlotsReader:
             if at is not None:
                 found[name] = at
 
-        def rect(name: str) -> tuple[int, int, int, int]:
-            h, w = self._labels[name].rgba.shape[:2]
-            return (*found[name], w, h)
-
-        def strength(name: str) -> int:
-            return int((self._labels[name].rgba[:, :, 3] == 255).sum())
-
-        for name in sorted(found, key=strength):
-            if any(
-                other != name
-                and strength(other) >= strength(name)
-                and _overlap(rect(name), rect(other))
-                for other in found
-            ):
-                del found[name]
-        return found
+        return self._resolve(pixels, found)
 
     def _find(
         self, pixels: np.ndarray, packed: np.ndarray, rgba: np.ndarray
@@ -381,6 +508,36 @@ class QuickSlotsReader:
         ]
 
 
+def _replaces(old: dict[str, tuple[int, int]], new: dict[str, tuple[int, int]]) -> bool:
+    """
+    Whether the labels `new` found may replace the settled `old`, without
+    renumbering any slot or shrinking the grid.
+    """
+    if not new:
+        return False
+    before = set(old.values())
+    after = set(new.values())
+
+    def numbering(
+        positions: set[tuple[int, int]],
+    ) -> dict[tuple[int, int], tuple[int, int]]:
+        rows = _lines(y for _, y in positions)
+        columns = _lines(x for x, _ in positions)
+        return {(x, y): (_line(rows, y), _line(columns, x)) for x, y in positions}
+
+    kept = before <= after and all(
+        numbering(after)[p] == numbering(before)[p] for p in before
+    )
+    rows = _lines(y for _, y in after)
+    columns = _lines(x for x, _ in after)
+    filled = (
+        len(after) == len(rows) * len(columns)
+        and len(rows) >= len(_lines(y for _, y in before))
+        and len(columns) >= len(_lines(x for x, _ in before))
+    )
+    return kept or filled
+
+
 def _pack(pixels: np.ndarray) -> np.ndarray:
     """Each BGR pixel as one integer, `b << 16 | g << 8 | r`, so that a colour
     is compared across the frame in one pass."""
@@ -388,10 +545,18 @@ def _pack(pixels: np.ndarray) -> np.ndarray:
     return (wide[:, :, 0] << 16) | (wide[:, :, 1] << 8) | wide[:, :, 2]
 
 
-def _overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
-    ax, ay, aw, ah = a
-    bx, by, bw, bh = b
-    return ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah
+def _holes(found: dict[str, tuple[int, int]]) -> list[tuple[int, int]]:
+    """The cells of the grid the labels found make that have none, as
+    `(row, column)` from 0."""
+    rows = _lines(y for _, y in found.values())
+    columns = _lines(x for x, _ in found.values())
+    filled = {(_line(rows, y), _line(columns, x)) for x, y in found.values()}
+    return [
+        (r, c)
+        for r in range(len(rows))
+        for c in range(len(columns))
+        if (r, c) not in filled
+    ]
 
 
 def _lines(values: Iterable[int]) -> list[int]:
