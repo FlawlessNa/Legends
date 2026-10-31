@@ -51,7 +51,6 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
                     "CheckStillInMap",
                     "CheckMobsStillSpawn",
                     "MobsHitting",
-                    "PartyRebuff",
                 )
                 self._react("advanced")
                 return

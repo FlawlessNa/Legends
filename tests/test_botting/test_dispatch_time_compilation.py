@@ -258,9 +258,8 @@ def test_a_truncated_sequence_carries_its_direction_key_by_default() -> None:
 def test_always_release_declares_every_key_still_held() -> None:
     """
     `always_release` is the flag form of what `_always_release_keys_on_actions`
-    used to do by post-processing a compiled Action in the Engine process. Mule
-    positioning and the inventory trip both need it: nothing follows to release
-    the key.
+    used to do by post-processing a compiled Action in the Engine process. The
+    inventory trip needs it: nothing follows to release the key.
     """
     structure = _compile(always_release=True)
 

@@ -18,7 +18,6 @@ four Log Buckets - those partition code for routing and carry a catch-all
 * ``combat`` - what the bot chose to hit, and with what.
 * ``inventory`` - the trip to town, milestone by milestone.
 * ``rebuff`` - the cross-Engine handshake that gets a party buffed together.
-* ``mule`` - a mule leaving and regaining its safe spot.
 * ``movement`` and ``rotation`` are reserved for the movement map's telemetry;
   ``MovementPayload`` lands here alongside these, and its field list is issue
   #12's to decide.
@@ -97,12 +96,6 @@ REBUFF_MEMBERS_IN_POSITION: Final = "rebuff.members_in_position"
 REBUFF_PARTY_COMPLETE: Final = "rebuff.party_complete"
 #: The shared ready state was cleared, ending one rebuff round.
 REBUFF_STATE_RESET: Final = "rebuff.state_reset"
-
-# --- mule -----------------------------------------------------------------
-#: A mule is leaving its safe spot to reset. ``reason`` says what triggered it.
-MULE_RESET_STARTED: Final = "mule.reset_started"
-#: A mule is back on its safe spot.
-MULE_SAFE_SPOT_RESTORED: Final = "mule.safe_spot_restored"
 
 
 class MapCheckPayload(TypedDict):
@@ -197,18 +190,5 @@ class InventoryMilestonePayload(TypedDict):
 
 class RebuffPayload(TypedDict):
     """Every ``rebuff.*`` event: which member emitted it."""
-
-    ign: str
-
-
-class MuleResetPayload(TypedDict):
-    """``mule.reset_started``: whose mule, and what set the reset off."""
-
-    ign: str
-    reason: str
-
-
-class MuleSafeSpotPayload(TypedDict):
-    """``mule.safe_spot_restored``: whose mule is back in place."""
 
     ign: str
