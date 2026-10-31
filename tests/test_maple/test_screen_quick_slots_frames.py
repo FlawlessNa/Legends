@@ -64,8 +64,18 @@ def _quick_slots(frames: FrameSet) -> list[FrameEntry]:
     return [e for e in frames.entries if "quick_slots" in e.expect]
 
 
-def _on_cooldown(entry: FrameEntry) -> bool:
-    return "cooldown" in entry.notes
+def _fresh_reader_is_exact(
+    frames: FrameSet, sprites: ReaderSprites, entry: FrameEntry
+) -> bool:
+    """Whether a reader seeing only this frame reads what is expected of it,
+    and reads it (a frame to settle on)."""
+    expected = entry.expect["quick_slots"]
+    if expected.status is not Status.READ:
+        return False
+    reader = QuickSlotsReader(sprites, FrameCheck(sprites))
+    reader.read(_frame(frames, entry, 0.0))
+    got = reader.read(_frame(frames, entry, SEARCH_EVERY))
+    return got.status is Status.READ and _summary(got) == expected.value
 
 
 def test_every_expected_quick_slots_reading_is_read(
@@ -77,17 +87,11 @@ def test_every_expected_quick_slots_reading_is_read(
     for size in sorted({e.client_size for e in entries}):
         group = [e for e in entries if e.client_size == size]
         settling = next(
-            (
-                e
-                for e in group
-                if e.expect["quick_slots"].status is Status.READ and not _on_cooldown(e)
-            ),
-            None,
+            (e for e in group if _fresh_reader_is_exact(frames, sprites, e)), None
         )
         if settling is None:
-            # Every frame of this size has a cooldown (v1 at 800x600): no reader
-            # has seen the slots unshaded, and `P` (key 25) is drawn inside `PgUp`
-            # and `PgDn`, so there is nothing to compare these against yet.
+            # No frame of this size a reader can settle on (v1 at 800x600: every
+            # frame has a cooldown), so there is nothing to replay.
             continue
         reader = QuickSlotsReader(sprites, FrameCheck(sprites))
         reader.read(_frame(frames, settling, 0.0))

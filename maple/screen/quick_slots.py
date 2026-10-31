@@ -23,10 +23,17 @@ is a filled grid with at least as many rows and columns (the panel moved). A
 covered first row or column never replaces anything, since what's left would be
 numbered from the wrong end.
 
+**Known gap.** The number of rows isn't known, so a cover over a whole top row
+during both settling searches settles with the remaining rows numbered from 1
+(`slot(1)` is then another slot). Nor can a cursor or tooltip over a slot's
+count be told from no count drawn, or a shorter one: a hidden count reads
+`None` or a smaller number, as `READ`.
+
 **Columns.** The layout is `COLUMNS` slots to a row, so labels found in fewer
-columns mean part of the panel isn't visible (a window over it): `COVERED`, since
-what is left can't be numbered. A slot with no key bound has no label, so a whole
-column unbound reads `COVERED` too.
+columns mean part of the panel isn't visible (a window over it): `COVERED`, and
+the numbering is not settled, so the search repeats until a full set of columns
+is found and two searches agree. A slot column with no key bound reads `COVERED`
+for good.
 
 **Holes.** The grid the labels found make should have a label in every cell.
 A cell with none is a slot that is unbound, covered, or shaded by a cooldown, and
@@ -233,7 +240,11 @@ class QuickSlotsReader:
         if due and (not self._found or not self._settled):
             found = self._search(pixels)
             self._searched_at = frame.captured_at
-            self._settled = bool(found) and found == self._found and not _holes(found)
+            self._settled = (
+                found == self._found
+                and _columns(found) >= COLUMNS
+                and not _holes(found)
+            )
             self._found = found
             moved = []
         elif due and moved:
@@ -252,6 +263,12 @@ class QuickSlotsReader:
                 "label not where it was found: " + ", ".join(moved),
             )
         if not self._settled:
+            columns = _columns(self._found)
+            if columns < COLUMNS:
+                return Reading.covered(
+                    frame.captured_at,
+                    f"labels found in {columns} of the layout's {COLUMNS} columns",
+                )
             holes = _holes(self._found)
             why = (
                 "no label found for the slot at row "
@@ -263,12 +280,6 @@ class QuickSlotsReader:
             )
             return Reading.unsure(
                 frame.captured_at, f"slot numbering not settled: {why}"
-            )
-        columns = len(_lines(x for x, _ in self._found.values()))
-        if columns < COLUMNS:
-            return Reading.covered(
-                frame.captured_at,
-                f"labels found in {columns} of the layout's {COLUMNS} columns",
             )
         return self._counts(frame)
 
@@ -582,6 +593,10 @@ def _suspects(labels: dict[str, Sprite]) -> set[str]:
                 suspects.add(short)
                 break
     return suspects
+
+
+def _columns(found: dict[str, tuple[int, int]]) -> int:
+    return len(_lines(x for x, _ in found.values()))
 
 
 def _holes(found: dict[str, tuple[int, int]]) -> list[tuple[int, int]]:

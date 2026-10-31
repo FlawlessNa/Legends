@@ -553,3 +553,23 @@ def test_a_label_a_longer_one_would_also_draw_is_not_taken_for_a_slot() -> None:
 
     assert reading.status is Status.UNSURE
     assert "row 2, column 4" in reading.detail
+
+
+def test_a_grid_first_seen_with_a_menu_over_the_panel_is_read_once_it_closes() -> None:
+    quick_slots = reader()
+    pixels = drawn_grid()
+    draw_count(pixels, 12, 0, 0)
+    covered = pixels.copy()
+    x, y = label_at(0, 0)
+    occlude(covered, x - 5, y - 5, 3 * PITCH, 2 * PITCH + 10)
+
+    during = [quick_slots.read(frame(covered, at=t)).status for t in (0.0, 3.0, 6.0)]
+    after = [quick_slots.read(frame(pixels, at=t)) for t in (10.0, 13.0)]
+
+    assert during == [Status.COVERED] * 3
+    assert after[0].status is Status.UNSURE
+    assert after[1].status is Status.READ
+    assert after[1].value is not None
+    slot = after[1].value.slot(1)
+    assert slot is not None
+    assert (slot.key, slot.count) == ("1", 12)
