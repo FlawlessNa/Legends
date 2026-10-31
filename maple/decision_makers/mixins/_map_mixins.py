@@ -56,6 +56,10 @@ class MinimapAttributesMixin:
         condition = self._proxies.instance(identifier, "Condition")
         attempt = 0
         while True:
+            # The cursor goes first: resting on a frame piece, it makes the minimap
+            # read COVERED, and `ensure_minimap_displayed` would press the toggle
+            # on an expanded minimap. The move runs during the pause below.
+            self._ensure_mouse_not_on_minimap(identifier)
             time.sleep(1.5)
             ensure_minimap_displayed(
                 identifier,
@@ -67,9 +71,6 @@ class MinimapAttributesMixin:
                 self.ERROR_HANDLING_TIME_LIMIT,
             )
             logger.info("Minimap fully displayed confirmed")
-
-            self._ensure_mouse_not_on_minimap(identifier)
-            logger.info("Mouse not on minimap confirmed")
             try:
                 self.data.update_attributes("current_client_img", "minimap_reading")
                 self._get_minimap_pos()
@@ -103,7 +104,8 @@ class MinimapAttributesMixin:
             # In this case, avoid the first "quadrant" of the window.
             region_to_avoid = Box(left=0, right=500, top=0, bottom=500)
 
-        # Choose a random point on the window that is not on the minimap.
+        # Choose a random point in the client area that is not on the minimap. Both
+        # are in client pixels, which is what `controller.mouse_move` takes.
         _, _, width, height = win32gui.GetClientRect(self.data.handle)
         client_box = Box(left=0, right=width, top=0, bottom=height)
         while True:
