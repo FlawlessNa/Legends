@@ -17,6 +17,8 @@ keyboard==0.13.5
 # --- Vision ------------------------------------------------------------------
 # OpenCV 5.x. This is a major release and ~37 modules here call into cv2, so
 # treat cv2 behaviour changes as a suspect if image handling misbehaves.
+# Desktop Duplication capture of the client (botting.screen). Pulls comtypes.
+dxcam==0.3.0
 opencv-python==5.0.0.93
 numpy==2.5.2
 pillow>=13.0.0

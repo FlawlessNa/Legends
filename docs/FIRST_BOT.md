@@ -13,15 +13,17 @@ because when something is wrong at step 5 the cause is almost always step 2.
 Start the game, log your character in, and leave the window open. Then:
 
 ```
-python -c "from botting.utilities.client_handler import get_open_clients; print(get_open_clients())"
+python -c "from maple.screen.client import find_client; print(find_client())"
 ```
 
-A non-empty list of window handles means the bot can find your client.
+A window handle means the bot can find your client.
 
-An empty list means the window title doesn't contain the `Window Titles` value
-from `configs/game.ini` (`Dream MS` by default). Check your client's actual
-title bar and update the ini if you're on a different server — that file is
-tracked and shared, so say so in your PR.
+`WindowNotFound` means no visible window has the `Class Name` from
+`configs/game.ini` *and* belongs to a process named `Executable`
+(`MapleStory.exe`). The title isn't read. Check the executable's name in Task
+Manager and update the ini if it differs — that file is tracked and shared, so
+say so in your PR. `MultipleWindows` means more than one client is open; the
+bot drives exactly one.
 
 ---
 

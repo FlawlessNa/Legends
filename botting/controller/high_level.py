@@ -31,7 +31,33 @@ from .inputs import (
 )
 
 logger = logging.getLogger(__name__)
-WIDTH, HEIGHT = win32api.GetSystemMetrics(0), win32api.GetSystemMetrics(1)
+
+
+def screen_size() -> tuple[int, int]:
+    """
+    The primary monitor's size in physical pixels, read at each call, so a
+    display-mode change mid-session is followed. `SendInput`'s absolute
+    coordinates span this monitor.
+    """
+    return (
+        win32api.GetSystemMetrics(win32con.SM_CXSCREEN),
+        win32api.GetSystemMetrics(win32con.SM_CYSCREEN),
+    )
+
+
+def client_to_screen(handle: int, point: tuple[float, float]) -> tuple[int, int]:
+    """
+    A point in `handle`'s client area, as `Frame` pixels give it, on the screen.
+    `ClientToScreen` knows where the client area starts, so no border or title
+    bar size is assumed.
+    """
+    return win32gui.ClientToScreen(handle, (round(point[0]), round(point[1])))
+
+
+def to_absolute(x: float, y: float, size: tuple[int, int]) -> tuple[int, int]:
+    """A screen point in `SendInput`'s normalised 0..65535 coordinates."""
+    width, height = size
+    return int(x * 65536 // width), int(y * 65536 // height)
 
 
 def get_refresh_rate() -> int:
@@ -206,7 +232,8 @@ async def mouse_move(
     Calculates the mouse movement path and sends the inputs to the window.
     A random tweening function is chosen, which dictates the shape of the trajectory.
     :param handle: Window handle to the process.
-    :param target: Target position of the mouse.
+    :param target: Target position of the mouse, in the window's client area, in
+     physical pixels: the coordinates of a `Frame`'s pixels.
     :param total_duration: Duration of the movement. If 0, the mouse is moved instantly.
     """
     tween = random.choice(
@@ -244,13 +271,12 @@ async def mouse_move(
         ]
     )
 
-    window_rect = win32gui.GetWindowRect(handle)
     x0, y0 = win32api.GetCursorPos()
-    x1 = target[0] + window_rect[0]
-    y1 = target[1] + window_rect[1]
+    x1, y1 = client_to_screen(handle, target)
+    size = screen_size()
 
     if total_duration == 0:
-        x, y = [int(x1 * 65536 // WIDTH)], [int(y1 * 65536 // HEIGHT)]
+        points = [to_absolute(x1, y1, size)]
         delays: list[float] = [0.0]
 
     else:
@@ -258,12 +284,10 @@ async def mouse_move(
         num_steps = int(total_duration / step_duration)
         rng = np.linspace(0, 1, num_steps)
         trajectory = [pytweening.getPointOnLine(x0, y0, x1, y1, tween(t)) for t in rng]
-        x, y = zip(*trajectory)
-        x = [int(i * 65536 // WIDTH) for i in x]
-        y = [int(i * 65536 // HEIGHT) for i in y]
-        delays = [float(step_duration)] * len(x)
+        points = [to_absolute(x, y, size) for x, y in trajectory]
+        delays = [float(step_duration)] * len(points)
 
-    inputs = input_constructor(handle, list(zip(x, y)), [None] * len(x))
+    inputs = input_constructor(handle, list(points), [None] * len(points))
     await focused_inputs(handle, inputs, delays)
 
 

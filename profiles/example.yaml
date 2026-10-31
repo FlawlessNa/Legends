@@ -8,9 +8,9 @@
 # stays yours and nobody has to resolve merge conflicts over a character name.
 # ============================================================================
 
-# Your character's exact in-game name. This is used to find the game window AND
-# to look up your keys, so it must match the section name in
-# configs/keybindings.ini exactly.
+# Your character's exact in-game name. It names your keys' section, so it must
+# match the section name in configs/keybindings.ini exactly. The game window is
+# found by configs/game.ini [Client], not by this name.
 ign: YourCharacterName
 
 # Which bot to run. Accepts the class name from maple/bots/__init__.py or its
@@ -46,10 +46,10 @@ settings:
   # actual size -- see configs/game.ini.
   client_size: large
 
-  # Overrides the class auto-detected from the character. Only needed when
-  # detection is unreliable. One of the keys in maple/model/characters/__init__.py
+  # Required: your character's job. It is no longer read from the screen.
+  # One of the keys in maple/model/characters/__init__.py
   # (Magician, Cleric, Priest, Bishop, Rogue, Assassin, Hermit, ...).
-  # character_class: Bishop
+  character_class: Bishop
 
   # -- Combat ---------------------------------------------------------------
   # The attack used on rotation. Must be a skill your class has AND a key you

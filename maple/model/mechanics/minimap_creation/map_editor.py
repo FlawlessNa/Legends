@@ -79,10 +79,9 @@ class MinimapEditor:
         self.lock = self.q = None
 
         try:
-            from botting.utilities import client_handler
-            from maple import maple_ign_finder
+            from maple.screen.client import find_client
 
-            self.handle = client_handler.get_client_handle(self.ign, maple_ign_finder)
+            self.handle = find_client()
             self.lock = asyncio.Lock()
             self.q = asyncio.Queue()
             if include_character_position:

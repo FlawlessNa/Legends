@@ -40,7 +40,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import shutil
 
-from botting.utilities.client_handler import get_open_clients
+from botting.screen import WindowNotFound
+from maple.screen.client import find_client
 from ml_training.gui import AnnotatorAborted
 from ml_training.workflows import BootstrapNewClass, train_global_production_model
 
@@ -149,31 +150,14 @@ GLOBAL_DATASET_PATHS: list[str] = [
 
 
 def get_game_handle() -> int:
-    """Detect open game clients and return the handle to capture from."""
-    clients = get_open_clients()
-
-    if not clients:
-        print("ERROR: No game window found. Make sure the client is open.")
+    """Find the game client (configs/game.ini [Client]) and return its handle."""
+    try:
+        handle = find_client()
+    except WindowNotFound as exc:
+        print(f"ERROR: {exc}")
         sys.exit(1)
-
-    if len(clients) == 1:
-        import win32gui
-
-        title = win32gui.GetWindowText(clients[0])
-        print(f"Found game window: '{title}'  (handle {clients[0]})")
-        return clients[0]
-
-    # Multiple clients open — let the user pick
-    import win32gui
-
-    print("Multiple game windows found:")
-    for i, hwnd in enumerate(clients):
-        print(f"  [{i}] {win32gui.GetWindowText(hwnd)}  (handle {hwnd})")
-    while True:
-        choice = input("Enter the number of the window to capture: ").strip()
-        if choice.isdigit() and 0 <= int(choice) < len(clients):
-            return clients[int(choice)]
-        print("Invalid choice, try again.")
+    print(f"Found game window (handle {handle})")
+    return handle
 
 
 def _cleanup(wf: BootstrapNewClass) -> None:

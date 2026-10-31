@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from botting.utilities import take_screenshot, Box, group_rectangles
+from botting.utilities import group_rectangles, take_screenshot
 
 
 def init_control_gui_hsv():
@@ -264,11 +264,11 @@ class ColorsFilter:
 
 
 if __name__ == "__main__":
-    from botting.utilities import client_handler
-    from maple import maple_ign_finder
     import win32gui
 
-    HANDLE = client_handler.get_client_handle("WrongDoor", maple_ign_finder)
+    from maple.screen.client import find_client
+
+    HANDLE = find_client()
     USE_HSV = False
     USE_COLORS = True
 

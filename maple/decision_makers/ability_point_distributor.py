@@ -6,6 +6,7 @@ import numpy as np
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, ActionWithValidation, BotData, DecisionMaker
+from botting.utilities import CLIENT_HORIZONTAL_MARGIN_PX, CLIENT_VERTICAL_MARGIN_PX
 from maple.actions import ensure_ability_menu_displayed, priorities
 
 from .mixins import (
@@ -65,13 +66,17 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
     def _distribute_ap(self, num_points: int) -> None:
         target = self.data.ability_menu.stat_mapper[self.data.character.main_stat]
         target = self.data.ability_menu.get_abs_box(self.data.handle, target)
+        # The old readers' boxes carry the margins `find_image` adds; the mouse
+        # takes client-area points. Both go with the old readers in #316.
+        x, y = target.center
+        point = (x - CLIENT_HORIZONTAL_MARGIN_PX, y - CLIENT_VERTICAL_MARGIN_PX)
 
         request = ActionRequest(
             "Distributing AP",
             controller.mouse_move_and_click,
             self.data.ign,
             priorities.AP_DISTRIBUTION,
-            args=(self.data.handle, target.center),
+            args=(self.data.handle, point),
             block_lower_priority=True,
             kwargs={"nbr_times": num_points, "delay": 0.15},
         )
