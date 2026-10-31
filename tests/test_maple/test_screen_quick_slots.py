@@ -536,3 +536,20 @@ def test_a_settled_reader_keeps_a_slots_key_while_a_cooldown_shades_it() -> None
 
     assert reading.status is Status.READ
     assert slots_of(reading.value)["7"].column == 3
+
+
+def test_a_label_a_longer_one_would_also_draw_is_not_taken_for_a_slot() -> None:
+    # Like `P`, drawn inside `PgUp`: shaded by a cooldown, the longer label
+    # would leave exactly this behind, so the cell is a hole.
+    inner = Sprite(LABELS["9"].path, LABELS["8"].rgba[:6, :6].copy(), (0, 0))
+    canvases = {s.path: s for s in (*LABELS.values(), *DIGIT_SPRITES.values(), GAUGE)}
+    canvases[inner.path] = inner
+    built = ReaderSprites("build", canvases)
+    pixels = screen()
+    for key, (row, column) in GRID.items():
+        draw_label(pixels, "9" if key == "8" else key, row, column)
+
+    reading = settle(QuickSlotsReader(built, FrameCheck(built)), pixels)
+
+    assert reading.status is Status.UNSURE
+    assert "row 2, column 4" in reading.detail

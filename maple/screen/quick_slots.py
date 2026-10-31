@@ -35,6 +35,11 @@ settled and the reading is `UNSURE`. A reader that settled on a full grid keeps
 its keys through a cooldown (`_at`). So a slot with no key bound keeps the reader
 `UNSURE`.
 
+**Suspect labels.** A label whose pixels are all drawn by a longer one (`P`, key
+25, starts `PgUp` and `PgDn`) can't be told from the longer label shaded by a
+cooldown, so a cell that matches only such a label is a hole too, and the reader
+is `UNSURE`. A slot bound to one of those keys (`_suspects`) never settles.
+
 **Shaded labels.** A cooldown shades part of a slot's label, so it isn't found
 by the exact search. At each cell of the grid the exact matches make, the label
 with the most opaque pixels wins among those drawn there, exactly or shaded
@@ -68,6 +73,7 @@ from itertools import pairwise
 import numpy as np
 
 from botting.screen import Frame, Reading, match
+from game_data.sprites import Sprite
 
 from .locator import FrameCheck
 from .sprites import Declaration, ReaderSprites
@@ -199,6 +205,7 @@ class QuickSlotsReader:
             name: int((label.rgba[:, :, 3] == 255).sum())
             for name, label in self._labels.items()
         }
+        self._suspect = _suspects(self._labels)
         self._digits = {d: sprites.canvas(f"{_ITEM_NO}/{d}") for d in DIGITS}
         self._found: dict[str, tuple[int, int]] = {}
         self._settled = False
@@ -349,7 +356,11 @@ class QuickSlotsReader:
                     size = self._opaque[name]
                     if best is None or size > best[0]:
                         best = (size, name)
-                if best is not None and best[1] not in resolved:
+                if (
+                    best is not None
+                    and best[1] not in self._suspect
+                    and best[1] not in resolved
+                ):
                     resolved[best[1]] = (x, y)
         return resolved
 
@@ -543,6 +554,34 @@ def _pack(pixels: np.ndarray) -> np.ndarray:
     is compared across the frame in one pass."""
     wide = pixels.astype(np.uint32)
     return (wide[:, :, 0] << 16) | (wide[:, :, 1] << 8) | wide[:, :, 2]
+
+
+def _suspects(labels: dict[str, Sprite]) -> set[str]:
+    """
+    The labels whose opaque pixels are all drawn, in the same place and colours,
+    by a longer label: the `P` (key 25) that starts `PgUp` and `PgDn`, the `I`
+    of `Ins`, the `S` of `Shift`. With the longer label shaded by a cooldown,
+    only the short one still matches exactly, so it can't be told from the real
+    thing.
+    """
+    suspects: set[str] = set()
+    for short, a in labels.items():
+        ma = a.rgba[:, :, 3] == 255
+        if not ma.any():
+            continue
+        h, w = ma.shape
+        for other, b in labels.items():
+            if other == short or b.rgba.shape[0] < h or b.rgba.shape[1] < w:
+                continue
+            mb = b.rgba[:h, :w, 3] == 255
+            if (
+                int((b.rgba[:, :, 3] == 255).sum()) > int(ma.sum())
+                and bool(mb[ma].all())
+                and bool(np.all(a.rgba[:, :, :3][ma] == b.rgba[:h, :w, :3][ma]))
+            ):
+                suspects.add(short)
+                break
+    return suspects
 
 
 def _holes(found: dict[str, tuple[int, int]]) -> list[tuple[int, int]]:

@@ -6,7 +6,8 @@ and the extracted game data (`python -m game_data extract`); skips without them.
 The frames are replayed as a session: per client size, one reader settles on the
 first frame without a cooldown, then reads that size's frames in order, because
 a slot's key under a cooldown shade is only known from having seen it unshaded.
-A fresh reader on a cooldown frame is `UNSURE` (below).
+A fresh reader never reads a wrong value (below); 800x600 has no unshaded frame
+to settle on, so its frames are expected `UNSURE` and only the fresh test runs.
 """
 
 from typing import Any
@@ -95,39 +96,31 @@ def test_every_expected_quick_slots_reading_is_read(
             # Close together, so no search happens: the remembered labels are read.
             got = reader.read(_frame(frames, entry, SEARCH_EVERY + 0.05 * (i + 1)))
             expected: Expected = entry.expect["quick_slots"]
-            exact = got.status is expected.status and _summary(got) == expected.value
-            # A cooldown shades a label in no way the reader can follow, so on
-            # a cooldown frame it may say it can't read (COVERED, UNSURE): what
-            # it must never do is READ something else.
-            declined = got.status in (Status.COVERED, Status.UNSURE)
-            if not exact and not (_on_cooldown(entry) and declined):
+            if got.status is not expected.status or _summary(got) != expected.value:
                 wrong.append(
                     f"{entry.file}: expected {expected.status.name}, "
                     f"read {got.status.name} {got.detail}"
                 )
-    assert not wrong, "\n".join(wrong)
+    assert not wrong, chr(10).join(wrong)
 
 
-def test_a_fresh_reader_on_a_cooldown_frame_is_unsure(
+def test_a_fresh_reader_never_reads_a_wrong_value(
     frames: FrameSet, sprites: ReaderSprites
 ) -> None:
-    # Where the reader hasn't seen a slot unshaded it says UNSURE, when the
-    # slot has no label it recognises (a hole in the grid).
-    shaded = [
-        e
-        for e in _quick_slots(frames)
-        if _on_cooldown(e)
-        and e.client_size == (1366, 768)
-        and e.expect["quick_slots"].status is Status.READ
-    ]
-    assert shaded
-    statuses: set[Status] = set()
-    for entry in shaded:
+    # Never a wrong READ: a reader that hasn't seen the slots unshaded reads a
+    # frame exactly, or says UNSURE, which it must on every cooldown frame
+    # whose slot labels it can't recognise (a lone `P` is not `PgUp`).
+    wrong: list[str] = []
+    unsure = 0
+    for entry in _quick_slots(frames):
         reader = QuickSlotsReader(sprites, FrameCheck(sprites))
         reader.read(_frame(frames, entry, 0.0))
-        statuses.add(reader.read(_frame(frames, entry, SEARCH_EVERY)).status)
-    # Not asserted, and known to fail: where only a slot whose label has `P`
-    # (key 25) as its first letter is shaded (`PgUp`, `PgDn`), the fresh reader
-    # reads the `P` drawn inside it, as a READ (f032 to f042 at 1366x768).
-    assert Status.UNSURE in statuses
-    assert Status.COVERED not in statuses
+        got = reader.read(_frame(frames, entry, SEARCH_EVERY))
+        expected = entry.expect["quick_slots"]
+        exact = got.status is expected.status and _summary(got) == expected.value
+        if got.status is Status.UNSURE:
+            unsure += 1
+        elif not exact:
+            wrong.append(f"{entry.file}: read {got.status.name} {_summary(got)}")
+    assert not wrong, chr(10).join(wrong)
+    assert unsure
