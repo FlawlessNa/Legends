@@ -6,7 +6,6 @@ import numpy as np
 
 from botting import PARENT_LOG
 from botting.models_abstractions import BaseMap, BaseMob
-from maple.model.interface import Minimap
 
 from .maple_mob import MapleMob
 from .minimap_creation.minimap_edits_model import (
@@ -20,11 +19,15 @@ from .physics import MinimapPhysics
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
-class MapleMinimap(Minimap):
+class MapleMinimap:
     """
-    Minimap built entirely from a MinimapEditsManager (JSON config).
-    No game-file parser required. Physics is optional; omitting it disables
-    physics-based grid connections (jumps, teleport).
+    The map's minimap as data, built entirely from a MinimapEditsManager (JSON
+    config): its walkable canvas, features, portals and grid. Physics is
+    optional; omitting it disables physics-based grid connections (jumps,
+    teleport).
+
+    It reads nothing off the screen. The character's position and where the
+    minimap is drawn come from `maple.screen.minimap`.
     """
 
     JUMP_DOWN_LIMIT: int = 30
@@ -82,23 +85,30 @@ class MapleMinimap(Minimap):
         x, y = position
         return self.features_manager.get_feature_containing(x, y)
 
-    # `Minimap` declares both as plain `int` class attributes defaulting to the
-    # `NotImplemented` sentinel, which it tests for by `isinstance`. A property
-    # overriding a variable is an incompatible override whatever it returns, and the
-    # sentinel is not an `int` either; both are the base class's shape, not this
-    # class's, so they are suppressed here rather than fixed in a file this change
-    # does not otherwise touch.
     @property
-    def map_area_width(self) -> int:  # pyright: ignore[reportIncompatibleVariableOverride]
-        if self.features_manager.canvas_width is None:
-            return NotImplemented
-        return self.features_manager.canvas_width
+    def map_area_width(self) -> int:
+        """The map area's width in minimap pixels, as the map file records it."""
+        return self._canvas_size()[0]
 
     @property
-    def map_area_height(self) -> int:  # pyright: ignore[reportIncompatibleVariableOverride]
-        if self.features_manager.canvas_height is None:
-            return NotImplemented
-        return self.features_manager.canvas_height
+    def map_area_height(self) -> int:
+        """The map area's height in minimap pixels, as the map file records it."""
+        return self._canvas_size()[1]
+
+    @property
+    def map_id(self) -> int | None:
+        """The client's id for this map, when its file names it."""
+        return self.features_manager.map_id
+
+    def _canvas_size(self) -> tuple[int, int]:
+        width = self.features_manager.canvas_width
+        height = self.features_manager.canvas_height
+        if width is None or height is None:
+            raise RuntimeError(
+                f"'{self.map_name}' has no canvas_width/canvas_height in its map "
+                "file: record it with the map editor."
+            )
+        return width, height
 
     def _generate_grid_uncached(
         self,
@@ -154,9 +164,6 @@ class MapleMinimap(Minimap):
             return np.where(np.any(canvas > 0, axis=-1), 1, 0).astype(np.uint8)
         else:
             return np.where(canvas > 0, 1, 0).astype(np.uint8)
-
-    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        return self._preprocess_canvas(image)
 
     def _require_physics(self) -> MinimapPhysics:
         """

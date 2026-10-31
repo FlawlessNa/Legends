@@ -53,6 +53,11 @@ Event Types are constants in `maple/telemetry_events.py`, and payloads are the
 The live path is **JSON, one file per map, under `configs/maps/`**, authored
 with the GUI editor in `maple/model/mechanics/minimap_creation/`.
 
+A map file may name the client's `map_id`; with it, `CheckStillInMap` compares
+the minimap on screen with that map's own `miniMap` canvas. `MapleMinimap` is
+the map's data only: positions and where the minimap is drawn are read by
+`maple/screen/minimap.py`.
+
 Game files are read by `game_data/` (top level, importing neither `maple` nor
 `botting`), not by this package. See `docs/agents/game-data.md`.
 

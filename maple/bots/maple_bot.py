@@ -9,8 +9,12 @@ from botting.screen import frame_source
 from botting.visuals import InGameDetectionVisuals
 from maple.model.characters import MAPPING as CHARACTER_MAPPING
 from maple.model.mechanics import MapleMap
+from maple.model.mechanics.minimap_creation.minimap_edits_model import (
+    MinimapEditsManager,
+)
 from maple.screen.client import find_client
 from maple.screen.locator import FrameCheck
+from maple.screen.minimap import NW, MinimapReader
 from maple.screen.sprites import Profile, enabled_readers, load_reader_sprites
 
 
@@ -70,13 +74,23 @@ class MapleBot(Bot, ABC):
         data = self.data
         # The readers' sprites are loaded once, before any reader attribute
         # exists: a missing or stale store refuses the start here, not mid-cycle.
+        map_file = MinimapEditsManager.from_json(self.game_map)
         reader_sprites = load_reader_sprites(
             enabled_readers(self._decision_makers()),
-            Profile(job=self.job, game_map=self.game_map),
+            Profile(
+                job=self.job,
+                game_map=self.game_map,
+                map_id=map_file.map_id if map_file is not None else None,
+            ),
         )
         data.set_static("reader_sprites", reader_sprites)
         if reader_sprites.build is not None:
-            data.set_static("frame_check", FrameCheck(reader_sprites))
+            frame_check = FrameCheck(reader_sprites)
+            data.set_static("frame_check", frame_check)
+            if NW in reader_sprites.canvases:
+                data.set_static(
+                    "minimap_reader", MinimapReader(reader_sprites, frame_check)
+                )
         InGameDetectionVisuals.register_models(self.models_path)
         InGameDetectionVisuals.register_cache_id(data.handle)
         data.create_attribute(
@@ -103,10 +117,18 @@ class MapleBot(Bot, ABC):
             ),
         )
         data.create_attribute("current_mobs", lambda: data.current_map.mobs)
+        # One capture serves both: the readers take the `Frame`, the older
+        # pixel consumers its pixels. Refreshing the pixels captures a new frame,
+        # as it did before, so `update_attribute("current_client_img")` still
+        # means a fresh capture.
         data.create_attribute(
-            "current_client_img",
-            lambda: frame_source().grab(data.handle).pixels,
-            threshold=0.1,
+            "current_frame", lambda: frame_source().grab(data.handle), threshold=0.1
         )
+
+        def client_img() -> Any:  # noqa: ANN401 - the frame's pixels, as before
+            data.update_attribute("current_frame")
+            return data.current_frame.pixels
+
+        data.create_attribute("current_client_img", client_img, threshold=0.1)
         data.set_static("speed_multiplier", self.kwargs.get("speed_multiplier", 1.00))
         data.set_static("jump_multiplier", self.kwargs.get("jump_multiplier", 1.00))
