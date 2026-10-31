@@ -261,3 +261,24 @@ def test_numbers_drawn_over_the_bar_do_not_hide_it() -> None:
 
     assert reading.status is Status.READ
     assert reading.value == StatusBar(87, 10, 20, 3, 4, 5, 1.5)
+
+
+def test_exp_grouped_in_thousands_is_read(reader: StatusBarReader) -> None:
+    reading = reader.read(frame(bar(exp="2,869[6.08%]")))
+
+    assert reading.value is not None
+    assert (reading.value.exp, reading.value.exp_percent) == (2869, 6.08)
+
+
+def test_what_follows_the_closing_bracket_is_not_read(
+    reader: StatusBarReader,
+) -> None:
+    """The strip runs on to the next number's label, which can match small glyphs."""
+    pixels = bar(hp="[1500/2000]")
+    x, y = POINT[0] + VECTORS[_HP_AT][0] + 56, POINT[1] + VECTORS[_HP_AT][1]
+    paste(pixels, sprite_of(_GAUGE_GLYPHS["5"]).rgba, x, y)
+
+    reading = reader.read(frame(pixels))
+
+    assert reading.value is not None
+    assert reading.value.hp == 1500

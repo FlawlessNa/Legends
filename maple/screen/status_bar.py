@@ -58,7 +58,8 @@ STATUS_BAR = Declaration(
 )
 
 _HP_MP = re.compile(r"\[?(\d+)/(\d+)\]?")
-_EXP = re.compile(r"(\d+)\[(\d+(?:\.\d+)?)%\]")
+# The client groups the EXP in thousands: "2,869[6.08%]".
+_EXP = re.compile(r"(\d{1,3}(?:,\d{3})*|\d+)\[(\d+(?:\.\d+)?)%\]")
 _LEVEL = re.compile(r"\d{1,3}")
 
 
@@ -97,7 +98,15 @@ class StatusBarReader:
         # the next number's, the last to the label's right edge.
         label_right = label.rgba.shape[1] - label.origin[0]
         self._strips = {
-            "level": (level_x, level_y, level_w * _LEVEL_DIGIT_COUNT, level_h),
+            # The digits of a two-digit level start one digit left of the vector
+            # (frames); the strip starts there, so alignment of 1 and 3 digits is
+            # unverified.
+            "level": (
+                level_x - level_w,
+                level_y,
+                level_w * (_LEVEL_DIGIT_COUNT + 1),
+                level_h,
+            ),
             "hp": (hp_x, hp_y, mp_x - hp_x, gauge_h),
             "mp": (mp_x, mp_y, exp_x - mp_x, gauge_h),
             "exp": (exp_x, exp_y, label_right - exp_x, gauge_h),
@@ -164,7 +173,7 @@ class StatusBarReader:
                 max_hp=int(hp_match.group(2)),
                 mp=int(mp_match.group(1)),
                 max_mp=int(mp_match.group(2)),
-                exp=int(exp_match.group(1)),
+                exp=int(exp_match.group(1).replace(",", "")),
                 exp_percent=float(exp_match.group(2)),
             ),
             frame.captured_at,
@@ -179,7 +188,12 @@ class StatusBarReader:
     ) -> str:
         x, y, w, h = self._strips[name]
         px, py = located.position((x, y))
-        return read_glyphs(_crop(frame.pixels, px, py, w, h), glyphs)
+        text = read_glyphs(_crop(frame.pixels, px, py, w, h), glyphs)
+        if glyphs is self._gauge_glyphs:
+            # The strip runs on to the next number's label, whose letters match
+            # the small glyphs: the string ends at its closing bracket.
+            text = text[: text.find("]") + 1] if "]" in text else text
+        return text
 
 
 def _glyphs(

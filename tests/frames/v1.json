@@ -1,0 +1,1424 @@
+{
+  "frames": [
+    {
+      "file": "f001_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 1060,
+            "max_hp": 1060,
+            "mp": 443,
+            "max_mp": 443,
+            "exp": 2869,
+            "exp_percent": 6.08
+          }
+        }
+      }
+    },
+    {
+      "file": "f002_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "Not the client: the desktop and taskbar over a black screen.",
+      "expect": {
+        "status_bar": {
+          "status": "unsure",
+          "value": null
+        }
+      }
+    },
+    {
+      "file": "f003_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 1060,
+            "max_hp": 1060,
+            "mp": 443,
+            "max_mp": 443,
+            "exp": 2869,
+            "exp_percent": 6.08
+          }
+        }
+      }
+    },
+    {
+      "file": "f004_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 1060,
+            "max_hp": 1060,
+            "mp": 443,
+            "max_mp": 443,
+            "exp": 2869,
+            "exp_percent": 6.08
+          }
+        }
+      }
+    },
+    {
+      "file": "f005_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 1060,
+            "max_hp": 1060,
+            "mp": 443,
+            "max_mp": 443,
+            "exp": 2869,
+            "exp_percent": 6.08
+          }
+        }
+      }
+    },
+    {
+      "file": "f006_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 1060,
+            "max_hp": 1060,
+            "mp": 443,
+            "max_mp": 443,
+            "exp": 2869,
+            "exp_percent": 6.08
+          }
+        }
+      }
+    },
+    {
+      "file": "f007_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 1060,
+            "max_hp": 1060,
+            "mp": 433,
+            "max_mp": 443,
+            "exp": 2869,
+            "exp_percent": 6.08
+          }
+        }
+      }
+    },
+    {
+      "file": "f008_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 1026,
+            "max_hp": 1060,
+            "mp": 406,
+            "max_mp": 443,
+            "exp": 2892,
+            "exp_percent": 6.13
+          }
+        }
+      }
+    },
+    {
+      "file": "f009_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 899,
+            "max_hp": 1060,
+            "mp": 337,
+            "max_mp": 443,
+            "exp": 2993,
+            "exp_percent": 6.34
+          }
+        }
+      }
+    },
+    {
+      "file": "f010_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 813,
+            "max_hp": 1060,
+            "mp": 301,
+            "max_mp": 443,
+            "exp": 3016,
+            "exp_percent": 6.39
+          }
+        }
+      }
+    },
+    {
+      "file": "f011_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 786,
+            "max_hp": 1060,
+            "mp": 253,
+            "max_mp": 443,
+            "exp": 3101,
+            "exp_percent": 6.57
+          }
+        }
+      }
+    },
+    {
+      "file": "f012_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 834,
+            "max_hp": 1060,
+            "mp": 253,
+            "max_mp": 443,
+            "exp": 3101,
+            "exp_percent": 6.57
+          }
+        }
+      }
+    },
+    {
+      "file": "f013_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 749,
+            "max_hp": 1060,
+            "mp": 232,
+            "max_mp": 443,
+            "exp": 3124,
+            "exp_percent": 6.62
+          }
+        }
+      }
+    },
+    {
+      "file": "f014_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 759,
+            "max_hp": 1060,
+            "mp": 208,
+            "max_mp": 443,
+            "exp": 3186,
+            "exp_percent": 6.75
+          }
+        }
+      }
+    },
+    {
+      "file": "f015_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 756,
+            "max_hp": 1060,
+            "mp": 127,
+            "max_mp": 443,
+            "exp": 3294,
+            "exp_percent": 6.98
+          }
+        }
+      }
+    },
+    {
+      "file": "f016_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 768,
+            "max_hp": 1060,
+            "mp": 241,
+            "max_mp": 443,
+            "exp": 3317,
+            "exp_percent": 7.03
+          }
+        }
+      }
+    },
+    {
+      "file": "f017_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 630,
+            "max_hp": 1060,
+            "mp": 232,
+            "max_mp": 443,
+            "exp": 3317,
+            "exp_percent": 7.03
+          }
+        }
+      }
+    },
+    {
+      "file": "f018_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 547,
+            "max_hp": 1060,
+            "mp": 208,
+            "max_mp": 443,
+            "exp": 3317,
+            "exp_percent": 7.03
+          }
+        }
+      }
+    },
+    {
+      "file": "f019_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 459,
+            "max_hp": 1060,
+            "mp": 172,
+            "max_mp": 443,
+            "exp": 3340,
+            "exp_percent": 7.07
+          }
+        }
+      }
+    },
+    {
+      "file": "f020_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 329,
+            "max_hp": 1060,
+            "mp": 160,
+            "max_mp": 443,
+            "exp": 3362,
+            "exp_percent": 7.12
+          }
+        }
+      }
+    },
+    {
+      "file": "f021_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 557,
+            "max_hp": 1060,
+            "mp": 127,
+            "max_mp": 443,
+            "exp": 3435,
+            "exp_percent": 7.28
+          }
+        }
+      }
+    },
+    {
+      "file": "f022_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 567,
+            "max_hp": 1060,
+            "mp": 253,
+            "max_mp": 443,
+            "exp": 3435,
+            "exp_percent": 7.28
+          }
+        }
+      }
+    },
+    {
+      "file": "f023_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 530,
+            "max_hp": 1060,
+            "mp": 205,
+            "max_mp": 443,
+            "exp": 3481,
+            "exp_percent": 7.37
+          }
+        }
+      }
+    },
+    {
+      "file": "f024_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 439,
+            "max_hp": 1060,
+            "mp": 172,
+            "max_mp": 443,
+            "exp": 3503,
+            "exp_percent": 7.42
+          }
+        }
+      }
+    },
+    {
+      "file": "f025_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 414,
+            "max_hp": 1060,
+            "mp": 136,
+            "max_mp": 443,
+            "exp": 3565,
+            "exp_percent": 7.55
+          }
+        }
+      }
+    },
+    {
+      "file": "f026_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 414,
+            "max_hp": 1060,
+            "mp": 112,
+            "max_mp": 443,
+            "exp": 3588,
+            "exp_percent": 7.6
+          }
+        }
+      }
+    },
+    {
+      "file": "f027_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 380,
+            "max_hp": 1060,
+            "mp": 253,
+            "max_mp": 443,
+            "exp": 3588,
+            "exp_percent": 7.6
+          }
+        }
+      }
+    },
+    {
+      "file": "f028_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 352,
+            "max_hp": 1060,
+            "mp": 229,
+            "max_mp": 443,
+            "exp": 3611,
+            "exp_percent": 7.65
+          }
+        }
+      }
+    },
+    {
+      "file": "f029_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 446,
+            "max_hp": 1060,
+            "mp": 205,
+            "max_mp": 443,
+            "exp": 3650,
+            "exp_percent": 7.73
+          }
+        }
+      }
+    },
+    {
+      "file": "f030_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 446,
+            "max_hp": 1060,
+            "mp": 196,
+            "max_mp": 443,
+            "exp": 3689,
+            "exp_percent": 7.81
+          }
+        }
+      }
+    },
+    {
+      "file": "f031_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 410,
+            "max_hp": 1060,
+            "mp": 184,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f032_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 420,
+            "max_hp": 1060,
+            "mp": 184,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f033_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 420,
+            "max_hp": 1060,
+            "mp": 184,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f034_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 420,
+            "max_hp": 1060,
+            "mp": 187,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f035_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 440,
+            "max_hp": 1060,
+            "mp": 190,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f036_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 440,
+            "max_hp": 1060,
+            "mp": 190,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f037_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 450,
+            "max_hp": 1060,
+            "mp": 193,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f038_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 450,
+            "max_hp": 1060,
+            "mp": 196,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f039_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 460,
+            "max_hp": 1060,
+            "mp": 196,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f040_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 470,
+            "max_hp": 1060,
+            "mp": 202,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f041_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 470,
+            "max_hp": 1060,
+            "mp": 202,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f042_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 480,
+            "max_hp": 1060,
+            "mp": 202,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f043_800x600.png",
+      "client_size": [
+        800,
+        600
+      ],
+      "notes": "The UI isn't drawn at 1:1: the 800x600 resolution hasn't been applied yet.",
+      "expect": {
+        "status_bar": {
+          "status": "unsure",
+          "value": null
+        }
+      }
+    },
+    {
+      "file": "f044_800x600.png",
+      "client_size": [
+        800,
+        600
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 490,
+            "max_hp": 1060,
+            "mp": 205,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f045_800x600.png",
+      "client_size": [
+        800,
+        600
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 490,
+            "max_hp": 1060,
+            "mp": 205,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f046_800x600.png",
+      "client_size": [
+        800,
+        600
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 490,
+            "max_hp": 1060,
+            "mp": 205,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f047_800x600.png",
+      "client_size": [
+        800,
+        600
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 490,
+            "max_hp": 1060,
+            "mp": 208,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f048_800x600.png",
+      "client_size": [
+        800,
+        600
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 500,
+            "max_hp": 1060,
+            "mp": 208,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f049_800x600.png",
+      "client_size": [
+        800,
+        600
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 500,
+            "max_hp": 1060,
+            "mp": 208,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f050_800x600.png",
+      "client_size": [
+        800,
+        600
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 500,
+            "max_hp": 1060,
+            "mp": 211,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f051_800x600.png",
+      "client_size": [
+        800,
+        600
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 510,
+            "max_hp": 1060,
+            "mp": 211,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f052_800x600.png",
+      "client_size": [
+        800,
+        600
+      ],
+      "notes": "The mouse cursor is over the status bar's top edge.",
+      "expect": {
+        "status_bar": {
+          "status": "covered",
+          "value": null
+        }
+      }
+    },
+    {
+      "file": "f053_1024x768.png",
+      "client_size": [
+        1024,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 510,
+            "max_hp": 1060,
+            "mp": 211,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f054_1024x768.png",
+      "client_size": [
+        1024,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 510,
+            "max_hp": 1060,
+            "mp": 214,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f055_1024x768.png",
+      "client_size": [
+        1024,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 520,
+            "max_hp": 1060,
+            "mp": 214,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f056_1024x768.png",
+      "client_size": [
+        1024,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 520,
+            "max_hp": 1060,
+            "mp": 217,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f057_1024x768.png",
+      "client_size": [
+        1024,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 530,
+            "max_hp": 1060,
+            "mp": 217,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f058_1024x768.png",
+      "client_size": [
+        1024,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 530,
+            "max_hp": 1060,
+            "mp": 217,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f059_1920x1080.png",
+      "client_size": [
+        1920,
+        1080
+      ],
+      "notes": "The UI isn't drawn at 1:1: the 1920x1080 resolution hasn't been applied yet.",
+      "expect": {
+        "status_bar": {
+          "status": "unsure",
+          "value": null
+        }
+      }
+    },
+    {
+      "file": "f060_1920x1080.png",
+      "client_size": [
+        1920,
+        1080
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 540,
+            "max_hp": 1060,
+            "mp": 220,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f061_1920x1080.png",
+      "client_size": [
+        1920,
+        1080
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 540,
+            "max_hp": 1060,
+            "mp": 223,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f062_1920x1080.png",
+      "client_size": [
+        1920,
+        1080
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 550,
+            "max_hp": 1060,
+            "mp": 223,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f063_1920x1080.png",
+      "client_size": [
+        1920,
+        1080
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 550,
+            "max_hp": 1060,
+            "mp": 223,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f064_1920x1080.png",
+      "client_size": [
+        1920,
+        1080
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 550,
+            "max_hp": 1060,
+            "mp": 226,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f065_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 560,
+            "max_hp": 1060,
+            "mp": 226,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    },
+    {
+      "file": "f066_1366x768.png",
+      "client_size": [
+        1366,
+        768
+      ],
+      "notes": "",
+      "expect": {
+        "status_bar": {
+          "status": "read",
+          "value": {
+            "level": 25,
+            "hp": 560,
+            "max_hp": 1060,
+            "mp": 229,
+            "max_mp": 443,
+            "exp": 3705,
+            "exp_percent": 7.85
+          }
+        }
+      }
+    }
+  ]
+}
