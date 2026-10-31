@@ -3,19 +3,42 @@ import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import threading
+from collections.abc import Iterable, Mapping
 from functools import partial
 
 from botting import PARENT_LOG
 from botting.core import BotData, DecisionMaker
 from maple.model.characters import MapleSkill
+from maple.screen.buffs import BUFFS
 
 from .mixins import RebuffMixin
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
+def solo_buffs(
+    skills: Mapping[str, MapleSkill],
+    included_buffs: Iterable[str] | None = None,
+    excluded_buffs: Iterable[str] | None = None,
+) -> list[MapleSkill]:
+    """
+    The buffs `SoloRebuff` keeps up: the character's self-buffs used by
+    default, plus `included_buffs`, less `excluded_buffs`.
+    """
+    buffs = [
+        skill
+        for skill in skills.values()
+        if skill.type == "Buff" and skill.use_by_default
+    ]
+    buffs.extend(skills[buff] for buff in included_buffs or ())
+    excluded = set(excluded_buffs or ())
+    return [buff for buff in buffs if buff.name not in excluded]
+
+
 class SoloRebuff(RebuffMixin, DecisionMaker):
     # TODO - Deal with Macros as well.
+
+    screen_readers = (BUFFS,)
 
     def __init__(
         self,
@@ -28,13 +51,9 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
     ) -> None:
         super().__init__(metadata, data, pipe)
 
-        # Set up the buffs to be used
-        buffs = self._get_character_default_buffs("Buff")
-        if included_buffs:
-            buffs.extend([self.data.character.skills[buff] for buff in included_buffs])
-        if excluded_buffs:
-            buffs = list(filter(lambda buff: buff.name not in excluded_buffs, buffs))
-        self._buffs = buffs
+        self._buffs = solo_buffs(
+            self.data.character.skills, included_buffs, excluded_buffs
+        )
         self._sub_tasks: dict[str, asyncio.Task] = {}
         self._tg: asyncio.TaskGroup | None = None
 

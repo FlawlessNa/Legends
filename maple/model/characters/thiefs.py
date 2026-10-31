@@ -1,17 +1,17 @@
-from .maple_skills import MapleSkill, MaplePartyBuff, MapleBuff
 from .character import Character
+from .maple_skills import MapleBuff, MaplePartyBuff
 
 
 class Rogue(Character):
     main_stat = "LUK"
-    skills = {}
+    skills = {}  # noqa: RUF012 - the job's skill table, as `Character` declares it
 
     def __init__(self, ign: str, detection_configs: str, client_size: str) -> None:
         super().__init__(ign, detection_configs, client_size)
 
 
 class Assassin(Rogue):
-    skills = {
+    skills = {  # noqa: RUF012 - the job's skill table, as `Character` declares it
         **Rogue.skills,
         "Haste": MaplePartyBuff(
             "Haste",
@@ -20,8 +20,6 @@ class Assassin(Rogue):
             vertical_screen_range=100,  # TODO - Figure this out
             duration=200,
             unidirectional=False,
-            match_template_threshold=0.5,
-            match_icon_threshold=0.74,
         ),
         "Claw Booster": MapleBuff(
             "Claw Booster",
@@ -36,7 +34,7 @@ class Assassin(Rogue):
 
 
 class Hermit(Assassin):
-    skills = {
+    skills = {  # noqa: RUF012 - the job's skill table, as `Character` declares it
         **Assassin.skills,
         "Meso Up": MaplePartyBuff(
             "Meso Up",
@@ -45,8 +43,6 @@ class Hermit(Assassin):
             vertical_screen_range=100,  # TODO - Figure this out
             duration=120,
             unidirectional=False,
-            match_template_threshold=0.5,
-            match_icon_threshold=0.75,
         ),
     }
 

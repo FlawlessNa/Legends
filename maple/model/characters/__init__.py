@@ -1,7 +1,7 @@
 from .character import Character
-from .magicians import Magician, Cleric, Priest, Bishop, FPWizard, FPMage, FPArchMage
-from .thiefs import Rogue, Assassin, Hermit
-from .maple_skills import MapleSkill, MapleBuff, MaplePartyBuff
+from .magicians import Bishop, Cleric, FPArchMage, FPMage, FPWizard, Magician, Priest
+from .maple_skills import MapleBuff, MaplePartyBuff, MapleSkill
+from .thiefs import Assassin, Hermit, Rogue
 
 MAPPING = {
     "Magician": Magician,
@@ -15,6 +15,20 @@ MAPPING = {
     "MageFirePoison": FPMage,
 }
 
-ALL_BUFFS = dict()
-for char in MAPPING.values():
-    ALL_BUFFS.update(char.skills)
+__all__ = [
+    "MAPPING",
+    "Assassin",
+    "Bishop",
+    "Character",
+    "Cleric",
+    "FPArchMage",
+    "FPMage",
+    "FPWizard",
+    "Hermit",
+    "Magician",
+    "MapleBuff",
+    "MaplePartyBuff",
+    "MapleSkill",
+    "Priest",
+    "Rogue",
+]
