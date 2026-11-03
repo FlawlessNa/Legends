@@ -328,18 +328,18 @@ class TrailRecordingFrame(_ModeDependentFrame):
         self._features_tab = ttk.Frame(self.notebook)
         self._portals_tab = ttk.Frame(self.notebook)
         self._calibrate_tab = ttk.Frame(self.notebook)
-        self._title_tab = ttk.Frame(self.notebook)
+        self._map_id_tab = ttk.Frame(self.notebook)
         self.notebook.add(self._record_tab, text="Record")
         self.notebook.add(self._features_tab, text="Features")
         self.notebook.add(self._portals_tab, text="Portals")
         self.notebook.add(self._calibrate_tab, text="Calibrate")
-        self.notebook.add(self._title_tab, text="Title Img")
+        self.notebook.add(self._map_id_tab, text="Map ID")
 
         self._build_record_tab()
         self._build_features_tab()
         self._build_portals_tab()
         self._build_calibrate_tab()
-        self._build_title_tab()
+        self._build_map_id_tab()
 
         self.save_button = tk.Button(
             self,
@@ -549,55 +549,34 @@ class TrailRecordingFrame(_ModeDependentFrame):
             row=6, column=0, columnspan=2, sticky=tk.W, padx=4, pady=(2, 4)
         )
 
-    def _build_title_tab(self):
-        t = self._title_tab
-        t.columnconfigure(0, weight=1)
+    def _build_map_id_tab(self):
+        t = self._map_id_tab
+        t.columnconfigure(1, weight=1)
 
         tk.Label(
-            t, text="Minimap must be in Full display mode.", font=("", 8), fg="gray"
+            t,
+            text="The client's map id. Set only once the minimap on screen shows it.",
+            font=("", 8),
+            fg="gray",
+            wraplength=200,
         ).grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=4, pady=(4, 0))
 
-        self.capture_title_btn = tk.Button(
+        tk.Label(t, text="Map ID:").grid(row=1, column=0, sticky=tk.W, padx=4)
+        self.map_id_entry = tk.Entry(t)
+        self.map_id_entry.grid(row=1, column=1, sticky=tk.EW, padx=4, pady=(4, 2))
+
+        self.set_map_id_btn = tk.Button(
             t,
-            text="Capture Title Image",
-            command=lambda: self.master.master.editor.capture_title_image(),
+            text="Check & Set",
+            command=lambda: self.master.master.editor.set_map_id(),
         )
-        self.capture_title_btn.grid(
-            row=1, column=0, columnspan=2, sticky=tk.EW, padx=4, pady=(4, 2)
+        self.set_map_id_btn.grid(
+            row=2, column=0, columnspan=2, sticky=tk.EW, padx=4, pady=(2, 2)
         )
 
-        self.title_preview_label = tk.Label(
-            t,
-            text="(no image captured)",
-            relief=tk.SUNKEN,
-        )
-        self.title_preview_label.grid(
-            row=2, column=0, columnspan=2, padx=4, pady=4, sticky=tk.EW
-        )
-        self._title_preview_photo = None  # holds PhotoImage reference to prevent GC
-
-        bf = ttk.Frame(t)
-        bf.grid(row=3, column=0, columnspan=2, sticky=tk.EW, padx=4)
-        bf.columnconfigure(0, weight=1)
-        bf.columnconfigure(1, weight=1)
-        self.confirm_title_btn = tk.Button(
-            bf,
-            text="Confirm & Save",
-            state=tk.DISABLED,
-            command=lambda: self.master.master.editor.confirm_title_image(),
-        )
-        self.confirm_title_btn.grid(row=0, column=0, sticky=tk.EW, padx=(0, 2))
-        self.retake_title_btn = tk.Button(
-            bf,
-            text="Retake",
-            state=tk.DISABLED,
-            command=lambda: self.master.master.editor.capture_title_image(),
-        )
-        self.retake_title_btn.grid(row=0, column=1, sticky=tk.EW)
-
-        self.title_status_label = tk.Label(t, text="", font=("", 8), wraplength=200)
-        self.title_status_label.grid(
-            row=4, column=0, columnspan=2, sticky=tk.W, padx=4, pady=(2, 4)
+        self.map_id_status_label = tk.Label(t, text="", font=("", 8), wraplength=200)
+        self.map_id_status_label.grid(
+            row=3, column=0, columnspan=2, sticky=tk.W, padx=4, pady=(2, 4)
         )
 
     # ------------------------------------------------------------------

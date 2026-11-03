@@ -23,7 +23,15 @@ import pytest
 from tests.test_game_data.wz_writer import Img, Int, write_tree
 
 PACKAGE = Path(__file__).resolve().parents[2] / "game_data"
-LAYERS = ["archive", "extraction", "catalogue", "report", "render", "scenes"]
+LAYERS = [
+    "archive",
+    "extraction",
+    "catalogue",
+    "sprites",
+    "report",
+    "render",
+    "scenes",
+]
 
 # What each layer may import from the others. `report/` and `render/` both sit
 # on the catalogue, and not on each other.
@@ -31,6 +39,7 @@ ALLOWED = {
     "archive": set[str](),
     "extraction": {"archive"},
     "catalogue": {"archive", "extraction"},
+    "sprites": {"archive", "extraction", "catalogue"},
     "report": {"archive", "extraction", "catalogue"},
     "render": {"archive", "extraction", "catalogue"},
     "scenes": {"archive", "extraction", "catalogue", "render"},

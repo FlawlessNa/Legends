@@ -48,7 +48,6 @@ DEFAULT_ESCALATION_TARGETS = (
     "CheckMobsStillSpawn",
     "MobsHitting",
     "TelecastMobsHitting",
-    "PartyRebuff",
 )
 
 

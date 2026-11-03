@@ -13,11 +13,13 @@ or skills. The public API:
   (`store`). `Manifest`: one extraction's `manifest.json` (`manifest`).
 - `encode_tree`: an image's tree as the raw layer's JSON (`raw`).
 - `ImageStore`: the PNG of every canvas, by name (`images`).
+- `BlobStore`: the client font's bytes, by SHA-256 (`blobs`).
 - `build_id` and `archive_files`: what identifies a Build (`build`).
 
 `docs/agents/game-data.md` describes the store for anyone reading it directly.
 """
 
+from .blobs import BlobStore
 from .build import ArchiveFile, HashedArchive, archive_files, build_id
 from .extract import (
     EXTRACTOR_VERSION,
@@ -28,7 +30,7 @@ from .extract import (
     no_catalogue,
     no_report,
 )
-from .images import ImageStore, pixel_hash, png
+from .images import ImageStore, pixel_hash, png, read_png
 from .manifest import ExtractionError, Failure, Manifest
 from .raw import CanvasImage, Json, UnstorableNode, encode_tree
 from .status import Freshness, Status, status
@@ -39,6 +41,7 @@ __all__ = [
     "KEEP",
     "RAW",
     "ArchiveFile",
+    "BlobStore",
     "CanvasImage",
     "CatalogueHook",
     "Extracted",
@@ -61,5 +64,6 @@ __all__ = [
     "no_report",
     "pixel_hash",
     "png",
+    "read_png",
     "status",
 ]

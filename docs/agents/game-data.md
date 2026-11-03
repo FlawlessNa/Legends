@@ -147,6 +147,41 @@ manifest has another `catalogue_schema_version`, or which has no catalogue,
 rebuilds it from `raw.sqlite` first, and updates the manifest. That needs the
 store only, not the client.
 
+### Sprites
+
+```python
+from game_data.sprites import Sprites
+
+with Sprites.latest() as sprites:         # or Sprites.open(build_id, root=...)
+    digit = sprites.canvas("UI/StatusBar.img/gauge/number/0")   # Sprite
+    digit.rgba, digit.origin               # H×W×4 uint8 RGBA, and (x, y)
+    sprites.vector("UI/StatusBar.img/gauge/vector:posNumberHp")  # (x, y)
+    sprites.children("UI/StatusBar.img/gauge")                   # list[str]
+    sprites.raw_data("UI/Font/NotoSansKRMedium.img/FONT_DATA")   # bytes
+```
+
+Where the catalogue looks up maps, mobs and skills by name, `Sprites` looks up
+any node of any image by path, from `raw.sqlite` and the stores alone.
+
+- **Paths.** An image's path, then the node's path inside it, with the
+  client's real node names, type prefixes included: `UI/StatusBar.img/canvas:gaugeLabel`,
+  `Map/MapHelper.img/minimap/user`. The image's path is everything up to the
+  first step ending in `.img`.
+- **`canvas`** returns a frozen `Sprite`: `path`, `rgba` (read-only), and
+  `origin`, `(0, 0)` when the canvas has none. **`vector`** returns `(x, y)`.
+  **`children`** returns the node's child names in the client's order; a
+  canvas's properties (`origin`, `z`...) are among its children.
+- **UOLs** are followed on the way and at the end, as the catalogue follows
+  them.
+- **`SpriteNotFound`** (a `LookupError`) names the path, for an unknown image,
+  an unknown node, a node of the wrong type, and a canvas whose `image` is
+  `null`.
+- **`raw_data`** reads a blob back and checks its SHA-256. A missing or
+  altered blob raises `CatalogueError`, which says to run `extract`; only the
+  nodes under `UI/Font/` have blobs.
+- Each image's tree is parsed once per instance, and the instance holds the
+  store's `raw.sqlite` open until it is closed, so use it in a `with`.
+
 ## The patch report
 
 `reports/<old>__<new>.html` is one self-contained page: inline CSS and SVG,
@@ -367,6 +402,7 @@ data/game_data/
     raw.sqlite             every image's tree, losslessly
     catalogue.sqlite       the typed layer, built from raw.sqlite
   images/<hh>/<name>.png   every canvas's pixels, shared by all extractions
+  blobs/<sha256>           the client font's bytes, shared by all extractions
   reports/<old>__<new>.html  the patch reports
   renders/<map id>.png     what `render` writes by default
 ```
@@ -390,7 +426,8 @@ An **Extraction** is one Build's extracted data: one folder under
   and images are left byte-identical.
 - **Retention.** After each extraction, the two latest extractions are kept and
   any older one is deleted. So are the images no kept extraction names (which
-  includes the images a failed run wrote) and the reports that name an
+  includes the images a failed run wrote), the blobs no kept extraction's
+  `UI/Font/` trees name, and the reports that name an
   extraction no longer kept.
 - Only one `extract` may run on a store at a time.
 
@@ -455,7 +492,7 @@ plain JSON, and the rest are objects tagged with `$type`:
 - **Sounds** are references: never decoded, only their length, duration and
   the SHA-256 of their bytes, so a changed sound shows.
 - **Raw data** is the client's colour lookup tables and a font, likewise kept
-  as a length and a SHA-256.
+  as a length and a SHA-256. The font's bytes are in `blobs/` (below).
 
 An object is a sub-property exactly when it has no `$type` key. No node in the
 client is named `$type`, and no canvas has a child named `image`, `w` or `h`.
@@ -799,6 +836,22 @@ shows what, aren't checked here.
 | `image`     | TEXT    | its image in `images/`; NULL when its pixels couldn't be found |
 | `origin_x`  | INTEGER | the digit's origin: about its bottom middle                   |
 | `origin_y`  | INTEGER |                                                               |
+
+### `blobs/`
+
+The bytes of every `raw_data` node under `UI/Font/` (the client's font), at
+`blobs/<sha256>`, a flat folder of files named by the SHA-256 of their bytes.
+The raw layer keeps a raw-data node only as a length and a SHA-256, so `extract`
+writes these out. The client has one: `UI/Font/NotoSansKRMedium.img/FONT_DATA`,
+6,188,880 bytes.
+
+- A blob is written once, through a temporary file, and never rewritten.
+- Extracting a Build the store already has writes the blobs it names that are
+  missing, re-reading only the `UI/Font/` images, so a store extracted before
+  `blobs/` existed gains them with one `extract`. `raw.sqlite` is untouched, so
+  `extractor_version` doesn't change.
+- Retention deletes the blobs no kept extraction's `UI/Font/` trees name, and
+  any file in `blobs/` that isn't a blob.
 
 ### `images/`
 

@@ -14,7 +14,7 @@ TRACKED_CONFIG = "game"
 
 def test_config_reader(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.DEBUG, logger=logger.name):
-        config_reader(filename=TRACKED_CONFIG, section="Client", option="Window Titles")
+        config_reader(filename=TRACKED_CONFIG, section="Client", option="Class Name")
     assert caplog.records
 
     with pytest.raises(AssertionError):

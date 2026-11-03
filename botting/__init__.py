@@ -4,6 +4,11 @@ It contains the necessary tool to establish one or multiple botting processes,
 and provides abstractions into how a bot should be structured and implemented.
 """
 
+# isort: off
+# First, before anything reads a window rectangle or a screen metric.
+from . import _dpi_awareness  # noqa: F401
+# isort: on
+
 import faulthandler
 import logging.config
 import multiprocessing

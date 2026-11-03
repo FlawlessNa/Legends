@@ -5,19 +5,28 @@ from abc import ABC
 from typing import Any
 
 from botting.core import Bot
-from botting.utilities import take_screenshot
+from botting.screen import frame_source
 from botting.visuals import InGameDetectionVisuals
-from maple import maple_ign_finder, maple_job_finder
+from maple.decision_makers.rebuffs import solo_buffs
 from maple.model.characters import MAPPING as CHARACTER_MAPPING
 from maple.model.mechanics import MapleMap
+from maple.model.mechanics.minimap_creation.minimap_edits_model import (
+    MinimapEditsManager,
+)
+from maple.screen.buffs import ICON_BASE, BuffsReader
+from maple.screen.client import find_client
+from maple.screen.locator import FrameCheck
+from maple.screen.minimap import NW, MinimapReader
+from maple.screen.sprites import Profile, enabled_readers, load_reader_sprites
+from maple.screen.status_bar import BACKGROUND as STATUS_BAR_BACKGROUND
+from maple.screen.status_bar import StatusBarReader
 
 
 class MapleBot(Bot, ABC):
     """
-    A Bot subclass that defines the ign_finder callable and extends the init behavior.
+    A Bot on the MapleStory client: it finds the client by its window class and
+    executable, and takes its job from the profile's `character_class`.
     """
-
-    ign_finder = maple_ign_finder
 
     def __init__(
         self,
@@ -32,9 +41,13 @@ class MapleBot(Bot, ABC):
         **kwargs: Any,  # noqa: ANN401
     ) -> None:
         super().__init__(ign, metadata, **kwargs)
-        self.handle = self.get_handle_from_ign(ign)
-        class_name = character_class or maple_job_finder(self.handle)
-        self.character_class = CHARACTER_MAPPING[class_name.title()]
+        if not character_class:
+            raise ValueError(
+                f"{type(self).__name__} for {ign!r} needs `character_class` in the "
+                "profile's settings, one of: " + ", ".join(sorted(CHARACTER_MAPPING))
+            )
+        self.job = character_class.title()
+        self.character_class = CHARACTER_MAPPING[self.job]
         self.detection_configs = detection_configs
         self.client_size = client_size
         self.models_path = models_path
@@ -42,6 +55,9 @@ class MapleBot(Bot, ABC):
         self.open_minimap_editor = open_minimap_editor
         self.kwargs = kwargs
         self.kwargs.update(ign=ign)
+
+    def find_handle(self) -> int:
+        return find_client()
 
     def child_init(
         self,
@@ -60,6 +76,41 @@ class MapleBot(Bot, ABC):
         assert self.data is not None
         assert self.models_path is not None
         data = self.data
+        # The readers' sprites are loaded once, before any reader attribute
+        # exists: a missing or stale store refuses the start here, not mid-cycle.
+        map_file = MinimapEditsManager.from_json(self.game_map)
+        reader_sprites = load_reader_sprites(
+            enabled_readers(self._decision_makers()),
+            Profile(
+                job=self.job,
+                game_map=self.game_map,
+                map_id=map_file.map_id if map_file is not None else None,
+                buffs=tuple(
+                    buff.name
+                    for buff in solo_buffs(
+                        self.character_class.skills,
+                        self.kwargs.get("included_buffs"),
+                        self.kwargs.get("excluded_buffs"),
+                    )
+                ),
+            ),
+        )
+        data.set_static("reader_sprites", reader_sprites)
+        if reader_sprites.build is not None:
+            frame_check = FrameCheck(reader_sprites)
+            data.set_static("frame_check", frame_check)
+            if STATUS_BAR_BACKGROUND in reader_sprites.canvases:
+                data.set_static(
+                    "status_bar_reader", StatusBarReader(reader_sprites, frame_check)
+                )
+            if ICON_BASE in reader_sprites.canvases:
+                data.set_static(
+                    "buffs_reader", BuffsReader(reader_sprites, frame_check)
+                )
+            if NW in reader_sprites.canvases:
+                data.set_static(
+                    "minimap_reader", MinimapReader(reader_sprites, frame_check)
+                )
         InGameDetectionVisuals.register_models(self.models_path)
         InGameDetectionVisuals.register_cache_id(data.handle)
         data.create_attribute(
@@ -86,10 +137,18 @@ class MapleBot(Bot, ABC):
             ),
         )
         data.create_attribute("current_mobs", lambda: data.current_map.mobs)
+        # One capture serves both: the readers take the `Frame`, the older
+        # pixel consumers its pixels. Refreshing the pixels captures a new frame,
+        # as it did before, so `update_attribute("current_client_img")` still
+        # means a fresh capture.
         data.create_attribute(
-            "current_client_img",
-            lambda: take_screenshot(data.handle),
-            threshold=0.1,
+            "current_frame", lambda: frame_source().grab(data.handle), threshold=0.1
         )
+
+        def client_img() -> Any:  # noqa: ANN401 - the frame's pixels, as before
+            data.update_attribute("current_frame")
+            return data.current_frame.pixels
+
+        data.create_attribute("current_client_img", client_img, threshold=0.1)
         data.set_static("speed_multiplier", self.kwargs.get("speed_multiplier", 1.00))
         data.set_static("jump_multiplier", self.kwargs.get("jump_multiplier", 1.00))
