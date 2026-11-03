@@ -25,6 +25,7 @@ class CalibrationBot(MapleBot):
         bot: calibration
         settings:
           game_map: GhostShip1
+          character_class: Bishop
           trial_schedule: example
     """
 

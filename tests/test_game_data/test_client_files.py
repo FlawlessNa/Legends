@@ -9,6 +9,7 @@ rather than skip. They read only the files, never the running game, and keep
 nothing they read.
 """
 
+import hashlib
 import shutil
 import sqlite3
 from collections.abc import Callable, Iterator
@@ -32,6 +33,7 @@ from game_data.catalogue import CATALOGUE, SCHEMA_VERSION, Catalogue, build_cata
 from game_data.config import ClientPathNotSet, client_data_path
 from game_data.extraction import Freshness, Store, extract, status
 from game_data.render import render_map
+from game_data.sprites import Sprites
 
 pytestmark = pytest.mark.client_files
 
@@ -457,3 +459,32 @@ def test_the_backgrounds_the_reading_of_rx_moves_are_counted(
             f"{drawn} AND type = 0 AND rx = 0 AND ry = 0",
         ),
     )
+
+
+def test_the_status_bars_digit_and_the_font_come_out_of_a_slice_of_ui(
+    data: Path, tmp_path: Path
+) -> None:
+    """
+    Extracts `UI` alone into a temporary store, never the real one, and reads
+    the status bar's 5x7 digit and the client font's bytes back through
+    `Sprites`. `python -m game_data extract` leaves the same one
+    6,188,880-byte file in the real store's `blobs/`.
+    """
+    client = tmp_path / "Data"
+    root = tmp_path / "store"
+    try:
+        shutil.copytree(data / "UI", client / "UI")
+        extract(client, root)
+
+        with Sprites.latest(root) as sprites:
+            digit = sprites.canvas("UI/StatusBar.img/gauge/number/0")
+            font = sprites.raw_data("UI/Font/NotoSansKRMedium.img/FONT_DATA")
+
+        assert digit.rgba.shape == (7, 5, 4)
+        assert len(font) == 6_188_880
+        assert [file.name for file in (root / "blobs").iterdir()] == [
+            hashlib.sha256(font).hexdigest()
+        ]
+    finally:
+        shutil.rmtree(client, ignore_errors=True)
+        shutil.rmtree(root, ignore_errors=True)

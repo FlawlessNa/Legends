@@ -8,8 +8,8 @@ Usage:
   python toolkit/live_detector.py
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -33,8 +33,9 @@ INITIAL_IOU = 0.45
 
 def main():
     try:
-        from botting.utilities.client_handler import get_open_clients
         import win32gui
+
+        from maple.screen.client import find_client
     except ImportError as e:
         print(f"ERROR: Missing dependency: {e}")
         print("Make sure botting module is available in the repo.")
@@ -47,12 +48,7 @@ def main():
         sys.exit(1)
 
     # Get game window handle
-    clients = get_open_clients()
-    if not clients:
-        print("ERROR: No game window found. Make sure the client is open.")
-        sys.exit(1)
-
-    handle = clients[0]
+    handle = find_client()
     title = win32gui.GetWindowText(handle)
     print(f"Found game window: '{title}' (handle {handle})")
     print(f"Loading model: {MODEL_PATH}")

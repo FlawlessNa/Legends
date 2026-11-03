@@ -5,10 +5,11 @@ import logging
 import logging.config
 import logging.handlers
 import multiprocessing.connection
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self
 
 from botting.controller import HeldKeysLedger, release_all
 from botting.logging_config import PARENT_LOG, full_config, new_session_dir
+from botting.screen import MultipleWindows, WindowNotFound
 from botting.telemetry import TELEMETRY_FILENAME, TelemetryHandler
 from botting.utilities import install_loop_diagnostics
 
@@ -18,6 +19,9 @@ from .engine import Engine
 from .peripherals_process import PeripheralsProcess
 
 if TYPE_CHECKING:
+    import threading
+    from types import TracebackType
+
     from botting.communications import BaseParser
 
 logger = logging.getLogger(__name__)
@@ -44,14 +48,15 @@ class SessionManager:
         """
         # Create a Manager Process to share data between processes.
         self.process_manager = multiprocessing.Manager()
-        self.metadata = self.process_manager.dict(
-            logging_queue=self.process_manager.Queue(),
-            proxy_request=self.process_manager.Condition(),
+        initial_metadata: dict[str, Any] = {
+            "logging_queue": self.process_manager.Queue(),
+            "proxy_request": self.process_manager.Condition(),
             # Read by each Engine child to mirror this process' asyncio debug mode.
             # Set here, before ignored_keys is computed, so the proxy-request scan in
             # _monitor_proxy keeps skipping it.
-            debug=debug,
-        )
+            "debug": debug,
+        }
+        self.metadata = self.process_manager.dict(initial_metadata)
         self.metadata["ignored_keys"] = set(self.metadata.keys()).union(
             {"ignored_keys"}
         )
@@ -64,14 +69,17 @@ class SessionManager:
         else:
             from unittest.mock import AsyncMock, Mock
 
-            async def _wait_forever(*args, **kwargs):
+            async def _wait_forever(*args: object, **kwargs: object) -> None:
                 await asyncio.Event().wait()
 
             self.peripherals = Mock()
             self.peripherals.peripherals_listener = AsyncMock(side_effect=_wait_forever)
 
         self.task_manager = AsyncTaskManager(
-            discord_pipe=self.peripherals.pipe_main_proc,
+            # typeshed types Windows' `multiprocessing.Pipe()` ends as PipeConnection,
+            # while the engine annotates every pipe as Connection; the fix belongs
+            # to those signatures, outside this file.
+            discord_pipe=self.peripherals.pipe_main_proc,  # pyright: ignore[reportArgumentType]
         )
 
         # One Session, one directory - text logs and telemetry alike. Built here
@@ -134,7 +142,12 @@ class SessionManager:
         )
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """
         Whenever the context manager is exited, that means the Event loop's execution
         has halted, for whatever reason. In such a case, all Engine Listeners are
@@ -147,6 +160,7 @@ class SessionManager:
         :return: None
         """
         self.peripherals.kill()
+        assert self.discord_listener is not None, "__enter__ runs before __exit__"
         self.discord_listener.cancel("SessionManager exited.")
         logger.debug("Stopping Log listener.")
         logger.info("SessionManager exited.")
@@ -165,9 +179,16 @@ class SessionManager:
 
         if not self._debug:
             for bot in self.bots:
-                release_all(bot.get_handle_from_ign(bot.ign))
+                try:
+                    handle = bot.find_handle()
+                except (WindowNotFound, MultipleWindows) as exc:
+                    # A window that closed has no keys left down to release, and
+                    # raising here would hide whatever ended the session.
+                    logger.warning("Keys not released for %s: %s", bot.ign, exc)
+                    continue
+                release_all(handle)
 
-        if exc_type is not None:
+        if exc_val is not None:
             # Normally, each Engine should handle their own clean-up.
             # However, Listeners may not be able to handle their own clean-up??
             raise exc_val
@@ -179,26 +200,35 @@ class SessionManager:
         :return:
         """
         self.main_bot = grouped_bots[0][0]
-        self.peripherals.discord_parser.main_ign = self.main_bot.ign
+        # BaseParser declares `main_ign` as None only; the fix belongs there.
+        self.peripherals.discord_parser.main_ign = self.main_bot.ign  # pyright: ignore[reportAttributeAccessIssue]
         self.barrier = self.process_manager.Barrier(
             sum(len(group) for group in grouped_bots)
         )
         for group in grouped_bots:
             self.bots.extend(group)
             engine_side, listener_side = multiprocessing.Pipe()
-            self.peripherals.engine_pipes.append(listener_side)
-            engine_proc = Engine.start(engine_side, self.metadata, group, self.barrier)
+            # PipeConnection vs Connection: see the note in __init__.
+            self.peripherals.engine_pipes.append(listener_side)  # pyright: ignore[reportArgumentType]
+            engine_proc = Engine.start(engine_side, self.metadata, group, self.barrier)  # pyright: ignore[reportArgumentType]
             engine_listener = Engine.listener(
-                listener_side,
+                listener_side,  # pyright: ignore[reportArgumentType]
                 self.task_manager.queue,
                 engine_proc,
-                self.peripherals.pipe_main_proc,
+                self.peripherals.pipe_main_proc,  # pyright: ignore[reportArgumentType]
             )
             self.engines.append(engine_proc)
             self.listeners.append(engine_listener)
+        assert self.discord_listener is not None, "__enter__ runs before launch()"
+        assert self.proxy_listener is not None, "__enter__ runs before launch()"
+        assert self.management_task is not None, "__enter__ runs before launch()"
         t_done, t_pending = await asyncio.wait(
-            self.listeners
-            + [self.discord_listener, self.proxy_listener, self.management_task],
+            [
+                *self.listeners,
+                self.discord_listener,
+                self.proxy_listener,
+                self.management_task,
+            ],
             return_when=asyncio.FIRST_COMPLETED,
         )
 
@@ -220,7 +250,9 @@ class SessionManager:
                 f"Error in {task.get_name()}: {task.exception()}"
             )
         if failures:
-            raise failures[0].exception()
+            first = failures[0].exception()
+            assert first is not None, "failures holds only tasks that raised"
+            raise first
         logger.info("All bots have been stopped. Session is about to exit.")
 
     async def _monitor_proxy(self) -> None:
@@ -229,16 +261,18 @@ class SessionManager:
         :return:
         """
         notifier = self.metadata["proxy_request"]
+        proxy_listener = self.proxy_listener
+        assert proxy_listener is not None, "__enter__ starts this task"
 
-        def _single_cycle(cond):
+        def _single_cycle(cond: threading.Condition) -> None:
             with cond:  # Acquire the underlying Lock
                 while not cond.wait(timeout=1):  # Release and wait for notification
-                    if self.proxy_listener.cancelling():
+                    if proxy_listener.cancelling():
                         return
                 # Reaching here, we've reacquired the Lock after being notified
                 key = next(
                     key
-                    for key in self.metadata.keys()
+                    for key in list(self.metadata.keys())
                     if key not in self.metadata["ignored_keys"]
                 )
                 type_, args, kwargs = self.metadata[key]

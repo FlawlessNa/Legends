@@ -8,13 +8,15 @@ editing a test; what follows is only the shape of the suite.
 - Plain module-level `test_*` functions, `@pytest.fixture` for setup, bare
   `assert`. No `TestCase`, and nothing under `tests/` imports `unittest` —
   spies come from `pytest-mock`'s `mocker` fixture.
-- **Four opt-in markers**, all deselected by default: `@pytest.mark.live` for
+- **Five opt-in markers**, all deselected by default: `@pytest.mark.live` for
   tests driving a real, focused game client (`pytest -m live`),
   `@pytest.mark.system` for tests that mutate machine-global state such as the
   machine's keyboard layouts (`pytest -m system`), `@pytest.mark.lab` for
   measurements rather than gates (`pytest -m lab`), and
   `@pytest.mark.client_files` for tests that read the installed client's files
-  at the path `configs/game_data.ini` sets (`pytest -m client_files`). Anything
+  at the path `configs/game_data.ini` sets (`pytest -m client_files`), and `@pytest.mark.frames` for tests that read the
+  real frame set fetched from the private `legends-frames` repository
+  (`pytest -m frames`; see `docs/agents/testing.md`). Anything
   that needs a game window or the client's files, or leaves a trace outside the
   test process, belongs behind one.
 - **`held_movement_keys`** (root `conftest.py`) pins what

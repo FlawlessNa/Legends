@@ -7,6 +7,7 @@ The store's layout, which extraction is the latest, and retention.
         raw.sqlite                       every image's tree (`extract`)
         catalogue.sqlite                 the typed layer, once it exists
       images/<hh>/<name>.png             every canvas's image, shared (`images`)
+      blobs/<sha256>                     the client font's bytes, shared (`blobs`)
       reports/<old>__<new>.html          the patch reports, once they exist
 
 **Latest** is the extraction with the newest `extracted_at`. A folder in
@@ -15,7 +16,8 @@ written is a hidden folder (`.tmp-...`) until it is complete and renamed.
 
 **Retention** keeps the `KEEP` latest extractions and deletes the rest. Then it
 deletes every image no kept extraction names, every file in `images/` that
-isn't an image, and every report that names an extraction no longer kept.
+isn't an image, every blob no kept extraction's `UI/Font/` trees name, every
+file in `blobs/` that isn't a blob, and every report that names an extraction no longer kept.
 Only one extraction may run on a store at a time.
 """
 
@@ -25,12 +27,14 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
+from .blobs import BlobStore, referenced_blobs
 from .images import ImageStore
 from .manifest import MANIFEST, Manifest
 
 KEEP = 2
 EXTRACTIONS = "extractions"
 IMAGES = "images"
+BLOBS = "blobs"
 REPORTS = "reports"
 RAW = "raw.sqlite"
 TEMPORARY = ".tmp-"
@@ -52,6 +56,7 @@ class Store:
         self.root = root
         self.extractions = root / EXTRACTIONS
         self.images = ImageStore(root / IMAGES)
+        self.blobs = BlobStore(root / BLOBS)
         self.reports = root / REPORTS
 
     def extraction(self, build: str) -> Path:
@@ -89,6 +94,7 @@ class Store:
             shutil.rmtree(self.extraction(manifest.build))
         kept = {manifest.build for manifest in manifests[:KEEP]}
         self._collect_images(kept)
+        self._collect_blobs(kept)
         self._collect_reports(kept)
 
     def _collect_images(self, kept: set[str]) -> None:
@@ -96,6 +102,18 @@ class Store:
         for build in kept:
             referenced |= referenced_images(self.extraction(build) / RAW)
         for name, file in self.images.files():
+            if name in referenced:
+                continue
+            if file.is_dir():
+                shutil.rmtree(file)
+            else:
+                file.unlink()
+
+    def _collect_blobs(self, kept: set[str]) -> None:
+        referenced: set[str] = set()
+        for build in kept:
+            referenced |= referenced_blobs(self.extraction(build) / RAW)
+        for name, file in self.blobs.files():
             if name in referenced:
                 continue
             if file.is_dir():

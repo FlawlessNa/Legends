@@ -1,3 +1,13 @@
+"""
+The inventory reader. It needs an MSCW update before use.
+
+It reads the inventory with absolute pixel boxes and OCR measured on the
+private server's layout, which the official MapleStory Classic World client no
+longer matches. It is flagged here, not repaired: see the epic "Reading the MSCW
+screen reliably" (#302). Its only consumer, ``decision_makers/inventory_manager.py``,
+is parked for the same reason (``maple/AGENTS.md`` § "Parked code").
+"""
+
 import os
 import string
 

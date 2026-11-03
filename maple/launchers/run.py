@@ -19,9 +19,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import multiprocessing.managers
 import sys
 
 import maple.parsers
+from botting.core import Bot
 from botting.core.session_manager import SessionManager
 from maple import bots
 
@@ -62,7 +64,7 @@ def _resolve(spec: BotSpec) -> type:
     return cls
 
 
-def _build(spec: BotSpec, metadata):
+def _build(spec: BotSpec, metadata: multiprocessing.managers.DictProxy) -> Bot:
     cls = _resolve(spec)
     check_models(spec)
     return cls(spec.ign, metadata, **spec.settings)
@@ -70,16 +72,10 @@ def _build(spec: BotSpec, metadata):
 
 async def _run(profile: Profile) -> None:
     """
-    Launch the main bot, and any mules as a second Engine group.
-
-    Grouping matters: `SessionManager.launch` runs each group in its own Engine
-    and treats the first bot of the first group as the Session's main bot.
+    Launch the profile's bot in a single Engine group.
     """
     with SessionManager(maple.parsers.MapleParser) as session:
-        groups = [[_build(profile.main, session.metadata)]]
-        if profile.mules:
-            groups.append([_build(mule, session.metadata) for mule in profile.mules])
-        await session.launch(*groups)
+        await session.launch([_build(profile.main, session.metadata)])
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -100,7 +96,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.list:
         names = available()
-        print("\n".join(f"  {n}" for n in names) if names else "  (no profiles yet)")
+        listing = "\n".join(f"  {n}" for n in names) if names else "  (no profiles yet)"
+        sys.stdout.write(listing + "\n")
         return 0
 
     if not args.profile:
@@ -109,13 +106,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         profile = load(args.profile)
     except ProfileError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        sys.stderr.write(f"error: {exc}\n")
         return 2
 
     try:
         asyncio.run(_run(profile), debug=args.debug)
     except ProfileError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        sys.stderr.write(f"error: {exc}\n")
         return 2
     return 0
 

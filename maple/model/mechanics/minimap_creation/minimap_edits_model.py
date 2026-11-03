@@ -88,8 +88,10 @@ class MinimapEditsManager:
     canvas_height: int | None = None
     # Mob names present in this map (static, never changes per map).
     mobs: list[str] = field(default_factory=list)
-    # Path (relative to ROOT) of the minimap title screenshot used for map validation.
-    title_img_path: str | None = None
+    # The client's id for this map, when known. With it, `CheckStillInMap`
+    # compares the minimap with the map's own `miniMap` canvas; without it, it
+    # only checks that the minimap is shown. Optional: older files have none.
+    map_id: int | None = None
     # Minimap (x, y) coordinate where all party members gather for synchronized
     # rebuffs. The zone around it is determined at runtime.
     party_rebuff_zone: tuple[int, int] | None = None
@@ -172,11 +174,17 @@ class MinimapEditsManager:
             canvas_width=meta.get("canvas_width"),
             canvas_height=meta.get("canvas_height"),
             mobs=data.get("mobs", []),
-            title_img_path=data.get("title_img_path"),
+            map_id=data.get("map_id"),
             party_rebuff_zone=tuple(zone) if zone is not None else None,
         )
 
     def to_json(self, map_name: str) -> None:
+        os.makedirs(_EDITS_ROOT, exist_ok=True)
+        with open(os.path.join(_EDITS_ROOT, f"{map_name}.json"), "w") as f:
+            json.dump(self.to_dict(), f, indent=4)
+
+    def to_dict(self) -> dict:
+        """The map's payload, as `to_json` writes it and `from_dict` reads it."""
         features_raw = asdict(self)["features"]
         features_dict = {dct.pop("name"): dct for dct in features_raw}
         for dct in features_dict.values():
@@ -190,7 +198,6 @@ class MinimapEditsManager:
                 "canvas_width": self.canvas_width,
                 "canvas_height": self.canvas_height,
             },
-            "title_img_path": self.title_img_path,
             "mobs": self.mobs,
             "party_rebuff_zone": (
                 list(self.party_rebuff_zone)
@@ -207,9 +214,9 @@ class MinimapEditsManager:
                 for p in self.portals
             ],
         }
-        os.makedirs(_EDITS_ROOT, exist_ok=True)
-        with open(os.path.join(_EDITS_ROOT, f"{map_name}.json"), "w") as f:
-            json.dump(payload, f, indent=4)
+        if self.map_id is not None:
+            payload["map_id"] = self.map_id
+        return payload
 
     def apply_grid_edits(
         self,

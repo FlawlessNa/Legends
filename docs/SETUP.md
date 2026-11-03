@@ -165,15 +165,15 @@ is covered in [FIRST_BOT.md](FIRST_BOT.md).
 
 ```ini
 [Client]
-Window Titles = Dream MS
+Class Name = MapleStoryClass
+Executable = MapleStory.exe
 Large Client = True
 ```
 
-`Window Titles` must appear in your game client's window title, or the bot will
-find no clients at all. If you're on a different private server, change it —
-and mention it in your PR, since it's shared. (The window *class* is separately
-hardcoded to `MapleStoryClass` in `botting/utilities/client_handler.py`; the
-`Class Name` key in the ini is vestigial and not read.)
+The bot finds the one visible window of class `Class Name` whose process's
+executable is named `Executable` (case-insensitive). The window title isn't
+read. If your client's executable is named differently, change it — and
+mention it in your PR, since it's shared.
 
 ---
 
@@ -215,10 +215,9 @@ done first.
 
 **`Model 'All' ... is not on disk`** — run `python scripts/fetch_models.py`.
 
-**No clients found / the bot can't see your character** — the game window title
-doesn't contain `Window Titles` from `configs/game.ini`, or the character name
-in your profile doesn't match the one in game. Name matching is fuzzy but needs
-a 90% match.
+**`WindowNotFound` / `MultipleWindows`** — no client, or more than one, matches
+`Class Name` and `Executable` in `configs/game.ini`. The bot drives exactly one
+client.
 
 **`KeyError` on a skill name at runtime** — a skill in your profile or buff list
 isn't in your `keybindings.ini` `Skill Keys`, or is spelled differently from the
