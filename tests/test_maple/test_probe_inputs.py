@@ -10,7 +10,6 @@ from unittest.mock import AsyncMock, MagicMock, call
 import pytest
 
 from botting.controller.inputs import HeldKeysLedger, SharedResources
-from botting.utilities import CLIENT_HORIZONTAL_MARGIN_PX, CLIENT_VERTICAL_MARGIN_PX
 from maple import probe
 
 HANDLE = 4242
@@ -29,8 +28,8 @@ def io(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     Mocks the window and every input function the probe calls. They are children of
     one mock, so `io.mock_calls` is the order they ran in.
     """
-    monkeypatch.setattr(probe, "get_open_clients", lambda: [HANDLE])
-    monkeypatch.setattr(probe, "maple_ign_finder", lambda handle: "Alice")
+    monkeypatch.setattr(probe, "find_client", lambda: HANDLE)
+    monkeypatch.setattr(probe, "_binding_sections", lambda: ["Alice"])
     monkeypatch.setattr(
         probe, "key_binds", lambda ign: {"Inventory Menu": "i", "Sneaky": "left"}
     )
@@ -62,7 +61,8 @@ def io(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
 
 # One case per input command: its argv, the mock its gesture goes through, and the
 # calls the gesture makes.
-TARGET = (100 + CLIENT_HORIZONTAL_MARGIN_PX, 50 + CLIENT_VERTICAL_MARGIN_PX)
+# Client pixels, as in the PNG: `mouse_move` adds the screen origin itself.
+TARGET = (100, 50)
 COMMANDS = {
     "press": (["press", "i"], "press", [call.press(HANDLE, "i")]),
     "hold": (
@@ -194,7 +194,6 @@ def test_press_times_presses_that_many_complete_times(io: MagicMock) -> None:
 def test_press_with_ign_reads_that_ign_s_bindings(
     io: MagicMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(probe, "get_client_handle", lambda ign, finder: HANDLE)
     seen: list[str] = []
     monkeypatch.setattr(
         probe, "key_binds", lambda ign: seen.append(ign) or {"loot": "z"}
@@ -279,3 +278,14 @@ def test_the_caps_themselves_are_allowed(io: MagicMock) -> None:
     assert probe.main(["hold", "left", "--ms", "10000"]) == 0
 
     io.move.assert_called_once_with(HANDLE, "left", duration=10.0)
+
+
+def test_press_with_several_sections_and_no_ign_takes_only_key_names(
+    io: MagicMock, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(probe, "_binding_sections", lambda: ["Alice", "Bob"])
+
+    assert probe.main(["press", "inventory menu"]) == probe.EXIT_REFUSED
+    _assert_nothing_sent(io)
+    assert probe.main(["press", "i"]) == 0
+    io.press.assert_awaited_once_with(HANDLE, "i")
