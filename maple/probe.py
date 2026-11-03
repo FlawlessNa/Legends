@@ -7,11 +7,15 @@ sending it simple input, when no Session is running (intent #331).
 screen is read. ``--ign`` only names the `configs/keybindings.ini` section that
 binding names come from; without it, the file's only section is used.
 
-``screenshot``, ``regions`` and ``keys`` send no input, so they touch neither the
-Held-Keys Ledger nor any key. ``screenshot`` and ``regions`` capture through
-`FrameSource` (Desktop Duplication), which copies what is on screen: a frame that
-isn't the client's own pixels (the client not in front, covered, moved) is refused
-with its reason, and no PNG is written.
+``screenshot``, ``regions`` and ``keys`` send nothing to the client, and touch
+neither the Held-Keys Ledger nor any key it holds. ``screenshot`` and ``regions``
+capture through `FrameSource` (Desktop Duplication), which copies what is on screen,
+so the client must be in front: they first bring it there with `activate`, as the
+input commands do, then wait up to `FRONT_WAIT_S` for an ok frame. `activate` is not
+free of input: it runs `release_all` on the window then in front, and sends one Alt
+keystroke to that window so Windows lets the switch happen. ``--no-activate`` skips
+it. A frame that still isn't the client's own pixels (covered by a topmost window,
+a UAC prompt, the lock screen) is refused with its reason, and no PNG is written.
 
 ``press``, ``hold``, ``write`` and ``click`` are each one complete gesture, run by
 `run_guarded` (ADR 0002): validate everything first, so a refusal sends nothing; bring
@@ -35,6 +39,7 @@ import asyncio
 import functools
 import json
 import sys
+import time
 from collections.abc import Awaitable, Callable, Sequence
 from configparser import ConfigParser
 from dataclasses import dataclass
@@ -87,6 +92,11 @@ EXIT_INTERRUPTED = 130
 MAX_TIMES = 10
 MAX_MS = 10_000
 DIRECTIONS = ("left", "right", "up", "down")
+
+FRONT_WAIT_S = 1.0
+"""How long a capture waits, after `activate`, for the client to be in front and
+its frame ok. A timeout, not a tuned delay: it returns as soon as a frame is ok."""
+_FRONT_POLL_S = 0.05
 
 PROBE_DIR = Path(ROOT) / "probe"
 KEEP_LAST = 50
@@ -221,14 +231,35 @@ def _client_size(handle: int) -> tuple[int, int]:
     return right, bottom
 
 
-def grab(handle: int) -> Frame:
-    """The client's frame; a `ProbeError` with the frame's reason when it isn't ok."""
+async def _bring_to_front(handle: int) -> None:
+    if await activate(handle):
+        SharedResources.focus_lock.release()
+
+
+def grab(handle: int, *, bring_to_front: bool = True) -> Frame:
+    """
+    The client's frame; a `ProbeError` with the frame's reason when it isn't ok.
+
+    With `bring_to_front`, the client is activated first, and frames are taken until
+    one is ok or `FRONT_WAIT_S` has passed.
+    """
+    if bring_to_front:
+        asyncio.run(_bring_to_front(handle))
+    deadline = time.monotonic() + FRONT_WAIT_S
     frame = frame_source().grab(handle)
+    while not frame.ok and bring_to_front and time.monotonic() < deadline:
+        time.sleep(_FRONT_POLL_S)
+        frame = frame_source().grab(handle)
     if not frame.ok:
+        hint = (
+            "Something kept it from the front, or covers it."
+            if bring_to_front
+            else "Bring the client to the front, uncovered, or drop --no-activate."
+        )
         raise ProbeError(
             EXIT_FRAME_NOT_OK,
             f"The frame isn't the client's own pixels: {frame.reason}. Nothing was "
-            "written. Bring the client to the front, uncovered, and try again.",
+            f"written. {hint}",
         )
     return frame
 
@@ -304,7 +335,7 @@ def _display_path(path: Path) -> str:
 
 
 def cmd_screenshot(args: argparse.Namespace) -> dict:
-    frame = grab(resolve_handle())
+    frame = grab(resolve_handle(), bring_to_front=not args.no_activate)
     if args.region is not None:
         label = args.region
         image = crop(frame, find_region(args.region, frame))
@@ -327,8 +358,7 @@ def cmd_screenshot(args: argparse.Namespace) -> dict:
 
 def cmd_regions(args: argparse.Namespace) -> dict:
     """Each region's box `[l, t, r, b]` in PNG pixels, or null when it isn't showing."""
-    del args
-    frame = grab(resolve_handle())
+    frame = grab(resolve_handle(), bring_to_front=not args.no_activate)
     found = readers()
     showing: dict[str, list[int] | None] = {}
     for name, finder in REGIONS.items():
@@ -491,13 +521,21 @@ def _parser() -> argparse.ArgumentParser:
         "(default: its only section)",
     )
 
+    capture = argparse.ArgumentParser(add_help=False)
+    capture.add_argument(
+        "--no-activate",
+        action="store_true",
+        help="don't bring the client to the front first (no Alt keystroke); "
+        "a frame of a client not in front is refused",
+    )
+
     parser = argparse.ArgumentParser(
         prog="python -m maple.probe",
         description="Look at the game window, and send it simple input.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    shot = sub.add_parser("screenshot", help="save a PNG to probe/")
+    shot = sub.add_parser("screenshot", parents=[capture], help="save a PNG to probe/")
     which = shot.add_mutually_exclusive_group()
     which.add_argument("--region", choices=tuple(REGIONS))
     which.add_argument(
@@ -509,7 +547,9 @@ def _parser() -> argparse.ArgumentParser:
     shot.set_defaults(run=cmd_screenshot)
 
     sub.add_parser(
-        "regions", help="list the regions and where each is showing"
+        "regions",
+        parents=[capture],
+        help="list the regions and where each is showing",
     ).set_defaults(run=cmd_regions)
     sub.add_parser(
         "keys", parents=[bindings], help="list the key binding names"

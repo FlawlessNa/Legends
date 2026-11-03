@@ -1,13 +1,14 @@
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, call
 
 import cv2
 import numpy as np
 import pytest
 from pytest_mock import MockerFixture
 
+from botting.controller.inputs import SharedResources
 from botting.screen import Frame, MultipleWindows, WindowNotFound
 from botting.utilities import Box
 from maple import probe
@@ -35,6 +36,9 @@ def shot(
     source.grab.return_value = frame()
     mocker.patch.object(probe, "frame_source", return_value=source)
     mocker.patch.object(probe, "readers", return_value=MagicMock())
+    mocker.patch.object(probe, "activate", AsyncMock(return_value=False))
+    monkeypatch.setattr(probe, "FRONT_WAIT_S", 0.01)
+    monkeypatch.setattr(probe, "_FRONT_POLL_S", 0.0)
     return source.grab
 
 
@@ -135,7 +139,14 @@ def test_a_box_outside_the_frame_writes_nothing(
 
 
 @pytest.mark.parametrize(
-    "argv", [["screenshot"], ["screenshot", "--region", "minimap"], ["regions"]]
+    "argv",
+    [
+        ["screenshot"],
+        ["screenshot", "--region", "minimap"],
+        ["regions"],
+        ["screenshot", "--no-activate"],
+        ["regions", "--no-activate"],
+    ],
 )
 def test_a_frame_that_is_not_ok_is_refused_with_its_reason_and_writes_nothing(
     shot: MagicMock,
@@ -354,3 +365,69 @@ def test_keys_for_an_unknown_ign_is_an_error(
     assert probe.main(["keys", "--ign", "Nobody"]) == probe.EXIT_ERROR
 
     assert "Nobody" in capsys.readouterr().err
+
+
+# --- bringing the client to the front ---------------------------------------
+
+
+@pytest.mark.parametrize("argv", [["screenshot"], ["regions"]])
+def test_a_capture_activates_the_client_before_grabbing(
+    shot: MagicMock, mocker: MockerFixture, argv: list[str]
+) -> None:
+    order = MagicMock()
+    order.attach_mock(probe.activate, "activate")  # pyright: ignore[reportArgumentType]
+    order.attach_mock(shot, "grab")
+    mocker.patch.dict(probe.REGIONS, {}, clear=True)
+
+    assert probe.main(argv) == 0
+
+    assert order.mock_calls[:2] == [call.activate(HANDLE), call.grab(HANDLE)]
+
+
+@pytest.mark.parametrize(
+    "argv", [["screenshot", "--no-activate"], ["regions", "--no-activate"]]
+)
+def test_no_activate_grabs_without_activating(
+    shot: MagicMock, mocker: MockerFixture, argv: list[str]
+) -> None:
+    activate = mocker.patch.object(probe, "activate", AsyncMock(return_value=False))
+    mocker.patch.dict(probe.REGIONS, {}, clear=True)
+
+    assert probe.main(argv) == 0
+
+    activate.assert_not_awaited()
+    shot.assert_called_once_with(HANDLE)
+
+
+def test_after_activating_it_grabs_again_until_the_frame_is_ok(
+    shot: MagicMock, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    shot.side_effect = [frame(ok=False, reason="not in front yet"), frame()]
+
+    assert probe.main(["screenshot"]) == 0
+
+    assert shot.call_count == 2
+    assert (_png(_out(capsys), tmp_path) == PIXELS).all()
+
+
+def test_without_activating_a_frame_that_is_not_ok_is_not_retried(
+    shot: MagicMock,
+) -> None:
+    shot.side_effect = [frame(ok=False, reason="not in front"), frame()]
+
+    assert probe.main(["screenshot", "--no-activate"]) == probe.EXIT_FRAME_NOT_OK
+
+    assert shot.call_count == 1
+
+
+def test_the_focus_lock_activate_took_is_handed_back(
+    shot: MagicMock, mocker: MockerFixture
+) -> None:
+    async def take_the_lock(handle: int) -> bool:
+        return await SharedResources.focus_lock.acquire()
+
+    mocker.patch.object(probe, "activate", AsyncMock(side_effect=take_the_lock))
+
+    assert probe.main(["screenshot"]) == 0
+
+    assert not SharedResources.focus_lock.locked()

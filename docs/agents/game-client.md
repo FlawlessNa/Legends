@@ -22,11 +22,18 @@ The probe finds the one MapleStory client by its window class and executable
 section that binding names come from (`keys`, `press`); without it, the file's
 only section is used.
 
-`screenshot` and `regions` copy the screen (Desktop Duplication). The copy is
-trusted only when the client is in front, before and after, and did not move.
-Otherwise they exit 6 with the reason, and write nothing. They send no input, so
-they do not bring the client to the front themselves: if the client is not in
-front, ask the maintainer to bring it there.
+`screenshot` and `regions` copy the screen (Desktop Duplication), so the
+client must be in front. They first bring it there with the same `activate` the
+input commands use, then wait up to a second for a trusted copy: the client in
+front, before and after, and not moved. **This takes the focus from whatever
+window is in front**, the maintainer's included, and is not free of input:
+`activate` releases any key held on that window, and sends it one Alt keystroke
+so Windows allows the switch. Nothing is sent to the client.
+
+`--no-activate` skips that. Then a client that is not in front is refused.
+
+If the copy still can't be trusted (a topmost window over the client, a UAC
+prompt, the lock screen), they exit 6 with the reason, and write nothing.
 
 ### Commands
 
@@ -35,8 +42,8 @@ code (the module docstring lists them).
 
 | Command                                      | Does                                                     |
 | -------------------------------------------- | -------------------------------------------------------- |
-| `screenshot [--region NAME \| --box l,t,r,b]` | writes a PNG to `probe/`; with no flag, the whole client |
-| `regions`                                    | each region's box `[l, t, r, b]`, or null if not showing |
+| `screenshot [--region NAME \| --box l,t,r,b] [--no-activate]` | writes a PNG to `probe/`; with no flag, the whole client |
+| `regions [--no-activate]`                    | each region's box `[l, t, r, b]`, or null if not showing |
 | `keys [--ign NAME]`                          | lists the key binding names                              |
 | `press KEY [--times N] [--ign NAME]`         | keydown then keyup, N ≤ 10                               |
 | `hold DIRECTION --ms MS`                     | holds a direction, then releases it, MS ≤ 10000          |
