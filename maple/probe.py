@@ -2,8 +2,16 @@
 The probe: ``python -m maple.probe``, a CLI for looking at the game window, and
 sending it simple input, when no Session is running (intent #331).
 
+**The window** is the one MapleStory client, found by `maple.screen.client.find_client`
+(its class and executable, from `configs/game.ini`): neither its title nor its
+screen is read. ``--ign`` only names the `configs/keybindings.ini` section that
+binding names come from; without it, the file's only section is used.
+
 ``screenshot``, ``regions`` and ``keys`` send no input, so they touch neither the
-Held-Keys Ledger nor any key.
+Held-Keys Ledger nor any key. ``screenshot`` and ``regions`` capture through
+`FrameSource` (Desktop Duplication), which copies what is on screen: a frame that
+isn't the client's own pixels (the client not in front, covered, moved) is refused
+with its reason, and no PNG is written.
 
 ``press``, ``hold``, ``write`` and ``click`` are each one complete gesture, run by
 `run_guarded` (ADR 0002): validate everything first, so a refusal sends nothing; bring
@@ -13,26 +21,30 @@ functions; and `release_all` in a ``finally``. No command sends a lone keydown o
 keyup.
 
 One coordinate frame: pixel (x, y) of a full-window PNG is the probe's coordinate.
-That PNG excludes the title bar and border, whereas the interface boxes and
-``take_screenshot`` work in window-rect coordinates, so ``--box`` is shifted by the
-client margins before it reaches them.
+That PNG is a `Frame`: the client area, in physical pixels. ``--box``, the regions
+and `mouse_move` (through ``ClientToScreen``) all use the same pixels, so no margin
+is added anywhere.
 
 Exit codes: 0 ok, 1 other error, 2 usage or refused input (nothing sent), 3 region
-not showing, 4 no client open, 5 several clients open, 130 interrupted (keys
-released).
+not showing, 4 no client open, 5 several clients open, 6 the frame isn't the
+client's own pixels (nothing written), 130 interrupted (keys released).
 """
 
 import argparse
 import asyncio
+import functools
 import json
 import sys
 from collections.abc import Awaitable, Callable, Sequence
+from configparser import ConfigParser
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 import cv2
 import numpy as np
 import win32gui
+from numpy.typing import NDArray
 
 from botting.controller.high_level import (
     key_binds,
@@ -48,17 +60,20 @@ from botting.controller.inputs import (
     release_directions,
 )
 from botting.controller.inputs.focused_inputs import activate
-from botting.utilities import (
-    CLIENT_HORIZONTAL_MARGIN_PX,
-    CLIENT_VERTICAL_MARGIN_PX,
-    Box,
-    take_screenshot,
-)
-from botting.utilities.client_handler import get_client_handle, get_open_clients
-from maple import maple_ign_finder
+from botting.screen import Frame, MultipleWindows, WindowNotFound, frame_source
+from botting.utilities import Box, config_reader
 from maple.actions.movements_v2 import move
-from maple.model.interface import CharacterStats, InventoryMenu, LargeClientChatFeed
-from maple.model.interface import Minimap as _Minimap
+from maple.screen.buffs import BUFFS, ICON_BASE, BuffsReader
+from maple.screen.client import find_client
+from maple.screen.locator import FrameCheck, unreadable
+from maple.screen.minimap import MINIMAP, MinimapReader
+from maple.screen.sprites import (
+    FRAME_CHECK,
+    Profile,
+    StartupRefused,
+    load_reader_sprites,
+)
+from maple.screen.status_bar import STATUS_BAR, StatusBarReader
 from paths import ROOT
 
 EXIT_ERROR = 1
@@ -66,6 +81,7 @@ EXIT_REFUSED = 2
 EXIT_NOT_SHOWING = 3
 EXIT_NO_CLIENT = 4
 EXIT_SEVERAL_CLIENTS = 5
+EXIT_FRAME_NOT_OK = 6
 EXIT_INTERRUPTED = 130
 
 MAX_TIMES = 10
@@ -74,16 +90,6 @@ DIRECTIONS = ("left", "right", "up", "down")
 
 PROBE_DIR = Path(ROOT) / "probe"
 KEEP_LAST = 50
-
-# Static regions: window-rect boxes that never move.
-STATIC_REGIONS: dict[str, Box] = {
-    "ign": CharacterStats.ign_box,
-    "level": CharacterStats.level_box,
-    "job": CharacterStats.job_box,
-    "hp_bar": CharacterStats.hp_bar_box,
-    "mp_bar": CharacterStats.mp_bar_box,
-    "exp_bar": CharacterStats.exp_bar_box,
-}
 
 
 class ProbeError(Exception):
@@ -95,60 +101,107 @@ class ProbeError(Exception):
         self.message = message
 
 
-# --- dynamic regions ---------------------------------------------------------
-# Each finder returns the region's window-rect box, or None when it isn't showing.
-# `image` is a full-window screenshot to reuse, or None to take one.
-#
-# There is no `ability_menu` region: AbilityMenu only holds offsets for individual
-# stat fields from its icon, and no box for the whole menu.
+# --- regions -----------------------------------------------------------------
+# Every region is found in the frame by a `maple.screen` reader, in client pixels.
+# A finder returns the region's box, or why it isn't showing.
 
 
-class _ProbeMinimap(_Minimap):
-    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        return image
+@dataclass(frozen=True)
+class Readers:
+    """The readers the regions come from, sharing one frame check."""
+
+    frame_check: FrameCheck
+    status_bar: StatusBarReader
+    minimap: MinimapReader
+    buffs: BuffsReader
+    buff_size: tuple[int, int]
 
 
-def _find_minimap(handle: int, image: np.ndarray | None) -> Box | None:
-    return _ProbeMinimap().get_entire_minimap_box(handle, image)
+@functools.cache
+def readers() -> Readers:
+    """
+    The readers, their sprites loaded from the `game_data` store on first use, so a
+    plain screenshot doesn't need the store.
+    """
+    try:
+        sprites = load_reader_sprites(
+            [FRAME_CHECK, STATUS_BAR, MINIMAP, BUFFS], Profile(job="", game_map="")
+        )
+    except StartupRefused as err:
+        raise ProbeError(EXIT_ERROR, f"The regions need the game data: {err}")
+    check = FrameCheck(sprites)
+    base = sprites.canvas(ICON_BASE).rgba
+    return Readers(
+        frame_check=check,
+        status_bar=StatusBarReader(sprites, check),
+        minimap=MinimapReader(sprites, check),
+        buffs=BuffsReader(sprites, check),
+        buff_size=(base.shape[1], base.shape[0]),
+    )
 
 
-def _find_inventory(handle: int, image: np.ndarray | None) -> Box | None:
-    menu = InventoryMenu()
-    return menu.get_abs_box(handle, menu._entire_inventory_box, image)
+type Finder = Callable[[Readers, Frame], Box | str]
 
 
-def _find_chat(handle: int, image: np.ndarray | None) -> Box | None:
-    del image
-    return LargeClientChatFeed().get_chat_feed_box(handle)
+def _status_bar(part: str) -> Finder:
+    def find(found: Readers, frame: Frame) -> Box | str:
+        unusable = found.frame_check.frame_usable(frame)
+        if unusable is not None:
+            return unusable.detail
+        located = found.status_bar.locator.locate(frame)
+        missing = unreadable(located, frame)
+        if missing is not None:
+            return f"status bar {missing.status.value}: {missing.detail}"
+        assert located is not None
+        return found.status_bar.boxes(located)[part]
+
+    return find
 
 
-DYNAMIC_REGIONS: dict[str, Callable[[int, np.ndarray | None], Box | None]] = {
-    "minimap": _find_minimap,
-    "inventory": _find_inventory,
-    "chat": _find_chat,
+def _minimap(found: Readers, frame: Frame) -> Box | str:
+    reading = found.minimap.read(frame)
+    if reading.value is None:
+        return f"minimap {reading.status.value}: {reading.detail}"
+    return reading.value.bounds
+
+
+def _buffs(found: Readers, frame: Frame) -> Box | str:
+    unusable = found.frame_check.frame_usable(frame)
+    if unusable is not None:
+        return unusable.detail
+    slots = found.buffs.slots(frame.pixels)
+    if not slots:
+        return "no buff slot found"
+    width, height = found.buff_size
+    return Box(
+        left=min(x for x, _ in slots),
+        top=min(y for _, y in slots),
+        right=max(x for x, _ in slots) + width,
+        bottom=max(y for _, y in slots) + height,
+    )
+
+
+# No reader in `maple.screen` gives the IGN, the job, the inventory (parked, see
+# `maple/AGENTS.md`), the chat or the quick slots, so they have no region.
+REGIONS: dict[str, Finder] = {
+    "status_bar": _status_bar("bar"),
+    "level": _status_bar("level"),
+    "hp": _status_bar("hp"),
+    "mp": _status_bar("mp"),
+    "exp": _status_bar("exp"),
+    "minimap": _minimap,
+    "buffs": _buffs,
 }
 
-REGION_NAMES = (*STATIC_REGIONS, *DYNAMIC_REGIONS)
+
+def find_region(name: str, frame: Frame) -> Box:
+    found = REGIONS[name](readers(), frame)
+    if isinstance(found, str):
+        raise ProbeError(EXIT_NOT_SHOWING, f"Region {name!r} is not showing: {found}")
+    return found
 
 
-def _lookup(name: str, handle: int, image: np.ndarray | None = None) -> Box | None:
-    try:
-        return DYNAMIC_REGIONS[name](handle, image)
-    except ValueError as err:  # e.g. "More than one menu icon detected"
-        raise ProbeError(EXIT_NOT_SHOWING, f"Region {name!r} is ambiguous: {err}")
-
-
-# --- coordinates -------------------------------------------------------------
-
-
-def window_box(left: int, top: int, right: int, bottom: int) -> Box:
-    """A box in PNG coordinates, as a window-rect box (adds the title bar and border)."""
-    return Box(
-        left=left + CLIENT_HORIZONTAL_MARGIN_PX,
-        top=top + CLIENT_VERTICAL_MARGIN_PX,
-        right=right + CLIENT_HORIZONTAL_MARGIN_PX,
-        bottom=bottom + CLIENT_VERTICAL_MARGIN_PX,
-    )
+# --- coordinates and capture -------------------------------------------------
 
 
 def _parse_box(text: str) -> tuple[int, int, int, int]:
@@ -168,32 +221,53 @@ def _client_size(handle: int) -> tuple[int, int]:
     return right, bottom
 
 
-# --- window ------------------------------------------------------------------
-
-
-def _describe_clients(handles: Sequence[int]) -> str:
-    return ", ".join(f"{h} ({maple_ign_finder(h)})" for h in handles)
-
-
-def resolve_handle(ign: str | None) -> int:
-    if ign is not None:
-        try:
-            return get_client_handle(ign, maple_ign_finder)
-        except ValueError as err:
-            raise ProbeError(EXIT_NO_CLIENT, str(err))
-    handles = get_open_clients()
-    if not handles:
-        raise ProbeError(EXIT_NO_CLIENT, "No game client is open.")
-    if len(handles) > 1:
+def grab(handle: int) -> Frame:
+    """The client's frame; a `ProbeError` with the frame's reason when it isn't ok."""
+    frame = frame_source().grab(handle)
+    if not frame.ok:
         raise ProbeError(
-            EXIT_SEVERAL_CLIENTS,
-            "Several clients are open, pass --ign. Open: " + _describe_clients(handles),
+            EXIT_FRAME_NOT_OK,
+            f"The frame isn't the client's own pixels: {frame.reason}. Nothing was "
+            "written. Bring the client to the front, uncovered, and try again.",
         )
-    return handles[0]
+    return frame
 
 
-def resolve_ign(ign: str | None, handle: int) -> str:
-    return ign if ign is not None else maple_ign_finder(handle)
+def crop(frame: Frame, box: Box) -> NDArray[np.uint8]:
+    width, height = frame.client_size
+    return frame.pixels[
+        max(box.top, 0) : min(box.bottom, height),
+        max(box.left, 0) : min(box.right, width),
+    ]
+
+
+# --- window and bindings -----------------------------------------------------
+
+
+def resolve_handle() -> int:
+    try:
+        return find_client()
+    except WindowNotFound as err:
+        raise ProbeError(EXIT_NO_CLIENT, str(err))
+    except MultipleWindows as err:
+        raise ProbeError(EXIT_SEVERAL_CLIENTS, str(err))
+
+
+def _binding_sections() -> list[str]:
+    try:
+        config = config_reader("keybindings")
+    except AssertionError:  # configs/keybindings.ini doesn't exist
+        return []
+    assert isinstance(config, ConfigParser)
+    return config.sections()
+
+
+def resolve_ign(ign: str | None) -> str | None:
+    """The keybindings section to use: `ign`, else the file's only section, else None."""
+    if ign is not None:
+        return ign
+    sections = _binding_sections()
+    return sections[0] if len(sections) == 1 else None
 
 
 # --- files -------------------------------------------------------------------
@@ -230,46 +304,49 @@ def _display_path(path: Path) -> str:
 
 
 def cmd_screenshot(args: argparse.Namespace) -> dict:
-    handle = resolve_handle(args.ign)
+    frame = grab(resolve_handle())
     if args.region is not None:
         label = args.region
-        if args.region in STATIC_REGIONS:
-            box = STATIC_REGIONS[args.region]
-        else:
-            box = _lookup(args.region, handle)
-            if box is None:
-                raise ProbeError(
-                    EXIT_NOT_SHOWING, f"Region {args.region!r} is not showing."
-                )
-        image = take_screenshot(handle, box)
+        image = crop(frame, find_region(args.region, frame))
     elif args.box is not None:
         label = "box"
-        width, height = _client_size(handle)
-        if args.box[2] > width or args.box[3] > height:
+        width, height = frame.client_size
+        left, top, right, bottom = args.box
+        if right > width or bottom > height:
             raise ProbeError(
                 EXIT_ERROR, f"Box {args.box} is outside the {width}x{height} window."
             )
-        image = take_screenshot(handle, window_box(*args.box))
+        image = crop(frame, Box(left=left, top=top, right=right, bottom=bottom))
     else:
         label = "window"
-        image = take_screenshot(handle)
+        image = frame.pixels
     path = save_png(image, label)
     height, width = image.shape[:2]
     return {"ok": True, "path": _display_path(path), "w": width, "h": height}
 
 
 def cmd_regions(args: argparse.Namespace) -> dict:
-    handle = resolve_handle(args.ign)
-    image = take_screenshot(handle)
-    dynamic = {
-        name: _lookup(name, handle, image) is not None for name in DYNAMIC_REGIONS
-    }
-    return {"ok": True, "static": list(STATIC_REGIONS), "dynamic": dynamic}
+    """Each region's box `[l, t, r, b]` in PNG pixels, or null when it isn't showing."""
+    del args
+    frame = grab(resolve_handle())
+    found = readers()
+    showing: dict[str, list[int] | None] = {}
+    for name, finder in REGIONS.items():
+        box = finder(found, frame)
+        showing[name] = (
+            None if isinstance(box, str) else [box.left, box.top, box.right, box.bottom]
+        )
+    return {"ok": True, "regions": showing}
 
 
 def cmd_keys(args: argparse.Namespace) -> dict:
-    handle = resolve_handle(args.ign)
-    ign = resolve_ign(args.ign, handle)
+    ign = resolve_ign(args.ign)
+    if ign is None:
+        raise ProbeError(
+            EXIT_ERROR,
+            "Pass --ign: configs/keybindings.ini doesn't have exactly one section "
+            f"(it has {_binding_sections()}).",
+        )
     try:
         names = sorted(key_binds(ign))
     except (AssertionError, KeyError) as err:
@@ -280,15 +357,17 @@ def cmd_keys(args: argparse.Namespace) -> dict:
 # --- input -------------------------------------------------------------------
 
 
-def _bindings(ign: str) -> dict[str, str]:
+def _bindings(ign: str | None) -> dict[str, str]:
     """The IGN's bindings, by lower-cased name, or none when it has no section."""
+    if ign is None:
+        return {}
     try:
         return {name.lower(): key for name, key in key_binds(ign).items()}
     except AssertionError, KeyError:
         return {}
 
 
-def resolve_key(name: str, handle: int, ign: str) -> str:
+def resolve_key(name: str, handle: int, ign: str | None) -> str:
     """
     A binding name (case-insensitive) or a plain key name, as the key to send.
 
@@ -338,8 +417,8 @@ def _send(handle: int, gesture: Callable[[], Awaitable[None]], result: dict) -> 
 
 
 def cmd_press(args: argparse.Namespace) -> dict:
-    handle = resolve_handle(args.ign)
-    key = resolve_key(args.key, handle, resolve_ign(args.ign, handle))
+    handle = resolve_handle()
+    key = resolve_key(args.key, handle, resolve_ign(args.ign))
 
     async def gesture() -> None:
         for _ in range(args.times):
@@ -349,7 +428,7 @@ def cmd_press(args: argparse.Namespace) -> dict:
 
 
 def cmd_hold(args: argparse.Namespace) -> dict:
-    handle = resolve_handle(args.ign)
+    handle = resolve_handle()
 
     async def gesture() -> None:
         await move(handle, args.direction, duration=args.ms / 1000).send()
@@ -359,7 +438,7 @@ def cmd_hold(args: argparse.Namespace) -> dict:
 
 
 def cmd_write(args: argparse.Namespace) -> dict:
-    handle = resolve_handle(args.ign)
+    handle = resolve_handle()
 
     async def gesture() -> None:
         await write(handle, args.text)
@@ -368,15 +447,16 @@ def cmd_write(args: argparse.Namespace) -> dict:
 
 
 def cmd_click(args: argparse.Namespace) -> dict:
-    handle = resolve_handle(args.ign)
+    handle = resolve_handle()
     width, height = _client_size(handle)
     if args.x >= width or args.y >= height:
         raise ProbeError(
             EXIT_REFUSED,
             f"({args.x}, {args.y}) is outside the {width}x{height} window.",
         )
-    # `mouse_move` wants window-rect coordinates: add the title bar and border.
-    target = (args.x + CLIENT_HORIZONTAL_MARGIN_PX, args.y + CLIENT_VERTICAL_MARGIN_PX)
+    # `mouse_move` takes client pixels, the PNG's own, and adds the client's
+    # screen origin itself (`ClientToScreen`).
+    target = (args.x, args.y)
 
     async def gesture() -> None:
         await mouse_move_and_click(handle, target)
@@ -404,9 +484,11 @@ def _bounded(low: int, high: int | None = None) -> Callable[[str], int]:
 
 
 def _parser() -> argparse.ArgumentParser:
-    common = argparse.ArgumentParser(add_help=False)
-    common.add_argument(
-        "--ign", help="pick the client by IGN (default: the only one open)"
+    bindings = argparse.ArgumentParser(add_help=False)
+    bindings.add_argument(
+        "--ign",
+        help="the configs/keybindings.ini section binding names come from "
+        "(default: its only section)",
     )
 
     parser = argparse.ArgumentParser(
@@ -415,9 +497,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    shot = sub.add_parser("screenshot", parents=[common], help="save a PNG to probe/")
+    shot = sub.add_parser("screenshot", help="save a PNG to probe/")
     which = shot.add_mutually_exclusive_group()
-    which.add_argument("--region", choices=REGION_NAMES)
+    which.add_argument("--region", choices=tuple(REGIONS))
     which.add_argument(
         "--box",
         type=_parse_box,
@@ -427,14 +509,14 @@ def _parser() -> argparse.ArgumentParser:
     shot.set_defaults(run=cmd_screenshot)
 
     sub.add_parser(
-        "regions", parents=[common], help="list the regions and which are showing"
+        "regions", help="list the regions and where each is showing"
     ).set_defaults(run=cmd_regions)
     sub.add_parser(
-        "keys", parents=[common], help="list the key binding names"
+        "keys", parents=[bindings], help="list the key binding names"
     ).set_defaults(run=cmd_keys)
 
     press_ = sub.add_parser(
-        "press", parents=[common], help="press a key: keydown, then keyup"
+        "press", parents=[bindings], help="press a key: keydown, then keyup"
     )
     press_.add_argument("key", help="a binding name (see `keys`) or a key name")
     press_.add_argument(
@@ -442,24 +524,18 @@ def _parser() -> argparse.ArgumentParser:
     )
     press_.set_defaults(run=cmd_press)
 
-    hold = sub.add_parser(
-        "hold", parents=[common], help="hold a direction, then release it"
-    )
+    hold = sub.add_parser("hold", help="hold a direction, then release it")
     hold.add_argument("direction", choices=DIRECTIONS)
     hold.add_argument(
         "--ms", type=_bounded(1, MAX_MS), required=True, help=f"1 to {MAX_MS}"
     )
     hold.set_defaults(run=cmd_hold)
 
-    write_ = sub.add_parser(
-        "write", parents=[common], help="type text into the chat box, already open"
-    )
+    write_ = sub.add_parser("write", help="type text into the chat box, already open")
     write_.add_argument("text")
     write_.set_defaults(run=cmd_write)
 
-    click_ = sub.add_parser(
-        "click", parents=[common], help="left-click at full-window PNG pixels"
-    )
+    click_ = sub.add_parser("click", help="left-click at full-window PNG pixels")
     click_.add_argument("x", type=_bounded(0))
     click_.add_argument("y", type=_bounded(0))
     click_.set_defaults(run=cmd_click)
