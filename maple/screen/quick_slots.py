@@ -40,16 +40,20 @@ the numbering is not settled, so the search repeats until a full set of columns
 is found and two searches agree. A slot column with no key bound reads `COVERED`
 for good.
 
-**Holes.** The grid the labels found make should have a label in every cell.
-A cell with none is a slot that is unbound, covered, or shaded by a cooldown, and
-a fresh reader can't tell which, nor read a shaded key: the numbering isn't
-settled and the reading is `UNSURE`. So a slot with no key bound keeps the
-reader `UNSURE`. A reader that settled on a full grid reads `COVERED` while a
-cooldown shades a label past `_fits`.
+**Holes.** A cell of the grid the labels make that has none is a slot with no
+key bound, and is simply not in the result (`slot(n)` is `None`). It does not
+keep the panel from settling. But if part of some label is drawn exactly there
+(`_partly_drawn`: a label half hidden or shaded below its top), or a digit run
+is (the cooldown's number: the shade is over the whole label), the cell is not
+empty and a fresh reader can't read its key: the numbering isn't settled and
+the reading is `UNSURE`. A reader that settled on a full grid reads `COVERED`
+while a cooldown shades a label past `_fits`. A window
+covering whole cells during both settling searches, looks empty (a known gap),
+and a key bound later in an empty cell is not noticed.
 
 **Suspect labels.** A label whose pixels are all drawn by a longer one (`P`, key
 25, starts `PgUp` and `PgDn`) can't be told from the longer label shaded by a
-cooldown, so a cell that matches only such a label is a hole too, and the reader
+cooldown, so a cell that matches only such a label is an unexplained hole, and the reader
 is `UNSURE`. A slot bound to one of those keys (`_suspects`) never settles.
 
 **Shaded labels.** A cooldown shades part of a slot's label, so it isn't found
@@ -272,7 +276,7 @@ class QuickSlotsReader:
             self._settled = (
                 found == self._found
                 and _columns(found) >= COLUMNS
-                and not _holes(found)
+                and not self._unexplained(pixels, found)
             )
             self._found = found
             moved = []
@@ -298,11 +302,11 @@ class QuickSlotsReader:
                     frame.captured_at,
                     f"labels found in {columns} of the layout's {COLUMNS} columns",
                 )
-            holes = _holes(self._found)
+            holes = self._unexplained(pixels, self._found)
             why = (
                 "no label found for the slot at row "
-                f"{holes[0][0] + 1}, column {holes[0][1] + 1}: unbound, shaded "
-                "by a cooldown or covered, and which isn't known until it is seen"
+                f"{holes[0][0] + 1}, column {holes[0][1] + 1}, yet something "
+                "label-shaped is drawn there: shaded by a cooldown or covered"
                 if holes
                 else "the labels found must be the same in two searches "
                 f"{SEARCH_EVERY:g} s apart"
@@ -315,6 +319,44 @@ class QuickSlotsReader:
     def _at(self, pixels: np.ndarray, name: str, at: tuple[int, int]) -> bool:
         """Whether the label still looks drawn at `at` (`_fits`)."""
         return self._fits(pixels, name, at)
+
+    def _unexplained(
+        self, pixels: np.ndarray, found: dict[str, tuple[int, int]]
+    ) -> list[tuple[int, int]]:
+        """
+        The cells of the grid with no label that aren't merely empty, as
+        `(row, column)` from 0: where part of some label is drawn exactly (a label
+        half hidden, or shaded below its top), or where a cooldown's number is
+        (the slot is shaded, so its label can't be recognised). An empty cell
+        shows neither.
+        """
+        columns = _lines(x for x, _ in found.values())
+        rows = _lines(y for _, y in found.values())
+        span = _pitch(columns) or _pitch(rows) or 3 * SAME_LINE
+        height, width = pixels.shape[:2]
+        unexplained: list[tuple[int, int]] = []
+        for row, column, x, y in _holes(found):
+            region = (x, max(y - 2, 0), min(span, width - x), min(16, height - y))
+            if any(self._partly_drawn(pixels, n, (x, y)) for n in self._labels) or (
+                region[2] > 0 and region[3] > 0 and self._runs(pixels, region)
+            ):
+                unexplained.append((row, column))
+        return unexplained
+
+    def _partly_drawn(self, pixels: np.ndarray, name: str, at: tuple[int, int]) -> bool:
+        """Whether whole rows of the label, at least a third of it, are drawn
+        exactly at `at`: what a shade or a cover over the rest leaves."""
+        rgba = self._labels[name].rgba
+        h, w = rgba.shape[:2]
+        x, y = at
+        if x < 0 or y < 0 or y + h > pixels.shape[0] or x + w > pixels.shape[1]:
+            return False
+        mask = rgba[:, :, 3] == 255
+        drawn = pixels[y : y + h, x : x + w]
+        same = np.all(drawn == rgba[:, :, 2::-1], axis=2) | ~mask
+        rows = same.all(axis=1) & mask.any(axis=1)
+        matched = int(mask[rows].sum())
+        return matched >= MIN_SHADED_PIXELS and 3 * matched >= int(mask.sum())
 
     def _fits(self, pixels: np.ndarray, name: str, at: tuple[int, int]) -> bool:
         """
@@ -641,14 +683,14 @@ def _columns(found: dict[str, tuple[int, int]]) -> int:
     return len(_lines(x for x, _ in found.values()))
 
 
-def _holes(found: dict[str, tuple[int, int]]) -> list[tuple[int, int]]:
+def _holes(found: dict[str, tuple[int, int]]) -> list[tuple[int, int, int, int]]:
     """The cells of the grid the labels found make that have none, as
-    `(row, column)` from 0."""
+    `(row, column, x, y)`, the first two from 0."""
     rows = _lines(y for _, y in found.values())
     columns = _lines(x for x, _ in found.values())
     filled = {(_line(rows, y), _line(columns, x)) for x, y in found.values()}
     return [
-        (r, c)
+        (r, c, columns[c], rows[r])
         for r in range(len(rows))
         for c in range(len(columns))
         if (r, c) not in filled

@@ -471,7 +471,7 @@ def test_a_count_in_a_slot_with_no_label_found_reads_unsure() -> None:
     reading = settled(pixels)
 
     assert reading.status is Status.UNSURE
-    assert "row 2, column 4" in reading.detail
+    assert "belongs to no slot clearly" in reading.detail
 
 
 def test_two_counts_for_one_slot_read_unsure() -> None:
@@ -517,12 +517,75 @@ def test_a_frame_without_the_ui_at_one_to_one_reads_unsure() -> None:
     assert reading.detail == UI_NOT_FOUND
 
 
-def test_a_cell_with_no_label_keeps_the_numbering_unsettled() -> None:
-    # A slot unbound, covered or shaded by a cooldown: a fresh reader can't tell.
+def test_one_empty_cell_does_not_make_the_panel_unsure() -> None:
+    # A slot with no key bound shows no label: it is not a slot to read.
     pixels = screen()
     for key, (row, column) in GRID.items():
         if key != "6":
             draw_label(pixels, key, row, column)
+    draw_count(pixels, 7, 1, 2)
+
+    reading = settled(pixels)
+
+    assert reading.status is Status.READ
+    slots = slots_of(reading.value)
+    assert "6" not in slots
+    assert (slots["7"].row, slots["7"].column, slots["7"].count) == (2, 3, 7)
+    assert reading.value is not None
+    assert reading.value.slot(6) is None
+    assert reading.value.slot(8) is not None
+
+
+def test_only_eight_of_twelve_slots_bound_reads_those_eight() -> None:
+    bound = {
+        "1": (0, 0), "2": (0, 1), "3": (0, 2),
+        "4": (1, 0), "5": (1, 3),
+        "6": (2, 1), "7": (2, 2), "8": (2, 3),
+    }  # fmt: skip
+    pixels = screen()
+    for key, (row, column) in bound.items():
+        draw_label(pixels, key, row, column)
+
+    reading = settled(pixels)
+
+    assert reading.status is Status.READ
+    slots = slots_of(reading.value)
+    assert {k: (s.row, s.column) for k, s in slots.items()} == {
+        k: (r + 1, c + 1) for k, (r, c) in bound.items()
+    }
+    assert reading.value is not None
+    assert [reading.value.slot(n) is not None for n in range(1, 13)] == [
+        True, True, True, False, True, False, False, True, False, True, True, True,
+    ]  # fmt: skip
+
+
+def test_a_cell_with_part_of_a_label_drawn_is_not_empty() -> None:
+    # The top rows of a label are still drawn exactly where a cooldown shades
+    # the rest: not an unbound slot, and a fresh reader can't read its key.
+    pixels = screen()
+    for key, (row, column) in GRID.items():
+        if key != "6":
+            draw_label(pixels, key, row, column)
+    draw_label(pixels, "6", 1, 1)
+    x, y = label_at(1, 1)
+    pixels[y + 6 : y + 12, x : x + 30] = RNG.integers(60, 200, (6, 30, 3), np.uint8)
+
+    reading = settled(pixels)
+
+    assert reading.status is Status.UNSURE
+    assert "row 2, column 2" in reading.detail
+
+
+def test_a_cell_with_a_cooldown_number_is_not_empty() -> None:
+    # The whole slot is shaded: nothing of the label is left to recognise, but
+    # the cooldown's number says the slot is bound.
+    pixels = screen()
+    for key, (row, column) in GRID.items():
+        if key != "6":
+            draw_label(pixels, key, row, column)
+    x, y = label_at(1, 1)
+    pixels[y : y + 30, x : x + 30] = 120
+    draw_cooldown(pixels, 3, 1, 1)
 
     reading = settled(pixels)
 
@@ -558,7 +621,10 @@ def test_a_label_a_longer_one_would_also_draw_is_not_taken_for_a_slot() -> None:
     built = ReaderSprites("build", canvases)
     pixels = screen()
     for key, (row, column) in GRID.items():
-        draw_label(pixels, "9" if key == "8" else key, row, column)
+        if key == "8":
+            paste(pixels, inner, *label_at(row, column))
+        else:
+            draw_label(pixels, key, row, column)
 
     reading = settle(QuickSlotsReader(built, FrameCheck(built)), pixels)
 
