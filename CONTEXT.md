@@ -14,6 +14,15 @@ directory.
 _Avoid_: Run, execution — "Session" is the existing term (`SessionManager`,
 `botting/core/session_manager.py`); don't introduce a synonym for it.
 
+**Probe**:
+The CLI `python -m maple.probe`: it takes screenshots of the game window and
+sends it key presses, short holds, chat text and clicks, with no Session
+running. Each input command is one whole gesture that ends with every key
+released. Using it while a Session runs is against the rules, though nothing
+stops it.
+_Avoid_: Debug tool, test harness — the probe is for looking at the client, not
+for driving the bot.
+
 **Telemetry Record**:
 One JSONL line describing a single decision or action a `DecisionMaker`
 made and why: `{timestamp, correlation_id, logger_name, event_type,
