@@ -1,23 +1,32 @@
 """
-The probe: ``python -m maple.probe``, a CLI for looking at the game window when no
-Session is running (intent #331).
+The probe: ``python -m maple.probe``, a CLI for looking at the game window, and
+sending it simple input, when no Session is running (intent #331).
 
-This module only looks. ``screenshot``, ``regions`` and ``keys`` send no input, so
-nothing here touches the Held-Keys Ledger or releases a key.
+``screenshot``, ``regions`` and ``keys`` send no input, so they touch neither the
+Held-Keys Ledger nor any key.
+
+``press``, ``hold``, ``write`` and ``click`` are each one complete gesture, run by
+`run_guarded` (ADR 0002): validate everything first, so a refusal sends nothing; bring
+the client to the front; reset the ledger and `release_all` while the client is in
+front (the start-up reconciliation); run the gesture through the bot's own input
+functions; and `release_all` in a ``finally``. No command sends a lone keydown or
+keyup.
 
 One coordinate frame: pixel (x, y) of a full-window PNG is the probe's coordinate.
 That PNG excludes the title bar and border, whereas the interface boxes and
 ``take_screenshot`` work in window-rect coordinates, so ``--box`` is shifted by the
 client margins before it reaches them.
 
-Exit codes: 0 ok, 1 other error, 2 usage, 3 region not showing, 4 no client open,
-5 several clients open.
+Exit codes: 0 ok, 1 other error, 2 usage or refused input (nothing sent), 3 region
+not showing, 4 no client open, 5 several clients open, 130 interrupted (keys
+released).
 """
 
 import argparse
+import asyncio
 import json
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -25,7 +34,20 @@ import cv2
 import numpy as np
 import win32gui
 
-from botting.controller.high_level import key_binds
+from botting.controller.high_level import (
+    key_binds,
+    mouse_move_and_click,
+    press,
+    write,
+)
+from botting.controller.inputs import (
+    HeldKeysLedger,
+    SharedResources,
+    input_constructor,
+    release_all,
+    release_directions,
+)
+from botting.controller.inputs.focused_inputs import activate
 from botting.utilities import (
     CLIENT_HORIZONTAL_MARGIN_PX,
     CLIENT_VERTICAL_MARGIN_PX,
@@ -34,14 +56,21 @@ from botting.utilities import (
 )
 from botting.utilities.client_handler import get_client_handle, get_open_clients
 from maple import maple_ign_finder
+from maple.actions.movements_v2 import move
 from maple.model.interface import CharacterStats, InventoryMenu, LargeClientChatFeed
 from maple.model.interface import Minimap as _Minimap
 from paths import ROOT
 
 EXIT_ERROR = 1
+EXIT_REFUSED = 2
 EXIT_NOT_SHOWING = 3
 EXIT_NO_CLIENT = 4
 EXIT_SEVERAL_CLIENTS = 5
+EXIT_INTERRUPTED = 130
+
+MAX_TIMES = 10
+MAX_MS = 10_000
+DIRECTIONS = ("left", "right", "up", "down")
 
 PROBE_DIR = Path(ROOT) / "probe"
 KEEP_LAST = 50
@@ -248,6 +277,129 @@ def cmd_keys(args: argparse.Namespace) -> dict:
     return {"ok": True, "ign": ign, "keys": names}
 
 
+# --- input -------------------------------------------------------------------
+
+
+def _bindings(ign: str) -> dict[str, str]:
+    """The IGN's bindings, by lower-cased name, or none when it has no section."""
+    try:
+        return {name.lower(): key for name, key in key_binds(ign).items()}
+    except AssertionError, KeyError:
+        return {}
+
+
+def resolve_key(name: str, handle: int, ign: str) -> str:
+    """
+    A binding name (case-insensitive) or a plain key name, as the key to send.
+
+    A plain key is valid when the input layer can build a keydown for it, which sends
+    nothing. Directions are refused, as `press()` refuses them: holding one is `hold`'s
+    job.
+    """
+    key = _bindings(ign).get(name.lower(), name.lower())
+    if key in DIRECTIONS:
+        raise ProbeError(
+            EXIT_REFUSED, f"{name!r} is a direction: use `hold {key} --ms MS`."
+        )
+    try:
+        input_constructor(handle, [[key]], [["keydown"]])
+    except (KeyError, AssertionError, TypeError, ValueError) as err:
+        raise ProbeError(
+            EXIT_REFUSED,
+            f"Unknown key {name!r}: neither a binding of {ign!r} nor a key name "
+            f"({type(err).__name__}: {err}). `keys` lists the bindings.",
+        )
+    return key
+
+
+async def run_guarded(handle: int, gesture: Callable[[], Awaitable[None]]) -> None:
+    """
+    Runs one gesture inside the probe's guards, in this order: bring the client to
+    the front; reset the Held-Keys Ledger and `release_all` (the start-up
+    reconciliation, done while the client is in front so the keyups reach it); the
+    gesture; and `release_all` in a ``finally``, which also runs on an exception, a
+    cancellation or Ctrl+C.
+    """
+    try:
+        if await activate(handle):
+            # The gesture's own `focused_inputs` takes the focus lock again.
+            SharedResources.focus_lock.release()
+        HeldKeysLedger.reset()
+        release_all(handle)
+        await gesture()
+    finally:
+        release_all(handle)
+
+
+def _send(handle: int, gesture: Callable[[], Awaitable[None]], result: dict) -> dict:
+    """Runs the gesture in its own event loop, then reports what the ledger holds."""
+    asyncio.run(run_guarded(handle, gesture))
+    return {**result, "held_after": sorted(HeldKeysLedger.keys_held(handle))}
+
+
+def cmd_press(args: argparse.Namespace) -> dict:
+    handle = resolve_handle(args.ign)
+    key = resolve_key(args.key, handle, resolve_ign(args.ign, handle))
+
+    async def gesture() -> None:
+        for _ in range(args.times):
+            await press(handle, key)
+
+    return _send(handle, gesture, {"ok": True, "pressed": key, "times": args.times})
+
+
+def cmd_hold(args: argparse.Namespace) -> dict:
+    handle = resolve_handle(args.ign)
+
+    async def gesture() -> None:
+        await move(handle, args.direction, duration=args.ms / 1000).send()
+        release_directions(handle)
+
+    return _send(handle, gesture, {"ok": True, "held": args.direction, "ms": args.ms})
+
+
+def cmd_write(args: argparse.Namespace) -> dict:
+    handle = resolve_handle(args.ign)
+
+    async def gesture() -> None:
+        await write(handle, args.text)
+
+    return _send(handle, gesture, {"ok": True, "wrote": args.text})
+
+
+def cmd_click(args: argparse.Namespace) -> dict:
+    handle = resolve_handle(args.ign)
+    width, height = _client_size(handle)
+    if args.x >= width or args.y >= height:
+        raise ProbeError(
+            EXIT_REFUSED,
+            f"({args.x}, {args.y}) is outside the {width}x{height} window.",
+        )
+    # `mouse_move` wants window-rect coordinates: add the title bar and border.
+    target = (args.x + CLIENT_HORIZONTAL_MARGIN_PX, args.y + CLIENT_VERTICAL_MARGIN_PX)
+
+    async def gesture() -> None:
+        await mouse_move_and_click(handle, target)
+
+    return _send(handle, gesture, {"ok": True, "clicked": [args.x, args.y]})
+
+
+def _bounded(low: int, high: int | None = None) -> Callable[[str], int]:
+    """An argparse type: an integer in [low, high]."""
+
+    def parse(text: str) -> int:
+        try:
+            value = int(text)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"expected an integer, got {text!r}")
+        if value < low or (high is not None and value > high):
+            limit = f"{low} to {high}" if high is not None else f"at least {low}"
+            raise argparse.ArgumentTypeError(f"must be {limit}, got {value}")
+        return value
+
+    return parse
+
+
 # --- entry point -------------------------------------------------------------
 
 
@@ -258,7 +410,8 @@ def _parser() -> argparse.ArgumentParser:
     )
 
     parser = argparse.ArgumentParser(
-        prog="python -m maple.probe", description="Look at the game window."
+        prog="python -m maple.probe",
+        description="Look at the game window, and send it simple input.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -279,6 +432,37 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser(
         "keys", parents=[common], help="list the key binding names"
     ).set_defaults(run=cmd_keys)
+
+    press_ = sub.add_parser(
+        "press", parents=[common], help="press a key: keydown, then keyup"
+    )
+    press_.add_argument("key", help="a binding name (see `keys`) or a key name")
+    press_.add_argument(
+        "--times", type=_bounded(1, MAX_TIMES), default=1, help=f"1 to {MAX_TIMES}"
+    )
+    press_.set_defaults(run=cmd_press)
+
+    hold = sub.add_parser(
+        "hold", parents=[common], help="hold a direction, then release it"
+    )
+    hold.add_argument("direction", choices=DIRECTIONS)
+    hold.add_argument(
+        "--ms", type=_bounded(1, MAX_MS), required=True, help=f"1 to {MAX_MS}"
+    )
+    hold.set_defaults(run=cmd_hold)
+
+    write_ = sub.add_parser(
+        "write", parents=[common], help="type text into the chat box, already open"
+    )
+    write_.add_argument("text")
+    write_.set_defaults(run=cmd_write)
+
+    click_ = sub.add_parser(
+        "click", parents=[common], help="left-click at full-window PNG pixels"
+    )
+    click_.add_argument("x", type=_bounded(0))
+    click_.add_argument("y", type=_bounded(0))
+    click_.set_defaults(run=cmd_click)
     return parser
 
 
@@ -289,6 +473,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ProbeError as err:
         sys.stderr.write(err.message + "\n")
         return err.code
+    except KeyboardInterrupt:
+        sys.stderr.write("Interrupted; release_all ran.\n")
+        return EXIT_INTERRUPTED
     sys.stdout.write(json.dumps(result) + "\n")
     return 0
 
