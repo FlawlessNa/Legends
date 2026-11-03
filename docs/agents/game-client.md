@@ -59,8 +59,9 @@ Read that PNG. The third command closes the inventory.
 - **Coordinates are pixels in the full-window PNG**, for `--box` and for
   `click` alike. Find a spot in a full-window shot, then click or crop there.
   A cropped PNG has its own origin: do not click from its pixels.
-- **`write` needs the chat box open first.** Open it first, for example with `press enter` if that opens chat in your client. `write`
-  does not open the box itself.
+- **`write` needs the chat box open first.** It does not open the box itself.
+  Open it with a `press` (for example `press enter`, if that opens chat in
+  your client).
 - `probe/` keeps the 50 most recent PNGs and is gitignored.
 
 ### In the PR
