@@ -109,6 +109,12 @@ those fields. In `v1`:
 - `chat`: the kind of each visible row of the log, top to bottom. A message
   wrapped over two rows gives two entries.
 
+`v2` is `v1`'s frames unchanged plus 43 more: every client size (800x600,
+1024x768, 1280x720, 1366x768, 1920x1080) with the quick slots unshaded or with
+Pup and Pdn on cooldown, and with the Recovery or Nimble Feet buff icon drawn.
+Its new frames have no `chat` entry: the log shows row kinds `v1`'s kinds don't
+tell apart.
+
 A frame has no entry for a reader whose answer depends on a choice its ticket
 hasn't made yet: `notes` says why.
 
