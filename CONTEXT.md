@@ -18,7 +18,8 @@ _Avoid_: Run, execution — "Session" is the existing term (`SessionManager`,
 The CLI `python -m maple.probe`: it takes screenshots of the game window and
 sends it key presses, short holds, chat text and clicks, with no Session
 running. Each input command is one whole gesture that ends with every key
-released. Using it while a Session runs is against the rules, though nothing
+released. One command, `resolution`, is a short scripted sequence of them: it
+sets the client's windowed size through the Options window. Using it while a Session runs is against the rules, though nothing
 stops it.
 _Avoid_: Debug tool, test harness — the probe is for looking at the client, not
 for driving the bot.

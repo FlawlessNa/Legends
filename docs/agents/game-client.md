@@ -54,6 +54,7 @@ code (the module docstring lists them).
 | `hold DIRECTION --ms MS`                     | holds a direction, then releases it, MS ≤ 10000          |
 | `write TEXT`                                 | types TEXT into the chat box                             |
 | `click X Y`                                  | left-clicks at pixel X, Y                                |
+| `resolution WxH` / `resolution --list`       | sets the client's windowed size through Options          |
 
 `KEY` is a binding name from `keys` (case-insensitive, such as
 `"inventory menu"`) or a plain key name such as `"i"`, `"enter"` or
@@ -66,6 +67,37 @@ the strips its numbers are read from, `level`, `hp`, `mp` and `exp`;
 `minimap` (expanded only); `buffs` (the row of buff icons). A region that is
 not showing exits with code 3 and says why. Regions need the game data store
 (`docs/agents/game-data.md`); a plain screenshot or a `--box` does not.
+
+### Changing the resolution
+
+```
+python -m maple.probe resolution --list
+python -m maple.probe resolution 800x600
+python -m maple.probe resolution 1920x1080
+```
+
+Screen readers are tested on frames at several client sizes, and this sets
+one without working out the Options menu again. It prints, for example,
+`{"ok": true, "before": [1920, 1080], "after": [800, 600]}`.
+
+- **Put it back when you are done:** finish at `1920x1080`, the maintainer's
+  size, and say in the PR that you did.
+- Only the **windowed** sizes `--list` prints are set. A full-screen entry, a
+  size the client does not list, or one bigger than the screen is refused
+  (exit 2) before anything is sent.
+- It presses Escape for the Game Menu (or uses it, or the Options window, if
+  already open), clicks Game Option, the Graphics tab, the Resolution
+  dropdown, the size's row and Confirm. Each step is found on screen from the
+  client's own sprites (`maple/menus.py`), never from coordinates measured on
+  one size, and checked on a fresh frame before the next.
+- It succeeds only when the client's new size is the one asked for. If a step
+  does not show what it should, it exits 1 naming the step, after pressing
+  Escape until the Game Menu and the Options window are closed.
+- If the **Key Bindings** window is open, it refuses, since that window
+  swallows Escape: close it (Cancel) first.
+- It is a short scripted sequence, longer than the probe's other gestures.
+  Each key and click in it is still one guarded gesture that releases every
+  key.
 
 ### Example: look at the minimap
 
