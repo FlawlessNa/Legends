@@ -4,12 +4,19 @@ Casting buffs, and confirming the cast took effect by the buff's icon (D9, R1).
 A cast is judged by comparing the buffs read from a frame captured before it
 was sent with those read after:
 
-- `CONFIRMED`: the buff went from not shown to shown; or it was shown, and came
-  back fresh, its `elapsed` dropping by more than `FreshnessMargins.drop`.
+- `CONFIRMED`: the buff went from not shown to shown; or it was shown, and its
+  countdown went back up (its `seconds_left` read in both, and higher after);
+  or it came back fresh, its `elapsed` dropping by more than
+  `FreshnessMargins.drop`.
 - `NOT_CONFIRMED`: it is still not shown, or still shown with no such drop.
 - `UNSURE`: freshness can't be judged. A frame before or after wasn't read, a
   buff shown in both has no `elapsed`, or it was recast while nearly fresh, so
   no drop could show.
+
+The countdown is only drawn in a buff's last minute, so it confirms only a
+recast that leaves less than a minute. A countdown read before and gone after
+confirms nothing: the client stops drawing it a few seconds before the icon goes
+(frame set `v1`, f014 to f015).
 
 Only `NOT_CONFIRMED` is retried. `UNSURE` is logged and kept. MP isn't used: MP
 regeneration, potions and Magic Guard all move it.
@@ -80,6 +87,12 @@ def buff_confirmation(
     if not now.shown:
         return Confirmation.NOT_CONFIRMED
     if not was.shown:
+        return Confirmation.CONFIRMED
+    if (
+        was.seconds_left is not None
+        and now.seconds_left is not None
+        and now.seconds_left > was.seconds_left
+    ):
         return Confirmation.CONFIRMED
     if margins is None or was.elapsed is None or now.elapsed is None:
         return Confirmation.UNSURE

@@ -15,6 +15,7 @@ from maple.screen.buffs import (
     BuffsReader,
     BuffState,
 )
+from maple.screen.font import COUNTDOWN, GlyphSet
 from maple.screen.locator import UI_NOT_FOUND, FrameCheck
 from maple.screen.sprites import GAUGE_LABEL, Profile, ReaderSprites
 
@@ -298,3 +299,51 @@ def test_the_declaration_names_the_base_and_the_profiles_buffs() -> None:
 
     assert BUFFS.canvas_paths(profile) == (ICON_BASE,)
     assert BUFFS.skill_names(profile) == ("Bless", "Invincible")
+
+
+# Seconds left: the countdown's digits, read with harvested glyphs.
+
+DIGITS = {
+    "1": np.array([[c == "#" for c in r] for r in [".#.", "##.", ".#.", ".#.", "###"]]),
+    "4": np.array([[c == "#" for c in r] for r in ["#.#", "#.#", "###", "..#", "..#"]]),
+}
+
+
+def countdown_reader() -> BuffsReader:
+    sprites = build_sprites()
+    sprites.glyph_sets[COUNTDOWN.name] = GlyphSet(COUNTDOWN, DIGITS)
+    return BuffsReader(sprites, FrameCheck(sprites))
+
+
+def with_countdown(pixels: np.ndarray, slot: int, text: str) -> np.ndarray:
+    """`text`'s digits over a slot's middle, yellow in a dark outline."""
+    x, y = slot_x(slot) + 9, 3 + 13
+    area = pixels[y - 1 : y + 6, x - 1 : x + 4 * len(text)]
+    area[:] = 10
+    for i, char in enumerate(text):
+        pixels[y : y + 5, x + 4 * i : x + 4 * i + 3][DIGITS[char]] = (14, 236, 252)
+    return pixels
+
+
+def test_a_shown_buffs_countdown_is_read() -> None:
+    pixels = with_countdown(screen("Haste", "Bless"), 1, "14")
+
+    reading = countdown_reader().read(frame(pixels), ASKED)
+
+    assert reading.value == {
+        "Haste": BuffState(True),
+        "Bless": BuffState(True, seconds_left=14),
+    }
+
+
+def test_no_countdown_glyphs_reads_no_seconds_left(reader: BuffsReader) -> None:
+    pixels = with_countdown(screen("Haste"), 0, "41")
+
+    assert reader.read(frame(pixels), ASKED).value == {
+        "Haste": BuffState(True),
+        "Bless": BuffState(False),
+    }
+
+
+def test_the_declaration_needs_the_countdown_glyphs() -> None:
+    assert BUFFS.glyph_sets == (COUNTDOWN.name,)

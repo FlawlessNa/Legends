@@ -29,6 +29,13 @@ client draws the seconds left over the icon in the last minute, is left out. A
 slot is the asked-for buff that correlates best, if it reaches
 `MATCH_THRESHOLD`.
 
+**Seconds left** (`BuffState.seconds_left`). In its last minute, the client
+draws a buff's seconds left over its icon, in yellow digits no font renders
+(#313). They are read with the harvested `countdown` glyphs (`font`), so the
+reader needs them. A shown buff without them drawn has `None`. The digits go
+before the icon does (f015: Recovery still shown, its 7 gone), so `None` doesn't
+mean the buff was recast.
+
 **Freshness** (`BuffState.elapsed`) isn't built: how the expiry shade is drawn
 is to be taken from frames of each buff fresh, mid-way and nearly expired, which
 don't exist yet (#312). Until then `elapsed` is `None`.
@@ -44,6 +51,7 @@ from numpy.typing import NDArray
 
 from botting.screen import Frame, Reading
 
+from .font import COUNTDOWN
 from .locator import FrameCheck
 from .sprites import Declaration, Profile, ReaderSprites
 
@@ -54,8 +62,14 @@ def _buff_names(profile: Profile) -> tuple[str, ...]:
     return profile.buffs
 
 
-BUFFS = Declaration("buffs", canvases=(ICON_BASE,), skill_icons=_buff_names)
-"""The slot's base, and the icon of each buff the profile keeps up."""
+BUFFS = Declaration(
+    "buffs",
+    canvases=(ICON_BASE,),
+    skill_icons=_buff_names,
+    glyph_sets=(COUNTDOWN.name,),
+)
+"""The slot's base, the icon of each buff the profile keeps up, and the
+countdown's digits."""
 
 MATCH_THRESHOLD = 0.43
 """A slot correlating at least this well with an asked-for icon shows that buff.
@@ -93,10 +107,14 @@ class BuffState:
     :ivar elapsed: When shown, how much of its icon the expiry shade covers,
         from 0.0 (fresh) to 1.0 (expired). `None` until it is built (see the
         module's docstring), and always when not shown.
+    :ivar seconds_left: When shown in its last minute, the seconds left drawn
+        over its icon; otherwise `None`, as when the reader has no countdown
+        glyphs.
     """
 
     shown: bool
     elapsed: float | None = None
+    seconds_left: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,6 +165,7 @@ class BuffsReader:
             )
         )
         self._icons: dict[str, _Icon] = {}
+        self._countdown = sprites.glyph_sets.get(COUNTDOWN.name)
         # The rightmost slot's distance from the client's right edge, and its
         # top, for the client size it was seen at.
         self._first: tuple[int, int] | None = None
@@ -170,7 +189,7 @@ class BuffsReader:
         slots, hidden = self._hidden(frame, frame.pixels)
         if hidden:
             return Reading.covered(frame.captured_at, hidden)
-        shown: set[str] = set()
+        shown: dict[str, int | None] = {}
         for x, y in slots:
             patch = frame.pixels[y : y + self._height, x : x + self._width]
             scores = {name: _correlation(patch, icon) for name, icon in icons.items()}
@@ -178,10 +197,21 @@ class BuffsReader:
                 break
             best = max(scores, key=scores.__getitem__)
             if scores[best] >= MATCH_THRESHOLD:
-                shown.add(best)
+                shown[best] = self._seconds_left(patch)
         return Reading.read(
-            {name: BuffState(name in shown) for name in icons}, frame.captured_at
+            {
+                name: BuffState(name in shown, seconds_left=shown.get(name))
+                for name in icons
+            },
+            frame.captured_at,
         )
+
+    def _seconds_left(self, patch: NDArray[np.uint8]) -> int | None:
+        """The countdown drawn over a slot, or `None` when there's none."""
+        if self._countdown is None:
+            return None
+        text = self._countdown.read(patch[_COUNTDOWN_ROWS[0] : _COUNTDOWN_ROWS[1]])
+        return int(text) if text.isdigit() else None
 
     def slots(self, pixels: NDArray[np.uint8]) -> list[tuple[int, int]]:
         """Every slot's top-left corner, in client pixels, right to left and
