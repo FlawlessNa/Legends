@@ -28,6 +28,18 @@ Otherwise they exit 6 with the reason, and write nothing. They send no input, so
 they do not bring the client to the front themselves: if the client is not in
 front, ask the maintainer to bring it there.
 
+### Elevation
+
+`MapleStory.exe` always runs as administrator. Windows silently drops input
+sent from a non-elevated process into it, with no error, so `press`, `hold`,
+`write` and `click` refuse to run unless the terminal is elevated too (or the
+client's token cannot be read, which means the same). They exit 2, send
+nothing, and print, for example:
+`Process 1234 is elevated and this one is not, so Windows would silently drop
+any input. Run this terminal as administrator, then try again. Nothing was
+sent.` If you see this, ask the maintainer to run the terminal as
+administrator. `screenshot`, `regions` and `keys` need no elevation.
+
 ### Commands
 
 Each prints one JSON line on stdout. Errors go to stderr with a non-zero exit

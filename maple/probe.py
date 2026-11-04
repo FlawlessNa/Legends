@@ -25,7 +25,7 @@ That PNG is a `Frame`: the client area, in physical pixels. ``--box``, the regio
 and `mouse_move` (through ``ClientToScreen``) all use the same pixels, so no margin
 is added anywhere.
 
-Exit codes: 0 ok, 1 other error, 2 usage or refused input (nothing sent), 3 region
+Exit codes: 0 ok, 1 other error, 2 usage or refused input (nothing sent; includes a non-elevated probe against the elevated client), 3 region
 not showing, 4 no client open, 5 several clients open, 6 the frame isn't the
 client's own pixels (nothing written), 130 interrupted (keys released).
 """
@@ -62,6 +62,7 @@ from botting.controller.inputs import (
 from botting.controller.inputs.focused_inputs import activate
 from botting.screen import Frame, MultipleWindows, WindowNotFound, frame_source
 from botting.utilities import Box, config_reader
+from botting.utilities.elevation import input_blocked_reason, window_process_id
 from maple.actions.movements_v2 import move
 from maple.screen.buffs import BUFFS, ICON_BASE, BuffsReader
 from maple.screen.client import find_client
@@ -253,6 +254,23 @@ def resolve_handle() -> int:
         raise ProbeError(EXIT_SEVERAL_CLIENTS, str(err))
 
 
+def resolve_input_handle() -> int:
+    """
+    The client's handle, for a command that sends input. Refused (nothing sent) when
+    Windows would silently drop the input because the client is elevated and the
+    probe is not.
+    """
+    handle = resolve_handle()
+    why = input_blocked_reason(window_process_id(handle))
+    if why is not None:
+        raise ProbeError(
+            EXIT_REFUSED,
+            f"{why} Run this terminal as administrator, then try again. "
+            "Nothing was sent.",
+        )
+    return handle
+
+
 def _binding_sections() -> list[str]:
     try:
         config = config_reader("keybindings")
@@ -417,7 +435,7 @@ def _send(handle: int, gesture: Callable[[], Awaitable[None]], result: dict) -> 
 
 
 def cmd_press(args: argparse.Namespace) -> dict:
-    handle = resolve_handle()
+    handle = resolve_input_handle()
     key = resolve_key(args.key, handle, resolve_ign(args.ign))
 
     async def gesture() -> None:
@@ -428,7 +446,7 @@ def cmd_press(args: argparse.Namespace) -> dict:
 
 
 def cmd_hold(args: argparse.Namespace) -> dict:
-    handle = resolve_handle()
+    handle = resolve_input_handle()
 
     async def gesture() -> None:
         await move(handle, args.direction, duration=args.ms / 1000).send()
@@ -438,7 +456,7 @@ def cmd_hold(args: argparse.Namespace) -> dict:
 
 
 def cmd_write(args: argparse.Namespace) -> dict:
-    handle = resolve_handle()
+    handle = resolve_input_handle()
 
     async def gesture() -> None:
         await write(handle, args.text)
@@ -447,7 +465,7 @@ def cmd_write(args: argparse.Namespace) -> dict:
 
 
 def cmd_click(args: argparse.Namespace) -> dict:
-    handle = resolve_handle()
+    handle = resolve_input_handle()
     width, height = _client_size(handle)
     if args.x >= width or args.y >= height:
         raise ProbeError(

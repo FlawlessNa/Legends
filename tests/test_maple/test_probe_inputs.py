@@ -33,6 +33,8 @@ def io(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     monkeypatch.setattr(
         probe, "key_binds", lambda ign: {"Inventory Menu": "i", "Sneaky": "left"}
     )
+    monkeypatch.setattr(probe, "window_process_id", lambda handle: 7)
+    monkeypatch.setattr(probe, "input_blocked_reason", lambda pid: None)
     monkeypatch.setattr(probe, "_client_size", lambda handle: (1024, 768))
 
     io = MagicMock()
@@ -93,6 +95,34 @@ def _out(capsys: pytest.CaptureFixture[str]) -> dict:
 
 def _assert_nothing_sent(io: MagicMock) -> None:
     assert io.mock_calls == []
+
+
+# --- elevation ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize("command", COMMANDS)
+def test_input_is_refused_when_the_client_is_elevated_and_the_probe_is_not(
+    io: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    command: str,
+) -> None:
+    monkeypatch.setattr(probe, "input_blocked_reason", lambda pid: "It is elevated.")
+
+    assert probe.main(COMMANDS[command][0]) == probe.EXIT_REFUSED
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "administrator" in captured.err
+    _assert_nothing_sent(io)
+
+
+def test_commands_that_send_no_input_ignore_elevation(
+    io: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(probe, "input_blocked_reason", lambda pid: "It is elevated.")
+
+    assert probe.main(["keys"]) == 0
 
 
 # --- the order ---------------------------------------------------------------
