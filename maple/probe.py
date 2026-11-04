@@ -20,6 +20,13 @@ front (the start-up reconciliation); run the gesture through the bot's own input
 functions; and `release_all` in a ``finally``. No command sends a lone keydown or
 keyup.
 
+``resolution WxH`` is a short scripted sequence of such gestures (`maple.menus`):
+it sets the client's windowed size through the Game Menu and the Options window,
+finding each step on screen and checking it, closing the menus on any failure,
+and succeeding only when the client's new size is the one asked for. The intent
+(#331) left scripted sequences to Bots; this one is here because agents kept
+rediscovering that menu (#352).
+
 One coordinate frame: pixel (x, y) of a full-window PNG is the probe's coordinate.
 That PNG is a `Frame`: the client area, in physical pixels. ``--box``, the regions
 and `mouse_move` (through ``ClientToScreen``) all use the same pixels, so no margin
@@ -34,7 +41,9 @@ import argparse
 import asyncio
 import functools
 import json
+import re
 import sys
+import time
 from collections.abc import Awaitable, Callable, Sequence
 from configparser import ConfigParser
 from dataclasses import dataclass
@@ -43,6 +52,8 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import win32api
+import win32con
 import win32gui
 from numpy.typing import NDArray
 
@@ -63,6 +74,7 @@ from botting.controller.inputs.focused_inputs import activate
 from botting.screen import Frame, MultipleWindows, WindowNotFound, frame_source
 from botting.utilities import Box, config_reader
 from botting.utilities.elevation import input_blocked_reason, window_process_id
+from maple import menus
 from maple.actions.movements_v2 import move
 from maple.screen.buffs import BUFFS, ICON_BASE, BuffsReader
 from maple.screen.client import find_client
@@ -71,6 +83,7 @@ from maple.screen.minimap import MINIMAP, MinimapReader
 from maple.screen.sprites import (
     FRAME_CHECK,
     Profile,
+    ReaderSprites,
     StartupRefused,
     load_reader_sprites,
 )
@@ -482,6 +495,130 @@ def cmd_click(args: argparse.Namespace) -> dict:
     return _send(handle, gesture, {"ok": True, "clicked": [args.x, args.y]})
 
 
+# --- resolution --------------------------------------------------------------
+# A short scripted sequence, which the intent (#331) left to Bots: here because
+# agents kept rediscovering the Options menu. The steps are `maple.menus`.
+
+
+@functools.cache
+def menu_sprites() -> ReaderSprites:
+    """The Game Menu's and Options window's sprites, from the `game_data` store."""
+    try:
+        return load_reader_sprites(
+            list(menus.DECLARATIONS), Profile(job="", game_map="")
+        )
+    except StartupRefused as err:
+        raise ProbeError(EXIT_ERROR, f"`resolution` needs the game data: {err}")
+
+
+@dataclass(frozen=True)
+class ProbeClient:
+    """`menus.Client` through the probe: each input is one guarded gesture."""
+
+    handle: int
+
+    def front(self) -> None:
+        """Brings the client to the front, through the guards, and sends no key."""
+
+        async def nothing() -> None:
+            return None
+
+        asyncio.run(run_guarded(self.handle, nothing))
+
+    def grab(self) -> Frame:
+        return frame_source().grab(self.handle)
+
+    def press(self, key: str) -> None:
+        handle = self.handle
+
+        async def gesture() -> None:
+            await press(handle, key)
+
+        asyncio.run(run_guarded(handle, gesture))
+
+    def click(self, x: int, y: int) -> None:
+        handle = self.handle
+
+        async def gesture() -> None:
+            await mouse_move_and_click(handle, (x, y))
+
+        asyncio.run(run_guarded(handle, gesture))
+
+    def wait(self, seconds: float) -> None:
+        time.sleep(seconds)
+
+
+def _size_text(size: tuple[int, int]) -> str:
+    return f"{size[0]}x{size[1]}"
+
+
+def parse_size(text: str) -> tuple[int, int]:
+    """`WxH`, one of the windowed sizes the client lists; refused (exit 2) otherwise."""
+    sizes = ", ".join(_size_text(size) for size in menus.WINDOWED_SIZES)
+    found = re.fullmatch(r"\s*(\d+)\s*[xX]\s*(\d+)\s*", text)
+    if found is None:
+        raise ProbeError(
+            EXIT_REFUSED,
+            f"Expected WxH, such as 800x600, got {text!r}. Only windowed sizes are "
+            f"set; full-screen entries are refused. The sizes: {sizes}. "
+            "Nothing was sent.",
+        )
+    size = (int(found[1]), int(found[2]))
+    if size not in menus.WINDOWED_SIZES:
+        raise ProbeError(
+            EXIT_REFUSED,
+            f"{_size_text(size)} isn't a windowed size the client lists: {sizes}. "
+            "Nothing was sent.",
+        )
+    return size
+
+
+def _screen_size() -> tuple[int, int]:
+    return (
+        win32api.GetSystemMetrics(win32con.SM_CXSCREEN),
+        win32api.GetSystemMetrics(win32con.SM_CYSCREEN),
+    )
+
+
+def cmd_resolution(args: argparse.Namespace) -> dict:
+    if args.list:
+        return {
+            "ok": True,
+            "sizes": [_size_text(size) for size in menus.WINDOWED_SIZES],
+        }
+    if args.size is None:
+        raise ProbeError(EXIT_REFUSED, "Give a size (WxH), or --list.")
+    size = parse_size(args.size)
+    screen = _screen_size()
+    if size[0] > screen[0] or size[1] > screen[1]:
+        # Desktop Duplication copies the screen, so a bigger client can't be seen,
+        # and neither the result nor the menus could be checked.
+        raise ProbeError(
+            EXIT_REFUSED,
+            f"{_size_text(size)} doesn't fit the {_size_text(screen)} screen, so the "
+            "probe couldn't see the result. Nothing was sent.",
+        )
+    handle = resolve_input_handle()
+    sprites = menu_sprites()
+    client = ProbeClient(handle)
+    client.front()
+    try:
+        before = menus.set_resolution(client, sprites, size)
+    except menus.MenuError as err:
+        raise ProbeError(
+            EXIT_ERROR,
+            f"Step {err.step!r} failed: {err.detail}. The menus were closed unless "
+            "this says otherwise.",
+        )
+    after = grab(handle).client_size
+    if after != size:
+        raise ProbeError(
+            EXIT_ERROR,
+            f"The client is {_size_text(after)} after Confirm, not {_size_text(size)}.",
+        )
+    return {"ok": True, "before": list(before), "after": list(after)}
+
+
 def _bounded(low: int, high: int | None = None) -> Callable[[str], int]:
     """An argparse type: an integer in [low, high]."""
 
@@ -557,6 +694,16 @@ def _parser() -> argparse.ArgumentParser:
     click_.add_argument("x", type=_bounded(0))
     click_.add_argument("y", type=_bounded(0))
     click_.set_defaults(run=cmd_click)
+
+    resolution = sub.add_parser(
+        "resolution",
+        help="set the client's windowed resolution through Options",
+    )
+    resolution.add_argument("size", nargs="?", help="WxH, such as 800x600")
+    resolution.add_argument(
+        "--list", action="store_true", help="print the sizes it can set"
+    )
+    resolution.set_defaults(run=cmd_resolution)
     return parser
 
 
