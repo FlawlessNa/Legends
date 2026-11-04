@@ -1,15 +1,16 @@
 """
 The buffs reader on the real MSCW frame set: every expected `buffs` reading.
 The frames' character keeps up Recovery (1001) and Nimble Feet (1002), the
-beginner's skills, so the profile's job is any first job. Run with
-`pytest -m frames`.
+beginner's skills, so the profile's job is any first job. Their countdowns are
+read with the harvested glyphs in `data/glyphs/` (`python -m
+toolkit.harvest_glyphs`). Run with `pytest -m frames`.
 """
 
 import pytest
 
 from botting.screen import Frame, Status
 from game_data.config import CONFIG, STORE
-from maple.screen.buffs import BUFFS, BuffsReader
+from maple.screen.buffs import BUFFS, BuffsReader, BuffState
 from maple.screen.locator import FrameCheck
 from maple.screen.sprites import FRAME_CHECK, Profile, load_reader_sprites
 from tests.frame_set import FrameSet
@@ -43,7 +44,7 @@ def test_every_expected_buffs_reading(frames: FrameSet, reader: BuffsReader) -> 
             Frame(frames.pixels(entry), entry.client_size, 0.0, True, True), NAMES
         )
         value = (
-            {name: {"shown": state.shown} for name, state in reading.value.items()}
+            {name: _expected_form(state) for name, state in reading.value.items()}
             if reading.value is not None
             else None
         )
@@ -58,6 +59,14 @@ def test_every_expected_buffs_reading(frames: FrameSet, reader: BuffsReader) -> 
     assert checked
     assert shown
     assert not wrong, "\n".join(wrong)
+
+
+def _expected_form(state: BuffState) -> dict[str, object]:
+    """A state as the frame set writes it: `seconds_left` only when drawn."""
+    form: dict[str, object] = {"shown": state.shown}
+    if state.seconds_left is not None:
+        form["seconds_left"] = state.seconds_left
+    return form
 
 
 def test_a_block_over_a_slot_never_gives_a_wrong_reading(

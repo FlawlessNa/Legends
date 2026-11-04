@@ -91,6 +91,40 @@ def test_until_margins_are_chosen_a_buff_shown_before_and_after_is_unsure() -> N
     )
 
 
+# The countdown reset: a second signal, in a buff's last minute (#313).
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "expected"),
+    [
+        (12, 47, Confirmation.CONFIRMED),
+        (12, 9, Confirmation.UNSURE),
+        (12, 12, Confirmation.UNSURE),
+        (12, None, Confirmation.UNSURE),
+        (None, 47, Confirmation.UNSURE),
+    ],
+    ids=["went back up", "went down", "unchanged", "gone after", "none before"],
+)
+def test_a_countdown_going_back_up_confirms_a_recast_without_margins(
+    before: int | None, after: int | None, expected: Confirmation
+) -> None:
+    """Without freshness, only a countdown read in both and higher after
+    confirms a buff shown before and after. One gone after confirms nothing:
+    the client stops drawing it before the icon goes."""
+    was, now = BuffState(True, seconds_left=before), BuffState(True, seconds_left=after)
+
+    assert buff_confirmation(read(was), read(now), BUFF) is expected
+
+
+def test_a_countdown_going_back_up_wins_over_no_drop_in_freshness() -> None:
+    was = BuffState(True, 0.85, seconds_left=5)
+    now = BuffState(True, 0.85, seconds_left=50)
+
+    assert (
+        buff_confirmation(read(was), read(now), BUFF, MARGINS) is Confirmation.CONFIRMED
+    )
+
+
 def _check(*states: BuffState | None) -> tuple[CastCheck, Iterator[BuffsReading]]:
     readings = iter([read(s) for s in states])
     return (

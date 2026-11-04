@@ -22,6 +22,7 @@ from maple.bots import maple_bot
 from maple.bots.maple_bot import MapleBot
 from maple.screen import client
 from maple.screen import sprites as sprites_module
+from maple.screen.font import CHAT_GENERAL, COUNTDOWN, save_glyph_set
 from maple.screen.sprites import (
     FRAME_CHECK,
     GAUGE_LABEL,
@@ -202,6 +203,54 @@ def test_a_declared_vector_that_doesnt_exist_is_refused_naming_it(
 
     with pytest.raises(StartupRefused, match=r"status bar reader .*vector:posNumberMp"):
         load_reader_sprites([broken], PROFILE, root, config=config)
+
+
+# Glyph sets: harvested from frames, needed only by the readers that name them.
+
+COUNTDOWN_READER = Declaration("buffs", glyph_sets=(COUNTDOWN.name,))
+
+
+def test_a_declared_glyph_set_not_harvested_is_refused_saying_how(
+    root: Path, config: Path, tmp_path: Path
+) -> None:
+    with pytest.raises(
+        StartupRefused, match=r"buffs reader needs glyphs.*toolkit\.harvest_glyphs"
+    ):
+        load_reader_sprites(
+            [FRAME_CHECK, COUNTDOWN_READER],
+            PROFILE,
+            root,
+            config=config,
+            glyphs=tmp_path / "glyphs",
+        )
+
+
+def test_a_declared_glyph_set_is_loaded(
+    root: Path, config: Path, tmp_path: Path
+) -> None:
+    save_glyph_set(COUNTDOWN, {"1": np.ones((5, 2), bool)}, {}, root=tmp_path / "g")
+
+    sprites = load_reader_sprites(
+        [FRAME_CHECK, COUNTDOWN_READER],
+        PROFILE,
+        root,
+        config=config,
+        glyphs=tmp_path / "g",
+    )
+
+    assert set(sprites.glyph_set(COUNTDOWN.name).glyphs) == {"1"}
+    with pytest.raises(KeyError, match="enabled reader"):
+        sprites.glyph_set(CHAT_GENERAL.name)
+
+
+def test_glyphs_are_needed_only_when_a_reader_names_them(
+    root: Path, config: Path, tmp_path: Path
+) -> None:
+    sprites = load_reader_sprites(
+        [FRAME_CHECK], PROFILE, root, config=config, glyphs=tmp_path / "none"
+    )
+
+    assert sprites.glyph_sets == {}
 
 
 class _Reads(DecisionMaker):
