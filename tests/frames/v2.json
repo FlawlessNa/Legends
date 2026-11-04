@@ -3661,7 +3661,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: a quest-complete notice overlaps the chat log.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The chat is covered: a quest-complete notice overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -3768,6 +3768,10 @@
               "shown": false
             }
           }
+        },
+        "chat": {
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -3777,7 +3781,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: a quest-complete notice overlaps the chat log.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The chat is covered: a quest-complete notice overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -3884,6 +3888,10 @@
               "shown": false
             }
           }
+        },
+        "chat": {
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -3893,7 +3901,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: a quest-complete notice overlaps the chat log.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The chat is covered: a quest-complete notice overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -4000,6 +4008,10 @@
               "shown": false
             }
           }
+        },
+        "chat": {
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -5216,7 +5228,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the skill window overlaps the chat log.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The chat is covered: the skill window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -5323,6 +5335,10 @@
               "shown": false
             }
           }
+        },
+        "chat": {
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -5457,7 +5473,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the stat window overlaps the chat log.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The chat is covered: the stat window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -5564,6 +5580,10 @@
               "shown": false
             }
           }
+        },
+        "chat": {
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -5573,7 +5593,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the stat window overlaps the chat log.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The chat is covered: the stat window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -5680,6 +5700,10 @@
               "shown": false
             }
           }
+        },
+        "chat": {
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -5814,7 +5838,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the options window overlaps the chat log.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The chat is covered: the options window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -5921,6 +5945,10 @@
               "shown": false
             }
           }
+        },
+        "chat": {
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -5930,7 +5958,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the options window overlaps the chat log.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The chat is covered: the options window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -6037,6 +6065,10 @@
               "shown": false
             }
           }
+        },
+        "chat": {
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -6046,7 +6078,7 @@
         800,
         600
       ],
-      "notes": "The mouse cursor is over the status bar's top edge. Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. No chat expectation: the options window overlaps the chat log.",
+      "notes": "The mouse cursor is over the status bar's top edge. Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The chat is covered: the options window overlaps the chat log.",
       "expect": {
         "status_bar": {
           "status": "covered",
@@ -6145,6 +6177,10 @@
               "shown": false
             }
           }
+        },
+        "chat": {
+          "status": "covered",
+          "value": null
         }
       }
     },

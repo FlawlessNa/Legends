@@ -3,12 +3,9 @@ import multiprocessing.managers
 import threading
 
 from botting.core import BotData, ProxyFactory
+from botting.screen import Reading
 from maple.actions import ensure_ability_menu_displayed
-from maple.model.interface import (
-    AbilityMenu,
-    InventoryMenu,
-    LargeClientChatFeed,
-)
+from maple.model.interface import AbilityMenu, InventoryMenu
 
 
 class MenusMixin:
@@ -146,11 +143,23 @@ class UIMixin:
         )
         self.data.set_feature("has_status_bar_attributes")
 
-    def _create_chat_feed_attributes(self) -> None:
-        feed = LargeClientChatFeed()
-        self.data.set_static("chat_feed", feed)
+    def _create_chat_attributes(self) -> None:
+        """
+        `chat_lines`, a `Reading[list[ChatLine]]` of the lines new since it was
+        last updated, from the bot's one `chat_reader` and its `current_frame`.
+
+        It is never refreshed on its own: a consumer updates `current_frame`,
+        then `chat_lines`, and each update returns only what is new since the
+        one before. Until the first update it holds an `ABSENT` reading, so the
+        first update returns every line shown.
+
+        The DecisionMaker must name `CHAT` in its `screen_readers`, so the
+        reader exists when the bot starts.
+        """
+        reader = self.data.chat_reader
         self.data.create_or_reconfigure_attribute(
-            "chat_feed_displayed", lambda: feed.is_displayed(self.data.handle)
+            "chat_lines",
+            lambda: reader.read(self.data.current_frame),
+            initial_value=Reading.absent(0.0, "not read yet"),
         )
-        # TODO - Finish creating other attributes
-        self.data.set_feature("has_chat_feed_attributes")
+        self.data.set_feature("has_chat_attributes")
