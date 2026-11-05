@@ -31,19 +31,22 @@ class MinimapAttributesMixin:
 
     def _get_minimap_pos(self) -> tuple[int, int]:
         """
-        The character's minimap position.
+        The character's position in minimap coordinates: pixels on the map's
+        canvas, which needs the map file's `map_id`.
 
-        :raises ValueError: The minimap wasn't read, or its marker wasn't found,
-            which hands over to `_minimap_pos_error_handler`.
+        :raises ValueError: The minimap wasn't read, or the position wasn't (no
+            `map_id`, the map's canvas not found, or its marker covered), which
+            hands over to `_minimap_pos_error_handler`.
         """
         reading: Reading[MinimapView] = self.data.minimap_reading
         if reading.value is None:
             raise ValueError(
                 f"minimap {reading.status.value}: {reading.detail or 'no detail'}"
             )
-        if reading.value.self_position is None:
-            raise ValueError("the character's marker isn't found on the minimap")
-        return reading.value.self_position
+        position = reading.value.self_position
+        if position.value is None:
+            raise ValueError(f"position {position.status.value}: {position.detail}")
+        return position.value
 
     def _minimap_pos_error_handler(self) -> None:
         """

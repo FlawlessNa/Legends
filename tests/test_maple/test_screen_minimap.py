@@ -1,8 +1,9 @@
 """
 The minimap reader on synthetic frames: a plain background with a nine-piece
 frame (with or without its banner) or the minimised title bar, drawn from
-made-up sprites the client's sizes, markers, a map canvas, and occluders
-painted over them. No client pixels.
+made-up sprites the client's sizes, markers, a map canvas (the bot's map's
+unless a test says otherwise), and occluders painted over them. No client
+pixels.
 """
 
 import numpy as np
@@ -100,15 +101,17 @@ def sprites() -> ReaderSprites:
     return ReaderSprites("build", canvases)
 
 
-def reader() -> MinimapReader:
+def reader(map_id: int | None = MAP_ID, read_markers: bool = True) -> MinimapReader:
+    """A reader for the bot's map, `MAP_ID`, or for a map file without one."""
     s = sprites()
-    return MinimapReader(s, FrameCheck(s))
+    return MinimapReader(s, FrameCheck(s), map_id=map_id, read_markers=read_markers)
 
 
 def reader_with(canvas: Sprite) -> MinimapReader:
+    """A reader whose map's canvas, `MAP_ID`'s, is `canvas`."""
     s = sprites()
     s.canvases[canvas.path] = canvas
-    return MinimapReader(s, FrameCheck(s))
+    return MinimapReader(s, FrameCheck(s), map_id=MAP_ID, read_markers=True)
 
 
 def paste(pixels: np.ndarray, s: Sprite, x: int, y: int) -> None:
@@ -132,7 +135,7 @@ def draw_minimap(
     pixels: np.ndarray,
     x: int,
     y: int,
-    canvas: Sprite | None = None,
+    canvas: Sprite | None = CANVAS,
     user_at: tuple[int, int] | None = None,
     banner: bool = True,
     canvas_at: tuple[int, int] = (0, 0),
@@ -142,8 +145,9 @@ def draw_minimap(
     The frame with `nw` at `(x, y)` around an `AREA_W`x`AREA_H` map area,
     `canvas` in it with its top-left at `canvas_at` (clipped to the area, as the
     client scrolls it), `markers` by kind with their centre on each position,
-    and the player marker's origin at `user_at`, all in minimap pixels. Returns
-    the map area.
+    and the player marker's origin at `user_at`. Positions are pixels of the
+    map area, which are the canvas's while `canvas_at` is `(0, 0)`. Returns the
+    map area.
     """
     look = WITH_BANNER if banner else WITHOUT_BANNER
     band = WITH_BANNER_BAND if banner else WITHOUT_BANNER_BAND
@@ -207,7 +211,7 @@ def test_an_expanded_minimap_reads_its_area_bounds_and_position() -> None:
     assert reading.value.map_area == area
     assert reading.value.map_area == Box(left=256, right=376, top=92, bottom=152)
     assert reading.value.bounds == Box(left=250, right=382, top=20, bottom=167)
-    assert reading.value.self_position == (37, 41)
+    assert reading.value.self_position.value == (37, 41)
     assert reading.value.markers == {}
     assert reading.frame_time == 7.0
 
@@ -224,7 +228,7 @@ def test_an_expanded_minimap_without_its_banner_reads_expanded() -> None:
     assert reading.value.map_area == area
     assert area == Box(left=256, right=376, top=49, bottom=109)
     assert reading.value.bounds == Box(left=250, right=382, top=20, bottom=124)
-    assert reading.value.self_position == (37, 41)
+    assert reading.value.self_position.value == (37, 41)
 
 
 def test_a_minimised_minimap_reads_its_title_bar_and_no_area() -> None:
@@ -238,8 +242,19 @@ def test_a_minimised_minimap_reads_its_title_bar_and_no_area() -> None:
     assert reading.value.state is MinimapState.MINIMISED
     assert reading.value.bounds == bounds
     assert reading.value.map_area is None
-    assert reading.value.self_position is None
+    assert reading.value.self_position.status is Status.UNSURE
     assert reading.value.markers == {}
+
+
+def test_a_reader_not_asked_for_markers_reads_none() -> None:
+    pixels = screen()
+    draw_minimap(pixels, 250, 20, user_at=(60, 30), markers={"another": [(20, 15)]})
+
+    reading = reader(read_markers=False).read(frame(pixels))
+
+    assert reading.value is not None
+    assert reading.value.markers is None
+    assert reading.value.self_position.value == (60, 30)
 
 
 def test_the_other_markers_are_read_by_kind() -> None:
@@ -259,7 +274,7 @@ def test_the_other_markers_are_read_by_kind() -> None:
         "another": ((20, 15), (90, 40)),
         "npc": ((40, 50),),
     }
-    assert reading.value.self_position == (60, 30)
+    assert reading.value.self_position.value == (60, 30)
 
 
 # The marker's opaque core reaches 4 pixels left of and above its origin, and 3
@@ -274,10 +289,10 @@ def test_the_position_is_read_with_the_marker_against_the_areas_edges(
     reading = reader().read(frame(pixels))
 
     assert reading.value is not None
-    assert reading.value.self_position == at
+    assert reading.value.self_position.value == at
 
 
-def test_a_minimap_without_the_players_marker_reads_with_no_position() -> None:
+def test_a_minimap_without_the_players_marker_reads_its_position_covered() -> None:
     pixels = screen()
     draw_minimap(pixels, 250, 20)
 
@@ -285,7 +300,69 @@ def test_a_minimap_without_the_players_marker_reads_with_no_position() -> None:
 
     assert reading.status is Status.READ
     assert reading.value is not None
-    assert reading.value.self_position is None
+    assert reading.value.self_position.status is Status.COVERED
+    assert reading.value.self_position.value is None
+
+
+# --- Positions are pixels on the map's canvas ---------------------------------
+
+
+def test_without_a_map_id_no_position_is_read() -> None:
+    """The canvas can't be located without the map's canvas, so neither the
+    position nor the markers are guessed from the map area."""
+    pixels = screen()
+    draw_minimap(pixels, 250, 20, user_at=(37, 41), markers={"another": [(20, 15)]})
+
+    reading = reader(map_id=None).read(frame(pixels))
+
+    assert reading.status is Status.READ
+    assert reading.value is not None
+    assert reading.value.state is MinimapState.EXPANDED
+    assert reading.value.self_position.status is Status.UNSURE
+    assert reading.value.self_position.value is None
+    assert "map_id" in reading.value.self_position.detail
+    assert reading.value.markers == {}
+
+
+def test_positions_are_on_the_canvas_as_it_scrolls() -> None:
+    """A canvas taller than the map area scrolls with the character: the same
+    place on the map area is a different place on the canvas."""
+    tall = sprite(minimap_canvas_path(MAP_ID), 80, 150)
+    tall.rgba[::3, ::2, 3] = 0
+    minimap = reader_with(tall)
+    readings = []
+    for scroll in (-37, -80, -37):
+        pixels = screen()
+        draw_minimap(
+            pixels,
+            250,
+            20,
+            canvas=tall,
+            canvas_at=(20, scroll),
+            user_at=(40, 30),
+            markers={"another": [(60, 20)]},
+        )
+        reading = minimap.read(frame(pixels))
+        assert reading.value is not None
+        readings.append(reading.value)
+
+    assert [view.self_position.value for view in readings] == [
+        (20, 67),
+        (20, 110),
+        (20, 67),
+    ]
+    assert readings[0].markers == {"another": ((40, 57),)}
+
+
+def test_another_maps_canvas_reads_the_position_unsure() -> None:
+    pixels = screen()
+    draw_minimap(pixels, 250, 20, canvas=OTHER_CANVAS, user_at=(37, 41))
+
+    reading = reader().read(frame(pixels))
+
+    assert reading.value is not None
+    assert reading.value.self_position.status is Status.UNSURE
+    assert "not found" in reading.value.self_position.detail
 
 
 # --- ABSENT, COVERED, UNSURE --------------------------------------------------
@@ -398,7 +475,7 @@ def test_a_new_client_size_searches_again_and_finds_it_moved() -> None:
     assert minimap.searches == 2
     assert reading.value is not None
     assert reading.value.map_area == area
-    assert reading.value.self_position == (31, 32)
+    assert reading.value.self_position.value == (31, 32)
 
 
 # --- The expected map ---------------------------------------------------------
