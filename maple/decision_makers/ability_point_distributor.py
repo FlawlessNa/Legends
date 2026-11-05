@@ -5,7 +5,8 @@ import multiprocessing.managers
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, ActionWithValidation, BotData, DecisionMaker
 from botting.screen import Status, frame_source
-from maple.actions import ensure_ability_menu_displayed, priorities
+from botting.utilities import Box
+from maple.actions import click_then_move_off, ensure_ability_menu_displayed, priorities
 from maple.screen.stat_window import STAT_WINDOW
 from maple.screen.status_bar import STATUS_BAR
 
@@ -62,6 +63,7 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
                 self._distribute_ap(
                     reading.value.available_ap,
                     reading.value.up_buttons[self.data.character.main_stat],
+                    reading.value.bounds,
                 )
                 self._close_menu()
                 self._enable_decision_makers("Rotation")
@@ -99,17 +101,21 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
         self._unreadable = None
         return reading.value.level
 
-    def _distribute_ap(self, num_points: int, button: tuple[int, int]) -> None:
+    def _distribute_ap(
+        self, num_points: int, button: tuple[int, int], window: Box
+    ) -> None:
         """
         Click the main stat's +1 button, at `button` in client pixels, once per
-        point, until a fresh read of the window shows no AP left.
+        point, then move the cursor off the `window`, until a fresh read of the
+        window shows no AP left. The cursor is moved off because the read
+        needs every +1 button seen disabled to take an AP of 0 for one.
         """
         request = ActionRequest(
             "Distributing AP",
-            controller.mouse_move_and_click,
+            click_then_move_off,
             self.data.ign,
             priorities.AP_DISTRIBUTION,
-            args=(self.data.handle, button),
+            args=(self.data.handle, button, window),
             block_lower_priority=True,
             kwargs={"nbr_times": num_points, "delay": 0.15},
         )

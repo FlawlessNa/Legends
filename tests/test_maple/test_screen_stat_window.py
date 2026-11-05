@@ -380,3 +380,36 @@ def test_the_same_reader_reads_a_moved_window_and_another_size(
     assert reading.value is not None
     assert reading.value.available_ap == 8
     assert reader.main_locator.searches == searches + 1
+
+
+def test_the_bounds_are_main_and_detail_when_shown(reader: StatWindowReader) -> None:
+    both = reader.read(frame(window()))
+    main = reader.read(frame(window(speed=None)))
+
+    assert both.value is not None
+    assert (both.value.bounds.left, both.value.bounds.top) == MAIN_AT
+    assert (both.value.bounds.right, both.value.bounds.bottom) == (
+        DETAIL_AT[0] + DETAIL_W,
+        DETAIL_AT[1] + DETAIL_H,
+    )
+    assert main.value is not None
+    assert (main.value.bounds.right, main.value.bounds.bottom) == (
+        MAIN_AT[0] + MAIN_W,
+        MAIN_AT[1] + MAIN_H,
+    )
+
+
+def test_a_cursor_on_a_disabled_button_leaves_an_ap_of_zero_unsure(
+    reader: StatWindowReader,
+) -> None:
+    """The guard holds: a +1 button whose state can't be seen isn't taken for
+    disabled, so AP 0 isn't read while the cursor is over one."""
+    pixels = window(ap="0", buttons="disabled")
+    ox, oy = UP_ORIGINS["STR"]
+    x, y = MAIN_AT[0] - ox + 2, MAIN_AT[1] - oy + 2
+    pixels[y : y + 12, x : x + 8] = (255, 255, 255)
+
+    reading = reader.read(frame(pixels))
+
+    assert reading.status is Status.UNSURE
+    assert reading.value is None

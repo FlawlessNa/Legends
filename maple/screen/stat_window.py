@@ -51,6 +51,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from botting.screen import Frame, Reading, Status, find_mask_glyphs, matches_at
+from botting.utilities import Box
 from game_data.sprites import Sprite
 
 from .font import STAT_WINDOW_GLYPHS
@@ -118,12 +119,16 @@ class StatWindow:
     :ivar speed: Speed, in percent as drawn, or `None` when Detail isn't shown.
     :ivar jump: Jump, likewise.
     :ivar up_buttons: Each stat's +1 button's centre, in client pixels.
+    :ivar bounds: The window, Main and Detail when shown, in client pixels: the
+        cursor must be outside it for the window to be read (+1 buttons under
+        the cursor can't be told disabled).
     """
 
     available_ap: int
     speed: int | None
     jump: int | None
     up_buttons: Mapping[str, tuple[int, int]]
+    bounds: Box
 
 
 class StatWindowReader:
@@ -268,7 +273,10 @@ class StatWindowReader:
             speed, jump = values
 
         return Reading.read(
-            StatWindow(ap, speed, jump, self._up_centres(main)), frame.captured_at
+            StatWindow(
+                ap, speed, jump, self._up_centres(main), self._bounds(main, detail)
+            ),
+            frame.captured_at,
         )
 
     def _text(
@@ -332,6 +340,22 @@ class StatWindowReader:
         if all(state == _DISABLED for state in states):
             return True
         return None
+
+    def _bounds(self, main: Located, detail: Located | None) -> Box:
+        boxes = [(main, self._main)]
+        if detail is not None:
+            boxes.append((detail, self._detail))
+        corners = []
+        for located, panel in boxes:
+            x, y, w, h = _box(panel)
+            left, top = located.position((x, y))
+            corners.append((left, top, left + w, top + h))
+        return Box(
+            left=min(c[0] for c in corners),
+            top=min(c[1] for c in corners),
+            right=max(c[2] for c in corners),
+            bottom=max(c[3] for c in corners),
+        )
 
     def _up_centres(self, located: Located) -> dict[str, tuple[int, int]]:
         centres: dict[str, tuple[int, int]] = {}
