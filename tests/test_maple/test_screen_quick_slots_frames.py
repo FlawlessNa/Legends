@@ -6,8 +6,8 @@ and the extracted game data (`python -m game_data extract`); skips without them.
 The frames are replayed as a session: per client size, one reader settles on the
 first frame without a cooldown, then reads that size's frames in order, because
 a slot's key under a cooldown shade is only known from having seen it unshaded.
-A fresh reader never reads a wrong value (below); 800x600 has no unshaded frame
-to settle on, so its frames are expected `UNSURE` and only the fresh test runs.
+Every size has an unshaded frame to settle on. A fresh reader never reads a wrong
+value (below).
 """
 
 from typing import Any
@@ -78,51 +78,80 @@ def _fresh_reader_is_exact(
     return got.status is Status.READ and _summary(got) == expected.value
 
 
-# Frames whose expected reading the reader cannot meet: a cooldown shades a
-# slot's label in no constant way, so a settled reader says COVERED (1366x768),
-# and 800x600 has no unshaded frame to settle on (UNSURE). See the PR body's
-# "maintainer list" (PR #328). Strict, so a frame that starts passing is noticed.
+# Frames whose expected reading the reader cannot meet: the PgUp (`73`) or
+# PgDn (`81`) slot is under a cooldown, whose shade and big number
+# (`skillCooldownNumber`, drawn blended) hide its label, so a settled reader
+# says COVERED rather than keep the key. No cooldown heuristic is used (a wrong
+# READ is worse): see the PR #328 maintainer list. Strict, so a frame that
+# starts passing is noticed.
 CANNOT_MEET = frozenset(
     [
-        "f012",
-        "f013",
-        "f014",
-        "f015",
-        "f016",
-        "f017",
-        "f018",
-        "f019",
-        "f020",
-        "f021",
-        "f022",
-        "f023",
-        "f024",
-        "f025",
-        "f026",
-        "f027",
-        "f028",
-        "f029",
-        "f030",
-        "f031",
-        "f032",
-        "f033",
-        "f034",
-        "f035",
-        "f036",
-        "f037",
-        "f038",
-        "f039",
-        "f041",
-        "f042",
-        "f044",
-        "f045",
-        "f046",
-        "f047",
-        "f048",
-        "f049",
-        "f050",
-        "f051",
-        "f052",
+        "f012_1366x768.png",
+        "f013_1366x768.png",
+        "f014_1366x768.png",
+        "f015_1366x768.png",
+        "f016_1366x768.png",
+        "f017_1366x768.png",
+        "f018_1366x768.png",
+        "f019_1366x768.png",
+        "f020_1366x768.png",
+        "f021_1366x768.png",
+        "f022_1366x768.png",
+        "f023_1366x768.png",
+        "f024_1366x768.png",
+        "f025_1366x768.png",
+        "f026_1366x768.png",
+        "f027_1366x768.png",
+        "f028_1366x768.png",
+        "f029_1366x768.png",
+        "f030_1366x768.png",
+        "f031_1366x768.png",
+        "f032_1366x768.png",
+        "f033_1366x768.png",
+        "f034_1366x768.png",
+        "f035_1366x768.png",
+        "f036_1366x768.png",
+        "f037_1366x768.png",
+        "f038_1366x768.png",
+        "f039_1366x768.png",
+        "f041_1366x768.png",
+        "f042_1366x768.png",
+        "f044_800x600.png",
+        "f045_800x600.png",
+        "f046_800x600.png",
+        "f047_800x600.png",
+        "f048_800x600.png",
+        "f049_800x600.png",
+        "f050_800x600.png",
+        "f051_800x600.png",
+        "f052_800x600.png",
+        "h001_1920x1080_pgup_t10s.png",
+        "h001_1920x1080_pgup_t12s.png",
+        "h001_1920x1080_pgup_t8s.png",
+        "j_1024x768_pagedown_1.png",
+        "j_1024x768_pagedown_2.png",
+        "j_1024x768_pagedown_3.png",
+        "j_1024x768_pagedown_4.png",
+        "j_1024x768_pageup_1.png",
+        "j_1024x768_pageup_2.png",
+        "j_1024x768_pageup_3.png",
+        "j_1024x768_pageup_4.png",
+        "j_1280x720_pagedown_1.png",
+        "j_1280x720_pagedown_2.png",
+        "j_1280x720_pagedown_3.png",
+        "j_1280x720_pagedown_4.png",
+        "j_1366x768_pagedown_1.png",
+        "j_1366x768_pagedown_2.png",
+        "j_1366x768_pagedown_3.png",
+        "j_1366x768_pagedown_4.png",
+        "j_1366x768_pageup_1.png",
+        "j_1366x768_pageup_2.png",
+        "j_1366x768_pageup_3.png",
+        "j_1366x768_pageup_4.png",
+        "j_800x600_pagedown_1.png",
+        "j_800x600_pagedown_2.png",
+        "j_800x600_pagedown_3.png",
+        "j_800x600_pagedown_4.png",
     ]
 )
 
@@ -166,18 +195,20 @@ def _case(file: str) -> object:
     mark = (
         pytest.mark.xfail(
             strict=True,
-            reason="cooldown shade / no unshaded 800x600 frame: PR #328 maintainer list",
+            reason="PgUp/PgDn under a cooldown reads COVERED: PR #328 maintainer list",
         )
-        if file[:4] in CANNOT_MEET
+        if file in CANNOT_MEET
         else ()
     )
-    return pytest.param(file, marks=mark, id=file[:4])
+    return pytest.param(file, marks=mark, id=file.removesuffix(".png"))
 
 
 def _committed_files() -> list[str]:
     from tests import frame_set
 
-    entries = frame_set.load_expected(frame_set.TESTS_FRAMES / "v1.json")
+    entries = frame_set.load_expected(
+        frame_set.TESTS_FRAMES / f"{frame_set.current_tag()}.json"
+    )
     return [e.file for e in entries if "quick_slots" in e.expect]
 
 
