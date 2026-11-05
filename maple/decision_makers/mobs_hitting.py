@@ -18,7 +18,8 @@ from botting.utilities import (
 )
 from maple.actions.skills_related_v2 import cast_skill_compiler
 from maple.model.characters import MapleSkill
-from maple.model.interface import LargeClientChatFeed
+from maple.screen.chat import CHAT
+from maple.screen.minimap import MINIMAP
 from maple.telemetry_events import COMBAT_MOBS_HIT, MobsHitPayload
 
 from .mixins import MinimapAttributesMixin, MobsHittingMixin, NextTargetMixin
@@ -30,6 +31,7 @@ class MobsHitting(
     MobsHittingMixin, MinimapAttributesMixin, NextTargetMixin, DecisionMaker
 ):
     ON_SCREEN_THRESHOLD = 0.65
+    screen_readers = (MINIMAP, CHAT)
 
     def __init__(
         self,
@@ -173,14 +175,21 @@ class MobsHitting(
             left=x1 - horizontal // 2,
             right=x2 + horizontal // 2,
             top=y2 - vertical_up // 2,
-            bottom=min(
-                y2 + vertical_down // 2,
-                LargeClientChatFeed._chat_typing_area.top,
-            ),
+            bottom=min(y2 + vertical_down // 2, self._chat_top()),
         )
         mask = np.zeros(self.data.current_client_img.shape, np.uint8)
         mask[region.top : region.bottom, region.left : region.right] = 255
         return mask
+
+    def _chat_top(self) -> int:
+        """
+        Where the chat starts, in client pixels: mobs under it are out of reach
+        of the skill region. The frame's bottom when the chat isn't found whole,
+        so nothing is left out on a guess.
+        """
+        frame = self.data.current_frame
+        region = self.data.chat_reader.region(frame)
+        return frame.pixels.shape[0] if region is None else region.top
 
     def _get_on_screen_pos(self) -> tuple[int, int, int, int] | None:
         """

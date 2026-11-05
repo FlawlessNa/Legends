@@ -6,7 +6,17 @@ import time
 import numpy as np
 import pytest
 
-from botting.screen import Reading, Status, match, match_best, read_glyphs
+from botting.screen import (
+    Reading,
+    Status,
+    find_glyphs,
+    find_mask_glyphs,
+    match,
+    match_best,
+    matches_at,
+    read_glyphs,
+    read_mask_glyphs,
+)
 
 
 def make_glyph(seed: int, w: int = 5, h: int = 7) -> np.ndarray:
@@ -152,3 +162,98 @@ def test_glyph_over_strip_runs_under_1ms() -> None:
         match(strip, glyph)
     ms = (time.perf_counter() - t0) / runs * 1000
     assert ms < 1.0, f"match 5x7 over 340x16 took {ms:.3f} ms"
+
+
+def test_matches_at_agrees_with_match_at_one_position() -> None:
+    sprite, hay = make_glyph(1), blank()
+    stamp(hay, sprite, 17, 9)
+
+    assert matches_at(hay, sprite, 17, 9)
+    assert not matches_at(hay, sprite, 18, 9)
+    # One opaque pixel off by 8 in one channel is rejected, as `match` does.
+    y, x = np.argwhere(sprite[:, :, 3] == 255)[0]
+    hay[9 + y, 17 + x, 0] = (int(hay[9 + y, 17 + x, 0]) + 8) % 256
+    assert not matches_at(hay, sprite, 17, 9)
+    assert match(hay, sprite) == []
+
+
+@pytest.mark.parametrize(("x", "y"), [(-1, 0), (0, -1), (56, 0), (0, 25)])
+def test_matches_at_is_false_when_the_sprite_would_leave_the_image(
+    x: int, y: int
+) -> None:
+    sprite = make_glyph(2)
+    hay = blank()
+    stamp(hay, sprite, 0, 0)
+
+    assert not matches_at(hay, sprite, x, y)
+
+
+def test_find_glyphs_says_where_each_glyph_is() -> None:
+    glyphs = {"a": make_glyph(3), "b": make_glyph(4)}
+    hay = blank()
+    stamp(hay, glyphs["a"], 4, 6)
+    stamp(hay, glyphs["b"], 11, 6)
+
+    hits = find_glyphs(hay, glyphs)
+
+    assert [(h.name, h.x, h.y, h.width, h.height) for h in hits] == [
+        ("a", 4, 6, 5, 7),
+        ("b", 11, 6, 5, 7),
+    ]
+    assert read_glyphs(hay, glyphs) == "ab"
+
+
+# Mask glyphs: ink masks compared over the glyph's whole box.
+
+
+def mask_glyph(rows: list[str]) -> np.ndarray:
+    return np.array([[c == "#" for c in row] for row in rows])
+
+
+BAR = mask_glyph(["#", "#", "#", "#", "#"])
+EL = mask_glyph(["#..", "#..", "#..", "#..", "###"])
+BOX = mask_glyph(["###", "#.#", "#.#", "#.#", "###"])
+MASK_GLYPHS = {"1": BAR, "L": EL, "0": BOX}
+
+
+def ink_strip(*placed: tuple[np.ndarray, int], width: int = 30) -> np.ndarray:
+    strip = np.zeros((7, width), bool)
+    for glyph, x in placed:
+        h, w = glyph.shape
+        strip[1 : 1 + h, x : x + w] |= glyph
+    return strip
+
+
+def test_mask_glyphs_read_left_to_right_with_spaces() -> None:
+    strip = ink_strip((EL, 2), (BOX, 6), (BAR, 14), (BOX, 16))
+
+    assert read_mask_glyphs(strip, MASK_GLYPHS, 0.0) == "L010"
+    assert read_mask_glyphs(strip, MASK_GLYPHS, 0.0, space_gap=3) == "L0 10"
+
+
+def test_a_smaller_glyph_inside_a_larger_one_isnt_read() -> None:
+    """A bar fits inside an L and a box: the glyph with no error wins."""
+    hits = find_mask_glyphs(ink_strip((EL, 2), (BOX, 8)), MASK_GLYPHS, 0.2)
+
+    assert [(h.name, h.x, h.y) for h in hits] == [("L", 2, 1), ("0", 8, 1)]
+
+
+def test_background_inside_a_glyphs_box_counts_against_it() -> None:
+    """A full block isn't a box: its middle should be background."""
+    block = np.ones((5, 3), bool)
+
+    assert read_mask_glyphs(ink_strip((block, 4)), {"0": BOX}, 0.0) == ""
+    assert read_mask_glyphs(ink_strip((block, 4)), {"0": BOX}, 3 / 15) == "0"
+
+
+def test_mask_glyphs_tolerate_up_to_max_error() -> None:
+    strip = ink_strip((BOX, 4))
+    strip[3, 5] = True  # one pixel of 15 off
+
+    assert read_mask_glyphs(strip, {"0": BOX}, 0.0) == ""
+    assert read_mask_glyphs(strip, {"0": BOX}, 1 / 15) == "0"
+
+
+def test_a_glyph_without_ink_is_refused() -> None:
+    with pytest.raises(ValueError, match="ink"):
+        find_mask_glyphs(ink_strip(), {"x": np.zeros((3, 3), bool)}, 0.0)

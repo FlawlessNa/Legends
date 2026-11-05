@@ -105,12 +105,25 @@ those fields. In `v1`:
   item count is drawn. A skill on cooldown is still listed; its seconds left are
   not a count.
 - `minimap`: `{state}`.
-- `buffs`: buff name to `{shown}`.
+- `buffs`: buff name to `{shown}`, with `seconds_left` when its countdown is
+  drawn over the icon.
 - `chat`: the kind of each visible row of the log, top to bottom. A message
   wrapped over two rows gives two entries.
 
+`v2` is `v1`'s frames unchanged plus 41 more: every client size (800x600,
+1024x768, 1280x720, 1366x768, 1920x1080) with the quick slots unshaded or with
+Pup and Pdn on cooldown, and with the Recovery or Nimble Feet buff icon drawn.
+Its new frames have no `chat` entry: the log shows row kinds `v1`'s kinds don't
+tell apart.
+
 A frame has no entry for a reader whose answer depends on a choice its ticket
 hasn't made yet: `notes` says why.
+
+Readers of font-drawn text (the buff countdown, chat) read with glyphs harvested
+from the frames into the gitignored `data/glyphs/`: run `python -m
+toolkit.harvest_glyphs` after fetching the frames, before `pytest -m frames`.
+What it cuts, and where, is `toolkit/glyph_sources/<tag>.json`: frame names,
+boxes and digits, never pixels or chat text.
 
 Modules that touch the Held-Keys Ledger directly reset it through an `autouse`
 fixture of their own — see `tests/test_botting/test_held_keys_ledger.py`.

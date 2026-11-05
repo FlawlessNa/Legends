@@ -3,13 +3,9 @@ import multiprocessing.managers
 import threading
 
 from botting.core import BotData, ProxyFactory
+from botting.screen import Reading
 from maple.actions import ensure_ability_menu_displayed
-from maple.model.interface import (
-    AbilityMenu,
-    CharacterStats,
-    InventoryMenu,
-    LargeClientChatFeed,
-)
+from maple.model.interface import AbilityMenu, InventoryMenu
 
 
 class MenusMixin:
@@ -130,25 +126,40 @@ class MenusMixin:
 class UIMixin:
     data: BotData
 
-    def _create_ui_attributes(self) -> None:
-        stats = CharacterStats()
-        self.data.create_or_reconfigure_attribute(
-            "character_job", lambda: stats.get_job(self.data.handle)
-        )
-        self.data.create_or_reconfigure_attribute(
-            "character_level", lambda: stats.get_level(self.data.handle)
-        )
-        self.data.create_or_reconfigure_attribute(
-            "current_level_img",
-            lambda: stats.level_box.extract_client_img(self.data.current_client_img),
-        )
-        self.data.set_feature("has_ui_attributes")
+    def _create_status_bar_attributes(self) -> None:
+        """
+        `status_bar`, a `Reading[StatusBar]` from the bot's one `status_bar_reader`
+        and its `current_frame`. `current_frame` is the bot's own, created with
+        its refresh threshold in `MapleBot.child_init`, and is left as it is: a
+        consumer updates `current_frame` and then `status_bar`, and reads
+        `status_bar.status` before `status_bar.value`.
 
-    def _create_chat_feed_attributes(self) -> None:
-        feed = LargeClientChatFeed()
-        self.data.set_static("chat_feed", feed)
+        The DecisionMaker must name `STATUS_BAR` in its `screen_readers`, so
+        the reader exists when the bot starts.
+        """
+        reader = self.data.status_bar_reader
         self.data.create_or_reconfigure_attribute(
-            "chat_feed_displayed", lambda: feed.is_displayed(self.data.handle)
+            "status_bar", lambda: reader.read(self.data.current_frame)
         )
-        # TODO - Finish creating other attributes
-        self.data.set_feature("has_chat_feed_attributes")
+        self.data.set_feature("has_status_bar_attributes")
+
+    def _create_chat_attributes(self) -> None:
+        """
+        `chat_lines`, a `Reading[list[ChatLine]]` of the lines new since it was
+        last updated, from the bot's one `chat_reader` and its `current_frame`.
+
+        It is never refreshed on its own: a consumer updates `current_frame`,
+        then `chat_lines`, and each update returns only what is new since the
+        one before. Until the first update it holds an `ABSENT` reading, so the
+        first update returns every line shown.
+
+        The DecisionMaker must name `CHAT` in its `screen_readers`, so the
+        reader exists when the bot starts.
+        """
+        reader = self.data.chat_reader
+        self.data.create_or_reconfigure_attribute(
+            "chat_lines",
+            lambda: reader.read(self.data.current_frame),
+            initial_value=Reading.absent(0.0, "not read yet"),
+        )
+        self.data.set_feature("has_chat_attributes")

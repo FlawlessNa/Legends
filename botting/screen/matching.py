@@ -8,6 +8,7 @@ The haystack is BGR (as captured); the sprite is RGBA.
 
 from __future__ import annotations
 
+import weakref
 from collections.abc import Mapping
 from dataclasses import dataclass
 
@@ -38,6 +39,40 @@ def _prepare(sprite_rgba: np.ndarray) -> tuple[np.ndarray, np.ndarray, int]:
     return bgr, mask, count
 
 
+@dataclass(frozen=True)
+class _Prepared:
+    bgr: np.ndarray
+    mask: np.ndarray
+    count: int
+    mask3: np.ndarray
+    sprite_px: np.ndarray
+
+
+# A sprite is matched many times per second and never changes, so what is derived
+# from it is kept, for as long as the array lives.
+_PREPARED: dict[int, tuple[weakref.ref[np.ndarray], _Prepared]] = {}
+
+
+def _prepared(sprite_rgba: np.ndarray) -> _Prepared:
+    key = id(sprite_rgba)
+    cached = _PREPARED.get(key)
+    if cached is not None and cached[0]() is sprite_rgba:
+        return cached[1]
+    bgr, mask, count = _prepare(sprite_rgba)
+    prepared = _Prepared(
+        bgr,
+        mask,
+        count,
+        np.repeat(mask[:, :, None], 3, axis=2).astype(np.float32),
+        bgr[mask].astype(np.int64),
+    )
+    _PREPARED[key] = (
+        weakref.ref(sprite_rgba, lambda _, key=key: _PREPARED.pop(key, None)),
+        prepared,
+    )
+    return prepared
+
+
 def match(
     haystack: np.ndarray,
     sprite_rgba: np.ndarray,
@@ -49,7 +84,8 @@ def match(
     ``region`` is ``(x, y, width, height)`` in haystack coordinates; hits are
     reported in haystack coordinates. ``0.0`` is an exact match.
     """
-    bgr, mask, count = _prepare(sprite_rgba)
+    prepared = _prepared(sprite_rgba)
+    bgr, mask, count = prepared.bgr, prepared.mask, prepared.count
     ox = oy = 0
     area = haystack
     if region is not None:
@@ -65,13 +101,12 @@ def match(
     if area.shape[0] < sh or area.shape[1] < sw:
         return []
 
-    mask3 = np.repeat(mask[:, :, None], 3, axis=2).astype(np.float32)
     scores = cv2.matchTemplate(
-        np.ascontiguousarray(area), bgr, cv2.TM_SQDIFF, mask=mask3
+        np.ascontiguousarray(area), bgr, cv2.TM_SQDIFF, mask=prepared.mask3
     )
     ys, xs = np.nonzero(scores / count <= tolerance + _SLACK)
 
-    sprite_px = bgr[mask].astype(np.int64)
+    sprite_px = prepared.sprite_px
     hits: list[Hit] = []
     for cy, cx in zip(ys.tolist(), xs.tolist(), strict=True):
         patch = area[cy : cy + sh, cx : cx + sw][mask].astype(np.int64)
@@ -79,6 +114,24 @@ def match(
         if error <= tolerance:
             hits.append(Hit(cx + ox, cy + oy, error))
     return hits
+
+
+def matches_at(
+    haystack: np.ndarray,
+    sprite_rgba: np.ndarray,
+    x: int,
+    y: int,
+    tolerance: float = 0.5,
+) -> bool:
+    """Whether the sprite is drawn with its top-left at ``(x, y)``: the `match` score
+    at that one position, without searching. False when it falls outside."""
+    prepared = _prepared(sprite_rgba)
+    h, w = prepared.mask.shape
+    if x < 0 or y < 0 or y + h > haystack.shape[0] or x + w > haystack.shape[1]:
+        return False
+    patch = haystack[y : y + h, x : x + w][prepared.mask].astype(np.int64)
+    error = float(((patch - prepared.sprite_px) ** 2).sum()) / prepared.count
+    return error <= tolerance
 
 
 def match_best(
@@ -92,6 +145,48 @@ def match_best(
     return min(hits, key=lambda h: h.error) if hits else None
 
 
+@dataclass(frozen=True)
+class GlyphHit:
+    """A glyph accepted in a strip: its name and the box it occupies."""
+
+    name: str
+    x: int
+    y: int
+    width: int
+    height: int
+
+
+def find_glyphs(
+    strip: np.ndarray,
+    glyphs: Mapping[str, np.ndarray],
+    tolerance: float = 0.5,
+) -> list[GlyphHit]:
+    """Where ``glyphs`` (name -> RGBA sprite) are drawn in ``strip``, left to right.
+
+    Hits are accepted by opaque area, largest first, skipping any whose box
+    overlaps one already accepted.
+    """
+    candidates: list[tuple[int, int, str, int, int, int, int]] = []
+    for name, sprite in glyphs.items():
+        prepared = _prepared(sprite)
+        count = prepared.count
+        h, w = prepared.mask.shape
+        for hit in match(strip, sprite, tolerance=tolerance):
+            candidates.append((count, hit.x, name, hit.x, hit.y, w, h))
+    candidates.sort(key=lambda c: (-c[0], c[1]))
+
+    accepted: list[GlyphHit] = []
+    for _, _, name, x, y, w, h in candidates:
+        if any(
+            x < a.x + a.width and a.x < x + w and y < a.y + a.height and a.y < y + h
+            for a in accepted
+        ):
+            continue
+        accepted.append(GlyphHit(name, x, y, w, h))
+    accepted.sort(key=lambda a: a.x)
+    return accepted
+
+
 def read_glyphs(
     strip: np.ndarray,
     glyphs: Mapping[str, np.ndarray],
@@ -99,24 +194,81 @@ def read_glyphs(
 ) -> str:
     """Read a string drawn with ``glyphs`` (name -> RGBA sprite).
 
-    Hits are accepted by opaque area, largest first, skipping any whose box
-    overlaps one already accepted; names come back ordered by ``x``.
+    A glyph that isn't found (covered, say) is missing from the string without
+    a trace: use `find_glyphs` to see where the glyphs are.
     """
-    candidates: list[tuple[int, int, str, int, int, int, int]] = []
-    for name, sprite in glyphs.items():
-        _, mask, count = _prepare(sprite)
-        h, w = mask.shape
-        for hit in match(strip, sprite, tolerance=tolerance):
-            candidates.append((count, hit.x, name, hit.x, hit.y, w, h))
-    candidates.sort(key=lambda c: (-c[0], c[1]))
+    return "".join(hit.name for hit in find_glyphs(strip, glyphs, tolerance))
 
-    accepted: list[tuple[str, int, int, int, int]] = []
-    for _, _, name, x, y, w, h in candidates:
+
+def find_mask_glyphs(
+    mask: np.ndarray,
+    glyphs: Mapping[str, np.ndarray],
+    max_error: float,
+) -> list[GlyphHit]:
+    """
+    Where ``glyphs`` (name -> ``H x W`` bool mask) are drawn in ``mask``, a bool
+    image of which pixels are ink, left to right.
+
+    For text whose colours don't repeat exactly, so `find_glyphs` can't be used:
+    the caller turns pixels into ink first. A glyph's error at a place is the
+    share of its whole box, ink and background, that differs from ``mask``; a
+    place within ``max_error`` is a candidate. Candidates are accepted lowest
+    error first, then largest ink first, skipping any whose box overlaps one
+    already accepted.
+    """
+    if mask.ndim != 2:
+        raise ValueError("mask must be a 2-D bool array")
+    image = np.ascontiguousarray(mask, dtype=np.float32)
+    candidates: list[tuple[float, int, int, str, int, int, int, int]] = []
+    for name, glyph in glyphs.items():
+        if glyph.ndim != 2 or not glyph.any():
+            raise ValueError(f"glyph {name!r} must be a 2-D bool mask with ink")
+        h, w = glyph.shape
+        if image.shape[0] < h or image.shape[1] < w:
+            continue
+        template = np.ascontiguousarray(glyph, dtype=np.float32)
+        ink = int(glyph.sum())
+        both = cv2.matchTemplate(image, template, cv2.TM_CCORR)
+        on = cv2.matchTemplate(image, np.ones_like(template), cv2.TM_CCORR)
+        # Each differing pixel is on in exactly one of the two.
+        errors = (np.rint(on + ink - 2 * both)) / (h * w)
+        ys, xs = np.nonzero(errors <= max_error)
+        for y, x in zip(ys.tolist(), xs.tolist(), strict=True):
+            candidates.append((float(errors[y, x]), -ink, x, name, x, y, w, h))
+    candidates.sort(key=lambda c: c[:3])
+
+    accepted: list[GlyphHit] = []
+    for *_, name, x, y, w, h in candidates:
         if any(
-            x < ax + aw and ax < x + w and y < ay + ah and ay < y + h
-            for _, ax, ay, aw, ah in accepted
+            x < a.x + a.width and a.x < x + w and y < a.y + a.height and a.y < y + h
+            for a in accepted
         ):
             continue
-        accepted.append((name, x, y, w, h))
-    accepted.sort(key=lambda a: a[1])
-    return "".join(a[0] for a in accepted)
+        accepted.append(GlyphHit(name, x, y, w, h))
+    accepted.sort(key=lambda a: a.x)
+    return accepted
+
+
+def read_mask_glyphs(
+    mask: np.ndarray,
+    glyphs: Mapping[str, np.ndarray],
+    max_error: float,
+    space_gap: int | None = None,
+) -> str:
+    """
+    Read a string from an ink ``mask`` with `find_mask_glyphs`.
+
+    With ``space_gap``, a gap of that many columns or more between two glyphs'
+    boxes reads as a space.
+    """
+    hits = find_mask_glyphs(mask, glyphs, max_error)
+    text: list[str] = []
+    for previous, hit in zip([None, *hits], hits, strict=False):
+        if (
+            previous is not None
+            and space_gap is not None
+            and hit.x - (previous.x + previous.width) >= space_gap
+        ):
+            text.append(" ")
+        text.append(hit.name)
+    return "".join(text)

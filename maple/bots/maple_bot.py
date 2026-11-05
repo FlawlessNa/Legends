@@ -7,15 +7,20 @@ from typing import Any
 from botting.core import Bot
 from botting.screen import frame_source
 from botting.visuals import InGameDetectionVisuals
+from maple.decision_makers.rebuffs import solo_buffs
 from maple.model.characters import MAPPING as CHARACTER_MAPPING
 from maple.model.mechanics import MapleMap
 from maple.model.mechanics.minimap_creation.minimap_edits_model import (
     MinimapEditsManager,
 )
+from maple.screen.buffs import ICON_BASE, BuffsReader
+from maple.screen.chat import TARGET_SELECT, ChatReader
 from maple.screen.client import find_client
 from maple.screen.locator import FrameCheck
 from maple.screen.minimap import NW, MinimapReader
 from maple.screen.sprites import Profile, enabled_readers, load_reader_sprites
+from maple.screen.status_bar import BACKGROUND as STATUS_BAR_BACKGROUND
+from maple.screen.status_bar import StatusBarReader
 
 
 class MapleBot(Bot, ABC):
@@ -81,16 +86,34 @@ class MapleBot(Bot, ABC):
                 job=self.job,
                 game_map=self.game_map,
                 map_id=map_file.map_id if map_file is not None else None,
+                buffs=tuple(
+                    buff.name
+                    for buff in solo_buffs(
+                        self.character_class.skills,
+                        self.kwargs.get("included_buffs"),
+                        self.kwargs.get("excluded_buffs"),
+                    )
+                ),
             ),
         )
         data.set_static("reader_sprites", reader_sprites)
         if reader_sprites.build is not None:
             frame_check = FrameCheck(reader_sprites)
             data.set_static("frame_check", frame_check)
+            if STATUS_BAR_BACKGROUND in reader_sprites.canvases:
+                data.set_static(
+                    "status_bar_reader", StatusBarReader(reader_sprites, frame_check)
+                )
+            if ICON_BASE in reader_sprites.canvases:
+                data.set_static(
+                    "buffs_reader", BuffsReader(reader_sprites, frame_check)
+                )
             if NW in reader_sprites.canvases:
                 data.set_static(
                     "minimap_reader", MinimapReader(reader_sprites, frame_check)
                 )
+            if TARGET_SELECT in reader_sprites.canvases:
+                data.set_static("chat_reader", ChatReader(reader_sprites, frame_check))
         InGameDetectionVisuals.register_models(self.models_path)
         InGameDetectionVisuals.register_cache_id(data.handle)
         data.create_attribute(
