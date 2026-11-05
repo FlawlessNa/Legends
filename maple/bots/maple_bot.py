@@ -14,6 +14,7 @@ from maple.model.mechanics.minimap_creation.minimap_edits_model import (
     MinimapEditsManager,
 )
 from maple.screen.buffs import ICON_BASE, BuffsReader
+from maple.screen.chat import TARGET_SELECT, ChatReader
 from maple.screen.client import find_client
 from maple.screen.locator import FrameCheck
 from maple.screen.minimap import NW, MinimapReader
@@ -111,6 +112,8 @@ class MapleBot(Bot, ABC):
                 data.set_static(
                     "minimap_reader", MinimapReader(reader_sprites, frame_check)
                 )
+            if TARGET_SELECT in reader_sprites.canvases:
+                data.set_static("chat_reader", ChatReader(reader_sprites, frame_check))
         InGameDetectionVisuals.register_models(self.models_path)
         InGameDetectionVisuals.register_cache_id(data.handle)
         data.create_attribute(

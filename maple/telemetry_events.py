@@ -18,6 +18,7 @@ four Log Buckets - those partition code for routing and carry a catch-all
 * ``combat`` - what the bot chose to hit, and with what.
 * ``inventory`` - the trip to town, milestone by milestone.
 * ``rebuff`` - the cross-Engine handshake that gets a party buffed together.
+* ``chat`` - lines read in the chat log that the bot reacts to.
 * ``movement`` and ``rotation`` are reserved for the movement map's telemetry;
   ``MovementPayload`` lands here alongside these, and its field list is issue
   #12's to decide.
@@ -96,6 +97,11 @@ REBUFF_MEMBERS_IN_POSITION: Final = "rebuff.members_in_position"
 REBUFF_PARTY_COMPLETE: Final = "rebuff.party_complete"
 #: The shared ready state was cleared, ending one rebuff round.
 REBUFF_STATE_RESET: Final = "rebuff.state_reset"
+
+# --- chat -----------------------------------------------------------------
+#: A GM's line appeared in the chat log. One record per line, the first time
+#: it is read; ``ChatWatch`` raises the alarm on it.
+CHAT_GM_LINE: Final = "chat.gm_line"
 
 
 class MapCheckPayload(TypedDict):
@@ -192,3 +198,16 @@ class RebuffPayload(TypedDict):
     """Every ``rebuff.*`` event: which member emitted it."""
 
     ign: str
+
+
+class ChatLinePayload(TypedDict):
+    """
+    ``chat.gm_line``: what the line says, and where it was drawn.
+
+    ``text`` is None when the line's text couldn't be read in full: the line's
+    image goes to Discord instead, not into the record.
+    """
+
+    kind: str
+    text: str | None
+    row_top: int
