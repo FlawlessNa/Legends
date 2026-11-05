@@ -138,8 +138,9 @@ def drawn_grid() -> np.ndarray:
 
 
 def slots_of(reading_value: QuickSlots | None) -> dict[str, Slot]:
+    """The slots whose key is known, by key."""
     assert reading_value is not None
-    return {s.key: s for s in reading_value.slots}
+    return {s.key: s for s in reading_value.slots if s.key is not None}
 
 
 # --- READ --------------------------------------------------------------------
@@ -285,18 +286,25 @@ def test_no_labels_reads_absent_with_no_value() -> None:
     assert reading.value is None
 
 
-def test_a_label_found_earlier_that_no_longer_matches_reads_covered() -> None:
+def test_a_label_found_earlier_that_no_longer_matches_keeps_its_key_unsure() -> None:
     quick_slots = reader()
     pixels = drawn_grid()
+    draw_count(pixels, 25, 1, 1)
+    draw_count(pixels, 40, 1, 2)
     assert settle(quick_slots, pixels).status is Status.READ
 
     x, y = label_at(1, 1)
     occlude(pixels, x, y, 24, 12)
     reading = quick_slots.read(frame(pixels, at=SEARCH_EVERY + 0.5))
 
-    assert reading.status is Status.COVERED
-    assert reading.value is None
-    assert "6" in reading.detail
+    assert reading.status is Status.READ
+    slots = slots_of(reading.value)
+    assert (slots["6"].status, slots["6"].count, slots["6"].row) == (
+        Status.UNSURE,
+        None,
+        2,
+    )
+    assert (slots["7"].status, slots["7"].count) == (Status.READ, 40)
 
 
 def test_it_reads_again_once_the_label_is_uncovered() -> None:
@@ -360,13 +368,14 @@ def test_a_label_that_legitimately_changed_is_found_again() -> None:
     covered = quick_slots.read(frame(rebound, at=SEARCH_EVERY + 1.0))
     adopted = quick_slots.read(frame(rebound, at=2 * SEARCH_EVERY))
 
-    assert covered.status is Status.COVERED
+    assert covered.status is Status.READ
+    assert slots_of(covered.value)["6"].status is Status.UNSURE
     assert adopted.status is Status.READ
     assert "6" not in slots_of(adopted.value)
     assert slots_of(adopted.value)["9"].row == 2
 
 
-def test_a_label_covered_long_after_settling_reads_covered_until_uncovered() -> None:
+def test_a_label_covered_long_after_settling_is_unsure_until_uncovered() -> None:
     quick_slots = reader()
     pixels = drawn_grid()
     draw_count(pixels, 25, 1, 1)
@@ -375,12 +384,16 @@ def test_a_label_covered_long_after_settling_reads_covered_until_uncovered() -> 
     x, y = label_at(1, 1)
     occlude(covered, x, y, 24, 12)
 
-    during = [
-        quick_slots.read(frame(covered, at=t)).status for t in (10.0, 13.5, 17.0, 30.0)
-    ]
+    during = [quick_slots.read(frame(covered, at=t)) for t in (10.0, 13.5, 17.0, 30.0)]
     after = quick_slots.read(frame(pixels, at=31.0))
 
-    assert during == [Status.COVERED] * 4
+    assert [r.status for r in during] == [Status.READ] * 4
+    assert all(
+        (s.key, s.count, s.status) == ("6", None, Status.UNSURE)
+        for r in during
+        for s in slots_of(r.value).values()
+        if s.row == 2 and s.column == 2
+    )
     assert after.status is Status.READ
     assert after.value is not None
     slot = after.value.slot(6)
@@ -400,7 +413,13 @@ def test_a_covered_first_column_never_renumbers_the_grid() -> None:
     during = [quick_slots.read(frame(covered, at=t)) for t in (10.0, 13.5, 17.0, 30.0)]
     after = quick_slots.read(frame(pixels, at=31.0))
 
-    assert all(r.status is Status.COVERED and r.value is None for r in during)
+    for r in during:
+        assert r.value is not None
+        first, second = r.value.slot(1), r.value.slot(2)
+        assert first is not None
+        assert second is not None
+        assert (first.key, first.count, first.status) == ("1", None, Status.UNSURE)
+        assert (second.key, second.status) == ("2", Status.READ)
     assert after.status is Status.READ
     assert after.value is not None
     first = after.value.slot(1)
@@ -572,8 +591,12 @@ def test_a_cell_with_part_of_a_label_drawn_is_not_empty() -> None:
 
     reading = settled(pixels)
 
-    assert reading.status is Status.UNSURE
-    assert "row 2, column 2" in reading.detail
+    assert reading.status is Status.READ
+    assert reading.value is not None
+    slot = reading.value.slot(6)
+    assert slot is not None
+    assert (slot.key, slot.count, slot.status) == (None, None, Status.UNSURE)
+    assert slots_of(reading.value)["7"].status is Status.READ
 
 
 def test_a_cell_with_a_cooldown_number_is_not_empty() -> None:
@@ -589,11 +612,14 @@ def test_a_cell_with_a_cooldown_number_is_not_empty() -> None:
 
     reading = settled(pixels)
 
-    assert reading.status is Status.UNSURE
-    assert "row 2, column 2" in reading.detail
+    assert reading.status is Status.READ
+    assert reading.value is not None
+    slot = reading.value.slot(6)
+    assert slot is not None
+    assert (slot.key, slot.count, slot.status) == (None, None, Status.UNSURE)
 
 
-def test_a_label_shaded_past_what_fits_reads_covered_not_read() -> None:
+def test_a_label_shaded_past_what_fits_is_unsure_not_read() -> None:
     quick_slots = reader()
     pixels = drawn_grid()
     settle(quick_slots, pixels)
@@ -605,8 +631,59 @@ def test_a_label_shaded_past_what_fits_reads_covered_not_read() -> None:
 
     reading = quick_slots.read(frame(shaded, at=SEARCH_EVERY + 1.0))
 
+    assert reading.status is Status.READ
+    slot = slots_of(reading.value)["7"]
+    assert (slot.row, slot.column, slot.count, slot.status) == (
+        2,
+        3,
+        None,
+        Status.UNSURE,
+    )
+
+
+def test_one_shaded_slot_leaves_the_other_eleven_read_with_their_counts() -> None:
+    keys = [str(n) for n in range(1, 13)]
+    pixels = screen()
+    for n, key in enumerate(keys):
+        draw_label(pixels, key, *divmod(n, 4))
+        draw_count(pixels, 10 + n, *divmod(n, 4))
+    quick_slots = reader()
+    settle(quick_slots, pixels)
+    shaded = pixels.copy()
+    x, y = label_at(1, 3)
+    noise = RNG.integers(60, 200, (PITCH - 4, PITCH - 4, 3), dtype=np.uint8)
+    shaded[y : y + PITCH - 4, x - 3 : x + PITCH - 7] = noise
+
+    reading = quick_slots.read(frame(shaded, at=SEARCH_EVERY + 1.0))
+
+    assert reading.status is Status.READ
+    assert reading.value is not None
+    for n in range(1, 13):
+        slot = reading.value.slot(n)
+        assert slot is not None
+        if n == 8:
+            assert (slot.key, slot.count, slot.status) == ("8", None, Status.UNSURE)
+        else:
+            assert (slot.key, slot.count, slot.status) == (
+                keys[n - 1],
+                10 + n - 1,
+                Status.READ,
+            )
+
+
+def test_a_window_over_half_the_panel_reads_covered() -> None:
+    quick_slots = reader()
+    pixels = drawn_grid()
+    settle(quick_slots, pixels)
+    covered = pixels.copy()
+    x, y = label_at(0, 0)
+    occlude(covered, x - 5, y - 5, 3 * PITCH - 5, 2 * PITCH + 10)
+
+    reading = quick_slots.read(frame(covered, at=SEARCH_EVERY + 1.0))
+
     assert reading.status is Status.COVERED
     assert reading.value is None
+    assert "fewer than half" in reading.detail
 
 
 def test_a_label_a_longer_one_would_also_draw_is_not_taken_for_a_slot() -> None:
@@ -628,8 +705,11 @@ def test_a_label_a_longer_one_would_also_draw_is_not_taken_for_a_slot() -> None:
 
     reading = settle(QuickSlotsReader(built, FrameCheck(built)), pixels)
 
-    assert reading.status is Status.UNSURE
-    assert "row 2, column 4" in reading.detail
+    assert reading.status is Status.READ
+    assert reading.value is not None
+    slot = reading.value.slot(8)
+    assert slot is not None
+    assert (slot.key, slot.status) == (None, Status.UNSURE)
 
 
 def test_a_grid_first_seen_with_a_menu_over_the_panel_is_read_once_it_closes() -> None:

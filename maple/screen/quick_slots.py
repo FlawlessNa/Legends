@@ -4,9 +4,16 @@ count drawn in the slot read with the client's digit sprites.
 
 **Labels.** Every key's label, `UI/QuickSlot.img/key/<name>`, is its own anchor:
 it is searched for on its own, and where it was found is remembered. Once any
-were found, later frames re-check just those spots, and a label found earlier
-that no longer matches makes the reading `COVERED`. The slot background isn't
+were found, later frames re-check just those spots. The slot background isn't
 an anchor (its alpha is 0 to 39).
+
+**Per slot.** A label found earlier that no longer matches (`_fits`) makes only
+its own slot `UNSURE`: it keeps its key and position, its `count` is `None` (not
+verifiable under a shade), and the other slots read as usual. A skill on
+cooldown is the usual state while training, so one shaded slot must not hide
+the potion counts. The whole reading is `COVERED` only for a real cover: when
+more labels moved than still fit (fewer than half fit, a vetoable threshold), or
+when the mouse cursor is over the slots.
 
 **Searching again.** A first search may see a partly covered panel, which would
 number the slots wrongly, so the numbering is trusted only once two searches at
@@ -14,9 +21,9 @@ least `SEARCH_EVERY` seconds apart find the same labels: until then the reading
 is `UNSURE`, and the search repeats.
 
 Once settled, the labels found are kept for good: while one doesn't match where
-it was found the reading is `COVERED`, however long that lasts, and it reads
-again the moment the label is back. A search (at most every `SEARCH_EVERY`
-seconds, while covered) replaces the remembered labels only when the result
+it was found its slot is `UNSURE`, however long that lasts, and it reads again
+the moment the label is back. A search (at most every `SEARCH_EVERY` seconds,
+while one doesn't match) replaces the remembered labels only when the result
 cannot renumber a slot: it has a label at every remembered position and numbers
 each as before (a key rebound in the slot, a label found that was missed), or it
 is a filled grid with at least as many rows and columns (the panel moved). A
@@ -30,9 +37,10 @@ during both settling searches settles with the remaining rows numbered from 1
 **The cursor.** The mouse cursor hides digits as readily as a label, and a count
 under it would read as none, or as a shorter number, with `READ`. So the cursor's
 sprites (`UI/Basic.img/Cursor`) are looked for over the slots' area, and one there
-makes the reading `COVERED`. A tooltip or window over a count also covers the
-labels beside it, which `COVERED`s the reading the same way (a label is drawn
-only when `_fits`, not when part of it is).
+makes the reading `COVERED`. A tooltip or window over a count also covers its
+slot's label (a label is drawn only when `_fits`, not when part of it is), which
+makes that slot `UNSURE` with no count, or the reading `COVERED` if it covers
+more than half of the labels.
 
 **Columns.** The layout is `COLUMNS` slots to a row, so labels found in fewer
 columns mean part of the panel isn't visible (a window over it): `COVERED`, and
@@ -45,16 +53,18 @@ key bound, and is simply not in the result (`slot(n)` is `None`). It does not
 keep the panel from settling. But if part of some label is drawn exactly there
 (`_partly_drawn`: a label half hidden or shaded below its top), or a digit run
 is (the cooldown's number: the shade is over the whole label), the cell is not
-empty and a fresh reader can't read its key: the numbering isn't settled and
-the reading is `UNSURE`. A reader that settled on a full grid reads `COVERED`
-while a cooldown shades a label past `_fits`. A window
-covering whole cells during both settling searches, looks empty (a known gap),
+empty and a fresh reader can't read its key: once two searches agree, the
+reading is `READ` with that slot's `key` `None` (`UNSURE`, no count), never a
+guess, and the search repeats until the key is seen. A reader that settled on a
+full grid keeps the key while a cooldown shades a label past `_fits`. A window
+covering whole cells during both settling searches looks empty (a known gap),
 and a key bound later in an empty cell is not noticed.
 
 **Suspect labels.** A label whose pixels are all drawn by a longer one (`P`, key
 25, starts `PgUp` and `PgDn`) can't be told from the longer label shaded by a
-cooldown, so a cell that matches only such a label is an unexplained hole, and the reader
-is `UNSURE`. A slot bound to one of those keys (`_suspects`) never settles.
+cooldown, so a cell that matches only such a label is an unexplained hole: its
+key is `None`. A slot bound to one of those keys (`_suspects`) never has its key
+read.
 
 **Shaded labels.** A cooldown shades part of a slot's label, so it isn't found
 by the exact search. At each cell of the grid the exact matches make, the label
@@ -72,8 +82,8 @@ relative to its label: the labels' and `UI/Basic.img/ItemNo` digits' origins are
 all `(0, 0)`, and `UI/QuickSlot.img`'s vectors place neither. So no offset is
 used. Digit runs are searched for in the slots' area, and each run belongs to
 the slot whose label is the nearest one at or above it, in its column. A slot
-with no run has `count` `None`. A run that clearly belongs to no slot (no label
-there, farther from its label than the labels' own spacing, or two runs for one
+with no run has `count` `None`; a run in an `UNSURE` slot is ignored. A run that
+clearly belongs to no slot (no label there, farther from its label than the labels' own spacing, or two runs for one
 slot) makes the reading `UNSURE`, not a guess.
 
 A run that starts within `SAME_LINE` of a label's top and right of the label is
@@ -88,7 +98,7 @@ from itertools import pairwise
 
 import numpy as np
 
-from botting.screen import Frame, Reading, match
+from botting.screen import Frame, Reading, Status, match
 from game_data.sprites import Sprite
 
 from .locator import FrameCheck
@@ -177,22 +187,29 @@ QUICK_SLOTS = Declaration(
 @dataclass(frozen=True, slots=True)
 class Slot:
     """
-    One quick slot whose label was found.
+    One quick slot whose label was found, or whose cell has something
+    label-shaped drawn in it.
 
     :ivar row: From 1, counted from the labels found.
     :ivar column: Likewise.
-    :ivar key: The label's node name under `UI/QuickSlot.img/key`.
-    :ivar count: The item count drawn, or `None` when none is.
+    :ivar key: The label's node name under `UI/QuickSlot.img/key`, or `None`
+        when it was never seen unshaded.
+    :ivar count: The item count drawn, or `None` when none is, or when `status`
+        is `UNSURE`.
     :ivar x: The label's top-left corner, in client pixels.
     :ivar y: Likewise.
+    :ivar status: `READ` when the label is drawn and the count was read;
+        `UNSURE` when the label doesn't fit (a cooldown's shade or number over
+        it): its count isn't read.
     """
 
     row: int
     column: int
-    key: str
+    key: str | None
     count: int | None
     x: int
     y: int
+    status: Status = Status.READ
 
 
 @dataclass(frozen=True, slots=True)
@@ -249,6 +266,7 @@ class QuickSlotsReader:
         self._digits = {d: sprites.canvas(f"{_ITEM_NO}/{d}") for d in DIGITS}
         self._found: dict[str, tuple[int, int]] = {}
         self._settled = False
+        self._agreed = False
         self._searched_at: float | None = None
         self.searches = 0
         self._client_size: tuple[int, int] | None = None
@@ -262,6 +280,7 @@ class QuickSlotsReader:
             self._client_size = frame.client_size
             self._found = {}
             self._settled = False
+            self._agreed = False
             self._searched_at = None
         moved = [
             name for name, at in self._found.items() if not self._at(pixels, name, at)
@@ -273,11 +292,8 @@ class QuickSlotsReader:
         if due and (not self._found or not self._settled):
             found = self._search(pixels)
             self._searched_at = frame.captured_at
-            self._settled = (
-                found == self._found
-                and _columns(found) >= COLUMNS
-                and not self._unexplained(pixels, found)
-            )
+            self._agreed = found == self._found and _columns(found) >= COLUMNS
+            self._settled = self._agreed and not self._unexplained(pixels, found)
             self._found = found
             moved = []
         elif due and moved:
@@ -290,11 +306,13 @@ class QuickSlotsReader:
                 moved = []
         if not self._found:
             return Reading.absent(frame.captured_at, "no key label found")
-        if moved:
+        if 2 * len(moved) > len(self._found):
             return Reading.covered(
                 frame.captured_at,
-                "label not where it was found: " + ", ".join(moved),
+                "fewer than half the labels fit where they were found: "
+                + ", ".join(moved),
             )
+        unknown: list[tuple[int, int]] = []
         if not self._settled:
             columns = _columns(self._found)
             if columns < COLUMNS:
@@ -302,19 +320,16 @@ class QuickSlotsReader:
                     frame.captured_at,
                     f"labels found in {columns} of the layout's {COLUMNS} columns",
                 )
-            holes = self._unexplained(pixels, self._found)
-            why = (
-                "no label found for the slot at row "
-                f"{holes[0][0] + 1}, column {holes[0][1] + 1}, yet something "
-                "label-shaped is drawn there: shaded by a cooldown or covered"
-                if holes
-                else "the labels found must be the same in two searches "
-                f"{SEARCH_EVERY:g} s apart"
-            )
-            return Reading.unsure(
-                frame.captured_at, f"slot numbering not settled: {why}"
-            )
-        return self._counts(frame)
+            if not self._agreed:
+                return Reading.unsure(
+                    frame.captured_at,
+                    "slot numbering not settled: the labels found must be the "
+                    f"same in two searches {SEARCH_EVERY:g} s apart",
+                )
+            # Agreed, but a cell has something label-shaped and no label that
+            # fits: its key was never seen, so it is unknown, not invented.
+            unknown = self._unexplained(pixels, self._found)
+        return self._counts(frame, set(moved), unknown)
 
     def _at(self, pixels: np.ndarray, name: str, at: tuple[int, int]) -> bool:
         """Whether the label still looks drawn at `at` (`_fits`)."""
@@ -482,7 +497,14 @@ class QuickSlotsReader:
                     best = (hit.error, hit.x, hit.y)
         return None if best is None else (best[1], best[2])
 
-    def _counts(self, frame: Frame) -> Reading[QuickSlots]:
+    def _counts(
+        self, frame: Frame, shaded: set[str], unknown: list[tuple[int, int]]
+    ) -> Reading[QuickSlots]:
+        """
+        The slots and their counts. A `shaded` label (remembered, but not
+        fitting now) keeps its key and position, and an `unknown` cell has no
+        key: both are `UNSURE`, with no count, and digits in them are ignored.
+        """
         labels = self._found
         rows = _lines(y for _, y in labels.values())
         columns = _lines(x for x, _ in labels.values())
@@ -495,6 +517,8 @@ class QuickSlotsReader:
         cells = {
             (_line(rows, y), _line(columns, x)): name for name, (x, y) in labels.items()
         }
+        unsure = {cell for cell, name in cells.items() if name in shaded}
+        unsure |= set(unknown)
         digit_width = max(d.rgba.shape[1] for d in self._digits.values())
         left = columns[0] - digit_width
         region = (
@@ -519,6 +543,14 @@ class QuickSlotsReader:
             row = _line_at_or_before(rows, run.top)
             column = _line_at_or_before(columns, run.centre)
             if (
+                row is not None
+                and column is not None
+                and run.top - rows[row] < span_y
+                and run.centre - columns[column] < span_x
+                and (row, column) in unsure
+            ):
+                continue  # in a slot whose label doesn't fit: not verifiable
+            if (
                 row is None
                 or column is None
                 or run.top - rows[row] >= span_y
@@ -533,20 +565,31 @@ class QuickSlotsReader:
                 )
             counts[cells[(row, column)]] = run.value
 
-        slots = sorted(
-            (
-                Slot(
-                    _line(rows, y) + 1,
-                    _line(columns, x) + 1,
-                    name,
-                    counts.get(name),
-                    x,
-                    y,
-                )
-                for name, (x, y) in labels.items()
-            ),
-            key=lambda s: (s.row, s.column),
-        )
+        slots = [
+            Slot(
+                _line(rows, y) + 1,
+                _line(columns, x) + 1,
+                name,
+                None if name in shaded else counts.get(name),
+                x,
+                y,
+                Status.UNSURE if name in shaded else Status.READ,
+            )
+            for name, (x, y) in labels.items()
+        ]
+        slots += [
+            Slot(
+                row + 1,
+                column + 1,
+                None,
+                None,
+                columns[column],
+                rows[row],
+                Status.UNSURE,
+            )
+            for row, column in unknown
+        ]
+        slots.sort(key=lambda s: (s.row, s.column))
         return Reading.read(QuickSlots(tuple(slots)), frame.captured_at)
 
     def _cursor_over(self, pixels: np.ndarray, area: tuple[int, int, int, int]) -> bool:

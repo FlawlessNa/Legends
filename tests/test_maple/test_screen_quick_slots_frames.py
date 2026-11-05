@@ -5,9 +5,10 @@ and the extracted game data (`python -m game_data extract`); skips without them.
 
 The frames are replayed as a session: per client size, one reader settles on the
 first frame without a cooldown, then reads that size's frames in order, because
-a slot's key under a cooldown shade is only known from having seen it unshaded.
-Every size has an unshaded frame to settle on. A fresh reader never reads a wrong
-value (below).
+a slot's key under a cooldown shade is only known from having seen it unshaded:
+the settled reader keeps it (that slot `UNSURE`, no count), and the other slots
+read. Every size has an unshaded frame to settle on. A fresh reader never reads a
+wrong key or count (below): a shaded slot's key is left `None`.
 """
 
 from typing import Any
@@ -30,7 +31,7 @@ from maple.screen.sprites import (
     StartupRefused,
     load_reader_sprites,
 )
-from tests.frame_set import FrameEntry, FrameSet
+from tests.frame_set import Expected, FrameEntry, FrameSet
 
 pytestmark = pytest.mark.frames
 
@@ -78,84 +79,6 @@ def _fresh_reader_is_exact(
     return got.status is Status.READ and _summary(got) == expected.value
 
 
-# Frames whose expected reading the reader cannot meet: the PgUp (`73`) or
-# PgDn (`81`) slot is under a cooldown, whose shade and big number
-# (`skillCooldownNumber`, drawn blended) hide its label, so a settled reader
-# says COVERED rather than keep the key. No cooldown heuristic is used (a wrong
-# READ is worse): see the PR #328 maintainer list. Strict, so a frame that
-# starts passing is noticed.
-CANNOT_MEET = frozenset(
-    [
-        "f012_1366x768.png",
-        "f013_1366x768.png",
-        "f014_1366x768.png",
-        "f015_1366x768.png",
-        "f016_1366x768.png",
-        "f017_1366x768.png",
-        "f018_1366x768.png",
-        "f019_1366x768.png",
-        "f020_1366x768.png",
-        "f021_1366x768.png",
-        "f022_1366x768.png",
-        "f023_1366x768.png",
-        "f024_1366x768.png",
-        "f025_1366x768.png",
-        "f026_1366x768.png",
-        "f027_1366x768.png",
-        "f028_1366x768.png",
-        "f029_1366x768.png",
-        "f030_1366x768.png",
-        "f031_1366x768.png",
-        "f032_1366x768.png",
-        "f033_1366x768.png",
-        "f034_1366x768.png",
-        "f035_1366x768.png",
-        "f036_1366x768.png",
-        "f037_1366x768.png",
-        "f038_1366x768.png",
-        "f039_1366x768.png",
-        "f041_1366x768.png",
-        "f042_1366x768.png",
-        "f044_800x600.png",
-        "f045_800x600.png",
-        "f046_800x600.png",
-        "f047_800x600.png",
-        "f048_800x600.png",
-        "f049_800x600.png",
-        "f050_800x600.png",
-        "f051_800x600.png",
-        "f052_800x600.png",
-        "h001_1920x1080_pgup_t10s.png",
-        "h001_1920x1080_pgup_t12s.png",
-        "h001_1920x1080_pgup_t8s.png",
-        "j_1024x768_pagedown_1.png",
-        "j_1024x768_pagedown_2.png",
-        "j_1024x768_pagedown_3.png",
-        "j_1024x768_pagedown_4.png",
-        "j_1024x768_pageup_1.png",
-        "j_1024x768_pageup_2.png",
-        "j_1024x768_pageup_3.png",
-        "j_1024x768_pageup_4.png",
-        "j_1280x720_pagedown_1.png",
-        "j_1280x720_pagedown_2.png",
-        "j_1280x720_pagedown_3.png",
-        "j_1280x720_pagedown_4.png",
-        "j_1366x768_pagedown_1.png",
-        "j_1366x768_pagedown_2.png",
-        "j_1366x768_pagedown_3.png",
-        "j_1366x768_pagedown_4.png",
-        "j_1366x768_pageup_1.png",
-        "j_1366x768_pageup_2.png",
-        "j_1366x768_pageup_3.png",
-        "j_1366x768_pageup_4.png",
-        "j_800x600_pagedown_1.png",
-        "j_800x600_pagedown_2.png",
-        "j_800x600_pagedown_3.png",
-        "j_800x600_pagedown_4.png",
-    ]
-)
-
-
 def _replayed(
     frames: FrameSet, sprites: ReaderSprites
 ) -> dict[str, Reading[QuickSlots]]:
@@ -191,18 +114,6 @@ def replayed(
     return _replayed(frames, sprites)
 
 
-def _case(file: str) -> object:
-    mark = (
-        pytest.mark.xfail(
-            strict=True,
-            reason="PgUp/PgDn under a cooldown reads COVERED: PR #328 maintainer list",
-        )
-        if file in CANNOT_MEET
-        else ()
-    )
-    return pytest.param(file, marks=mark, id=file.removesuffix(".png"))
-
-
 def _committed_files() -> list[str]:
     from tests import frame_set
 
@@ -212,7 +123,9 @@ def _committed_files() -> list[str]:
     return [e.file for e in entries if "quick_slots" in e.expect]
 
 
-@pytest.mark.parametrize("file", [_case(f) for f in _committed_files()])
+@pytest.mark.parametrize(
+    "file", [pytest.param(f, id=f.removesuffix(".png")) for f in _committed_files()]
+)
 def test_the_quick_slots_reading_is_the_expected_one(
     file: str, frames: FrameSet, replayed: dict[str, Reading[QuickSlots]]
 ) -> None:
@@ -224,23 +137,40 @@ def test_the_quick_slots_reading_is_the_expected_one(
     assert _summary(got) == expected.value
 
 
+def _wrong(expected: Expected, got: Reading[QuickSlots]) -> str | None:
+    """What `got` claims that the expected reading contradicts: a slot's key or
+    count read wrong, a bound slot left out, or a slot that isn't there. A key
+    left `None`, or an `UNSURE` slot with no count, claims nothing."""
+    if got.value is None:
+        return None
+    if expected.status is not Status.READ:
+        return f"read {got.status.name}, expected {expected.status.name}"
+    want = {(s["row"], s["column"]): s for s in expected.value}
+    have = {(s.row, s.column): s for s in got.value.slots}
+    if set(want) != set(have):
+        return f"slots at {sorted(have)}, expected at {sorted(want)}"
+    for cell, slot in have.items():
+        if slot.key is not None and slot.key != want[cell]["key"]:
+            return f"key {slot.key} at {cell}, expected {want[cell]['key']}"
+        if slot.status is Status.READ and slot.count != want[cell]["count"]:
+            return f"count {slot.count} at {cell}, expected {want[cell]['count']}"
+        if slot.status is not Status.READ and slot.count is not None:
+            return f"count {slot.count} read in an unsure slot at {cell}"
+    return None
+
+
 def test_a_fresh_reader_never_reads_a_wrong_value(
     frames: FrameSet, sprites: ReaderSprites
 ) -> None:
-    # Never a wrong READ: a reader that hasn't seen the slots unshaded reads a
-    # frame exactly, or says UNSURE, which it must on every cooldown frame
-    # whose slot labels it can't recognise (a lone `P` is not `PgUp`).
+    # Never a wrong READ: a reader that hasn't seen the slots unshaded reads
+    # every slot it can, and leaves a shaded slot's key unknown (`None`, a
+    # lone `P` is not `PgUp`) rather than guess it.
     wrong: list[str] = []
-    unsure = 0
     for entry in _quick_slots(frames):
         reader = QuickSlotsReader(sprites, FrameCheck(sprites))
         reader.read(_frame(frames, entry, 0.0))
         got = reader.read(_frame(frames, entry, SEARCH_EVERY))
-        expected = entry.expect["quick_slots"]
-        exact = got.status is expected.status and _summary(got) == expected.value
-        if got.status is Status.UNSURE:
-            unsure += 1
-        elif not exact:
-            wrong.append(f"{entry.file}: read {got.status.name} {_summary(got)}")
+        why = _wrong(entry.expect["quick_slots"], got)
+        if why is not None:
+            wrong.append(f"{entry.file}: {why}")
     assert not wrong, chr(10).join(wrong)
-    assert unsure
