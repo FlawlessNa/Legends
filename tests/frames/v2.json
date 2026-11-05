@@ -661,7 +661,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. Buff countdowns (seconds left) labelled by eye for #313.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -765,7 +765,8 @@
               "shown": false
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 27
             }
           }
         },
@@ -786,7 +787,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. Buff countdowns (seconds left) labelled by eye for #313.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -887,10 +888,12 @@
           "status": "read",
           "value": {
             "Recovery": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 27
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 24
             }
           }
         },
@@ -911,7 +914,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. Buff countdowns (seconds left) labelled by eye for #313.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1012,10 +1015,12 @@
           "status": "read",
           "value": {
             "Recovery": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 21
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 19
             }
           }
         },
@@ -1036,7 +1041,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. Buff countdowns (seconds left) labelled by eye for #313.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1137,10 +1142,12 @@
           "status": "read",
           "value": {
             "Recovery": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 19
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 16
             }
           }
         },
@@ -1161,7 +1168,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. Buff countdowns (seconds left) labelled by eye for #313.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1262,10 +1269,12 @@
           "status": "read",
           "value": {
             "Recovery": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 16
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 13
             }
           }
         },
@@ -1286,7 +1295,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. Buff countdowns (seconds left) labelled by eye for #313.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1387,10 +1396,12 @@
           "status": "read",
           "value": {
             "Recovery": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 13
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 10
             }
           }
         },
@@ -1411,7 +1422,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. Buff countdowns (seconds left) labelled by eye for #313.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1512,10 +1523,12 @@
           "status": "read",
           "value": {
             "Recovery": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 10
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 8
             }
           }
         },
@@ -1536,7 +1549,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. Buff countdowns (seconds left) labelled by eye for #313.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1637,10 +1650,12 @@
           "status": "read",
           "value": {
             "Recovery": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 7
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 5
             }
           }
         },
@@ -7750,7 +7765,7 @@
             "level": 25,
             "hp": 1060,
             "max_hp": 1060,
-            "mp": 433,
+            "mp": 442,
             "max_mp": 443,
             "exp": 18427,
             "exp_percent": 39.03
@@ -7866,7 +7881,7 @@
             "level": 25,
             "hp": 1060,
             "max_hp": 1060,
-            "mp": 433,
+            "mp": 443,
             "max_mp": 443,
             "exp": 18427,
             "exp_percent": 39.03
@@ -8078,7 +8093,8 @@
               "shown": false
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 22
             }
           }
         }
@@ -8098,7 +8114,7 @@
             "level": 25,
             "hp": 1060,
             "max_hp": 1060,
-            "mp": 433,
+            "mp": 436,
             "max_mp": 443,
             "exp": 18427,
             "exp_percent": 39.03
@@ -8194,7 +8210,8 @@
               "shown": false
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 14
             }
           }
         }
@@ -8214,7 +8231,7 @@
             "level": 25,
             "hp": 1060,
             "max_hp": 1060,
-            "mp": 433,
+            "mp": 439,
             "max_mp": 443,
             "exp": 18427,
             "exp_percent": 39.03
@@ -8310,7 +8327,8 @@
               "shown": false
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 6
             }
           }
         }
@@ -8330,7 +8348,7 @@
             "level": 25,
             "hp": 1060,
             "max_hp": 1060,
-            "mp": 433,
+            "mp": 442,
             "max_mp": 443,
             "exp": 18427,
             "exp_percent": 39.03
@@ -9366,7 +9384,7 @@
         1280,
         720
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The Recovery buff icon is drawn at the top right. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The Recovery buff icon is drawn at the top right, with the translucent Quest Helper window over the icon's bottom edge. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -9464,15 +9482,8 @@
           }
         },
         "buffs": {
-          "status": "read",
-          "value": {
-            "Recovery": {
-              "shown": true
-            },
-            "Nimble Feet": {
-              "shown": false
-            }
-          }
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -9482,7 +9493,7 @@
         1280,
         720
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The Recovery buff icon is drawn at the top right. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The Recovery buff icon is drawn at the top right, with the translucent Quest Helper window over the icon's bottom edge. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -9580,15 +9591,8 @@
           }
         },
         "buffs": {
-          "status": "read",
-          "value": {
-            "Recovery": {
-              "shown": true
-            },
-            "Nimble Feet": {
-              "shown": false
-            }
-          }
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -9598,7 +9602,7 @@
         1280,
         720
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The Recovery buff icon is drawn at the top right. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The Recovery buff icon is drawn at the top right, with the translucent Quest Helper window over the icon's bottom edge. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -9606,7 +9610,7 @@
             "level": 25,
             "hp": 1060,
             "max_hp": 1060,
-            "mp": 430,
+            "mp": 433,
             "max_mp": 443,
             "exp": 18427,
             "exp_percent": 39.03
@@ -9696,15 +9700,8 @@
           }
         },
         "buffs": {
-          "status": "read",
-          "value": {
-            "Recovery": {
-              "shown": true
-            },
-            "Nimble Feet": {
-              "shown": false
-            }
-          }
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -9714,7 +9711,7 @@
         1280,
         720
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The Recovery buff icon is drawn at the top right. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The Recovery buff icon is drawn at the top right, with the translucent Quest Helper window over the icon's bottom edge. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -9722,7 +9719,7 @@
             "level": 25,
             "hp": 1060,
             "max_hp": 1060,
-            "mp": 430,
+            "mp": 436,
             "max_mp": 443,
             "exp": 18427,
             "exp_percent": 39.03
@@ -9812,15 +9809,8 @@
           }
         },
         "buffs": {
-          "status": "read",
-          "value": {
-            "Recovery": {
-              "shown": true
-            },
-            "Nimble Feet": {
-              "shown": false
-            }
-          }
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -9830,7 +9820,7 @@
         1280,
         720
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The Nimble Feet buff icon is drawn at the top right. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The Nimble Feet buff icon is drawn at the top right, with the translucent Quest Helper window over the icon's bottom edge. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -9838,7 +9828,7 @@
             "level": 25,
             "hp": 1060,
             "max_hp": 1060,
-            "mp": 430,
+            "mp": 433,
             "max_mp": 443,
             "exp": 18427,
             "exp_percent": 39.03
@@ -9928,15 +9918,8 @@
           }
         },
         "buffs": {
-          "status": "read",
-          "value": {
-            "Recovery": {
-              "shown": false
-            },
-            "Nimble Feet": {
-              "shown": true
-            }
-          }
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -9946,7 +9929,7 @@
         1280,
         720
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The Nimble Feet buff icon is drawn at the top right. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The Nimble Feet buff icon is drawn at the top right, with the translucent Quest Helper window over the icon's bottom edge. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -9954,7 +9937,7 @@
             "level": 25,
             "hp": 1060,
             "max_hp": 1060,
-            "mp": 430,
+            "mp": 436,
             "max_mp": 443,
             "exp": 18427,
             "exp_percent": 39.03
@@ -10044,15 +10027,8 @@
           }
         },
         "buffs": {
-          "status": "read",
-          "value": {
-            "Recovery": {
-              "shown": false
-            },
-            "Nimble Feet": {
-              "shown": true
-            }
-          }
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -10062,7 +10038,7 @@
         1280,
         720
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The Nimble Feet buff icon is drawn at the top right. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The Nimble Feet buff icon is drawn at the top right, with the translucent Quest Helper window over the icon's bottom edge. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -10070,7 +10046,7 @@
             "level": 25,
             "hp": 1060,
             "max_hp": 1060,
-            "mp": 430,
+            "mp": 436,
             "max_mp": 443,
             "exp": 18427,
             "exp_percent": 39.03
@@ -10160,15 +10136,8 @@
           }
         },
         "buffs": {
-          "status": "read",
-          "value": {
-            "Recovery": {
-              "shown": false
-            },
-            "Nimble Feet": {
-              "shown": true
-            }
-          }
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -10178,7 +10147,7 @@
         1280,
         720
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The Nimble Feet buff icon is drawn at the top right. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The Nimble Feet buff icon is drawn at the top right, with the translucent Quest Helper window over the icon's bottom edge. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -10186,7 +10155,7 @@
             "level": 25,
             "hp": 1060,
             "max_hp": 1060,
-            "mp": 430,
+            "mp": 439,
             "max_mp": 443,
             "exp": 18427,
             "exp_percent": 39.03
@@ -10276,15 +10245,8 @@
           }
         },
         "buffs": {
-          "status": "read",
-          "value": {
-            "Recovery": {
-              "shown": false
-            },
-            "Nimble Feet": {
-              "shown": true
-            }
-          }
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -10302,7 +10264,7 @@
             "level": 25,
             "hp": 1060,
             "max_hp": 1060,
-            "mp": 430,
+            "mp": 443,
             "max_mp": 443,
             "exp": 18427,
             "exp_percent": 39.03
@@ -11338,7 +11300,7 @@
         800,
         600
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The Recovery buff icon is drawn at the top right. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The Recovery buff icon is drawn at the top right, with the translucent Quest Helper window over the icon's bottom edge. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -11436,15 +11398,8 @@
           }
         },
         "buffs": {
-          "status": "read",
-          "value": {
-            "Recovery": {
-              "shown": true
-            },
-            "Nimble Feet": {
-              "shown": false
-            }
-          }
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -11454,7 +11409,7 @@
         800,
         600
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The Recovery buff icon is drawn at the top right. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The Recovery buff icon is drawn at the top right, with the translucent Quest Helper window over the icon's bottom edge. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -11552,15 +11507,8 @@
           }
         },
         "buffs": {
-          "status": "read",
-          "value": {
-            "Recovery": {
-              "shown": true
-            },
-            "Nimble Feet": {
-              "shown": false
-            }
-          }
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -11570,7 +11518,7 @@
         800,
         600
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The Recovery buff icon is drawn at the top right. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The Recovery buff icon is drawn at the top right, with the translucent Quest Helper window over the icon's bottom edge. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -11668,15 +11616,8 @@
           }
         },
         "buffs": {
-          "status": "read",
-          "value": {
-            "Recovery": {
-              "shown": true
-            },
-            "Nimble Feet": {
-              "shown": false
-            }
-          }
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -11686,7 +11627,7 @@
         800,
         600
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The Recovery buff icon is drawn at the top right. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The Recovery buff icon is drawn at the top right, with the translucent Quest Helper window over the icon's bottom edge. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -11784,15 +11725,8 @@
           }
         },
         "buffs": {
-          "status": "read",
-          "value": {
-            "Recovery": {
-              "shown": true
-            },
-            "Nimble Feet": {
-              "shown": false
-            }
-          }
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -11802,7 +11736,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The Nimble Feet buff icon is drawn at the top right. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The Nimble Feet buff icon is drawn at the top right, with the translucent Quest Helper window over the icon's bottom edge. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -11900,15 +11834,8 @@
           }
         },
         "buffs": {
-          "status": "read",
-          "value": {
-            "Recovery": {
-              "shown": false
-            },
-            "Nimble Feet": {
-              "shown": true
-            }
-          }
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -11918,7 +11845,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The Nimble Feet buff icon is drawn at the top right. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The Nimble Feet buff icon is drawn at the top right, with the translucent Quest Helper window over the icon's bottom edge. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -12016,15 +11943,8 @@
           }
         },
         "buffs": {
-          "status": "read",
-          "value": {
-            "Recovery": {
-              "shown": false
-            },
-            "Nimble Feet": {
-              "shown": true
-            }
-          }
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -12034,7 +11954,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The Nimble Feet buff icon is drawn at the top right. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The Nimble Feet buff icon is drawn at the top right, with the translucent Quest Helper window over the icon's bottom edge. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -12132,15 +12052,8 @@
           }
         },
         "buffs": {
-          "status": "read",
-          "value": {
-            "Recovery": {
-              "shown": false
-            },
-            "Nimble Feet": {
-              "shown": true
-            }
-          }
+          "status": "covered",
+          "value": null
         }
       }
     },
@@ -12150,7 +12063,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The Nimble Feet buff icon is drawn at the top right. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The Nimble Feet buff icon is drawn at the top right, with the translucent Quest Helper window over the icon's bottom edge. No chat expectation: the log's rows are megaphone-style lines on pink, orange, teal and dark-red backgrounds, and the chat kinds of v1 don't say which is which.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -12248,15 +12161,8 @@
           }
         },
         "buffs": {
-          "status": "read",
-          "value": {
-            "Recovery": {
-              "shown": false
-            },
-            "Nimble Feet": {
-              "shown": true
-            }
-          }
+          "status": "covered",
+          "value": null
         }
       }
     },
