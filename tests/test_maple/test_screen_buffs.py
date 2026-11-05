@@ -223,6 +223,55 @@ def test_a_slot_on_the_row_drawn_only_in_part_is_covered(
     assert "drawn only in part" in reading.detail
 
 
+def translucent_window(pixels: np.ndarray, top: int) -> np.ndarray:
+    """A translucent window from `top` down, over the right half of the frame,
+    as the Quest Helper is drawn: the pixels under it show through, lightened."""
+    under = pixels[top:, WIDTH // 2 :].astype(np.float64)
+    pixels[top:, WIDTH // 2 :] = (0.6 * under + 0.4 * 230).astype(np.uint8)
+    return pixels
+
+
+def test_a_window_over_a_slots_edge_is_covered_on_a_row_never_seen(
+    reader: BuffsReader,
+) -> None:
+    """No whole slot and none remembered: the slot drawn in part is the row's
+    line (frame set v2, the Quest Helper at 800x600 and 1280x720)."""
+    pixels = translucent_window(screen("Haste"), 3 + SIZE - 8)
+
+    reading = reader.read(frame(pixels), ASKED)
+
+    assert reading.status is Status.COVERED, reading.detail
+    assert reading.value is None
+    assert "drawn only in part" in reading.detail
+
+
+def test_a_slot_drawn_in_part_away_from_the_rows_start_needs_the_row_known(
+    reader: BuffsReader,
+) -> None:
+    """Three sides of an outline at the client's left, as the minimap's frame
+    shows (frame set v2, f001), isn't where the row starts."""
+    pixels = screen()
+    draw(pixels, BASE, 20, 3)
+    under = pixels[3 + SIZE - 8 : 3 + SIZE, 0:80].astype(np.float64)
+    pixels[3 + SIZE - 8 : 3 + SIZE, 0:80] = (0.6 * under + 0.4 * 230).astype(np.uint8)
+
+    assert shown(reader, pixels) == {"Haste": False, "Bless": False}
+
+
+def test_the_same_window_with_no_slot_under_it_reads_not_shown(
+    reader: BuffsReader,
+) -> None:
+    pixels = translucent_window(screen(), 3 + SIZE - 8)
+
+    assert shown(reader, pixels) == {"Haste": False, "Bless": False}
+
+
+def test_the_same_window_below_the_slot_reads_it_shown(reader: BuffsReader) -> None:
+    pixels = translucent_window(screen("Haste"), 3 + SIZE + 2)
+
+    assert shown(reader, pixels) == {"Haste": True, "Bless": False}
+
+
 def test_a_black_corner_off_the_row_isnt_a_slot_drawn_in_part(
     reader: BuffsReader,
 ) -> None:
