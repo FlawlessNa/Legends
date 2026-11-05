@@ -111,6 +111,22 @@ def test_without_a_map_id_the_position_raises_for_the_error_handler() -> None:
         positioned._get_minimap_pos()
 
 
+@pytest.mark.parametrize(
+    ("shown", "displayed"),
+    [
+        (_minimap(), True),
+        (_minimised(), False),
+        (frame(screen()), False),
+    ],
+)
+def test_the_minimap_counts_as_displayed_only_when_expanded(
+    shown: Frame, displayed: bool
+) -> None:
+    """The Stuck detector's guard (`_on_expected_minimap`) reads this: a
+    minimised minimap shows no map."""
+    assert _Positioned(shown)._minimap_displayed() is displayed
+
+
 def test_the_position_is_the_markers() -> None:
     assert _Positioned(_minimap(user_at=(12, 34)))._get_minimap_pos() == (12, 34)
 
