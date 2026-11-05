@@ -397,9 +397,11 @@ _Avoid_: Database, game DB: the raw layer is a database too.
 
 **Minimap coordinates**:
 Pixels on the expanded minimap, from the top-left of its map area (the inside
-of its `UI/MiniMap.img/MaxMap` frame). The character's minimap position is
-where the origin of its marker, `Map/MapHelper.img/minimap/user`, is drawn.
-`configs/maps/` and pathfinding work in this unit.
+of its `UI/MiniMap.img/MaxMap` or `MinMap` frame). The character's minimap
+position is where the origin of its marker, `Map/MapHelper.img/minimap/user`,
+is drawn. `configs/maps/` and pathfinding work in this unit. On MSCW the map
+area is a window on the map's `miniMap` canvas, which scrolls with the
+character on a map taller than the area: open on #311.
 _Avoid_: Minimap pixels from the frame's corner, or from the screen: both move
 with the window.
 

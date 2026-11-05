@@ -100,7 +100,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              93,
+              50
+            ]
           }
         },
         "buffs": {
@@ -255,7 +260,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              93,
+              50
+            ]
           }
         },
         "buffs": {
@@ -380,7 +390,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              89,
+              43
+            ]
           }
         },
         "buffs": {
@@ -505,7 +520,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              89,
+              40
+            ]
           }
         },
         "buffs": {
@@ -630,7 +650,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              89,
+              39
+            ]
           }
         },
         "buffs": {
@@ -755,7 +780,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              31
+            ]
           }
         },
         "buffs": {
@@ -881,7 +911,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              87,
+              31
+            ]
           }
         },
         "buffs": {
@@ -1008,7 +1043,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              92,
+              31
+            ]
           }
         },
         "buffs": {
@@ -1135,7 +1175,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              81,
+              31
+            ]
           }
         },
         "buffs": {
@@ -1262,7 +1307,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              87,
+              30
+            ]
           }
         },
         "buffs": {
@@ -1389,7 +1439,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              94,
+              31
+            ]
           }
         },
         "buffs": {
@@ -1516,7 +1571,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              93,
+              31
+            ]
           }
         },
         "buffs": {
@@ -1643,7 +1703,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              81,
+              31
+            ]
           }
         },
         "buffs": {
@@ -1770,7 +1835,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              75,
+              31
+            ]
           }
         },
         "buffs": {
@@ -1895,7 +1965,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              80,
+              31
+            ]
           }
         },
         "buffs": {
@@ -2020,7 +2095,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              80,
+              31
+            ]
           }
         },
         "buffs": {
@@ -2145,7 +2225,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              80,
+              31
+            ]
           }
         },
         "buffs": {
@@ -2270,7 +2355,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              72,
+              31
+            ]
           }
         },
         "buffs": {
@@ -2395,7 +2485,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              72,
+              31
+            ]
           }
         },
         "buffs": {
@@ -2520,7 +2615,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              77,
+              31
+            ]
           }
         },
         "buffs": {
@@ -2645,7 +2745,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              31
+            ]
           }
         },
         "buffs": {
@@ -2770,7 +2875,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              80,
+              31
+            ]
           }
         },
         "buffs": {
@@ -2895,7 +3005,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              79,
+              31
+            ]
           }
         },
         "buffs": {
@@ -3020,7 +3135,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              84,
+              31
+            ]
           }
         },
         "buffs": {
@@ -3145,7 +3265,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              97,
+              31
+            ]
           }
         },
         "buffs": {
@@ -3270,7 +3395,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              86,
+              31
+            ]
           }
         },
         "buffs": {
@@ -3395,7 +3525,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              31
+            ]
           }
         },
         "buffs": {
@@ -3520,7 +3655,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              92,
+              31
+            ]
           }
         },
         "buffs": {
@@ -3645,7 +3785,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              96,
+              31
+            ]
           }
         },
         "buffs": {
@@ -3770,7 +3915,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              73,
+              31
+            ]
           }
         },
         "buffs": {
@@ -3890,7 +4040,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              32
+            ]
           }
         },
         "buffs": {
@@ -4010,7 +4165,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -4130,7 +4290,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -4255,7 +4420,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -4380,7 +4550,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -4630,7 +4805,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -4755,7 +4935,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -4807,7 +4992,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -4932,7 +5122,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -5057,7 +5252,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -5212,7 +5412,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -5337,7 +5542,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -5457,7 +5667,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -5582,7 +5797,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -5702,7 +5922,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -5822,7 +6047,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -5947,7 +6177,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -6067,7 +6302,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -6179,7 +6419,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -6226,7 +6471,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -6351,7 +6601,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -6476,7 +6731,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -6528,7 +6788,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -6653,7 +6918,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -6778,7 +7048,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -6933,7 +7208,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -7058,7 +7338,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -7110,7 +7395,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -7235,7 +7525,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -7360,7 +7655,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -7485,7 +7785,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -7610,7 +7915,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Dungeon: Damp Forest",
+            "self_position": [
+              83,
+              38
+            ]
           }
         },
         "buffs": {
@@ -7735,7 +8045,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -7851,7 +8166,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -7967,7 +8287,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -8083,7 +8408,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -8200,7 +8530,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -8317,7 +8652,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -8434,7 +8774,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -8550,7 +8895,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -8666,7 +9016,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -8782,7 +9137,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -8898,7 +9258,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -9014,7 +9379,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -9130,7 +9500,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -9246,7 +9621,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -9362,7 +9742,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -9478,7 +9863,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -9587,7 +9977,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -9696,7 +10091,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -9805,7 +10205,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -9914,7 +10319,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -10023,7 +10433,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -10132,7 +10547,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -10241,7 +10661,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -10350,7 +10775,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -10466,7 +10896,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -10582,7 +11017,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -10698,7 +11138,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -10814,7 +11259,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -10930,7 +11380,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -11046,7 +11501,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -11162,7 +11622,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -11278,7 +11743,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -11394,7 +11864,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -11503,7 +11978,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -11612,7 +12092,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -11721,7 +12206,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -11830,7 +12320,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -11939,7 +12434,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -12048,7 +12548,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -12157,7 +12662,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -12266,7 +12776,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              55,
+              50
+            ]
           }
         },
         "buffs": {
@@ -12382,7 +12897,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              49,
+              50
+            ]
           }
         },
         "buffs": {
@@ -12498,7 +13018,12 @@
         "minimap": {
           "status": "read",
           "value": {
-            "state": "expanded"
+            "state": "expanded",
+            "map": "Victoria Road: Ellinia",
+            "self_position": [
+              49,
+              50
+            ]
           }
         },
         "buffs": {
