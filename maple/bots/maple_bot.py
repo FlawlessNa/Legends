@@ -80,12 +80,13 @@ class MapleBot(Bot, ABC):
         # The readers' sprites are loaded once, before any reader attribute
         # exists: a missing or stale store refuses the start here, not mid-cycle.
         map_file = MinimapEditsManager.from_json(self.game_map)
+        map_id = map_file.map_id if map_file is not None else None
         reader_sprites = load_reader_sprites(
             enabled_readers(self._decision_makers()),
             Profile(
                 job=self.job,
                 game_map=self.game_map,
-                map_id=map_file.map_id if map_file is not None else None,
+                map_id=map_id,
                 buffs=tuple(
                     buff.name
                     for buff in solo_buffs(
@@ -110,7 +111,8 @@ class MapleBot(Bot, ABC):
                 )
             if NW in reader_sprites.canvases:
                 data.set_static(
-                    "minimap_reader", MinimapReader(reader_sprites, frame_check)
+                    "minimap_reader",
+                    MinimapReader(reader_sprites, frame_check, map_id=map_id),
                 )
             if TARGET_SELECT in reader_sprites.canvases:
                 data.set_static("chat_reader", ChatReader(reader_sprites, frame_check))
