@@ -3,11 +3,14 @@ import random
 import threading
 from typing import Any, Literal
 
+import win32gui
+
 from botting import controller
 from botting.core import ActionRequest, ActionWithValidation
 from botting.screen import Status, frame_source
-from maple.model.interface import AbilityMenu
+from botting.utilities import Box
 from maple.screen.minimap import MinimapReader, MinimapState
+from maple.screen.stat_window import StatWindowReader
 
 from .priorities import ERROR_HANDLING
 
@@ -51,6 +54,54 @@ async def expand_inventory(handle: int, target: tuple[int, int], **kwargs: Any) 
     )
     # Simply ensures mouse isn't obstructing the view
     await controller.mouse_move(handle, next_target, total_duration=0)
+
+
+CURSOR_SIZE = 64
+"""The most room the cursor's image takes right of and below the point it is
+drawn from, in client pixels: a Windows cursor is 32 x 32 at 100% scale, and
+this leaves room for 200%."""
+
+
+def point_off(avoid: Box, width: int, height: int) -> tuple[int, int]:
+    """
+    A random point of a `width` x `height` client area where the cursor, drawn
+    from it, covers nothing of `avoid`.
+
+    :raises ValueError: `avoid` leaves no such point.
+    """
+    left, top = avoid.left - CURSOR_SIZE, avoid.top - CURSOR_SIZE
+    candidates = [
+        Box(left=0, right=left, top=0, bottom=height - 1) if left >= 0 else None,
+        Box(left=avoid.right + 1, right=width - 1, top=0, bottom=height - 1)
+        if avoid.right + 1 <= width - 1
+        else None,
+        Box(left=0, right=width - 1, top=0, bottom=top) if top >= 0 else None,
+        Box(left=0, right=width - 1, top=avoid.bottom + 1, bottom=height - 1)
+        if avoid.bottom + 1 <= height - 1
+        else None,
+    ]
+    free = [box for box in candidates if box is not None]
+    if not free:
+        raise ValueError(f"{avoid} leaves no room for the cursor in {width}x{height}")
+    return random.choice(free).random()
+
+
+async def click_then_move_off(
+    handle: int,
+    target: tuple[int, int],
+    avoid: Box,
+    nbr_times: int = 1,
+    delay: float = 0.15,
+) -> None:
+    """
+    Click `target` `nbr_times`, then move the cursor where it covers nothing of
+    `avoid`, so a read of what was clicked isn't hidden by the cursor.
+    """
+    await controller.mouse_move_and_click(
+        handle, target, nbr_times=nbr_times, delay=delay
+    )
+    _, _, width, height = win32gui.GetClientRect(handle)
+    await controller.mouse_move(handle, point_off(avoid, width, height), 0)
 
 
 async def toggle_inventory(
@@ -113,13 +164,18 @@ def ensure_ability_menu_displayed(
     handle: int,
     ign: str,
     pipe: multiprocessing.connection.Connection,
-    menu: AbilityMenu,
+    reader: StatWindowReader,
     condition: threading.Condition,
     timeout: float,
     ensure_displayed: bool = True,
     mode: Literal["Blocking", "Async"] = "Blocking",
     priority: int = ERROR_HANDLING,
 ) -> None:
+    """
+    Press the stat window's key until the window is shown (or hidden), judged
+    on a fresh capture by `StatWindowReader.shown`: found whole or covered is
+    shown; a frame that can't be read is neither, and is checked again.
+    """
     request = ActionRequest(
         identifier,
         toggle_ability_menu,
@@ -130,7 +186,10 @@ def ensure_ability_menu_displayed(
     )
 
     validated_action = ActionWithValidation(
-        pipe, lambda: menu.is_displayed(handle) == ensure_displayed, condition, timeout
+        pipe,
+        lambda: reader.shown(frame_source().grab(handle)) is ensure_displayed,
+        condition,
+        timeout,
     )
 
     if mode == "Blocking":
