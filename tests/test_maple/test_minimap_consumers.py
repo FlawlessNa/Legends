@@ -22,6 +22,7 @@ from tests.test_maple.test_screen_minimap import (
     MAP_ID,
     OTHER_CANVAS,
     draw_minimap,
+    draw_minimised,
     frame,
     occlude,
     reader,
@@ -69,6 +70,17 @@ def test_without_a_map_id_the_check_only_asks_that_the_minimap_is_shown() -> Non
     assert not _check(frame(screen()), None)._perform_check()
 
 
+def _minimised() -> Frame:
+    pixels = screen()
+    draw_minimised(pixels, 30, 10)
+    return frame(pixels)
+
+
+@pytest.mark.parametrize("map_id", [MAP_ID, None])
+def test_a_minimised_minimap_fails_the_check(map_id: int | None) -> None:
+    assert not _check(_minimised(), map_id)._perform_check()
+
+
 def test_a_covered_minimap_fails_the_check() -> None:
     pixels = screen()
     draw_minimap(pixels, 250, 20, canvas=CANVAS)
@@ -100,6 +112,7 @@ def test_the_position_is_the_markers() -> None:
     [
         (frame(screen()), "minimap absent"),
         (_minimap(user_at=None), "marker isn't found"),
+        (_minimised(), "marker isn't found"),
     ],
 )
 def test_no_position_raises_for_the_error_handler(shown: Frame, says: str) -> None:
@@ -114,6 +127,7 @@ def test_no_position_raises_for_the_error_handler(shown: Frame, says: str) -> No
     ("pixels", "state"),
     [
         (lambda: _minimap().pixels, MinimapState.EXPANDED),
+        (lambda: _minimised().pixels, MinimapState.MINIMISED),
         (screen, MinimapState.ABSENT),
         (lambda: np.zeros((300, 400, 3), np.uint8), None),
     ],

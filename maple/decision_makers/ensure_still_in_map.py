@@ -5,7 +5,7 @@ import multiprocessing.managers
 
 from botting import PARENT_LOG
 from botting.core import BotData, DecisionMaker
-from botting.screen import Status
+from maple.screen.minimap import MinimapState
 from maple.telemetry_events import (
     RECOVERY_MAP_CHECK_FAILED,
     RECOVERY_MAP_CHECK_RECOVERED,
@@ -65,7 +65,7 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
         """
         Whether the bot is still in its map: the minimap shows the map's own
         `miniMap` canvas when the map file names its `map_id`, or, without one,
-        the minimap is shown at all. Anything but a reading that says so counts
+        the minimap is shown expanded. Anything but a reading that says so counts
         as not in the map, which the caller retries once after recovering.
         """
         self.data.update_attribute("current_frame")
@@ -74,7 +74,10 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
         map_id = self.data.current_minimap.map_id
         if map_id is None:
             reading = reader.read(frame)
-            in_map = reading.status is Status.READ
+            in_map = (
+                reading.value is not None
+                and reading.value.state is MinimapState.EXPANDED
+            )
         else:
             reading = reader.is_expected_map(frame, map_id)
             in_map = reading.value is True

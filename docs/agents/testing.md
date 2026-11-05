@@ -104,7 +104,10 @@ those fields. In `v1`:
   node name (a scan code, such as `42` for Shift), and `count` is `null` where no
   item count is drawn. A skill on cooldown is still listed; its seconds left are
   not a count.
-- `minimap`: `{state}`.
+- `minimap`: `{state}`. In `v2`, an expanded minimap also has `map`, the name
+  its banner shows as `street: map name`, and `self_position`, where the yellow
+  player marker's centre is, in pixels from the map area's top-left; a test
+  allows 1 pixel.
 - `buffs`: buff name to `{shown}`, with `seconds_left` when its countdown is
   drawn over the icon.
 - `chat`: the kind of each visible row of the log, top to bottom. A message

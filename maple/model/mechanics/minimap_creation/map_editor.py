@@ -115,6 +115,8 @@ class MinimapEditor:
                         f"minimap {reading.status.value}: {reading.detail}"
                     )
                 box = reading.value.map_area
+                if box is None:
+                    raise LookupError("the minimap is minimised")
                 self._map_area_box = box
                 img = frame.pixels[box.top : box.bottom, box.left : box.right].copy()
                 self._screenshot_bg = img
