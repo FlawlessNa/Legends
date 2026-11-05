@@ -18,9 +18,15 @@ buff ends, the row closes up to the right (frames f008, f015). So:
 - the rightmost slot's place is remembered, per client size; a row that starts
   further left than that is `COVERED` too.
 
-The row's line comes from a whole slot, or from memory. A reader that has never
-seen the row, looking at a frame where a cursor hides every slot's outline,
-reads no buff: nothing tells that from no buff at all.
+The row's line comes from a whole slot, or from memory, or else from a slot
+drawn in part where the row starts: with no room for another slot between it
+and the client's right edge. So a window over the first slot's lower edge, on a
+client size the reader hasn't seen a whole slot at, is `COVERED`, not "no buff"
+(frame set `v2`, `j_800x600_*` and `j_1280x720_*`: the Quest Helper over the
+icon). Further left, a slot drawn in part needs the row known: the minimap's
+frame shows three sides of an outline at the client's left (`v2`, f001). A
+reader that has never seen the row, looking at a frame where a cursor hides
+every slot's outline, reads no buff: nothing tells that from no buff at all.
 
 **Which buff.** Each slot is compared with each asked-for skill's icon from the
 catalogue (`ReaderSprites.skill_icon`), by normalised correlation (zero-mean,
@@ -271,13 +277,18 @@ class BuffsReader:
         """
         The slots, and why some slot isn't drawn whole, or `""`: a slot on the
         row's line drawn only in part, a hole in the row, or a row that starts
-        left of where it did.
+        left of where it did. With no whole slot and no row remembered, the
+        line is that of a slot drawn in part where the row starts, if any.
         """
         slots, part = self._search(pixels)
         if slots:
             line = slots[0][1]
         elif self._first is not None:
             line = self._first[1]
+        elif start := [
+            (x, y) for x, y in part if frame.client_size[0] - x < 2 * self._width
+        ]:
+            line = start[0][1]
         else:
             return slots, ""
         for x, y in part:
