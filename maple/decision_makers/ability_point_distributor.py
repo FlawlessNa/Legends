@@ -4,9 +4,9 @@ import multiprocessing.managers
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, ActionWithValidation, BotData, DecisionMaker
-from botting.screen import Status
-from botting.utilities import CLIENT_HORIZONTAL_MARGIN_PX, CLIENT_VERTICAL_MARGIN_PX
+from botting.screen import Status, frame_source
 from maple.actions import ensure_ability_menu_displayed, priorities
+from maple.screen.stat_window import STAT_WINDOW
 from maple.screen.status_bar import STATUS_BAR
 
 from .mixins import (
@@ -19,7 +19,7 @@ logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
     CONFIG_KEY = "Ability Menu"
-    screen_readers = (STATUS_BAR,)
+    screen_readers = (STATUS_BAR, STAT_WINDOW)
     _throttle = 30.0
 
     def __init__(
@@ -51,26 +51,40 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
             ensure_ability_menu_displayed(
                 **self._display_kwargs("Ability Menu Trigger", 2.0, self.condition)
             )
-            self.data.update_attribute("available_ap")
+            self.data.update_attributes("current_frame", "stat_window")
+            reading = self.data.stat_window
 
-            if self.data.available_ap > 0:
+            # AP is spent only on a `READ`: a covered or unsure window is never
+            # taken for an AP, nor for none.
+            if reading.status is Status.READ and reading.value.available_ap > 0:
                 logger.info("%s now distributing AP.", self)
                 self._disable_decision_makers("Rotation")
-                self._distribute_ap(self.data.available_ap)
-                ensure_ability_menu_displayed(
-                    **self._display_kwargs("Ability Menu Trigger", 2.0, self.condition),
-                    ensure_displayed=False,
+                self._distribute_ap(
+                    reading.value.available_ap,
+                    reading.value.up_buttons[self.data.character.main_stat],
                 )
+                self._close_menu()
                 self._enable_decision_makers("Rotation")
             else:
-                logger.warning("Uh-oh. %s has no AP to distribute.", self)
-                ensure_ability_menu_displayed(
-                    **self._display_kwargs("Ability Menu Trigger", 2.0, self.condition),
-                    ensure_displayed=False,
-                )
+                if reading.status is Status.READ:
+                    logger.warning("Uh-oh. %s has no AP to distribute.", self)
+                else:
+                    logger.warning(
+                        "%s can't read the AP (%s: %s); none distributed.",
+                        self,
+                        reading.status.name,
+                        reading.detail,
+                    )
+                self._close_menu()
 
         if level is not None:
             self._prev_level = level
+
+    def _close_menu(self) -> None:
+        ensure_ability_menu_displayed(
+            **self._display_kwargs("Ability Menu Trigger", 2.0, self.condition),
+            ensure_displayed=False,
+        )
 
     def _level(self) -> int | None:
         """The level on the status bar now, or `None` when it can't be read."""
@@ -85,33 +99,32 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
         self._unreadable = None
         return reading.value.level
 
-    def _distribute_ap(self, num_points: int) -> None:
-        target = self.data.ability_menu.stat_mapper[self.data.character.main_stat]
-        target = self.data.ability_menu.get_abs_box(self.data.handle, target)
-        # The old readers' boxes carry the margins `find_image` adds; the mouse
-        # takes client-area points. Both go with the old readers in #316.
-        x, y = target.center
-        point = (x - CLIENT_HORIZONTAL_MARGIN_PX, y - CLIENT_VERTICAL_MARGIN_PX)
-
+    def _distribute_ap(self, num_points: int, button: tuple[int, int]) -> None:
+        """
+        Click the main stat's +1 button, at `button` in client pixels, once per
+        point, until a fresh read of the window shows no AP left.
+        """
         request = ActionRequest(
             "Distributing AP",
             controller.mouse_move_and_click,
             self.data.ign,
             priorities.AP_DISTRIBUTION,
-            args=(self.data.handle, point),
+            args=(self.data.handle, button),
             block_lower_priority=True,
             kwargs={"nbr_times": num_points, "delay": 0.15},
         )
         validated_action = ActionWithValidation(
             self.pipe,
-            lambda: (
-                self.data.ability_menu.get_available_ap(
-                    self.data.handle, self.data.current_client_img
-                )
-                == 0
-            ),
+            self._no_ap_left,
             self.condition,
             60.0,
             correlation_id=self.correlation_id,
         )
         validated_action.execute_blocking(request)
+
+    def _no_ap_left(self) -> bool:
+        """Whether a fresh capture reads the window with an AP of 0."""
+        reading = self.data.stat_window_reader.read(
+            frame_source().grab(self.data.handle)
+        )
+        return reading.status is Status.READ and reading.value.available_ap == 0

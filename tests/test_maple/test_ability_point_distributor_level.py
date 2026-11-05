@@ -1,7 +1,8 @@
 """
 When `AbilityPointDistributor` opens the AP menu: on a level read higher or
 different from the last level read. An unreadable level is not a level-up and
-doesn't replace the last level read. Stubbed `status_bar` readings, no client.
+doesn't replace the last level read. It spends AP only on a `READ` stat window.
+Stubbed `status_bar` and `stat_window` readings, no client.
 """
 
 import asyncio
@@ -14,7 +15,14 @@ from pytest_mock import MockerFixture
 from botting.screen import Reading
 from maple.decision_makers import ability_point_distributor as module
 from maple.decision_makers.ability_point_distributor import AbilityPointDistributor
+from maple.screen.stat_window import StatWindow
 from maple.screen.status_bar import StatusBar
+
+BUTTONS = {"STR": (10, 20), "DEX": (10, 38), "INT": (10, 56), "LUK": (10, 74)}
+
+
+def window(ap: int) -> Reading[StatWindow]:
+    return Reading.read(StatWindow(ap, None, None, BUTTONS), 1.0)
 
 
 def read(level: int) -> Reading[StatusBar]:
@@ -32,7 +40,8 @@ class Harness:
         self.readings = iter(readings)
         self.data = mocker.Mock()
         self.data.update_attributes.side_effect = self._advance
-        self.data.available_ap = 5
+        self.data.stat_window = window(5)
+        self.data.character.main_stat = "DEX"
         self.menu_opened = mocker.patch.object(module, "ensure_ability_menu_displayed")
         distributor = object.__new__(AbilityPointDistributor)
         distributor.data = self.data
@@ -45,8 +54,9 @@ class Harness:
         self.distributor = distributor
         self.distributor._prev_level = distributor._level()  # pyright: ignore[reportPrivateUsage]
 
-    def _advance(self, *_: str) -> None:
-        self.data.status_bar = next(self.readings)
+    def _advance(self, *names: str) -> None:
+        if "status_bar" in names:
+            self.data.status_bar = next(self.readings)
 
     def decide(self) -> None:
         asyncio.run(self.distributor._decide())  # pyright: ignore[reportPrivateUsage]
@@ -108,3 +118,49 @@ def test_an_unreadable_level_is_logged_once_per_change(
         for _ in range(4):
             h.decide()
     assert len(caplog.records) == 2
+
+
+def test_the_ap_read_is_spent_on_the_main_stat(harness) -> None:  # noqa: ANN001
+    h = harness([read(10), read(11)])
+    h.decide()
+    h.distributor._distribute_ap.assert_called_once_with(5, BUTTONS["DEX"])  # pyright: ignore[reportPrivateUsage]
+
+
+@pytest.mark.parametrize(
+    "reading",
+    [
+        window(0),
+        Reading.covered(1.0, "not where expected: labels"),
+        Reading.unsure(1.0, "AP: '1?'"),
+        Reading.absent(1.0, "not found"),
+    ],
+)
+def test_ap_is_spent_only_on_a_read_above_zero(
+    harness,  # noqa: ANN001
+    reading: Reading[StatWindow],
+) -> None:
+    h = harness([read(10), read(11)])
+    h.data.stat_window = reading
+    h.decide()
+    h.distributor._distribute_ap.assert_not_called()  # pyright: ignore[reportPrivateUsage]
+    assert h.opened == 2  # opened, then closed again
+
+
+@pytest.mark.parametrize(
+    ("reading", "expected"),
+    [
+        (window(0), True),
+        (window(2), False),
+        (Reading.unsure(1.0, "AP: 0, but a +1 button is drawn enabled"), False),
+        (Reading.covered(1.0, "AP: 3 pixel(s) over it"), False),
+    ],
+)
+def test_the_points_are_spent_once_a_fresh_read_shows_none_left(
+    mocker: MockerFixture, reading: Reading[StatWindow], expected: bool
+) -> None:
+    mocker.patch.object(module, "frame_source")
+    distributor = object.__new__(AbilityPointDistributor)
+    distributor.data = mocker.Mock()
+    distributor.data.stat_window_reader.read.return_value = reading
+
+    assert distributor._no_ap_left() is expected  # pyright: ignore[reportPrivateUsage]

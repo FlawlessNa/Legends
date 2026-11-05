@@ -1,11 +1,15 @@
+import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import threading
 
+from botting import PARENT_LOG
 from botting.core import BotData, ProxyFactory
-from botting.screen import Reading
+from botting.screen import Reading, Status
 from maple.actions import ensure_ability_menu_displayed
-from maple.model.interface import AbilityMenu, InventoryMenu
+from maple.model.interface import InventoryMenu
+
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
 class MenusMixin:
@@ -17,35 +21,53 @@ class MenusMixin:
     def _create_ap_menu_attributes(
         self, condition: threading.Condition | None = None
     ) -> None:
-        menu = AbilityMenu()
+        """
+        `stat_window`, a `Reading[StatWindow]` from the bot's one
+        `stat_window_reader` and its `current_frame`; consumers update
+        `current_frame`, then `stat_window`, and read its `.status` before its
+        `.value`.
+
+        Opens the stat window once, reads speed and jump from its Detail panel
+        into `speed_multiplier` and `jump_multiplier`, and closes it. When they
+        can't be read (Detail not open, or the reading not `READ`), they keep
+        the profile's values, and that is logged.
+
+        The DecisionMaker must name `STAT_WINDOW` in its `screen_readers`, so
+        the reader exists when the bot starts.
+        """
+        reader = self.data.stat_window_reader
         if condition is None:
             condition = self._proxies.instance(
                 f"{self} - Ability Menu Setup", "Condition"
             )
 
-        self.data.set_static("ability_menu", menu)
         self.data.create_or_reconfigure_attribute(
-            "ability_menu_displayed",
-            lambda: menu.is_displayed(self.data.handle, self.data.current_client_img),
-            initial_value=False,
+            "stat_window",
+            lambda: reader.read(self.data.current_frame),
+            initial_value=Reading.absent(0.0, "not read yet"),
         )
         ensure_ability_menu_displayed(
             **self._display_kwargs(f"{self} - Ability Menu Setup", 2.0, condition)
         )
-        self.data.create_or_reconfigure_attribute(
-            "available_ap",
-            lambda: menu.get_available_ap(
-                self.data.handle, self.data.current_client_img
-            ),
-        )
-        self.data.create_or_reconfigure_attribute(
-            "speed_multiplier",
-            lambda: menu.get_speed(self.data.handle, self.data.current_client_img),
-        )
-        self.data.create_or_reconfigure_attribute(
-            "jump_multiplier",
-            lambda: menu.get_jump(self.data.handle, self.data.current_client_img),
-        )
+        self.data.update_attributes("current_frame", "stat_window")
+        reading = self.data.stat_window
+        if (
+            reading.status is Status.READ
+            and reading.value.speed is not None
+            and reading.value.jump is not None
+        ):
+            self.data.set_static("speed_multiplier", reading.value.speed / 100)
+            self.data.set_static("jump_multiplier", reading.value.jump / 100)
+        else:
+            logger.warning(
+                "%s can't read speed and jump from the stat window (%s: %s); "
+                "keeping %.2f and %.2f.",
+                self,
+                reading.status.name,
+                reading.detail or "Detail not open",
+                self.data.speed_multiplier,
+                self.data.jump_multiplier,
+            )
         # Refresh minimap grid with new speed and jump multipliers
         if self.data.has_minimap_attributes:
             self.data.current_minimap.generate_grid_template(
@@ -117,7 +139,7 @@ class MenusMixin:
             "handle": self.data.handle,
             "ign": self.data.ign,
             "pipe": self.pipe,
-            "menu": self.data.ability_menu,
+            "reader": self.data.stat_window_reader,
             "condition": condition,
             "timeout": timeout,
         }

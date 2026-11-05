@@ -114,8 +114,17 @@ class Locator:
         self._point: tuple[int, int] | None = None
         self._client_size: tuple[int, int] | None = None
 
-    def locate(self, frame: Frame) -> Located | None:
-        """The element in `frame`, or `None` when nothing of it is found."""
+    def locate(
+        self, frame: Frame, region: tuple[int, int, int, int] | None = None
+    ) -> Located | None:
+        """
+        The element in `frame`, or `None` when nothing of it is found.
+
+        :param region: Where to search, `(x, y, width, height)` in client
+            pixels, when the element can only be there (one drawn beside
+            another); the whole frame when `None`. The remembered position is
+            re-checked wherever it is.
+        """
         pixels = frame.pixels
         if frame.client_size != self._client_size:
             self._client_size = frame.client_size
@@ -125,12 +134,14 @@ class Locator:
 
         self.searches += 1
         self._point = None
-        hit = match_best(pixels, self.anchor.sprite.rgba, tolerance=self.tolerance)
+        hit = match_best(
+            pixels, self.anchor.sprite.rgba, region, tolerance=self.tolerance
+        )
         if hit is not None:
             self._point = _point_of(self.anchor, hit.x, hit.y)
             return self._located(pixels, self._point)
         for part in self.parts:
-            hit = match_best(pixels, part.sprite.rgba, tolerance=self.tolerance)
+            hit = match_best(pixels, part.sprite.rgba, region, tolerance=self.tolerance)
             if hit is not None:
                 return self._located(pixels, _point_of(part, hit.x, hit.y))
         return None

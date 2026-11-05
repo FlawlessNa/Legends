@@ -6,8 +6,8 @@ from typing import Any, Literal
 from botting import controller
 from botting.core import ActionRequest, ActionWithValidation
 from botting.screen import Status, frame_source
-from maple.model.interface import AbilityMenu
 from maple.screen.minimap import MinimapReader, MinimapState
+from maple.screen.stat_window import StatWindowReader
 
 from .priorities import ERROR_HANDLING
 
@@ -113,13 +113,18 @@ def ensure_ability_menu_displayed(
     handle: int,
     ign: str,
     pipe: multiprocessing.connection.Connection,
-    menu: AbilityMenu,
+    reader: StatWindowReader,
     condition: threading.Condition,
     timeout: float,
     ensure_displayed: bool = True,
     mode: Literal["Blocking", "Async"] = "Blocking",
     priority: int = ERROR_HANDLING,
 ) -> None:
+    """
+    Press the stat window's key until the window is shown (or hidden), judged
+    on a fresh capture by `StatWindowReader.shown`: found whole or covered is
+    shown; a frame that can't be read is neither, and is checked again.
+    """
     request = ActionRequest(
         identifier,
         toggle_ability_menu,
@@ -130,7 +135,10 @@ def ensure_ability_menu_displayed(
     )
 
     validated_action = ActionWithValidation(
-        pipe, lambda: menu.is_displayed(handle) == ensure_displayed, condition, timeout
+        pipe,
+        lambda: reader.shown(frame_source().grab(handle)) is ensure_displayed,
+        condition,
+        timeout,
     )
 
     if mode == "Blocking":
