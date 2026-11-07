@@ -28,8 +28,7 @@ python toolkit/poc_tracking/minimap_tracker.py --map auto
 - `--log FILE`: a CSV of time, frame, status, canvas x/y, world x/y,
   confidence and map ID, one row per frame.
 - `--store PATH`: the game data store. By default `data/game_data` in this
-  checkout, else the main checkout's, else the one in the
-  `t311-minimap-frames` worktree.
+  checkout; pass `--store` while that is empty.
 - `--fps N`: cap the capture rate.
 
 Keys: `q` or Esc quits, `c` clears the trail, `r` identifies the map again

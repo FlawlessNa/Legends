@@ -83,19 +83,8 @@ def canvas_path(map_id: int) -> str:
 
 
 def default_store() -> Path:
-    """The repo's `data/game_data`, else the main checkout's, else #365's."""
-    candidates = [
-        REPO / "data" / "game_data",
-        Path(r"C:\Users\nassi\Games\Botting\Legends\data\game_data"),
-        Path(
-            r"C:\Users\nassi\Games\Botting\Legends-worktrees"
-            r"\t311-minimap-frames\data\game_data"
-        ),
-    ]
-    for path in candidates:
-        if (path / "extractions").is_dir() and any((path / "extractions").iterdir()):
-            return path
-    return candidates[0]
+    """The repo's `data/game_data`; pass --store for another store."""
+    return REPO / "data" / "game_data"
 
 
 # ── The map, from game_data ─────────────────────────────────────────────────
