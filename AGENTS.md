@@ -11,6 +11,12 @@ and there are no `CLAUDE.md` files (see `docs/SETUP.md`).
   bot works. If your change could alter which keys reach the game, or when, say
   so.
 
+When you open a Lavish page, paste its full session URL
+(`http://127.0.0.1:4387/session/<id>`) in your reply. The maintainer may be
+on another machine, reaching this one through an SSH tunnel
+(`docs/REMOTE_ACCESS.md`), and needs the exact URL. Do not change
+`LAVISH_AXI_PORT`.
+
 ## What are you doing?
 
 | You are…                                  | Read                                                   |
