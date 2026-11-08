@@ -4,7 +4,9 @@
 
 The glyphs are client pixels: they go to the gitignored `data/glyphs/`, which
 `maple/screen/font.py` loads, and never into git. What to cut, and where, is in
-`toolkit/glyph_sources/<tag>.json`, which holds no pixels:
+`toolkit/glyph_sources/<tag>.json`, one file per frame set, which holds no
+pixels. Without `--tag`, every tag with a sources file is harvested, so its
+frames must all be fetched (`python scripts/fetch_frames.py <tag>`).
 
 - `chat-general`: general chat lines, each `[x, top of its 16-row band, width]`.
   They are **labelled by a render of Arial** at 14 px, unantialiased, which
@@ -12,14 +14,15 @@ The glyphs are client pixels: they go to the gitignored `data/glyphs/`, which
   frame's own pixels, and nothing reads Arial afterwards. A line the render
   doesn't explain to the last pixel is refused. Arial draws `I` and `l` alike,
   so they are kept as one glyph, `I`, and the manifest says so.
-- `countdown`: a buff slot's countdown rows, `[x, y, width, height]`, with the
-  digits a person read there. Each digit is one blob of yellow ink; a box whose
-  blobs don't number its digits is refused.
+- `countdown` and `stat-window`: boxes `[x, y, width, height]` with the
+  characters a person read there: a buff slot's countdown rows (#313), and the
+  stat window's numbers (#314). Each character is one blob of ink; a box whose
+  blobs don't number its characters is refused.
 
 Every source is read back with the harvested set; any misread fails the run, and
-nothing is written. The tool prints each source's labels for a person to check.
-Needs the frames on disk (`python scripts/fetch_frames.py`); sends nothing to
-the game.
+nothing is written. A set with no source in the tags harvested is left as it
+is on disk. The tool prints each source's labels for a person to check. Sends
+nothing to the game.
 """
 
 import argparse
@@ -28,6 +31,7 @@ import sys
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -38,6 +42,7 @@ from maple.screen.font import (
     CHAT_GENERAL,
     COUNTDOWN,
     GLYPHS,
+    STAT_WINDOW_GLYPHS,
     GlyphSet,
     GlyphSetSpec,
     save_glyph_set,
@@ -46,7 +51,6 @@ from maple.screen.font import (
 REPO = Path(__file__).resolve().parents[1]
 FRAMES_ROOT = REPO / "data" / "frames"
 SOURCES = REPO / "toolkit" / "glyph_sources"
-CURRENT = REPO / "tests" / "frames" / "CURRENT"
 ARIAL = Path("C:/Windows/Fonts/arial.ttf")
 LABELLER_SIZE = 14
 CELL_OFFSET = 3
@@ -54,6 +58,8 @@ CELL_OFFSET = 3
 (`font.CHAT_GENERAL`)."""
 MIN_BLOB = 3
 """Ink blobs smaller than this, in pixels, are specks, not digits."""
+BOXED_SETS = (COUNTDOWN, STAT_WINDOW_GLYPHS)
+"""The glyph sets cut from boxes a person labelled (`harvest_digits`)."""
 
 type Mask = NDArray[np.bool_]
 
@@ -153,7 +159,7 @@ def harvest_lines(
     return harvest
 
 
-# Countdown: labelled by a person.
+# Countdown and stat window: labelled by a person.
 
 
 def blobs(ink: Mask) -> list[Mask]:
@@ -213,7 +219,8 @@ def _load(directory: Path, frame: str) -> NDArray[np.uint8]:
     pixels = cv2.imread(str(directory / frame), cv2.IMREAD_COLOR)
     if pixels is None:
         sys.exit(
-            f"{directory / frame} can't be read: run `python scripts/fetch_frames.py`"
+            f"{directory / frame} can't be read: run "
+            f"`python scripts/fetch_frames.py {directory.name}`"
         )
     return pixels.astype(np.uint8, copy=False)
 
@@ -221,73 +228,90 @@ def _load(directory: Path, frame: str) -> NDArray[np.uint8]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument(
-        "--tag", default=None, help="frame set tag (tests/frames/CURRENT)"
+        "--tag",
+        default=None,
+        help="one frame set's sources (default: every tag with a sources file)",
     )
     parser.add_argument("--frames-root", type=Path, default=FRAMES_ROOT)
     parser.add_argument("--sources", type=Path, default=SOURCES)
     parser.add_argument("--out", type=Path, default=GLYPHS)
     parser.add_argument("--labeller-font", type=Path, default=ARIAL)
     args = parser.parse_args(argv)
-    tag = args.tag or CURRENT.read_text(encoding="utf-8").strip()
-    directory = args.frames_root / tag
-    sources = json.loads((args.sources / f"{tag}.json").read_text(encoding="utf-8"))
-    if not args.labeller_font.is_file():
-        sys.exit(
-            f"the labelling font {args.labeller_font} isn't there: pass --labeller-font"
-        )
+    tags = (
+        [args.tag] if args.tag else sorted(p.stem for p in args.sources.glob("*.json"))
+    )
+    if not tags:
+        sys.exit(f"no glyph sources in {args.sources}")
+    every = {tag: _sources(args.sources, tag) for tag in tags}
 
     lines: list[tuple[str, Mask]] = []
     line_strips: list[tuple[str, NDArray[np.uint8]]] = []
     rows = CHAT_GENERAL.rows or 0
-    for source in sources.get(CHAT_GENERAL.name, []):
-        x, top, width = source["line"]
-        where = f"{source['frame']} line {top}"
-        strip = _load(directory, source["frame"])[
-            top + CELL_OFFSET : top + CELL_OFFSET + rows, x : x + width
-        ]
-        lines.append((where, CHAT_GENERAL.ink(strip)))
-        line_strips.append((where, strip))
-    labeller = font_labeller(args.labeller_font)
-    chat = harvest_lines(lines, labeller)
-    labelled = dict(chat.labels)
-    chat.problems += misreads(
-        CHAT_GENERAL,
-        chat,
-        [(w, s, labelled[w]) for w, s in line_strips if w in labelled],
-    )
+    for tag, sources in every.items():
+        for source in sources.get(CHAT_GENERAL.name, []):
+            x, top, width = source["line"]
+            where = f"{tag}/{source['frame']} line {top}"
+            strip = _load(args.frames_root / tag, source["frame"])[
+                top + CELL_OFFSET : top + CELL_OFFSET + rows, x : x + width
+            ]
+            lines.append((where, CHAT_GENERAL.ink(strip)))
+            line_strips.append((where, strip))
+    harvests: list[tuple[GlyphSetSpec, Harvest, dict[str, str]]] = []
+    if lines:
+        if not args.labeller_font.is_file():
+            sys.exit(
+                f"the labelling font {args.labeller_font} isn't there: "
+                "pass --labeller-font"
+            )
+        labeller = font_labeller(args.labeller_font)
+        chat = harvest_lines(lines, labeller)
+        labelled = dict(chat.labels)
+        chat.problems += misreads(
+            CHAT_GENERAL,
+            chat,
+            [(w, s, labelled[w]) for w, s in line_strips if w in labelled],
+        )
+        same = {k: v for k, v in alike(labeller).items() if k in chat.glyphs}
+        harvests.append((CHAT_GENERAL, chat, same))
 
-    boxes: list[tuple[str, Mask, str]] = []
-    digit_strips: list[tuple[str, NDArray[np.uint8], str]] = []
-    for source in sources.get(COUNTDOWN.name, []):
-        x, y, w, h = source["box"]
-        where = f"{source['frame']} box {x},{y}"
-        strip = _load(directory, source["frame"])[y : y + h, x : x + w]
-        boxes.append((where, COUNTDOWN.ink(strip), source["text"]))
-        digit_strips.append((where, strip, source["text"]))
-    digits = harvest_digits(boxes)
-    digits.problems += misreads(COUNTDOWN, digits, digit_strips)
+    for spec in BOXED_SETS:
+        boxes: list[tuple[str, Mask, str]] = []
+        strips: list[tuple[str, NDArray[np.uint8], str]] = []
+        for tag, sources in every.items():
+            for source in sources.get(spec.name, []):
+                x, y, w, h = source["box"]
+                where = f"{tag}/{source['frame']} box {x},{y}"
+                strip = _load(args.frames_root / tag, source["frame"])[
+                    y : y + h, x : x + w
+                ]
+                boxes.append((where, spec.ink(strip), source["text"]))
+                strips.append((where, strip, source["text"]))
+        if boxes:
+            harvest = harvest_digits(boxes)
+            harvest.problems += misreads(spec, harvest, strips)
+            harvests.append((spec, harvest, {}))
 
-    for spec, harvest in ((CHAT_GENERAL, chat), (COUNTDOWN, digits)):
+    for spec, harvest, _ in harvests:
         print(
             f"{spec.name}: {len(harvest.glyphs)} glyph(s): {''.join(sorted(harvest.glyphs))}"
         )
         for where, text in harvest.labels:
             print(f"  {where}: {text}")
-    problems = chat.problems + digits.problems
+    problems = [p for _, harvest, _ in harvests for p in harvest.problems]
     if problems:
         print("\nNothing written:", *problems, sep="\n  ", file=sys.stderr)
         return 1
-    for spec, harvest, same in (
-        (
-            CHAT_GENERAL,
-            chat,
-            {k: v for k, v in alike(labeller).items() if k in chat.glyphs},
-        ),
-        (COUNTDOWN, digits, {}),
-    ):
+    for spec, harvest, same in harvests:
         folder = save_glyph_set(spec, harvest.glyphs, harvest.sources, same, args.out)
         print(f"wrote {folder}")
     return 0
+
+
+def _sources(directory: Path, tag: str) -> dict[str, list[dict[str, Any]]]:
+    path = directory / f"{tag}.json"
+    if not path.is_file():
+        sys.exit(f"no glyph sources for frame set {tag!r}: {path} is missing")
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

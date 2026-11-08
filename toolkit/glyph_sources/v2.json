@@ -1,0 +1,23 @@
+{
+ "_about": "Where toolkit/harvest_glyphs.py cuts glyphs from frame set v2. No pixels: frame names, boxes [x, y, width, height] in client pixels, and the characters a person read in each. The stat window's boxes hold one number each, cut short of any '/', '(' or '-' beside it (#314).",
+ "stat-window": [
+  {"frame": "m_ability_open_1920x1080.png", "box": [232, 258, 29, 15], "text": "0"},
+  {"frame": "m_ability_main_only_1920x1080.png", "box": [232, 258, 29, 15], "text": "0"},
+  {"frame": "m_ability_open_1920x1080.png", "box": [204, 81, 14, 11], "text": "25"},
+  {"frame": "m_ability_open_1920x1080.png", "box": [204, 99, 27, 11], "text": "1060"},
+  {"frame": "m_ability_open_1920x1080.png", "box": [204, 117, 21, 11], "text": "443"},
+  {"frame": "m_ability_open_1920x1080.png", "box": [204, 135, 35, 11], "text": "18427"},
+  {"frame": "m_ability_open_1920x1080.png", "box": [204, 177, 21, 11], "text": "114"},
+  {"frame": "m_ability_open_1920x1080.png", "box": [403, 70, 14, 11], "text": "49"},
+  {"frame": "m_ability_open_1920x1080.png", "box": [427, 70, 21, 11], "text": "164"},
+  {"frame": "m_ability_open_1920x1080.png", "box": [403, 88, 14, 11], "text": "90"},
+  {"frame": "m_ability_open_1920x1080.png", "box": [403, 106, 7, 11], "text": "2"},
+  {"frame": "m_ability_open_1920x1080.png", "box": [403, 124, 14, 11], "text": "23"},
+  {"frame": "m_ability_open_1920x1080.png", "box": [403, 142, 14, 11], "text": "63"},
+  {"frame": "m_ability_open_1920x1080.png", "box": [403, 160, 14, 11], "text": "10"},
+  {"frame": "m_ability_open_1920x1080.png", "box": [403, 178, 25, 11], "text": "10%"},
+  {"frame": "m_ability_open_1920x1080.png", "box": [403, 196, 32, 11], "text": "122%"},
+  {"frame": "m_ability_open_1920x1080.png", "box": [403, 214, 32, 11], "text": "100%"},
+  {"frame": "m_ability_open_1920x1080.png", "box": [403, 232, 32, 11], "text": "100%"}
+ ]
+}

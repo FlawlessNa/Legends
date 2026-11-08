@@ -112,6 +112,9 @@ those fields. In `v1`:
   drawn over the icon.
 - `chat`: the kind of each visible row of the log, top to bottom. A message
   wrapped over two rows gives two entries.
+- `stat_window` (`v2`): `{available_ap, speed, jump}`, speed and jump in percent
+  as drawn, `null` while the Detail panel is closed. Every frame showing the
+  window has one; a frame without it is checked to read as no window.
 
 `v2` is `v1`'s frames unchanged plus 41 more: every client size (800x600,
 1024x768, 1280x720, 1366x768, 1920x1080) with the quick slots unshaded or with
@@ -122,11 +125,13 @@ tell apart.
 A frame has no entry for a reader whose answer depends on a choice its ticket
 hasn't made yet: `notes` says why.
 
-Readers of font-drawn text (the buff countdown, chat) read with glyphs harvested
-from the frames into the gitignored `data/glyphs/`: run `python -m
-toolkit.harvest_glyphs` after fetching the frames, before `pytest -m frames`.
-What it cuts, and where, is `toolkit/glyph_sources/<tag>.json`: frame names,
-boxes and digits, never pixels or chat text.
+Readers of font-drawn text (the buff countdown, chat, the stat window) read with
+glyphs harvested from the frames into the gitignored `data/glyphs/`: run
+`python -m toolkit.harvest_glyphs` after fetching the frames, before
+`pytest -m frames`. It harvests every tag `toolkit/glyph_sources/` has a file
+for (`v1` and `v2`), so fetch both. What it cuts, and where, is
+`toolkit/glyph_sources/<tag>.json`: frame names, boxes and the characters read
+there, never pixels or chat text.
 
 Modules that touch the Held-Keys Ledger directly reset it through an `autouse`
 fixture of their own — see `tests/test_botting/test_held_keys_ledger.py`.

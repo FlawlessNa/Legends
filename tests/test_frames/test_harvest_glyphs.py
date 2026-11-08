@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from maple.screen.font import CHAT_GENERAL, COUNTDOWN
+from maple.screen.font import CHAT_GENERAL, COUNTDOWN, GLYPH_SETS
 from toolkit import harvest_glyphs as tool
 
 
@@ -104,13 +104,16 @@ def test_a_harvest_that_misreads_its_own_source_is_reported() -> None:
 
 
 def test_the_committed_sources_hold_no_pixels() -> None:
-    """Frame names, boxes and digits only: chat text is never committed, since
-    it carries other players' names."""
+    """Frame names, boxes, digits and percent signs only: chat text is never
+    committed, since it carries other players' names."""
     for path in tool.SOURCES.glob("*.json"):
         sources = json.loads(path.read_text(encoding="utf-8"))
-        for entry in sources[CHAT_GENERAL.name]:
+        assert set(sources) <= {"_about", *GLYPH_SETS}
+        for entry in sources.get(CHAT_GENERAL.name, []):
             assert set(entry) == {"frame", "line"}
-        for entry in sources[COUNTDOWN.name]:
-            assert set(entry) == {"frame", "box", "text"}
-            assert entry["text"].isdigit()
+        for spec in tool.BOXED_SETS:
+            for entry in sources.get(spec.name, []):
+                assert set(entry) == {"frame", "box", "text"}
+                assert entry["text"].replace("%", "").isdigit()
     assert Path(tool.SOURCES / "v1.json").is_file()
+    assert Path(tool.SOURCES / "v2.json").is_file()
