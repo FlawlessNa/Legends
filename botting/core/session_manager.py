@@ -10,7 +10,15 @@ from typing import TYPE_CHECKING, Any, Self
 from botting.controller import HeldKeysLedger, release_all
 from botting.logging_config import PARENT_LOG, full_config, new_session_dir
 from botting.screen import MultipleWindows, WindowNotFound
-from botting.telemetry import TELEMETRY_FILENAME, TelemetryHandler
+from botting.telemetry import TELEMETRY_FILENAME, TelemetryHandler, emit_event
+from botting.telemetry_events import (
+    SESSION_ENDED,
+    SESSION_STARTED,
+    SessionBotPayload,
+    SessionEndCause,
+    SessionEndedPayload,
+    SessionStartedPayload,
+)
 from botting.utilities import install_loop_diagnostics
 
 from .async_task_manager import AsyncTaskManager
@@ -20,11 +28,87 @@ from .peripherals_process import PeripheralsProcess
 
 if TYPE_CHECKING:
     import threading
+    from collections.abc import Iterable
     from types import TracebackType
 
     from botting.communications import BaseParser
 
 logger = logging.getLogger(__name__)
+
+
+def _session_started_payload(
+    bots: Iterable[Bot], *, debug: bool
+) -> SessionStartedPayload:
+    """
+    What ``session.started`` says about the Bots a Session runs.
+
+    The DecisionMaker names come from the class list ``_decision_makers()``, never
+    from ``decision_makers``: that is a ``cached_property`` that builds the
+    DecisionMakers, and only an Engine can.
+    :param bots: Every Bot of the Session, in launch order.
+    :param debug: Whether the Session runs in debug mode.
+    """
+    entries: list[SessionBotPayload] = [
+        {
+            "ign": str(bot.ign),
+            "bot_class": type(bot).__name__,
+            "decision_makers": [
+                class_.__name__
+                for class_ in bot._decision_makers()  # pyright: ignore[reportPrivateUsage]
+            ],
+        }
+        for bot in bots
+    ]
+    return {"bots": entries, "debug": debug}
+
+
+def _ended_cause(
+    stop_reason: str | None,
+    failure: BaseException | None,
+    exc: BaseException | None,
+) -> SessionEndCause:
+    """
+    Why a Session ended, by precedence: a stop request, then a task that raised,
+    then an interrupt, then any other exception.
+
+    A stop request wins because it is what the requester asked for, whatever
+    tearing down raised after it. A failing task comes before ``exc`` because the
+    Task Manager turns it into a normal return: ``exc`` is then ``None``.
+    :param stop_reason: The reason a stop was requested, or ``None``.
+    :param failure: The first exception a scheduled task raised, or ``None``.
+    :param exc: The exception leaving the Session's context, or ``None``.
+    """
+    if stop_reason is not None:
+        return "stop_file"
+    if failure is not None:
+        return "error"
+    if isinstance(exc, (KeyboardInterrupt, asyncio.CancelledError)):
+        return "interrupted"
+    if exc is not None:
+        return "error"
+    return "completed"
+
+
+def _session_ended_payload(
+    stop_reason: str | None,
+    failure: BaseException | None,
+    exc: BaseException | None,
+) -> SessionEndedPayload:
+    """
+    What ``session.ended`` says. ``error`` names the exception only when the
+    cause is ``error``; a task's failure is named before the one leaving the
+    context, which it usually caused.
+    :param stop_reason: As for ``_ended_cause``.
+    :param failure: As for ``_ended_cause``.
+    :param exc: As for ``_ended_cause``.
+    """
+    cause = _ended_cause(stop_reason, failure, exc)
+    error: str | None = None
+    if cause == "error":
+        culprit = failure if failure is not None else exc
+        assert culprit is not None, "an error cause has an exception"
+        error = f"{type(culprit).__name__}: {culprit}"
+    return {"cause": cause, "error": error}
 
 
 class SessionManager:
@@ -114,6 +198,9 @@ class SessionManager:
         self.management_task: asyncio.Task | None = None
         self.main_bot = None
         self.bots = []
+        #: Why a stop was requested from outside the bot, or ``None``. Set by the
+        #: stop-file task; read by ``__exit__`` for ``session.ended``.
+        self.stop_reason: str | None = None
         self.barrier = None  # Used to start all tasks simultaneously.
 
     def __enter__(self) -> Self:
@@ -166,6 +253,10 @@ class SessionManager:
         logger.info("SessionManager exited.")
         self.log_receiver.stop()
 
+        # After stop(), so the child processes' records are all in, and this is
+        # the last one; before the sink closes, so it is written at all.
+        self._emit_session_ended(exc_val)
+
         # After stop(), so records still in flight from a child process land in
         # the JSONL file rather than on a closed stream.
         logging.getLogger(PARENT_LOG).removeHandler(self.telemetry_handler)
@@ -193,6 +284,32 @@ class SessionManager:
             # However, Listeners may not be able to handle their own clean-up??
             raise exc_val
 
+    def _emit_session_ended(self, exc: BaseException | None) -> None:
+        """
+        Emit ``session.ended``. Never raises: it runs in ``__exit__``, where a raise
+        would hide whatever ended the Session and skip the clean-up after it.
+        :param exc: The exception leaving the Session's context, or ``None``.
+        """
+        try:
+            payload = _session_ended_payload(
+                self.stop_reason, self.task_manager.failure, exc
+            )
+            emit_event(None, SESSION_ENDED, payload, logger_name=logger.name)
+        except Exception:
+            logger.exception("Could not record how the Session ended.")
+
+    def _emit_session_started(self, bots: Iterable[Bot]) -> None:
+        """
+        Emit ``session.started``. Never raises: a Bot's ``_decision_makers()`` is
+        game code, and a Session must not die of being observed.
+        :param bots: Every Bot of the Session, in launch order.
+        """
+        try:
+            payload = _session_started_payload(bots, debug=self._debug)
+            emit_event(None, SESSION_STARTED, payload, logger_name=logger.name)
+        except Exception:
+            logger.exception("Could not record how the Session started.")
+
     async def launch(self, *grouped_bots: list[Bot]) -> None:
         """
         Launch all bots. The "Main" bot is ALWAYS set to the first bot within first group
@@ -200,6 +317,8 @@ class SessionManager:
         :return:
         """
         self.main_bot = grouped_bots[0][0]
+        # Before any Engine starts, so no Engine's record precedes it.
+        self._emit_session_started(bot for group in grouped_bots for bot in group)
         # BaseParser declares `main_ign` as None only; the fix belongs there.
         self.peripherals.discord_parser.main_ign = self.main_bot.ign  # pyright: ignore[reportAttributeAccessIssue]
         self.barrier = self.process_manager.Barrier(
