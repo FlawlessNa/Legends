@@ -179,7 +179,7 @@ def load_session(path: Path) -> Session:
         for number, line in enumerate(handle, start=1):
             if not line.strip():
                 continue
-            record = _parse_line(number, line)
+            record = parse_line(number, line)
             if record is None:
                 malformed.append(number)
             else:
@@ -201,7 +201,7 @@ def load_session(path: Path) -> Session:
     return Session(path, records, origin, origin_from, tuple(malformed))
 
 
-def _parse_line(number: int, line: str) -> Record | None:
+def parse_line(number: int, line: str) -> Record | None:
     """One line as a Record, or ``None`` when it is not a whole envelope."""
     try:
         raw = json.loads(line)

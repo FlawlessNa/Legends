@@ -1,6 +1,6 @@
 """
-`python -m botting.session <command> [DIR]`: the command line, and the only
-module in the package that prints.
+`python -m botting.session <command> [DIR]`: the command line. It and `live`
+are the only modules in the package that print.
 
 - `summary`: duration, record count, the Bots and their DecisionMakers, a
   count per Event Type, `action.finished` outcomes per identifier, and how the
@@ -13,6 +13,8 @@ module in the package that prints.
 - `frame --at T [--box l,t,r,b] [--scale F]`: a PNG of the Session's video at T,
   written to `<DIR>/frames/`. `--box` is in screen pixels. Exits 1 when there is
   no recording to cut from.
+- `watch` and `stop`, for a Session still running: see `live`, which has
+  their exit codes.
 
 `DIR` is a Session directory, `logs/<YYYY-MM-DD_HH-MM-SS>/`. Without it, the
 newest one with a `telemetry.jsonl` is read, finished or still running. Times
@@ -34,6 +36,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
+from . import live
 from .frames import FrameError, cut_frame, parse_box
 from .reading import (
     Record,
@@ -56,6 +59,8 @@ DEFAULT_WINDOW = 5.0
 def main(argv: Sequence[str] | None = None) -> int:
     """Runs one command. Returns the exit code: 0, or 1 with no Session."""
     arguments = _parser().parse_args(argv)
+    if arguments.command in live.COMMANDS:
+        return live.run(arguments)
     try:
         session = load_session(telemetry_path(arguments.dir))
     except SessionError as e:
@@ -309,6 +314,7 @@ def _parser() -> argparse.ArgumentParser:
         metavar="F",
         help="resize the (cropped) frame by F (default: 1)",
     )
+    live.add_commands(commands, common)
     return parser
 
 

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Self
 from botting.controller import HeldKeysLedger, release_all
 from botting.logging_config import PARENT_LOG, full_config, new_session_dir
 from botting.screen import MultipleWindows, WindowNotFound
+from botting.stop_file import watch_stop_file
 from botting.telemetry import TELEMETRY_FILENAME, TelemetryHandler, emit_event
 from botting.telemetry_events import (
     SESSION_ENDED,
@@ -204,6 +205,7 @@ class SessionManager:
         self.discord_listener: asyncio.Task | None = None
         self.proxy_listener: asyncio.Task | None = None
         self.management_task: asyncio.Task | None = None
+        self.stop_file_task: asyncio.Task | None = None
         self.main_bot = None
         self.bots = []
         #: Why a stop was requested from outside the bot, or ``None``. Set by the
@@ -235,6 +237,12 @@ class SessionManager:
         self.management_task = asyncio.create_task(
             self.task_manager.start(), name="Task Manager"
         )
+        self.stop_file_task = asyncio.create_task(
+            watch_stop_file(
+                self.session_dir, self.task_manager.queue, self._record_stop_reason
+            ),
+            name="Stop File",
+        )
         return self
 
     def __exit__(
@@ -257,6 +265,10 @@ class SessionManager:
         self.peripherals.kill()
         assert self.discord_listener is not None, "__enter__ runs before __exit__"
         self.discord_listener.cancel("SessionManager exited.")
+        # Before session.ended: a stop request found after it would be recorded
+        # after the record that must be the last.
+        assert self.stop_file_task is not None, "__enter__ runs before __exit__"
+        self.stop_file_task.cancel("SessionManager exited.")
         logger.debug("Stopping Log listener.")
         logger.info("SessionManager exited.")
         self.log_receiver.stop()
@@ -276,21 +288,26 @@ class SessionManager:
                 engine.terminate()
             logger.info("Engine %s has been stopped.", engine.name)
 
-        if not self._debug:
-            for bot in self.bots:
-                try:
-                    handle = bot.find_handle()
-                except (WindowNotFound, MultipleWindows) as exc:
-                    # A window that closed has no keys left down to release, and
-                    # raising here would hide whatever ended the session.
-                    logger.warning("Keys not released for %s: %s", bot.ign, exc)
-                    continue
-                release_all(handle)
+        # In debug mode too: a stopped Session must leave no key held, whatever
+        # its mode (ADR 0002).
+        for bot in self.bots:
+            try:
+                handle = bot.find_handle()
+            except (WindowNotFound, MultipleWindows) as exc:
+                # A window that closed has no keys left down to release, and
+                # raising here would hide whatever ended the session.
+                logger.warning("Keys not released for %s: %s", bot.ign, exc)
+                continue
+            release_all(handle)
 
         if exc_val is not None:
             # Normally, each Engine should handle their own clean-up.
             # However, Listeners may not be able to handle their own clean-up??
             raise exc_val
+
+    def _record_stop_reason(self, reason: str) -> None:
+        """Keep a stop request's reason for ``session.ended``."""
+        self.stop_reason = reason
 
     def _emit_session_ended(self, exc: BaseException | None) -> None:
         """
@@ -349,12 +366,14 @@ class SessionManager:
         assert self.discord_listener is not None, "__enter__ runs before launch()"
         assert self.proxy_listener is not None, "__enter__ runs before launch()"
         assert self.management_task is not None, "__enter__ runs before launch()"
+        assert self.stop_file_task is not None, "__enter__ runs before launch()"
         t_done, t_pending = await asyncio.wait(
             [
                 *self.listeners,
                 self.discord_listener,
                 self.proxy_listener,
                 self.management_task,
+                self.stop_file_task,
             ],
             return_when=asyncio.FIRST_COMPLETED,
         )
