@@ -89,7 +89,13 @@ desktop's browser. Facts that make this simple:
 - Requests under any other hostname (the LAN IP) get `403 forbidden host`.
   Always browse `http://127.0.0.1:4387/...` on the laptop.
 
-To view a page: in a terminal on the laptop (not in Herdr), run
+Herdr does not open this tunnel for you (tried: `LocalForward` in the config
+plus the machine added in Herdr; pages did not load). Run it yourself in a
+terminal that runs **on the laptop**: a plain terminal, or a Herdr pane while
+Herdr's selected machine is Local (a pane on `desktop` would tunnel the desktop
+to itself).
+
+To view a page, in that terminal run
 
 ```
 ssh -N desktop
@@ -107,7 +113,5 @@ a tailnet you alone use.
 
 ## Not verified
 
-- Re-adding the machine as `hc machine add desktop` so Herdr opens the
-  `LocalForward` itself. Use `ssh -N desktop` meanwhile.
 - Anything off the home network (VPN, Nord "local network access", Tailscale).
 - Windows server support in Herdr is documented as rough in places.
