@@ -22,6 +22,10 @@ events inverts the dependency. Areas here:
   are the records that close the Correlation ID chain: the DecisionMaker end
   says what was decided, and these say what became of it.
 * ``decision`` - one ``DecisionMaker`` gating another.
+* ``recording`` - the screen recorder, in the Peripherals process: where the
+  video is, and a checkpoint about once a second that maps the telemetry clock
+  to a frame index (``botting.session`` cuts frames with them). Like
+  ``session.started``, ``recording.started`` can precede it.
 * ``session`` - the Session itself: what it ran, and why it ended.
   ``session.ended`` is the last record written. ``session.started`` comes
   before every Engine's records, but not necessarily first: a process started
@@ -63,6 +67,13 @@ ACTION_FINISHED: Final = "action.finished"
 DECISION_DISABLED: Final = "decision.disabled"
 #: A DecisionMaker resumed another one, across every Engine.
 DECISION_ENABLED: Final = "decision.enabled"
+
+# --- recording ------------------------------------------------------------
+#: The recorder's writer is open; the video at ``path`` is being written.
+RECORDING_STARTED: Final = "recording.started"
+#: A frame was written; emitted every *config* ``FPS`` frames, which is about
+#: once a second of capture.
+RECORDING_CHECKPOINT: Final = "recording.checkpoint"
 
 # --- session --------------------------------------------------------------
 #: The Session knows every Bot it runs; emitted before any Engine starts.
@@ -136,3 +147,18 @@ class SessionEndedPayload(TypedDict):
     cause: SessionEndCause
     #: ``"<ExceptionType>: <message>"`` when ``cause`` is ``error``, else null.
     error: str | None
+
+
+class RecordingStartedPayload(TypedDict):
+    """``recording.started``: the video file, and the frame rate it declares."""
+
+    path: str
+    #: The rate the file declares: config ``FPS`` times ``Multiplier``. The
+    #: recorder captures at config ``FPS``, so this is not the capture rate.
+    fps: float
+
+
+class RecordingCheckpointPayload(TypedDict):
+    """``recording.checkpoint``: the 0-based index of the frame just written."""
+
+    frame_index: int

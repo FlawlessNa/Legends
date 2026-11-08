@@ -10,6 +10,9 @@ module in the package that prints.
   payload field; give it more than once and every condition must hold.
 - `around --at T [--window S]`: every record within S seconds of T (5 s by
   default).
+- `frame --at T [--box l,t,r,b] [--scale F]`: a PNG of the Session's video at T,
+  written to `<DIR>/frames/`. `--box` is in screen pixels. Exits 1 when there is
+  no recording to cut from.
 
 `DIR` is a Session directory, `logs/<YYYY-MM-DD_HH-MM-SS>/`. Without it, the
 newest one with a `telemetry.jsonl` is read, finished or still running. Times
@@ -17,7 +20,7 @@ print relative to `session.started` (`+mm:ss.s`), and `T` is `+mm:ss[.s]`,
 plain seconds (`97.5`) or an ISO-8601 timestamp; `reading` explains the clock.
 `--json` prints one JSON object per line instead of text.
 
-Exit codes: 0 done, 1 no Session to read, 2 bad arguments (argparse).
+Exit codes: 0 done, 1 no Session (or no recording) to read, 2 bad arguments (argparse).
 Malformed lines are reported, on stdout by `summary` and on stderr by the
 others, and are never an error.
 """
@@ -31,6 +34,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
+from .frames import FrameError, cut_frame, parse_box
 from .reading import (
     Record,
     Session,
@@ -62,6 +66,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             _summary(session, as_json=arguments.json)
         case "events":
             _events(session, arguments)
+        case "frame":
+            return _frame(session, arguments)
         case _:
             _around(session, arguments)
     return 0
@@ -137,6 +143,20 @@ def _around(session: Session, arguments: argparse.Namespace) -> None:
         _out(f"---------- {format_time(at)} ----------")
         _print_records(nearby[len(before) :], as_json=False)
     _report_damage(session)
+
+
+def _frame(session: Session, arguments: argparse.Namespace) -> int:
+    at = session.resolve(arguments.at)
+    try:
+        path, index = cut_frame(session, at, arguments.box, arguments.scale)
+    except FrameError as e:
+        _err(f"error: {e}")
+        return 1
+    if arguments.json:
+        _out(json.dumps({"path": str(path), "frame_index": index, "t": round(at, 3)}))
+    else:
+        _out(f"{path}  (frame {index} at {format_time(at)})")
+    return 0
 
 
 # --- Output -----------------------------------------------------------------------
@@ -271,6 +291,24 @@ def _parser() -> argparse.ArgumentParser:
         metavar="S",
         help=f"seconds either side of T (default: {DEFAULT_WINDOW:g})",
     )
+
+    frame = commands.add_parser(
+        "frame", parents=[common], help="a PNG of the Session's video at T"
+    )
+    frame.add_argument("--at", required=True, type=_argument(parse_time), metavar="T")
+    frame.add_argument(
+        "--box",
+        type=_argument(parse_box),
+        metavar="l,t,r,b",
+        help="crop to this region, in screen pixels",
+    )
+    frame.add_argument(
+        "--scale",
+        type=_factor,
+        default=1.0,
+        metavar="F",
+        help="resize the (cropped) frame by F (default: 1)",
+    )
     return parser
 
 
@@ -290,6 +328,13 @@ def _positive(text: str) -> int:
     value = int(text)
     if value < 1:
         raise argparse.ArgumentTypeError(f"{text} is not a positive count")
+    return value
+
+
+def _factor(text: str) -> float:
+    value = float(text)
+    if not 0 < value <= 8:
+        raise argparse.ArgumentTypeError(f"{text} is not a scale in (0, 8]")
     return value
 
 

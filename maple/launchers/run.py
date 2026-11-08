@@ -100,11 +100,15 @@ def _build(spec: BotSpec, metadata: multiprocessing.managers.DictProxy) -> Bot:
     return cls(spec.ign, metadata, **spec.settings)
 
 
-async def _run(profile: Profile) -> None:
+async def _run(profile: Profile, *, test: bool = False) -> None:
     """
     Launch the profile's bot in a single Engine group.
+    :param test: Record with the `[TEST]` section of `recordings.ini`.
     """
-    with SessionManager(maple.parsers.MapleParser) as session:
+    section = "TEST" if test else "DEFAULT"
+    with SessionManager(
+        maple.parsers.MapleParser, recording_section=section
+    ) as session:
         await session.launch([_build(profile.main, session.metadata)])
 
 
@@ -121,6 +125,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--debug", action="store_true", help="Run the asyncio loop in debug mode."
+    )
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help="A test Session: record with the [TEST] section of recordings.ini.",
     )
     args = parser.parse_args(argv)
 
@@ -140,7 +149,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        asyncio.run(_run(profile), debug=args.debug)
+        asyncio.run(_run(profile, test=args.test), debug=args.debug)
     except ProfileError as exc:
         sys.stderr.write(f"error: {exc}\n")
         return 2
