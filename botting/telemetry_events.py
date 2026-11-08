@@ -22,8 +22,12 @@ events inverts the dependency. Areas here:
   are the records that close the Correlation ID chain: the DecisionMaker end
   says what was decided, and these say what became of it.
 * ``decision`` - one ``DecisionMaker`` gating another.
-* ``session`` - the Session itself: what it ran, and why it ended. These
-  bracket every other record in a Session's ``telemetry.jsonl``.
+* ``session`` - the Session itself: what it ran, and why it ended.
+  ``session.ended`` is the last record written. ``session.started`` comes
+  before every Engine's records, but not necessarily first: a process started
+  in ``SessionManager.__enter__``, such as Peripherals, can emit before
+  ``launch`` emits it. A reader must not assume it is the first line
+  (``botting.session`` gives those records a negative time).
 
 Every Producer passes a constant from a module like this one, never a literal,
 and builds its payload through the matching ``TypedDict``. ``emit_event()``'s
