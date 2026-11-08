@@ -123,12 +123,18 @@ class SessionManager:
     """
 
     def __init__(
-        self, discord_parser: type[BaseParser], *, debug: bool = False
+        self,
+        discord_parser: type[BaseParser],
+        *,
+        debug: bool = False,
+        recording_section: str = "DEFAULT",
     ) -> None:
         """
         Creates all necessary objects to start a new Session.
         :param discord_parser: A callable that parses discord message and returns
         ActionRequests.
+        :param recording_section: The ``recordings.ini`` section the Recorder reads;
+        ``"TEST"`` for a test Session. Unused in debug mode, which has no recording.
         """
         # Create a Manager Process to share data between processes.
         self.process_manager = multiprocessing.Manager()
@@ -148,7 +154,9 @@ class SessionManager:
 
         if not self._debug:
             self.peripherals = PeripheralsProcess(
-                self.metadata["logging_queue"], discord_parser
+                self.metadata["logging_queue"],
+                discord_parser,
+                recording_section=recording_section,
             )
         else:
             from unittest.mock import AsyncMock, Mock

@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from pytest_mock import MockerFixture
 
 from maple.launchers import profile, run
 from paths import ROOT
@@ -102,3 +103,22 @@ def test_a_module_that_raises_on_import_is_a_profile_error_chaining_it(
 
 def test_a_registry_name_still_resolves() -> None:
     assert run._resolve(_spec("training")).__name__ == "TrainingBot"
+
+
+@pytest.mark.parametrize(("flags", "section"), [([], "DEFAULT"), (["--test"], "TEST")])
+def test_test_flag_points_the_recorder_at_the_test_section(
+    flags: list[str],
+    section: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+) -> None:
+    (tmp_path / "p.yaml").write_text("ign: Main\nbot: TrainingBot\n", encoding="utf-8")
+    monkeypatch.setattr(profile, "PROFILES_DIR", str(tmp_path))
+    manager = mocker.patch.object(run, "SessionManager")
+    mocker.patch.object(run, "_build")
+    manager.return_value.__enter__.return_value.launch = mocker.AsyncMock()
+
+    assert run.main(["p", *flags]) == 0
+
+    assert manager.call_args.kwargs["recording_section"] == section
