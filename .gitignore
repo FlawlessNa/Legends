@@ -195,6 +195,7 @@ cython_debug/
 
 # Lavish review documents and scratch explorations: never committed.
 .lavish/
+.scratch/
 
 # Agent probe output and throwaway Bots (docs/agents/game-client.md).
 probe/
