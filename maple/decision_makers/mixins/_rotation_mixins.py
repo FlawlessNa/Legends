@@ -15,6 +15,7 @@ from maple.model.mechanics import (
     compile_movements,
 )
 from maple.model.mechanics.minimap_creation.minimap_edits_model import MinimapEdits
+from maple.telemetry_events import MOVEMENT_TARGET_REACHED, target_reached_payload
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -92,6 +93,21 @@ class NextTargetMixin:
             )
         self.data.set_feature("has_rotation_attributes")
 
+    def _emit_target_reached(self) -> None:
+        """
+        Record that a rotation mode judged the character to have arrived. Every
+        place that judges arrival calls this, so the count means one thing.
+        """
+        # Not every host of this mixin is a DecisionMaker with `emit`.
+        emit = getattr(self, "emit", None)
+        if emit is not None:
+            emit(
+                MOVEMENT_TARGET_REACHED,
+                target_reached_payload(
+                    self.data.current_minimap_position, self.data.next_target
+                ),
+            )
+
     def _update_next_target_from_cycle(self) -> None:
         """
         Updates the next target from the feature cycle.
@@ -103,6 +119,7 @@ class NextTargetMixin:
         ):
             return self.data.next_target
         else:
+            self._emit_target_reached()
             self.data.update_attribute("next_feature")
             return self.data.next_feature.random()
 
@@ -117,6 +134,7 @@ class NextTargetMixin:
         ):
             return self.data.next_target
         else:
+            self._emit_target_reached()
             next_target = self.data.current_minimap.random_point()
             self.data.next_feature = self.data.current_minimap.get_feature_containing(
                 next_target
@@ -199,6 +217,7 @@ class NextTargetMixin:
 
         # If we're on target, check if we've been on target for > time_limit seconds.
         if self._first_time_on_target:
+            self._emit_target_reached()
             self._first_time_on_target = False
             self._last_target_reached_at = time.perf_counter()
             return self.data.next_target

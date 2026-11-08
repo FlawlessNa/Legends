@@ -135,6 +135,11 @@ outcomes.
   the envelope shape later means coordinating with that map. The `movement`
   and `rotation` areas are reserved for it, and `MovementPayload`'s field
   list is that map's to decide.
+- **2026-11-08 - first `movement` records.** #331 added the `movement` area's
+  first records, `movement.plan_started` and `movement.target_reached`, with
+  deliberately minimal fields, and a `state` area (`state.snapshot`). This
+  contradicts the reservation above on purpose. The movement-framework map may
+  add records but not repurpose these, since the taxonomy is additive.
 - Migration touched every module carrying a `LOG_LEVEL` constant, split into
   a mechanical dictConfig sweep and a separate, judgment-heavy pass that
   moved narrative call sites to `emit_event()` and re-derived each remaining

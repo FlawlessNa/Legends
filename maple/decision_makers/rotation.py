@@ -5,6 +5,7 @@ import time
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
+from maple.telemetry_events import MOVEMENT_PLAN_STARTED, plan_started_payload
 
 from .mixins import (
     MinimapAttributesMixin,
@@ -87,6 +88,14 @@ class Rotation(
             self.data.update_attribute("next_target")
             self.data.update_attribute("movements")
             if self._has_movements():
+                self.emit(
+                    MOVEMENT_PLAN_STARTED,
+                    plan_started_payload(
+                        self.data.movements,
+                        self.data.current_minimap_position,
+                        self.data.next_target,
+                    ),
+                )
                 self.send(self._request())
             else:
                 self.lock.release()
