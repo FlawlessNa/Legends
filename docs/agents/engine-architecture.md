@@ -12,8 +12,9 @@ question. The rules that a change can *violate* are in
 
 - **Main Process** — one asyncio loop. Owns the `asyncio.PriorityQueue`, the
   `AsyncTaskManager`, one listener task per Engine, the Discord listener, the
-  proxy listener, a `QueueListener` thread for logs, the Held-Keys Ledger, and
-  every keystroke that reaches a client.
+  proxy listener, the stop-file watch (`botting/stop_file.py`), a
+  `QueueListener` thread for logs, the Held-Keys Ledger, and every keystroke
+  that reaches a client.
 - **Engine Process** — one per bot group, spawned by `SessionManager.launch()`.
   Runs `asyncio.run()` over its Bots. Each Bot owns a `BotData` and a set of
   `DecisionMaker`s, each of which is one asyncio task plus two threads (an
