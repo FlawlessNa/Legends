@@ -11,7 +11,7 @@ are the only modules in the package that print.
 - `around --at T [--window S]`: every record within S seconds of T (5 s by
   default).
 - `frame --at T [--box l,t,r,b] [--scale F]`: a PNG of the Session's video at T,
-  written to `<DIR>/frames/`. `--box` is in screen pixels. Exits 1 when there is
+  written to `<DIR>/frames/`. `--box` is in video-frame pixels. Exits 1 when there is
   no recording to cut from.
 - `watch` and `stop`, for a Session still running: see `live`, which has
   their exit codes.
@@ -305,7 +305,7 @@ def _parser() -> argparse.ArgumentParser:
         "--box",
         type=_argument(parse_box),
         metavar="l,t,r,b",
-        help="crop to this region, in screen pixels",
+        help="crop to this region, in video-frame pixels, as a probe screenshot may not be",
     )
     frame.add_argument(
         "--scale",

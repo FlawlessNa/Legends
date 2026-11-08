@@ -24,6 +24,16 @@ stops it.
 _Avoid_: Debug tool, test harness — the probe is for looking at the client, not
 for driving the bot.
 
+**Test Session**:
+A Session the maintainer starts with `--test` (`python -m maple.launchers.run
+<profile> --test`) so that an agent can verify a change on it. It runs a
+throwaway Bot holding only the DecisionMakers under test, and records its video
+with the `[TEST]` section of `recordings.ini`. The agent reads its Telemetry
+Records with `python -m botting.session` and ends it with `stop`, but never
+sends keys or steers it. It lasts a few minutes.
+_Avoid_: Test run, QA run — and not a `lab` test, which is a pytest marker; the
+pytest suite never starts a Test Session.
+
 **Telemetry Record**:
 One JSONL line describing a single decision or action a `DecisionMaker`
 made and why: `{timestamp, correlation_id, logger_name, event_type,
