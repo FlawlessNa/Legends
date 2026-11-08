@@ -10,6 +10,7 @@ expected rates.
 import asyncio
 import json
 import queue
+import time
 from collections.abc import Callable, Mapping
 from types import SimpleNamespace
 from typing import cast
@@ -167,6 +168,7 @@ class _Loop:
         data.create_attribute("next_target", lambda: (20, 5))
         data.create_attribute("movements", lambda: PLAN)
         data.create_attribute("current_minimap_position", lambda: (3, 5))
+        data.update_attribute("current_minimap_position")
         self.data = data
         self.lock = SimpleNamespace(
             acquire=lambda blocking=False: True, release=lambda: None
@@ -184,6 +186,7 @@ class _Loop:
             if emit_works
             else (lambda event_type, payload=None: None)
         )
+        self._emit_plan_started = lambda: Rotation._emit_plan_started(self)  # pyright: ignore[reportArgumentType]
         self._recovery_check = lambda now: None
         self._has_movements: Callable[[], bool] = lambda: True
         self._compiler = _COMPILER
@@ -235,6 +238,30 @@ def test_the_action_request_is_the_same_with_telemetry_on_or_off() -> None:
     assert a.priority == b.priority
     assert a.requeue_if_not_scheduled == b.requeue_if_not_scheduled
     assert len(on.emitted) == 1
+
+
+def test_plan_started_does_not_refresh_a_thresholded_attribute() -> None:
+    """
+    Reading `data.current_minimap_position` past its threshold re-runs a minimap
+    read. Telemetry on the send path must read the cache instead.
+    """
+    loop = _Loop(emit_works=True)
+    reads: list[int] = []
+    loop.data.reconfigure_attribute(
+        "current_minimap_position",
+        update_function=lambda: reads.append(1) or (3, 5),
+        threshold=0.001,
+    )
+    loop.data.update_attribute("current_minimap_position")
+    reads.clear()
+    time.sleep(0.01)  # past the threshold: a plain read would now refresh
+
+    _decide(loop)
+
+    assert reads == []
+    ((event_type, payload),) = loop.emitted
+    assert event_type == MOVEMENT_PLAN_STARTED
+    assert payload["from_x"] == 3
 
 
 def test_no_plan_started_when_there_is_nothing_to_send() -> None:

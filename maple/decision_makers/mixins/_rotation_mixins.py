@@ -93,19 +93,28 @@ class NextTargetMixin:
             )
         self.data.set_feature("has_rotation_attributes")
 
-    def _emit_target_reached(self) -> None:
+    def _emit_target_reached(
+        self, position: Sequence[int], target: Sequence[int]
+    ) -> None:
         """
         Record that a rotation mode judged the character to have arrived. Every
         place that judges arrival calls this, so the count means one thing.
+
+        `EnsureMobStillSpawn` installs `_update_next_target_from_cycle` as its own
+        target update while it is active, so its records are attributed to it: a
+        count of these against `movement.plan_started` (Rotation only) will run
+        higher while it is.
+
+        Takes the values the caller just judged arrival with, rather than reading
+        them off `BotData`: a read can refresh a thresholded attribute, and
+        telemetry must not do work inside the thing it observes.
         """
         # Not every host of this mixin is a DecisionMaker with `emit`.
         emit = getattr(self, "emit", None)
         if emit is not None:
             emit(
                 MOVEMENT_TARGET_REACHED,
-                target_reached_payload(
-                    self.data.current_minimap_position, self.data.next_target
-                ),
+                target_reached_payload(position, target),
             )
 
     def _update_next_target_from_cycle(self) -> None:
@@ -113,13 +122,12 @@ class NextTargetMixin:
         Updates the next target from the feature cycle.
         :return:
         """
-        if (
-            math.dist(self.data.current_minimap_position, self.data.next_target)
-            > self.BASE_ROTATION_THRESHOLD
-        ):
-            return self.data.next_target
+        position = self.data.current_minimap_position
+        target = self.data.next_target
+        if math.dist(position, target) > self.BASE_ROTATION_THRESHOLD:
+            return target
         else:
-            self._emit_target_reached()
+            self._emit_target_reached(position, target)
             self.data.update_attribute("next_feature")
             return self.data.next_feature.random()
 
@@ -128,13 +136,12 @@ class NextTargetMixin:
         Sets the next target from the feature cycle.
         :return:
         """
-        if (
-            math.dist(self.data.current_minimap_position, self.data.next_target)
-            > self.BASE_ROTATION_THRESHOLD
-        ):
-            return self.data.next_target
+        position = self.data.current_minimap_position
+        target = self.data.next_target
+        if math.dist(position, target) > self.BASE_ROTATION_THRESHOLD:
+            return target
         else:
-            self._emit_target_reached()
+            self._emit_target_reached(position, target)
             next_target = self.data.current_minimap.random_point()
             self.data.next_feature = self.data.current_minimap.get_feature_containing(
                 next_target
@@ -208,16 +215,15 @@ class NextTargetMixin:
         if not hasattr(self, "_last_target_reached_at"):
             self._last_target_reached_at = time.perf_counter()
 
-        if (
-            math.dist(self.data.current_minimap_position, self.data.next_target)
-            > self.SMART_ROTATION_THRESHOLD
-        ):
+        position = self.data.current_minimap_position
+        target = self.data.next_target
+        if math.dist(position, target) > self.SMART_ROTATION_THRESHOLD:
             self._first_time_on_target = True
-            return self.data.next_target
+            return target
 
         # If we're on target, check if we've been on target for > time_limit seconds.
         if self._first_time_on_target:
-            self._emit_target_reached()
+            self._emit_target_reached(position, target)
             self._first_time_on_target = False
             self._last_target_reached_at = time.perf_counter()
             return self.data.next_target
