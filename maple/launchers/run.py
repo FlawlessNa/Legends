@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import importlib
 import multiprocessing.managers
 import sys
 
@@ -26,6 +27,7 @@ import maple.parsers
 from botting.core import Bot
 from botting.core.session_manager import SessionManager
 from maple import bots
+from maple.bots.maple_bot import MapleBot
 
 from .profile import BotSpec, Profile, ProfileError, available, check_models, load
 
@@ -50,7 +52,35 @@ def _bot_registry() -> dict[str, type]:
     return registry
 
 
+def _import_bot(spec: BotSpec) -> type:
+    """
+    Resolve a `module.path:ClassName` bot, for a throwaway Bot that is not
+    exported from `maple.bots`. The class name is case-sensitive.
+    """
+    path = spec.bot
+    module_name, _, class_name = path.partition(":")
+    try:
+        module = importlib.import_module(module_name)
+    except Exception as exc:  # a scratch module may raise anything on import
+        raise ProfileError(
+            f"Could not import '{module_name}' for bot '{path}' ({spec.ign}): "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+    try:
+        cls = getattr(module, class_name)
+    except AttributeError as exc:
+        raise ProfileError(
+            f"Module '{module_name}' has no attribute '{class_name}' "
+            f"(bot '{path}' for {spec.ign})."
+        ) from exc
+    if not (isinstance(cls, type) and issubclass(cls, MapleBot)):
+        raise ProfileError(f"'{path}' for {spec.ign} is not a MapleBot subclass.")
+    return cls
+
+
 def _resolve(spec: BotSpec) -> type:
+    if ":" in spec.bot:
+        return _import_bot(spec)
     registry = _bot_registry()
     cls = registry.get(spec.bot.lower())
     if cls is None:
