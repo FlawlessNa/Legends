@@ -195,16 +195,20 @@ you do to it. The maintainer starts it.
 - **Records before `session.started` have negative times.** Reach them with the
   `=` form, because argparse reads a leading `-` as a flag: `--since=-00:01`,
   not `--since -00:01`.
-- **`frame --box` is in video pixels.** On a display with DPI scaling they may
-  differ from the pixels of a probe screenshot, so do not reuse a box from one
-  in the other without checking the frame you get.
-- **Do not equate `target_reached` with Plans that arrived.**
-  `movement.plan_started` counts Plans, and `action.finished` says how each
-  task ended. `movement.target_reached` is the game layer's judgement, made a
-  cycle later, and `CheckMobsStillSpawn` also emits it. A Plan and its arrival
-  share a Correlation ID: compare them by the `cid=` in the text output (or the
-  whole `correlation_id` with `--json`), and count only the Plans of the
-  DecisionMaker under test.
+- **`frame --box` is in video-frame pixels**, the size of the recorded video,
+  which is the tool's own definition (its `--help` says the same). On a display
+  with DPI scaling this may differ from the pixels of a probe screenshot, so do
+  not reuse a box from one in the other without checking the frame you get.
+- **A Plan's arrival does not share its Correlation ID.** `movement.plan_started`
+  and the `action.*` records of one Plan share a cid. `movement.target_reached`
+  does not: it carries the cid of the cycle that *judged* arrival, which is
+  usually the cycle that starts the **next** Plan (so it matches that Plan's
+  `plan_started`). `CheckMobsStillSpawn` also emits `target_reached`, under its
+  own cid. So never pair by cid. Pair an arrival with its Plan by
+  `target_x`/`target_y` (both records carry them) and by order: the first
+  `target_reached` at a Plan's target after its `plan_started`. Count only the
+  Plans and arrivals of the DecisionMaker under test, and expect an arrival to
+  come after the Plan's `action.finished`, not with it.
 - **Every way a Plan can end is recorded.** `action.blocked`, `requeued`,
   `self_cancelled` and `cancels_other` come from the scheduler, and
   `action.finished` has the outcome `completed`, `cancelled` or `raised`. A
@@ -258,7 +262,8 @@ The verdict, in the PR (numbers invented for the example):
 
 > Session `logs/2026-11-08_14-02-11/`, `--test`, 3:04. 14 `plan_started`; 14
 > `action.finished` for Rotation (13 completed, 1 cancelled at +02:11); 13
-> `target_reached`, all within 2.1 units. The cancelled Plan has no
-> `target_reached`, and the frame shows the character mid-jump with the minimap
+> `target_reached`, all within 2.1 units, each paired with its Plan by target
+> and order. The cancelled Plan (target 41,12) has no `target_reached` before
+> the next Plan starts, and the frame shows the character mid-jump with the minimap
 > read correctly, so the cancel looks like a rival Action, not a misread. Not
 > verified: Sessions longer than 3 minutes, and other maps.
