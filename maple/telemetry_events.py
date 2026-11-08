@@ -18,9 +18,11 @@ four Log Buckets - those partition code for routing and carry a catch-all
 * ``combat`` - what the bot chose to hit, and with what.
 * ``inventory`` - the trip to town, milestone by milestone.
 * ``rebuff`` - the cross-Engine handshake that gets a party buffed together.
-* ``movement`` and ``rotation`` are reserved for the movement map's telemetry;
-  ``MovementPayload`` lands here alongside these, and its field list is issue
-  #12's to decide.
+* ``movement`` - Movement Plans started and targets reached, with deliberately
+  minimal fields (#331). The movement-framework map may add records but not
+  repurpose these. ``rotation`` stays reserved for that map.
+* ``state`` - where the character was, sampled on a clock rather than on an
+  event.
 
 This module sits at the package root rather than under ``decision_makers/`` or
 ``model/`` because movement telemetry is assembled across both - anywhere
@@ -36,7 +38,9 @@ an ``int()`` around anything a numpy pipeline produced, a ``Box`` decomposed
 into named fields rather than handed over whole.
 """
 
-from typing import Final, TypedDict
+import math
+from collections.abc import Iterable, Sequence
+from typing import Any, Final, SupportsInt, TypedDict
 
 # --- recovery -------------------------------------------------------------
 #: The in-map check failed; the minimap is being toggled to clear it.
@@ -96,6 +100,16 @@ REBUFF_MEMBERS_IN_POSITION: Final = "rebuff.members_in_position"
 REBUFF_PARTY_COMPLETE: Final = "rebuff.party_complete"
 #: The shared ready state was cleared, ending one rebuff round.
 REBUFF_STATE_RESET: Final = "rebuff.state_reset"
+
+# --- movement -------------------------------------------------------------
+#: Rotation is about to ship a Movement Plan.
+MOVEMENT_PLAN_STARTED: Final = "movement.plan_started"
+#: A rotation mode judged that the character reached its target.
+MOVEMENT_TARGET_REACHED: Final = "movement.target_reached"
+
+# --- state ----------------------------------------------------------------
+#: A periodic sample of where the character is and where it is heading.
+STATE_SNAPSHOT: Final = "state.snapshot"
 
 
 class MapCheckPayload(TypedDict):
@@ -192,3 +206,103 @@ class RebuffPayload(TypedDict):
     """Every ``rebuff.*`` event: which member emitted it."""
 
     ign: str
+
+
+class PlanStartedPayload(TypedDict):
+    """
+    ``movement.plan_started``: the Movement Plan being shipped, and from where to
+    where. Each component is ``[movement_type, length]``, ``movement_type`` being
+    the ``MovementTypes`` member name and ``length`` in minimap units, not time.
+    """
+
+    components: list[list[Any]]
+    from_x: int
+    from_y: int
+    target_x: int
+    target_y: int
+
+
+class TargetReachedPayload(TypedDict):
+    """``movement.target_reached``: the target, and how far off the character was."""
+
+    target_x: int
+    target_y: int
+    distance: float
+
+
+class StateSnapshotPayload(TypedDict):
+    """``state.snapshot``: every field is None while its value is unknown."""
+
+    x: int | None
+    y: int | None
+    target_x: int | None
+    target_y: int | None
+    on_screen_x: int | None
+    on_screen_y: int | None
+
+
+def plan_started_payload(
+    movements: Iterable[Any], position: Sequence[Any], target: Sequence[Any]
+) -> PlanStartedPayload:
+    """
+    :param movements: ``_MovementComponent``s, each with ``movement_type`` and
+        ``length``.
+    :param position: The character's minimap position.
+    :param target: The rotation's target.
+    """
+    return {
+        "components": [
+            [
+                getattr(move.movement_type, "name", str(move.movement_type)),
+                int(move.length),
+            ]
+            for move in movements
+        ],
+        "from_x": int(position[0]),
+        "from_y": int(position[1]),
+        "target_x": int(target[0]),
+        "target_y": int(target[1]),
+    }
+
+
+def target_reached_payload(
+    position: Sequence[Any], target: Sequence[Any]
+) -> TargetReachedPayload:
+    """
+    :param position: The character's minimap position.
+    :param target: The target it was judged to have reached.
+    """
+    return {
+        "target_x": int(target[0]),
+        "target_y": int(target[1]),
+        "distance": float(math.dist(position, target)),
+    }
+
+
+def _as_int(value: SupportsInt | None) -> int | None:
+    return None if value is None else int(value)
+
+
+def state_snapshot_payload(
+    position: Sequence[Any] | None,
+    target: Sequence[Any] | None,
+    on_screen: Sequence[Any] | None,
+) -> StateSnapshotPayload:
+    """
+    :param position: The minimap position, or None if unknown.
+    :param target: The rotation's target, or None if unknown.
+    :param on_screen: The character's on-screen box ``(x1, y1, x2, y2)``, or None
+        if unknown; reported as its centre.
+    """
+    on_screen_x = on_screen_y = None
+    if on_screen is not None:
+        x1, y1, x2, y2 = on_screen
+        on_screen_x, on_screen_y = int((x1 + x2) / 2), int((y1 + y2) / 2)
+    return {
+        "x": _as_int(position[0]) if position is not None else None,
+        "y": _as_int(position[1]) if position is not None else None,
+        "target_x": _as_int(target[0]) if target is not None else None,
+        "target_y": _as_int(target[1]) if target is not None else None,
+        "on_screen_x": on_screen_x,
+        "on_screen_y": on_screen_y,
+    }

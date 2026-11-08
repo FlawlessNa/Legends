@@ -1,3 +1,4 @@
+import functools
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
@@ -5,6 +6,7 @@ import time
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
+from maple.telemetry_events import MOVEMENT_PLAN_STARTED, plan_started_payload
 
 from .mixins import (
     MinimapAttributesMixin,
@@ -87,9 +89,27 @@ class Rotation(
             self.data.update_attribute("next_target")
             self.data.update_attribute("movements")
             if self._has_movements():
+                self._emit_plan_started()
                 self.send(self._request())
             else:
                 self.lock.release()
+
+    def _emit_plan_started(self) -> None:
+        """
+        Record the Movement Plan about to be sent, from cached values only.
+        `data.<name>` can re-run a thresholded update function (a fresh minimap
+        read) on the send path, which would delay the Action and could run recovery
+        from inside telemetry. The cache is also what the Plan was computed from.
+        """
+        last_known = functools.partial(self.data.get_last_known_value, update=False)
+        position = last_known("current_minimap_position")
+        target = last_known("next_target")
+        if position is None or target is None:
+            return
+        self.emit(
+            MOVEMENT_PLAN_STARTED,
+            plan_started_payload(last_known("movements"), position, target),
+        )
 
     def _request(self) -> ActionRequest:
         # TODO - Could switch to requeue=False while ensuring that the lock is released.
