@@ -5,12 +5,22 @@ import logging
 import logging.config
 import logging.handlers
 import multiprocessing.connection
+from functools import partial
 from typing import TYPE_CHECKING, Any, Self
 
 from botting.controller import HeldKeysLedger, release_all
 from botting.logging_config import PARENT_LOG, full_config, new_session_dir
 from botting.screen import MultipleWindows, WindowNotFound
-from botting.telemetry import TELEMETRY_FILENAME, TelemetryHandler
+from botting.stop_file import watch_stop_file
+from botting.telemetry import TELEMETRY_FILENAME, TelemetryHandler, emit_event
+from botting.telemetry_events import (
+    SESSION_ENDED,
+    SESSION_STARTED,
+    SessionBotPayload,
+    SessionEndCause,
+    SessionEndedPayload,
+    SessionStartedPayload,
+)
 from botting.utilities import install_loop_diagnostics
 
 from .async_task_manager import AsyncTaskManager
@@ -20,11 +30,105 @@ from .peripherals_process import PeripheralsProcess
 
 if TYPE_CHECKING:
     import threading
+    from collections.abc import Callable, Iterable
     from types import TracebackType
 
     from botting.communications import BaseParser
 
 logger = logging.getLogger(__name__)
+
+
+def _session_started_payload(
+    bots: Iterable[Bot], *, debug: bool
+) -> SessionStartedPayload:
+    """
+    What ``session.started`` says about the Bots a Session runs.
+
+    The DecisionMaker names come from the class list ``_decision_makers()``, never
+    from ``decision_makers``: that is a ``cached_property`` that builds the
+    DecisionMakers, and only an Engine can.
+    :param bots: Every Bot of the Session, in launch order.
+    :param debug: Whether the Session runs in debug mode.
+    """
+    entries: list[SessionBotPayload] = [
+        {
+            "ign": str(bot.ign),
+            "bot_class": type(bot).__name__,
+            "decision_makers": [
+                class_.__name__
+                for class_ in bot._decision_makers()  # pyright: ignore[reportPrivateUsage]
+            ],
+        }
+        for bot in bots
+    ]
+    return {"bots": entries, "debug": debug}
+
+
+def _ended_cause(
+    stop_reason: str | None,
+    failure: BaseException | None,
+    exc: BaseException | None,
+) -> SessionEndCause:
+    """
+    Why a Session ended, by precedence: a stop request, then a task that raised,
+    then an interrupt, then any other exception.
+
+    A stop request wins because it is what the requester asked for, whatever
+    tearing down raised after it. A failing task comes before ``exc`` because the
+    Task Manager turns it into a normal return: ``exc`` is then ``None``.
+    :param stop_reason: The reason a stop was requested, or ``None``.
+    :param failure: The first exception a scheduled task raised, or ``None``.
+    :param exc: The exception leaving the Session's context, or ``None``.
+    """
+    if stop_reason is not None:
+        return "stop_file"
+    if failure is not None:
+        return "error"
+    if isinstance(exc, (KeyboardInterrupt, asyncio.CancelledError)):
+        return "interrupted"
+    if exc is not None:
+        return "error"
+    return "completed"
+
+
+def _session_ended_payload(
+    stop_reason: str | None,
+    failure: BaseException | None,
+    exc: BaseException | None,
+) -> SessionEndedPayload:
+    """
+    What ``session.ended`` says. ``error`` names the exception only when the
+    cause is ``error``; a task's failure is named before the one leaving the
+    context, which it usually caused.
+    :param stop_reason: As for ``_ended_cause``.
+    :param failure: As for ``_ended_cause``.
+    :param exc: As for ``_ended_cause``.
+    """
+    cause = _ended_cause(stop_reason, failure, exc)
+    error: str | None = None
+    if cause == "error":
+        culprit = failure if failure is not None else exc
+        assert culprit is not None, "an error cause has an exception"
+        error = f"{type(culprit).__name__}: {culprit}"
+    return {"cause": cause, "error": error}
+
+
+def _attempt(step: str, action: Callable[[], object]) -> None:
+    """
+    Run one step of tearing a Session down, and log rather than raise if it fails.
+
+    ``__exit__`` runs every step whatever the ones before it raised. After a
+    console Ctrl+C the Manager process is dead too, and any step that reaches it
+    raises (``EOFError`` through the log queue's proxy). Let through, that would
+    skip ``session.ended``, the telemetry close and the key release, and replace
+    the exception that ended the Session.
+    :param step: What the step does, for the log: "stop the log listener".
+    :param action: The step.
+    """
+    try:
+        action()
+    except Exception:
+        logger.exception("Could not %s while exiting the Session.", step)
 
 
 class SessionManager:
@@ -39,12 +143,18 @@ class SessionManager:
     """
 
     def __init__(
-        self, discord_parser: type[BaseParser], *, debug: bool = False
+        self,
+        discord_parser: type[BaseParser],
+        *,
+        debug: bool = False,
+        recording_section: str = "DEFAULT",
     ) -> None:
         """
         Creates all necessary objects to start a new Session.
         :param discord_parser: A callable that parses discord message and returns
         ActionRequests.
+        :param recording_section: The ``recordings.ini`` section the Recorder reads;
+        ``"TEST"`` for a test Session. Unused in debug mode, which has no recording.
         """
         # Create a Manager Process to share data between processes.
         self.process_manager = multiprocessing.Manager()
@@ -64,7 +174,9 @@ class SessionManager:
 
         if not self._debug:
             self.peripherals = PeripheralsProcess(
-                self.metadata["logging_queue"], discord_parser
+                self.metadata["logging_queue"],
+                discord_parser,
+                recording_section=recording_section,
             )
         else:
             from unittest.mock import AsyncMock, Mock
@@ -112,8 +224,12 @@ class SessionManager:
         self.discord_listener: asyncio.Task | None = None
         self.proxy_listener: asyncio.Task | None = None
         self.management_task: asyncio.Task | None = None
+        self.stop_file_task: asyncio.Task | None = None
         self.main_bot = None
         self.bots = []
+        #: Why a stop was requested from outside the bot, or ``None``. Set by the
+        #: stop-file task; read by ``__exit__`` for ``session.ended``.
+        self.stop_reason: str | None = None
         self.barrier = None  # Used to start all tasks simultaneously.
 
     def __enter__(self) -> Self:
@@ -140,6 +256,12 @@ class SessionManager:
         self.management_task = asyncio.create_task(
             self.task_manager.start(), name="Task Manager"
         )
+        self.stop_file_task = asyncio.create_task(
+            watch_stop_file(
+                self.session_dir, self.task_manager.queue, self._record_stop_reason
+            ),
+            name="Stop File",
+        )
         return self
 
     def __exit__(
@@ -154,44 +276,113 @@ class SessionManager:
         already stopped. Assuming the Engines handle their own clean-up,
         the remaining things left to do is to stop the peripherals and stop the log
         listener.
+
+        Every step runs whatever the ones before it raised (``_attempt``), and the
+        key release runs in a ``finally``: after a console Ctrl+C the Manager
+        process is dead too, and ``session.ended``, the telemetry close and the
+        key release must still happen. ``exc_val`` is raised last, unreplaced.
         :param exc_type: Exception Class.
         :param exc_val: Exception Value (instance).
         :param exc_tb: Exception Traceback.
         :return: None
         """
-        self.peripherals.kill()
-        assert self.discord_listener is not None, "__enter__ runs before __exit__"
-        self.discord_listener.cancel("SessionManager exited.")
-        logger.debug("Stopping Log listener.")
-        logger.info("SessionManager exited.")
-        self.log_receiver.stop()
+        discord_listener = self.discord_listener
+        stop_file_task = self.stop_file_task
+        assert discord_listener is not None, "__enter__ runs before __exit__"
+        assert stop_file_task is not None, "__enter__ runs before __exit__"
+        try:
+            _attempt("stop the Peripherals", self.peripherals.kill)
+            _attempt(
+                "cancel the Discord listener",
+                partial(discord_listener.cancel, "SessionManager exited."),
+            )
+            # Before session.ended: a stop request found after it would be
+            # recorded after the record that must be the last.
+            _attempt(
+                "cancel the stop-file watch",
+                partial(stop_file_task.cancel, "SessionManager exited."),
+            )
+            logger.debug("Stopping Log listener.")
+            logger.info("SessionManager exited.")
+            _attempt("stop the log listener", self.log_receiver.stop)
 
-        # After stop(), so records still in flight from a child process land in
-        # the JSONL file rather than on a closed stream.
-        logging.getLogger(PARENT_LOG).removeHandler(self.telemetry_handler)
-        self.telemetry_handler.close()
+            # After stop(), so the child processes' records are all in, and this
+            # is the last one; before the sink closes, so it is written at all.
+            self._emit_session_ended(exc_val)
 
-        for engine in self.engines:
-            engine.join(timeout=2)
-            if engine.is_alive():
-                engine.terminate()
-            logger.info("Engine %s has been stopped.", engine.name)
+            # After stop(), so records still in flight from a child process land
+            # in the JSONL file rather than on a closed stream.
+            _attempt("close the telemetry sink", self._close_telemetry)
 
-        if not self._debug:
+            for engine in self.engines:
+                _attempt(f"stop {engine.name}", partial(self._stop_engine, engine))
+        finally:
+            # Whatever the steps above did, and in debug mode too: a stopped
+            # Session leaves no key held (ADR 0002).
             for bot in self.bots:
-                try:
-                    handle = bot.find_handle()
-                except (WindowNotFound, MultipleWindows) as exc:
-                    # A window that closed has no keys left down to release, and
-                    # raising here would hide whatever ended the session.
-                    logger.warning("Keys not released for %s: %s", bot.ign, exc)
-                    continue
-                release_all(handle)
+                _attempt(
+                    f"release the keys of {bot.ign}", partial(self._release_keys, bot)
+                )
 
         if exc_val is not None:
             # Normally, each Engine should handle their own clean-up.
             # However, Listeners may not be able to handle their own clean-up??
             raise exc_val
+
+    def _close_telemetry(self) -> None:
+        """Detach the telemetry sink from the ``botting`` logger, then close it."""
+        logging.getLogger(PARENT_LOG).removeHandler(self.telemetry_handler)
+        self.telemetry_handler.close()
+
+    @staticmethod
+    def _stop_engine(engine: multiprocessing.Process) -> None:
+        """Give an Engine 2 s to exit on its own, then terminate it."""
+        engine.join(timeout=2)
+        if engine.is_alive():
+            engine.terminate()
+        logger.info("Engine %s has been stopped.", engine.name)
+
+    @staticmethod
+    def _release_keys(bot: Bot) -> None:
+        """Release every key held in a Bot's client, if its window is still there."""
+        try:
+            handle = bot.find_handle()
+        except (WindowNotFound, MultipleWindows) as exc:
+            # A window that closed has no keys left down to release, and
+            # raising here would hide whatever ended the session.
+            logger.warning("Keys not released for %s: %s", bot.ign, exc)
+            return
+        release_all(handle)
+
+    def _record_stop_reason(self, reason: str) -> None:
+        """Keep a stop request's reason for ``session.ended``."""
+        self.stop_reason = reason
+
+    def _emit_session_ended(self, exc: BaseException | None) -> None:
+        """
+        Emit ``session.ended``. Never raises: it runs in ``__exit__``, where a raise
+        would hide whatever ended the Session and skip the clean-up after it.
+        :param exc: The exception leaving the Session's context, or ``None``.
+        """
+        try:
+            payload = _session_ended_payload(
+                self.stop_reason, self.task_manager.failure, exc
+            )
+            emit_event(None, SESSION_ENDED, payload, logger_name=logger.name)
+        except Exception:
+            logger.exception("Could not record how the Session ended.")
+
+    def _emit_session_started(self, bots: Iterable[Bot]) -> None:
+        """
+        Emit ``session.started``. Never raises: a Bot's ``_decision_makers()`` is
+        game code, and a Session must not die of being observed.
+        :param bots: Every Bot of the Session, in launch order.
+        """
+        try:
+            payload = _session_started_payload(bots, debug=self._debug)
+            emit_event(None, SESSION_STARTED, payload, logger_name=logger.name)
+        except Exception:
+            logger.exception("Could not record how the Session started.")
 
     async def launch(self, *grouped_bots: list[Bot]) -> None:
         """
@@ -200,6 +391,8 @@ class SessionManager:
         :return:
         """
         self.main_bot = grouped_bots[0][0]
+        # Before any Engine starts, so no Engine's record precedes it.
+        self._emit_session_started(bot for group in grouped_bots for bot in group)
         # BaseParser declares `main_ign` as None only; the fix belongs there.
         self.peripherals.discord_parser.main_ign = self.main_bot.ign  # pyright: ignore[reportAttributeAccessIssue]
         self.barrier = self.process_manager.Barrier(
@@ -222,12 +415,14 @@ class SessionManager:
         assert self.discord_listener is not None, "__enter__ runs before launch()"
         assert self.proxy_listener is not None, "__enter__ runs before launch()"
         assert self.management_task is not None, "__enter__ runs before launch()"
+        assert self.stop_file_task is not None, "__enter__ runs before launch()"
         t_done, t_pending = await asyncio.wait(
             [
                 *self.listeners,
                 self.discord_listener,
                 self.proxy_listener,
                 self.management_task,
+                self.stop_file_task,
             ],
             return_when=asyncio.FIRST_COMPLETED,
         )

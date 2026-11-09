@@ -6,6 +6,8 @@ the coordinates land in the scratch fields and `__post_init__`'s `cleanup()` wip
 them, leaving every node on its defaults with nothing raised.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 from pathfinding.finder.dijkstra import DijkstraFinder
@@ -26,9 +28,15 @@ CANVAS = np.array(
     ]
 )
 
-# Every real mapfile under `configs/maps/`. `MysteriousPath3` used to be a third:
-# a legacy-schema file that built an empty canvas, deleted by issue #103.
-MAPFILES = ["GhostShip1", "Line1Area1"]
+# Every real mapfile under `configs/maps/`, found rather than listed, so a new map
+# is checked the day it lands. `MysteriousPath3` was a legacy-schema file that
+# built an empty canvas, deleted by issue #103.
+MAPFILES = sorted(
+    file.stem
+    for file in (Path(__file__).resolve().parents[2] / "configs" / "maps").glob(
+        "*.json"
+    )
+)
 
 
 @pytest.fixture
