@@ -9,6 +9,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from botting.screen import Frame, Status
+from botting.utilities import Box
 from game_data.sprites import Sprite
 from maple.screen.locator import UI_NOT_FOUND, FrameCheck
 from maple.screen.sprites import GAUGE_LABEL, Profile, ReaderSprites
@@ -337,3 +338,21 @@ def test_a_hidden_end_digit_of_the_level_is_not_read(
 
     assert reading.status is Status.UNSURE
     assert reading.value is None
+
+
+def test_boxes_place_the_bar_and_each_number_in_client_pixels(
+    reader: StatusBarReader,
+) -> None:
+    located = reader.locator.locate(frame(bar()))
+    assert located is not None
+
+    boxes = reader.boxes(located)
+
+    # The background, from POINT less its origin, is the larger of the two sprites.
+    bx, by = POINT[0] - BACKGROUND_ORIGIN[0], POINT[1] - BACKGROUND_ORIGIN[1]
+    assert boxes["bar"] == Box(left=bx, top=by, right=bx + 360, bottom=by + 36)
+    hx, hy = POINT[0] + VECTORS[_HP_AT][0], POINT[1] + VECTORS[_HP_AT][1]
+    assert boxes["hp"] == Box(
+        left=hx, top=hy, right=POINT[0] + VECTORS[_MP_AT][0], bottom=hy + 7
+    )
+    assert set(boxes) == {"bar", "level", "hp", "mp", "exp"}

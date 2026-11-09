@@ -10,6 +10,7 @@ from .ensure_still_in_map import CheckStillInMap
 from .mobs_hitting import MobsHitting
 from .rebuffs import SoloRebuff
 from .rotation import Rotation
+from .state_snapshot import StateSnapshot
 from .telecast_mobs_hitting import TelecastMobsHitting
 from .trial_runner import TrialRunner
 
@@ -25,6 +26,7 @@ __all__ = [
     "Rotation",
     "SoloRebuff",
     "SpeedPill",
+    "StateSnapshot",
     "TelecastMobsHitting",
     "TrialRunner",
 ]

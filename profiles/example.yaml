@@ -17,6 +17,10 @@ ign: YourCharacterName
 # "Bot"-less shorthand, so `training` and `TrainingBot` are the same thing.
 # Run `python -m maple.launchers.run --list` to see your profiles; an unknown
 # bot name here prints the list of what is actually exported.
+# A throwaway bot that is not exported can be named as `module.path:ClassName`
+# (case-sensitive), e.g. `scratch.my_bot:MyBot`. The module must be importable
+# from where you launch, and the class must subclass MapleBot. `scratch/` is
+# gitignored.
 bot: training
 
 # Everything below is passed straight to the bot's constructor. Anything the

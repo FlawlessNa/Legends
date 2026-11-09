@@ -28,6 +28,7 @@ on another machine, reaching this one through an SSH tunnel
 | Hitting a Ruff or Pyright error           | `docs/agents/typing.md`                                |
 | Reviewing a PR                            | `docs/agents/code-review.md`                           |
 | Filing, labelling or reading issues       | `docs/agents/issue-tracker.md`, `triage-labels.md`     |
+| Checking work against the game client     | `docs/agents/game-client.md`                           |
 | Tracing how a decision becomes a keypress | `docs/agents/engine-architecture.md`                   |
 | Extracting or reading the client's data   | `docs/agents/game-data.md`                             |
 
