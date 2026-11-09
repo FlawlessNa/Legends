@@ -44,7 +44,7 @@ _FILE = {
         "canvas_width": 40,
         "canvas_height": 20,
     },
-    "title_img_path": "maple/assets/detection_images/OldMinimap.png",
+    "title_img_path": None,
     "mobs": [],
     "features": {"floor": {"left": 1, "right": 30, "top": 15, "bottom": 15}},
     "portals": [],

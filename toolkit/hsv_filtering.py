@@ -1,7 +1,8 @@
 import cv2
 import numpy as np
 
-from botting.utilities import group_rectangles, take_screenshot
+from botting.screen import frame_source
+from botting.utilities import group_rectangles
 
 
 def init_control_gui_hsv():
@@ -283,7 +284,7 @@ if __name__ == "__main__":
     fy = 1
 
     while True:
-        img_hsv = take_screenshot(HANDLE)
+        img_hsv = frame_source().grab(HANDLE).pixels
         img_color = img_hsv.copy()
 
         if USE_HSV:
