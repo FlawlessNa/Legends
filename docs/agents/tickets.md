@@ -71,6 +71,10 @@ deselected test accounted for by an opt-in marker (`live`, `system`, `lab`,
 - **Green means the Invariants hold, not that the bot works.** Nothing in the
   default suite drives a game client.
 
+CI (`.github/workflows/ci.yml`, the `gates` check) runs ruff and pyright on the
+Python files your PR changes, and the whole default `pytest`, on every PR into
+`dev` or an `epic/**` branch. A red `gates` is yours, as a red local run is.
+
 `testing.md` has the procedures; `typing.md` covers the pre-commit gates. The
 import direction in `AGENTS.md` ("The repo") is a test,
 `tests/test_layering.py`: fix a violation by moving the code, never by adding

@@ -292,8 +292,8 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         """
         Register a cache_id for the prediction cache.
         """
-        InGameDetectionVisuals._prediction_cache[cache_id] = None  # type: ignore
-        InGameDetectionVisuals._arg_cache[cache_id] = None  # type: ignore
+        InGameDetectionVisuals._prediction_cache[cache_id] = None  # pyright: ignore[reportArgumentType]
+        InGameDetectionVisuals._arg_cache[cache_id] = None  # pyright: ignore[reportArgumentType]
 
     @staticmethod
     def register_models(models_path: dict[str, str]) -> None:
@@ -345,7 +345,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         """
         if model is None:
             return False
-        detectable_classes = model.names.values()  # type: ignore
+        detectable_classes = model.names.values()
         if cls.__name__.replace(" ", "").replace(".", "") in detectable_classes:
             cls._model_cls_name = cls.__name__
             return True
