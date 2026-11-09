@@ -106,16 +106,49 @@ jobs:
   merge:
     needs: review
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # gates (ci.yml) has a 30-minute timeout of its own, plus queue time.
+    timeout-minutes: 45
     permissions:
       contents: write
       pull-requests: write
+      checks: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
+      # The ruleset also requires `gates`, which CI runs on its own clock and
+      # often finishes after the review. Wait for it on the reviewed commit.
+      - name: Wait for gates
+        run: |
+          deadline=$((SECONDS + 40 * 60))
+          while :; do
+            state="$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=gates&filter=latest" \
+              --jq '[.check_runs[] | select(.app.slug == "github-actions")] | sort_by(.started_at) | last
+                    | if . == null then "missing" elif .status != "completed" then .status else .conclusion end')"
+            echo "gates on ${HEAD_SHA:0:8}: $state"
+            case "$state" in
+              success) exit 0 ;;
+              missing|queued|in_progress|waiting|pending|requested) ;;
+              *) echo "::error::gates is $state; not merging."; exit 1 ;;
+            esac
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::gates did not pass within 40 minutes ($state); not merging. Re-run this job once it has."
+              exit 1
+            fi
+            sleep 20
+          done
+
       - name: Merge into the epic branch
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         # --match-head-commit: merge exactly what was reviewed, never a commit
         # pushed after the review started.
-        run: gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --squash --delete-branch --match-head-commit "$HEAD_SHA"
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json mergeStateStatus,mergeable,statusCheckRollup \
+              --jq '"mergeStateStatus=\(.mergeStateStatus) mergeable=\(.mergeable) checks=\([.statusCheckRollup[] | "\(.name // .context):\(.conclusion // .state // .status)"] | join(","))"'
+            if gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --squash --delete-branch --match-head-commit "$HEAD_SHA"; then
+              exit 0
+            fi
+            sleep 30
+          done
+          exit 1
