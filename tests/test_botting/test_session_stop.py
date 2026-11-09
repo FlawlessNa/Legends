@@ -1,7 +1,9 @@
 """
-How a Session ends through the stop file, from `SessionManager`'s side: its
-`__exit__` releases every Bot's keys in debug mode too, and a `STOP` written
-during `launch` ends it normally, with `session.ended` the last record.
+How a Session ends, from `SessionManager`'s side: its `__exit__` releases every
+Bot's keys in debug mode too, a `STOP` written during `launch` ends it
+normally, an Engine that dies on an exception ends it in `error`, and
+`__exit__` still writes `session.ended` and releases keys when a teardown step
+raises, as they do after a console Ctrl+C kills the Manager process.
 
 A real `SessionManager.__init__` starts a Manager process and configures
 logging, so the instance is made with `__new__` and given the attributes
@@ -12,15 +14,19 @@ spawns a process or touches a window.
 import asyncio
 import json
 import logging
+import multiprocessing
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from multiprocessing.connection import Connection
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from pytest_mock import MockerFixture, MockType
 
 from botting.core.async_task_manager import AsyncTaskManager
+from botting.core.engine import Engine, EngineFailed, EngineFailure
 from botting.core.session_manager import SessionManager
 from botting.logging_config import PARENT_LOG
 from botting.stop_file import request_stop
@@ -195,3 +201,207 @@ def test_a_stopped_session_records_why_and_ends_on_session_ended(
     assert stop["payload"] == {"reason": "tests done"}
     assert records[-1]["event_type"] == "session.ended"
     assert records[-1]["payload"] == {"cause": "stop_file", "error": None}
+
+
+# --- An Engine that dies on an exception ends the Session in error -----------
+
+GRID_ERROR = "RuntimeError: Cannot generate grid for 'NoMapFile'"
+
+
+def _dead_engine(*, fails: bool) -> Callable[..., SimpleNamespace]:
+    """
+    `Engine.start`, for a child process that exits at once: it writes to the
+    real pipe what `_cycle_forever` sends on its way out, and spawns nothing.
+    """
+
+    def start(
+        pipe: Connection, _metadata: object, bots: list[MockType], _barrier: object
+    ) -> SimpleNamespace:
+        name = f"Engine({', '.join(bot.ign for bot in bots)})"
+        if fails:
+            pipe.send(EngineFailure(engine=name, error=GRID_ERROR))
+        pipe.send(None)
+        return SimpleNamespace(
+            name=name, join=lambda timeout=None: None, is_alive=lambda: False
+        )
+
+    return start
+
+
+def test_engine_reports_its_failure_before_the_none_that_ends_it(
+    mocker: MockerFixture,
+) -> None:
+    mocker.patch("botting.core.engine.install_loop_diagnostics")
+    bot = _bot(mocker)
+    bot.child_init.side_effect = RuntimeError("Cannot generate grid for 'NoMapFile'")
+    engine = Engine.__new__(Engine)
+    engine.pipe = mocker.Mock(closed=False)
+    engine.metadata = {}  # pyright: ignore[reportAttributeAccessIssue]
+    engine.bots = [bot]
+    engine.bot_tasks = []
+    engine.main_listener = None
+    engine.barrier = mocker.Mock()
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(engine._cycle_forever())  # pyright: ignore[reportPrivateUsage]
+
+    assert engine.pipe.send.call_args_list == [
+        mocker.call(EngineFailure(engine="Engine(Tester)", error=GRID_ERROR)),
+        mocker.call(None),
+    ]
+
+
+def _listen(
+    mocker: MockerFixture, *sent: object
+) -> tuple[BaseException | None, asyncio.PriorityQueue]:
+    """
+    Run the real Listener over a real pipe its Engine has already written to.
+    Returns what the Listener task raised, and the Task Manager's queue.
+    """
+    engine_side, listener_side = multiprocessing.Pipe()
+    for message in sent:
+        engine_side.send(message)
+    engine = mocker.Mock()
+    engine.name = "Engine(Tester)"
+    queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
+
+    async def listen() -> BaseException | None:
+        task = Engine.listener(listener_side, queue, engine, mocker.Mock())  # pyright: ignore[reportArgumentType]
+        await asyncio.wait([task])
+        return task.exception()
+
+    return asyncio.run(listen()), queue
+
+
+def test_the_listener_raises_its_engines_failure(mocker: MockerFixture) -> None:
+    failure = EngineFailure(engine="Engine(Tester)", error=GRID_ERROR)
+
+    raised, queue = _listen(mocker, failure, None)
+
+    assert isinstance(raised, EngineFailed)
+    assert str(raised) == f"Engine(Tester) raised {GRID_ERROR}"
+    # The failure is no request: the queue gets only the None that ends it.
+    assert queue.qsize() == 1
+    assert queue.get_nowait() is None
+
+
+def test_the_listener_of_an_engine_that_exits_normally_returns(
+    mocker: MockerFixture,
+) -> None:
+    raised, _queue = _listen(mocker, None)
+
+    assert raised is None
+
+
+@pytest.mark.parametrize(
+    ("fails", "cause", "error"),
+    [
+        pytest.param(
+            True,
+            "error",
+            f"EngineFailed: Engine(Tester) raised {GRID_ERROR}",
+            id="an engine that dies",
+        ),
+        pytest.param(False, "completed", None, id="an engine that exits normally"),
+    ],
+)
+def test_session_ended_says_how_its_engine_ended(
+    fails: bool,
+    cause: str,
+    error: str | None,
+    mocker: MockerFixture,
+    tmp_path: Path,
+    sink: TelemetryHandler,
+    released: MockType,
+) -> None:
+    """The live run of 2026-11-08 recorded a start-up crash as `completed`."""
+    manager = _manager(mocker, tmp_path, sink, debug=True)
+    mocker.patch(
+        "botting.core.session_manager.Engine.start",
+        side_effect=_dead_engine(fails=fails),
+    )
+    bot = _bot(mocker)
+
+    async def scenario() -> None:
+        with manager:
+            await asyncio.wait_for(manager.launch([bot]), 2)
+
+    if fails:
+        with pytest.raises(EngineFailed):
+            asyncio.run(scenario())
+    else:
+        asyncio.run(scenario())
+
+    ended = _records(tmp_path)[-1]
+    assert ended["event_type"] == "session.ended"
+    assert ended["payload"] == {"cause": cause, "error": error}
+    released.assert_called_with(HANDLE)
+
+
+# --- __exit__ survives a teardown step that raises ---------------------------
+
+
+def _break(mocker: MockerFixture, manager: SessionManager, step: str) -> None:
+    """Make one teardown step raise, as a dead Manager process makes it."""
+    target, attribute = {
+        "log listener": (manager.log_receiver, "stop"),
+        "peripherals": (manager.peripherals, "kill"),
+        "engine": (manager.engines[0], "join"),
+        "first bot": (manager.bots[0], "find_handle"),
+    }[step]
+    mocker.patch.object(target, attribute, side_effect=EOFError())
+
+
+@pytest.mark.parametrize("step", ["log listener", "peripherals", "engine", "first bot"])
+@pytest.mark.parametrize(
+    ("exc", "cause"),
+    [
+        pytest.param(KeyboardInterrupt(), "interrupted", id="ctrl+c"),
+        pytest.param(None, "completed", id="normal exit"),
+    ],
+)
+def test_exit_survives_a_teardown_step_that_raises(
+    step: str,
+    exc: BaseException | None,
+    cause: str,
+    mocker: MockerFixture,
+    tmp_path: Path,
+    sink: TelemetryHandler,
+    released: MockType,
+) -> None:
+    """
+    After a console Ctrl+C, `log_receiver.stop()` raised `EOFError` through the
+    dead Manager's queue and skipped everything after it, `session.ended` and
+    the key release included.
+    """
+    manager = _manager(mocker, tmp_path, sink, debug=False)
+    manager.discord_listener = mocker.Mock()
+    manager.stop_file_task = mocker.Mock()
+    hung, other = mocker.Mock(), mocker.Mock()
+    hung.is_alive.return_value = True
+    manager.engines = [hung, other]
+    survivor = _bot(mocker)
+    survivor.find_handle.return_value = HANDLE + 1
+    manager.bots = [_bot(mocker), survivor]
+    _break(mocker, manager, step)
+
+    if exc is None:
+        manager.__exit__(None, None, None)
+    else:
+        with pytest.raises(KeyboardInterrupt) as raised:
+            manager.__exit__(type(exc), exc, None)
+        # The exception that ended the Session, not the teardown's.
+        assert raised.value is exc
+
+    records = _records(tmp_path)
+    assert records[-1]["event_type"] == "session.ended"
+    assert records[-1]["payload"] == {"cause": cause, "error": None}
+    assert sink not in logging.getLogger(PARENT_LOG).handlers
+    assert sink._stream.closed  # pyright: ignore[reportPrivateUsage]
+    hung.join.assert_called_once_with(timeout=2)
+    other.join.assert_called_once_with(timeout=2)
+    if step != "engine":
+        hung.terminate.assert_called_once_with()
+    released.assert_any_call(HANDLE + 1)
+    if step != "first bot":
+        released.assert_any_call(HANDLE)

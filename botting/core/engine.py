@@ -2,13 +2,45 @@ import asyncio
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
+import threading
+from dataclasses import dataclass
 
 from botting.utilities import install_loop_diagnostics, setup_child_proc_logging
-from .bot import Bot
+
 from .action_data import ActionRequest
+from .bot import Bot
 
 logger = logging.getLogger(__name__)
 _DEBUG_TIMEOUT_ = None  # None to run infinitely. Otherwise, this stops the engine
+
+
+@dataclass(frozen=True)
+class EngineFailure:
+    """
+    What an Engine sends its Listener when it dies on an exception, just before
+    the ``None`` every Engine sends on its way out.
+
+    The exception travels as text, not as itself: an arbitrary exception may not
+    survive pickling, and a failure that cannot be reported is one the Session
+    records as ``completed``.
+    """
+
+    #: The Engine's name, as ``str(engine)`` gives it: ``Engine(<igns>)``.
+    engine: str
+    #: ``"<ExceptionType>: <message>"``.
+    error: str
+
+
+class EngineFailed(Exception):
+    """
+    Raised by an Engine's Listener, in Main Process, once its Engine has
+    reported an ``EngineFailure``. It makes the Listener task fail, so ``launch``
+    raises it and ``session.ended`` records the cause as ``error``.
+    """
+
+    def __init__(self, failure: EngineFailure) -> None:
+        super().__init__(f"{failure.engine} raised {failure.error}")
+        self.failure = failure
 
 
 class _ChildProcessEngine:
@@ -21,7 +53,7 @@ class _ChildProcessEngine:
         pipe: multiprocessing.connection.Connection,
         metadata: multiprocessing.managers.DictProxy,
         bots: list[Bot],
-        barrier: multiprocessing.managers.BarrierProxy,
+        barrier: threading.Barrier,
     ) -> None:
         assert multiprocessing.current_process().name != "MainProcess"
         self.pipe = pipe
@@ -31,7 +63,7 @@ class _ChildProcessEngine:
         self.main_listener: asyncio.Task | None = None
         self.barrier = barrier
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}({', '.join([b.ign for b in self.bots])})"
 
     @classmethod
@@ -40,7 +72,7 @@ class _ChildProcessEngine:
         pipe: multiprocessing.connection.Connection,
         metadata: multiprocessing.managers.DictProxy,
         bots: list[Bot],
-        barrier: multiprocessing.managers.BarrierProxy,
+        barrier: threading.Barrier,
     ) -> None:
         """
         Child Process Entry Point.
@@ -65,7 +97,9 @@ class _ChildProcessEngine:
         Launches the DecisionMakers of all Bots.
         :return:
         """
-        asyncio.current_task().set_name(f"MainTask - {self}")
+        task = asyncio.current_task()
+        assert task is not None, "asyncio.run runs this as a task"
+        task.set_name(f"MainTask - {self}")
         install_loop_diagnostics(debug=bool(self.metadata.get("debug")))
         try:
             for bot in self.bots:
@@ -105,20 +139,37 @@ class _ChildProcessEngine:
             if failures:
                 # The whole group is raised, never just .exceptions[0]: a TaskGroup
                 # reports every sibling that failed alongside the first one.
-                raise failures[0].exception()
+                first = failures[0].exception()
+                assert first is not None, "failures holds only tasks that raised"
+                raise first
 
         except SystemExit:
             pass
 
         except Exception as e:
             logger.error("%s is exiting on an exception.", self, exc_info=e)
-            raise e
+            self._report_failure(e)
+            raise
 
         finally:
             if not self.pipe.closed:
                 logger.info("%s is sending None and closing pipe", self)
                 self.pipe.send(None)
             logger.info("%s Exited.", self)
+
+    def _report_failure(self, exc: Exception) -> None:
+        """
+        Tell Main Process why this Engine is dying, before the ``None`` that ends
+        its Listener. Never raises: it runs on the way out of a failure, which a
+        raise here would replace.
+        :param exc: The exception the Engine is exiting on.
+        """
+        try:
+            if not self.pipe.closed:
+                error = f"{type(exc).__name__}: {exc}"
+                self.pipe.send(EngineFailure(engine=str(self), error=error))
+        except Exception:
+            logger.exception("%s could not report its failure.", self)
 
     async def _poll_for_updates(self) -> None:
         """
@@ -156,7 +207,7 @@ class Engine(_ChildProcessEngine):
         pipe: multiprocessing.connection.Connection,
         metadata: multiprocessing.managers.DictProxy,
         bots: list[Bot],
-        barrier: multiprocessing.managers.BarrierProxy,
+        barrier: threading.Barrier,
     ) -> multiprocessing.Process:
         """
         Called from the MainProcess.
@@ -196,7 +247,10 @@ class Engine(_ChildProcessEngine):
         """
         assert multiprocessing.current_process().name == "MainProcess"
 
-        async def _coro():
+        async def _coro() -> None:
+            # Held until the Engine's None: raised before it, the Listener would
+            # send None back to an Engine still writing to the pipe.
+            failure: EngineFailure | None = None
             try:
                 while True:
                     if await asyncio.to_thread(pipe.poll):
@@ -206,6 +260,11 @@ class Engine(_ChildProcessEngine):
                             msg = f"Received None from {engine.name}. Exiting."
                             logger.info(msg)
                             break
+
+                        elif isinstance(request, EngineFailure):
+                            logger.error("%s failed: %s", engine.name, request.error)
+                            failure = request
+                            continue  # never on the queue: it is no request
 
                         elif isinstance(request, BaseException):
                             logger.error("Exception occurred in %s.", engine.name)
@@ -227,12 +286,16 @@ class Engine(_ChildProcessEngine):
                 logger.error(
                     "Exception occurred in Listener to %s.", engine.name, exc_info=e
                 )
-                raise e
+                raise
 
             finally:
                 if not pipe.closed:
                     logger.info("Sending None from %s listener", engine.name)
                     pipe.send(None)
                 queue.put_nowait(None)
+
+            if failure is not None:
+                # `launch` logs it, tells Discord, and raises it into __exit__.
+                raise EngineFailed(failure)
 
         return asyncio.create_task(_coro(), name=f"Listener({engine.name})")

@@ -175,13 +175,23 @@ you do to it. The maintainer starts it.
    `T` is `+mm:ss[.s]`, plain seconds or an ISO timestamp, relative to
    `session.started`. `--json` prints one object per line. Without `DIR`, the
    newest Session under `logs/` is read.
-5. **Pull a few `frame`s only where the result is in doubt**, to check the bot
-   read the screen correctly: `frame --at +02:11 --box l,t,r,b`. It writes a
-   PNG to `<DIR>/frames/`. Prefer a `--box` to the whole screen.
-6. **`stop`** once you have enough:
+5. **`stop`** once you have enough:
    `python -m botting.session stop --reason "enough records"`. It writes the
    stop file and waits up to 30 s for `session.ended`. The Session ends through
-   `SessionManager.__exit__`, which releases every held key.
+   `SessionManager.__exit__`, which releases every held key. `session.ended`
+   says how any Session ended, in its `cause`:
+   - `stop_file`: stopped through `stop`;
+   - `interrupted`: Ctrl+C in its console, or a Discord kill;
+   - `error`: a task or an Engine raised, and `error` names the exception
+     (an Engine that dies reads `EngineFailed: Engine(<ign>) raised …`);
+   - `completed`: the bots stopped on their own.
+
+   A Session with no `session.ended` was killed hard.
+6. **Pull a few `frame`s only where the result is in doubt**, after `stop`, to
+   check the bot read the screen correctly: `frame --at +02:11 --box l,t,r,b`.
+   It writes a PNG to `<DIR>/frames/`. Prefer a `--box` to the whole screen.
+   The video can be read only once the Session has ended: on a running
+   Session, `frame` fails with "… cannot be read as a video".
 7. **Write the verdict in the PR**: what you expected, what the Session showed
    in counts, and the Session directory (`logs/<timestamp>/`), so the
    maintainer can read the same records. Attach a frame if one settled a doubt.
@@ -254,8 +264,8 @@ python -m botting.session summary
 python -m botting.session events --type "movement.*" --limit 40
 python -m botting.session events --type action.finished --where outcome=cancelled
 python -m botting.session around --at +02:11
-python -m botting.session frame --at +02:11 --box 0,0,400,300
 python -m botting.session stop --reason "3 minutes done"
+python -m botting.session frame --at +02:11 --box 0,0,400,300
 ```
 
 The verdict, in the PR (numbers invented for the example):
