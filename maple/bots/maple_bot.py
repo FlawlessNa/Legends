@@ -7,6 +7,7 @@ from typing import Any
 from botting.core import Bot
 from botting.screen import frame_source
 from botting.visuals import InGameDetectionVisuals
+from maple.bots.map_setting import resolve_map_id
 from maple.decision_makers.rebuffs import solo_buffs
 from maple.model.characters import MAPPING as CHARACTER_MAPPING
 from maple.model.mechanics import MapleMap
@@ -33,7 +34,8 @@ class MapleBot(Bot, ABC):
         self,
         ign: str,
         metadata: multiprocessing.managers.DictProxy,
-        game_map: str,
+        game_map: str | None = None,
+        map: str | int | None = None,
         detection_configs: str | None = None,
         client_size: str = "medium",
         models_path: dict[str, str] | None = None,
@@ -52,7 +54,8 @@ class MapleBot(Bot, ABC):
         self.detection_configs = detection_configs
         self.client_size = client_size
         self.models_path = models_path
-        self.game_map = game_map.replace("_", "").replace(" ", "")
+        self.map_id = resolve_map_id(map, game_map)
+        self.game_map = (game_map or "").replace("_", "").replace(" ", "")
         self.open_minimap_editor = open_minimap_editor
         self.kwargs = kwargs
         self.kwargs.update(ign=ign)
@@ -79,8 +82,13 @@ class MapleBot(Bot, ABC):
         data = self.data
         # The readers' sprites are loaded once, before any reader attribute
         # exists: a missing or stale store refuses the start here, not mid-cycle.
-        map_file = MinimapEditsManager.from_json(self.game_map)
-        map_id = map_file.map_id if map_file is not None else None
+        map_file = (
+            MinimapEditsManager.from_json(self.game_map) if self.game_map else None
+        )
+        map_id = self.map_id
+        if map_id is None and map_file is not None:
+            map_id = map_file.map_id
+        data.set_static("map_id", map_id)
         reader_sprites = load_reader_sprites(
             enabled_readers(self._decision_makers()),
             Profile(
