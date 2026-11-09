@@ -144,3 +144,5 @@ covers:
 - what a human still has to do.
 
 Reviewing is a different job: see `code-review.md`.
+
+<!-- zz-ci-test pr1 -->
