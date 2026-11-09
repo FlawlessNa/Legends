@@ -13,6 +13,7 @@ import pkgutil
 from collections.abc import Callable
 from typing import Any
 
+import numpy as np
 import pytest
 
 import maple.screen
@@ -22,9 +23,12 @@ from maple.screen.chat import ChatReader
 from maple.screen.locator import FrameCheck
 from maple.screen.minimap import MinimapReader
 from maple.screen.minimap_title import MinimapTitleReader
+from maple.screen.position import CameraReader
 from maple.screen.quick_slots import SEARCH_EVERY, QuickSlotsReader
+from maple.screen.sprites import GAUGE_LABEL
 from maple.screen.status_bar import StatusBarReader
 from tests.test_maple import test_screen_buffs as buffs
+from tests.test_maple import test_screen_camera as camera
 from tests.test_maple import test_screen_chat as chat
 from tests.test_maple import test_screen_minimap as minimap
 from tests.test_maple import test_screen_minimap_title as minimap_title
@@ -92,6 +96,15 @@ def _minimap_title(check: FrameCheck) -> Callable[[], Reading[Any]]:
     return lambda: reader.read(frame)
 
 
+def _camera(check: FrameCheck) -> Callable[[], Reading[Any]]:
+    render = camera.synthetic_render(1000, 800, 1)
+    reader = CameraReader(camera.world_map(), frame_check=check, render=render)
+    pixels = np.ascontiguousarray(render[100:700, 100:900, 2::-1])
+    minimap.paste(pixels, minimap.SPRITES[GAUGE_LABEL], 10, 600 - 12)
+    frame = minimap.frame(pixels)
+    return lambda: reader.read(frame)
+
+
 READERS = {
     StatusBarReader: _status_bar,
     MinimapReader: _minimap,
@@ -99,6 +112,7 @@ READERS = {
     QuickSlotsReader: _quick_slots,
     ChatReader: _chat,
     MinimapTitleReader: _minimap_title,
+    CameraReader: _camera,
 }
 
 ASKS = {QuickSlotsReader: 2}
@@ -106,9 +120,9 @@ ASKS = {QuickSlotsReader: 2}
 
 
 def screen_readers() -> set[type]:
-    """Every `*Reader` class `maple/screen/` defines."""
+    """Every `*Reader` class `maple/screen/` and its packages define."""
     found: set[type] = set()
-    for info in pkgutil.iter_modules(maple.screen.__path__, "maple.screen."):
+    for info in pkgutil.walk_packages(maple.screen.__path__, "maple.screen."):
         module = importlib.import_module(info.name)
         found |= {
             cls
@@ -143,6 +157,7 @@ CHECK_SPRITES = {
     QuickSlotsReader: quick_slots.sprites(),
     ChatReader: chat.sprites(),
     MinimapTitleReader: minimap_title.title_sprites(),
+    CameraReader: minimap.sprites(),
 }
 
 
