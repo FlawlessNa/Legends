@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 
 from botting.core import BotData
+from botting.screen import Frame
 from maple.decision_makers.mixins import MobsHittingMixin, NextTargetMixin
 
 
@@ -57,8 +58,8 @@ def _target(mobs: list[tuple[int, int, int, int]]) -> tuple[int, int]:
     data.set_static("current_minimap", _Minimap())
     data.set_static("current_map", _Map())
     data.set_static("current_minimap_position", (50, 50))
-    image = np.zeros((600, 1000, 3), np.uint8)
-    data.create_attribute("current_client_img", lambda: image, initial_value=image)
+    image = Frame(np.zeros((600, 1000, 3), np.uint8), (1000, 600), 0.0, True, True)
+    data.create_attribute("current_frame", lambda: image, initial_value=image)
     data.set_static("current_mobs", ())
     # The character, x1, y1, x2, y2: centred at x 100.
     character = (90, 40, 110, 70)

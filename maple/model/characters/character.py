@@ -8,11 +8,7 @@ import numpy as np
 from ultralytics.engine.results import Results
 
 from botting.models_abstractions import BaseCharacter
-from botting.utilities import (
-    Box,
-    config_reader,
-    take_screenshot,
-)
+from botting.utilities import Box, config_reader
 
 from .maple_skills import MapleSkill
 from .own_character import Candidate, OwnCharacterPicker
@@ -102,7 +98,7 @@ class Character(BaseCharacter, ABC):
 
     def get_onscreen_position(
         self,
-        image: np.ndarray | None,
+        image: np.ndarray,
         handle: int,
         regions_to_hide: list[Box] | None = None,
         acceptance_threshold: float | None = None,
@@ -112,7 +108,7 @@ class Character(BaseCharacter, ABC):
         Applies detection method specified through user configs.
         Optionally hides regions of the image (such as minimap) to prevent false positive.
         Optionally applies offset to the detection, as the detection may not be the character itself.
-        :param image:
+        :param image: The client's pixels: the bot's `current_frame.pixels`.
         :param handle:
         :param regions_to_hide:
         :param acceptance_threshold: To use with detection model.
@@ -121,11 +117,7 @@ class Character(BaseCharacter, ABC):
         model_res: Sequence[int] | None = None
         detection_res: Sequence[int] | None = None
         mask: np.ndarray | None = None
-        if image is None:
-            assert handle is not None
-            image = take_screenshot(handle, self.detection_box)
-        else:
-            image = image.copy()
+        image = image.copy()
 
         if regions_to_hide is not None:
             mask = np.ones(image.shape, np.uint8) * 255

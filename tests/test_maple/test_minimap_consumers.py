@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 from pytest_mock import MockerFixture
 
-from botting.screen import Frame
+from botting.screen import Frame, Status
 from game_data.sprites import Sprite
 from maple.actions import menus
 from maple.decision_makers.ensure_still_in_map import CheckStillInMap
@@ -125,6 +125,28 @@ def test_the_minimap_counts_as_displayed_only_when_expanded(
     """The Stuck detector's guard (`_on_expected_minimap`) reads this: a
     minimised minimap shows no map."""
     assert _Positioned(shown)._minimap_displayed() is displayed
+
+
+def test_a_covered_minimap_keeps_the_last_answers_and_absent_says_not_shown() -> None:
+    """No policy for a covered minimap yet: whether it is shown, and where,
+    keep their last values (`HeldReading`). Not on screen is an answer."""
+    shown = _minimap()
+    covered = _minimap()
+    occlude(covered.pixels, 250, 20, 6, 72)
+    positioned = _Positioned(shown)
+    bounds = positioned._entire_minimap_box()
+    assert positioned._minimap_displayed() is True
+    assert bounds is not None
+
+    positioned.data.minimap_reading = reader().read(covered)  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
+    assert positioned.data.minimap_reading.status is Status.COVERED
+    assert positioned._minimap_displayed() is True
+    assert positioned._entire_minimap_box() == bounds
+
+    positioned.data.minimap_reading = reader().read(frame(screen()))  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
+    assert positioned.data.minimap_reading.status is Status.ABSENT
+    assert positioned._minimap_displayed() is False
+    assert positioned._entire_minimap_box() == bounds
 
 
 def test_the_position_is_the_markers() -> None:

@@ -271,7 +271,7 @@ class MovementRecoveryMixin:
             priority=priorities.FAILSAFE,
             requeue_if_not_scheduled=False,
             cancels_itself=True,
-            discord_request=DiscordRequest(message, self.data.current_client_img),
+            discord_request=DiscordRequest(message, self.data.current_frame.pixels),
         )
 
     def _escalate(self, reaction: Reaction) -> None:
@@ -307,7 +307,7 @@ class MovementRecoveryMixin:
                 cancels_itself=True,
                 cancel_tasks=[f"{self}"],
                 discord_request=DiscordRequest(
-                    self._escalate_message(reaction), self.data.current_client_img
+                    self._escalate_message(reaction), self.data.current_frame.pixels
                 ),
                 args=(self.data.handle,),
             )

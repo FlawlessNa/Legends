@@ -13,15 +13,12 @@ import faulthandler
 import logging.config
 import multiprocessing
 
-import pytesseract
-
-from paths import TESSERACT
-
 from ._debug_names import install as _install_debug_names
 from .logging_config import PARENT_LOG, levels_config
 from .telemetry import emit_event, not_telemetry
 
-pytesseract.pytesseract.tesseract_cmd = TESSERACT
+# Tesseract is set up where it is used, on first use: `botting/visuals/
+# in_game_visuals.py`. Importing `botting` doesn't import `pytesseract`.
 
 # The capture dial, in every process: `botting` captures at DEBUG and stops
 # propagating to the root logger. Handlers are deliberately absent here - a

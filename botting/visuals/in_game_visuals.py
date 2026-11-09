@@ -3,15 +3,16 @@ Base classes for in-game visuals.
 Contains methods for reading text, detecting colors or images in the game window.
 """
 
+import functools
 import logging
 import os
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from types import ModuleType
 from typing import Any, ClassVar
 
 import cv2
 import numpy as np
-import pytesseract
 import torch.cuda
 from cv2.typing import MatLike
 from numpy import dtype, generic, ndarray
@@ -22,6 +23,21 @@ from botting.utilities import Box, find_image, group_rectangles, take_screenshot
 from paths import ROOT
 
 logger = logging.getLogger(__name__)
+
+
+@functools.cache
+def _tesseract() -> ModuleType:
+    """
+    `pytesseract`, pointed at the configured executable: imported, and set, on
+    first use. Nothing else imports it, so a bot whose readers don't OCR never
+    loads it.
+    """
+    import pytesseract
+
+    from paths import TESSERACT
+
+    pytesseract.pytesseract.tesseract_cmd = TESSERACT
+    return pytesseract
 
 
 class InGameBaseVisuals(ABC):
@@ -76,6 +92,7 @@ class InGameBaseVisuals(ABC):
         :return:
         """
         img = self._preprocess_img(image)
+        pytesseract = _tesseract()
         result = pytesseract.image_to_data(
             img, lang="eng", config=config or "", output_type=pytesseract.Output.DICT
         )

@@ -29,15 +29,16 @@ MOB_NEAR_LEFT = (60, 40, 80, 70)
 MOB_NEAR_RIGHT = (130, 40, 150, 70)
 MOB_FAR_RIGHT = (400, 40, 420, 70)
 
-# The skill's on-screen mask. `_closest_mob_direction` only forwards it to the
-# detection call, stubbed out below, so nothing ever reads its contents.
+# The frame's pixels and the skill's on-screen mask. `_closest_mob_direction`
+# only forwards them to the detection call, stubbed out below, so nothing ever
+# reads their contents.
+PIXELS = np.zeros((1, 1, 3), dtype=np.uint8)
 MASK = np.zeros((1, 1), dtype=np.uint8)
 
 
 def _fake_data() -> BotData:
-    """The two reads `_closest_mob_direction` makes before the detection call."""
+    """The one read `_closest_mob_direction` makes before the detection call."""
     data = BotData("TestBot")
-    data.set_static("current_client_img", None)
     data.set_static("current_mobs", ())
     return data
 
@@ -77,6 +78,7 @@ def _direction(
     return MobsHitting._closest_mob_direction(
         fake,  # pyright: ignore[reportArgumentType]
         CHARACTER_BOX,
+        PIXELS,
         mask=MASK,
     )
 

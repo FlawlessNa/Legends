@@ -233,18 +233,19 @@ class NextTargetMixin:
         # Reach this code once you've been on target for > time_limit seconds.
         self._first_time_on_target = True
         # Check for mobs in the vicinity
-        self.data.update_attribute("current_client_img")
+        self.data.update_attribute("current_frame")
         on_screen_pos = self.data.get_last_known_value("current_on_screen_position")
         if on_screen_pos is not None:
             x1, y1, x2, y2 = on_screen_pos
-            shape = self.data.current_client_img.shape
+            pixels = self.data.current_frame.pixels
+            shape = pixels.shape
             mask = np.zeros(shape, np.uint8)
             mask[
                 max(0, y1 - 100) : min(shape[0], y2 + 100),
                 max(0, x1 - 500) : min(shape[1], x2 + 500),
             ] = 255
             mobs_locations = self.get_mobs_positions_in_img(
-                self.data.current_client_img, self.data.current_mobs, mask=mask
+                pixels, self.data.current_mobs, mask=mask
             )
 
             cx = (x1 + x2) / 2

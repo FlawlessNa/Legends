@@ -14,6 +14,7 @@ presents.
 
 import queue
 from collections.abc import Callable, Mapping
+from types import SimpleNamespace
 
 import pytest
 from pytest_mock import MockerFixture
@@ -113,7 +114,7 @@ def data() -> BotData:
     data = BotData("TestBot")
     data.set_static("handle", 1234)
     data.set_static("current_minimap", _Minimap())
-    data.set_static("current_client_img", None)
+    data.set_static("current_frame", SimpleNamespace(pixels=None))
     data.create_attribute("current_minimap_position", lambda: (50, 50))
     data.create_attribute("path", lambda: (_Node(1, 1), _Node(2, 2)))
     data.create_attribute("minimap_currently_displayed", lambda: True)

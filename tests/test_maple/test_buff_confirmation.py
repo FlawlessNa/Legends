@@ -209,10 +209,15 @@ def test_buffs_are_read_from_a_frame_captured_now(mocker: MockerFixture) -> None
     reader = mocker.Mock()
     reader.read.return_value = read(SHOWN)
     data.set_static("buffs_reader", reader)
+    data.set_static("buff_names", (BUFF,))
+    rebuff = _Rebuff(data)
+    rebuff._create_buffs_attributes()  # pyright: ignore[reportPrivateUsage]
     first = data.current_frame
 
-    assert _Rebuff(data)._read_buffs([BUFF]) == read(SHOWN)  # pyright: ignore[reportPrivateUsage]
+    assert rebuff._read_buffs() == read(SHOWN)  # pyright: ignore[reportPrivateUsage]
 
     frame, buffs = reader.read.call_args.args
     assert frame is not first
-    assert buffs == [BUFF]
+    assert buffs == (BUFF,)
+    assert data.buffs == read(SHOWN)
+    assert data.has_buffs_attributes

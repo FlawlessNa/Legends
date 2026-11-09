@@ -3,6 +3,7 @@ import multiprocessing.connection
 import multiprocessing.managers
 import time
 from collections.abc import Callable
+from functools import cached_property
 
 import win32gui
 
@@ -12,6 +13,8 @@ from botting.screen import Reading
 from botting.utilities import Box
 from maple.actions import ensure_minimap_displayed
 from maple.screen.minimap import MINIMAP, MinimapState, MinimapView
+
+from ._readings import HeldReading
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -75,7 +78,7 @@ class MinimapAttributesMixin:
             )
             logger.info("Minimap fully displayed confirmed")
             try:
-                self.data.update_attributes("current_client_img", "minimap_reading")
+                self.data.update_attributes("current_frame", "minimap_reading")
                 self._get_minimap_pos()
                 break
             except Exception:
@@ -85,7 +88,7 @@ class MinimapAttributesMixin:
                     raise
 
         self.data.update_attributes(
-            "current_client_img",
+            "current_frame",
             "minimap_reading",
             "minimap_currently_displayed",
             "current_entire_minimap_box",
@@ -125,18 +128,34 @@ class MinimapAttributesMixin:
         )
         self.send(request)
 
-    def _minimap_displayed(self) -> bool:
-        """Whether the minimap is read expanded: a minimised one shows no map,
-        so no position."""
-        reading: Reading[MinimapView] = self.data.minimap_reading
-        return (
-            reading.value is not None and reading.value.state is MinimapState.EXPANDED
+    @cached_property
+    def _held_minimap_shown(self) -> HeldReading[MinimapView, bool]:
+        return HeldReading(
+            self,
+            "minimap shown",
+            lambda view: view.state is MinimapState.EXPANDED,
+            False,
+            absent=lambda: False,
         )
 
+    @cached_property
+    def _held_minimap_bounds(self) -> HeldReading[MinimapView, Box | None]:
+        return HeldReading(self, "minimap bounds", lambda view: view.bounds, None)
+
+    def _minimap_displayed(self) -> bool:
+        """
+        Whether the minimap is read expanded: a minimised one shows no map, so
+        no position. Not on screen is an answer (False); covered or unsure
+        keeps the last answer (`HeldReading`).
+        """
+        return self._held_minimap_shown(self.data.minimap_reading)
+
     def _entire_minimap_box(self) -> Box | None:
-        """The whole minimap, frame included, in client pixels, when read."""
-        reading: Reading[MinimapView] = self.data.minimap_reading
-        return reading.value.bounds if reading.value is not None else None
+        """
+        The whole minimap, frame included, in client pixels: the last one read,
+        or None before the first (`HeldReading`).
+        """
+        return self._held_minimap_bounds(self.data.minimap_reading)
 
     def _create_minimap_attributes(self) -> None:
         ensure_minimap_displayed(
@@ -160,8 +179,12 @@ class MinimapAttributesMixin:
         self.data.create_or_reconfigure_attribute(
             "minimap_currently_displayed", self._minimap_displayed
         )
+        # Refreshed with the reading it comes from, so a client resized
+        # mid-session moves it too.
         self.data.create_or_reconfigure_attribute(
-            "current_entire_minimap_box", self._entire_minimap_box
+            "current_entire_minimap_box",
+            self._entire_minimap_box,
+            threshold=self.MINIMAP_POS_REFRESH_RATE,
         )
         self.data.create_or_reconfigure_attribute(
             "current_minimap_position",
