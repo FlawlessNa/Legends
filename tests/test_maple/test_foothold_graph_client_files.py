@@ -17,7 +17,13 @@ from pathfinding.finder.dijkstra import DijkstraFinder
 from game_data.catalogue import Rope
 from maple.model.mechanics.minimap_creation.minimap_grid import MinimapGrid
 from maple.model.mechanics.physics import VRPhysics
-from maple.model.navigation import FootholdGraph, Point, Surface
+from maple.model.navigation import (
+    Direction,
+    FootholdGraph,
+    MoveKind,
+    Point,
+    Surface,
+)
 from maple.model.world import Platform, WorldMap
 
 pytestmark = pytest.mark.client_files
@@ -259,3 +265,28 @@ def test_the_graphs_longest_query_on_ellinia_is_no_slower_than_todays_grid(
         f"grid ({canvas.shape[1]}x{canvas.shape[0]} cells of {CELL} px) "
         f"{1000 * baseline:.1f} ms; FootholdGraph's longest query {1000 * longest:.1f} ms"
     )
+
+
+def test_no_path_between_joined_platforms_holds_a_jump_that_saves_no_time(
+    graph: FootholdGraph,
+) -> None:
+    """A trip of 120 px centred on each join, from one platform to the other."""
+    trips = 0
+    for join in (m for m in graph.moves if m.kind is MoveKind.WALK):
+        x, y = join.landing_low
+        sign = 1 if join.direction is Direction.RIGHT else -1
+        start, goal = (x - 60 * sign, y), (x + 60 * sign, y)
+        try:
+            path = graph.path(start, goal)
+        except ValueError:
+            continue  # a point that lies on no surface
+        if (
+            path is None
+            or path.moves[0].start_on != join.source
+            or path.moves[-1].end_on != join.target
+        ):
+            continue
+        trips += 1
+        assert MoveKind.JUMP not in {m.kind for m in path.moves}, (join, path)
+    # Damp Forest has no joins; Ellinia's are flat and plentiful.
+    assert trips or not any(m.kind is MoveKind.WALK for m in graph.moves)

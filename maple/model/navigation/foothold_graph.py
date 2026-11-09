@@ -38,6 +38,12 @@ ends, rope attachments, portals, and the ends and landings of every move.
 Costs are seconds: the physics' for walks, climbs, jumps, drops and falls;
 `PORTAL_TIME` and `TELEPORT_TIME` for the rest.
 
+**Ties go to the walk.** `path` charges each `JUMP` `JUMP_TIE_PENALTY` more
+than it takes, so a route with a jump is chosen only when it saves more than
+that. Where the ground is flat a jump across a join costs exactly the walk's
+time, and A* would otherwise plan it (#114). The jumps stay in `moves`, and a
+`Move`'s duration is still the physics' own.
+
 Nothing consumes the graph yet: Movement Plans read it from #396, so no keys
 change here.
 """
@@ -92,6 +98,11 @@ TELEPORT_TIME = (2 + 0.4 * 150 / 16) * 16 / 125
 ROPE_JUMP_SPEED = 0.0
 
 _TOL = 1e-6
+
+#: Seconds `path` adds to a jump's cost when choosing between routes, so that
+#: a tie goes to the walk. Under a frame (a 60 fps frame is 16.7 ms), and far
+#: above the arc tracing's rounding.
+JUMP_TIE_PENALTY = 1e-3
 
 
 class _Edge(NamedTuple):
@@ -831,6 +842,8 @@ class _Query:
                 for edge in group:
                     to = edge.to
                     total = cost + edge.cost
+                    if edge.kind is MoveKind.JUMP:
+                        total += JUMP_TIE_PENALTY
                     if total < best.get(to, math.inf) and to not in done:
                         best[to] = total
                         came[to] = (node, edge)
