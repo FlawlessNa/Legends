@@ -48,7 +48,9 @@ on another machine, reaching this one through an SSH tunnel
 - `docs/adr/`: architecture decisions. Contradicting one is allowed; doing it
   silently is not.
 
-`maple` imports `botting`, never the reverse. `botting/`, `maple/` and `tests/`
+`maple` imports `botting`, never the reverse. These import rules, with the ones
+for `game_data/` and `toolkit/` above, are a gate: `tests/test_layering.py`
+fails on a new violation, and `pytest` runs it. `botting/`, `maple/` and `tests/`
 each have an `AGENTS.md` with rules for that package.
 
 **Vocabulary:** `CONTEXT.md` is the domain glossary. Use its terms, and avoid

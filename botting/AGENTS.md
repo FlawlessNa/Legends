@@ -9,7 +9,8 @@ exploring. This file is the complement: the rules a change can **violate**.
 
 It knows nothing about MapleStory, and nothing here may import from `maple/`.
 There are no exceptions: the last such import
-(`botting/visuals/object_detection.py` → `maple_ign_finder`) was removed by #85.
+(`botting/visuals/object_detection.py` → `maple_ign_finder`) was removed by #85,
+and `tests/test_layering.py` fails on a new one.
 
 ## Orientation
 
