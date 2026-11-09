@@ -21,41 +21,52 @@ size, whatever the map. `ne` and `sw` sit as far from `nw` as the map is wide
 and tall, so they are searched for along `nw`'s row and column; `se` must then
 be where both put it. Their offsets are remembered and re-checked first, like
 the anchor. The **map area** is the frame's inside: from `nw`'s bottom-right
-corner to `ne`'s left edge and `sw`'s top edge. The minimised bar is found the
-same way, `w` as anchor, `c` right after it, and `e` along their row.
+corner to `ne`'s left edge and `sw`'s top edge. The minimised bar is found by
+`w`, then `e` along its row.
 
 The look found last is tried first, so a minimap that stays put costs one small
 match per piece.
-
-**Markers.** `Map/MapHelper.img/minimap/user` is drawn with its origin on the
-character, so `self_position` is where that origin lands, in minimap pixels
-from the map area's top-left. The other markers there are given by their
-sprite's centre: several have their origin at `(0, 0)`. A marker drawn partly
-outside the map area, or partly under another marker, isn't found. Seen on
-frame set v2: an NPC's marker is drawn about 14 px above the NPC's own point
-in the map data, so a marker's position isn't where the thing stands.
 
 **What the map area shows.** The map's own `miniMap/canvas` is drawn 1:1, but
 the map area is a window on it: a canvas narrower than the frame is centred,
 with bands either side, and one taller than the map area scrolls with the
 character (seen on frame set v2: Damp Forest's 92x158 canvas in a 130x112 area,
-Ellinia's 171x318 in a 171x112 one). So a position on the map area is a
-position on the canvas only where the canvas isn't scrolled: see #311.
+Ellinia's 171x318 in a 171x112 one). So a pixel of the map area is not a fixed
+place on the map.
 
-**The expected map.** `is_expected_map` finds where the map's canvas lies in
-the map area, as the window above allows, and counts the share of its visible
-opaque pixels drawn exactly there. Markers are drawn over it, so not every one
-is asked for.
+**Positions are canvas pixels.** A position is in minimap coordinates: pixels
+on the map's own `miniMap/canvas`, from its top-left, which don't move as the
+map area scrolls. Reading one takes locating the canvas in the map area, so
+only a reader given the map's `map_id` reads positions; without one,
+`self_position` is `UNSURE`, never a guess, and no marker is read.
+`virtual_feet` converts the character's to the virtual position of its feet,
+from the map's `MapData.minimap`; nothing consumes it yet.
+
+**Markers.** `Map/MapHelper.img/minimap/user` is drawn with its origin on the
+character, so `self_position` is where that origin lands. The other markers
+are given by their sprite's centre: several have their origin at `(0, 0)`. A
+marker drawn partly outside the map area, or partly under another marker,
+isn't found. Seen on frame set v2: an NPC's marker is drawn about 14 px above
+the NPC's own point in the map data, so a marker's position isn't where the
+thing stands. Each kind costs a match of the map area on every read (about
+2 ms), so only a reader made with `read_markers` reads them.
+
+**Locating the canvas, and the expected map.** The canvas is placed where most
+of its opaque pixels are drawn exactly, among the placements the window above
+allows, and the share of its visible opaque pixels drawn there is counted;
+markers are drawn over it, so not every one is asked for. The placement found
+is tried first next time. `is_expected_map` answers from the same share.
 """
 
 import enum
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 
 from botting.screen import Frame, Reading, match, match_best
 from botting.utilities import Box
+from game_data.catalogue import Minimap
 from game_data.sprites import Sprite
 
 from .locator import FrameCheck, Locator, Part, unreadable
@@ -121,6 +132,37 @@ to 98% (markers cover the rest), and the other map's at 1% at most."""
 DIFFERENT_SHARE = 0.3
 """At most this share reads as another map; in between is `UNSURE`."""
 
+FEET_ROWS = 6
+"""How many canvas rows the character's feet are below where its marker's
+origin is drawn. On frame set v2, wherever both the minimap and the play area
+were read (91 frames, Damp Forest and Ellinia, all five client sizes), the
+marker's canvas row was `floor((feet_y + centre_y) / 16) - 6`, and its column
+`floor((feet_x + centre_x) / 16)`, within 1 on 5 walking frames
+(`toolkit/poc_tracking/hybrid_tracker.md`). Likely, but unverified, the client
+draws the 12x12 marker with its bottom centre on the character rather than at
+its origin `(6, 6)`. Every map seen has `mag` 4, so 6 canvas rows can't yet be
+told apart from a fixed 96 virtual px."""
+
+
+def virtual_feet(canvas: tuple[int, int], minimap: Minimap) -> tuple[int, int]:
+    """
+    The character's feet in virtual coordinates, from where its marker is read
+    on the map's minimap canvas: `canvas * 2**mag - centre`, after moving the
+    marker down `FEET_ROWS` canvas rows.
+
+    The result is the top-left of the canvas pixel the feet are in, so the
+    feet lie up to `2**mag - 1` virtual px right of and below it; with the
+    marker good to about 1 canvas px, the minimap is the check and the
+    fallback, never the precise read.
+
+    :param canvas: The marker's position in minimap coordinates, as
+        `MinimapView.self_position` reads it.
+    :param minimap: The map's minimap transform (`MapData.minimap`).
+    """
+    scale = 2**minimap.mag
+    x, y = canvas
+    return x * scale - minimap.center_x, (y + FEET_ROWS) * scale - minimap.center_y
+
 
 def minimap_canvas_path(map_id: int) -> str:
     """The map's own minimap canvas, such as
@@ -162,33 +204,59 @@ class MinimapView:
         minimised.
     :ivar bounds: The whole minimap, frame included, in client pixels: the
         title bar alone when minimised.
-    :ivar self_position: The character's position, in minimap pixels from the
-        map area's top-left, or `None` when its marker isn't found there
-        (covered by another marker or the cursor) or the minimap is minimised.
-    :ivar markers: The other markers found, by kind (`MARKER_KINDS`), each as
-        positions in the unit of `self_position`. Empty when minimised.
+    :ivar self_position: The character's position in minimap coordinates
+        (pixels on the map's canvas). `READ` only when the reader knows the
+        map's `map_id` and finds its canvas in the map area; `UNSURE` without a
+        `map_id`, when the canvas isn't found there, or when minimised;
+        `COVERED` when the character's marker isn't found (under another marker
+        or the cursor).
+    :ivar markers: The other markers found, by kind (`MARKER_KINDS`), in
+        minimap coordinates; empty whenever `self_position` is `UNSURE`. `None`
+        when the reader doesn't read markers (`read_markers`).
     """
 
     state: MinimapState
     map_area: Box | None
     bounds: Box
-    self_position: tuple[int, int] | None
-    markers: Markers = field(default_factory=dict[str, tuple[tuple[int, int], ...]])
+    self_position: Reading[tuple[int, int]]
+    markers: Markers | None = None
 
 
 class MinimapReader:
     """
     Reads the minimap. One per bot, sharing its `FrameCheck`; it remembers where
-    the minimap was, and in which look, and searches again only when it no
-    longer matches there.
+    the minimap was, in which look, and where the map's canvas was in it, and
+    searches again only when they no longer match there.
+
+    :ivar map_id: The bot's map, on whose canvas positions are read; `None` when
+        its map file doesn't name it, and then no position is read.
+    :ivar read_markers: Whether the other markers are read; no consumer needs
+        them yet, and each kind costs a match of the map area on every read.
     """
 
     def __init__(
-        self, sprites: ReaderSprites, frame_check: FrameCheck, tolerance: float = 0.5
+        self,
+        sprites: ReaderSprites,
+        frame_check: FrameCheck,
+        *,
+        map_id: int | None = None,
+        read_markers: bool = False,
+        tolerance: float = 0.5,
     ) -> None:
+        """
+        :raises KeyError: `map_id`'s canvas isn't among `sprites`: the profile
+            they were loaded for didn't name it.
+        """
         self._sprites = sprites
         self._frame_check = frame_check
         self._tolerance = tolerance
+        self.map_id = map_id
+        self.read_markers = read_markers
+        self._canvas = (
+            None if map_id is None else sprites.canvas(minimap_canvas_path(map_id))
+        )
+        # Where the canvas's top-left was last found, from the map area's.
+        self._canvas_at: tuple[int, int] | None = None
         self._user = sprites.canvas(USER)
         self._markers = {
             kind: sprites.canvas(marker_path(kind)) for kind in MARKER_KINDS
@@ -199,6 +267,12 @@ class MinimapReader:
             _Minimised(sprites, tolerance),
         )
         self._last = 0
+
+    @property
+    def canvas(self) -> Sprite | None:
+        """The map's own minimap canvas, which positions are pixels on; `None`
+        without a `map_id`."""
+        return self._canvas
 
     @property
     def searches(self) -> int:
@@ -227,7 +301,8 @@ class MinimapReader:
                 covered = covered or Reading.covered(frame.captured_at, placed)
                 continue
             self._last = index
-            return Reading.read(self._view(frame.pixels, placed), frame.captured_at)
+            view = self._view(frame.pixels, placed, frame.captured_at)
+            return Reading.read(view, frame.captured_at)
         return covered or Reading.absent(frame.captured_at, "not found")
 
     def is_expected_map(self, frame: Frame, map_id: int) -> Reading[bool]:
@@ -250,7 +325,8 @@ class MinimapReader:
         if area is None:
             return Reading.unsure(frame.captured_at, "the minimap is minimised")
         haystack = frame.pixels[area.top : area.bottom, area.left : area.right]
-        share = _drawn_share(haystack, canvas)
+        placed = _place_canvas(haystack, canvas)
+        share = 0.0 if placed is None else placed[1]
         detail = f"{share:.0%} of map {map_id}'s minimap drawn"
         if share >= MATCHED_SHARE:
             return Reading.read(True, frame.captured_at, detail)
@@ -264,23 +340,58 @@ class MinimapReader:
             if index != self._last:
                 yield index, look
 
-    def _view(self, pixels: np.ndarray, placed: _Placed) -> MinimapView:
+    def _view(self, pixels: np.ndarray, placed: _Placed, at: float) -> MinimapView:
         area = placed.map_area
         if area is None:
-            return MinimapView(MinimapState.MINIMISED, None, placed.bounds, None, {})
+            unsure: Reading[tuple[int, int]] = Reading.unsure(
+                at, "the minimap is minimised"
+            )
+            none = {} if self.read_markers else None
+            return MinimapView(
+                MinimapState.MINIMISED, None, placed.bounds, unsure, none
+            )
+        offset = self._canvas_offset(pixels, area, at)
+        if isinstance(offset, Reading):
+            none = {} if self.read_markers else None
+            return MinimapView(MinimapState.EXPANDED, area, placed.bounds, offset, none)
+        ox, oy = offset
         user = _find(pixels, self._user, area, self._tolerance)
-        markers = {
-            kind: found
-            for kind, sprite in self._markers.items()
-            if (found := _find(pixels, sprite, area, self._tolerance, every=True))
-        }
-        return MinimapView(
-            MinimapState.EXPANDED,
-            area,
-            placed.bounds,
-            user[0] if user else None,
-            markers,
+        position: Reading[tuple[int, int]] = (
+            Reading.read((user[0][0] - ox, user[0][1] - oy), at)
+            if user
+            else Reading.covered(at, "the character's marker isn't found")
         )
+        markers = (
+            {
+                kind: tuple((x - ox, y - oy) for x, y in found)
+                for kind, sprite in self._markers.items()
+                if (found := _find(pixels, sprite, area, self._tolerance, every=True))
+            }
+            if self.read_markers
+            else None
+        )
+        return MinimapView(
+            MinimapState.EXPANDED, area, placed.bounds, position, markers
+        )
+
+    def _canvas_offset(
+        self, pixels: np.ndarray, area: Box, at: float
+    ) -> tuple[int, int] | Reading[tuple[int, int]]:
+        """Where the map's canvas's top-left is, from the map area's; or the
+        `UNSURE` position when that can't be told."""
+        if self._canvas is None:
+            return Reading.unsure(
+                at, "no map_id: positions are on the map's canvas, which needs it"
+            )
+        haystack = pixels[area.top : area.bottom, area.left : area.right]
+        placed = _place_canvas(haystack, self._canvas, self._canvas_at)
+        if placed is None or placed[1] < MATCHED_SHARE:
+            share = 0.0 if placed is None else placed[1]
+            return Reading.unsure(
+                at, f"map {self.map_id}'s minimap not found ({share:.0%} drawn)"
+            )
+        self._canvas_at = placed[0]
+        return placed[0]
 
 
 @dataclass(frozen=True, slots=True)
@@ -463,11 +574,15 @@ def _offsets(area: int, length: int) -> np.ndarray:
     return np.arange(area - length, 1)
 
 
-def _drawn_share(haystack: np.ndarray, canvas: Sprite) -> float:
+def _place_canvas(
+    haystack: np.ndarray, canvas: Sprite, hint: tuple[int, int] | None = None
+) -> tuple[tuple[int, int], float] | None:
     """
-    The share of `canvas`'s visible opaque pixels drawn exactly in `haystack`,
-    where most of them are: along an axis the canvas fits in, anywhere inside;
-    along one it is longer, as a window on it. `0.0` when nothing opaque shows.
+    Where `canvas`'s top-left is in `haystack`, and the share of its visible
+    opaque pixels drawn exactly there: along an axis the canvas fits in,
+    anywhere inside; along one it is longer, as a window on it. `hint`, last
+    time's placement, is kept when at least `MATCHED_SHARE` of the canvas is
+    drawn there. `None` when nothing opaque would show.
 
     Placements are ranked by how many pixels are drawn exactly, not by a
     squared error, which the markers drawn over the map would outweigh, nor by
@@ -477,12 +592,34 @@ def _drawn_share(haystack: np.ndarray, canvas: Sprite) -> float:
     rgba = canvas.rgba
     ys, xs = np.nonzero(rgba[:, :, 3] == 255)
     if len(ys) == 0:
-        return 0.0
+        return None
     colours = rgba[ys, xs, 2::-1]
-    step = max(1, len(ys) // SAMPLE)
-    sy, sx, sc = ys[::step], xs[::step], colours[::step]
     off_y = _offsets(area_h, rgba.shape[0])
     off_x = _offsets(area_w, rgba.shape[1])
+    if hint is not None and hint[0] in off_x and hint[1] in off_y:
+        share = _share_at(haystack, ys, xs, colours, hint)
+        if share is not None and share >= MATCHED_SHARE:
+            return hint, share
+        # The view scrolls with the character: try the remembered column first.
+        found = _best_placement(haystack, ys, xs, colours, np.array([hint[0]]), off_y)
+        if found is not None and found[1] >= MATCHED_SHARE:
+            return found
+    return _best_placement(haystack, ys, xs, colours, off_x, off_y)
+
+
+def _best_placement(
+    haystack: np.ndarray,
+    ys: np.ndarray,
+    xs: np.ndarray,
+    colours: np.ndarray,
+    off_x: np.ndarray,
+    off_y: np.ndarray,
+) -> tuple[tuple[int, int], float] | None:
+    """Among the placements `off_x` by `off_y`, the one where most of a sample
+    of the canvas's opaque pixels are drawn exactly, and its share."""
+    area_h, area_w = haystack.shape[:2]
+    step = max(1, len(ys) // SAMPLE)
+    sy, sx, sc = ys[::step], xs[::step], colours[::step]
     counts = np.zeros((len(off_y), len(off_x)), dtype=np.int64)
     for i, dy in enumerate(off_y):
         py = sy + dy
@@ -492,9 +629,25 @@ def _drawn_share(haystack: np.ndarray, canvas: Sprite) -> float:
         drawn = np.all(got == sc[None, :, :], axis=2) & inside
         counts[i] = drawn.sum(axis=1)
     i, j = np.unravel_index(int(np.argmax(counts)), counts.shape)
-    py, px = ys + off_y[i], xs + off_x[j]
+    best = (int(off_x[j]), int(off_y[i]))
+    share = _share_at(haystack, ys, xs, colours, best)
+    return None if share is None else (best, share)
+
+
+def _share_at(
+    haystack: np.ndarray,
+    ys: np.ndarray,
+    xs: np.ndarray,
+    colours: np.ndarray,
+    at: tuple[int, int],
+) -> float | None:
+    """The share of the canvas's opaque pixels (at `ys`, `xs`, of `colours`)
+    inside `haystack`, with the canvas's top-left at `at`, drawn there exactly.
+    `None` when none is inside."""
+    area_h, area_w = haystack.shape[:2]
+    py, px = ys + at[1], xs + at[0]
     inside = (py >= 0) & (py < area_h) & (px >= 0) & (px < area_w)
     if not inside.any():
-        return 0.0
+        return None
     got = haystack[py[inside], px[inside]]
     return float(np.all(got == colours[inside], axis=1).mean())

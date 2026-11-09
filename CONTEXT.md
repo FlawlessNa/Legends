@@ -416,14 +416,16 @@ layer, never from the client, so changing it needs no client.
 _Avoid_: Database, game DB: the raw layer is a database too.
 
 **Minimap coordinates**:
-Pixels on the expanded minimap, from the top-left of its map area (the inside
-of its `UI/MiniMap.img/MaxMap` or `MinMap` frame). The character's minimap
-position is where the origin of its marker, `Map/MapHelper.img/minimap/user`,
-is drawn. `configs/maps/` and pathfinding work in this unit. On MSCW the map
-area is a window on the map's `miniMap` canvas, which scrolls with the
-character on a map taller than the area: open on #311.
-_Avoid_: Minimap pixels from the frame's corner, or from the screen: both move
-with the window.
+Pixels on the map's own minimap canvas (`miniMap/canvas` in its map image),
+from the canvas's top-left. On MSCW the minimap's map area is only a window on
+that canvas: centred when the canvas is narrower, scrolling with the character
+when it is taller. So a position is read by locating the canvas in the map
+area, which needs the map file's `map_id`; without one no position is read. The
+character's minimap position is where the origin of its marker,
+`Map/MapHelper.img/minimap/user`, is drawn. `configs/maps/` and pathfinding
+work in this unit.
+_Avoid_: Minimap pixels from the map area's corner (they move as it scrolls),
+from the frame's corner, or from the screen.
 
 **Virtual coordinates**:
 The map's own coordinate system, the one its footholds, ropes, portals, spawns

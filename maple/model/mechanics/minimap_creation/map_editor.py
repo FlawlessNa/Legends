@@ -18,6 +18,7 @@ import numpy as np
 from botting import controller
 from botting.controller import KeyboardInputWrapper
 from botting.screen import Status, frame_source
+from botting.utilities import Box
 from maple.model.characters.magicians import Magician
 from maple.model.mechanics.maple_map import MapleMinimap
 from maple.screen.locator import FrameCheck
@@ -53,6 +54,12 @@ _PATH_COLORS: dict = {
 }
 
 
+def map_canvas_bgr(rgba: np.ndarray) -> np.ndarray:
+    """A minimap canvas as BGR, blended onto black by its alpha."""
+    alpha = rgba[:, :, 3:4].astype(np.float32) / 255.0
+    return (rgba[:, :, 2::-1].astype(np.float32) * alpha).astype(np.uint8)
+
+
 def _minimap_reader(map_name: str, edits: MinimapEditsManager) -> MinimapReader:
     """
     A minimap reader for the editor, with `edits.map_id`'s canvas when it has
@@ -62,7 +69,7 @@ def _minimap_reader(map_name: str, edits: MinimapEditsManager) -> MinimapReader:
         [FRAME_CHECK, MINIMAP],
         Profile(job="", game_map=map_name, map_id=edits.map_id),
     )
-    return MinimapReader(sprites, FrameCheck(sprites))
+    return MinimapReader(sprites, FrameCheck(sprites), map_id=edits.map_id)
 
 
 class MinimapEditor:
@@ -102,9 +109,10 @@ class MinimapEditor:
         except Exception:
             pass
 
-        # Capture the map area for background display; measure canvas dimensions on
-        # first run (before the first save) so they are persisted and reused on
-        # every subsequent load.
+        # The background, and the canvas dimensions measured on first run (before
+        # the first save) so they are persisted and reused on every subsequent
+        # load: the map's own minimap canvas when its map_id is known, since
+        # positions are pixels on it; otherwise a capture of the map area.
         if self.handle != 0 and include_character_position:
             try:
                 self._minimap_reader = _minimap_reader(minimap.map_name, self.edits)
@@ -118,7 +126,7 @@ class MinimapEditor:
                 if box is None:
                     raise LookupError("the minimap is minimised")
                 self._map_area_box = box
-                img = frame.pixels[box.top : box.bottom, box.left : box.right].copy()
+                img = self._background(frame.pixels, box)
                 self._screenshot_bg = img
                 self._bg_mode = "screenshot"
                 if self.edits.canvas_width is None:
@@ -217,13 +225,22 @@ class MinimapEditor:
             print("No game client connected — screenshot background unavailable.")
             return
         try:
-            box = self._map_area_box
             pixels = frame_source().grab(self.handle).pixels
-            self._screenshot_bg = pixels[
-                box.top : box.bottom, box.left : box.right
-            ].copy()
+            self._screenshot_bg = self._background(pixels, self._map_area_box)
         except Exception as e:
             print(f"Screenshot capture failed: {e}")
+
+    def _background(self, pixels: np.ndarray, box: Box) -> np.ndarray:
+        """
+        What positions are drawn over, in their unit: the map's own minimap
+        canvas (BGR, on black where it is transparent) when the reader knows its
+        `map_id`; otherwise the map area in `pixels`. On MSCW the map area is a
+        window on the canvas, which scrolls with the character.
+        """
+        canvas = self._minimap_reader.canvas if self._minimap_reader else None
+        if canvas is None:
+            return pixels[box.top : box.bottom, box.left : box.right].copy()
+        return map_canvas_bgr(canvas.rgba)
 
     def draw_rectangles_from_features(self) -> None:
         self._delete_rectangles()
@@ -461,15 +478,19 @@ class MinimapEditor:
         """
         The character's minimap position, read from a fresh capture.
 
-        :raises LookupError: No client, the minimap isn't read, or the
-            character's marker isn't found on it.
+        :raises LookupError: No client, the minimap isn't read, or the position
+            isn't: it needs the map's `map_id` (the Map ID tab), and the
+            character's marker on it.
         """
         if self._minimap_reader is None or self.handle == 0:
             raise LookupError("no minimap reader")
         reading = self._minimap_reader.read(frame_source().grab(self.handle))
-        if reading.value is None or reading.value.self_position is None:
+        if reading.value is None:
             raise LookupError(f"minimap {reading.status.value}: {reading.detail}")
-        return reading.value.self_position
+        position = reading.value.self_position
+        if position.value is None:
+            raise LookupError(f"position {position.status.value}: {position.detail}")
+        return position.value
 
     # ------------------------------------------------------------------
     # Scale calibration
