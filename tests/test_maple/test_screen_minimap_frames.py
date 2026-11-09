@@ -14,7 +14,8 @@ from game_data.config import CONFIG, STORE
 from maple.screen.locator import FrameCheck
 from maple.screen.minimap import MINIMAP, MinimapReader, MinimapState
 from maple.screen.sprites import FRAME_CHECK, Profile, load_reader_sprites
-from tests.frame_set import FrameEntry, FrameSet
+from tests import frame_set
+from tests.frame_set import FrameEntry, FrameSet, load_expected
 
 pytestmark = [pytest.mark.frames, pytest.mark.client_files]
 
@@ -143,11 +144,18 @@ def test_the_npcs_seen_in_ellinia_are_read_as_npc_markers(
     frames: FrameSet, map_ids: dict[str, int]
 ) -> None:
     """With the view scrolled to the same place, Ellinia's frames show the same
-    four NPC markers wholly inside the map area, and the storage keeper's."""
+    four NPC markers wholly inside the map area, and the storage keeper's.
+    Those are frame set `v2`'s Ellinia frames, all at one spot; `v3`'s climb
+    scrolls the view, so they show other markers."""
     ellinia = "Victoria Road: Ellinia"
     reader = reader_for(map_ids[ellinia])
+    at_one_spot = {
+        entry.file for entry in load_expected(frame_set.TESTS_FRAMES / "v2.json")
+    }
     found: set[tuple[tuple[str, int], ...]] = set()
     for entry in expanded(frames, ellinia):
+        if entry.file not in at_one_spot:
+            continue
         view = reader.read(frame_of(frames, entry)).value
         assert view is not None
         assert view.markers is not None
