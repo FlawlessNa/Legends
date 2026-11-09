@@ -19,16 +19,27 @@ checked on a fresh frame before the next one:
   its row pitch is its height over its row count, so no row height is measured
   on one size.
 
+**The UI's scale.** At most sizes the client draws its UI at 1:1. At 2560x1440
+it draws everything at 1280x720 and doubles each pixel, whatever the UI Size
+(#412). The sprites then match exactly on every second pixel, so the steps run
+on that half-size frame (`at_scale`) and their clicks are doubled back
+(`ScaledClient`). The scale is found on the screen (`find_scale`, from the
+status bar), never from the size. Closing the menus finds it again on each
+frame, since Confirm may have changed it, and looks at every scale when the
+status bar can't be found.
+
 Input goes through a `Client`, which the probe implements with its guarded
 gestures (each releases every key). On any failure the functions close the menus
 with `Escape` before they raise, so the game is not left on an open dialog.
+After Confirm, and on a failure, the client is asked to `fit` its client area
+on the primary monitor, since a resize can leave part of it off the screen.
 
 This is a scripted sequence, which the probe's intent (#331) left to Bots. It is
 here because the maintainer asked agents to stop rediscovering this menu.
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol
 
 import numpy as np
@@ -51,6 +62,9 @@ WINDOWED_SIZES: tuple[tuple[int, int], ...] = (
     (2560, 1440),
 )
 LIST_ROWS = 2 * len(WINDOWED_SIZES)
+
+# The scales the client draws its UI at: 1:1, and each pixel doubled (2560x1440).
+UI_SCALES = (1, 2)
 
 _MENU = "UI/StatusBar.img/submenu"
 MENU_TITLE = f"{_MENU}/canvas:menu"
@@ -110,10 +124,21 @@ MAX_ESCAPES = 4
 
 
 class Client(Protocol):
-    """What the functions need of the client: frames, and guarded input."""
+    """What the functions need of the client: frames, its size, and guarded input."""
 
     def grab(self) -> Frame:
         """A fresh frame, `ok` or not."""
+        ...
+
+    def size(self) -> tuple[int, int]:
+        """The client area's size now, read from the window rather than a frame."""
+        ...
+
+    def fit(self) -> None:
+        """
+        Moves the window, when its client area isn't entirely on the primary
+        monitor and could be, so that it is. Sends no input.
+        """
         ...
 
     def press(self, key: str) -> None:
@@ -134,6 +159,75 @@ class MenuError(Exception):
         super().__init__(f"{step}: {detail}")
         self.step = step
         self.detail = detail
+
+
+# --- the UI's scale -------------------------------------------------------------
+
+
+def at_scale(frame: Frame, scale: int) -> Frame:
+    """
+    `frame` as the client drew it before doubling its pixels `scale` times: every
+    `scale`-th pixel, and the size divided by `scale`.
+    """
+    if scale == 1:
+        return frame
+    width, height = frame.client_size
+    return replace(
+        frame,
+        pixels=np.ascontiguousarray(frame.pixels[::scale, ::scale]),
+        client_size=(width // scale, height // scale),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class NotYet:
+    """What a `wait_for` check returns when the frame doesn't show it, and why."""
+
+    why: str
+
+
+def find_scale(check: FrameCheck, frame: Frame) -> int | NotYet:
+    """The first of `UI_SCALES` the frame check passes at, or why none does."""
+    if not frame.ok:
+        return NotYet(f"the frame isn't the client's own pixels: {frame.reason}")
+    for scale in UI_SCALES:
+        if check.frame_usable(at_scale(frame, scale)) is None:
+            return scale
+    scales = " or ".join(f"{scale}:1" for scale in UI_SCALES)
+    return NotYet(
+        f"the status bar's gauge label isn't drawn at {scales}: is the status bar "
+        'showing, uncovered, and the UI Size "Ideal Ratio"?'
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ScaledClient:
+    """
+    `client` at the UI's scale: its frames through `at_scale`, and a click at a
+    half-size pixel sent to the middle of the pixels the client doubled it to.
+    """
+
+    client: Client
+    scale: int
+
+    def grab(self) -> Frame:
+        return at_scale(self.client.grab(), self.scale)
+
+    def size(self) -> tuple[int, int]:
+        return self.client.size()
+
+    def fit(self) -> None:
+        self.client.fit()
+
+    def press(self, key: str) -> None:
+        self.client.press(key)
+
+    def click(self, x: int, y: int) -> None:
+        half = self.scale // 2
+        self.client.click(x * self.scale + half, y * self.scale + half)
+
+    def wait(self, seconds: float) -> None:
+        self.client.wait(seconds)
 
 
 # --- finding things on a frame -------------------------------------------------
@@ -326,15 +420,17 @@ def _confirm_centre(sprites: ReaderSprites, window: OptionsWindow) -> tuple[int,
 def wait_for[T](
     client: Client,
     step: str,
-    found: Callable[[Frame], T | None],
+    found: Callable[[Frame], T | NotYet | None],
     expected: str,
     timeout: float | None = None,
 ) -> T:
     """
-    Polls fresh frames until `found` returns something for an `ok` frame.
+    Polls fresh frames until `found` returns something for an `ok` frame. A
+    `NotYet` is nothing, with a reason the error repeats.
 
     :param timeout: Seconds; `STEP_TIMEOUT` when not given.
-    :raises MenuError: It didn't within `timeout`, naming `step` and `expected`.
+    :raises MenuError: It didn't within `timeout`, naming `step`, `expected` and
+        why the last frame didn't show it, when that is known.
     """
     if timeout is None:
         timeout = STEP_TIMEOUT
@@ -344,9 +440,12 @@ def wait_for[T](
         frame = client.grab()
         if frame.ok:
             result = found(frame)
-            if result is not None:
+            if isinstance(result, NotYet):
+                reason = f" (the last frame: {result.why})"
+            elif result is not None:
                 return result
-            reason = ""
+            else:
+                reason = ""
         else:
             reason = f" (the last frame wasn't usable: {frame.reason})"
         if attempt < attempts - 1:
@@ -354,11 +453,12 @@ def wait_for[T](
     raise MenuError(step, f"expected {expected} within {timeout:g} s{reason}")
 
 
-def _usable(sprites: ReaderSprites) -> Callable[[Frame], Frame | None]:
+def _usable(sprites: ReaderSprites) -> Callable[[Frame], Frame | NotYet]:
     check = FrameCheck(sprites)
 
-    def usable(frame: Frame) -> Frame | None:
-        return frame if check.frame_usable(frame) is None else None
+    def usable(frame: Frame) -> Frame | NotYet:
+        unusable = check.frame_usable(frame)
+        return frame if unusable is None else NotYet(unusable.detail)
 
     return usable
 
@@ -440,39 +540,62 @@ def set_resolution(
     if size not in WINDOWED_SIZES:
         raise ValueError(f"{size[0]}x{size[1]} isn't a windowed size the client lists")
     row = WINDOWED_SIZES.index(size)
-    before = wait_for(client, "start", _usable(sprites), "a usable frame").client_size
+    check = FrameCheck(sprites)
+    before = client.size()
+    scale = wait_for(
+        client,
+        "start",
+        lambda f: find_scale(check, f),
+        "a frame the menus can be read on",
+    )
+    ui = ScaledClient(client, scale)
     try:
-        window = show_graphics(client, sprites, open_options(client, sprites))
+        window = show_graphics(ui, sprites, open_options(ui, sprites))
         combo = resolution_combo(sprites, window)
-        if find_list(_latest(client), combo) is None:
-            client.click(*combo.centre)
+        if find_list(_latest(ui), combo) is None:
+            ui.click(*combo.centre)
         dropdown = wait_for(
-            client,
+            ui,
             "open the resolution list",
             lambda f: find_list(f, combo),
             f"the {LIST_ROWS}-row resolution list under the dropdown",
         )
         _check_list(dropdown, before)
-        client.click(combo.centre[0], dropdown.row_centre_y(row))
+        ui.click(combo.centre[0], dropdown.row_centre_y(row))
         wait_for(
-            client,
+            ui,
             "choose the size",
             lambda f: True if find_list(f, combo) is None else None,
             "the list closed after clicking the row",
         )
-        client.click(*_confirm_centre(sprites, window))
-        wait_for(
-            client,
-            "confirm",
-            lambda f: True if f.client_size == size else None,
-            f"the client at {size[0]}x{size[1]} after Confirm",
-            RESIZE_TIMEOUT,
-        )
+        ui.click(*_confirm_centre(sprites, window))
+        _wait_for_size(client, size)
+        client.fit()
     except Exception as error:
         _close_after(client, sprites, error)
         raise
     close_menus(client, sprites)
     return before
+
+
+def _wait_for_size(client: Client, size: tuple[int, int]) -> None:
+    """
+    Waits for the window's client area to be `size`. Read from the window, not a
+    frame, since the resize may have put part of it off the screen.
+    """
+    attempts = max(1, round(RESIZE_TIMEOUT / POLL))
+    now = client.size()
+    for attempt in range(attempts):
+        now = client.size()
+        if now == size:
+            return
+        if attempt < attempts - 1:
+            client.wait(POLL)
+    raise MenuError(
+        "confirm",
+        f"expected the client at {size[0]}x{size[1]} after Confirm within "
+        f"{RESIZE_TIMEOUT:g} s; it is {now[0]}x{now[1]}",
+    )
 
 
 def _latest(client: Client) -> Frame:
@@ -494,8 +617,12 @@ def _check_list(dropdown: DropdownList, before: tuple[int, int]) -> None:
 
 
 def _close_after(client: Client, sprites: ReaderSprites, error: Exception) -> None:
-    """Closes the menus after `error`, saying so on it when that fails too."""
+    """
+    Puts the client area on the primary monitor and closes the menus after
+    `error`, saying so on it when that fails too.
+    """
     try:
+        client.fit()
         close_menus(client, sprites)
     except Exception as closing:  # noqa: BLE001 - reported on `error`, which is raised
         if isinstance(error, MenuError):
@@ -505,34 +632,53 @@ def _close_after(client: Client, sprites: ReaderSprites, error: Exception) -> No
             error.add_note(f"Then closing the menus failed: {closing}")
 
 
-def open_menus(sprites: ReaderSprites, frame: Frame) -> list[str]:
-    """What is open that Escape closes: the Options window, the Game Menu."""
-    found: list[str] = []
-    if find_options(sprites, frame) is not None:
-        found.append("the Options window")
-    if find_game_menu(sprites, frame) is not None:
-        found.append("the Game Menu")
-    return found
+def open_menus(
+    sprites: ReaderSprites, frame: Frame, scales: tuple[int, ...] = (1,)
+) -> list[str]:
+    """
+    What is open that Escape closes: the Options window, the Game Menu. Looked
+    for at each of `scales` in turn, until one shows something.
+    """
+    for scale in scales:
+        scaled = at_scale(frame, scale)
+        found: list[str] = []
+        if find_options(sprites, scaled) is not None:
+            found.append("the Options window")
+        if find_game_menu(sprites, scaled) is not None:
+            found.append("the Game Menu")
+        if found:
+            return found
+    return []
+
+
+def _scales(check: FrameCheck, frame: Frame) -> tuple[int, ...]:
+    """The scale the status bar is drawn at; every one when it can't be found."""
+    scale = find_scale(check, frame)
+    return UI_SCALES if isinstance(scale, NotYet) else (scale,)
 
 
 def close_menus(client: Client, sprites: ReaderSprites) -> None:
     """
     Presses Escape until neither the Options window nor the Game Menu shows, at
-    most `MAX_ESCAPES` times. Sends nothing when none is open.
+    most `MAX_ESCAPES` times. Sends nothing when none is open. They are looked for
+    at the status bar's scale, or at every one of `UI_SCALES` when the status
+    bar can't be found.
 
     :raises MenuError: The Key Bindings window is open, or something is still
         open after `MAX_ESCAPES` presses.
     """
+    check = FrameCheck(sprites)
     escapes = 0
     while True:
         frame = wait_for(client, "close the menus", lambda f: f, "a usable frame")
-        if key_bindings_open(sprites, frame):
+        scales = _scales(check, frame)
+        if any(key_bindings_open(sprites, at_scale(frame, s)) for s in scales):
             raise MenuError(
                 "close the menus",
                 "the Key Bindings window is open, and it swallows Escape: close it "
                 "(Cancel) by hand",
             )
-        showing = open_menus(sprites, frame)
+        showing = open_menus(sprites, frame, scales)
         if not showing:
             return
         if escapes == MAX_ESCAPES:
@@ -546,7 +692,9 @@ def close_menus(client: Client, sprites: ReaderSprites) -> None:
             wait_for(
                 client,
                 "close the menus",
-                lambda f, was=showing: True if open_menus(sprites, f) != was else None,
+                lambda f, was=showing: (
+                    True if open_menus(sprites, f, _scales(check, f)) != was else None
+                ),
                 "a menu to close",
             )
         except MenuError:

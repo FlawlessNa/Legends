@@ -2,7 +2,8 @@
 `maple.menus` against a fake client: it draws the Game Menu, the Options window
 and the resolution list from synthetic sprites, the way the client places them
 (centred, so they move with the client's size), and reacts only to inputs that
-land where the real ones would.
+land where the real ones would. At 2560x1440 it draws them at half that size and
+doubles each pixel, as the real client does (#412).
 """
 
 from dataclasses import dataclass, field
@@ -67,6 +68,14 @@ def _inside(box: tuple[int, int, int, int], x: int, y: int) -> bool:
     return box[0] <= x < box[2] and box[1] <= y < box[3]
 
 
+DOUBLED = {(2560, 1440): 2}
+"""The sizes the real client draws at half size and doubles each pixel of."""
+
+OFF_SCREEN = (
+    "client rectangle (0, 200, 1920, 1400) isn't entirely on the primary monitor"
+)
+
+
 @dataclass
 class FakeClient:
     """
@@ -74,7 +83,7 @@ class FakeClient:
     Options window together, as the real one does.
     """
 
-    size: tuple[int, int] = (1024, 768)
+    current: tuple[int, int] = (1024, 768)
     menu: bool = False
     tab: int | None = None  # the Options window's selected tab, when it is open
     listed: bool = False
@@ -83,23 +92,51 @@ class FakeClient:
     ignore_clicks_on_combo: bool = False
     escape_closes: bool = True
     highlight: int | None = None  # the list's highlighted row, if not the size's
+    status_bar: bool = True
+    off_screen_after_resize: bool = False  # until `fit` moves it back
+    off_screen: bool = False
+    fits: int = 0
     inputs: list[tuple] = field(default_factory=list)
 
     @property
+    def scale(self) -> int:
+        return DOUBLED.get(self.current, 1)
+
+    @property
+    def drawn(self) -> tuple[int, int]:
+        """The size the client draws at, before doubling its pixels."""
+        return self.current[0] // self.scale, self.current[1] // self.scale
+
+    @property
     def window(self) -> tuple[int, int]:
-        return (self.size[0] - WINDOW_W) // 2, (self.size[1] - WINDOW_H) // 2
+        return (self.drawn[0] - WINDOW_W) // 2, (self.drawn[1] - WINDOW_H) // 2
 
     @property
     def menu_point(self) -> tuple[int, int]:
-        return self.size[0] - 300, self.size[1] - 250
+        return self.drawn[0] - 300, self.drawn[1] - 250
 
     @property
     def open(self) -> bool:
         return self.menu or self.tab is not None
 
+    def size(self) -> tuple[int, int]:
+        return self.current
+
+    def fit(self) -> None:
+        self.fits += 1
+        self.off_screen = False
+
+    def resize(self, size: tuple[int, int]) -> None:
+        self.current = size
+        self.off_screen = self.off_screen_after_resize
+
     def grab(self) -> Frame:
-        pixels = np.full((self.size[1], self.size[0], 3), 40, dtype=np.uint8)
-        self._paste(pixels, GAUGE_LABEL, (10, self.size[1] - 20))
+        if self.off_screen:
+            blank = np.zeros((self.current[1], self.current[0], 3), np.uint8)
+            return Frame(blank, self.current, 1.0, False, False, OFF_SCREEN)
+        pixels = np.full((self.drawn[1], self.drawn[0], 3), 40, dtype=np.uint8)
+        if self.status_bar:
+            self._paste(pixels, GAUGE_LABEL, (10, self.drawn[1] - 20))
         if self.menu:
             self._paste(pixels, menus.MENU_TITLE, self.menu_point)
             self._paste(pixels, menus.GAME_OPTION_STATES[1], self.menu_point)
@@ -112,7 +149,8 @@ class FakeClient:
             self._draw_list(pixels)
         if self.key_bindings:
             self._paste(pixels, menus.KEY_BINDINGS_TABS[0], (50, 50))
-        return Frame(pixels, self.size, 1.0, True, True)
+        pixels = pixels.repeat(self.scale, axis=0).repeat(self.scale, axis=1)
+        return Frame(pixels, self.current, 1.0, True, True)
 
     def _paste(self, pixels: np.ndarray, path: str, point: tuple[int, int]) -> None:
         left, top, right, bottom = _box(path, point)
@@ -124,8 +162,8 @@ class FakeClient:
         left, right = x + LT[0] + 1, x + RB[0] - 4
         pixels[top : top + menus.LIST_ROWS * PITCH - 1, left:right] = menus.LIST_BACK
         highlight = self.highlight
-        if highlight is None and self.size in menus.WINDOWED_SIZES:
-            highlight = menus.WINDOWED_SIZES.index(self.size)
+        if highlight is None and self.current in menus.WINDOWED_SIZES:
+            highlight = menus.WINDOWED_SIZES.index(self.current)
         if highlight is not None:
             row = top + highlight * PITCH
             pixels[row : row + PITCH - 1, left:right] = menus.LIST_FOCUSED
@@ -144,6 +182,7 @@ class FakeClient:
 
     def click(self, x: int, y: int) -> None:
         self.inputs.append(("click", x, y))
+        x, y = x // self.scale, y // self.scale
         if self.menu and _inside(
             _box(menus.GAME_OPTION_STATES[0], self.menu_point), x, y
         ):
@@ -167,7 +206,7 @@ class FakeClient:
         elif (
             _inside(_box(menus.CONFIRM, self.window), x, y) and self.chosen is not None
         ):
-            self.size = menus.WINDOWED_SIZES[self.chosen]
+            self.resize(menus.WINDOWED_SIZES[self.chosen])
 
     def wait(self, seconds: float) -> None:
         del seconds
@@ -186,7 +225,7 @@ def test_it_sets_the_size_and_closes_the_menus() -> None:
     before = menus.set_resolution(client, SPRITES, (800, 600))
 
     assert before == (1920, 1080)
-    assert client.size == (800, 600)
+    assert client.current == (800, 600)
     assert not client.open
     assert client.inputs[0] == ("press", "escape")
 
@@ -197,7 +236,72 @@ def test_positions_follow_the_client_size(start: tuple[int, int]) -> None:
 
     menus.set_resolution(client, SPRITES, (1280, 720))
 
-    assert client.size == (1280, 720)
+    assert client.current == (1280, 720)
+    assert not client.open
+
+
+def test_a_client_that_doubles_its_pixels_is_driven_at_half_size() -> None:
+    client = FakeClient((2560, 1440))
+
+    before = menus.set_resolution(client, SPRITES, (1920, 1080))
+
+    assert before == (2560, 1440)
+    assert client.current == (1920, 1080)
+    assert not client.open
+
+
+def test_menus_left_open_at_the_doubled_size_are_closed() -> None:
+    client = FakeClient((1920, 1080))
+
+    menus.set_resolution(client, SPRITES, (2560, 1440))
+
+    # The fake keeps the Options window open after Confirm, now pixel-doubled.
+    assert client.current == (2560, 1440)
+    assert not client.open
+    assert client.inputs[-1] == ("press", "escape")
+
+
+def test_closing_finds_a_doubled_menu() -> None:
+    client = FakeClient((2560, 1440), menu=True)
+
+    menus.close_menus(client, SPRITES)
+
+    assert not client.open
+    assert client.inputs == [("press", "escape")]
+
+
+def test_start_says_why_the_frame_cannot_be_read() -> None:
+    client = FakeClient(status_bar=False)
+
+    with pytest.raises(menus.MenuError) as raised:
+        menus.set_resolution(client, SPRITES, (800, 600))
+
+    assert raised.value.step == "start"
+    assert "gauge label isn't drawn at 1:1 or 2:1" in raised.value.detail
+    assert client.inputs == []
+
+
+def test_a_resize_that_puts_the_client_off_the_screen_is_fitted_back() -> None:
+    client = FakeClient((1920, 1080), off_screen_after_resize=True)
+
+    menus.set_resolution(client, SPRITES, (1920, 1200))
+
+    assert client.current == (1920, 1200)
+    assert client.fits == 1
+    assert not client.off_screen
+    assert not client.open
+
+
+def test_an_unconfirmed_size_names_the_size_the_client_is() -> None:
+    client = FakeClient((1024, 768))
+    client.resize = lambda size: None  # type: ignore[method-assign]
+
+    with pytest.raises(menus.MenuError) as raised:
+        menus.set_resolution(client, SPRITES, (800, 600))
+
+    assert raised.value.step == "confirm"
+    assert "it is 1024x768" in raised.value.detail
+    assert client.fits == 1
     assert not client.open
 
 
@@ -207,7 +311,7 @@ def test_an_open_game_menu_is_used_without_pressing_escape() -> None:
     menus.set_resolution(client, SPRITES, (1024, 768))
 
     assert client.inputs[0][0] == "click"
-    assert client.size == (1024, 768)
+    assert client.current == (1024, 768)
 
 
 def test_an_open_options_window_is_used() -> None:
@@ -216,7 +320,7 @@ def test_an_open_options_window_is_used() -> None:
     menus.set_resolution(client, SPRITES, (1024, 768))
 
     assert ("press", "escape") not in client.inputs[:1]
-    assert client.size == (1024, 768)
+    assert client.current == (1024, 768)
 
 
 def test_the_key_bindings_window_is_refused_before_any_input() -> None:
@@ -237,7 +341,7 @@ def test_a_step_that_fails_names_itself_and_closes_the_menus() -> None:
     assert raised.value.step == "open the resolution list"
     assert not client.open
     assert client.inputs[-1] == ("press", "escape")
-    assert client.size == (1024, 768)
+    assert client.current == (1024, 768)
 
 
 def test_any_other_failure_also_closes_the_menus() -> None:
@@ -267,7 +371,7 @@ def test_a_list_whose_highlight_is_not_the_client_size_is_refused() -> None:
         menus.set_resolution(client, SPRITES, (800, 600))
 
     assert not client.open
-    assert client.size == (1024, 768)
+    assert client.current == (1024, 768)
 
 
 @pytest.mark.parametrize("size", [(640, 480), (1920, 1081)])
