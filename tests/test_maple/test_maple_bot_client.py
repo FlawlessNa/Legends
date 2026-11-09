@@ -10,6 +10,7 @@ from botting.core import Bot, DecisionMaker
 from botting.screen import Frame
 from maple.bots import maple_bot
 from maple.bots.maple_bot import MapleBot
+from maple.model.mechanics.physics import Calibration
 from maple.screen import client
 from maple.screen.map_identification import MapCanvas, MapCanvases
 from maple.screen.minimap import MINIMAP, minimap_canvas_path
@@ -322,3 +323,36 @@ def test_when_the_banner_cant_be_shown_any_expanded_minimap_will_do(
     bot._show_minimap(object(), banner=True)  # pyright: ignore[reportArgumentType] - never read
 
     assert asked == [True, False]
+
+
+def test_construction_parses_the_calibration_setting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_, game_map: 10002000)
+    bot = _Bot(
+        "Someone",
+        {},  # pyright: ignore[reportArgumentType] - metadata is never read here
+        map="Victoria Road: Ellinia",
+        game_map="Line1Area1",
+        character_class="Bishop",
+        calibration={"walk": 1.1, "teleport": 0.9},
+    )
+
+    assert bot.calibration == Calibration(walk=1.1, teleport=0.9)
+    # It stays out of the kwargs that reach `MapleMap` and the DecisionMakers.
+    assert "calibration" not in bot.kwargs
+
+
+def test_construction_refuses_a_misspelt_calibration_constant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_, game_map: 10002000)
+    with pytest.raises(ValueError, match="no constant 'speed'"):
+        _Bot(
+            "Someone",
+            {},  # pyright: ignore[reportArgumentType] - metadata is never read here
+            map="Victoria Road: Ellinia",
+            game_map="Line1Area1",
+            character_class="Bishop",
+            calibration={"speed": 1.1},
+        )

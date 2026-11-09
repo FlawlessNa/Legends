@@ -3,6 +3,7 @@ import multiprocessing.connection
 import multiprocessing.managers
 import threading
 from abc import ABC
+from collections.abc import Mapping
 from typing import Any
 
 from botting import PARENT_LOG
@@ -18,6 +19,7 @@ from maple.model.mechanics import MapleMap
 from maple.model.mechanics.minimap_creation.minimap_edits_model import (
     MinimapEditsManager,
 )
+from maple.model.mechanics.physics import Calibration
 from maple.screen.buffs import ICON_BASE, BuffsReader
 from maple.screen.chat import TARGET_SELECT, ChatReader
 from maple.screen.client import find_client
@@ -65,6 +67,7 @@ class MapleBot(Bot, ABC):
         models_path: dict[str, str] | None = None,
         character_class: str | None = None,
         open_minimap_editor: bool = False,
+        calibration: Mapping[str, object] | None = None,
         **kwargs: Any,  # noqa: ANN401
     ) -> None:
         super().__init__(ign, metadata, **kwargs)
@@ -82,6 +85,9 @@ class MapleBot(Bot, ABC):
         self.map_auto = is_auto(map)
         self.game_map = (game_map or "").replace("_", "").replace(" ", "")
         self.open_minimap_editor = open_minimap_editor
+        # Parsed here so a misspelt constant refuses the start. Nothing reads
+        # it until Movement Plans move to virtual px (#396).
+        self.calibration = Calibration.from_mapping(calibration)
         self.kwargs = kwargs
         self.kwargs.update(ign=ign)
 
@@ -203,6 +209,7 @@ class MapleBot(Bot, ABC):
         data.create_attribute("current_client_img", client_img, threshold=0.1)
         data.set_static("speed_multiplier", self.kwargs.get("speed_multiplier", 1.00))
         data.set_static("jump_multiplier", self.kwargs.get("jump_multiplier", 1.00))
+        data.set_static("calibration", self.calibration)
 
     def _check_map_at_start(
         self, sprites: ReaderSprites, file_map_id: int | None
