@@ -198,6 +198,15 @@ def test_footholds_drawn_on_objects_and_tiles_are_neither_platforms_nor_walls() 
     assert sources | {w.source for w in world.walls} == {"map"}
 
 
+def test_ropes_drawn_on_objects_are_left_out() -> None:
+    own = Rope("map", 1, 5, -40, 0, True, False, 0)
+    drawn = Rope("object", 0, 8, -40, 0, None, None, None)
+
+    world = WorldMap.from_map_data(map_data(ropes=(own, drawn)))
+
+    assert world.ropes == (own,)
+
+
 def test_the_minimap_transform_converts_canvas_and_virtual_px() -> None:
     world = WorldMap.from_map_data(map_data())
 

@@ -38,16 +38,15 @@ def test_every_non_wall_foothold_lies_on_exactly_one_platform(name: str) -> None
     assert all(len({f.layer for f in p.footholds}) == 1 for p in world.platforms)
 
 
-def test_ropes_keep_their_top_flags(name: str) -> None:
+def test_ropes_are_the_maps_own_and_keep_their_top_flags(name: str) -> None:
     with Catalogue.latest(STORE) as cat:
         ropes = cat.map(name).ropes
     world = WorldMap.load(name)
 
-    assert world.ropes == ropes
+    assert world.ropes == tuple(r for r in ropes if r.source == "map")
+    assert world.ropes
     assert all(
-        r.usable_from_foothold is not None and r.ladder is not None
-        for r in world.ropes
-        if r.source == "map"
+        r.usable_from_foothold is not None and r.ladder is not None for r in world.ropes
     )
 
 
@@ -55,7 +54,7 @@ def test_damp_forest_has_walls_and_the_minimap_transform() -> None:
     world = WorldMap.load("Dungeon: Damp Forest")
 
     assert world.walls
-    flags = {r.usable_from_foothold for r in world.ropes if r.source == "map"}
+    flags = {r.usable_from_foothold for r in world.ropes}
     assert flags == {True, False}
     assert world.minimap is not None
     assert world.minimap.scale == 16
