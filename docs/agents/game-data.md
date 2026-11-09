@@ -228,7 +228,7 @@ with Catalogue.latest() as cat:
 ```
 
 `render_map(cat, map, *, scale=1.0, frame=0, viewport=(1366, 768),
-camera=None, images=None, overlays=False, hitboxes=False)` draws a map in virtual coordinates. The VR
+camera=None, images=None, overlays=False, hitboxes=False, keep=None)` draws a map in virtual coordinates. The VR
 bounds' top left is pixel (0, 0), and the image is the bounds' size times
 `scale`. It reads the catalogue and the image store only, never the client.
 
@@ -237,6 +237,9 @@ bounds' top left is pixel (0, 0), and the image is the bounds' size times
   kept in the map's order. Then the backgrounds in front. Each item puts its
   frame's `origin` at its position. A flipped item mirrors about its position.
 - **Animated items** are drawn at `frame % frame_count`.
+- **`keep`**, a predicate on `MapLayer`, draws only the tiles, objects and
+  backgrounds it is true for (`maple.model.world` keeps the static ones).
+  Overlays and spawns are drawn regardless.
 - **Backgrounds** are placed for a camera of `viewport`'s size centred on the
   map, as the client does, or for `camera` when one is given (a scene's). A background moves by `(rx + 100) / 100` of the
   camera's centre: `rx = -100` is fixed to the map, and `rx = 0` is fixed to
