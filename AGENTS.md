@@ -11,6 +11,12 @@ and there are no `CLAUDE.md` files (see `docs/SETUP.md`).
   bot works. If your change could alter which keys reach the game, or when, say
   so.
 
+When you open a Lavish page, paste its full session URL
+(`http://127.0.0.1:4387/session/<id>`) in your reply. The maintainer may be
+on another machine, reaching this one through an SSH tunnel
+(`docs/REMOTE_ACCESS.md`), and needs the exact URL. Do not change
+`LAVISH_AXI_PORT`.
+
 ## What are you doing?
 
 | You are…                                  | Read                                                   |
@@ -22,6 +28,7 @@ and there are no `CLAUDE.md` files (see `docs/SETUP.md`).
 | Hitting a Ruff or Pyright error           | `docs/agents/typing.md`                                |
 | Reviewing a PR                            | `docs/agents/code-review.md`                           |
 | Filing, labelling or reading issues       | `docs/agents/issue-tracker.md`, `triage-labels.md`     |
+| Checking work against the game client     | `docs/agents/game-client.md`                           |
 | Tracing how a decision becomes a keypress | `docs/agents/engine-architecture.md`                   |
 | Extracting or reading the client's data   | `docs/agents/game-data.md`                             |
 
@@ -33,15 +40,18 @@ and there are no `CLAUDE.md` files (see `docs/SETUP.md`).
   interface reading).
 - `game_data/`: reads the MapleStory Classic client's files into game data. It
   imports neither `maple` nor `botting`.
-- `tests/`: the pytest suite. Opt-in markers `live`, `system`, `lab` and
-  `client_files` are deselected by default (`docs/agents/testing.md`).
+- `tests/`: the pytest suite. Opt-in markers `live`, `system`, `lab`,
+  `client_files` and `frames` are deselected by default
+  (`docs/agents/testing.md`).
   `configs/`: `.ini` settings, plus one JSON per map under `configs/maps/`.
 - `toolkit/`: standalone scripts that nothing imports. `ml_training/`: model
   training.
 - `docs/adr/`: architecture decisions. Contradicting one is allowed; doing it
   silently is not.
 
-`maple` imports `botting`, never the reverse. `botting/`, `maple/` and `tests/`
+`maple` imports `botting`, never the reverse. These import rules, with the ones
+for `game_data/` and `toolkit/` above, are a gate: `tests/test_layering.py`
+fails on a new violation, and `pytest` runs it. `botting/`, `maple/` and `tests/`
 each have an `AGENTS.md` with rules for that package.
 
 **Vocabulary:** `CONTEXT.md` is the domain glossary. Use its terms, and avoid

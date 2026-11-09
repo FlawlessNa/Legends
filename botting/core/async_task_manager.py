@@ -1,16 +1,20 @@
 import asyncio
 import logging
 import multiprocessing.connection
+import time
 from collections.abc import Callable
 
 from botting.telemetry import emit_event
 from botting.telemetry_events import (
     ACTION_BLOCKED,
     ACTION_CANCELS_OTHER,
+    ACTION_FINISHED,
     ACTION_REQUEUED,
     ACTION_SCHEDULED,
     ACTION_SELF_CANCELLED,
     ActionCancelsOtherPayload,
+    ActionFinishedPayload,
+    ActionOutcome,
     ActionPayload,
 )
 
@@ -34,6 +38,15 @@ class AsyncTaskManager:
         self.queue = asyncio.PriorityQueue()
         self.running_tasks: dict[str, ActionRequest] = {}
         self.discord_pipe = discord_pipe
+        # Keyed by the task, not its name: a self-cancelling request reuses the
+        # name, and its replacement is scheduled before the cancelled task's
+        # done-callback runs. Keyed by name, the old task would report the new
+        # one's Correlation ID and start time.
+        self.started: dict[asyncio.Task, tuple[ActionRequest, float]] = {}
+        #: The first exception a scheduled task raised. Set before the queue is
+        #: told to stop, so the Session can say it ended in error even though
+        #: `start()` - and so `SessionManager.launch` - returns normally.
+        self.failure: BaseException | None = None
 
     async def start(self) -> None:
         while True:
@@ -141,6 +154,7 @@ class AsyncTaskManager:
         request.task = asyncio.create_task(
             request.procedure(*request.args, **request.kwargs), name=request.identifier
         )
+        self.started[request.task] = (request, time.monotonic())
         request.task.add_done_callback(self._cleanup_handler)
         if request.callbacks:
             for cb in request.callbacks:
@@ -148,6 +162,7 @@ class AsyncTaskManager:
         self.running_tasks[request.identifier] = request
 
     def _cleanup_handler(self, fut: asyncio.Task) -> None:
+        self._emit_finished(fut)
         try:
             exception = fut.exception()
             if exception is None:
@@ -159,6 +174,8 @@ class AsyncTaskManager:
                     exception,
                     exc_info=exception,
                 )
+                if self.failure is None:
+                    self.failure = exception
                 self.queue.put_nowait(None)
                 raise exception
         except asyncio.CancelledError:
@@ -167,6 +184,39 @@ class AsyncTaskManager:
             raise
         finally:
             self.running_tasks.pop(fut.get_name(), None)
+
+    def _emit_finished(self, fut: asyncio.Task) -> None:
+        """
+        Emit the one ``action.finished`` record for a task that just ended.
+
+        Runs first in the done-callback, so it is written whatever the rest of the
+        clean-up does. It must never raise: this is a done-callback, and a raise
+        here would replace the task's own exception in the loop's handler.
+        :param fut: The task that ended.
+        """
+        try:
+            request, started_at = self.started.pop(fut)
+            elapsed_ms = round((time.monotonic() - started_at) * 1000)
+            outcome: ActionOutcome
+            if fut.cancelled():
+                outcome = "cancelled"
+            elif fut.exception() is not None:
+                outcome = "raised"
+            else:
+                outcome = "completed"
+            payload: ActionFinishedPayload = {
+                "identifier": request.identifier,
+                "outcome": outcome,
+                "elapsed_ms": elapsed_ms,
+            }
+            emit_event(
+                request.correlation_id,
+                ACTION_FINISHED,
+                payload,
+                logger_name=logger.name,
+            )
+        except Exception:
+            logger.exception("Could not record how task %s ended.", fut.get_name())
 
     def _report_result(self, fut: asyncio.Task) -> None:
         """

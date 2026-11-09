@@ -159,8 +159,6 @@ break one and you get an exception, not a subtle bug six hours into a Session.
 
 ## Deliberately not drawn
 
-- `botting/core/_old/` — the pre-rewrite engine, kept for reference and imported
-  by nothing.
 - `botting/models_abstractions/` — the ABCs the game layer implements. No
   runtime role in the flows above.
 - `botting/visuals/`, `botting/utilities/` — leaf helpers, called from inside the

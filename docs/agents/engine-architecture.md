@@ -12,8 +12,9 @@ question. The rules that a change can *violate* are in
 
 - **Main Process** — one asyncio loop. Owns the `asyncio.PriorityQueue`, the
   `AsyncTaskManager`, one listener task per Engine, the Discord listener, the
-  proxy listener, a `QueueListener` thread for logs, the Held-Keys Ledger, and
-  every keystroke that reaches a client.
+  proxy listener, the stop-file watch (`botting/stop_file.py`), a
+  `QueueListener` thread for logs, the Held-Keys Ledger, and every keystroke
+  that reaches a client.
 - **Engine Process** — one per bot group, spawned by `SessionManager.launch()`.
   Runs `asyncio.run()` over its Bots. Each Bot owns a `BotData` and a set of
   `DecisionMaker`s, each of which is one asyncio task plus two threads (an
@@ -125,12 +126,10 @@ registered in `ignored_keys`, or `_monitor_proxy` will try to service it as one.
 | Recorder + both Discord directions | `botting/core/peripherals_process.py`, `botting/communications/` |
 | Buckets, thresholds, dictConfig | `botting/logging_config.py` |
 | `emit_event`, the JSONL sink | `botting/telemetry.py`, `telemetry_events.py` |
+| Reading a Session's `telemetry.jsonl` back (`python -m botting.session`) | `botting/session/` |
 
 ## Traps
 
-- **`botting/core/_old/`** is the pre-rewrite engine. Nothing live imports it.
-  Don't read it for reference, don't extend it, don't import it. If a search
-  hits it, discard the result.
 - **Don't add a module-level `LOG_LEVEL`.** Per-subsystem verbosity is
   `dictConfig` data (ADR 0001).
 - **Don't validate inside `emit_event()`.** Telemetry may never raise inside a

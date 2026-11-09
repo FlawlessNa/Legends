@@ -9,6 +9,11 @@
 3. **No epic?** A standalone `ready-for-agent` ticket carries its own intent:
    say in a line what you will change, and go. A request with no ticket and no
    agreed intent is a topic: see `topics.md`.
+4. **List the ticket's `## Constraints`.** Each one must still hold when you
+   are done, even where the acceptance criteria would be easier to meet by
+   breaking it. Your PR ticks them one by one, and the reviewer checks each
+   (`code-review.md`). If meeting the ticket seems to need breaking one, stop
+   and ask.
 
 **Stop and ask instead of guessing** when the work shows the intent is wrong,
 ambiguous or silent on something that matters, or when the ticket crosses the
@@ -66,7 +71,27 @@ deselected test accounted for by an opt-in marker (`live`, `system`, `lab`,
 - **Green means the Invariants hold, not that the bot works.** Nothing in the
   default suite drives a game client.
 
-`testing.md` has the procedures; `typing.md` covers the pre-commit gates.
+`testing.md` has the procedures; `typing.md` covers the pre-commit gates. The
+import direction in `AGENTS.md` ("The repo") is a test,
+`tests/test_layering.py`: fix a violation by moving the code, never by adding
+an exception.
+
+### Against the live game
+
+**A change that could alter which keys reach the game, or when, says in its PR
+how it was verified against the live game, or why it was not.** That covers the
+input send path, Movement compilation, timing, focus, and any DecisionMaker
+whose Actions change. `game-client.md` has the two tools: the probe, for what
+is on screen with no Session running, and a Test Session that the maintainer
+starts and you read with the Session reader.
+
+- **Verified:** write the expectation in the PR before the run, then the
+  verdict with counts and the Session directory (`game-client.md`, "Live
+  Session").
+- **Not verified:** say why (no client open, the maintainer was not available
+  to start a Session, the change needs a minimap trail), and put what a human
+  must watch in the PR's handoff. That is a legitimate outcome, not a failure;
+  "Nothing to verify" is not one when keys or timing can change.
 
 ## When to stop and hand back
 
@@ -74,7 +99,9 @@ Stop rather than finish whenever the work needs:
 
 - a **measured constant**: anything timed, tuned or read off a running client.
   These are Expectations (`CONTEXT.md`);
-- a **running game client**, to reproduce, confirm or record;
+- a **running game client**, to reproduce, confirm or record, beyond the
+  probe and a Test Session the maintainer starts for you ("Against the live
+  game" above);
 - a **minimap trail**, recorded through the GUI editor in
   `maple/model/mechanics/minimap_creation/`;
 - a judgment that reduces to **watching the character**.
@@ -105,6 +132,9 @@ covers:
 
 - what changed;
 - the test that was red without the change;
+- each of the ticket's constraints, ticked, with how it holds;
+- how the change was verified against the live game, or why not, when it could
+  alter which keys reach the game or when (above);
 - **what you could not verify**;
 - the ADRs and invariant ids the change bears on;
 - what a human still has to do.

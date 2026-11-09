@@ -3,7 +3,7 @@ target-version = "py314"
 line-length = 88
 
 [tool.ruff.lint]
-extend-select = ["W", "E4", "E7", "E9", "TID", "PT", "ANN", "T20"]
+extend-select = ["W", "E4", "E7", "E9", "TID", "PT", "ANN", "T20", "PGH004"]
 
 [tool.ruff.lint.per-file-ignores]
 # Off-ratchet directories: held to pyflakes and the correctness rules, not to
@@ -63,6 +63,12 @@ extend-select = ["W", "E4", "E7", "E9", "TID", "PT", "ANN", "T20"]
 "unittest.TestCase".msg = "Use pytest: module-level test_* functions and bare assert. See docs/agents/testing.md."
 "unittest.IsolatedAsyncioTestCase".msg = "Use pytest with pytest-asyncio. See docs/agents/testing.md."
 "unittest.main".msg = "Tests run under pytest. See docs/agents/testing.md."
+"pytest.mark.xfail".msg = "No xfail: resolve the test or file it. See tests/AGENTS.md (issue #89)."
+"pytest.xfail".msg = "No xfail: resolve the test or file it. See tests/AGENTS.md (issue #89)."
+"asyncio.get_event_loop".msg = "Use asyncio.get_running_loop()."
+"contextvars".msg = "ADR 0001: Correlation IDs are passed explicitly, never through ambient context."
+"pydirectinput".msg = "Input goes through botting.controller (ADR 0002)."
+"pyautogui".msg = "Input goes through botting.controller (ADR 0002)."
 
 [tool.pyright]
 include = ["botting", "game_data", "maple", "ml_training", "tests", "toolkit", "conftest.py", "paths.py"]
