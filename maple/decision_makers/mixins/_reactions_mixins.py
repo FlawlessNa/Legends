@@ -48,12 +48,12 @@ class ReactionsMixin:
             disc_alert = (
                 None
                 if disc_msg is None
-                else DiscordRequest(disc_msg, self.data.current_client_img)
+                else DiscordRequest(disc_msg, self.data.current_frame.pixels)
             )
             choices = self._light_reactions
         else:
             disc_alert = DiscordRequest(
-                disc_msg or f"{self} is failing", self.data.current_client_img
+                disc_msg or f"{self} is failing", self.data.current_frame.pixels
             )
             choices = self._advanced_reactions
 

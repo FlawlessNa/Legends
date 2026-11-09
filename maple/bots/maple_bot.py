@@ -27,6 +27,7 @@ from maple.screen.locator import FrameCheck
 from maple.screen.map_identification import MapCanvases, MapIdentifier
 from maple.screen.minimap import MINIMAP, NW, MinimapReader
 from maple.screen.minimap_title import MINIMAP_TITLE_READER, MinimapTitleReader
+from maple.screen.quick_slots import QUICK_SLOTS, QuickSlotsReader
 from maple.screen.sprites import (
     Profile,
     ReaderSprites,
@@ -128,34 +129,37 @@ class MapleBot(Bot, ABC):
                 MINIMAP,
                 *((MINIMAP_TITLE_READER,) if self.map_auto else ()),
             )
-        reader_sprites = load_reader_sprites(
-            readers,
-            Profile(
-                job=self.job,
-                game_map=self.game_map,
-                map_id=map_id,
-                buffs=tuple(
-                    buff.name
-                    for buff in solo_buffs(
-                        self.character_class.skills,
-                        self.kwargs.get("included_buffs"),
-                        self.kwargs.get("excluded_buffs"),
-                    )
-                ),
+        profile = Profile(
+            job=self.job,
+            game_map=self.game_map,
+            map_id=map_id,
+            buffs=tuple(
+                buff.name
+                for buff in solo_buffs(
+                    self.character_class.skills,
+                    self.kwargs.get("included_buffs"),
+                    self.kwargs.get("excluded_buffs"),
+                )
             ),
         )
+        reader_sprites = load_reader_sprites(readers, profile)
         if checked:
             map_id, reader_sprites = self._check_map_at_start(
                 reader_sprites, file_map_id
             )
         data.set_static("map_id", map_id)
         data.set_static("reader_sprites", reader_sprites)
+        data.set_static("buff_names", profile.buffs)
         if reader_sprites.build is not None:
             frame_check = FrameCheck(reader_sprites)
             data.set_static("frame_check", frame_check)
             if STATUS_BAR_BACKGROUND in reader_sprites.canvases:
                 data.set_static(
                     "status_bar_reader", StatusBarReader(reader_sprites, frame_check)
+                )
+            if QUICK_SLOTS in readers:
+                data.set_static(
+                    "quick_slots_reader", QuickSlotsReader(reader_sprites, frame_check)
                 )
             if ICON_BASE in reader_sprites.canvases:
                 data.set_static(
@@ -176,9 +180,11 @@ class MapleBot(Bot, ABC):
                 self.ign, self.detection_configs, self.client_size
             ),
         )
+        # Only what `MapleMap` takes: `self.kwargs` is every profile setting,
+        # the DecisionMakers' included, which it refuses.
         data.create_attribute(
             "current_map",
-            lambda: MapleMap(self.game_map, self.open_minimap_editor, **self.kwargs),
+            lambda: MapleMap(self.game_map, self.open_minimap_editor, ign=self.ign),
         )
         data.create_attribute("current_minimap", lambda: data.current_map.minimap)
         data.create_attribute(
@@ -194,19 +200,12 @@ class MapleBot(Bot, ABC):
             ),
         )
         data.create_attribute("current_mobs", lambda: data.current_map.mobs)
-        # One capture serves both: the readers take the `Frame`, the older
-        # pixel consumers its pixels. Refreshing the pixels captures a new frame,
-        # as it did before, so `update_attribute("current_client_img")` still
-        # means a fresh capture.
+        # The bot's one capture: the readers take the `Frame`, mob and
+        # character detection its pixels. `update_attribute("current_frame")`
+        # captures a fresh one.
         data.create_attribute(
             "current_frame", lambda: frame_source().grab(data.handle), threshold=0.1
         )
-
-        def client_img() -> Any:  # noqa: ANN401 - the frame's pixels, as before
-            data.update_attribute("current_frame")
-            return data.current_frame.pixels
-
-        data.create_attribute("current_client_img", client_img, threshold=0.1)
         data.set_static("speed_multiplier", self.kwargs.get("speed_multiplier", 1.00))
         data.set_static("jump_multiplier", self.kwargs.get("jump_multiplier", 1.00))
         data.set_static("calibration", self.calibration)

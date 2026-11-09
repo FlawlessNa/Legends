@@ -26,7 +26,7 @@ class MenusMixin:
         self.data.set_static("ability_menu", menu)
         self.data.create_or_reconfigure_attribute(
             "ability_menu_displayed",
-            lambda: menu.is_displayed(self.data.handle, self.data.current_client_img),
+            lambda: menu.is_displayed(self.data.handle, self.data.current_frame.pixels),
             initial_value=False,
         )
         ensure_ability_menu_displayed(
@@ -35,16 +35,16 @@ class MenusMixin:
         self.data.create_or_reconfigure_attribute(
             "available_ap",
             lambda: menu.get_available_ap(
-                self.data.handle, self.data.current_client_img
+                self.data.handle, self.data.current_frame.pixels
             ),
         )
         self.data.create_or_reconfigure_attribute(
             "speed_multiplier",
-            lambda: menu.get_speed(self.data.handle, self.data.current_client_img),
+            lambda: menu.get_speed(self.data.handle, self.data.current_frame.pixels),
         )
         self.data.create_or_reconfigure_attribute(
             "jump_multiplier",
-            lambda: menu.get_jump(self.data.handle, self.data.current_client_img),
+            lambda: menu.get_jump(self.data.handle, self.data.current_frame.pixels),
         )
         # Refresh minimap grid with new speed and jump multipliers
         if self.data.has_minimap_attributes:
@@ -79,12 +79,12 @@ class MenusMixin:
         self.data.set_static("inventory_menu", menu)
         self.data.create_or_reconfigure_attribute(
             "inventory_menu_displayed",
-            lambda: menu.is_displayed(self.data.handle, self.data.current_client_img),
+            lambda: menu.is_displayed(self.data.handle, self.data.current_frame.pixels),
             initial_value=False,
         )
         self.data.create_or_reconfigure_attribute(
             "inventory_menu_extended",
-            lambda: menu.is_extended(self.data.handle, self.data.current_client_img),
+            lambda: menu.is_extended(self.data.handle, self.data.current_frame.pixels),
             initial_value=False,
         )
         self.data.create_or_reconfigure_attribute(
@@ -94,12 +94,16 @@ class MenusMixin:
         )
         self.data.create_or_reconfigure_attribute(
             "inventory_menu_active_tab",
-            lambda: menu.get_active_tab(self.data.handle, self.data.current_client_img),
+            lambda: menu.get_active_tab(
+                self.data.handle, self.data.current_frame.pixels
+            ),
             initial_value=None,
         )
         self.data.create_or_reconfigure_attribute(
             "inventory_space_left",
-            lambda: menu.get_space_left(self.data.handle, self.data.current_client_img),
+            lambda: menu.get_space_left(
+                self.data.handle, self.data.current_frame.pixels
+            ),
             initial_value=menu.total_slots,
         )
         self.data.set_feature("has_inventory_menu_attributes")
@@ -142,6 +146,21 @@ class UIMixin:
             "status_bar", lambda: reader.read(self.data.current_frame)
         )
         self.data.set_feature("has_status_bar_attributes")
+
+    def _create_quick_slots_attributes(self) -> None:
+        """
+        `quick_slots`, a `Reading[QuickSlots]` from the bot's one
+        `quick_slots_reader` and its `current_frame`. Like `status_bar`, a
+        consumer updates `current_frame` and then `quick_slots`.
+
+        The DecisionMaker must name `QUICK_SLOTS` in its `screen_readers`, so
+        the reader exists when the bot starts.
+        """
+        reader = self.data.quick_slots_reader
+        self.data.create_or_reconfigure_attribute(
+            "quick_slots", lambda: reader.read(self.data.current_frame)
+        )
+        self.data.set_feature("has_quick_slots_attributes")
 
     def _create_chat_attributes(self) -> None:
         """

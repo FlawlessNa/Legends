@@ -54,6 +54,7 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
         self._buffs = solo_buffs(
             self.data.character.skills, included_buffs, excluded_buffs
         )
+        self._create_buffs_attributes()
         self._sub_tasks: dict[str, asyncio.Task] = {}
         self._tg: asyncio.TaskGroup | None = None
 

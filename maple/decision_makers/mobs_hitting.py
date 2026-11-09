@@ -4,18 +4,13 @@ import logging
 import multiprocessing.connection
 import multiprocessing.managers
 from collections.abc import Callable
-from functools import cached_property
 from typing import Any
 
 import numpy as np
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
-from botting.utilities import (
-    CLIENT_HORIZONTAL_MARGIN_PX,
-    CLIENT_VERTICAL_MARGIN_PX,
-    Box,
-)
+from botting.utilities import Box
 from maple.actions.skills_related_v2 import cast_skill_compiler
 from maple.model.characters import MapleSkill
 from maple.screen.chat import CHAT
@@ -133,27 +128,19 @@ class MobsHitting(
             return self.data.character.skills[skill_str]
         return self.data.character.skills[self.data.character.main_skill]
 
-    @cached_property
-    def _hide_minimap_box(self) -> Box:
-        minimap_box = self.data.current_entire_minimap_box
-        return Box(
-            max(
-                0,
-                minimap_box.left - CLIENT_HORIZONTAL_MARGIN_PX - 5,
-            ),
-            minimap_box.right + CLIENT_HORIZONTAL_MARGIN_PX + 5,
-            max(
-                0,
-                minimap_box.top - CLIENT_VERTICAL_MARGIN_PX - 10,
-            ),
-            minimap_box.bottom + CLIENT_VERTICAL_MARGIN_PX + 5,
-        )
+    def _regions_to_hide(self) -> list[Box]:
+        """
+        Where a character found on screen is not ours, in client pixels: the
+        minimap, as `minimap.py` last read it, and the chat, while the chat
+        reader finds it whole. A region not read yet is left out.
+        """
+        regions = [self.data.current_entire_minimap_box]
+        regions.append(self.data.chat_reader.region(self.data.current_frame))
+        return [region for region in regions if region is not None]
 
-    @cached_property
-    def _hide_tv_smega_box(self) -> Box:
-        return Box(left=800, right=1024, top=0, bottom=200)
-
-    def _mask_for_skill_range(self, pos: tuple[int, int, int, int]) -> np.ndarray:
+    def _mask_for_skill_range(
+        self, pos: tuple[int, int, int, int], pixels: np.ndarray
+    ) -> np.ndarray:
         horizontal = self.training_skill.horizontal_screen_range
         vertical_up = (
             self.training_skill.vertical_up_screen_range
@@ -177,7 +164,7 @@ class MobsHitting(
             top=y2 - vertical_up // 2,
             bottom=min(y2 + vertical_down // 2, self._chat_top()),
         )
-        mask = np.zeros(self.data.current_client_img.shape, np.uint8)
+        mask = np.zeros(pixels.shape, np.uint8)
         mask[region.top : region.bottom, region.left : region.right] = 255
         return mask
 
@@ -198,12 +185,9 @@ class MobsHitting(
         found on screen.
         """
         return self.data.character.get_onscreen_position(
-            self.data.current_client_img,
+            self.data.current_frame.pixels,
             self.data.handle,
-            [
-                self._hide_minimap_box,
-                self._hide_tv_smega_box,
-            ],  # TODO - Add Chat Box  + fixed UI as well into hiding
+            self._regions_to_hide(),
             acceptance_threshold=self.ON_SCREEN_THRESHOLD,
         )
 
@@ -217,7 +201,10 @@ class MobsHitting(
         )
 
     def _closest_mob_direction(
-        self, on_screen_pos: tuple[int, int, int, int], mask: np.ndarray
+        self,
+        on_screen_pos: tuple[int, int, int, int],
+        pixels: np.ndarray,
+        mask: np.ndarray,
     ) -> str | None:
         """
         The facing a unidirectional training skill should be cast in: towards the
@@ -228,7 +215,7 @@ class MobsHitting(
         """
         try:
             mobs_locations = self.get_mobs_positions_in_img(
-                self.data.current_client_img, self.data.current_mobs, mask=mask
+                pixels, self.data.current_mobs, mask=mask
             )
             return self.get_closest_mob_direction(
                 self.box_center(on_screen_pos), mobs_locations
@@ -258,16 +245,17 @@ class MobsHitting(
         closest_mob_direction = None
 
         if on_screen_pos:
-            mask = self._mask_for_skill_range(on_screen_pos)
+            # One frame for the whole decision: the mask and the detections
+            # must be of the same pixels.
+            pixels = self.data.current_frame.pixels
+            mask = self._mask_for_skill_range(on_screen_pos, pixels)
             mobs = self.data.current_mobs
-            nbr_mobs = self.mob_count_in_img(
-                self.data.current_client_img, mobs, mask=mask
-            )
+            nbr_mobs = self.mob_count_in_img(pixels, mobs, mask=mask)
 
             if nbr_mobs >= self.mob_threshold:
                 if self.training_skill.unidirectional:
                     closest_mob_direction = self._closest_mob_direction(
-                        on_screen_pos, mask
+                        on_screen_pos, pixels, mask
                     )
                 hit: MobsHitPayload = {
                     "mob_count": int(nbr_mobs),

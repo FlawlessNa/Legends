@@ -73,3 +73,23 @@ def test_mobs_hitting_leaves_out_the_chat_from_its_top(mocker: MockerFixture) ->
     hitting.data.chat_reader.region.return_value = None
     assert hitting._chat_top() == 300  # pyright: ignore[reportPrivateUsage]
     assert CHAT in MobsHitting.screen_readers
+
+
+def test_mobs_hitting_hides_the_minimap_and_the_chat_as_read(
+    mocker: MockerFixture,
+) -> None:
+    """The character found inside the minimap or the chat isn't ours: both are
+    hidden, where their readers place them, in client pixels."""
+    hitting = object.__new__(MobsHitting)
+    hitting.data = mocker.Mock()
+    hitting.data.current_frame = frame()
+    minimap = Box(left=20, right=152, top=20, bottom=167)
+    chat = Box(left=10, right=300, top=220, bottom=290)
+    hitting.data.current_entire_minimap_box = minimap
+    hitting.data.chat_reader.region.return_value = chat
+
+    assert hitting._regions_to_hide() == [minimap, chat]  # pyright: ignore[reportPrivateUsage]
+
+    hitting.data.current_entire_minimap_box = None
+    hitting.data.chat_reader.region.return_value = None
+    assert hitting._regions_to_hide() == []  # pyright: ignore[reportPrivateUsage]

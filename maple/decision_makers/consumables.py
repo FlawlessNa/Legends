@@ -7,11 +7,10 @@ from abc import ABC, ABCMeta
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
 from maple.actions import priorities
+from maple.screen.quick_slots import QUICK_SLOTS, QuickSlots
 from maple.screen.status_bar import STATUS_BAR
 
-from .mixins import (
-    UIMixin,
-)
+from .mixins import HeldReading, UIMixin
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -34,7 +33,7 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
     It also checks for the number of remaining consumables within the QuickSlots.
     """
 
-    screen_readers = (STATUS_BAR,)
+    screen_readers = (STATUS_BAR, QUICK_SLOTS)
 
     _THROTTLE = 3600  # Use this to set the interval at which a consumable is taken.
 
@@ -59,7 +58,11 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
         self._keyname = keyname
         self._key = controller.key_binds(self.data.ign)[keyname]
         self.num_usage = num_usage
+        self._quick_slots: HeldReading[QuickSlots, QuickSlots | None] = HeldReading(
+            self, "quick slots", lambda slots: slots, None
+        )
         self._create_status_bar_attributes()
+        self._create_quick_slots_attributes()
 
     async def _decide(self) -> None:
         self._use_consumable()
@@ -92,9 +95,11 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
 
         Not built: what to do when potions run low is a later topic. The counts
         are read by `maple.screen.quick_slots`; `QuickSlots.slot(n)` resolves the
-        `Quick slots` setting's numbers to them.
+        `Quick slots` setting's numbers to them. Until then, the quick slots
+        last read are kept, and a misread is only logged (`HeldReading`).
         """
-        # TODO
+        self.data.update_attributes("current_frame", "quick_slots")
+        self._quick_slots(self.data.quick_slots)
 
 
 class PetFood(UseAndCheckConsumable):
