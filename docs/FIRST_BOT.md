@@ -108,7 +108,9 @@ copy profiles\example.yaml profiles\yourname.yaml
 Open it and set, at minimum:
 
 - `ign` — your character's exact in-game name, matching your keybindings section
-- `game_map` — the map file from step 3, without `.json`
+- `map` — the game's name for your map (`"Victoria Road: Ellinia"`), or its
+  id. `game_map`, the map file from step 3 without `.json`, is still needed
+  until the map files are retired
 - `training_skill` — your attack, which must be in your `Skill Keys`
 - `included_buffs` — buffs to keep up, each also in `Skill Keys`
 - `client_size` — `large` or `medium`, matching the client

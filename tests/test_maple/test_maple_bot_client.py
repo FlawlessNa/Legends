@@ -3,6 +3,7 @@
 import pytest
 
 from botting.core import Bot, DecisionMaker
+from maple.bots import maple_bot
 from maple.bots.maple_bot import MapleBot
 from maple.screen import client
 
@@ -46,3 +47,13 @@ def test_child_init_takes_the_handle_from_find_handle() -> None:
 
     assert bot.data is not None
     assert bot.data.handle == 77
+
+
+def test_construction_reads_the_map_setting_and_stores_its_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_, game_map: 10002000)
+    bot = _Bot("Someone", {}, map="Victoria Road: Ellinia", character_class="Bishop")  # pyright: ignore[reportArgumentType] - metadata is never read here
+
+    assert bot.map_id == 10002000
+    assert bot.game_map == ""

@@ -27,10 +27,16 @@ bot: training
 # bot accepts is valid here, whether or not it is shown in this template.
 settings:
   # -- Map ------------------------------------------------------------------
-  # Must match a file in configs/maps/, without the .json extension.
-  # Shipped maps: Line1Area1, GhostShip1, MysteriousPath3.
-  # To bot somewhere else, record it first: python toolkit/create_map.py --help
-  game_map: Line1Area1
+  # The map the bot is on: its game name, `street: map name` when several maps
+  # share a name, or its map id. An ambiguous name refuses to start and lists
+  # the ids it matched. `auto` is not available yet (it needs map
+  # identification, #387).
+  map: "Victoria Road: Ellinia"
+
+  # Until the map files are retired, the old map loading still needs a file in
+  # configs/maps/, without the .json extension. Leave it out when you have none.
+  # If the file names another map than `map`, the bot refuses to start.
+  # game_map: Line1Area1
 
   # -- Detection model ------------------------------------------------------
   # Maps a mob class to the directory holding its weights. "All" means one
