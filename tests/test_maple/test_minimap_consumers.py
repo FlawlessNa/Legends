@@ -169,6 +169,50 @@ def test_the_minimap_state_is_read_off_a_fresh_capture(
     source.grab.assert_called_once_with(1)
 
 
+def _without_banner() -> Frame:
+    pixels = screen()
+    draw_minimap(pixels, 250, 20, banner=False)
+    return frame(pixels)
+
+
+@pytest.mark.parametrize(
+    ("shown", "banner"),
+    [
+        (_minimap, True),
+        (_without_banner, False),
+        (_minimised, False),
+        (lambda: frame(screen()), False),
+    ],
+)
+def test_the_banner_is_asked_of_a_fresh_capture(
+    mocker: MockerFixture, shown: Callable[[], Frame], banner: bool
+) -> None:
+    source = mocker.Mock()
+    source.grab.return_value = shown()
+    mocker.patch.object(menus, "frame_source", return_value=source)
+
+    assert menus.minimap_banner_shown(reader(), 1) is banner
+
+
+@pytest.mark.parametrize("banner", [True, False])
+def test_ensure_minimap_displayed_waits_for_the_banner_only_when_asked(
+    mocker: MockerFixture, banner: bool
+) -> None:
+    """On the look without the banner, the toggle is pressed again only when
+    the banner is asked for."""
+    source = mocker.Mock()
+    source.grab.return_value = _without_banner()
+    mocker.patch.object(menus, "frame_source", return_value=source)
+    action = mocker.patch.object(menus, "ActionWithValidation")
+
+    menus.ensure_minimap_displayed(
+        "test", 1, "Tester", mocker.Mock(), reader(), mocker.Mock(), 1.0, banner=banner
+    )
+
+    validator = action.call_args.args[1]
+    assert validator() is not banner
+
+
 # --- Keeping the cursor off the minimap ----------------------------------------
 
 

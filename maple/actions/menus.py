@@ -74,6 +74,13 @@ def minimap_state(minimap: MinimapReader, handle: int) -> MinimapState | None:
     return None
 
 
+def minimap_banner_shown(minimap: MinimapReader, handle: int) -> bool:
+    """Whether a fresh capture of the client shows the minimap expanded with its
+    banner, which draws the map's title."""
+    reading = minimap.read(frame_source().grab(handle))
+    return reading.value is not None and reading.value.banner is not None
+
+
 def ensure_minimap_displayed(
     identifier: str,
     handle: int,
@@ -85,7 +92,14 @@ def ensure_minimap_displayed(
     desired_state: MinimapState = MinimapState.EXPANDED,
     mode: Literal["Blocking", "Async"] = "Blocking",
     priority: int = ERROR_HANDLING,
+    banner: bool = False,
 ) -> None:
+    """
+    Presses the minimap key until the minimap is in `desired_state`, and, with
+    `banner`, expanded with its banner (`MaxMap`).
+
+    :raises TimeoutError: It isn't, after `timeout` seconds or 10 presses.
+    """
     request = ActionRequest(
         identifier,
         toggle_minimap,
@@ -97,7 +111,11 @@ def ensure_minimap_displayed(
     )
     validated_action = ActionWithValidation(
         pipe,
-        lambda: minimap_state(minimap, handle) is desired_state,
+        (
+            (lambda: minimap_banner_shown(minimap, handle))
+            if banner
+            else (lambda: minimap_state(minimap, handle) is desired_state)
+        ),
         condition,
         timeout,
     )

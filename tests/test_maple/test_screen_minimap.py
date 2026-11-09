@@ -216,6 +216,7 @@ def test_an_expanded_minimap_reads_its_area_bounds_and_position() -> None:
     assert reading.value.bounds == Box(left=250, right=382, top=20, bottom=167)
     assert reading.value.self_position.value == (37, 41)
     assert reading.value.markers == {}
+    assert reading.value.banner == Box(left=250, right=382, top=20, bottom=92)
     assert reading.frame_time == 7.0
 
 
@@ -232,6 +233,7 @@ def test_an_expanded_minimap_without_its_banner_reads_expanded() -> None:
     assert area == Box(left=256, right=376, top=49, bottom=109)
     assert reading.value.bounds == Box(left=250, right=382, top=20, bottom=124)
     assert reading.value.self_position.value == (37, 41)
+    assert reading.value.banner is None
 
 
 def test_a_minimised_minimap_reads_its_title_bar_and_no_area() -> None:
@@ -247,6 +249,7 @@ def test_a_minimised_minimap_reads_its_title_bar_and_no_area() -> None:
     assert reading.value.map_area is None
     assert reading.value.self_position.status is Status.UNSURE
     assert reading.value.markers == {}
+    assert reading.value.banner is None
 
 
 def test_a_reader_not_asked_for_markers_reads_none() -> None:

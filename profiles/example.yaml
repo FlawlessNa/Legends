@@ -29,7 +29,15 @@ settings:
   # -- Map ------------------------------------------------------------------
   # `map` is the game's name for the map (`street: map name` when several maps
   # share a name), or its map id. An ambiguous name refuses to start and lists
-  # the ids it matched. `auto` is not available yet (map identification, #387).
+  # the ids it matched.
+  #
+  # At start the bot checks the minimap: it refuses to start when the minimap
+  # shows another map, or when it can't tell within 3 s. `auto` identifies the
+  # map instead, from the minimap's banner (its title) confirmed by the map's
+  # minimap; it needs the `minimap-title` glyphs (`python -m
+  # toolkit.harvest_glyphs`) and reads only titles made of letters harvested so
+  # far. Either way the bot may press the minimap key to show the minimap
+  # expanded (with its banner, for `auto`).
   #
   # `game_map` is required alongside it until the map files are retired (#399):
   # the old map loading needs a file in configs/maps/, without the .json

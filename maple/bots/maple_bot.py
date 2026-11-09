@@ -1,13 +1,17 @@
+import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import threading
 from abc import ABC
 from typing import Any
 
-from botting.core import Bot
-from botting.screen import frame_source
+from botting import PARENT_LOG
+from botting.core import Bot, ProxyFactory
+from botting.screen import Frame, frame_source
 from botting.visuals import InGameDetectionVisuals
-from maple.bots.map_setting import resolve_map_id
+from maple.actions import ensure_minimap_displayed
+from maple.bots.map_check import check_named_map, identify_map
+from maple.bots.map_setting import is_auto, resolve_map_id
 from maple.decision_makers.rebuffs import solo_buffs
 from maple.model.characters import MAPPING as CHARACTER_MAPPING
 from maple.model.mechanics import MapleMap
@@ -18,17 +22,37 @@ from maple.screen.buffs import ICON_BASE, BuffsReader
 from maple.screen.chat import TARGET_SELECT, ChatReader
 from maple.screen.client import find_client
 from maple.screen.locator import FrameCheck
-from maple.screen.minimap import NW, MinimapReader
-from maple.screen.sprites import Profile, enabled_readers, load_reader_sprites
+from maple.screen.map_identification import MapCanvases, MapIdentifier
+from maple.screen.minimap import MINIMAP, NW, MinimapReader
+from maple.screen.minimap_title import MINIMAP_TITLE_READER, MinimapTitleReader
+from maple.screen.sprites import (
+    Profile,
+    ReaderSprites,
+    StartupRefused,
+    enabled_readers,
+    load_reader_sprites,
+    with_readers,
+)
 from maple.screen.status_bar import BACKGROUND as STATUS_BAR_BACKGROUND
 from maple.screen.status_bar import StatusBarReader
+
+logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
 class MapleBot(Bot, ABC):
     """
     A Bot on the MapleStory client: it finds the client by its window class and
     executable, and takes its job from the profile's `character_class`.
+
+    With a named `map`, or `map: auto`, it checks the minimap at start, before
+    any reader attribute exists (`map_check`), and refuses to start on another
+    map or on one it can't tell. Showing the minimap for that check may press
+    the minimap key.
     """
+
+    MINIMAP_TIME_LIMIT = 7.5
+    """Seconds the minimap key is pressed for at start to show the minimap, as
+    `MinimapAttributesMixin.ERROR_HANDLING_TIME_LIMIT`."""
 
     def __init__(
         self,
@@ -55,6 +79,7 @@ class MapleBot(Bot, ABC):
         self.client_size = client_size
         self.models_path = models_path
         self.map_id = resolve_map_id(map, game_map)
+        self.map_auto = is_auto(map)
         self.game_map = (game_map or "").replace("_", "").replace(" ", "")
         self.open_minimap_editor = open_minimap_editor
         self.kwargs = kwargs
@@ -85,12 +110,20 @@ class MapleBot(Bot, ABC):
         map_file = (
             MinimapEditsManager.from_json(self.game_map) if self.game_map else None
         )
+        file_map_id = None if map_file is None else map_file.map_id
+        checked = self.map_auto or self.map_id is not None
         map_id = self.map_id
-        if map_id is None and map_file is not None:
-            map_id = map_file.map_id
-        data.set_static("map_id", map_id)
+        if map_id is None and not self.map_auto:
+            map_id = file_map_id
+        readers = enabled_readers(self._decision_makers())
+        if checked:
+            readers = with_readers(
+                readers,
+                MINIMAP,
+                *((MINIMAP_TITLE_READER,) if self.map_auto else ()),
+            )
         reader_sprites = load_reader_sprites(
-            enabled_readers(self._decision_makers()),
+            readers,
             Profile(
                 job=self.job,
                 game_map=self.game_map,
@@ -105,6 +138,11 @@ class MapleBot(Bot, ABC):
                 ),
             ),
         )
+        if checked:
+            map_id, reader_sprites = self._check_map_at_start(
+                reader_sprites, file_map_id
+            )
+        data.set_static("map_id", map_id)
         data.set_static("reader_sprites", reader_sprites)
         if reader_sprites.build is not None:
             frame_check = FrameCheck(reader_sprites)
@@ -165,3 +203,84 @@ class MapleBot(Bot, ABC):
         data.create_attribute("current_client_img", client_img, threshold=0.1)
         data.set_static("speed_multiplier", self.kwargs.get("speed_multiplier", 1.00))
         data.set_static("jump_multiplier", self.kwargs.get("jump_multiplier", 1.00))
+
+    def _check_map_at_start(
+        self, sprites: ReaderSprites, file_map_id: int | None
+    ) -> tuple[int, ReaderSprites]:
+        """
+        The on-screen map check (`map_check`): shows the minimap, with its
+        banner for `map: auto`, then checks the named map or identifies it.
+
+        :returns: The map's id, and `sprites` with its minimap canvas, which
+            `map: auto` couldn't declare before the map was known.
+        :raises StartupRefused: The minimap shows another map than the named
+            one, `auto` identifies another map than the map file's, or the map
+            can't be told.
+        """
+        assert self.data is not None
+        handle = self.data.handle
+        minimap = MinimapReader(sprites, FrameCheck(sprites), map_id=self.map_id)
+        self._show_minimap(minimap, banner=self.map_auto)
+
+        def grab() -> Frame:
+            return frame_source().grab(handle)
+
+        if not self.map_auto:
+            map_id = self.map_id
+            assert map_id is not None
+            check_named_map(
+                lambda: minimap.is_expected_map(grab(), map_id), f"map {map_id}"
+            )
+            return map_id, sprites
+        canvases = MapCanvases.load()
+        title = MinimapTitleReader(sprites, minimap, canvases.titles)
+        identifier = MapIdentifier(minimap, title, canvases)
+        reading = identify_map(lambda: identifier.identify(grab()))
+        assert reading.value is not None
+        found = canvases[reading.value]
+        logger.info(
+            "map: auto identified %s (%d): %s",
+            found.title,
+            found.map_id,
+            reading.detail,
+        )
+        if file_map_id not in (None, found.map_id):
+            message = (
+                f"Refusing to start: `map: auto` identified {found.title} "
+                f"({found.map_id}), but the map file {self.game_map!r} is map "
+                f"{file_map_id}."
+            )
+            logger.critical(message)
+            raise StartupRefused(message)
+        return found.map_id, sprites.with_canvas(found.canvas)
+
+    def _show_minimap(self, minimap: MinimapReader, *, banner: bool) -> None:
+        """
+        Presses the minimap key until the minimap is expanded, with its banner
+        when `banner`. When the banner can't be shown, any expanded look will
+        do, since the canvas match can still tell the map; when even that
+        fails, the check that follows reads the minimap as it is, and refuses.
+        """
+        assert self.data is not None
+        assert self.pipe is not None
+        identifier = f"{type(self).__name__}({self.ign}) map check at start"
+        condition = ProxyFactory(self.metadata).instance(identifier, "Condition")
+        for with_banner in (True, False) if banner else (False,):
+            try:
+                ensure_minimap_displayed(
+                    identifier,
+                    self.data.handle,
+                    self.ign,
+                    self.pipe,
+                    minimap,
+                    condition,
+                    self.MINIMAP_TIME_LIMIT,
+                    banner=with_banner,
+                )
+                return
+            except TimeoutError as error:
+                logger.warning(
+                    "The minimap couldn't be shown expanded%s at start: %s",
+                    " with its banner" if with_banner else "",
+                    error,
+                )

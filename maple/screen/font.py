@@ -35,7 +35,7 @@ import cv2
 import numpy as np
 from numpy.typing import NDArray
 
-from botting.screen import read_mask_glyphs
+from botting.screen import find_mask_glyphs, read_mask_glyphs
 
 REPO = Path(__file__).resolve().parents[2]
 GLYPHS = REPO / "data" / "glyphs"
@@ -106,7 +106,27 @@ set `v1` (f007-f014), the same digit cut from another slot and frame differed
 from its glyph by at most 0.074 of its box; the nearest wrong digit, at the
 same place, by 0.083 or more, and always by more than the right one."""
 
-GLYPH_SETS: dict[str, GlyphSetSpec] = {s.name: s for s in (CHAT_GENERAL, COUNTDOWN)}
+MINIMAP_TITLE = GlyphSetSpec(
+    "minimap-title",
+    low=(170, 170, 170),
+    high=(255, 255, 255),
+    max_error=0.08,
+    space_gap=3,
+    rows=12,
+)
+"""The minimap banner's street and map name: white, antialiased and drawn
+twice a column apart (bold), with a dark shadow a pixel down and right, on the
+banner's (153, 187, 204). Ink is every channel 170 or more, which the banner
+and the shadow never reach. A line's cell is the 12 rows from the top of its
+capitals, which hold its descenders. On frame set `v2`, letters are 1 or 2
+columns apart and words 4 (#387). Not the client's font: a render of
+`UI/Font/NotoSansKRMedium.img` at 11 px, drawn twice a column apart, is as wide
+as "Dungeon" but gets 73 of its 179 ink pixels wrong, so the glyphs are
+harvested (R4)."""
+
+GLYPH_SETS: dict[str, GlyphSetSpec] = {
+    s.name: s for s in (CHAT_GENERAL, COUNTDOWN, MINIMAP_TITLE)
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +148,29 @@ class GlyphSet:
         return read_mask_glyphs(
             self.spec.ink(pixels), self.glyphs, self.spec.max_error, self.spec.space_gap
         )
+
+    def read_all(self, pixels: NDArray[np.uint8]) -> str | None:
+        """The text drawn in `pixels` (BGR), or `None` when some of its ink isn't
+        a glyph of the set: never a string with characters missing."""
+        ink = self.spec.ink(pixels)
+        hits = find_mask_glyphs(ink, self.glyphs, self.spec.max_error)
+        explained = np.zeros_like(ink)
+        for hit in hits:
+            glyph = self.glyphs[hit.name]
+            explained[hit.y : hit.y + hit.height, hit.x : hit.x + hit.width] |= glyph
+        if (ink & ~explained).any():
+            return None
+        text: list[str] = []
+        gap = self.spec.space_gap
+        for previous, hit in zip([None, *hits], hits, strict=False):
+            if (
+                previous is not None
+                and gap is not None
+                and hit.x - (previous.x + previous.width) >= gap
+            ):
+                text.append(" ")
+            text.append(hit.name)
+        return "".join(text)
 
 
 def glyph_file(char: str) -> str:

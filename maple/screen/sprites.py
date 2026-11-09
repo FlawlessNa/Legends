@@ -20,7 +20,7 @@ given, which never touches the store again.
 """
 
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Protocol
 
@@ -192,6 +192,14 @@ class ReaderSprites:
     skill_icons: dict[str, Sprite] = field(default_factory=dict[str, Sprite])
     glyph_sets: dict[str, GlyphSet] = field(default_factory=dict[str, GlyphSet])
 
+    def with_canvas(self, canvas: Sprite) -> ReaderSprites:
+        """
+        These sprites and `canvas`, by its path: the identified map's minimap
+        canvas, which `map: auto` can't declare before the map is known. It
+        comes from the same extraction, already loaded, so nothing reloads.
+        """
+        return replace(self, canvases={**self.canvases, canvas.path: canvas})
+
     def canvas(self, path: str) -> Sprite:
         """
         :raises KeyError: No enabled reader declared it.
@@ -253,6 +261,15 @@ def enabled_readers(decision_makers: Iterable[type]) -> list[Declaration]:
     if not found:
         return []
     return [FRAME_CHECK, *(d for d in found if d != FRAME_CHECK)]
+
+
+def with_readers(
+    readers: Sequence[Declaration], *needed: Declaration
+) -> list[Declaration]:
+    """`readers` and each of `needed` not among them, with `FRAME_CHECK` first,
+    as `enabled_readers` gives them."""
+    found = [d for d in (*readers, *needed) if d != FRAME_CHECK]
+    return [FRAME_CHECK, *dict.fromkeys(found)]
 
 
 def load_reader_sprites(

@@ -18,6 +18,7 @@ import pytest
 from botting.core import DecisionMaker
 from game_data.catalogue.model import Ref, SkillData
 from game_data.extraction import Manifest, Store
+from game_data.sprites import Sprite
 from maple.bots import maple_bot
 from maple.bots.maple_bot import MapleBot
 from maple.screen import client
@@ -28,11 +29,13 @@ from maple.screen.sprites import (
     GAUGE_LABEL,
     Declaration,
     Profile,
+    ReaderSprites,
     StartupRefused,
     enabled_readers,
     job_line,
     load_reader_sprites,
     skill_icon_path,
+    with_readers,
 )
 
 BUILD = "0123456789abcdef"
@@ -489,3 +492,23 @@ def test_no_skill_named_opens_no_catalogue(
         load_reader_sprites([NAMED_BUFFS], PROFILE, root, config=config).skill_icons
         == {}
     )
+
+
+# The map check at start: readers it needs, and the canvas `auto` adds.
+
+
+def test_readers_the_map_check_needs_are_added_once_after_the_frame_check() -> None:
+    a, b = Declaration("a"), Declaration("b")
+
+    assert with_readers([], a) == [FRAME_CHECK, a]
+    assert with_readers([FRAME_CHECK, a, b], a) == [FRAME_CHECK, a, b]
+    assert with_readers([FRAME_CHECK, b], a) == [FRAME_CHECK, b, a]
+
+
+def test_a_canvas_added_after_loading_leaves_the_loaded_sprites_as_they_were() -> None:
+    loaded = ReaderSprites("build", {"x": Sprite("x", ICON, (0, 0))})
+    added = loaded.with_canvas(Sprite("y", ICON, (0, 0)))
+
+    assert set(added.canvases) == {"x", "y"}
+    assert set(loaded.canvases) == {"x"}
+    assert added.build == "build"
