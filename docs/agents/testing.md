@@ -106,7 +106,8 @@ those fields. In `v1`:
   not a count.
 - `minimap`: `{state}`. In `v2`, an expanded minimap also has `map`, the name
   its banner shows as `street: map name`, and `self_position`, where the yellow
-  player marker's centre is, in pixels from the map area's top-left; a test
+  player marker's centre is in minimap coordinates: pixels on the map's own
+  `miniMap` canvas, which the map area shows a scrolled window of. A test
   allows 1 pixel.
 - `buffs`: buff name to `{shown}`, with `seconds_left` when its countdown is
   drawn over the icon.

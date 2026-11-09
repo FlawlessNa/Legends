@@ -47,7 +47,7 @@ def _check(shown: Frame, map_id: int | None) -> CheckStillInMap:
 
 
 def _minimap(
-    canvas: Sprite | None = None, user_at: tuple[int, int] | None = (30, 30)
+    canvas: Sprite | None = CANVAS, user_at: tuple[int, int] | None = (30, 30)
 ) -> Frame:
     pixels = screen()
     draw_minimap(pixels, 250, 20, canvas=canvas, user_at=user_at)
@@ -103,6 +103,30 @@ def test_every_minimap_consumer_declares_the_minimap_reader() -> None:
     assert MINIMAP in CheckStillInMap.screen_readers
 
 
+def test_without_a_map_id_the_position_raises_for_the_error_handler() -> None:
+    positioned = object.__new__(_Positioned)
+    positioned.data = _Data(minimap_reading=reader(map_id=None).read(_minimap()))  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
+
+    with pytest.raises(ValueError, match="position unsure: no map_id"):
+        positioned._get_minimap_pos()
+
+
+@pytest.mark.parametrize(
+    ("shown", "displayed"),
+    [
+        (_minimap(), True),
+        (_minimised(), False),
+        (frame(screen()), False),
+    ],
+)
+def test_the_minimap_counts_as_displayed_only_when_expanded(
+    shown: Frame, displayed: bool
+) -> None:
+    """The Stuck detector's guard (`_on_expected_minimap`) reads this: a
+    minimised minimap shows no map."""
+    assert _Positioned(shown)._minimap_displayed() is displayed
+
+
 def test_the_position_is_the_markers() -> None:
     assert _Positioned(_minimap(user_at=(12, 34)))._get_minimap_pos() == (12, 34)
 
@@ -112,7 +136,7 @@ def test_the_position_is_the_markers() -> None:
     [
         (frame(screen()), "minimap absent"),
         (_minimap(user_at=None), "marker isn't found"),
-        (_minimised(), "marker isn't found"),
+        (_minimised(), "minimised"),
     ],
 )
 def test_no_position_raises_for_the_error_handler(shown: Frame, says: str) -> None:

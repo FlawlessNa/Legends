@@ -119,7 +119,8 @@ class MapleBot(Bot, ABC):
                 )
             if NW in reader_sprites.canvases:
                 data.set_static(
-                    "minimap_reader", MinimapReader(reader_sprites, frame_check)
+                    "minimap_reader",
+                    MinimapReader(reader_sprites, frame_check, map_id=map_id),
                 )
             if TARGET_SELECT in reader_sprites.canvases:
                 data.set_static("chat_reader", ChatReader(reader_sprites, frame_check))

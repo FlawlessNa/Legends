@@ -53,8 +53,11 @@ Event Types are constants in `maple/telemetry_events.py`, and payloads are the
 The live path is **JSON, one file per map, under `configs/maps/`**, authored
 with the GUI editor in `maple/model/mechanics/minimap_creation/`.
 
-A map file may name the client's `map_id`; with it, `CheckStillInMap` compares
-the minimap on screen with that map's own `miniMap` canvas. `MapleMinimap` is
+A map file may name the client's `map_id`. With it, `CheckStillInMap` compares
+the minimap on screen with that map's own `miniMap` canvas, and positions are
+read at all: they are pixels on that canvas, which the minimap only shows a
+scrolling window of. Without it, a position reads `UNSURE`, so pathfinding and
+every DecisionMaker reading `current_minimap_position` need the `map_id`. `MapleMinimap` is
 the map's data only: positions and where the minimap is drawn are read by
 `maple/screen/minimap.py`.
 
