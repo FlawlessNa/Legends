@@ -6,9 +6,11 @@ its portals, its VR bounds, its minimap transform, and its static-layer render
 (`static_render`). Everything is in virtual coordinates, the map's own, as the
 game files store them; `WorldMap` names the map model, not a unit.
 
-Only the map's own footholds are read. The footholds drawn on objects and
-tiles have no `prev`/`next` to chain, and most of them lie exactly on one of
-the map's own (796 of 1211 in Ellinia).
+Only the map's own footholds and ropes are read. The footholds drawn on
+objects and tiles have no `prev`/`next` to chain, and most of them lie exactly
+on one of the map's own (796 of 1211 in Ellinia); the others are overlaps at
+joins and templates, none a surface the map lacks. The ropes drawn on objects
+each lie on one of the map's own, within 5 px (all 92 in Ellinia).
 """
 
 from dataclasses import dataclass
@@ -67,9 +69,9 @@ class WorldMap:
     :ivar minimap: `None` when the map has no minimap.
     :ivar platforms: Its footholds chained into platforms (`platforms`).
     :ivar walls: Its vertical footholds, on no platform.
-    :ivar ropes: Its ropes and ladders, the map's own and those drawn on
-        objects, with `x`, `y1`, `y2`, `ladder` and `usable_from_foothold` as
-        the catalogue gives them.
+    :ivar ropes: Its own ropes and ladders (`source == "map"`), with `x`,
+        `y1`, `y2`, `ladder` and `usable_from_foothold` as the catalogue gives
+        them.
     :ivar portals: Its portals.
     :ivar static_render: Its static-layer render, cached per extraction;
         `None` for a map not loaded from a store.
@@ -125,7 +127,7 @@ class WorldMap:
             minimap=minimap,
             platforms=platforms,
             walls=walls,
-            ropes=data.ropes,
+            ropes=tuple(r for r in data.ropes if r.source == "map"),
             portals=data.portals,
             static_render=static_render,
         )
