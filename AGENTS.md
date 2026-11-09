@@ -40,15 +40,18 @@ on another machine, reaching this one through an SSH tunnel
   interface reading).
 - `game_data/`: reads the MapleStory Classic client's files into game data. It
   imports neither `maple` nor `botting`.
-- `tests/`: the pytest suite. Opt-in markers `live`, `system`, `lab` and
-  `client_files` are deselected by default (`docs/agents/testing.md`).
+- `tests/`: the pytest suite. Opt-in markers `live`, `system`, `lab`,
+  `client_files` and `frames` are deselected by default
+  (`docs/agents/testing.md`).
   `configs/`: `.ini` settings, plus one JSON per map under `configs/maps/`.
 - `toolkit/`: standalone scripts that nothing imports. `ml_training/`: model
   training.
 - `docs/adr/`: architecture decisions. Contradicting one is allowed; doing it
   silently is not.
 
-`maple` imports `botting`, never the reverse. `botting/`, `maple/` and `tests/`
+`maple` imports `botting`, never the reverse. These import rules, with the ones
+for `game_data/` and `toolkit/` above, are a gate: `tests/test_layering.py`
+fails on a new violation, and `pytest` runs it. `botting/`, `maple/` and `tests/`
 each have an `AGENTS.md` with rules for that package.
 
 **Vocabulary:** `CONTEXT.md` is the domain glossary. Use its terms, and avoid

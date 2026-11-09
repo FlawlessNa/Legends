@@ -22,10 +22,39 @@ For a refactor: say "Refactor -- no new test" and confirm every existing test
 passes unmodified. If you edited a test, this is not a refactor; say what moved.
 -->
 
-- [ ] `pytest` is green: 0 failed, 0 errors, 0 xfailed, 2 deselected (`system`)
+- [ ] `pytest` is green: 0 failed, 0 errors, 0 xfailed, and every deselected
+      test carries an opt-in marker
 - [ ] `ruff check` clean on the files I touched
 
 **Test that was red without this change:**
+
+## Constraints
+
+<!--
+Copy every line of the ticket's `## Constraints` and tick each one, saying how
+it holds. The reviewer checks the same list (docs/agents/code-review.md, check
+2); a broken one blocks the PR whatever the tests say. If meeting the ticket
+needed breaking one, you should have stopped and asked instead.
+-->
+
+- [ ]
+
+## Verified against the game
+
+<!--
+REQUIRED when this change could alter which keys reach the game, or when:
+the input send path, Movement compilation, timing, focus, or any
+DecisionMaker whose Actions change. See docs/agents/tickets.md, "Against the
+live game", and docs/agents/game-client.md for the tools.
+
+Either: the expectation you wrote before the run, then the verdict with counts
+and the Session directory (logs/<timestamp>/), or the probe command and PNG
+path.
+Or: why it was not verified, and what a human must watch (also under Handoff).
+
+Write "Not applicable -- no change to which keys reach the game, or when" only
+if that is true, and say why in a line.
+-->
 
 ## Could not verify
 

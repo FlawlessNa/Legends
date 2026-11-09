@@ -182,11 +182,16 @@ One or two lines: what is true afterwards.
 - docs/agents/<doc>.md § "<section>"
 
 ## Constraints
-ADRs that apply, and what must not be touched.
+- One per line, each checkable by reading the diff: an ADR that applies,
+  what must not be touched, what must keep today's behaviour
+  ("Position keeps today's unit"). "None" if there are none.
 
 ## Can't be verified offline
 What a human or a live session must confirm.
 ```
 
 Copy the goal and the acceptance criteria into the ticket, so it stands alone.
+Write each constraint the spec or intent puts on this ticket as its own line
+under `## Constraints`: the reviewer ticks that list one by one
+(`code-review.md`), and a constraint left only in the spec is one it can miss.
 Point at the intent, spec sections, files and docs rather than copying them.

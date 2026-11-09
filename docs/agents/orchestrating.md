@@ -168,7 +168,31 @@ finishes, in two or three lines.
 
 ## Finishing
 
-When every ticket is merged, open one PR from `epic/<slug>` into `dev`. Its
+### The cleanup pass
+
+When every ticket is merged, and before the PR into `dev`, run one more
+ticket: a cleanup pass over what the epic touched. Tickets are each small and
+correct, and together they leave duplicated helpers, shallow wrappers and
+interfaces that grew one parameter per ticket; nobody else looks at the whole.
+
+- File it as a ticket of the epic ("Cleanup pass for #<epic>"), and run it like
+  any other: a fresh agent, a PR into `epic/<slug>`, the review workflow.
+- The brief: `git diff origin/dev...origin/epic/<slug>` is the scope. Review it
+  with the `simplify` skill (reuse, simplification, efficiency) and the
+  `codebase-design` skill (deep modules, where the seams go), and apply what
+  is clearly better. The ticket's constraints: no behaviour change (it is a
+  refactor: no new test, every existing test passes untouched), nothing under
+  "not without asking" in `tickets.md`, and the epic's own constraints still
+  hold.
+- What is worth doing but too big or too risky for the pass goes in its PR
+  body as proposals, not into the diff.
+- A pass that finds nothing is a valid outcome: the agent says so on the
+  ticket, and you close it without a PR.
+
+### The PR into dev
+
+When the cleanup pass is merged or closed, open one PR from `epic/<slug>` into
+`dev`. Its
 body lists each ticket with its PR, then gathers every "could not verify" item
 from the ticket PRs: that list is what the maintainer checks. Then tell them
 it is ready. You never merge it.
