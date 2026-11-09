@@ -7,6 +7,7 @@ import pytest
 from botting.core import Bot, DecisionMaker
 from maple.bots import maple_bot
 from maple.bots.maple_bot import MapleBot
+from maple.model.mechanics.physics import Calibration
 from maple.screen import client
 from maple.screen.sprites import Profile
 
@@ -104,3 +105,36 @@ def test_child_init_publishes_the_map_settings_id_not_the_map_files(
     assert bot.data is not None
     assert bot.data.map_id == 10002000
     assert seen[0].map_id == 10002000
+
+
+def test_construction_parses_the_calibration_setting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_, game_map: 10002000)
+    bot = _Bot(
+        "Someone",
+        {},  # pyright: ignore[reportArgumentType] - metadata is never read here
+        map="Victoria Road: Ellinia",
+        game_map="Line1Area1",
+        character_class="Bishop",
+        calibration={"walk": 1.1, "teleport": 0.9},
+    )
+
+    assert bot.calibration == Calibration(walk=1.1, teleport=0.9)
+    # It stays out of the kwargs that reach `MapleMap` and the DecisionMakers.
+    assert "calibration" not in bot.kwargs
+
+
+def test_construction_refuses_a_misspelt_calibration_constant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_, game_map: 10002000)
+    with pytest.raises(ValueError, match="no constant 'speed'"):
+        _Bot(
+            "Someone",
+            {},  # pyright: ignore[reportArgumentType] - metadata is never read here
+            map="Victoria Road: Ellinia",
+            game_map="Line1Area1",
+            character_class="Bishop",
+            calibration={"speed": 1.1},
+        )

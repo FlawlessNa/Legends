@@ -92,6 +92,14 @@ settings:
   # <MapName> --ign <YourIGN>`) rather than guessing.
   # speed_multiplier: 1.4
   # jump_multiplier: 1.23
+  # Calibration constants: multipliers on the game-file physics, set from
+  # what Trials measure (CONTEXT.md -> Calibration constant). Each is 1.0
+  # when left out. Not read yet: movement moves to virtual px in #396.
+  # calibration:
+  #   walk: 1.0
+  #   jump: 1.0
+  #   climb: 1.0
+  #   teleport: 1.0
 
   # Smart rotation picks targets from live mob positions instead of walking a
   # fixed route. Off by default -- it is the less-tested path.
