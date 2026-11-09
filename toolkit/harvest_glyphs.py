@@ -15,6 +15,11 @@ The glyphs are client pixels: they go to the gitignored `data/glyphs/`, which
 - `countdown`: a buff slot's countdown rows, `[x, y, width, height]`, with the
   digits a person read there. Each digit is one blob of yellow ink; a box whose
   blobs don't number its digits is refused.
+- `minimap-title`: a line of the minimap banner's title, `[x, top of its
+  capitals, width]`, with the text a person read there. Each letter is a run of
+  columns holding ink; where two letters touch, `splits` gives the columns
+  (from `x`) where the second one starts. A line whose runs don't number its
+  letters is refused.
 
 Every source is read back with the harvested set; any misread fails the run, and
 nothing is written. The tool prints each source's labels for a person to check.
@@ -25,7 +30,7 @@ the game.
 import argparse
 import json
 import sys
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -38,6 +43,7 @@ from maple.screen.font import (
     CHAT_GENERAL,
     COUNTDOWN,
     GLYPHS,
+    MINIMAP_TITLE,
     GlyphSet,
     GlyphSetSpec,
     save_glyph_set,
@@ -191,6 +197,55 @@ def harvest_digits(boxes: Iterable[tuple[str, Mask, str]]) -> Harvest:
     return harvest
 
 
+# Minimap title: labelled by a person, cut at the columns between letters.
+
+
+def column_runs(ink: Mask, splits: Iterable[int] = ()) -> list[tuple[int, int]]:
+    """
+    Each run of columns of `ink` holding some ink, as `[start, end)`, left to
+    right, cut again at every column in `splits` that falls inside one.
+    """
+    inked = ink.any(axis=0)
+    runs: list[tuple[int, int]] = []
+    start: int | None = None
+    for x, on in enumerate([*inked.tolist(), False]):
+        if on and start is None:
+            start = x
+        elif not on and start is not None:
+            runs.append((start, x))
+            start = None
+    for cut in sorted(splits):
+        for i, (a, b) in enumerate(runs):
+            if a < cut < b:
+                runs[i : i + 1] = [(a, cut), (cut, b)]
+                break
+    return runs
+
+
+def harvest_cut_lines(lines: Iterable[tuple[str, Mask, str, Sequence[int]]]) -> Harvest:
+    """
+    Cut each line's letters, labelled by the text a person read there: one
+    letter per run of inked columns, as tall as the line's cell.
+
+    :param lines: Each line's name, its ink (one cell high), its text, and the
+        columns where touching letters are split.
+    """
+    harvest = Harvest()
+    for where, ink, text, splits in lines:
+        runs = column_runs(ink, splits)
+        letters = text.replace(" ", "")
+        if len(runs) != len(letters):
+            harvest.problems.append(
+                f"{where}: {len(runs)} run(s) of ink for the {len(letters)} "
+                f"letter(s) of {text!r}"
+            )
+            continue
+        harvest.labels.append((where, text))
+        for char, (a, b) in zip(letters, runs, strict=True):
+            harvest.keep(char, ink[:, a:b], where, exact=False)
+    return harvest
+
+
 def misreads(
     spec: GlyphSetSpec,
     harvest: Harvest,
@@ -267,13 +322,27 @@ def main(argv: list[str] | None = None) -> int:
     digits = harvest_digits(boxes)
     digits.problems += misreads(COUNTDOWN, digits, digit_strips)
 
-    for spec, harvest in ((CHAT_GENERAL, chat), (COUNTDOWN, digits)):
+    title_lines: list[tuple[str, Mask, str, Sequence[int]]] = []
+    title_strips: list[tuple[str, NDArray[np.uint8], str]] = []
+    rows = MINIMAP_TITLE.rows or 0
+    for source in sources.get(MINIMAP_TITLE.name, []):
+        x, top, width = source["line"]
+        where = f"{source['frame']} title {top}"
+        strip = _load(directory, source["frame"])[top : top + rows, x : x + width]
+        splits = source.get("splits", [])
+        title_lines.append((where, MINIMAP_TITLE.ink(strip), source["text"], splits))
+        title_strips.append((where, strip, source["text"]))
+    title = harvest_cut_lines(title_lines)
+    title.problems += misreads(MINIMAP_TITLE, title, title_strips)
+
+    harvests = ((CHAT_GENERAL, chat), (COUNTDOWN, digits), (MINIMAP_TITLE, title))
+    for spec, harvest in harvests:
         print(
             f"{spec.name}: {len(harvest.glyphs)} glyph(s): {''.join(sorted(harvest.glyphs))}"
         )
         for where, text in harvest.labels:
             print(f"  {where}: {text}")
-    problems = chat.problems + digits.problems
+    problems = chat.problems + digits.problems + title.problems
     if problems:
         print("\nNothing written:", *problems, sep="\n  ", file=sys.stderr)
         return 1
@@ -284,7 +353,11 @@ def main(argv: list[str] | None = None) -> int:
             {k: v for k, v in alike(labeller).items() if k in chat.glyphs},
         ),
         (COUNTDOWN, digits, {}),
+        (MINIMAP_TITLE, title, {}),
     ):
+        if not harvest.glyphs:
+            print(f"{spec.name}: no source in {tag}, so its set is left as it was")
+            continue
         folder = save_glyph_set(spec, harvest.glyphs, harvest.sources, same, args.out)
         print(f"wrote {folder}")
     return 0

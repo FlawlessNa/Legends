@@ -6,7 +6,8 @@ The minimap: found by its own frame sprites, then the markers read inside it.
 - `MaxMap`: expanded, with the map-name banner. A nine-piece frame: the
   corners `nw`, `ne`, `sw`, `se`, edges stretched between them, and a
   transparent centre the map is drawn in. `nw` is as tall as the title bar and
-  the banner (72 px).
+  the banner (72 px); that top band is `MinimapView.banner`, where
+  `minimap_title` reads the map's name.
 - `MinMap`: expanded without the banner. The same frame, with a top band only
   as tall as the title bar (29 px).
 - `Min`: minimised, the title bar alone: `w`, then `c` stretched, then `e`.
@@ -213,6 +214,9 @@ class MinimapView:
     :ivar markers: The other markers found, by kind (`MARKER_KINDS`), in
         minimap coordinates; empty whenever `self_position` is `UNSURE`. `None`
         when the reader doesn't read markers (`read_markers`).
+    :ivar banner: The frame's top band, title bar and banner, in client pixels,
+        when the frame is the look with the banner (`MaxMap`), which draws the
+        map's mark and its title (`minimap_title`); `None` otherwise.
     """
 
     state: MinimapState
@@ -220,6 +224,7 @@ class MinimapView:
     bounds: Box
     self_position: Reading[tuple[int, int]]
     markers: Markers | None = None
+    banner: Box | None = None
 
 
 class MinimapReader:
@@ -262,8 +267,8 @@ class MinimapReader:
             kind: sprites.canvas(marker_path(kind)) for kind in MARKER_KINDS
         }
         self._looks: tuple[_Expanded | _Minimised, ...] = (
-            _Expanded(sprites, WITH_BANNER, tolerance),
-            _Expanded(sprites, WITHOUT_BANNER, tolerance),
+            _Expanded(sprites, WITH_BANNER, tolerance, banner=True),
+            _Expanded(sprites, WITHOUT_BANNER, tolerance, banner=False),
             _Minimised(sprites, tolerance),
         )
         self._last = 0
@@ -353,7 +358,9 @@ class MinimapReader:
         offset = self._canvas_offset(pixels, area, at)
         if isinstance(offset, Reading):
             none = {} if self.read_markers else None
-            return MinimapView(MinimapState.EXPANDED, area, placed.bounds, offset, none)
+            return MinimapView(
+                MinimapState.EXPANDED, area, placed.bounds, offset, none, placed.banner
+            )
         ox, oy = offset
         user = _find(pixels, self._user, area, self._tolerance)
         position: Reading[tuple[int, int]] = (
@@ -371,7 +378,7 @@ class MinimapReader:
             else None
         )
         return MinimapView(
-            MinimapState.EXPANDED, area, placed.bounds, position, markers
+            MinimapState.EXPANDED, area, placed.bounds, position, markers, placed.banner
         )
 
     def _canvas_offset(
@@ -398,6 +405,7 @@ class MinimapReader:
 class _Placed:
     bounds: Box
     map_area: Box | None
+    banner: Box | None = None
 
 
 class _Expanded:
@@ -405,9 +413,10 @@ class _Expanded:
     corners found along its row and column."""
 
     def __init__(
-        self, sprites: ReaderSprites, look: FrameLook, tolerance: float
+        self, sprites: ReaderSprites, look: FrameLook, tolerance: float, banner: bool
     ) -> None:
         self._tolerance = tolerance
+        self._banner = banner
         nw = sprites.canvas(look.nw)
         self._ne = sprites.canvas(look.ne)
         self._sw = sprites.canvas(look.sw)
@@ -445,10 +454,16 @@ class _Expanded:
         if not _matches(pixels, self._se, (ne[0], sw[1]), self._tolerance):
             return f"not where expected: {self._look.se}"
         se_w, se_h = _size(self._se)
+        right = ne[0] + se_w
         return _Placed(
-            bounds=Box(left=x, right=ne[0] + se_w, top=y, bottom=sw[1] + se_h),
+            bounds=Box(left=x, right=right, top=y, bottom=sw[1] + se_h),
             map_area=Box(
                 left=x + self._border, right=ne[0], top=y + self._band, bottom=sw[1]
+            ),
+            banner=(
+                Box(left=x, right=right, top=y, bottom=y + self._band)
+                if self._banner
+                else None
             ),
         )
 
@@ -607,6 +622,74 @@ def _place_canvas(
     return _best_placement(haystack, ys, xs, colours, off_x, off_y)
 
 
+@dataclass(frozen=True, slots=True)
+class OpaquePixels:
+    """
+    A canvas's opaque pixels, found once so that matching it again costs no
+    search for them: where they are and their colours, BGR as captured.
+
+    :ivar size: The canvas's `(width, height)`.
+    """
+
+    size: tuple[int, int]
+    ys: np.ndarray
+    xs: np.ndarray
+    colours: np.ndarray
+
+    @classmethod
+    def of(cls, canvas: Sprite) -> OpaquePixels:
+        rgba = canvas.rgba
+        ys, xs = np.nonzero(rgba[:, :, 3] == 255)
+        colours = np.ascontiguousarray(rgba[ys, xs, 2::-1])
+        return cls((rgba.shape[1], rgba.shape[0]), ys, xs, colours)
+
+
+@dataclass(frozen=True, slots=True)
+class CanvasMatch:
+    """
+    Where a canvas fits best in a map area, as `_place_canvas` places it.
+
+    :ivar at: The canvas's top-left, from the map area's.
+    :ivar share: Of its opaque pixels inside the map area there, the share
+        drawn exactly.
+    :ivar visible: How many of its opaque pixels are inside the map area there.
+    """
+
+    at: tuple[int, int]
+    share: float
+    visible: int
+
+
+def match_canvas(
+    haystack: np.ndarray, opaque: OpaquePixels, sample: int = SAMPLE
+) -> CanvasMatch | None:
+    """
+    Where the canvas whose opaque pixels are `opaque` fits best in the map area
+    `haystack` (BGR), searched as `_place_canvas` searches, with `sample` of its
+    opaque pixels compared at every placement. `None` when none of them would
+    show.
+    """
+    if len(opaque.ys) == 0:
+        return None
+    area_h, area_w = haystack.shape[:2]
+    width, height = opaque.size
+    found = _best_placement(
+        haystack,
+        opaque.ys,
+        opaque.xs,
+        opaque.colours,
+        _offsets(area_w, width),
+        _offsets(area_h, height),
+        sample,
+    )
+    if found is None:
+        return None
+    at, share = found
+    py, px = opaque.ys + at[1], opaque.xs + at[0]
+    visible = int(((py >= 0) & (py < area_h) & (px >= 0) & (px < area_w)).sum())
+    return CanvasMatch(at, share, visible)
+
+
 def _best_placement(
     haystack: np.ndarray,
     ys: np.ndarray,
@@ -614,24 +697,34 @@ def _best_placement(
     colours: np.ndarray,
     off_x: np.ndarray,
     off_y: np.ndarray,
+    sample: int = SAMPLE,
 ) -> tuple[tuple[int, int], float] | None:
     """Among the placements `off_x` by `off_y`, the one where most of a sample
     of the canvas's opaque pixels are drawn exactly, and its share."""
     area_h, area_w = haystack.shape[:2]
-    step = max(1, len(ys) // SAMPLE)
-    sy, sx, sc = ys[::step], xs[::step], colours[::step]
+    step = max(1, len(ys) // sample)
+    sy, sx = ys[::step], xs[::step]
+    # One int per colour, so that a pixel is compared in one operation.
+    packed, sc = _packed(haystack), _packed(colours[::step])
     counts = np.zeros((len(off_y), len(off_x)), dtype=np.int64)
+    px = sx[None, :] + off_x[:, None]
+    inside_x = (px >= 0) & (px < area_w)
+    px = np.clip(px, 0, area_w - 1)
     for i, dy in enumerate(off_y):
         py = sy + dy
-        px = sx[None, :] + off_x[:, None]
-        inside = ((py >= 0) & (py < area_h))[None, :] & (px >= 0) & (px < area_w)
-        got = haystack[np.clip(py, 0, area_h - 1)[None, :], np.clip(px, 0, area_w - 1)]
-        drawn = np.all(got == sc[None, :, :], axis=2) & inside
-        counts[i] = drawn.sum(axis=1)
+        inside = ((py >= 0) & (py < area_h))[None, :] & inside_x
+        got = packed[np.clip(py, 0, area_h - 1)[None, :], px]
+        counts[i] = ((got == sc[None, :]) & inside).sum(axis=1)
     i, j = np.unravel_index(int(np.argmax(counts)), counts.shape)
     best = (int(off_x[j]), int(off_y[i]))
     share = _share_at(haystack, ys, xs, colours, best)
     return None if share is None else (best, share)
+
+
+def _packed(colours: np.ndarray) -> np.ndarray:
+    """`colours` (`... x 3`, uint8) with each colour's channels in one int."""
+    c = colours.astype(np.int32)
+    return (c[..., 0] << 16) | (c[..., 1] << 8) | c[..., 2]
 
 
 def _share_at(

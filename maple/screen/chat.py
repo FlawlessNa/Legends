@@ -64,7 +64,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from numpy.typing import NDArray
 
-from botting.screen import Frame, Reading, find_mask_glyphs, match, matches_at
+from botting.screen import Frame, Reading, match, matches_at
 from botting.utilities import Box
 from game_data.sprites import Sprite
 
@@ -368,7 +368,7 @@ class ChatReader:
                 cell_top : cell_top + (CHAT_GENERAL.rows or ROW_HEIGHT),
                 x + BAND_LEFT : x + BAND_RIGHT,
             ]
-            text = _read_all(self._glyphs, cell)
+            text = self._glyphs.read_all(cell)
         return ChatLine(row.kind, row.image.copy(), text, row.top)
 
 
@@ -427,29 +427,6 @@ def _text_kind(ink: NDArray[np.int16]) -> ChatKind:
     if yellow.all():
         return ChatKind.SYSTEM
     return ChatKind.UNKNOWN
-
-
-def _read_all(glyphs: GlyphSet, cell: NDArray[np.uint8]) -> str | None:
-    """The text in `cell`, or `None` when some of its ink isn't a known glyph."""
-    ink = glyphs.spec.ink(cell)
-    hits = find_mask_glyphs(ink, glyphs.glyphs, glyphs.spec.max_error)
-    explained = np.zeros_like(ink)
-    for hit in hits:
-        glyph = glyphs.glyphs[hit.name]
-        explained[hit.y : hit.y + hit.height, hit.x : hit.x + hit.width] |= glyph
-    if (ink & ~explained).any():
-        return None
-    text: list[str] = []
-    gap = glyphs.spec.space_gap
-    for previous, hit in zip([None, *hits], hits, strict=False):
-        if (
-            previous is not None
-            and gap is not None
-            and hit.x - (previous.x + previous.width) >= gap
-        ):
-            text.append(" ")
-        text.append(hit.name)
-    return "".join(text)
 
 
 def _new_rows(previous: Sequence[_Row] | None, rows: Sequence[_Row]) -> list[_Row]:

@@ -12,7 +12,7 @@ from pytest_mock import MockerFixture
 
 from game_data.catalogue import Catalogue, build_catalogue
 from game_data.extraction import extract
-from maple.bots.map_setting import AUTO_REFUSAL, resolve_map_id
+from maple.bots.map_setting import is_auto, resolve_map_id
 from maple.launchers.profile import ProfileError
 from tests.test_game_data.test_catalogue import write_map_client
 
@@ -61,10 +61,23 @@ def test_an_unknown_id_is_a_profile_error() -> None:
         resolve_map_id(999999999, "Line1Area1")
 
 
-def test_auto_refuses_to_start_until_map_identification_lands() -> None:
-    with pytest.raises(ProfileError, match="auto needs map identification"):
+@pytest.mark.parametrize("setting", ["auto", " AUTO "])
+def test_auto_names_no_id_and_is_left_to_identification(setting: str) -> None:
+    assert is_auto(setting)
+    assert resolve_map_id(setting, "Line1Area1") is None
+
+
+def test_auto_without_game_map_is_a_profile_error_saying_the_map_file_is_needed() -> (
+    None
+):
+    with pytest.raises(ProfileError, match="game_map"):
         resolve_map_id("auto", None)
-    assert "#387" in AUTO_REFUSAL
+
+
+def test_a_name_or_an_id_is_not_auto() -> None:
+    assert not is_auto("Victoria Road: Henesys")
+    assert not is_auto(HENESYS)
+    assert not is_auto(None)
 
 
 def test_map_without_game_map_is_a_profile_error_saying_the_map_file_is_needed() -> (
