@@ -30,6 +30,7 @@ def shot(
 ) -> MagicMock:
     """Mocks the window, the capture and the output folder; returns the grab mock."""
     monkeypatch.setattr(probe, "PROBE_DIR", tmp_path / "probe")
+    monkeypatch.setattr(probe, "GRAB_TIMEOUT", 0.0)
     mocker.patch.object(probe, "find_client", return_value=HANDLE)
     source = MagicMock()
     source.grab.return_value = frame()
@@ -152,6 +153,21 @@ def test_a_frame_that_is_not_ok_is_refused_with_its_reason_and_writes_nothing(
     assert "window 4242 wasn't in front" in captured.err
     assert captured.out == ""
     assert not (tmp_path / "probe").exists()
+
+
+def test_a_frame_that_is_not_ok_at_first_is_asked_for_again(
+    shot: MagicMock, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A new process's first copy can be empty when the screen hasn't changed."""
+    monkeypatch.setattr(probe, "GRAB_TIMEOUT", 5.0)
+    monkeypatch.setattr(probe, "GRAB_POLL", 0.0)
+    empty = "no frame of this client rectangle has been copied yet"
+    shot.side_effect = [frame(ok=False, reason=empty), frame()]
+
+    assert probe.main(["screenshot"]) == 0
+
+    assert shot.call_count == 2
+    assert _out(capsys)["w"] == 412
 
 
 # --- a missing region -------------------------------------------------------

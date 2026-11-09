@@ -13,6 +13,7 @@ import pytest
 
 from botting.controller.inputs import HeldKeysLedger
 from botting.screen import Frame
+from botting.utilities import Box
 from maple import menus, probe
 
 HANDLE = 4242
@@ -23,6 +24,10 @@ def _empty_ledger() -> Iterator[None]:
     HeldKeysLedger.reset()
     yield
     HeldKeysLedger.reset()
+
+
+def _rect(left: int, top: int, right: int, bottom: int) -> Box:
+    return Box(left=left, top=top, right=right, bottom=bottom)
 
 
 def _frame(size: tuple[int, int]) -> Frame:
@@ -41,7 +46,10 @@ def cli(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     monkeypatch.setattr(probe, "_screen_size", lambda: (2560, 1440))
     monkeypatch.setattr(probe.menus, "set_resolution", mocks.set_resolution)
     monkeypatch.setattr(probe.ProbeClient, "front", mocks.front)
+    monkeypatch.setattr(probe.ProbeClient, "fit", mocks.fit)
     monkeypatch.setattr(probe, "grab", mocks.grab)
+    monkeypatch.setattr(probe, "_client_rect", lambda _: _rect(10, 20, 810, 620))
+    monkeypatch.setattr(probe, "where", lambda _: "WHERE THE CLIENT IS.")
     return mocks
 
 
@@ -72,11 +80,17 @@ def test_it_sets_the_size_and_prints_before_and_after(
     code, out, _ = _run(["resolution", "800x600"], capsys)
 
     assert code == 0
-    assert json.loads(out) == {"ok": True, "before": [1920, 1080], "after": [800, 600]}
+    assert json.loads(out) == {
+        "ok": True,
+        "before": [1920, 1080],
+        "after": [800, 600],
+        "origin": [10, 20],
+    }
     assert cli.set_resolution.call_args.args[2] == (800, 600)
-    # The client is brought to the front before the first step reads the screen.
+    # The client is brought to the front, and onto the primary monitor, before the
+    # first step reads the screen.
     names = [name for name, _, _ in cli.mock_calls]
-    assert names.index("front") < names.index("set_resolution")
+    assert names.index("front") < names.index("fit") < names.index("set_resolution")
 
 
 @pytest.mark.parametrize(
@@ -135,6 +149,58 @@ def test_a_failed_step_is_named(
 
     assert code == probe.EXIT_ERROR
     assert "'open the resolution list' failed: expected the list" in err
+    assert err.rstrip().endswith("WHERE THE CLIENT IS.")
+
+
+def test_a_frame_that_is_not_ok_after_confirm_says_where_the_client_is(
+    cli: MagicMock, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli.grab.side_effect = probe.ProbeError(probe.EXIT_FRAME_NOT_OK, "Not ok.")
+
+    code, _, err = _run(["resolution", "800x600"], capsys)
+
+    assert code == probe.EXIT_FRAME_NOT_OK
+    assert err.strip() == "Not ok. WHERE THE CLIENT IS."
+
+
+SCREEN = (2560, 1440)
+WORK_AREA = _rect(0, 0, 2560, 1392)  # a 48 px taskbar along the bottom
+
+
+@pytest.mark.parametrize(
+    ("rect", "origin"),
+    [
+        # Already entirely on the screen, if under the taskbar: left alone.
+        (_rect(0, 0, 2560, 1440), None),
+        (_rect(300, 300, 1100, 900), None),
+        # 13 px past the bottom, as #412 saw at 1920x1200: up into the work area.
+        (_rect(320, 253, 2240, 1453), (320, 192)),
+        # Off the top-left: the least move that brings it on.
+        (_rect(-8, -31, 1912, 1049), (0, 0)),
+        # Off the right only: moved left, its top kept.
+        (_rect(1000, 100, 2920, 1180), (640, 100)),
+        # Taller than the work area: inside the screen instead.
+        (_rect(0, 40, 1920, 1460), (0, 20)),
+        # Bigger than the screen: it can't be.
+        (_rect(0, 0, 3000, 1440), None),
+    ],
+)
+def test_the_client_is_moved_onto_the_primary_monitor_as_little_as_possible(
+    rect: Box, origin: tuple[int, int] | None
+) -> None:
+    assert probe.fitted_origin(rect, SCREEN, WORK_AREA) == origin
+
+
+def test_where_names_the_size_the_position_and_whether_it_is_on_screen(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(probe, "_screen_size", lambda: SCREEN)
+    monkeypatch.setattr(probe, "_client_rect", lambda _: _rect(0, 253, 1920, 1453))
+
+    assert probe.where(HANDLE) == (
+        "The client is 1920x1200, its client area at (0, 253), not entirely on "
+        "the 2560x1440 primary monitor."
+    )
 
 
 @pytest.fixture

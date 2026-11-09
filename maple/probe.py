@@ -25,7 +25,9 @@ it sets the client's windowed size through the Game Menu and the Options window,
 finding each step on screen and checking it, closing the menus on any failure,
 and succeeding only when the client's new size is the one asked for. The intent
 (#331) left scripted sequences to Bots; this one is here because agents kept
-rediscovering that menu (#352).
+rediscovering that menu (#352). It is also the one command that moves the
+window: when the client area isn't entirely on the primary monitor, before it
+starts or after the resize, it moves the window so that it is (#412).
 
 One coordinate frame: pixel (x, y) of a full-window PNG is the probe's coordinate.
 That PNG is a `Frame`: the client area, in physical pixels. ``--box``, the regions
@@ -235,9 +237,118 @@ def _client_size(handle: int) -> tuple[int, int]:
     return right, bottom
 
 
+def _client_rect(handle: int) -> Box:
+    """The client area on the screen, as `FrameSource` reads it."""
+    width, height = _client_size(handle)
+    left, top = win32gui.ClientToScreen(handle, (0, 0))
+    return Box(left=left, top=top, right=left + width, bottom=top + height)
+
+
+def _work_area() -> Box:
+    """The primary monitor less the taskbar."""
+    primary = win32api.MonitorFromPoint((0, 0), win32con.MONITOR_DEFAULTTOPRIMARY)
+    left, top, right, bottom = win32api.GetMonitorInfo(primary)["Work"]
+    return Box(left=left, top=top, right=right, bottom=bottom)
+
+
+def _on_screen(rect: Box, screen: tuple[int, int]) -> bool:
+    return (
+        rect.left >= 0
+        and rect.top >= 0
+        and rect.right <= screen[0]
+        and rect.bottom <= screen[1]
+    )
+
+
+def fitted_origin(
+    rect: Box, screen: tuple[int, int], work_area: Box
+) -> tuple[int, int] | None:
+    """
+    Where to put the client area's top-left so it is entirely on the primary
+    monitor, moving it as little as possible: inside the work area when it fits
+    there, else inside the screen. `None` when it is already on the screen, or
+    is bigger than the screen and can't be.
+    """
+    if _on_screen(rect, screen):
+        return None
+    width, height = rect.right - rect.left, rect.bottom - rect.top
+    if width > screen[0] or height > screen[1]:
+        return None
+    bounds = work_area
+    if width > work_area.right - work_area.left or (
+        height > work_area.bottom - work_area.top
+    ):
+        bounds = Box(left=0, top=0, right=screen[0], bottom=screen[1])
+    left = min(max(rect.left, bounds.left), bounds.right - width)
+    top = min(max(rect.top, bounds.top), bounds.bottom - height)
+    return left, top
+
+
+def fit_on_primary(handle: int) -> bool:
+    """
+    Moves the window, when its client area isn't entirely on the primary monitor
+    and could be, so that it is. Neither resizes it, activates it, nor changes its
+    z-order. Whether it moved.
+    """
+    rect = _client_rect(handle)
+    screen = _screen_size()
+    if _on_screen(rect, screen):
+        return False
+    origin = fitted_origin(rect, screen, _work_area())
+    if origin is None:
+        return False
+    try:
+        window_left, window_top, _right, _bottom = win32gui.GetWindowRect(handle)
+        win32gui.SetWindowPos(
+            handle,
+            0,
+            window_left + origin[0] - rect.left,
+            window_top + origin[1] - rect.top,
+            0,
+            0,
+            win32con.SWP_NOSIZE | win32con.SWP_NOZORDER | win32con.SWP_NOACTIVATE,
+        )
+    except win32gui.error as err:
+        raise ProbeError(
+            EXIT_ERROR,
+            f"Moving the window onto the primary monitor failed: {err}. "
+            f"{where(handle)}",
+        )
+    return True
+
+
+def where(handle: int) -> str:
+    """Where the client is now, and its size, for an error message."""
+    try:
+        rect = _client_rect(handle)
+    except win32gui.error as err:
+        return f"The client's window can't be read: {err}."
+    screen = _screen_size()
+    size = _size_text((rect.right - rect.left, rect.bottom - rect.top))
+    placed = "entirely on" if _on_screen(rect, screen) else "not entirely on"
+    return (
+        f"The client is {size}, its client area at ({rect.left}, {rect.top}), "
+        f"{placed} the {_size_text(screen)} primary monitor."
+    )
+
+
+GRAB_TIMEOUT = 1.0
+GRAB_POLL = 0.05
+
+
 def grab(handle: int) -> Frame:
-    """The client's frame; a `ProbeError` with the frame's reason when it isn't ok."""
+    """
+    The client's frame; a `ProbeError` with the frame's reason when it isn't ok.
+
+    A new process's first copy can come back empty, when the screen hasn't changed
+    since Desktop Duplication started, so a frame that isn't ok is asked for again
+    for up to `GRAB_TIMEOUT` before the probe gives up.
+    """
+    deadline = time.monotonic() + GRAB_TIMEOUT
     frame = frame_source().grab(handle)
+    while not frame.ok and time.monotonic() < deadline:
+        time.sleep(GRAB_POLL)
+        frame = frame_source().grab(handle)
     if not frame.ok:
         raise ProbeError(
             EXIT_FRAME_NOT_OK,
@@ -528,6 +639,12 @@ class ProbeClient:
     def grab(self) -> Frame:
         return frame_source().grab(self.handle)
 
+    def size(self) -> tuple[int, int]:
+        return _client_size(self.handle)
+
+    def fit(self) -> None:
+        fit_on_primary(self.handle)
+
     def press(self, key: str) -> None:
         handle = self.handle
 
@@ -602,21 +719,32 @@ def cmd_resolution(args: argparse.Namespace) -> dict:
     sprites = menu_sprites()
     client = ProbeClient(handle)
     client.front()
+    client.fit()
     try:
         before = menus.set_resolution(client, sprites, size)
     except menus.MenuError as err:
         raise ProbeError(
             EXIT_ERROR,
             f"Step {err.step!r} failed: {err.detail}. The menus were closed unless "
-            "this says otherwise.",
+            f"this says otherwise. {where(handle)}",
         )
-    after = grab(handle).client_size
+    try:
+        after = grab(handle).client_size
+    except ProbeError as err:
+        raise ProbeError(err.code, f"{err.message} {where(handle)}")
     if after != size:
         raise ProbeError(
             EXIT_ERROR,
-            f"The client is {_size_text(after)} after Confirm, not {_size_text(size)}.",
+            f"The client is {_size_text(after)} after Confirm, not {_size_text(size)}. "
+            f"{where(handle)}",
         )
-    return {"ok": True, "before": list(before), "after": list(after)}
+    origin = _client_rect(handle)
+    return {
+        "ok": True,
+        "before": list(before),
+        "after": list(after),
+        "origin": [origin.left, origin.top],
+    }
 
 
 def _bounded(low: int, high: int | None = None) -> Callable[[str], int]:

@@ -23,10 +23,12 @@ section that binding names come from (`keys`, `press`); without it, the file's
 only section is used.
 
 `screenshot` and `regions` copy the screen (Desktop Duplication). The copy is
-trusted only when the client is in front, before and after, and did not move.
-Otherwise they exit 6 with the reason, and write nothing. They send no input, so
-they do not bring the client to the front themselves: if the client is not in
-front, ask the maintainer to bring it there.
+trusted only when the client is in front, before and after, did not move, and
+its client area is entirely on the primary monitor. A copy that is not trusted
+is asked for again for up to a second (a new process's first copy can come back
+empty), then they exit 6 with the reason, and write nothing. They send no input,
+so they do not bring the client to the front themselves: if the client is not
+in front, ask the maintainer to bring it there.
 
 ### Elevation
 
@@ -78,7 +80,8 @@ python -m maple.probe resolution 1920x1080
 
 Screen readers are tested on frames at several client sizes, and this sets
 one without working out the Options menu again. It prints, for example,
-`{"ok": true, "before": [1920, 1080], "after": [800, 600]}`.
+`{"ok": true, "before": [1920, 1080], "after": [800, 600], "origin": [0, 0]}`,
+where `origin` is the client area's top-left on the screen.
 
 - **Put it back when you are done:** finish at `1920x1080`, the maintainer's
   size, and say in the PR that you did.
@@ -91,13 +94,43 @@ one without working out the Options menu again. It prints, for example,
   client's own sprites (`maple/menus.py`), never from coordinates measured on
   one size, and checked on a fresh frame before the next.
 - It succeeds only when the client's new size is the one asked for. If a step
-  does not show what it should, it exits 1 naming the step, after pressing
-  Escape until the Game Menu and the Options window are closed.
+  does not show what it should, it exits 1 naming the step and why the last
+  frame did not show it, after pressing Escape until the Game Menu and the
+  Options window are closed. The message ends with the client's size and
+  where its client area is, for example `The client is 1920x1200, its client
+  area at (0, 253), not entirely on the 2560x1440 primary monitor.`
+- **It moves the window**, the only command that does: before it starts, and
+  after the resize, if the client area is not entirely on the primary monitor
+  but could be, it moves the window as little as it can so that it is (inside
+  the work area, above the taskbar, when it fits there). A resize can leave
+  the client hanging off the screen: 1920x1200 on a 2560x1440 monitor once
+  ran 13 px past the bottom. It never resizes the window or brings it to the
+  front this way.
+- Confirm closes the Options window by itself.
 - If the **Key Bindings** window is open, it refuses, since that window
   swallows Escape: close it (Cancel) first.
 - It is a short scripted sequence, longer than the probe's other gestures.
   Each key and click in it is still one guarded gesture that releases every
   key.
+
+#### At 2560x1440 the client draws everything at twice its size
+
+Measured on the maintainer's 2560x1440 monitor (#412), with UI Size "Ideal
+Ratio":
+
+- The client stops being a window: it becomes a borderless popup at (0, 0)
+  that covers the whole screen, taskbar included. Every other listed size is
+  an ordinary window with a title bar.
+- It draws the game and its UI at 1280x720 and doubles each pixel. The UI
+  Size dropdown still says "Ideal Ratio" (its other entries are "Default
+  Ratio" and "Default Ratio (Filter Applied)", not tried).
+- The client's sprites match exactly on every second pixel, so `resolution`
+  finds the scale on screen (1:1, else 2:1, from the status bar) and drives the
+  menus on the half-size frame, doubling its clicks. Earlier it failed at
+  `start` with "expected a usable frame" whenever the client was at 2560x1440.
+- `screenshot` works and writes the full 2560x1440 frame. **`regions`, and
+  every screen reader, read 1:1 only**, so at this size every region is
+  `null`. Read the screenshot instead, or work at 1920x1080.
 
 ### Example: look at the minimap
 
