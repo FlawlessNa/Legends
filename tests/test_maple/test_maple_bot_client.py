@@ -1,11 +1,18 @@
 """How a MapleBot finds its client, and why it needs its job from the profile."""
 
+from types import SimpleNamespace
+
 import pytest
 
 from botting.core import Bot, DecisionMaker
 from maple.bots import maple_bot
 from maple.bots.maple_bot import MapleBot
 from maple.screen import client
+from maple.screen.sprites import Profile
+
+
+class _Stop(Exception):
+    pass
 
 
 class _Bot(MapleBot):
@@ -53,7 +60,47 @@ def test_construction_reads_the_map_setting_and_stores_its_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_, game_map: 10002000)
-    bot = _Bot("Someone", {}, map="Victoria Road: Ellinia", character_class="Bishop")  # pyright: ignore[reportArgumentType] - metadata is never read here
+    bot = _Bot(
+        "Someone",
+        {},  # pyright: ignore[reportArgumentType] - metadata is never read here
+        map="Victoria Road: Ellinia",
+        game_map="Line1Area1",
+        character_class="Bishop",
+    )
 
     assert bot.map_id == 10002000
-    assert bot.game_map == ""
+    assert bot.game_map == "Line1Area1"
+
+
+def test_child_init_publishes_the_map_settings_id_not_the_map_files(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[Profile] = []
+    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_, game_map: 10002000)
+    monkeypatch.setattr(
+        maple_bot.MinimapEditsManager,
+        "from_json",
+        lambda name: SimpleNamespace(map_id=999),
+    )
+
+    def _load(_readers: object, profile: Profile) -> None:
+        seen.append(profile)
+        raise _Stop
+
+    monkeypatch.setattr(maple_bot, "load_reader_sprites", _load)
+    monkeypatch.setattr(client, "find_window", lambda *_: 4242)
+    bot = _Bot(
+        "Someone",
+        {},  # pyright: ignore[reportArgumentType] - metadata is never read here
+        map="Victoria Road: Ellinia",
+        game_map="Line1Area1",
+        character_class="Bishop",
+        models_path={},
+    )
+
+    with pytest.raises(_Stop):
+        bot.child_init(None, None)  # pyright: ignore[reportArgumentType] - neither is used before start()
+
+    assert bot.data is not None
+    assert bot.data.map_id == 10002000
+    assert seen[0].map_id == 10002000

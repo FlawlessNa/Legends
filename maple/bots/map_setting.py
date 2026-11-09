@@ -25,8 +25,10 @@ def resolve_map_id(map_setting: str | int | None, game_map: str | None) -> int |
 
     :param map_setting: The profile's `map`: a game map name, a map id, or `auto`.
     :param game_map: The profile's `game_map`: a JSON map file's name.
-    :raises ProfileError: Neither is set; `map` is `auto`, unknown or ambiguous;
-        or the map file's own `map_id` is another map than `map`.
+    :raises ProfileError: Neither is set; `map` is set without `game_map` (the
+        old map loading still needs a map file, until #399); `map` is `auto`,
+        unknown or ambiguous; or the map file's own `map_id` is another map
+        than `map`.
     """
     if map_setting is None:
         if not game_map:
@@ -37,6 +39,11 @@ def resolve_map_id(map_setting: str | int | None, game_map: str | None) -> int |
         return None
     if isinstance(map_setting, str) and map_setting.strip().casefold() == AUTO:
         raise ProfileError(AUTO_REFUSAL)
+    if not game_map:
+        raise ProfileError(
+            f"`map: {map_setting}` needs `game_map` too: the map file in "
+            "configs/maps/ is still needed until the map files are retired (#399)."
+        )
     try:
         with Catalogue.latest() as catalogue:
             map_id = catalogue.map(map_setting).id
@@ -44,11 +51,10 @@ def resolve_map_id(map_setting: str | int | None, game_map: str | None) -> int |
         raise ProfileError(f"`map` can't be resolved: {error}") from error
     except LookupError as error:
         raise ProfileError(f"`map: {map_setting}`: {error}") from error
-    if game_map:
-        map_file = MinimapEditsManager.from_json(game_map)
-        if map_file is not None and map_file.map_id not in (None, map_id):
-            raise ProfileError(
-                f"`map: {map_setting}` is map {map_id}, but the map file "
-                f"{game_map!r} says it is map {map_file.map_id}."
-            )
+    map_file = MinimapEditsManager.from_json(game_map)
+    if map_file is not None and map_file.map_id not in (None, map_id):
+        raise ProfileError(
+            f"`map: {map_setting}` is map {map_id}, but the map file "
+            f"{game_map!r} says it is map {map_file.map_id}."
+        )
     return map_id

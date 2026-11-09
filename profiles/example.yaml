@@ -27,16 +27,17 @@ bot: training
 # bot accepts is valid here, whether or not it is shown in this template.
 settings:
   # -- Map ------------------------------------------------------------------
-  # The map the bot is on: its game name, `street: map name` when several maps
-  # share a name, or its map id. An ambiguous name refuses to start and lists
-  # the ids it matched. `auto` is not available yet (it needs map
-  # identification, #387).
-  map: "Victoria Road: Ellinia"
-
-  # Until the map files are retired, the old map loading still needs a file in
-  # configs/maps/, without the .json extension. Leave it out when you have none.
-  # If the file names another map than `map`, the bot refuses to start.
-  # game_map: Line1Area1
+  # `map` is the game's name for the map (`street: map name` when several maps
+  # share a name), or its map id. An ambiguous name refuses to start and lists
+  # the ids it matched. `auto` is not available yet (map identification, #387).
+  #
+  # `game_map` is required alongside it until the map files are retired (#399):
+  # the old map loading needs a file in configs/maps/, without the .json
+  # extension. A `map` without `game_map` refuses to start, and so does a map
+  # file whose own `map_id` names another map than `map`. Keep the two on the
+  # same map. (Check the name against your client: `python -m game_data`.)
+  map: "Subway: Line 1 Area 1"
+  game_map: Line1Area1
 
   # -- Detection model ------------------------------------------------------
   # Maps a mob class to the directory holding its weights. "All" means one

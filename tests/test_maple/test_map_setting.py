@@ -38,33 +38,40 @@ def _map_file(mocker: MockerFixture, map_id: int | None) -> None:
 
 
 def test_a_game_map_name_resolves_to_its_id() -> None:
-    assert resolve_map_id("Victoria Road: Henesys", None) == HENESYS
+    assert resolve_map_id("Victoria Road: Henesys", "Line1Area1") == HENESYS
 
 
 def test_a_map_id_is_accepted() -> None:
-    assert resolve_map_id(HENESYS, None) == HENESYS
-    assert resolve_map_id(str(HENESYS), None) == HENESYS
+    assert resolve_map_id(HENESYS, "Line1Area1") == HENESYS
+    assert resolve_map_id(str(HENESYS), "Line1Area1") == HENESYS
 
 
 def test_an_ambiguous_name_is_a_profile_error_listing_the_ids() -> None:
     with pytest.raises(ProfileError, match=r"200.*201|201.*200"):
-        resolve_map_id("Mushroom Town", None)
+        resolve_map_id("Mushroom Town", "Line1Area1")
 
 
 def test_an_unknown_name_is_a_profile_error() -> None:
     with pytest.raises(ProfileError, match="Nowhere"):
-        resolve_map_id("Nowhere At All", None)
+        resolve_map_id("Nowhere At All", "Line1Area1")
 
 
 def test_an_unknown_id_is_a_profile_error() -> None:
     with pytest.raises(ProfileError):
-        resolve_map_id(999999999, None)
+        resolve_map_id(999999999, "Line1Area1")
 
 
 def test_auto_refuses_to_start_until_map_identification_lands() -> None:
     with pytest.raises(ProfileError, match="auto needs map identification"):
         resolve_map_id("auto", None)
     assert "#387" in AUTO_REFUSAL
+
+
+def test_map_without_game_map_is_a_profile_error_saying_the_map_file_is_needed() -> (
+    None
+):
+    with pytest.raises(ProfileError, match="game_map"):
+        resolve_map_id("Victoria Road: Henesys", None)
 
 
 def test_game_map_alone_still_works_and_names_no_id() -> None:
