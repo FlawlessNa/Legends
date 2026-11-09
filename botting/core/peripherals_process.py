@@ -28,11 +28,22 @@ class PeripheralsProcess:
         relays to MainProcess)
     """
 
-    def __init__(self, queue: multiprocessing.Queue, parser: type[BaseParser]) -> None:
+    def __init__(
+        self,
+        queue: multiprocessing.Queue,
+        parser: type[BaseParser],
+        recording_section: str = "DEFAULT",
+    ) -> None:
+        """
+        :param recording_section: The ``recordings.ini`` section the Recorder reads.
+        """
         self.log_queue = queue
-        self.process = None
+        self.recording_section = recording_section
+        self.process: multiprocessing.Process | None = None
         self.pipe_main_proc, self.pipe_spawned_proc = multiprocessing.Pipe()
-        self.discord_parser = parser(self.pipe_main_proc)
+        # PipeConnection vs Connection: typeshed types Windows' Pipe() ends as
+        # PipeConnection; the parser annotates Connection.
+        self.discord_parser = parser(self.pipe_main_proc)  # pyright: ignore[reportArgumentType]
         self.engine_pipes: list[multiprocessing.connection.Connection] = []
 
     def start(self) -> None:
@@ -59,6 +70,7 @@ class PeripheralsProcess:
             self.pipe_main_proc.close()
             logger.debug("Sent stop signal to Peripherals process.")
 
+        assert self.process is not None, "start() runs before kill()"
         self.process.join()
         logger.info("Peripherals process exited.")
 
@@ -87,7 +99,7 @@ class PeripheralsProcess:
                 self.pipe_main_proc.close()
             async_queue.put_nowait(None)
 
-    def _dispatch_to_engines(self, action: Any) -> None:
+    def _dispatch_to_engines(self, action: object) -> None:
         """
         Main Process task.
         Dispatches the action to all engines.
@@ -105,15 +117,15 @@ class PeripheralsProcess:
         """
         setup_child_proc_logging(self.log_queue)
 
-        async def _launch_tasks():
+        async def _launch_tasks() -> None:
             """
             Runs all tasks until the first one completes/cancels.
             Then cancels all other tasks.
             :return:
             """
             install_loop_diagnostics()
-            recorder = Recorder()
-            discord_io = DiscordIO(self.pipe_spawned_proc)
+            recorder = Recorder(section=self.recording_section)
+            discord_io = DiscordIO(self.pipe_spawned_proc)  # pyright: ignore[reportArgumentType]
 
             task_recorder = asyncio.create_task(
                 recorder.start(), name="Screen Recorder"
@@ -149,6 +161,8 @@ class PeripheralsProcess:
                     "Task %s raised.", task.get_name(), exc_info=task.exception()
                 )
             if failures:
-                raise failures[0].exception()
+                first = failures[0].exception()
+                assert first is not None, "failures holds only tasks that raised"
+                raise first
 
         asyncio.run(_launch_tasks())
