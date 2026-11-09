@@ -337,6 +337,10 @@ def test_a_platform_ending_on_another_walks_across_and_does_not_fall() -> None:
     assert contiguous(path)
     assert path.moves[-1].end == (190, 0)
     assert path.duration == pytest.approx(180 / 101)
+    # A jump across the join costs the same, and the tie goes to the walk. The
+    # jump ranges stay stored.
+    assert {m.kind for m in path.moves} == {W}
+    assert [m for m in graph.moves if m.kind is J and m.target is b]
 
 
 def test_a_portal_takes_the_path_to_its_target() -> None:
