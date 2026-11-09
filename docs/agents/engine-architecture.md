@@ -130,9 +130,6 @@ registered in `ignored_keys`, or `_monitor_proxy` will try to service it as one.
 
 ## Traps
 
-- **`botting/core/_old/`** is the pre-rewrite engine. Nothing live imports it.
-  Don't read it for reference, don't extend it, don't import it. If a search
-  hits it, discard the result.
 - **Don't add a module-level `LOG_LEVEL`.** Per-subsystem verbosity is
   `dictConfig` data (ADR 0001).
 - **Don't validate inside `emit_event()`.** Telemetry may never raise inside a

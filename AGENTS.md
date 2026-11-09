@@ -40,8 +40,9 @@ on another machine, reaching this one through an SSH tunnel
   interface reading).
 - `game_data/`: reads the MapleStory Classic client's files into game data. It
   imports neither `maple` nor `botting`.
-- `tests/`: the pytest suite. Opt-in markers `live`, `system`, `lab` and
-  `client_files` are deselected by default (`docs/agents/testing.md`).
+- `tests/`: the pytest suite. Opt-in markers `live`, `system`, `lab`,
+  `client_files` and `frames` are deselected by default
+  (`docs/agents/testing.md`).
   `configs/`: `.ini` settings, plus one JSON per map under `configs/maps/`.
 - `toolkit/`: standalone scripts that nothing imports. `ml_training/`: model
   training.

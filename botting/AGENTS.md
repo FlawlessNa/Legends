@@ -48,8 +48,3 @@ ADR 0001:
   propagation.
 - The engine's own Event Types live in `botting/telemetry_events.py`; it and
   `maple/telemetry_events.py` never import each other.
-
-## Dead code
-
-`botting/core/_old/` is the pre-rewrite engine, kept for reference only. Nothing
-live imports it. Don't extend it, and don't import from it in new code.
