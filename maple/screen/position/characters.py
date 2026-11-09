@@ -34,6 +34,8 @@ from numpy.typing import NDArray
 
 from botting.screen import Frame, Reading
 
+from .camera import NATIVE_PLAY, PLAY_AREA_HEIGHT
+
 Box = tuple[int, int, int, int]
 """`(x0, y0, x1, y1)` in client px, the right and bottom edges exclusive."""
 
@@ -95,8 +97,6 @@ is drawn `height / 768` times its 1:1 size. Smaller clients, up to 1366x768,
 draw it 1:1. Measured on frame set v3 (`tests/frames/README.md`), not read from
 the client: a larger size not seen there is neither."""
 
-PLAY_AREA_HEIGHT = 768
-
 
 def tag_upscale(client_size: tuple[int, int]) -> float | None:
     """
@@ -106,7 +106,7 @@ def tag_upscale(client_size: tuple[int, int]) -> float | None:
     width, height = client_size
     if client_size in UPSCALED_SIZES:
         return height / PLAY_AREA_HEIGHT
-    if width <= 1366 and height <= PLAY_AREA_HEIGHT:
+    if width <= NATIVE_PLAY[0] and height <= NATIVE_PLAY[1]:
         return 1.0
     return None
 
