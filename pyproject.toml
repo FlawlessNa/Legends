@@ -3,7 +3,7 @@ target-version = "py314"
 line-length = 88
 
 [tool.ruff.lint]
-extend-select = ["W", "E4", "E7", "E9", "TID", "PT", "ANN", "T20", "PGH004"]
+extend-select = ["W", "E4", "E7", "E9", "TID", "PT", "ANN", "T20", "PGH003", "PGH004"]
 
 [tool.ruff.lint.per-file-ignores]
 # Off-ratchet directories: held to pyflakes and the correctness rules, not to
