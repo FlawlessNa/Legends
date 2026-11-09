@@ -4,7 +4,9 @@ The repo's import direction, as `AGENTS.md` ("The repo") states it.
 - `maple` imports `botting`, never the reverse: nothing in `botting/` imports
   `maple`.
 - `game_data` imports neither `maple` nor `botting`.
-- `toolkit/` is imported by nothing outside `toolkit/`.
+- `toolkit/` is imported by nothing outside `toolkit/` and `tests/`: production
+  code never depends on a standalone script, but the tests of a toolkit tool
+  must be able to import it.
 
 Every import statement counts, wherever it sits: at module level, inside a
 function, or under `if TYPE_CHECKING:`. So does `importlib.import_module` with a
@@ -38,6 +40,7 @@ class Contract:
     name: str
     source: str  # a top-level directory, or "*" for every one but `forbidden`
     forbidden: frozenset[str]
+    exempt: frozenset[str] = frozenset()  # top-level directories the rule skips
 
 
 CONTRACTS = [
@@ -47,7 +50,12 @@ CONTRACTS = [
         "game_data",
         frozenset({"maple", "botting"}),
     ),
-    Contract("toolkit is imported by nothing", "*", frozenset({"toolkit"})),
+    Contract(
+        "toolkit is imported by nothing outside toolkit and tests",
+        "*",
+        frozenset({"toolkit"}),
+        exempt=frozenset({"tests"}),
+    ),
 ]
 
 # (file relative to ROOT, the module it imports) -> the issue that removes it.
@@ -119,13 +127,21 @@ def violations(contract: Contract) -> set[tuple[str, str]]:
     found: set[tuple[str, str]] = set()
     for file in _source_files(contract.source):
         relative = file.relative_to(ROOT)
-        if relative.parts[0] in contract.forbidden:
-            continue  # a package may import itself
-        package = relative.parent.parts
-        for module in imported_modules(file.read_text(encoding="utf-8"), package):
-            if module.split(".")[0] in contract.forbidden:
-                found.add((relative.as_posix(), module))
+        found |= file_violations(relative, file.read_text(encoding="utf-8"), contract)
     return found
+
+
+def file_violations(
+    relative: Path, source: str, contract: Contract
+) -> set[tuple[str, str]]:
+    """Each `(file, module)` in one file, given as a path relative to `ROOT`."""
+    if relative.parts[0] in contract.forbidden | contract.exempt:
+        return set()  # a package may import itself; an exempt one may import it
+    return {
+        (relative.as_posix(), module)
+        for module in imported_modules(source, relative.parent.parts)
+        if module.split(".")[0] in contract.forbidden
+    }
 
 
 @pytest.mark.parametrize("contract", CONTRACTS, ids=lambda c: c.name)
@@ -177,3 +193,15 @@ def test_the_scan_covers_every_top_level_package() -> None:
     tops = {file.relative_to(ROOT).parts[0] for file in _source_files("*")}
 
     assert tops >= {"botting", "maple", "game_data", "tests", "ml_training", "scripts"}
+
+
+def test_only_toolkit_and_tests_may_import_toolkit() -> None:
+    contract = next(c for c in CONTRACTS if c.forbidden == {"toolkit"})
+    source = "from toolkit import harvest_glyphs\n"
+
+    assert file_violations(Path("maple/x.py"), source, contract) == {
+        ("maple/x.py", "toolkit")
+    }
+    assert file_violations(Path("botting/x.py"), source, contract) != set()
+    assert file_violations(Path("tests/test_x.py"), source, contract) == set()
+    assert file_violations(Path("toolkit/y.py"), source, contract) == set()

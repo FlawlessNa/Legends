@@ -44,7 +44,8 @@ on another machine, reaching this one through an SSH tunnel
   `client_files` and `frames` are deselected by default
   (`docs/agents/testing.md`).
   `configs/`: `.ini` settings, plus one JSON per map under `configs/maps/`.
-- `toolkit/`: standalone scripts that nothing imports. `ml_training/`: model
+- `toolkit/`: standalone scripts that no production code imports (only
+  `tests/` may, to test them). `ml_training/`: model
   training.
 - `docs/adr/`: architecture decisions. Contradicting one is allowed; doing it
   silently is not.
