@@ -11,10 +11,12 @@ import pytest
 
 from botting.screen import Frame, Status
 from botting.utilities import Box
+from game_data.catalogue import Minimap
 from game_data.sprites import Sprite
 from maple.screen.locator import UI_NOT_FOUND, FrameCheck
 from maple.screen.minimap import (
     DIFFERENT_SHARE,
+    FEET_ROWS,
     FRAME_PARTS,
     MARKER_KINDS,
     MATCHED_SHARE,
@@ -35,6 +37,7 @@ from maple.screen.minimap import (
     W,
     marker_path,
     minimap_canvas_path,
+    virtual_feet,
 )
 from maple.screen.sprites import GAUGE_LABEL, Profile, ReaderSprites
 
@@ -586,3 +589,43 @@ def test_the_declaration_names_the_maps_canvas_only_when_the_map_id_is_known() -
     assert set(without) == {*FRAME_PARTS, USER, *markers}
     assert {NW, N, NE, W, SW, SE, MIN_W, MIN_E} <= set(FRAME_PARTS)
     assert set(with_id) == {*without, minimap_canvas_path(MAP_ID)}
+
+
+# --- From canvas pixels to virtual coordinates --------------------------------
+
+
+def _transform(center_x: int, center_y: int, mag: int) -> Minimap:
+    return Minimap(center_x=center_x, center_y=center_y, mag=mag, width=0, height=0)
+
+
+def test_a_canvas_pixel_converts_to_the_feet_six_rows_below_it() -> None:
+    transform = _transform(center_x=1_000, center_y=2_000, mag=4)
+
+    assert FEET_ROWS == 6
+    assert virtual_feet((10, 20), transform) == (10 * 16 - 1_000, 26 * 16 - 2_000)
+
+
+def test_the_conversion_scales_by_two_to_the_maps_mag() -> None:
+    transform = _transform(center_x=300, center_y=-40, mag=3)
+
+    assert virtual_feet((10, 20), transform) == (10 * 8 - 300, 26 * 8 + 40)
+    assert virtual_feet((0, 0), _transform(0, 0, mag=5)) == (0, 6 * 32)
+
+
+@pytest.mark.parametrize("mag", [3, 4, 5])
+@pytest.mark.parametrize("feet", [(0, 0), (-713, 219), (1_234, -88), (15, 31)])
+def test_the_feet_lie_in_the_canvas_pixel_the_marker_implies(
+    feet: tuple[int, int], mag: int
+) -> None:
+    # Where the marker is drawn for these feet, as frame set v2 shows it.
+    transform = _transform(center_x=845, center_y=1_310, mag=mag)
+    scale = 2**mag
+    marker = (
+        (feet[0] + transform.center_x) // scale,
+        (feet[1] + transform.center_y) // scale - FEET_ROWS,
+    )
+
+    x, y = virtual_feet(marker, transform)
+
+    assert 0 <= feet[0] - x < scale
+    assert 0 <= feet[1] - y < scale

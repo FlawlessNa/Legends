@@ -39,6 +39,8 @@ on the map's own `miniMap/canvas`, from its top-left, which don't move as the
 map area scrolls. Reading one takes locating the canvas in the map area, so
 only a reader given the map's `map_id` reads positions; without one,
 `self_position` is `UNSURE`, never a guess, and no marker is read.
+`virtual_feet` converts the character's to the virtual position of its feet,
+from the map's `MapData.minimap`; nothing consumes it yet.
 
 **Markers.** `Map/MapHelper.img/minimap/user` is drawn with its origin on the
 character, so `self_position` is where that origin lands. The other markers
@@ -64,6 +66,7 @@ import numpy as np
 
 from botting.screen import Frame, Reading, match, match_best
 from botting.utilities import Box
+from game_data.catalogue import Minimap
 from game_data.sprites import Sprite
 
 from .locator import FrameCheck, Locator, Part, unreadable
@@ -128,6 +131,37 @@ reads as the expected map. On frame set v2, a map's own canvas is drawn at 74%
 to 98% (markers cover the rest), and the other map's at 1% at most."""
 DIFFERENT_SHARE = 0.3
 """At most this share reads as another map; in between is `UNSURE`."""
+
+FEET_ROWS = 6
+"""How many canvas rows the character's feet are below where its marker's
+origin is drawn. On frame set v2, wherever both the minimap and the play area
+were read (91 frames, Damp Forest and Ellinia, all five client sizes), the
+marker's canvas row was `floor((feet_y + centre_y) / 16) - 6`, and its column
+`floor((feet_x + centre_x) / 16)`, within 1 on 5 walking frames
+(`toolkit/poc_tracking/hybrid_tracker.md`). Likely, but unverified, the client
+draws the 12x12 marker with its bottom centre on the character rather than at
+its origin `(6, 6)`. Every map seen has `mag` 4, so 6 canvas rows can't yet be
+told apart from a fixed 96 virtual px."""
+
+
+def virtual_feet(canvas: tuple[int, int], minimap: Minimap) -> tuple[int, int]:
+    """
+    The character's feet in virtual coordinates, from where its marker is read
+    on the map's minimap canvas: `canvas * 2**mag - centre`, after moving the
+    marker down `FEET_ROWS` canvas rows.
+
+    The result is the top-left of the canvas pixel the feet are in, so the
+    feet lie up to `2**mag - 1` virtual px right of and below it; with the
+    marker good to about 1 canvas px, the minimap is the check and the
+    fallback, never the precise read.
+
+    :param canvas: The marker's position in minimap coordinates, as
+        `MinimapView.self_position` reads it.
+    :param minimap: The map's minimap transform (`MapData.minimap`).
+    """
+    scale = 2**minimap.mag
+    x, y = canvas
+    return x * scale - minimap.center_x, (y + FEET_ROWS) * scale - minimap.center_y
 
 
 def minimap_canvas_path(map_id: int) -> str:
