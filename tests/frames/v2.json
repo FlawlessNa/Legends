@@ -127,6 +127,24 @@
             "general",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1521
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 625,
+            "y": -975
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -155,6 +173,18 @@
           "value": null
         },
         "chat": {
+          "status": "unsure",
+          "value": null
+        },
+        "camera": {
+          "status": "unsure",
+          "value": null
+        },
+        "feet": {
+          "status": "unsure",
+          "value": null
+        },
+        "map_id": {
           "status": "unsure",
           "value": null
         }
@@ -287,6 +317,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1521
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 625,
+            "y": -975
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -417,6 +465,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1640
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 557,
+            "y": -1200
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -547,6 +613,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1732
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 557,
+            "y": -1255
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -677,6 +761,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1750
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 557,
+            "y": -1260
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -808,6 +910,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1835
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -940,6 +1060,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1885
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 542,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -1072,6 +1210,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1892
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 614,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -1204,6 +1360,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1895
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 439,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -1336,6 +1510,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1897
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 554,
+            "y": -1413
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -1468,6 +1660,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1899
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 641,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -1600,6 +1810,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1900
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 634,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -1732,6 +1960,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1900
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 423,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -1862,6 +2108,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1901
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 339,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -1992,6 +2256,21 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1901
+          }
+        },
+        "feet": {
+          "status": "covered",
+          "value": null
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -2122,6 +2401,21 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1903
+          }
+        },
+        "feet": {
+          "status": "covered",
+          "value": null
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -2252,6 +2546,21 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1903
+          }
+        },
+        "feet": {
+          "status": "covered",
+          "value": null
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -2382,6 +2691,21 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1904
+          }
+        },
+        "feet": {
+          "status": "covered",
+          "value": null
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -2512,6 +2836,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1904
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 294,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -2642,6 +2984,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1904
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 380,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -2772,6 +3132,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1904
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 475,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -2902,6 +3280,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1904
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 425,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -3032,6 +3428,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1904
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 401,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -3162,6 +3576,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1904
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 491,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -3292,6 +3724,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1904
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 699,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -3422,6 +3872,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1904
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 525,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -3552,6 +4020,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1904
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 471,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -3682,6 +4168,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1904
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 608,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -3812,6 +4316,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1904
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 659,
+            "y": -1395
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -3937,6 +4459,24 @@
         "chat": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1904
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 307,
+            "y": -1396
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -4062,6 +4602,24 @@
         "chat": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1904
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1370
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -4187,6 +4745,24 @@
         "chat": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1830
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -4317,6 +4893,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1828
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -4447,6 +5041,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1828
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -4577,6 +5189,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1828
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -4702,6 +5332,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1828
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -4832,6 +5480,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1828
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -4962,6 +5628,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1828
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -5019,6 +5703,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1828
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -5149,6 +5851,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1828
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -5279,6 +5999,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1828
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -5307,6 +6045,18 @@
           "value": null
         },
         "chat": {
+          "status": "unsure",
+          "value": null
+        },
+        "camera": {
+          "status": "unsure",
+          "value": null
+        },
+        "feet": {
+          "status": "unsure",
+          "value": null
+        },
+        "map_id": {
           "status": "unsure",
           "value": null
         }
@@ -5439,6 +6189,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": 68,
+            "y": -1632
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -5564,6 +6332,21 @@
         "chat": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": 68,
+            "y": -1632
+          }
+        },
+        "feet": {
+          "status": "covered",
+          "value": null
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -5694,6 +6477,21 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": 68,
+            "y": -1632
+          }
+        },
+        "feet": {
+          "status": "covered",
+          "value": null
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -5819,6 +6617,21 @@
         "chat": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": 68,
+            "y": -1632
+          }
+        },
+        "feet": {
+          "status": "covered",
+          "value": null
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -5944,6 +6757,24 @@
         "chat": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": 68,
+            "y": -1632
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -6074,6 +6905,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": 68,
+            "y": -1632
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -6199,6 +7048,21 @@
         "chat": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": 68,
+            "y": -1632
+          }
+        },
+        "feet": {
+          "status": "covered",
+          "value": null
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -6324,6 +7188,21 @@
         "chat": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": 68,
+            "y": -1632
+          }
+        },
+        "feet": {
+          "status": "covered",
+          "value": null
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -6441,6 +7320,21 @@
         "chat": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": 68,
+            "y": -1632
+          }
+        },
+        "feet": {
+          "status": "covered",
+          "value": null
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -6498,6 +7392,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -101,
+            "y": -1800
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -6628,6 +7540,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -101,
+            "y": -1800
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -6758,6 +7688,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -101,
+            "y": -1800
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -6815,6 +7763,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -101,
+            "y": -1800
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -6945,6 +7911,21 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -101,
+            "y": -1800
+          }
+        },
+        "feet": {
+          "status": "covered",
+          "value": null
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -7075,6 +8056,21 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -101,
+            "y": -1800
+          }
+        },
+        "feet": {
+          "status": "covered",
+          "value": null
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -7103,6 +8099,18 @@
           "value": null
         },
         "chat": {
+          "status": "unsure",
+          "value": null
+        },
+        "camera": {
+          "status": "unsure",
+          "value": null
+        },
+        "feet": {
+          "status": "unsure",
+          "value": null
+        },
+        "map_id": {
           "status": "unsure",
           "value": null
         }
@@ -7235,6 +8243,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1800
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -7365,6 +8391,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1800
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -7422,6 +8466,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1800
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -7552,6 +8614,24 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1800
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -7682,6 +8762,24 @@
             "system",
             "system"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1800
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -7812,6 +8910,24 @@
             "system",
             "system"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1800
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -7942,6 +9058,24 @@
             "system",
             "system"
           ]
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -443,
+            "y": -1800
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": 468,
+            "y": -1282
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10005031
         }
       }
     },
@@ -8063,6 +9197,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -734,
+            "y": -1296
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -8184,6 +9336,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1017,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -8305,6 +9475,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1017,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -8427,6 +9615,24 @@
               "seconds_left": 22
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1017,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -8549,6 +9755,24 @@
               "seconds_left": 14
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1017,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -8671,6 +9895,24 @@
               "seconds_left": 6
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1017,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -8792,6 +10034,24 @@
               "shown": true
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1017,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -8913,6 +10173,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -846,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -9034,6 +10312,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -846,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -9155,6 +10451,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -846,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -9276,6 +10590,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -846,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -9397,6 +10729,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -846,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -9518,6 +10868,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -846,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -9639,6 +11007,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -846,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -9760,6 +11146,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -846,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -9874,6 +11278,24 @@
         "buffs": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -974,
+            "y": -1416
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -9988,6 +11410,24 @@
         "buffs": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -974,
+            "y": -1416
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -10102,6 +11542,24 @@
         "buffs": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -974,
+            "y": -1416
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -10216,6 +11674,24 @@
         "buffs": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -974,
+            "y": -1416
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -10330,6 +11806,24 @@
         "buffs": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -974,
+            "y": -1416
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -10444,6 +11938,24 @@
         "buffs": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -974,
+            "y": -1416
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -10558,6 +12070,24 @@
         "buffs": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -974,
+            "y": -1416
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -10672,6 +12202,24 @@
         "buffs": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -974,
+            "y": -1416
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -10793,6 +12341,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -974,
+            "y": -1416
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -10914,6 +12480,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1017,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -11035,6 +12619,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1017,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -11156,6 +12758,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1017,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -11277,6 +12897,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1017,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -11398,6 +13036,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1017,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -11519,6 +13175,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1017,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -11640,6 +13314,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1017,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -11761,6 +13453,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1017,
+            "y": -1464
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -11875,6 +13585,24 @@
         "buffs": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -734,
+            "y": -1296
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -11989,6 +13717,24 @@
         "buffs": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -734,
+            "y": -1296
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -12103,6 +13849,24 @@
         "buffs": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -734,
+            "y": -1296
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -12217,6 +13981,24 @@
         "buffs": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -734,
+            "y": -1296
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -12331,6 +14113,24 @@
         "buffs": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -734,
+            "y": -1296
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -12445,6 +14245,24 @@
         "buffs": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -734,
+            "y": -1296
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -12559,6 +14377,24 @@
         "buffs": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -734,
+            "y": -1296
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -12673,6 +14509,24 @@
         "buffs": {
           "status": "covered",
           "value": null
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -734,
+            "y": -1296
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -12794,6 +14648,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -734,
+            "y": -1296
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -334,
+            "y": -946
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -12915,6 +14787,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -940,
+            "y": -1462
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -428,
+            "y": -944
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -13036,6 +14926,24 @@
               "shown": false
             }
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1111,
+            "y": -1462
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -428,
+            "y": -944
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -13157,6 +15065,24 @@
             "available_ap": 0,
             "detail_shown": false
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1111,
+            "y": -1490
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -428,
+            "y": -944
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     },
@@ -13280,6 +15206,24 @@
             "speed": 100,
             "jump": 100
           }
+        },
+        "camera": {
+          "status": "read",
+          "value": {
+            "x": -1111,
+            "y": -1490
+          }
+        },
+        "feet": {
+          "status": "read",
+          "value": {
+            "x": -428,
+            "y": -944
+          }
+        },
+        "map_id": {
+          "status": "read",
+          "value": 10002000
         }
       }
     }

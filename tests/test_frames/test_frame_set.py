@@ -99,3 +99,38 @@ def test_a_frame_set_on_disk_opens(
     cv2.imwrite(str(folder / "a.png"), np.zeros((4, 6, 3), np.uint8))
     opened = frame_set.open_frame_set("t", tmp_path / "data")
     assert opened.pixels(opened.entries[0]).shape == (4, 6, 3)
+
+
+POSITION_READINGS = ("camera", "feet", "map_id")
+
+
+@pytest.mark.parametrize("tag", ["v2", "v3"])
+def test_every_frame_has_its_position_readings(tag: str) -> None:
+    """`camera` and `feet` read `{x, y}` in whole virtual px, `map_id` an
+    integer ID; `feet` alone may be covered (tests/frames/README.md)."""
+    wrong: list[str] = []
+    for entry in frame_set.load_expected(frame_set.TESTS_FRAMES / f"{tag}.json"):
+        for name in POSITION_READINGS:
+            reading = entry.expect.get(name)
+            if reading is None:
+                wrong.append(f"{entry.file}: no {name}")
+            elif reading.status is Status.READ:
+                value = reading.value
+                ok = (
+                    type(value) is int
+                    if name == "map_id"
+                    else isinstance(value, dict)
+                    and set(value) == {"x", "y"}
+                    and all(type(v) is int for v in value.values())
+                )
+                if not ok:
+                    wrong.append(f"{entry.file}: {name} {value!r}")
+            elif reading.status is Status.COVERED and name != "feet":
+                wrong.append(f"{entry.file}: {name} covered")
+    assert not wrong, "\n".join(wrong)
+
+
+def test_v3_keeps_v2s_frames_and_readings() -> None:
+    v2 = frame_set.load_expected(frame_set.TESTS_FRAMES / "v2.json")
+    v3 = frame_set.load_expected(frame_set.TESTS_FRAMES / "v3.json")
+    assert v3[: len(v2)] == v2

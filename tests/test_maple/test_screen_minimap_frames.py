@@ -2,7 +2,7 @@
 The minimap reader on the real MSCW frame set: every expected `minimap`
 reading, at every client size in the set; the position, in pixels on the map's
 canvas, within 1 pixel for a reader given the map's `map_id` and `UNSURE` for
-one without; and the expected-map check against both maps the set shows. Run
+one without; and the expected-map check against every map the set shows. Run
 with `pytest -m frames`.
 """
 
@@ -14,11 +14,17 @@ from game_data.config import CONFIG, STORE
 from maple.screen.locator import FrameCheck
 from maple.screen.minimap import MINIMAP, MinimapReader, MinimapState
 from maple.screen.sprites import FRAME_CHECK, Profile, load_reader_sprites
-from tests.frame_set import FrameEntry, FrameSet
+from tests import frame_set
+from tests.frame_set import FrameEntry, FrameSet, load_expected
 
 pytestmark = [pytest.mark.frames, pytest.mark.client_files]
 
-MAPS = ("Dungeon: Damp Forest", "Victoria Road: Ellinia")
+MAPS = (
+    "Dungeon: Damp Forest",
+    "Victoria Road: Ellinia",
+    "Victoria Road: Henesys",
+    "Victoria Road: Henesys Market",
+)
 """The maps the set shows, as their `map` is written in it."""
 
 
@@ -82,14 +88,20 @@ def test_the_position_is_read_on_the_maps_canvas(
     frames: FrameSet, map_ids: dict[str, int], shown: str
 ) -> None:
     """With the map's map_id, every expanded frame of it reads the character's
-    position within 1 pixel of where the oracle puts it on the canvas."""
+    position within 1 pixel of where the oracle puts it on the canvas, and
+    none where the oracle has none (the marker clipped at the canvas's edge)."""
     reader = reader_for(map_ids[shown])
     wrong: list[str] = []
     for entry in expanded(frames, shown):
         want = entry.expect["minimap"].value["self_position"]
         view = reader.read(frame_of(frames, entry)).value
         at = view.self_position.value if view is not None else None
-        if at is None or max(abs(at[0] - want[0]), abs(at[1] - want[1])) > 1:
+        if want is None:
+            if at is not None:
+                wrong.append(
+                    f"{entry.file}: {view and view.self_position}, expected none"
+                )
+        elif at is None or max(abs(at[0] - want[0]), abs(at[1] - want[1])) > 1:
             detail = view.self_position if view is not None else "no view"
             wrong.append(f"{entry.file}: {detail}, expected {want}")
     assert expanded(frames, shown)
@@ -115,7 +127,7 @@ def test_the_expected_map_is_told_from_the_other(
     frames: FrameSet, map_ids: dict[str, int], expected_map: str
 ) -> None:
     """On every expanded frame, the bot's map reads `True` where the minimap
-    shows it and `False` where it shows the other map."""
+    shows it and `False` where it shows another map."""
     reader = reader_for(map_ids[expected_map])
     wrong: list[str] = []
     for entry in expanded(frames):
@@ -132,11 +144,18 @@ def test_the_npcs_seen_in_ellinia_are_read_as_npc_markers(
     frames: FrameSet, map_ids: dict[str, int]
 ) -> None:
     """With the view scrolled to the same place, Ellinia's frames show the same
-    four NPC markers wholly inside the map area, and the storage keeper's."""
+    four NPC markers wholly inside the map area, and the storage keeper's.
+    Those are frame set `v2`'s Ellinia frames, all at one spot; `v3`'s climb
+    scrolls the view, so they show other markers."""
     ellinia = "Victoria Road: Ellinia"
     reader = reader_for(map_ids[ellinia])
+    at_one_spot = {
+        entry.file for entry in load_expected(frame_set.TESTS_FRAMES / "v2.json")
+    }
     found: set[tuple[tuple[str, int], ...]] = set()
     for entry in expanded(frames, ellinia):
+        if entry.file not in at_one_spot:
+            continue
         view = reader.read(frame_of(frames, entry)).value
         assert view is not None
         assert view.markers is not None
