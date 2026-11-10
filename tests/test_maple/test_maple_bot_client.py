@@ -8,13 +8,16 @@ import pytest
 
 from botting.core import Bot, DecisionMaker
 from botting.screen import Frame
+from game_data.catalogue import Bounds
 from maple.bots import maple_bot
 from maple.bots.maple_bot import MapleBot
 from maple.model.mechanics.physics import Calibration
+from maple.model.world import MinimapTransform, WorldMap
 from maple.screen import client
 from maple.screen.map_identification import MapCanvas, MapCanvases
 from maple.screen.minimap import MINIMAP, minimap_canvas_path
 from maple.screen.minimap_title import MINIMAP_TITLE_READER
+from maple.screen.position import PositionFusion
 from maple.screen.sprites import (
     FRAME_CHECK,
     Declaration,
@@ -206,6 +209,58 @@ def test_a_map_file_alone_is_not_checked_at_start(
     assert start.checked == []
     assert bot.data is not None
     assert bot.data.map_id == 999
+
+
+def _world_map(map_id: int, minimap: MinimapTransform | None) -> WorldMap:
+    return WorldMap(map_id, None, None, Bounds(0, 0, 100, 100), minimap, (), (), (), ())
+
+
+@pytest.mark.parametrize("minimap", [MinimapTransform((10, 20), 4), None])
+def test_child_init_builds_the_world_map_from_the_map_id_it_publishes(
+    monkeypatch: pytest.MonkeyPatch, minimap: MinimapTransform | None
+) -> None:
+    """With the store the readers' sprites came from; and the position's
+    reader on it, when the map has a minimap to check positions against."""
+    start = _Start(monkeypatch, file_map_id=None)
+    start.sprites = ReaderSprites("build")
+    loaded: list[int] = []
+
+    def load(map_id: int) -> WorldMap:
+        loaded.append(map_id)
+        return _world_map(map_id, minimap)
+
+    monkeypatch.setattr(maple_bot.WorldMap, "load", load)
+    monkeypatch.setattr(maple_bot, "FrameCheck", lambda sprites: object())
+    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_, game_map: 10002000)
+    bot = _bot(map="Victoria Road: Ellinia")
+
+    with pytest.raises(_Stop):
+        bot.child_init(None, None)  # pyright: ignore[reportArgumentType]
+
+    assert bot.data is not None
+    assert loaded == [bot.data.map_id] == [10002000]
+    assert bot.data.world_map.id == 10002000
+    if minimap is None:
+        assert bot.data.position_fusion is None
+    else:
+        assert isinstance(bot.data.position_fusion, PositionFusion)
+
+
+def test_without_a_map_id_there_is_no_world_map(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    start = _Start(monkeypatch, file_map_id=None)
+    start.sprites = ReaderSprites("build")
+    monkeypatch.setattr(maple_bot, "FrameCheck", lambda sprites: object())
+    bot = _bot(game_map="Line1Area1")
+
+    with pytest.raises(_Stop):
+        bot.child_init(None, None)  # pyright: ignore[reportArgumentType]
+
+    assert bot.data is not None
+    assert bot.data.map_id is None
+    assert bot.data.world_map is None
+    assert bot.data.position_fusion is None
 
 
 # --- The check itself, on synthetic frames ------------------------------------

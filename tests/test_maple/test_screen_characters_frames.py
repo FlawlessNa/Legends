@@ -20,19 +20,10 @@ from game_data.catalogue import Catalogue
 from game_data.catalogue.model import Minimap
 from game_data.config import STORE
 from maple.screen.minimap import virtual_feet
-from maple.screen.position import CharacterSighting, NameTagFinder
+from maple.screen.position import CharacterSighting, NameTagFinder, play_area_size
 from tests.frame_set import FrameEntry, FrameSet
 
 pytestmark = [pytest.mark.frames, pytest.mark.client_files]
-
-PLAY_AREA = {
-    (1920, 1080): (1366, 768),
-    (1920, 1200): (1228, 768),
-    (2560, 1440): (1366, 768),
-}
-"""The play area's size where the client upscales it, as `tests/frames/README.md`
-measured it on these frames; smaller clients draw it 1:1. Only to turn the
-labels' virtual px into client px."""
 
 WITHIN = 2.0
 """Virtual px, on each axis (#391)."""
@@ -60,7 +51,8 @@ class Seen:
 def scale_of(entry: FrameEntry) -> tuple[float, float]:
     """Client px per virtual px, on each axis."""
     width, height = entry.client_size
-    view = PLAY_AREA.get(entry.client_size, entry.client_size)
+    view = play_area_size(entry.client_size)
+    assert view is not None, entry.client_size
     return width / view[0], height / view[1]
 
 

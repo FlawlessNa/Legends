@@ -20,6 +20,7 @@ from maple.model.mechanics.minimap_creation.minimap_edits_model import (
     MinimapEditsManager,
 )
 from maple.model.mechanics.physics import Calibration
+from maple.model.world import WorldMap
 from maple.screen.buffs import ICON_BASE, BuffsReader
 from maple.screen.chat import TARGET_SELECT, ChatReader
 from maple.screen.client import find_client
@@ -27,6 +28,7 @@ from maple.screen.locator import FrameCheck
 from maple.screen.map_identification import MapCanvases, MapIdentifier
 from maple.screen.minimap import MINIMAP, NW, MinimapReader
 from maple.screen.minimap_title import MINIMAP_TITLE_READER, MinimapTitleReader
+from maple.screen.position import PositionFusion
 from maple.screen.quick_slots import QUICK_SLOTS, QuickSlotsReader
 from maple.screen.sprites import (
     Profile,
@@ -150,9 +152,13 @@ class MapleBot(Bot, ABC):
         data.set_static("map_id", map_id)
         data.set_static("reader_sprites", reader_sprites)
         data.set_static("buff_names", profile.buffs)
+        data.set_static("world_map", None)
+        data.set_static("position_fusion", None)
         if reader_sprites.build is not None:
             frame_check = FrameCheck(reader_sprites)
             data.set_static("frame_check", frame_check)
+            if map_id is not None:
+                self._set_world_map(map_id, frame_check)
             if STATUS_BAR_BACKGROUND in reader_sprites.canvases:
                 data.set_static(
                     "status_bar_reader", StatusBarReader(reader_sprites, frame_check)
@@ -209,6 +215,25 @@ class MapleBot(Bot, ABC):
         data.set_static("speed_multiplier", self.kwargs.get("speed_multiplier", 1.00))
         data.set_static("jump_multiplier", self.kwargs.get("jump_multiplier", 1.00))
         data.set_static("calibration", self.calibration)
+
+    def _set_world_map(self, map_id: int, frame_check: FrameCheck) -> None:
+        """
+        Publishes `world_map`, the map's `WorldMap` from the game data store
+        the readers' sprites came from, and `position_fusion`, the reader of
+        `current_position` on it. Nothing is drawn or indexed here: the static
+        render is, on the first position read.
+
+        :raises LookupError: The store's catalogue has no map `map_id`.
+        """
+        assert self.data is not None
+        world_map = WorldMap.load(map_id)
+        self.data.set_static("world_map", world_map)
+        if world_map.minimap is None:
+            logger.warning("Map %d has no minimap: no position is read.", map_id)
+            return
+        self.data.set_static(
+            "position_fusion", PositionFusion.for_map(world_map, frame_check)
+        )
 
     def _check_map_at_start(
         self, sprites: ReaderSprites, file_map_id: int | None

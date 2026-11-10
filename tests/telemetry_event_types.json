@@ -27,6 +27,7 @@
     "INVENTORY_TOWN_REACHED": "inventory.town_reached",
     "MOVEMENT_PLAN_STARTED": "movement.plan_started",
     "MOVEMENT_TARGET_REACHED": "movement.target_reached",
+    "POSITION_READ": "position.read",
     "REBUFF_MEMBERS_IN_POSITION": "rebuff.members_in_position",
     "REBUFF_PARTY_COMPLETE": "rebuff.party_complete",
     "REBUFF_SIGNALLED": "rebuff.signalled",

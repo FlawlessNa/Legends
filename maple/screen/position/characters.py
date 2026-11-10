@@ -15,8 +15,9 @@ Feet are in **client px**, as captured: scaling them to the play area's render
 size and adding the camera is `PositionFusion`'s job (#392).
 
 No value here is read from the client. The tag's thresholds come from the POCs;
-`TAG_TO_FEET`, the match scores and the upscaled sizes (`UPSCALED_SIZES`) were
-measured on frame set v3 (`tests/frames/README.md`).
+`TAG_TO_FEET` and the match scores were measured on frame set v3
+(`tests/frames/README.md`), and the sizes the play area is upscaled at are
+`camera.PLAY_AREAS`, measured there too.
 """
 
 from __future__ import annotations
@@ -34,7 +35,7 @@ from numpy.typing import NDArray
 
 from botting.screen import Frame, Reading
 
-from .camera import NATIVE_PLAY, PLAY_AREA_HEIGHT
+from .camera import play_area_size
 
 Box = tuple[int, int, int, int]
 """`(x0, y0, x1, y1)` in client px, the right and bottom edges exclusive."""
@@ -89,26 +90,18 @@ class CharacterFinder(Protocol):
 
 # ----------------------------------------------------------------------- tag scale
 
-UPSCALED_SIZES: frozenset[tuple[int, int]] = frozenset(
-    {(1920, 1080), (1920, 1200), (2560, 1440)}
-)
-"""Client sizes that draw the play area 768 high and upscale it, so a name tag
-is drawn `height / 768` times its 1:1 size. Smaller clients, up to 1366x768,
-draw it 1:1. Measured on frame set v3 (`tests/frames/README.md`), not read from
-the client: a larger size not seen there is neither."""
-
 
 def tag_upscale(client_size: tuple[int, int]) -> float | None:
     """
     How many client px a name tag's 1:1 pixel covers at this client size, or
-    None for a size not measured.
+    None for a size not measured (`play_area_size`): 1 up to 1366x768, where
+    the play area is drawn 1:1; `height / 768` where it is drawn 768 high and
+    upscaled.
     """
-    width, height = client_size
-    if client_size in UPSCALED_SIZES:
-        return height / PLAY_AREA_HEIGHT
-    if width <= NATIVE_PLAY[0] and height <= NATIVE_PLAY[1]:
-        return 1.0
-    return None
+    play_area = play_area_size(client_size)
+    if play_area is None:
+        return None
+    return client_size[1] / play_area[1]
 
 
 # ------------------------------------------------------------------------ name tags
@@ -277,12 +270,14 @@ class NameTagFinder:
             and abs(feet[1] - near[1]) <= reach_y
         ]
         if len(near_tags) != 1:
-            return False  # none, or several: no telling which is ours
+            # None, or several: no telling which is ours. A tag learned at
+            # another scale still tells ours apart here, resized.
+            return self.learned(frame.client_size)
         tag = near_tags[0]
         widths = self._widths.setdefault(scale, collections.Counter())
         widths[tag.width] += 1
         if widths[tag.width] < OWN_SIGHTINGS:
-            return False
+            return self.learned(frame.client_size)
         x0, y0, x1, y1 = tag.box
         self._learned[scale] = _lightest(pixels[y0:y1, x0:x1])
         self._resized.clear()

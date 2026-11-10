@@ -43,7 +43,8 @@ camera is added. At 2560x1440 the whole client is upscaled, UI included, so
 the minimap reads `unsure` there (as on `f043` and `f059`). The sizes were
 measured on these frames, as the camera reads best (see
 `toolkit/poc_tracking/label_frames.py`, `PLAY_AREA`); they are not read from
-the client.
+the client. The readers take them from `maple.screen.position.PLAY_AREAS`, and
+read no other size above 1366x768.
 
 ## How they were made
 

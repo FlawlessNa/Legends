@@ -16,7 +16,12 @@ from botting.screen import Frame, Status
 from game_data.catalogue import Bounds
 from maple.model.world import WorldMap
 from maple.screen.position import Camera, CameraReader
-from maple.screen.position.camera import MIN_SHARE, MIN_SHARPNESS, play_area_widths
+from maple.screen.position.camera import (
+    MIN_SHARE,
+    MIN_SHARPNESS,
+    play_area_size,
+    play_area_widths,
+)
 
 RENDER_SIZE = (2400, 1400)
 BOUNDS = Bounds(left=-1000, top=-600, right=1400, bottom=800)
@@ -207,6 +212,34 @@ def test_the_play_area_widths_tried(
     client: tuple[int, int], widths: tuple[int, ...]
 ) -> None:
     assert play_area_widths(*client) == widths
+
+
+def test_a_client_above_1_to_1_at_a_size_not_measured_is_unsure() -> None:
+    """One policy for sizes the frame sets haven't shown, the name tags' too
+    (#392): how the client draws its play area there hasn't been seen."""
+    reading = reader().read(upscaled((612, 345), (1366, 768), (1600, 900)))
+
+    assert reading.status is Status.UNSURE
+    assert reading.detail == "no play area measured for 1600x900"
+
+
+@pytest.mark.parametrize(
+    ("client", "play_area"),
+    [
+        ((800, 600), (800, 600)),
+        ((1280, 720), (1280, 720)),
+        ((1366, 768), (1366, 768)),
+        ((1920, 1080), (1366, 768)),
+        ((1920, 1200), (1228, 768)),
+        ((2560, 1440), (1366, 768)),
+        ((1600, 900), None),
+        ((1366, 769), None),
+    ],
+)
+def test_the_play_areas_render_size(
+    client: tuple[int, int], play_area: tuple[int, int] | None
+) -> None:
+    assert play_area_size(client) == play_area
 
 
 def test_a_map_without_a_static_render_is_refused() -> None:

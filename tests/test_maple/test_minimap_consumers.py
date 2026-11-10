@@ -6,17 +6,21 @@ the position attribute, and the state `ensure_minimap_displayed` waits for.
 import random
 from collections.abc import Callable
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 import pytest
 from pytest_mock import MockerFixture
 
-from botting.screen import Frame, Status
+from botting.core import BotData
+from botting.screen import Frame, Reading, Status
 from game_data.sprites import Sprite
 from maple.actions import menus
 from maple.decision_makers.ensure_still_in_map import CheckStillInMap
 from maple.decision_makers.mixins import MinimapAttributesMixin
-from maple.screen.minimap import MINIMAP, MinimapReader, MinimapState
+from maple.screen.minimap import MINIMAP, MinimapReader, MinimapState, MinimapView
+from maple.screen.position import Fusion, PositionSource, VirtualPosition
+from maple.telemetry_events import POSITION_READ
 from tests.test_maple.test_screen_minimap import (
     CANVAS,
     MAP_ID,
@@ -318,3 +322,109 @@ def test_the_error_handler_moves_the_cursor_before_it_toggles_the_minimap(
     handler._minimap_pos_error_handler()
 
     assert order == ["mouse", "toggle"]
+
+
+# --- The virtual position attribute (#392) -------------------------------------
+
+
+class _Fusion:
+    """Answers `position`, and counts its reads."""
+
+    def __init__(self, position: Reading[VirtualPosition]) -> None:
+        self.position = position
+        self.reads = 0
+
+    def read(self, frame: Frame, minimap: Reading[MinimapView]) -> Fusion:
+        self.reads += 1
+        return Fusion(self.position, (600, 336), near=1)
+
+
+def _located(fusion: _Fusion | None) -> tuple[_Positioned, list[tuple[str, Any]]]:
+    shown = _minimap()
+    located = _Positioned(shown)
+    located.data.current_frame = shown  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
+    located.data.position_fusion = fusion  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
+    emitted: list[tuple[str, Any]] = []
+    located.emit = lambda event, payload: emitted.append((event, payload))  # pyright: ignore[reportAttributeAccessIssue]
+    return located, emitted
+
+
+def test_the_position_is_fusions_and_each_read_is_recorded() -> None:
+    fused = Reading.read(VirtualPosition(605.5, 340.0, PositionSource.FUSED), 3.0)
+    located, emitted = _located(_Fusion(fused))
+
+    assert located._get_position() == fused
+    assert emitted == [
+        (
+            POSITION_READ,
+            {
+                "status": "read",
+                "source": "fused",
+                "x": 605.5,
+                "y": 340.0,
+                "minimap_x": 600,
+                "minimap_y": 336,
+                "camera_x": None,
+                "camera_y": None,
+                "found": 0,
+                "near": 1,
+                "by_tag": False,
+                "own_elsewhere": False,
+                "detail": "",
+            },
+        )
+    ]
+
+
+def test_an_unsure_position_is_recorded_then_raises_for_the_error_handler() -> None:
+    located, emitted = _located(_Fusion(Reading.unsure(3.0, "the reads disagree")))
+
+    with pytest.raises(ValueError, match="position unsure: the reads disagree"):
+        located._get_position()
+    assert [(e, p["status"], p["source"]) for e, p in emitted] == [
+        (POSITION_READ, "unsure", None)
+    ]
+
+
+def test_without_a_fusion_the_position_raises_for_the_error_handler() -> None:
+    located, emitted = _located(None)
+
+    with pytest.raises(ValueError, match="no position fusion"):
+        located._get_position()
+    assert emitted == []
+
+
+def test_the_position_attribute_has_the_minimaps_error_handler_and_waits_to_be_read(
+    mocker: MockerFixture,
+) -> None:
+    """Creating it reads nothing, so it sends nothing: the first consumer to
+    ask reads it, and an unsure read goes to the handler
+    `current_minimap_position` has."""
+    from maple.decision_makers.mixins import _map_mixins
+
+    mocker.patch.object(_map_mixins, "ensure_minimap_displayed")
+    fused = Reading.read(VirtualPosition(605.5, 340.0, PositionSource.FUSED), 3.0)
+    fusion = _Fusion(fused)
+    data = BotData("Tester")
+    shown = _minimap()
+    data.set_static("handle", 1)
+    data.set_static("current_frame", shown)
+    data.set_static("minimap_reader", reader())
+    data.set_static("position_fusion", fusion)
+    located = object.__new__(_Positioned)
+    located.data = data
+    located.pipe = mocker.Mock()  # pyright: ignore[reportAttributeAccessIssue]
+    located._proxies = mocker.Mock()  # pyright: ignore[reportAttributeAccessIssue]
+    located.emit = mocker.Mock()  # pyright: ignore[reportAttributeAccessIssue]
+
+    located._create_minimap_attributes()
+
+    managed = data._managed  # pyright: ignore[reportPrivateUsage] - the attribute's configuration
+    assert fusion.reads == 0
+    assert (
+        managed["current_position"].error_handler
+        == managed["current_minimap_position"].error_handler
+        == located._minimap_pos_error_handler
+    )
+    assert data.current_position == fused
+    assert fusion.reads == 1

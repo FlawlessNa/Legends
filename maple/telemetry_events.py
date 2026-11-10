@@ -24,6 +24,8 @@ four Log Buckets - those partition code for routing and carry a catch-all
   repurpose these. ``rotation`` stays reserved for that map.
 * ``state`` - where the character was, sampled on a clock rather than on an
   event.
+* ``position`` - each read of the character's virtual position, whatever it
+  read (#392).
 
 This module sits at the package root rather than under ``decision_makers/`` or
 ``model/`` because movement telemetry is assembled across both - anywhere
@@ -116,6 +118,12 @@ MOVEMENT_TARGET_REACHED: Final = "movement.target_reached"
 # --- state ----------------------------------------------------------------
 #: A periodic sample of where the character is and where it is heading.
 STATE_SNAPSHOT: Final = "state.snapshot"
+
+# --- position -------------------------------------------------------------
+#: The character's virtual position was read: one record per read of
+#: ``current_position``, ``UNSURE`` ones included, so an analyzer can count
+#: reads per source and time how long the position stayed unsure.
+POSITION_READ: Final = "position.read"
 
 
 class MapCheckPayload(TypedDict):
@@ -258,6 +266,37 @@ class StateSnapshotPayload(TypedDict):
     target_y: int | None
     on_screen_x: int | None
     on_screen_y: int | None
+
+
+class PositionReadPayload(TypedDict):
+    """
+    ``position.read``: what the read gave, and what each read said
+    (`maple.screen.position.Fusion`). Positions are in virtual px; a field is
+    None when its read didn't give it.
+
+    ``status`` is the Reading's status value (``read`` or ``unsure``);
+    ``source`` is ``fused`` or ``coarse``, None unless read. ``found`` counts the
+    characters found on screen, ``near`` those within the window around the
+    minimap's position;
+    ``by_tag`` says the finder could tell ours apart by its name tag, so only a
+    character marked ours could be chosen; ``own_elsewhere`` that a character
+    marked ours was found outside the window. ``detail`` is why,
+    as the Reading says it.
+    """
+
+    status: str
+    source: str | None
+    x: float | None
+    y: float | None
+    minimap_x: int | None
+    minimap_y: int | None
+    camera_x: int | None
+    camera_y: int | None
+    found: int
+    near: int
+    by_tag: bool
+    own_elsewhere: bool
+    detail: str
 
 
 def plan_started_payload(

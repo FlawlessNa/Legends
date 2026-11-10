@@ -12,7 +12,7 @@ from botting.screen import Frame, Status
 from game_data.config import CONFIG, STORE
 from maple.model.world import WorldMap
 from maple.screen.locator import FrameCheck
-from maple.screen.position import Camera, CameraReader
+from maple.screen.position import Camera, CameraReader, play_area_size
 from maple.screen.sprites import FRAME_CHECK, Profile, load_reader_sprites
 from tests.frame_set import FrameEntry, FrameSet
 
@@ -24,14 +24,6 @@ MAPS = (DAMP_FOREST, 10002000, 10001000, 10001040)
 
 SCALED_TOLERANCE = 2
 """Virtual px the camera may be off on a client that upscales its play area."""
-
-PLAY_AREAS = {
-    (1920, 1080): (1366, 768),
-    (1920, 1200): (1228, 768),
-    (2560, 1440): (1366, 768),
-}
-"""The play area's size where it is upscaled, as the frame set's labels were
-made with it (`tests/frames/README.md`)."""
 
 NEEDS_THE_SEED = {"f063_1920x1080.png", "f064_1920x1080.png"}
 """The Options dialog covers most of the play area: the correlation over the
@@ -89,7 +81,7 @@ def _wrong(entry: FrameEntry, camera: Camera | None) -> str | None:
     off = (camera.x - label[0], camera.y - label[1])
     if max(abs(off[0]), abs(off[1])) > tolerance:
         return f"off by {off}"
-    play_area = PLAY_AREAS[w, h] if scaled else (w, h)
+    play_area = play_area_size((w, h))
     if camera.play_area != play_area:
         return f"play area {camera.play_area}, expected {play_area}"
     return None

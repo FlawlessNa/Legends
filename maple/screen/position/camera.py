@@ -33,7 +33,10 @@ doesn't say how big it draws the play area. The two whole widths nearest
 camera found, and the one with the higher near share is kept, as
 `Camera.play_area`. On frame sets v2 and v3 that is 1366 at 1920x1080 and
 2560x1440, and 1228 at 1920x1200 (`tests/frames/README.md`). The height, 768,
-is what those frame sets show at every size above 1366x768.
+is what those frame sets show at every size above 1366x768. Only the sizes
+measured there (`PLAY_AREAS`) are read: a client above `NATIVE_PLAY` at any
+other size reads `UNSURE`, as the name tags do (`play_area_size`), since how
+it draws its play area hasn't been seen.
 
 **Never a guess (C-NOGUESS).** A frame that isn't `ok`, and one where no
 camera passes both gates, reads `UNSURE`: another map, a frame caught
@@ -50,8 +53,9 @@ so a frame always reads the same.
 
 import math
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Final
 
 import cv2
@@ -71,6 +75,33 @@ PLAY_AREA_HEIGHT: Final = 768
 """How high the play area is drawn on a client above `NATIVE_PLAY`, before
 the client upscales it. Seen on frame sets v2 and v3 at 1920x1080, 1920x1200
 and 2560x1440."""
+
+PLAY_AREAS: Final[Mapping[tuple[int, int], tuple[int, int]]] = MappingProxyType(
+    {
+        (1920, 1080): (1366, 768),
+        (1920, 1200): (1228, 768),
+        (2560, 1440): (1366, 768),
+    }
+)
+"""The play area's render size on each client above `NATIVE_PLAY` it has been
+measured at, by client size: on frame sets v2 and v3, as the camera reads best
+(`tests/frames/README.md`), not read from the client. The one place these
+sizes are written: the name tags' scale and the frame tests take them from
+here."""
+
+
+def play_area_size(client_size: tuple[int, int]) -> tuple[int, int] | None:
+    """
+    The size the play area is rendered at on a client of `client_size`: the
+    client's own up to `NATIVE_PLAY`, where it is drawn 1:1; above it, the
+    size measured in `PLAY_AREAS`. `None` for a size above `NATIVE_PLAY` not
+    measured: no reader guesses how the client draws it.
+    """
+    width, height = client_size
+    if width <= NATIVE_PLAY[0] and height <= NATIVE_PLAY[1]:
+        return client_size
+    return PLAY_AREAS.get(client_size)
+
 
 CAMERA_MARGIN: Final = 16
 """Pixels the camera may stray outside the VR bounds."""
@@ -218,6 +249,10 @@ class CameraReader:
                 return unusable
         pixels = frame.pixels
         height, width = pixels.shape[:2]
+        if play_area_size((width, height)) is None:
+            return Reading.unsure(
+                frame.captured_at, f"no play area measured for {width}x{height}"
+            )
         rng = np.random.default_rng(SAMPLING_SEED)
         start = time.perf_counter()
         bounds = self.world_map.bounds
