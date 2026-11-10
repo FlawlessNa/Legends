@@ -61,6 +61,15 @@ def _fused(point: tuple[float, float]) -> Reading[VirtualPosition]:
 # --- payload builders ---------------------------------------------------------
 
 
+_NO_POINTS = {
+    "narrow": False,
+    "edge_departure": False,
+    "grabs_rope": False,
+    "start": None,
+    "end": None,
+}
+
+
 def test_plan_started_payload_is_json_primitives() -> None:
     payload = plan_started_payload(
         PLAN,
@@ -74,6 +83,7 @@ def test_plan_started_payload_is_json_primitives() -> None:
     assert payload == {
         "components": [["WALK_RIGHT", 5], ["END_OF_MOVEMENT", 1]],
         "components_v": [["WALK_RIGHT", 80.0], ["END_OF_MOVEMENT", 0.0]],
+        "transitions": [_NO_POINTS, _NO_POINTS],
         "from_x": 3,
         "from_y": 4,
         "target_x": 10,

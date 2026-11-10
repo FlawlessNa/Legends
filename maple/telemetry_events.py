@@ -251,10 +251,18 @@ class PlanStartedPayload(TypedDict):
     ``from_y``, ``target_x`` and ``target_y`` are their canvas-px equivalents
     through the minimap transform (the marker's pixel, as the minimap reads
     it).
+
+    ``transitions`` is one entry per component, in order (#12): ``{"narrow",
+    "edge_departure", "grabs_rope", "start", "end"}``, the precision flags the
+    Plan was built with and the transition's virtual take-off and landing
+    (``[vx, vy]``, to 0.1; None for a component built by hand). It is what lets
+    an analyzer tell a precision movement from the Session alone. A Session
+    recorded before #12 has none.
     """
 
     components: list[list[Any]]
     components_v: list[list[Any]]
+    transitions: list[dict[str, Any]]
     from_x: int
     from_y: int
     target_x: int
@@ -351,13 +359,14 @@ def plan_started_payload(
     :param virtual_target: The virtual target it was planned to.
     :param scale: Virtual px per canvas px, for ``components``' lengths.
     """
+    movements_list = list(movements)
     moves = [
         (
             getattr(m.movement_type, "name", str(m.movement_type)),
             float(m.length),
             int(getattr(m, "casts", 1)),
         )
-        for m in movements
+        for m in movements_list
     ]
     return {
         "components": [
@@ -365,6 +374,7 @@ def plan_started_payload(
             for name, length, casts in moves
         ],
         "components_v": [[name, round(length, 1)] for name, length, _ in moves],
+        "transitions": [_transition(m) for m in movements_list],
         "from_x": int(position[0]),
         "from_y": int(position[1]),
         "target_x": int(target[0]),
@@ -373,6 +383,21 @@ def plan_started_payload(
         "from_vy": round(float(virtual_position[1]), 1),
         "target_vx": round(float(virtual_target[0]), 1),
         "target_vy": round(float(virtual_target[1]), 1),
+    }
+
+
+def _transition(component: object) -> dict[str, Any]:
+    """One component's precision flags and virtual take-off and landing."""
+
+    def point(value: Sequence[Any] | None) -> list[float] | None:
+        return None if value is None else [round(float(v), 1) for v in value[:2]]
+
+    return {
+        "narrow": bool(getattr(component, "narrow", False)),
+        "edge_departure": bool(getattr(component, "edge_departure", False)),
+        "grabs_rope": bool(getattr(component, "grabs_rope", False)),
+        "start": point(getattr(component, "start", None)),
+        "end": point(getattr(component, "end", None)),
     }
 
 
