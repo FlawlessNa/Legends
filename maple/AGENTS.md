@@ -61,6 +61,12 @@ every DecisionMaker reading `current_minimap_position` need the `map_id`. `Maple
 the map's data only: positions and where the minimap is drawn are read by
 `maple/screen/minimap.py`.
 
+`current_position` is the character's position in virtual px,
+`Reading[VirtualPosition]`: the minimap, the camera and the characters on
+screen, fused by `maple/screen/position/fusion.py` on `data.world_map`. It is
+read only when asked, and nothing plans on it until Movement Plans move to
+virtual px (#396); `current_minimap_position` stays until then.
+
 Game files are read by `game_data/` (top level, importing neither `maple` nor
 `botting`), not by this package. See `docs/agents/game-data.md`.
 

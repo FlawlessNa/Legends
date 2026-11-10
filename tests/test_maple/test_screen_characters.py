@@ -250,6 +250,19 @@ def test_ours_is_placed_when_the_client_edge_cuts_it(edge: str) -> None:
     )
 
 
+def test_learning_says_ours_can_be_told_apart_where_a_resized_tag_finds_it() -> None:
+    """`learn_own`'s answer is `learned`'s: at a scale not learned yet, the tag
+    learned at another, resized, already tells ours apart (fusion relies on
+    it, #392)."""
+    image = blank()
+    draw_tag(image, OURS, 300, 400)
+    finder = NameTagFinder()
+    taught(finder, image, feet_over(text_box(image, 290, 400)))
+
+    assert finder.learn_own(frame(blank((1920, 1080))), (500, 500)) is True
+    assert NameTagFinder().learn_own(frame(blank((1920, 1080))), (500, 500)) is False
+
+
 def test_ours_learned_at_1_to_1_is_found_on_an_upscaled_client() -> None:
     image = blank()
     draw_tag(image, OURS, 300, 400)
@@ -284,7 +297,10 @@ def test_a_resize_keeps_what_was_learned_at_each_scale() -> None:
     )
     own = [s for s in finder.find(frame(large)).value or [] if s.own]
     assert len(own) == 1
-    assert taught(finder, large, own[0].feet) == [False, False, True]
+    # Ours can be told apart all along, resized; the third sighting learns it
+    # at this scale too.
+    assert taught(finder, large, own[0].feet) == [True, True, True]
+    assert 1080 / 768 in finder._learned  # pyright: ignore[reportPrivateUsage] - what was learned
     assert any(s.own for s in finder.find(frame(small)).value or [])
 
 

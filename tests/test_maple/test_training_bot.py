@@ -25,6 +25,7 @@ import pytest
 from botting import controller
 from botting.core import ActionRequest, DecisionMaker, ProxyFactory
 from botting.screen import Frame, Status, capture
+from game_data.catalogue import Bounds
 from game_data.sprites import Sprite
 from maple.actions.menus import toggle_minimap
 from maple.bots import maple_bot
@@ -39,6 +40,7 @@ from maple.decision_makers import (
     SoloRebuff,
 )
 from maple.model.mechanics.minimap_creation import minimap_edits_model
+from maple.model.world import WorldMap
 from maple.screen import client
 from maple.screen.buffs import BUFFS
 from maple.screen.chat import CHAT
@@ -216,6 +218,15 @@ def started(
         return _sprites(profile)
 
     monkeypatch.setattr(maple_bot, "load_reader_sprites", load)
+    # The synthetic map isn't in any store: a map with no minimap, so no
+    # position is read on it either.
+    monkeypatch.setattr(
+        maple_bot.WorldMap,
+        "load",
+        lambda map_id: WorldMap(
+            map_id, None, None, Bounds(0, 0, WIDTH, HEIGHT), None, (), (), (), ()
+        ),
+    )
 
     def proxy(
         self: ProxyFactory,
