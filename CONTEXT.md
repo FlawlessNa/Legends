@@ -95,14 +95,17 @@ prevent.
 ## Movement compilation
 
 **Path**:
-The ordered minimap cells leading from the character's current position to its
-target, as produced by pathfinding over the minimap grid.
+The moves leading from the character's current position to its target, as the
+foothold graph plans them on the map's own platforms and ropes: each a walk,
+climb, jump, drop, fall, teleport or portal, with an exact take-off and landing
+in virtual coordinates.
 _Avoid_: Route — "route cycle" already means the repeating decide-and-move loop,
 not the cells themselves.
 
 **Movement Plan**:
 The Path expressed as game-level intent — a sequence of typed movements with
-lengths, e.g. walk right 5, jump left 1. The last layer that still speaks in
+lengths in virtual px, and a duration where the move sets its own (a jump's
+flight), e.g. walk right 80, jump left 69 for 0.555 s. The last layer that still speaks in
 terms of what the character does rather than which keys are sent.
 _Avoid_: Movements, movement list.
 
@@ -217,15 +220,15 @@ _Avoid_: Movement tests, movement framework — "framework" is the whole effort,
 the lab is only its offline half.
 
 **Fixture map**:
-A small map config written by hand for the lab, built to force one movement type
-rather than to describe a real place. Distinguished from the real mapfiles the
-bot actually runs on, which the lab also uses but which cover only whatever
-movements they happen to contain.
-_Avoid_: Test map, fake map — the real mapfiles in the corpus are test maps too.
+A small synthetic map (game data's `MapData`, written in code) for the lab, built
+to force one movement type rather than to describe a real place. Distinguished
+from the real maps of the game data store the bot actually runs on, which the
+lab also uses but which cover only whatever movements they happen to contain.
+_Avoid_: Test map, fake map — the real maps in the corpus are test maps too.
 
 **Corpus**:
-The maps the lab compiles against, plus the frozen sample of start-and-end pairs
-per map. Fixed and checked in, so a failure is reproducible from a test id alone.
+The maps the lab compiles against (each a `WorldMap`), plus the frozen sample of
+start-and-end pairs per map. Fixed and checked in, so a failure is reproducible from a test id alone.
 _Avoid_: Test data, dataset.
 
 **Golden**:

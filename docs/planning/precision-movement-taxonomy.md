@@ -13,7 +13,10 @@ target.
 
 A precision movement is a property of a **Movement Plan transition** — the
 component, its upcoming component, and landing/departure flags — never of a
-movement type alone or of the grid. The same `JUMP_RIGHT` is precision onto a
+movement type alone or of the map. Since
+[#396](https://github.com/FlawlessNa/Legends/issues/396) each component comes
+from a `FootholdGraph` move (`maple/model/navigation/`), and the flags from the
+move's own platforms and take-off, in virtual px. The same `JUMP_RIGHT` is precision onto a
 4 px perch and not across open ground. `ENTER_PORTAL` is the one near-exception
 (precision wherever it occurs), carried as a transition row like the others.
 
@@ -21,11 +24,11 @@ movement type alone or of the grid. The same `JUMP_RIGHT` is precision onto a
 
 | Id  | Precision movement | Plan signature | Tier | Classifiable from the Plan today? |
 |-----|--------------------|----------------|------|-----------------------------------|
-| PM1 | Jump onto rope/ladder | `JUMP_*` → `CLIMB_UP` | Tight | Yes — transition pair |
-| PM2 | Landing on a narrow platform | `JUMP_*` or `TELEPORT_*` with `narrow` flag | Tight | Yes — jumps and teleports both |
-| PM3 | Edge departure — jump/teleport from a platform's edge, where overshooting the approach is a fall | `JUMP_*` / `TELEPORT_*` with `edge_departure` flag | Tight | Yes — transition pair |
-| PM4 | Portal entry | `ENTER_PORTAL` | Routine (*provisional*) | Yes |
-| PM5 | Ladder grab from walk | `WALK_*` → `CLIMB_UP` / `CLIMB_DOWN` | Routine (*provisional*) | Yes |
+| PM1 | Jump onto rope/ladder | A graph `JUMP` move that ends on a rope: `JUMP_LEFT`/`JUMP_RIGHT`/`JUMP` with `grabs_rope` | Tight | Yes — the flag |
+| PM2 | Landing on a narrow platform | A graph `JUMP`, `DROP` or `TELEPORT` move landing on a platform at most `narrow_platform_threshold` wide: `JUMP*` or `TELEPORT_*` with `narrow` | Tight | Yes — jumps, drops and teleports |
+| PM3 | Edge departure — jump/teleport from a platform's edge, where overshooting the approach is a fall | A sideways graph `JUMP` or `TELEPORT` move taking off within `edge_departure_threshold` of its platform's end: `JUMP_*` / `TELEPORT_*` with `edge_departure` | Tight | Yes — the flag |
+| PM4 | Portal entry | A graph `PORTAL` move: `ENTER_PORTAL` | Routine (*provisional*) | Yes |
+| PM5 | Ladder grab from walk | A graph `WALK` then `CLIMB` move: `WALK_*` → `CLIMB_UP` / `CLIMB_DOWN` | Routine (*provisional*) | Yes |
 
 Priority order for building attribution: PM3 and PM2 first (owner-ranked most
 important — a PM3 miss is a fall, the costliest and most bot-visible failure),
@@ -36,9 +39,11 @@ build tooling for provisional rows before the definite ones.
 The model gaps (PM2's teleport half, PM3 entirely) were closed by
 [#129](https://github.com/FlawlessNa/Legends/issues/129): `narrow` now applies to
 `TELEPORT_*` connections as well as `JUMP_*`, and a new `edge_departure` flag on
-`_MovementComponent` marks a start node within `edge_departure_threshold` minimap
-px (default 5, a **Knob** on `MovementHandler`, mirroring `narrow_platform_threshold`'s
-shape) of its platform's end in the travel direction. The precision pre-stop
+`_MovementComponent` marks a take-off within `edge_departure_threshold`
+(default 5 minimap px, 80 virtual px since #396; a **Knob** on `MovementHandler`,
+mirroring `narrow_platform_threshold`'s shape) of its platform's end in the
+travel direction. Until [#397](https://github.com/FlawlessNa/Legends/issues/397)
+converts them, the Knob values in `configs/trials` are still minimap px, 16× off. The precision pre-stop
 (direction-key release ahead of the gesture) now fires on that flag unconditionally,
 not only when truncation happens to land there. Grid-baked flags were rejected —
 every map would need re-authoring and nothing could be swept.

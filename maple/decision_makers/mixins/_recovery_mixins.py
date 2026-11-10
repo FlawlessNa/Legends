@@ -20,15 +20,19 @@ reading the gate wants: preemption stops the clocks.
 
 import asyncio
 import logging
+import math
 import queue
 import time
 from collections.abc import Callable, Mapping, Sequence
-from typing import Protocol
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DiscordRequest, ProxyFactory
 from maple.actions import priorities
 from maple.actions.movements_v2 import random_jump
+from maple.model.mechanics.movement_mechanics_v2 import _MovementComponent
+from maple.model.mechanics.physics import VRPhysics
+from maple.model.navigation import Path
+from maple.model.world import MinimapTransform, WorldMap
 from maple.movement_recovery import (
     Reaction,
     RecoveryThresholds,
@@ -36,6 +40,7 @@ from maple.movement_recovery import (
     StuckMonitor,
     Symptom,
 )
+from maple.screen.position import marker_of_feet
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -49,13 +54,6 @@ DEFAULT_ESCALATION_TARGETS = (
     "MobsHitting",
     "TelecastMobsHitting",
 )
-
-
-class _Node(Protocol):
-    """The two fields this mixin needs off a Path node."""
-
-    x: int
-    y: int
 
 
 class MovementRecoveryMixin:
@@ -76,6 +74,9 @@ class MovementRecoveryMixin:
     _disable_decision_makers: Callable[..., None]
     _abandon_current_target: Callable[[], tuple[int, int]]
     _has_movements: Callable[[], bool]
+    # Supplied by `MovementsMixin`, which `Rotation` co-inherits: the Reflex's jump
+    # lasts the flight of the character's current jump.
+    _physics: Callable[[], VRPhysics]
 
     #: How long after the loop starts the detectors begin judging. A Session's
     #: first seconds are spent finding the character and the minimap, and a Stall
@@ -135,17 +136,25 @@ class MovementRecoveryMixin:
         if now < self._recovery_starts_at:
             return
 
+        # The monitor still judges in canvas px, as the minimap reads them, until
+        # #398: the Path and the plan are handed over in that unit.
+        world_map: WorldMap | None = getattr(self.data, "world_map", None)
+        transform = None if world_map is None else world_map.minimap
         reaction = self._monitor.observe(
             self.data.current_minimap_position,
             now,
             target=self.data.next_target,
-            path=_as_points(self.data.path),
+            path=_as_points(self.data.path, transform),
             # The *actionable* plan, which is what both the Delivery Gate and
             # Starvation ask about. A plan holding nothing but the END_OF_MOVEMENT
             # sentinel compiles to no Input Sequence and is never dispatched, so
             # handing it over as non-empty would report a loop that is planning
             # when it is not.
-            plan=self.data.movements if self._has_movements() else (),
+            plan=(
+                _in_canvas_px(self.data.movements, transform)
+                if self._has_movements()
+                else ()
+            ),
             delivered_steps=delivered,
             position_valid=self._position_is_valid(),
             on_expected_minimap=self._on_expected_minimap(),
@@ -255,7 +264,11 @@ class MovementRecoveryMixin:
             block_lower_priority=True,
             cancels_itself=True,
             cancel_tasks=[f"{self}"],
-            args=(self.data.handle, controller.key_binds(self.data.ign)["jump"]),
+            args=(
+                self.data.handle,
+                controller.key_binds(self.data.ign)["jump"],
+                self._physics().jump_duration,
+            ),
         )
 
     def _alert_request(self, message: str) -> ActionRequest:
@@ -350,7 +363,7 @@ class MovementRecoveryMixin:
     # --- Main Process procedures ---------------------------------------------------------
 
     @staticmethod
-    async def _wait_and_random_jump(handle: int, jump_key: str) -> None:
+    async def _wait_and_random_jump(handle: int, jump_key: str, flight: float) -> None:
         """
         The Reflex itself, run in Main Process.
 
@@ -362,7 +375,7 @@ class MovementRecoveryMixin:
         """
         controller.release_directions(handle)
         await asyncio.sleep(3.0)
-        await random_jump(handle, jump_key).send()
+        await random_jump(handle, jump_key, flight).send()
 
     @staticmethod
     async def _release_movement_keys(handle: int) -> None:
@@ -373,16 +386,42 @@ class MovementRecoveryMixin:
         """An Action whose whole purpose is the Discord alert riding on it."""
 
 
-def _as_points(path: Sequence[_Node] | None) -> tuple[tuple[int, int], ...]:
+def _as_points(
+    path: Path | None, transform: MinimapTransform | None
+) -> tuple[tuple[int, int], ...]:
     """
-    The Path as plain coordinates. The monitor measures the remaining Path's
-    *length* and locates the suspected connection on it; neither needs a
-    `MinimapNode`, and taking one would put the pathfinder's types in front of
-    every offline check.
+    The Path as canvas-px points, the unit the monitor judges in until #398:
+    each move sampled every canvas px along the straight line from its take-off
+    to its landing, at the pixel the minimap marker would be drawn at
+    (`marker_of_feet`), repeats dropped. Its length is then about the Path's
+    length in canvas px, which is what Target Timeout and Stagnation read, as
+    they read the grid's node count before. Empty with no Path, or no minimap.
     """
-    if not path:
+    if path is None or not path.moves or transform is None:
         return ()
-    return tuple((int(node.x), int(node.y)) for node in path)
+    points: list[tuple[int, int]] = []
+    for move in path.moves:
+        (x0, y0), (x1, y1) = move.start, move.end
+        steps = max(1, math.ceil(max(abs(x1 - x0), abs(y1 - y0)) / transform.scale))
+        for k in range(steps + 1):
+            share = k / steps
+            point = marker_of_feet(
+                transform, (x0 + (x1 - x0) * share, y0 + (y1 - y0) * share)
+            )
+            if not points or points[-1] != point:
+                points.append(point)
+    return tuple(points)
+
+
+def _in_canvas_px(
+    plan: Sequence[_MovementComponent], transform: MinimapTransform | None
+) -> tuple[_MovementComponent, ...]:
+    """
+    The plan with its lengths in canvas px, so the monitor locates a suspected
+    move along `_as_points`' Path by its walks' lengths, as it did on the grid.
+    """
+    scale = 1 if transform is None else transform.scale
+    return tuple(c._replace(length=round(c.length / scale)) for c in plan)
 
 
 #: Re-exported so a caller configuring the mixin does not also have to import from

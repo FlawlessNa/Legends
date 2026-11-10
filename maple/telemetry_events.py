@@ -238,23 +238,49 @@ class ChatLinePayload(TypedDict):
 class PlanStartedPayload(TypedDict):
     """
     ``movement.plan_started``: the Movement Plan being shipped, and from where to
-    where. Each component is ``[movement_type, length]``, ``movement_type`` being
-    the ``MovementTypes`` member name and ``length`` in minimap units, not time.
+    where.
+
+    Each of ``components`` is ``[movement_type, length]``, ``movement_type``
+    being the ``MovementTypes`` member name and ``length`` in minimap (canvas)
+    px, not time; ``components_v`` is the same with ``length`` in virtual px,
+    to 0.1. ``from_vx``/``from_vy`` is the virtual position the Path was
+    planned from, ``target_vx``/``target_vy`` the virtual target; ``from_x``,
+    ``from_y``, ``target_x`` and ``target_y`` are their canvas-px equivalents
+    through the minimap transform (the marker's pixel, as the minimap reads
+    it).
     """
 
     components: list[list[Any]]
+    components_v: list[list[Any]]
     from_x: int
     from_y: int
     target_x: int
     target_y: int
+    from_vx: float
+    from_vy: float
+    target_vx: float
+    target_vy: float
 
 
 class TargetReachedPayload(TypedDict):
-    """``movement.target_reached``: the target, and how far off the character was."""
+    """
+    ``movement.target_reached``: the target, and how far off the character was.
+
+    ``target_x``, ``target_y`` and ``distance`` are in minimap (canvas) px.
+    ``target_vx``/``target_vy`` is the target in virtual px, ``vx``/``vy`` the
+    character's virtual position and ``virtual_distance`` between the two;
+    each is None when the arrival wasn't judged with one (Rotation judges in
+    canvas px until #398).
+    """
 
     target_x: int
     target_y: int
     distance: float
+    target_vx: float | None
+    target_vy: float | None
+    vx: float | None
+    vy: float | None
+    virtual_distance: float | None
 
 
 class StateSnapshotPayload(TypedDict):
@@ -300,41 +326,71 @@ class PositionReadPayload(TypedDict):
 
 
 def plan_started_payload(
-    movements: Iterable[Any], position: Sequence[Any], target: Sequence[Any]
+    movements: Iterable[Any],
+    position: Sequence[Any],
+    target: Sequence[Any],
+    *,
+    virtual_position: Sequence[Any],
+    virtual_target: Sequence[Any],
+    scale: float,
 ) -> PlanStartedPayload:
     """
     :param movements: ``_MovementComponent``s, each with ``movement_type`` and
-        ``length``.
-    :param position: The character's minimap position.
-    :param target: The rotation's target.
+        ``length`` (virtual px).
+    :param position: The character's position, canvas px.
+    :param target: The target, canvas px.
+    :param virtual_position: The virtual position the Path was planned from.
+    :param virtual_target: The virtual target it was planned to.
+    :param scale: Virtual px per canvas px, for ``components``' lengths.
     """
+    moves = [
+        (getattr(m.movement_type, "name", str(m.movement_type)), float(m.length))
+        for m in movements
+    ]
     return {
-        "components": [
-            [
-                getattr(move.movement_type, "name", str(move.movement_type)),
-                int(move.length),
-            ]
-            for move in movements
-        ],
+        "components": [[name, round(length / scale)] for name, length in moves],
+        "components_v": [[name, round(length, 1)] for name, length in moves],
         "from_x": int(position[0]),
         "from_y": int(position[1]),
         "target_x": int(target[0]),
         "target_y": int(target[1]),
+        "from_vx": round(float(virtual_position[0]), 1),
+        "from_vy": round(float(virtual_position[1]), 1),
+        "target_vx": round(float(virtual_target[0]), 1),
+        "target_vy": round(float(virtual_target[1]), 1),
     }
 
 
 def target_reached_payload(
-    position: Sequence[Any], target: Sequence[Any]
+    position: Sequence[Any],
+    target: Sequence[Any],
+    *,
+    virtual_position: Sequence[Any] | None = None,
+    virtual_target: Sequence[Any] | None = None,
 ) -> TargetReachedPayload:
     """
-    :param position: The character's minimap position.
-    :param target: The target it was judged to have reached.
+    :param position: The character's position, canvas px.
+    :param target: The target it was judged to have reached, canvas px.
+    :param virtual_position: The character's virtual position, when known.
+    :param virtual_target: The target in virtual px, when known.
     """
+    virtual_distance = None
+    if virtual_position is not None and virtual_target is not None:
+        virtual_distance = round(float(math.dist(virtual_position, virtual_target)), 1)
     return {
         "target_x": int(target[0]),
         "target_y": int(target[1]),
         "distance": float(math.dist(position, target)),
+        "target_vx": _rounded(virtual_target, 0),
+        "target_vy": _rounded(virtual_target, 1),
+        "vx": _rounded(virtual_position, 0),
+        "vy": _rounded(virtual_position, 1),
+        "virtual_distance": virtual_distance,
     }
+
+
+def _rounded(point: Sequence[Any] | None, axis: int) -> float | None:
+    return None if point is None else round(float(point[axis]), 1)
 
 
 def _as_int(value: SupportsInt | None) -> int | None:

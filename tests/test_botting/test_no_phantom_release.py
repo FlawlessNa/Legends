@@ -172,13 +172,13 @@ def _walk(held: frozenset) -> KeyboardInputWrapper:
 
 def _jump(held: frozenset) -> KeyboardInputWrapper:
     return movements_v2.single_jump(
-        HANDLE, "right", JUMP_KEY, initial_state=InputState(held)
+        HANDLE, "right", JUMP_KEY, initial_state=InputState(held), duration=0.5
     )
 
 
 def _rope(held: frozenset) -> KeyboardInputWrapper:
     return movements_v2.jump_on_rope(
-        HANDLE, "right", JUMP_KEY, initial_state=InputState(held)
+        HANDLE, "right", JUMP_KEY, initial_state=InputState(held), duration=0.5
     )
 
 

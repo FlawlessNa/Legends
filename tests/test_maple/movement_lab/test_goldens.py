@@ -1,7 +1,9 @@
 """
 Curated Goldens: `docs/planning/movement-invariant-catalogue.md` -> **Golden**,
 `CONTEXT.md`. One case per reachable movement type (via its fixture map), plus a
-truncated plan, a Continuation pair, a Preemption at a mid-jump Step, and a telecast.
+narrow landing, the two rope grabs and a fall off a rope's bottom, a truncated plan,
+a Continuation pair, a Preemption at a mid-jump Step, and a telecast. The plans are
+in virtual px, planned on each Fixture map's `FootholdGraph` (#396).
 
 A Golden's cost is in reviewing it, so this covers a curated few - the Invariants in
 `test_invariants.py` already run over the whole Corpus. Each case renders to a `.txt`
@@ -156,7 +158,7 @@ def _map(name: str) -> corpus.CorpusMap:
 
 
 def _record(
-    map_name: str, start: tuple[int, int], end: tuple[int, int]
+    map_name: str, start: tuple[float, float], end: tuple[float, float]
 ) -> corpus.PlanRecord:
     entry = _map(map_name)
     return next(
@@ -168,7 +170,7 @@ def _seeded_compile(
     record: corpus.PlanRecord, map_name: str, **kwargs: object
 ) -> KeyboardInputWrapper:
     random.seed(SEED)
-    wrapper = compile_record(record, corpus.grid(_map(map_name)), **kwargs)  # type: ignore[arg-type]
+    wrapper = compile_record(record, **kwargs)  # type: ignore[arg-type]
     assert wrapper is not None
     return wrapper
 
@@ -178,16 +180,25 @@ def _seeded_compile(
 # Each returns the case's full rendered text. `CASES` is what both this module and
 # `toolkit/movement_lab_sweep.py` walk - the generator and the check share one source.
 
-# name -> (map, start, end): the shortest reachable sample found to exercise that
-# fixture's guaranteed movement type(s) (`corpus.FIXTURE_GUARANTEES`).
-_MOVEMENT_TYPE_CASES: dict[str, tuple[str, tuple[int, int], tuple[int, int]]] = {
-    "walk": ("walk_corridor", (17, 15), (14, 15)),
-    "climb": ("ladder_climb", (20, 10), (20, 15)),
-    "jump_left_right": ("jump_gap", (14, 11), (18, 11)),
-    "jump": ("jump_ledge", (12, 15), (12, 12)),
-    "enter_portal": ("portal_pair", (12, 35), (46, 5)),
-    "teleport": ("teleport_shaft", (5, 19), (14, 19)),
-    "narrow_jump": ("narrow_perch", (14, 15), (18, 13)),
+# name -> (map, start, end): the reachable sample with the fewest components found to
+# exercise that fixture's guaranteed movement type(s) (`corpus.FIXTURE_GUARANTEES`),
+# or the flag the case is named for.
+_MOVEMENT_TYPE_CASES: dict[
+    str, tuple[str, tuple[float, float], tuple[float, float]]
+] = {
+    "walk": ("walk_corridor", (528.0, -20.0), (524.0, -20.0)),
+    "climb": ("ladder_climb", (300.0, -58.0), (300.0, -114.0)),
+    "jump_left_right": ("jump_gap", (180.0, 0.0), (270.0, 0.0)),
+    "jump": ("jump_ledge", (308.0, 0.0), (308.0, -50.0)),
+    "jump_down": ("jump_ledge", (380.0, -50.0), (372.0, 0.0)),
+    "enter_portal": ("portal_pair", (156.0, 0.0), (724.0, -400.0)),
+    "teleport": ("teleport_shaft", (96.0, -110.0), (268.0, -110.0)),
+    "narrow_jump": ("narrow_perch", (160.0, 0.0), (258.0, 0.0)),
+    # A jump straight up into a rope's bottom (#111), and a sideways one onto it.
+    "rope_grab_up": ("rope_grab", (300.0, 0.0), (300.0, -150.0)),
+    "rope_grab_side": ("rope_grab", (356.0, 0.0), (300.0, -82.0)),
+    # Climbing down past a rope's bottom, and falling off it.
+    "rope_fall": ("rope_grab", (500.0, -98.0), (428.0, 0.0)),
 }
 
 
@@ -203,7 +214,7 @@ def _case_truncated_plan() -> str:
     boundary - the everyday case, deliberately not one of the atomic-component cuts
     `test_invariants.test_b1_truncation_integrity` files as a defect."""
     map_name = "walk_corridor"
-    record = _record(map_name, (21, 15), (11, 15))
+    record = _record(map_name, (208.0, 0.0), (4.0, 0.0))
     wrapper = _seeded_compile(record, map_name, total_duration=ACTION_DURATION)
     return render_golden(wrapper)
 
@@ -213,8 +224,8 @@ def _case_continuation_pair() -> str:
     per the catalogue's C-group note that the carry happens on truncation, not on a
     natural stop (which releases everything not forced first)."""
     map_name = "walk_corridor"
-    n = _record(map_name, (27, 15), (12, 15))
-    n_plus_1 = _record(map_name, (32, 15), (30, 15))
+    n = _record(map_name, (208.0, 0.0), (4.0, 0.0))
+    n_plus_1 = _record(map_name, (528.0, -20.0), (524.0, -20.0))
     full_n = _seeded_compile(n, map_name, total_duration=ACTION_DURATION)
     h0 = _post_completion_state(full_n)
     compiled = _seeded_compile(n_plus_1, map_name, initial_state=h0)
@@ -232,8 +243,8 @@ def _case_preemption_mid_jump() -> str:
     Delivered Prefix is what a Preemption at this exact point would also produce;
     the note below it is the direction release D2 adds on the cancellation path,
     which a plain `truncate()` does not (see `focused_inputs`'s `finally` block)."""
-    map_name = "ladder_climb"
-    record = _record(map_name, (22, 19), (34, 8))
+    map_name = "narrow_perch"
+    record = _record(map_name, (108.0, 0.0), (250.0, 0.0))
     cut = _seeded_compile(record, map_name, total_duration=ACTION_DURATION)
     remaining = _post_cancel_held(frozenset(cut.keys_held), cut.forced_key_releases)
     released_by_preemption = sorted((cut.keys_held & DIRECTIONS) - remaining)
@@ -246,7 +257,7 @@ def _case_preemption_mid_jump() -> str:
 
 def _case_telecast() -> str:
     map_name = "teleport_shaft"
-    record = _record(map_name, (5, 19), (14, 19))
+    record = _record(map_name, (96.0, -110.0), (268.0, -110.0))
     compiled = _seeded_compile(record, map_name)
     fused = telecast(compiled, corpus.LAB_IGN, _TELEPORT_SKILL, _ULTIMATE_SKILL)
     return render_golden(fused)

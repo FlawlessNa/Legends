@@ -10,19 +10,39 @@ checked-in `(start, end, reachable)` triples are still true.
 
 import pytest
 
-from maple.model.mechanics.minimap_creation.minimap_grid import ConnectionTypes
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
     _MovementComponent,
     compile_movements,
 )
+from maple.model.navigation import Direction, Move, MoveKind
 from tests.test_maple.movement_lab import corpus
+from tests.test_maple.movement_lab.conftest import CORPUS_PARAMS
 
-CORPUS_IDS = [entry.name for entry in corpus.CORPUS]
 FIXTURE_IDS = [entry.name for entry in corpus.FIXTURE_MAPS]
 
+#: Every move the graph makes, by kind and direction (`foothold_graph`'s docstring).
+GRAPH_MOVES: tuple[tuple[MoveKind, Direction | None], ...] = (
+    (MoveKind.WALK, Direction.LEFT),
+    (MoveKind.WALK, Direction.RIGHT),
+    (MoveKind.CLIMB, Direction.UP),
+    (MoveKind.CLIMB, Direction.DOWN),
+    (MoveKind.JUMP, Direction.LEFT),
+    (MoveKind.JUMP, Direction.RIGHT),
+    (MoveKind.JUMP, Direction.UP),
+    (MoveKind.DROP, Direction.DOWN),
+    (MoveKind.FALL, Direction.LEFT),
+    (MoveKind.FALL, Direction.RIGHT),
+    (MoveKind.FALL, Direction.DOWN),
+    (MoveKind.TELEPORT, Direction.LEFT),
+    (MoveKind.TELEPORT, Direction.RIGHT),
+    (MoveKind.TELEPORT, Direction.UP),
+    (MoveKind.TELEPORT, Direction.DOWN),
+    (MoveKind.PORTAL, None),
+)
 
-@pytest.fixture(params=corpus.CORPUS, ids=CORPUS_IDS)
+
+@pytest.fixture(params=CORPUS_PARAMS)
 def entry(request: pytest.FixtureRequest) -> corpus.CorpusMap:
     return request.param
 
@@ -32,19 +52,33 @@ def fixture_entry(request: pytest.FixtureRequest) -> corpus.CorpusMap:
     return request.param
 
 
+def _fixture(name: str) -> corpus.CorpusMap:
+    return next(e for e in corpus.FIXTURE_MAPS if e.name == name)
+
+
+def _components(name: str) -> list[_MovementComponent]:
+    return [
+        component
+        for record in corpus.plans(_fixture(name))
+        for component in record.movements
+    ]
+
+
 # --- The coverage matrix ----------------------------------------------------------
 
 
-def test_the_coverage_matrix_has_thirteen_rows() -> None:
+def test_the_coverage_matrix_has_twelve_rows() -> None:
     """
-    `path_into_movements` can emit 13 of the 16 `MovementTypes`. Pinned so that adding
-    a movement type without a Corpus entry that reaches it fails here, naming the gap,
-    rather than quietly leaving a row unchecked.
+    A graph Path can be planned into 12 of the 16 `MovementTypes`. Pinned so that
+    adding a movement type without a Corpus entry that reaches it fails here, naming
+    the gap, rather than quietly leaving a row unchecked.
     """
-    assert len(corpus.REACHABLE_MOVEMENT_TYPES) == 13
-    assert corpus.UNREACHABLE_BY_CONSTRUCTION | corpus.REACHABLE_MOVEMENT_TYPES == (
-        set(MovementTypes) - {MovementTypes.END_OF_MOVEMENT}
-    )
+    assert len(corpus.REACHABLE_MOVEMENT_TYPES) == 12
+    assert (
+        corpus.UNREACHABLE_BY_CONSTRUCTION
+        | corpus.NEVER_PLANNED
+        | corpus.REACHABLE_MOVEMENT_TYPES
+    ) == (set(MovementTypes) - {MovementTypes.END_OF_MOVEMENT})
 
 
 def test_the_fixture_maps_alone_cover_every_reachable_movement_type() -> None:
@@ -80,34 +114,55 @@ def test_the_narrow_perch_fixture_produces_jumps_onto_a_narrow_platform() -> Non
     `narrow` is a flag on a component, not a movement type, so it has no row in the
     matrix - but it changes what the jump builders emit, so the Corpus has to reach it.
     """
-    entry = next(e for e in corpus.FIXTURE_MAPS if e.name == "narrow_perch")
+    assert any(c.narrow for c in _components("narrow_perch")), (
+        "narrow_perch produced no jump onto a narrow platform"
+    )
 
-    narrow = [
-        component
-        for record in corpus.plans(entry)
-        for component in record.movements
-        if component.narrow
-    ]
 
-    assert narrow, "narrow_perch produced no jump onto a narrow platform"
+def test_the_jump_gap_fixture_produces_edge_departures() -> None:
+    """`edge_departure` adds the pre-departure stop (PM3): the Corpus reaches it."""
+    assert any(c.edge_departure for c in _components("jump_gap"))
+
+
+def test_the_rope_grab_fixture_grabs_a_rope_straight_up_and_sideways() -> None:
+    """
+    `grabs_rope` picks the rope-grab builders (PM1): `jump_up_on_rope` for a jump
+    straight up (#111), `jump_on_rope` for a sideways one. Both are reached.
+    """
+    grabs = {c.movement_type for c in _components("rope_grab") if c.grabs_rope}
+
+    assert MovementTypes.JUMP in grabs
+    assert grabs & {MovementTypes.JUMP_LEFT, MovementTypes.JUMP_RIGHT}
+
+
+def test_the_rope_grab_fixture_falls_off_a_ropes_bottom() -> None:
+    """A fall off a rope's bottom is a `CLIMB_DOWN` lasting the fall's time."""
+    assert any(
+        c.movement_type is MovementTypes.CLIMB_DOWN and c.duration is not None
+        for c in _components("rope_grab")
+    )
 
 
 # --- Unreachable by construction --------------------------------------------------
 
 
-def test_no_connection_type_maps_to_an_unimplemented_movement() -> None:
+def test_every_graph_move_plans_into_a_movement_type_the_matrix_names() -> None:
     """
-    Why the three are unreachable rather than uncovered: `path_into_movements` names a
-    movement by `MovementTypes[connection_type.name]`, and no `ConnectionTypes` member
-    carries one of these names - they are commented out as `NotImplemented` there.
+    Why the three are unreachable rather than uncovered: no graph move is planned
+    into one of them. And every graph move is planned into a row of the matrix, or
+    into `NEVER_PLANNED`, which the graph makes but never chooses.
     """
-    named_by_a_connection = {
-        MovementTypes[connection.name]
-        for connection in ConnectionTypes
-        if connection.name in MovementTypes.__members__
+    handler = corpus.handler(_fixture("walk_corridor"))
+    platform = corpus.world_map(_fixture("walk_corridor")).platforms[0]
+    planned = {
+        handler._component(  # pyright: ignore[reportPrivateUsage]
+            Move(kind, direction, (0.0, 0.0), (0.0, 0.0), platform, platform, 0.1)
+        ).movement_type
+        for kind, direction in GRAPH_MOVES
     }
 
-    assert not named_by_a_connection & corpus.UNREACHABLE_BY_CONSTRUCTION
+    assert not planned & corpus.UNREACHABLE_BY_CONSTRUCTION
+    assert planned == corpus.REACHABLE_MOVEMENT_TYPES | corpus.NEVER_PLANNED
 
 
 def test_the_corpus_emits_no_unimplemented_movement(entry: corpus.CorpusMap) -> None:
@@ -121,12 +176,12 @@ def test_an_unimplemented_movement_raises_rather_than_compiling(
     move_type: MovementTypes, held_movement_keys: object
 ) -> None:
     """
-    The other half of "unreachable by construction": were a grid ever to produce one,
+    The other half of "unreachable by construction": were a Path ever to produce one,
     compilation raises rather than emitting something plausible and wrong.
     """
     plan = (
         _MovementComponent(move_type, 1),
-        _MovementComponent(MovementTypes.END_OF_MOVEMENT, 1),
+        _MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),
     )
 
     with pytest.raises(NotImplementedError, match=move_type.name):
@@ -153,7 +208,7 @@ def test_no_pairs_file_is_orphaned() -> None:
     """A sample left behind by a map that has since left the Corpus is dead data."""
     on_disk = {path.stem for path in corpus.PAIRS_ROOT.glob("*.json")}
 
-    assert on_disk == {entry.name for entry in corpus.CORPUS}
+    assert on_disk == {entry.file_stem for entry in corpus.CORPUS}
 
 
 def test_the_frozen_pairs_are_reproducible_from_the_seed(
@@ -161,7 +216,7 @@ def test_the_frozen_pairs_are_reproducible_from_the_seed(
 ) -> None:
     """
     Half of "rerunning the generator reproduces the file": which pairs were drawn, and
-    in what order, is a pure function of the seed and the map's walkable nodes.
+    in what order, is a pure function of the seed and the map's candidate points.
     """
     drawn = corpus.draw_pairs(entry)
     recorded = tuple((pair.start, pair.end) for pair in corpus.load_sample(entry))
@@ -169,24 +224,30 @@ def test_the_frozen_pairs_are_reproducible_from_the_seed(
     assert drawn == recorded
 
 
-def test_the_frozen_reachability_still_matches_the_grid(
+def test_the_frozen_reachability_still_matches_the_graph(
     entry: corpus.CorpusMap,
 ) -> None:
     """
     The other half, and the one with teeth: reachability is recorded as data, so a
     pair that stops being reachable - or starts being - fails here instead of being
-    silently skipped by a check that queried the grid itself.
+    silently skipped by a check that queried the graph itself.
     """
     disagreed = [
-        (record.pair.start, record.pair.end, record.pair.reachable, bool(record.path))
+        (
+            record.pair.start,
+            record.pair.end,
+            record.pair.reachable,
+            record.path is not None,
+        )
         for record in corpus.plans(entry)
-        if bool(record.path) != record.pair.reachable
+        if (record.path is not None) != record.pair.reachable
     ]
 
     assert not disagreed, (
         f"{len(disagreed)} pair(s) in {entry.pairs_path.name} no longer agree with the "
-        f"grid; regenerate with `python toolkit/generate_movement_lab_pairs.py "
-        f"{entry.name}` once the change is known to be deliberate. First: {disagreed[0]}"
+        f"graph; regenerate with `python toolkit/generate_movement_lab_pairs.py "
+        f"{entry.name!r}` once the change is known to be deliberate. "
+        f"First: {disagreed[0]}"
     )
 
 
@@ -208,7 +269,9 @@ def test_the_corpus_samples_both_reachable_and_unreachable_pairs() -> None:
     answers. `portal_pair`'s portal is one-directional for exactly this reason.
     """
     reachable = {
-        pair.reachable for entry in corpus.CORPUS for pair in corpus.load_sample(entry)
+        pair.reachable
+        for entry in corpus.FIXTURE_MAPS
+        for pair in corpus.load_sample(entry)
     }
 
     assert reachable == {True, False}

@@ -1,10 +1,16 @@
 Holds (key, t_down, t_up):
-  right    0.000 0.884
-  space    0.066 0.133
+  right    0.000 0.169
+  right    0.170 0.761
+  right    0.762 0.824
+  space    0.204 0.238
 
-right keydown for 0.065s
-space keydown for 0.065s
-space keyup for 0.750s
+right keydown for 0.168s
 right keyup for 0.000s
-Total Duration: 0.885s
+right keydown for 0.033s
+space keydown for 0.033s
+space keyup for 0.522s
+right keyup for 0.000s
+['right'] ['keydown'] for 0.061s
+['right'] ['keyup'] for 0.000s
+Total Duration: 0.825s
 Forced Key Releases: ['space']

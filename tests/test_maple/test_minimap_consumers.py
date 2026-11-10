@@ -328,15 +328,21 @@ def test_the_error_handler_moves_the_cursor_before_it_toggles_the_minimap(
 
 
 class _Fusion:
-    """Answers `position`, and counts its reads."""
+    """
+    Answers `position`, and counts its reads. `minimap_read` says whether the
+    minimap gave a position, as `Fusion.minimap` does.
+    """
 
-    def __init__(self, position: Reading[VirtualPosition]) -> None:
+    def __init__(
+        self, position: Reading[VirtualPosition], *, minimap_read: bool = True
+    ) -> None:
         self.position = position
+        self.minimap_read = minimap_read
         self.reads = 0
 
     def read(self, frame: Frame, minimap: Reading[MinimapView]) -> Fusion:
         self.reads += 1
-        return Fusion(self.position, (600, 336), near=1)
+        return Fusion(self.position, (600, 336) if self.minimap_read else None, near=1)
 
 
 def _located(fusion: _Fusion | None) -> tuple[_Positioned, list[tuple[str, Any]]]:
@@ -376,10 +382,28 @@ def test_the_position_is_fusions_and_each_read_is_recorded() -> None:
     ]
 
 
-def test_an_unsure_position_is_recorded_then_raises_for_the_error_handler() -> None:
-    located, emitted = _located(_Fusion(Reading.unsure(3.0, "the reads disagree")))
+def test_an_unsure_fusion_with_the_minimap_read_is_returned_for_its_consumer() -> None:
+    """
+    The reads disagree, or two characters stand where the minimap puts ours: the
+    minimap's error handler can't fix that, so the `UNSURE` reading is the answer,
+    and a consumer holds (#396: `MovementsMixin` plans no Path).
+    """
+    unsure = Reading.unsure(3.0, "the reads disagree")
+    located, emitted = _located(_Fusion(unsure))
 
-    with pytest.raises(ValueError, match="position unsure: the reads disagree"):
+    assert located._get_position() == unsure
+    assert [(e, p["status"], p["source"]) for e, p in emitted] == [
+        (POSITION_READ, "unsure", None)
+    ]
+
+
+def test_an_unsure_position_with_no_minimap_read_raises_for_the_error_handler() -> None:
+    """With no minimap position, the minimap's handler is the one to make it readable."""
+    located, emitted = _located(
+        _Fusion(Reading.unsure(3.0, "minimap unsure: covered"), minimap_read=False)
+    )
+
+    with pytest.raises(ValueError, match="position unsure: minimap unsure: covered"):
         located._get_position()
     assert [(e, p["status"], p["source"]) for e, p in emitted] == [
         (POSITION_READ, "unsure", None)

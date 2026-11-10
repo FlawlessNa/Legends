@@ -44,8 +44,8 @@ that. Where the ground is flat a jump across a join costs exactly the walk's
 time, and A* would otherwise plan it (#114). The jumps stay in `moves`, and a
 `Move`'s duration is still the physics' own.
 
-Nothing consumes the graph yet: Movement Plans read it from #396, so no keys
-change here.
+Movement Plans are planned on it (`MovementHandler`, #396), one graph per
+`VRPhysics`, so a change of the character's stats builds a new one.
 """
 
 import heapq

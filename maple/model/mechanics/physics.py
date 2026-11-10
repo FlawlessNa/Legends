@@ -9,7 +9,10 @@ Climb and teleport are not in the game files, so they start from named
 constants until Trials measure them (#397). Each value is then multiplied by
 its Calibration constant (`Calibration`).
 
-Nothing consumes `VRPhysics` yet: Movement Plans move to virtual px in #396.
+Movement Plans are planned and compiled on it (#396), with the character's
+current speed and jump multipliers: a bot reads `Physics.img` once
+(`game_physics`) and builds a `VRPhysics` from it whenever it plans, so a
+change of stat reaches the next Path.
 
 `MinimapPhysics` is the minimap-pixel model the grid still runs on, until #399
 removes it with the hard-coded table it reads.
@@ -42,6 +45,17 @@ PHYSICS_KEYS = ("walkSpeed", "jumpSpeed", "gravityAcc", "fallSpeed")
 
 #: The Calibration constants a profile's `calibration` setting may name.
 CALIBRATION_KEYS = ("walk", "jump", "climb", "teleport")
+
+
+def game_physics(root: Path = STORE) -> dict[str, float]:
+    """
+    The latest extraction's `Map/Physics.img` values, as
+    `VRPhysics.from_game_files` takes them.
+
+    :raises CatalogueError: The store has no extraction.
+    """
+    with Catalogue.latest(root) as cat:
+        return dict(cat.physics())
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,10 +146,8 @@ class VRPhysics:
         :raises CatalogueError: The store has no extraction.
         :raises KeyError: `Physics.img` lacks a key `VRPhysics` reads.
         """
-        with Catalogue.latest(root) as cat:
-            physics = cat.physics()
         return cls.from_game_files(
-            physics,
+            game_physics(root),
             speed_multiplier=speed_multiplier,
             jump_multiplier=jump_multiplier,
             calibration=calibration,

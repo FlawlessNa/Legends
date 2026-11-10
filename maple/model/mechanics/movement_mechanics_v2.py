@@ -1,12 +1,46 @@
+"""
+Movement Plans in virtual px, and their compilation into Input Sequences.
+
+`MovementHandler` plans a `Path` on the map's `FootholdGraph`, from the
+character's virtual position to a virtual target (`compute_path`), and turns
+its moves into a Movement Plan (`path_into_movements`): one component per
+move, except that consecutive walks (and consecutive climbs) the same way are
+one component, cut into pieces of at most `_MAX_TRAVEL_LENGTH`.
+`compile_movements` compiles a Movement Plan into an Input Sequence, at
+dispatch (ADR 0002).
+
+**Units.** A component's `length` is in virtual px. A walk or a climb lasts its
+length at the physics' walk or climb speed; every other move lasts what the
+graph says it takes (`_MovementComponent.duration`): a jump its flight, a drop
+its fall, a portal its planning time. No compile time is a fixed number of
+seconds of its own.
+
+**Which graph moves become which component.**
+
+- `WALK` left or right: `WALK_LEFT`/`WALK_RIGHT`, its length along x. A walk
+  across a join adds nothing.
+- `FALL` off a platform's end: the walk the same way, since the direction is
+  held through the fall. Its length is its drift, `|landing x - take-off x|`,
+  which is the walk speed times the fall's time.
+- `FALL` off a rope's bottom: `CLIMB_DOWN`, its length the drop, lasting the
+  fall's time.
+- `CLIMB` up or down: `CLIMB_UP`/`CLIMB_DOWN`, its length along y.
+- `JUMP` left, right or up: `JUMP_LEFT`/`JUMP_RIGHT`/`JUMP`, lasting its flight;
+  `grabs_rope` when it ends on a rope.
+- `DROP`: `JUMP_DOWN`, lasting its fall.
+- `TELEPORT`: `TELEPORT_*`; consecutive teleports the same way are one
+  component of that many `casts`, as the teleport builder casts them.
+- `PORTAL`: `ENTER_PORTAL`.
+"""
+
+from __future__ import annotations
+
 import logging
+import math
 from enum import IntEnum
 from functools import lru_cache
-from itertools import groupby, pairwise
-from typing import Literal, NamedTuple
-
-import cv2
-import numpy as np
-from pathfinding.finder.dijkstra import DijkstraFinder
+from itertools import pairwise
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
 from botting import PARENT_LOG
 from botting.controller import (
@@ -16,11 +50,18 @@ from botting.controller import (
     KeyboardInputWrapper,
     key_binds,
 )
+from game_data.catalogue import Rope
 from maple.actions import movements_v2
 from maple.model.characters.maple_skills import MapleSkill
+from maple.model.navigation.moves import Direction as MoveDirection
+from maple.model.navigation.moves import Move, MoveKind, Path, Point
+from maple.model.world import Platform
 
-from .maple_map import MapleMinimap
-from .minimap_creation.minimap_grid import ConnectionTypes, MinimapGrid, MinimapNode
+if TYPE_CHECKING:
+    from maple.model.navigation.foothold_graph import FootholdGraph
+    from maple.model.world import WorldMap
+
+    from .physics import VRPhysics
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -62,15 +103,23 @@ class MovementTypes(IntEnum):
     END_OF_MOVEMENT = 99  # Last movement, used to release any remaining held key.
 
 
-# Platforms this narrow (minimap pixels) get a direction-stop after landing. The
-# default only: `MovementHandler` carries its own, so a Trial batch can sweep it as a
-# Knob without touching production's value.
-_NARROW_PLATFORM_THRESHOLD = 5
+#: Virtual px a walk or a climb component may be at most: a longer one is cut
+#: into equal pieces. Was `_MAX_WALK_SIZE`, 5 minimap px; at 16 virtual px per
+#: minimap px (every MSCW minimap, `mag` 4) that is 80.
+_MAX_TRAVEL_LENGTH = 80.0
 
-# A start node this close (minimap pixels) to its platform's end, in the travel
-# direction, gets the edge-departure flag (PM3). Same shape as the threshold above:
-# module default only, `MovementHandler` carries its own per-instance value.
-_EDGE_DEPARTURE_THRESHOLD = 5
+#: Platforms this narrow (virtual px, right end minus left end) get a
+#: direction-stop after a jump or teleport lands on them. Was 5 minimap px;
+#: at 16 virtual px each that is 80. The default only: `MovementHandler` carries
+#: its own, so a Trial batch can sweep it as a Knob without touching
+#: production's value.
+_NARROW_PLATFORM_THRESHOLD = 80.0
+
+#: A jump or teleport that takes off this close (virtual px) to its platform's
+#: end, in the travel direction, gets the edge-departure flag (PM3). Was 5
+#: minimap px, 80 virtual px. Same shape as the threshold above: module default
+#: only, `MovementHandler` carries its own per-instance value.
+_EDGE_DEPARTURE_THRESHOLD = 80.0
 
 _PRECISION_PRE_STOP = frozenset(
     {
@@ -82,48 +131,93 @@ _PRECISION_PRE_STOP = frozenset(
     }
 )
 
-_JUMP_CONNECTION_TYPES = frozenset(
+_JUMPS = frozenset(
     {
-        ConnectionTypes.JUMP,
-        ConnectionTypes.JUMP_LEFT,
-        ConnectionTypes.JUMP_RIGHT,
-        ConnectionTypes.JUMP_DOWN,
+        MovementTypes.JUMP,
+        MovementTypes.JUMP_LEFT,
+        MovementTypes.JUMP_RIGHT,
+        MovementTypes.JUMP_DOWN,
     }
 )
 
-_TELEPORT_CONNECTION_TYPES = frozenset(
+_CLIMBS = frozenset({MovementTypes.CLIMB_UP, MovementTypes.CLIMB_DOWN})
+
+_TELEPORTS = frozenset(
     {
-        ConnectionTypes.TELEPORT_LEFT,
-        ConnectionTypes.TELEPORT_RIGHT,
-        ConnectionTypes.TELEPORT_UP,
-        ConnectionTypes.TELEPORT_DOWN,
+        MovementTypes.TELEPORT_LEFT,
+        MovementTypes.TELEPORT_RIGHT,
+        MovementTypes.TELEPORT_UP,
+        MovementTypes.TELEPORT_DOWN,
     }
 )
 
-# Landing width (PM2) applies to any jump or teleport that lands on a platform.
-_NARROW_CONNECTION_TYPES = _JUMP_CONNECTION_TYPES | _TELEPORT_CONNECTION_TYPES
+#: Components that are travel along a surface: merged and cut by length.
+_TRAVEL = frozenset({MovementTypes.WALK_LEFT, MovementTypes.WALK_RIGHT}) | _CLIMBS
+
+# Landing width (PM2) applies to any jump, drop or teleport that lands on a platform.
+_NARROW_KINDS = frozenset({MoveKind.JUMP, MoveKind.DROP, MoveKind.TELEPORT})
 
 # Edge departure (PM3) only has a "travel direction" sense for horizontal gestures -
 # a platform has a left/right end, not an up/down one.
-_EDGE_DEPARTURE_CONNECTION_TYPES = frozenset(
-    {
-        ConnectionTypes.JUMP_LEFT,
-        ConnectionTypes.JUMP_RIGHT,
-        ConnectionTypes.TELEPORT_LEFT,
-        ConnectionTypes.TELEPORT_RIGHT,
-    }
-)
+_EDGE_DEPARTURE_KINDS = frozenset({MoveKind.JUMP, MoveKind.TELEPORT})
+
+_SIDEWAYS = {
+    MoveDirection.LEFT: "LEFT",
+    MoveDirection.RIGHT: "RIGHT",
+    MoveDirection.UP: "UP",
+    MoveDirection.DOWN: "DOWN",
+}
 
 
 class _MovementComponent(NamedTuple):
     """
-    NamedTuple to hold the movement type and the duration of the movement.
+    One component of a Movement Plan.
+
+    :ivar length: Virtual px: along x for a walk (a fall's drift included) and
+        for a jump or a sideways teleport, along y for a climb, a fall off a
+        rope and an up or down teleport; 0 for a jump straight up, a drop and
+        a portal.
+    :ivar narrow: This jump, drop or teleport lands on a platform at most
+        `narrow_platform_threshold` virtual px wide.
+    :ivar edge_departure: This sideways jump or teleport takes off within
+        `edge_departure_threshold` virtual px of its platform's end, in the
+        travel direction.
+    :ivar duration: Seconds it lasts, when that is not its length at the
+        physics' speed: a jump's flight (to its landing, or to the rope it
+        grabs), a drop's or a fall's time, a portal's planning time. `None`
+        for a walk or a climb.
+    :ivar grabs_rope: This jump ends on a rope.
+    :ivar casts: How many teleports, back to back, a `TELEPORT_*` component is;
+        1 for every other component.
+    :ivar start: Where it takes off, virtual px; `None` for a plan built by
+        hand.
+    :ivar end: Where it ends, likewise.
     """
 
     movement_type: MovementTypes
-    length: int
-    narrow: bool = False  # True when this jump/teleport lands on a narrow platform (≤ narrow_platform_threshold px)
-    edge_departure: bool = False  # True when this jump/teleport starts within edge_departure_threshold px of its platform's end, in the travel direction
+    length: float
+    narrow: bool = False
+    edge_departure: bool = False
+    duration: float | None = None
+    grabs_rope: bool = False
+    casts: int = 1
+    start: Point | None = None
+    end: Point | None = None
+
+
+def _flight(move: _MovementComponent) -> float:
+    """
+    The seconds a jump's keys are held for: its flight, as the graph traced it.
+
+    :raises ValueError: The component carries none. A jump's hold is never a
+        fixed number of seconds.
+    """
+    if move.duration is None:
+        raise ValueError(
+            f"{move.movement_type.name} has no duration: a jump lasts its flight, "
+            f"which its Movement Plan component carries from the graph's move"
+        )
+    return move.duration
 
 
 def compile_movements(
@@ -133,6 +227,7 @@ def compile_movements(
     handle: int,
     ign: str,
     speed: float,
+    climb_speed: float | None = None,
     teleport: MapleSkill | None = None,
     total_duration: float | None = None,
     always_release: bool = False,
@@ -153,13 +248,19 @@ def compile_movements(
         fixture. None falls back to the live query, which is only correct in Main
         Process.
     :param movements: The Movement Plan to compile.
-    :param speed: The grid's speed, which converts a movement's length to a duration.
+    :param speed: The walk speed, virtual px/s (`VRPhysics.walk_speed`): a walk
+        lasts its length at it.
+    :param climb_speed: The climb speed, virtual px/s (`VRPhysics.climb_speed`);
+        `speed` when not given.
     :param total_duration: When given, compilation stops once the sequence reaches it.
     :param always_release: Force-release every key still held at the end of the
         sequence. This is the flag form of what `_always_release_keys_on_actions`
         used to do by post-processing a compiled Action in the Engine process.
     :return: The Input Sequence, or None when the plan compiles to nothing.
+    :raises ValueError: A jump carries no `duration`, a drop grabs a rope, or a
+        teleport is planned with no teleport skill.
     """
+    climb = speed if climb_speed is None else climb_speed
     structure = None
     for origin, (move, upcoming_move) in enumerate(pairwise(movements)):
         # Provenance: every Step the builders below emit belongs to component `origin`.
@@ -172,8 +273,7 @@ def compile_movements(
         # below claims them.
         if structure is not None:
             structure.current_origin = origin
-        move_type, move_length = move.movement_type, move.length
-        duration = move_length / speed
+        move_type = move.movement_type
         match move_type:
             case MovementTypes.WALK_LEFT | MovementTypes.WALK_RIGHT:
                 direction = _DIRECTIONS[move_type.name.split("_")[-1].lower()]
@@ -195,7 +295,9 @@ def compile_movements(
                     handle,
                     direction,
                     secondary,
-                    duration=duration,
+                    duration=(
+                        move.length / speed if move.duration is None else move.duration
+                    ),
                     structure=structure,
                     release_keys=release_keys,
                     initial_state=initial_state,
@@ -204,86 +306,93 @@ def compile_movements(
             case MovementTypes.CLIMB_UP | MovementTypes.CLIMB_DOWN:
                 direction = _DIRECTIONS[move_type.name.split("_")[-1].lower()]
                 secondary = None
-                if upcoming_move.movement_type is MovementTypes.WALK_LEFT:
-                    secondary = "left"
-                elif upcoming_move.movement_type is MovementTypes.WALK_RIGHT:
-                    secondary = "right"
+                # A climb carries the next walk's direction, so the character steps
+                # off the rope's end straight into it. A fall off a rope's bottom
+                # (a climb with a duration) does not: held in the air, the
+                # direction would carry it sideways off its landing.
+                if move.duration is None:
+                    if upcoming_move.movement_type is MovementTypes.WALK_LEFT:
+                        secondary = "left"
+                    elif upcoming_move.movement_type is MovementTypes.WALK_RIGHT:
+                        secondary = "right"
                 # TODO - See if duration needs to be extended
                 structure = movements_v2.move(
                     handle,
                     direction,
                     secondary,
-                    duration=duration,
+                    duration=(
+                        move.length / climb if move.duration is None else move.duration
+                    ),
                     structure=structure,
                     initial_state=initial_state,
                 )
 
             case (
-                MovementTypes.JUMP
-                | MovementTypes.JUMP_LEFT
-                | MovementTypes.JUMP_RIGHT
-                | MovementTypes.JUMP_DOWN
+                MovementTypes.JUMP | MovementTypes.JUMP_LEFT | MovementTypes.JUMP_RIGHT
             ):
-                direction = (
-                    "up"
-                    if move_type is MovementTypes.JUMP
-                    else _DIRECTIONS[move_type.name.split("_")[-1].lower()]
-                )
                 jump_key = key_binds(ign)["jump"]
-                for _ in range(move_length - 1):
-                    structure = movements_v2.single_jump(
+                flight = _flight(move)
+                if move.grabs_rope and move_type is MovementTypes.JUMP:
+                    # Straight up into a rope's bottom (#111): its own shape, which
+                    # holds `up` into the climb.
+                    structure = movements_v2.jump_up_on_rope(
                         handle,
-                        direction,
                         jump_key,
                         structure=structure,
                         initial_state=initial_state,
+                        duration=flight,
                     )
-
-                # For the last jump, look at the next move
-                if upcoming_move.movement_type is MovementTypes.CLIMB_UP:
-                    # TODO - forced key releases, longer delays.
-                    # Todo so, implement a forced release mode on KeyboardInputWrapper
+                elif move.grabs_rope:
+                    side: Literal["left", "right"] = (
+                        "left" if move_type is MovementTypes.JUMP_LEFT else "right"
+                    )
                     structure = movements_v2.jump_on_rope(
                         handle,
-                        # `direction` is 'up' for a plain JUMP and 'down' for a
-                        # JUMP_DOWN, neither of which `jump_on_rope` accepts: it
-                        # presses 'up' itself. For 'up', that's pressed twice and
-                        # released once, leaving it held (issue #111 - open; what a
-                        # straight-up jump onto a rope should compile to needs a
-                        # client to settle). For 'down', `jump_on_rope` no longer
-                        # double-releases it (issue #131 - its own 'up' press can
-                        # already clear 'down' as the opposite key). Passed through
-                        # unchanged rather than guessed at either way. Latent - the
-                        # `**kwargs` dict this call used to go through erased the
-                        # type.
-                        direction,  # pyright: ignore[reportArgumentType]
+                        side,
                         jump_key,
                         structure=structure,
                         initial_state=initial_state,
+                        duration=flight,
                     )
                 else:
+                    direction = (
+                        "up"
+                        if move_type is MovementTypes.JUMP
+                        else _DIRECTIONS[move_type.name.split("_")[-1].lower()]
+                    )
                     structure = movements_v2.single_jump(
                         handle,
                         direction,
                         jump_key,
                         structure=structure,
                         initial_state=initial_state,
+                        duration=flight,
                     )
-                    if move.narrow:
-                        # Narrow platform: release horizontal key on landing so the
-                        # character doesn't walk off the edge after touching down.
-                        held_dir = next(
-                            (k for k in structure.keys_held if k in ("left", "right")),
-                            None,
-                        )
-                        if held_dir:
-                            structure.append(held_dir, "keyup", 0)
+                    structure = _narrow_stop(structure, move)
+
+            case MovementTypes.JUMP_DOWN:
+                if move.grabs_rope:
+                    raise ValueError(
+                        "JUMP_DOWN grabs a rope: a drop lands on a platform only"
+                    )
+                jump_key = key_binds(ign)["jump"]
+                structure = movements_v2.single_jump(
+                    handle,
+                    "down",
+                    jump_key,
+                    structure=structure,
+                    initial_state=initial_state,
+                    duration=_flight(move),
+                )
+                structure = _narrow_stop(structure, move)
 
             case MovementTypes.ENTER_PORTAL:
                 structure = movements_v2.move(
                     handle,
                     "up",
-                    duration=duration,
+                    duration=(
+                        move.length / speed if move.duration is None else move.duration
+                    ),
                     structure=structure,
                     initial_state=initial_state,
                 )
@@ -311,7 +420,7 @@ def compile_movements(
                     ign,
                     direction,
                     teleport,
-                    move_length,
+                    move.casts,
                     structure=structure,
                     repeat_key=repeat_key,
                     initial_state=initial_state,
@@ -401,42 +510,69 @@ def compile_movements(
     return structure
 
 
+def _narrow_stop(
+    structure: KeyboardInputWrapper, move: _MovementComponent
+) -> KeyboardInputWrapper:
+    """
+    Narrow platform: release the horizontal key on landing so the character
+    doesn't walk off the edge after touching down.
+    """
+    if move.narrow:
+        held_dir = next(
+            (k for k in structure.keys_held if k in ("left", "right")),
+            None,
+        )
+        if held_dir:
+            structure.append(held_dir, "keyup", 0)
+    return structure
+
+
 class MovementHandler:
-    _MAX_WALK_SIZE = 5
-    _FALL_LEN_EXT = 3
-    _CACHE_MAXSIZE = (
-        256  # bounded: avoids unbounded growth from stale entries on grid edits
-    )
+    """
+    Plans Paths on a map's `FootholdGraph` and turns them into Movement Plans.
+
+    **The graph follows the character's stats.** Its jump ranges and times
+    depend on the jump arc, so the graph is built per `VRPhysics`: a path is
+    planned on the graph of the physics it is asked with, built the first time
+    those physics are seen and kept while they stay current (`_GRAPHS` are
+    kept, so a stat that flips back costs nothing). A change of speed or jump
+    stat is a new `VRPhysics`, and the next Path is planned on its graph.
+    """
+
+    _CACHE_MAXSIZE = 256  # bounded: plans for stale positions age out
+    _GRAPHS = 2
 
     def __init__(
         self,
         handle: int,
-        minimap: MapleMinimap,
+        world_map: WorldMap,
         ign: str,
         teleport: MapleSkill | None = None,
         *,
-        debug: bool = False,
         narrow_platform_threshold: float | None = None,
         edge_departure_threshold: float | None = None,
     ) -> None:
         """
-        :param narrow_platform_threshold: Platform width (minimap pixels) at or below
-            which a jump or teleport onto it is marked `narrow`, so compilation adds
-            the landing direction-stop. `None` is the module default, which is what
-            production wants. It is per-instance because it is a **Knob** a Trial
-            batch sweeps (`maple.calibration.specs.Knobs`), and it shapes the
-            Movement Plan here, in the Engine - `compile_movements` reads the
-            component's `narrow` flag and never the threshold, so the send path is
-            untouched.
-        :param edge_departure_threshold: Distance (minimap pixels) from a platform's
-            end, in the travel direction, within which a jump or teleport's start
-            node is marked `edge_departure`, so compilation adds the pre-departure
-            stop. Same shape as `narrow_platform_threshold`: `None` is the module
-            default, per-instance because it is a Knob, and read by
+        :param world_map: The map the paths are planned on.
+        :param teleport: The character's teleport skill: with it, the graph
+            holds teleport moves.
+        :param narrow_platform_threshold: Platform width (virtual px) at or
+            below which a jump, drop or teleport onto it is marked `narrow`, so
+            compilation adds the landing direction-stop. `None` is the module
+            default, which is what production wants. It is per-instance because
+            it is a **Knob** a Trial batch sweeps (`maple.calibration.specs.Knobs`),
+            and it shapes the Movement Plan here, in the Engine -
+            `compile_movements` reads the component's `narrow` flag and never the
+            threshold, so the send path is untouched.
+        :param edge_departure_threshold: Distance (virtual px) from a platform's
+            end, in the travel direction, within which a jump or teleport's
+            take-off is marked `edge_departure`, so compilation adds the
+            pre-departure stop. Same shape as `narrow_platform_threshold`: `None`
+            is the module default, per-instance because it is a Knob, and read by
             `compile_movements` only through the component's `edge_departure` flag.
         """
         self.handle = handle
-        self.minimap = minimap
+        self.world_map = world_map
         self.ign = ign
         self.teleport = teleport
         self.narrow_platform_threshold = (
@@ -449,151 +585,162 @@ class MovementHandler:
             if edge_departure_threshold is None
             else edge_departure_threshold
         )
-        self._debug = debug
         # Per-instance, bounded caches: an `@lru_cache` on the method itself would key
         # on `self`, pinning every handler ever created in memory for the process
-        # lifetime. Binding the cache here scopes it (and its staleness on grid edits)
-        # to this instance, so it's freed when the handler is.
+        # lifetime. Binding the cache here scopes it to this instance, so it's freed
+        # when the handler is.
+        self.graph = lru_cache(maxsize=self._GRAPHS)(self._build_graph)
         self._compute_path = lru_cache(maxsize=self._CACHE_MAXSIZE)(
             self._compute_path_uncached
         )
         self.path_into_movements = lru_cache(maxsize=self._CACHE_MAXSIZE)(
             self._path_into_movements_uncached
         )
-        self.movements_into_action = lru_cache(maxsize=self._CACHE_MAXSIZE)(
-            self._movements_into_action_uncached
+
+    def _build_graph(self, physics: VRPhysics) -> FootholdGraph:
+        # Imported here: `maple.model.navigation` imports this package's
+        # `physics`, so a module-level import would be circular.
+        from maple.model.navigation.foothold_graph import FootholdGraph
+
+        logger.info("Building the foothold graph of map %d.", self.world_map.id)
+        return FootholdGraph.build(
+            self.world_map, physics, teleport=self.teleport is not None
         )
 
     def compute_path(
-        self, start: tuple[int, int], end: tuple[int, int], grid: MinimapGrid
-    ) -> tuple[MinimapNode, ...]:
-        path = self._compute_path(start, end, grid)
-        self._run_debug(start, end, path)
-        return tuple(path)
+        self, start: Point, goal: Point, physics: VRPhysics
+    ) -> Path | None:
+        """
+        The quickest Path from `start` to `goal`, in virtual px, on the graph of
+        `physics`.
+
+        :return: `None` when no path joins them, or when either lies on no
+            platform or rope (the character in the air, say): the caller plans
+            again from its next position.
+        """
+        return self._compute_path(
+            (float(start[0]), float(start[1])),
+            (float(goal[0]), float(goal[1])),
+            physics,
+        )
 
     def _compute_path_uncached(
-        self, start: tuple[int, int], end: tuple[int, int], grid: MinimapGrid
-    ) -> list[MinimapNode]:
-        start_node = grid.node(*start)
-        end_node = grid.node(*end)
-        # Per-cycle pathing traces, so DEBUG is the honest level. Their Telemetry
-        # Record form waits on issue #12, which owns `MovementPayload`.
-        logger.debug("Computing path from %s to %s", start, end)
-        # finder = DijkstraFinder() if grid.has_portals else AStarFinder()
-        finder = DijkstraFinder()
-        path, _ = finder.find_path(start_node, end_node, grid)
-        grid.cleanup()
-        return path
+        self, start: Point, goal: Point, physics: VRPhysics
+    ) -> Path | None:
+        # Per-cycle pathing traces, so DEBUG is the honest level.
+        logger.debug("Computing path from %s to %s", start, goal)
+        try:
+            return self.graph(physics).path(start, goal)
+        except ValueError as error:
+            logger.debug("No path: %s", error)
+            return None
 
     def _path_into_movements_uncached(
-        self, path: tuple[MinimapNode, ...], grid: MinimapGrid
+        self, path: Path | None
     ) -> tuple[_MovementComponent, ...]:
+        """
+        The Movement Plan of `path`, ending with the `END_OF_MOVEMENT` sentinel;
+        empty for no path.
+        """
+        if path is None:
+            return ()
+        components = [self._component(move) for move in path.moves]
+        logger.debug("Movements: %s", components)
+        plan = _cut(_merge(components))
+        plan.append(_MovementComponent(MovementTypes.END_OF_MOVEMENT, 0))
+        return tuple(plan)
 
-        movements = []
-        for current_node, next_node in pairwise(path):
-            current_feature = self.minimap.get_node_info(current_node)
-            next_feature = self.minimap.get_node_info(next_node)
-            if not current_node.walkable:
-                continue
-            elif not next_node.walkable:
-                raise NotImplementedError
-
-            if next_node in grid.adjacent_nodes(current_node):
-                dx = next_node.x - current_node.x
-                dy = next_node.y - current_node.y
-                match (dx, dy, next_feature.is_platform, current_feature.is_platform):
-                    case (1, _, True, _):
-                        movements.append(
-                            _MovementComponent(MovementTypes.WALK_RIGHT, 1)
-                        )
-                    case (-1, _, True, _):
-                        movements.append(_MovementComponent(MovementTypes.WALK_LEFT, 1))
-                    case (0, -1, False, _) | (0, -1, True, False):
-                        movements.append(_MovementComponent(MovementTypes.CLIMB_UP, 1))
-                    case (0, 1, False, _) | (0, 1, True, False):
-                        movements.append(
-                            _MovementComponent(MovementTypes.CLIMB_DOWN, 1)
-                        )
-                    case (0, -1, True, True) | (0, 1, True, True):
-                        continue
-                    case _:
-                        raise NotImplementedError(
-                            f"Unhandled adjacency {(dx, dy, next_feature.is_platform, current_feature.is_platform)} "
-                            f"between {current_node} and {next_node}"
-                        )
-
-            elif next_node in current_node.connections:
-                connection_type = current_node.get_connection_type(next_node)
-                if connection_type is ConnectionTypes.FALL_RIGHT:
-                    movements.append(
-                        _MovementComponent(MovementTypes.WALK_RIGHT, self._FALL_LEN_EXT)
-                    )
-                elif connection_type is ConnectionTypes.FALL_LEFT:
-                    movements.append(
-                        _MovementComponent(MovementTypes.WALK_LEFT, self._FALL_LEN_EXT)
-                    )
-                elif connection_type is ConnectionTypes.IN_MAP_PORTAL:
-                    movements.append(_MovementComponent(MovementTypes.ENTER_PORTAL, 1))
-                else:
-                    move_type = MovementTypes[connection_type.name]
-                    is_narrow = False
-                    is_edge_departure = False
-                    if connection_type in _NARROW_CONNECTION_TYPES:
-                        is_narrow = (
-                            next_feature.is_platform
-                            and next_feature.width <= self.narrow_platform_threshold
-                        )
-                    if (
-                        connection_type in _EDGE_DEPARTURE_CONNECTION_TYPES
-                        and current_feature.is_platform
-                    ):
-                        edge_direction = connection_type.name.split("_")[-1].lower()
-                        if edge_direction == "right":
-                            is_edge_departure = (
-                                current_feature.right - current_node.x
-                                <= self.edge_departure_threshold
-                            )
-                        elif edge_direction == "left":
-                            is_edge_departure = (
-                                current_node.x - current_feature.left
-                                <= self.edge_departure_threshold
-                            )
-                    movements.append(
-                        _MovementComponent(
-                            move_type,
-                            1,
-                            narrow=is_narrow,
-                            edge_departure=is_edge_departure,
-                        )
-                    )
-            else:
-                raise NotImplementedError(
-                    f"No neighbor/connection edge between {current_node} and {next_node}"
+    def _component(self, move: Move) -> _MovementComponent:
+        dx = abs(move.end[0] - move.start[0])
+        dy = abs(move.end[1] - move.start[1])
+        side = _SIDEWAYS[move.direction] if move.direction is not None else None
+        match move.kind:
+            case MoveKind.WALK:
+                return self._travel(MovementTypes[f"WALK_{side}"], dx, move)
+            case MoveKind.FALL if move.direction is MoveDirection.DOWN:
+                return _MovementComponent(
+                    MovementTypes.CLIMB_DOWN,
+                    dy,
+                    duration=move.duration,
+                    start=move.start,
+                    end=move.end,
                 )
-
-        logger.debug("Movements: %s", movements)
-        squeezed = []
-        for k, group in groupby(movements, key=lambda x: x.movement_type):
-            group_list = list(group)
-            # Both flags preserved from the first element in the group.
-            is_narrow = group_list[0].narrow
-            is_edge_departure = group_list[0].edge_departure
-            for i in range(0, len(group_list), self._MAX_WALK_SIZE):
-                squeezed.append(
-                    _MovementComponent(
-                        k,
-                        min(len(group_list) - i, self._MAX_WALK_SIZE),
-                        is_narrow,
-                        is_edge_departure,
-                    )
+            case MoveKind.FALL:
+                return self._travel(MovementTypes[f"WALK_{side}"], dx, move)
+            case MoveKind.CLIMB:
+                return self._travel(MovementTypes[f"CLIMB_{side}"], dy, move)
+            case MoveKind.JUMP:
+                name = "JUMP" if move.direction is MoveDirection.UP else f"JUMP_{side}"
+                return self._gesture(
+                    MovementTypes[name],
+                    dx,
+                    move,
+                    grabs_rope=isinstance(move.end_on, Rope),
                 )
-        squeezed.append(_MovementComponent(MovementTypes.END_OF_MOVEMENT, 1))
-        return tuple(squeezed)
+            case MoveKind.DROP:
+                return self._gesture(MovementTypes.JUMP_DOWN, dx, move)
+            case MoveKind.TELEPORT:
+                return self._gesture(
+                    MovementTypes[f"TELEPORT_{side}"],
+                    dy if side in ("UP", "DOWN") else dx,
+                    move,
+                    timed=False,
+                )
+            case MoveKind.PORTAL:
+                return _MovementComponent(
+                    MovementTypes.ENTER_PORTAL,
+                    0.0,
+                    duration=move.duration,
+                    start=move.start,
+                    end=move.end,
+                )
+        raise NotImplementedError(f"Unhandled graph move {move.kind!r}")
 
-    def _movements_into_action_uncached(
+    def _travel(
+        self, movement_type: MovementTypes, length: float, move: Move
+    ) -> _MovementComponent:
+        return _MovementComponent(movement_type, length, start=move.start, end=move.end)
+
+    def _gesture(
+        self,
+        movement_type: MovementTypes,
+        length: float,
+        move: Move,
+        *,
+        grabs_rope: bool = False,
+        timed: bool = True,
+    ) -> _MovementComponent:
+        """A jump, a drop or a teleport, with its precision flags."""
+        narrow = (
+            move.kind in _NARROW_KINDS
+            and isinstance(move.end_on, Platform)
+            and move.end_on.right - move.end_on.left <= self.narrow_platform_threshold
+        )
+        edge_departure = False
+        if move.kind in _EDGE_DEPARTURE_KINDS and isinstance(move.start_on, Platform):
+            if move.direction is MoveDirection.RIGHT:
+                edge_departure = (
+                    move.start_on.right - move.start[0] <= self.edge_departure_threshold
+                )
+            elif move.direction is MoveDirection.LEFT:
+                edge_departure = (
+                    move.start[0] - move.start_on.left <= self.edge_departure_threshold
+                )
+        return _MovementComponent(
+            movement_type,
+            length,
+            narrow=narrow,
+            edge_departure=edge_departure,
+            duration=move.duration if timed else None,
+            grabs_rope=grabs_rope,
+            start=move.start,
+            end=move.end,
+        )
+
+    def movements_into_action(
         self,
         movements: tuple[_MovementComponent, ...],
-        grid: MinimapGrid,
+        physics: VRPhysics,
         total_duration: float | None = None,
         initial_state: InputState | None = None,
     ) -> KeyboardInputWrapper | None:
@@ -608,37 +755,81 @@ class MovementHandler:
             movements=movements,
             handle=self.handle,
             ign=self.ign,
-            speed=grid.speed,
+            speed=physics.walk_speed,
+            climb_speed=physics.climb_speed,
             teleport=self.teleport,
             total_duration=total_duration,
         )
 
-    def _run_debug(
-        self, start: tuple[int, int], end: tuple[int, int], path: list[MinimapNode]
-    ) -> None:
-        if not self._debug:
-            return
-        minimap_img = (self.minimap.modified_minimap > 0).view(np.uint8) * 255
-        minimap_img = cv2.cvtColor(minimap_img, cv2.COLOR_GRAY2BGR)
-        cv2.drawMarker(
-            minimap_img,
-            (start[0], start[1]),
-            (0, 0, 255),
-            markerType=cv2.MARKER_CROSS,
-            markerSize=3,
-        )
-        cv2.drawMarker(
-            minimap_img,
-            (end[0], end[1]),
-            (255, 0, 0),
-            markerType=cv2.MARKER_CROSS,
-            markerSize=3,
-        )
-        for node in path:
-            minimap_img[node.y, node.x] = (0, 255, 0)
-        minimap_img = cv2.resize(minimap_img, None, fx=5, fy=5)
-        cv2.imshow(
-            f"_DEBUG_ Mode - Pathfinding {self.ign}2",
-            minimap_img,
-        )
-        cv2.waitKey(1)
+
+def _merge(components: list[_MovementComponent]) -> list[_MovementComponent]:
+    """
+    Consecutive walks the same way are one walk, whichever platforms they
+    cross, and consecutive climbs the same way one climb; a walk of no length
+    (across a join) is dropped once merged. A component with a duration of its
+    own (a fall off a rope's bottom) merges with nothing. Consecutive teleports
+    the same way are one component of that many casts: it departs from the
+    first's take-off (`edge_departure`) and lands where the last lands
+    (`narrow`).
+    """
+    merged: list[_MovementComponent] = []
+    for component in components:
+        last = merged[-1] if merged else None
+        if (
+            last is not None
+            and component.movement_type in _TELEPORTS
+            and last.movement_type is component.movement_type
+        ):
+            merged[-1] = last._replace(
+                length=last.length + component.length,
+                casts=last.casts + component.casts,
+                narrow=component.narrow,
+                end=component.end,
+            )
+        elif (
+            last is not None
+            and component.movement_type in _TRAVEL
+            and last.movement_type is component.movement_type
+            and last.duration is None
+            and component.duration is None
+        ):
+            merged[-1] = last._replace(
+                length=last.length + component.length, end=component.end
+            )
+        else:
+            merged.append(component)
+    walks = _TRAVEL - _CLIMBS
+    return [c for c in merged if c.movement_type not in walks or c.length > 0]
+
+
+def _cut(components: list[_MovementComponent]) -> list[_MovementComponent]:
+    """
+    Each walk or climb longer than `_MAX_TRAVEL_LENGTH` cut into the fewest
+    equal pieces no longer than it, each with its share of the take-off and
+    landing (interpolated along the straight line between them).
+    """
+    cut: list[_MovementComponent] = []
+    for component in components:
+        if (
+            component.movement_type not in _TRAVEL
+            or component.duration is not None
+            or component.length <= _MAX_TRAVEL_LENGTH
+        ):
+            cut.append(component)
+            continue
+        pieces = math.ceil(component.length / _MAX_TRAVEL_LENGTH)
+        for k in range(pieces):
+            cut.append(
+                component._replace(
+                    length=component.length / pieces,
+                    start=_between(component.start, component.end, k / pieces),
+                    end=_between(component.start, component.end, (k + 1) / pieces),
+                )
+            )
+    return cut
+
+
+def _between(a: Point | None, b: Point | None, share: float) -> Point | None:
+    if a is None or b is None:
+        return None
+    return (a[0] + (b[0] - a[0]) * share, a[1] + (b[1] - a[1]) * share)
