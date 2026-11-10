@@ -112,7 +112,38 @@ detection rules themselves are #12's to define.
 - **PM4**: the discontinuous position change to the portal's destination.
 - **PM5**: vertical movement begins on the ladder column.
 
+## Counting Attempts: the analyzer (#12)
+
+`toolkit/movement_attempts.py` reads a Session's `telemetry.jsonl` (optionally
+joined with Trial records by Correlation ID) and reports, per instance: the row,
+the Attempts, the outcome (*fell* separately for PM3) and the budget verdict.
+Its module docstring is the full rule set; in short:
+
+- **Input.** `movement.plan_started`'s `transitions` (one entry per component:
+  `narrow`, `edge_departure`, `grabs_rope`, and the virtual take-off and landing)
+  and the `read` ones of `position.read`. A cycle recorded before #12 has no
+  `transitions` and is skipped and counted: the flags are never re-derived.
+- **Instance.** The same transition across cycles, ended by its first success.
+- **Attempt.** PM1 to PM3: a departure from the take-off found in the position
+  history, so a re-plan is not an Attempt and the climb back after a fall is
+  nobody's. PM4 and PM5: a cycle that starts at the take-off, once the previous
+  Attempt resolved.
+- **Success** per row, from the virtual position: PM1 on the rope's column; PM2
+  and PM3 within the landing and still there at the window's end; PM3's miss is
+  *fell* when the window ends below both take-off and landing; PM4 a
+  discontinuity or the landing; PM5 vertical movement on the ladder's column.
+- **Verdict.** `pass` within the budget, `fail` beyond it, `inconclusive` for no
+  success yet within budget, `no_gesture` for an instance that saw no Attempt.
+- Every tolerance in it is an **Expectation**, unmeasured: #400's Session is the
+  first check of whether its instances match what a person watching counts.
+
+**Trial records do not carry the Delivered Prefix.** Counting Attempts needs where
+the character was, and the position history gives it. The compiled half is reached
+through the Correlation ID, as `maple/calibration/records.py` already says.
+
 ## Handoff to #12 (attempt detection)
+
+*Historical: the requirements #12 was given; the section above is what it built.*
 
 Requirements this taxonomy imposes on the delimitation rules:
 
