@@ -1011,22 +1011,26 @@ class Viewer:
         return img
 
     def _thumb(self, read: FrameRead) -> NDArray[np.uint8]:
-        img = read.frame.pixels.copy()
-        if img.size == 0:
+        pixels = read.frame.pixels
+        if pixels.size == 0:
             return np.zeros((10, PANEL, 3), np.uint8)
+        k = PANEL / pixels.shape[1]
+        img = cv2.resize(pixels, None, fx=k, fy=k, interpolation=cv2.INTER_AREA)
+
+        def at(x: float, y: float) -> tuple[int, int]:
+            return int(x * k), int(y * k)
+
         view = None if read.minimap is None else read.minimap.value
         if view is not None and view.map_area is not None:
             a = view.map_area
-            cv2.rectangle(img, (a.left, a.top), (a.right, a.bottom), MM_COLOUR, 2)
+            cv2.rectangle(img, at(a.left, a.top), at(a.right, a.bottom), MM_COLOUR, 1)
         found = read.characters.value if read.characters is not None else None
         for s in found or []:
             colour = PLAY_COLOUR if s.own else OTHER_COLOUR
             if s.box is not None:
-                cv2.rectangle(img, s.box[:2], s.box[2:], colour, 2)
-            feet = (int(s.feet[0]), int(s.feet[1]))
-            cv2.drawMarker(img, feet, colour, cv2.MARKER_CROSS, 16, 2)
-        s = PANEL / img.shape[1]
-        return cv2.resize(img, None, fx=s, fy=s, interpolation=cv2.INTER_AREA)
+                cv2.rectangle(img, at(*s.box[:2]), at(*s.box[2:]), colour, 1)
+            cv2.drawMarker(img, at(*s.feet), colour, cv2.MARKER_CROSS, 8, 1)
+        return img
 
     def _text(
         self,
