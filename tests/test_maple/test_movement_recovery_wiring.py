@@ -25,15 +25,33 @@ from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
     _MovementComponent,
 )
+from maple.model.navigation import Direction, Move, MoveKind, Path
+from maple.model.world import WorldMap
 from maple.movement_recovery import Reaction, Rung, Symptom
+from tests.test_maple.movement_lab.corpus import LAB_PHYSICS
+from tests.test_maple.movement_lab.fixture_maps import walk_corridor
 
-WALK = (_MovementComponent(MovementTypes.WALK_RIGHT, 5),)
-SENTINEL_ONLY = (_MovementComponent(MovementTypes.END_OF_MOVEMENT, 1),)
+WALK = (_MovementComponent(MovementTypes.WALK_RIGHT, 80),)
+SENTINEL_ONLY = (_MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),)
 
+#: A map whose minimap transform is centre (1000, 1000), `mag` 4.
+WORLD = WorldMap.from_map_data(walk_corridor())
 
-class _Node:
-    def __init__(self, x: int, y: int) -> None:
-        self.x, self.y = x, y
+#: A Path of one move, from where a marker at canvas px (1, 1) puts the feet to
+#: where one at (2, 2) does: `canvas * 16 - 1000 + 8`, the marker 6 rows up.
+PATH = Path(
+    (
+        Move(
+            MoveKind.WALK,
+            Direction.RIGHT,
+            (-976.0, -880.0),
+            (-960.0, -864.0),
+            WORLD.platforms[0],
+            WORLD.platforms[0],
+            0.1,
+        ),
+    )
+)
 
 
 class _Feature:
@@ -100,6 +118,7 @@ class _Loop(MovementRecoveryMixin, NextTargetMixin):
             self.disabled.extend(names)
         )
         self._has_movements = lambda: len(self.plan) > 1
+        self._physics = lambda: LAB_PHYSICS
         # What `Rotation._request` reads besides the recovery wiring.
         self.lock: object = None
         self._movement_compiler: Callable[[], object] = lambda: None
@@ -116,7 +135,8 @@ def data() -> BotData:
     data.set_static("current_minimap", _Minimap())
     data.set_static("current_frame", SimpleNamespace(pixels=None))
     data.create_attribute("current_minimap_position", lambda: (50, 50))
-    data.create_attribute("path", lambda: (_Node(1, 1), _Node(2, 2)))
+    data.set_static("world_map", WORLD)
+    data.create_attribute("path", lambda: PATH)
     data.create_attribute("minimap_currently_displayed", lambda: True)
     return data
 
@@ -187,7 +207,7 @@ def test_the_movement_action_reports_its_delivered_prefix(
 # --- what the monitor is actually fed ----------------------------------------
 
 
-def test_the_path_is_handed_over_as_plain_coordinates(
+def test_the_path_is_handed_over_as_canvas_px_coordinates(
     loop: _Loop, mocker: MockerFixture
 ) -> None:
     observe = mocker.patch.object(loop._monitor, "observe", return_value=None)
@@ -290,6 +310,14 @@ def test_reflex_preempts_the_rotation_action_it_is_unsticking(loop: _Loop) -> No
     assert request.block_lower_priority
 
 
+def test_the_reflex_jump_lasts_the_flight_of_the_current_jump(loop: _Loop) -> None:
+    """No fixed hold (#396): a level jump's flight, from the current physics."""
+    _react(loop, Rung.REFLEX, reflex_attempt=1)
+
+    request = loop.sent.pop()
+    assert request.args[2] == LAB_PHYSICS.jump_duration == 2 * 555 / 2000
+
+
 def test_reflex_releases_through_the_ledger_rather_than_blind(
     loop: _Loop, mocker: MockerFixture
 ) -> None:
@@ -311,10 +339,10 @@ def test_reflex_releases_through_the_ledger_rather_than_blind(
     )
     import asyncio
 
-    asyncio.run(loop._wait_and_random_jump(1234, "space"))
+    asyncio.run(loop._wait_and_random_jump(1234, "space", 0.555))
 
     release.assert_called_once_with(1234)
-    jump.assert_called_once_with(1234, "space")
+    jump.assert_called_once_with(1234, "space", 0.555)
 
 
 # --- Abandon --------------------------------------------------------------------

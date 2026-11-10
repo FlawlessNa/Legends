@@ -6,10 +6,12 @@ The samples are checked in, so regenerating is a command rather than a memory. R
 from the repo root:
 
     python toolkit/generate_movement_lab_pairs.py            # every map
-    python toolkit/generate_movement_lab_pairs.py GhostShip1 # one map
+    python toolkit/generate_movement_lab_pairs.py jump_gap   # one map
     python toolkit/generate_movement_lab_pairs.py --check    # write nothing, report drift
 
-A regenerated file is identical to the checked-in one unless the map's JSON changed,
+Real maps read the game data store (`data/game_data`); a fixture map needs nothing.
+
+A regenerated file is identical to the checked-in one unless the map changed,
 the Corpus manifest changed, or **the code that decides reachability changed**. That
 last case is the point: reachability is frozen as data, so a pair that stops being
 reachable fails the lab's checks instead of being silently skipped. When the change was
@@ -73,9 +75,9 @@ def main(argv: list[str] | None = None) -> int:
                 _write(entry, text)
                 status = "written"
         print(
-            f"{entry.name:<16} {len(pairs):>4} pairs  "
+            f"{entry.name:<24} {len(pairs):>4} pairs  "
             f"{reachable:>4} reachable  {len(pairs) - reachable:>4} unreachable  "
-            f"nodes={len(corpus.walkable_nodes(entry)):<5} {status}"
+            f"points={len(corpus.candidate_points(entry)):<5} {status}"
         )
 
     if args.check and drifted:

@@ -1,0 +1,11 @@
+Holds (key, t_down, t_up):
+  down     0.000 0.667
+  left     0.701 1.269
+
+down keydown for 0.666s
+['down'] ['keyup'] for 0.033s
+['left'] ['keydown'] for 0.500s
+left keydown for 0.066s
+['left'] ['keyup'] for 0.000s
+Total Duration: 1.270s
+Forced Key Releases: []

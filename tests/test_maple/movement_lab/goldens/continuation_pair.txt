@@ -10,9 +10,9 @@ Forced Key Releases: []
 N+1, compiled against N's InputState (InputState(held_keys=frozenset({'left'}), typematic_owner='left', owner_elapsed=1.0)):
 
 Holds (key, t_down, t_up):
-  left     0.000 0.269
+  left     0.000 0.033
 
-left keydown for 0.268s
+left keydown for 0.032s
 ['left'] ['keyup'] for 0.000s
-Total Duration: 0.270s
+Total Duration: 0.034s
 Forced Key Releases: []

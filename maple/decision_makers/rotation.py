@@ -6,6 +6,7 @@ import time
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
+from maple.screen.position import feet_of_marker, marker_of_feet
 from maple.telemetry_events import MOVEMENT_PLAN_STARTED, plan_started_payload
 
 from .mixins import (
@@ -102,13 +103,26 @@ class Rotation(
         from inside telemetry. The cache is also what the Plan was computed from.
         """
         last_known = functools.partial(self.data.get_last_known_value, update=False)
-        position = last_known("current_minimap_position")
+        reading = last_known("current_position")
         target = last_known("next_target")
-        if position is None or target is None:
+        transform = self._world_map().minimap
+        if reading is None or reading.value is None or target is None:
             return
+        assert transform is not None
+        virtual_position = (reading.value.x, reading.value.y)
+        # From the one target read above, converted as `_virtual_target` converts
+        # it, so `target_*` and `target_v*` can't describe two targets.
+        virtual_target = feet_of_marker(transform, (target[0], target[1]))
         self.emit(
             MOVEMENT_PLAN_STARTED,
-            plan_started_payload(last_known("movements"), position, target),
+            plan_started_payload(
+                last_known("movements"),
+                marker_of_feet(transform, virtual_position),
+                target,
+                virtual_position=virtual_position,
+                virtual_target=virtual_target,
+                scale=transform.scale,
+            ),
         )
 
     def _request(self) -> ActionRequest:

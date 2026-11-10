@@ -8,7 +8,7 @@ Paths planned on a map's platforms and ropes, in virtual px (#302, Part 2).
 - `Terrain`: where the character lands, traced along `VRPhysics`' arc
   (`terrain`).
 
-Nothing consumes it yet: Movement Plans read it from #396.
+Movement Plans are planned on it (`MovementHandler`, #396).
 """
 
 from .foothold_graph import (

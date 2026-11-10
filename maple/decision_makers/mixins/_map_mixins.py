@@ -61,17 +61,27 @@ class MinimapAttributesMixin:
         reading `current_minimap_position` comes from and the current frame.
         Every read is recorded (`position.read`), unsure ones included.
 
-        :raises ValueError: The position is `UNSURE`, or the bot has no
+        **Who handles an unsure position** (#396). When the minimap gave no
+        position, this raises, and `_minimap_pos_error_handler` makes the
+        minimap readable again, as for `current_minimap_position`. When the
+        minimap read is fine but fusion is `UNSURE` (the reads disagree, or
+        two characters stand where the minimap puts ours), the `UNSURE`
+        reading is returned: the minimap handler can't fix that, and a
+        consumer holds until a read places the character (`MovementsMixin`
+        plans no Path).
+
+        :raises ValueError: The minimap gave no position, or the bot has no
             position fusion (no map, or no frame check), which hands over to
             `_minimap_pos_error_handler`, as `_get_minimap_pos` does.
         """
         fusion: PositionFusion | None = getattr(self.data, "position_fusion", None)
         if fusion is None:
             raise ValueError("no position fusion: the bot's map isn't known")
-        result = fusion.read(self.data.current_frame, self.data.minimap_reading)
+        minimap = self.data.minimap_reading
+        result = fusion.read(self.data.current_frame, minimap)
         self.emit(POSITION_READ, position_read_payload(result))
         position = result.position
-        if position.value is None:
+        if position.value is None and result.minimap is None:
             raise ValueError(f"position {position.status.value}: {position.detail}")
         return position
 
@@ -216,8 +226,8 @@ class MinimapAttributesMixin:
             threshold=self.MINIMAP_POS_REFRESH_RATE,
             error_handler=self._minimap_pos_error_handler,
         )
-        # Not read here: the first consumer to ask reads it. Nothing plans on
-        # it until #396, and its reads cost a camera match each.
+        # Not read here: the first consumer to ask reads it (Movement Plans
+        # are planned from it), and its reads cost a camera match each.
         self.data.create_or_reconfigure_attribute(
             "current_position",
             self._get_position,

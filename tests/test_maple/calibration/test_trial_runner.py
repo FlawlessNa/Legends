@@ -28,14 +28,23 @@ import pytest
 
 from botting.core import ActionRequest
 from botting.core.bot_data import BotData
+from botting.screen import Reading
 from maple.calibration.driver import TrialDriver
 from maple.calibration.records import CycleRecord, ListSink, TrialOutcome
 from maple.calibration.specs import Knobs, TrialBatch, TrialSchedule, TrialSpec
 from maple.decision_makers.trial_runner import TrialRunner
 from maple.model.mechanics.movement_mechanics_v2 import _NARROW_PLATFORM_THRESHOLD
+from maple.screen.position import PositionSource, VirtualPosition, feet_of_marker
 from tests.test_maple.movement_lab import corpus
 
 ENTRY = next(e for e in corpus.FIXTURE_MAPS if e.name == "walk_corridor")
+
+#: A Trial's start and target, in canvas px: Trials still judge in minimap
+#: positions until #397. On `walk_corridor` (minimap centre (1000, 1000), `mag` 4)
+#: a marker at (63, 56) puts the feet at virtual (16, 0), and one at (80, 56) at
+#: (288, 0): both on its floor, a walk apart.
+START = (63, 56)
+TARGET = (80, 56)
 
 
 class _Pipe:
@@ -50,7 +59,7 @@ class _Pipe:
 
 class _Character:
     """A character with no skills - `walk_corridor` needs none, and Teleport would
-    change which grid the Paths are frozen against."""
+    change which graph the Paths are planned on."""
 
     skills: ClassVar[dict[str, object]] = {}
 
@@ -80,24 +89,38 @@ def harness() -> _Harness:
     `__init__` is skipped because `_create_minimap_attributes` reads a game window.
     What is built here is everything downstream of that: a real `BotData` over a real
     Corpus map, so `_create_pathing_attributes` builds a real `MovementHandler` and
-    `path`/`movements` compute real Paths.
+    `path`/`movements` compute real Paths. The Trial judges the minimap position it
+    is fed (canvas px); the Path is planned from the virtual position a marker there
+    puts the feet at, as fusion's coarse position does.
     """
     entry = ENTRY
-    start, target = _pair(entry)
+    start, target = START, TARGET
     positions: list[tuple[int, int]] = []
     pipe = _Pipe()
     writer = ListSink()
+    world_map = corpus.world_map(entry)
+    assert world_map.minimap is not None
+    transform = world_map.minimap
 
     data = BotData("Lab")
     data.set_static("handle", corpus.LAB_HANDLE)
-    data.set_static("current_minimap", corpus.minimap(entry))
-    data.set_static("current_grid", corpus.grid(entry))
+    data.set_static("world_map", world_map)
+    data.set_static("game_physics", corpus.LAB_PHYSICS_VALUES)
+    data.set_static("speed_multiplier", 1.0)
+    data.set_static("jump_multiplier", 1.0)
     data.set_static("character", _Character())
     data.create_attribute(
         "current_minimap_position",
         lambda: positions.pop(0) if positions else target,
         initial_value=start,
     )
+
+    def virtual() -> Reading[VirtualPosition]:
+        marker = data.current_minimap_position  # no threshold: never re-read here
+        feet = feet_of_marker(transform, marker)
+        return Reading.read(VirtualPosition(*feet, PositionSource.COARSE), 0.0)
+
+    data.create_attribute("current_position", virtual, threshold=1e-9)
 
     # Assembled through a deliberately untyped handle: every field below is a
     # stand-in for something only a live Session provides.
@@ -126,15 +149,8 @@ def harness() -> _Harness:
     return _Harness(cast(TrialRunner, self), positions, pipe, writer)
 
 
-def _pair(entry: corpus.CorpusMap) -> tuple[tuple[int, int], tuple[int, int]]:
-    reachable = [record for record in corpus.plans(entry) if record.path]
-    longest = max(reachable, key=lambda record: len(record.path))
-    return longest.pair.start, longest.pair.end
-
-
 def _schedule(entry: corpus.CorpusMap) -> TrialSchedule:
-    start, target = _pair(entry)
-    trial = TrialSpec("reachable-pair", start, target, 2.0, 60.0)
+    trial = TrialSpec("reachable-pair", START, TARGET, 2.0, 60.0)
     return TrialSchedule(
         "runner-lab",
         entry.name,
@@ -178,7 +194,7 @@ def test_a_decision_cycle_ships_a_plan_and_records_it(harness: _Harness) -> None
     toward `start`, finds itself there, and dispatches nothing. The second is the
     first measured cycle, and that is the one that ships a plan.
     """
-    start, _ = _pair(ENTRY)
+    start = START
     harness.positions.extend([start, start])
 
     asyncio.run(harness.runner._decide())  # positioning completes
@@ -200,7 +216,7 @@ def test_the_lock_holds_a_cycle_open_until_the_action_is_dispatched(
     again while one was in flight would record cycles that changed nothing and
     inflate every cycle count in the file.
     """
-    start, _ = _pair(ENTRY)
+    start = START
     harness.positions.extend([start, start, start])
 
     asyncio.run(harness.runner._decide())  # positioning completes; nothing dispatched
@@ -217,7 +233,7 @@ def test_a_cycle_that_dispatches_nothing_releases_the_lock(
 ) -> None:
     """The arriving cycle sends no Action, so nothing will ever call the callback
     that releases the lock: it has to be released here or the run wedges."""
-    start, target = _pair(ENTRY)
+    start, target = START, TARGET
     harness.positions.extend([start, target])
 
     asyncio.run(harness.runner._decide())  # positioning completes
@@ -240,7 +256,7 @@ def test_a_cancelled_run_leaves_the_trial_in_flight_marked_abandoned(
     should say the Trial was abandoned rather than trailing off after its last cycle
     and reading like a crash nobody diagnosed.
     """
-    start, _ = _pair(ENTRY)
+    start = START
     harness.positions.extend([start, start])
     asyncio.run(harness.runner._decide())
     asyncio.run(harness.runner._decide())
@@ -307,7 +323,7 @@ def test_the_action_duration_knob_reaches_the_compiler(harness: _Harness) -> Non
 
 def _advance_to_batch(harness: _Harness, name: str) -> None:
     """Close Trials until the named batch is in flight, then apply its Knobs."""
-    start, target = _pair(ENTRY)
+    start, target = START, TARGET
     for _ in range(10):
         batch = harness.runner._driver.batch
         assert batch is not None, f"schedule finished before reaching batch {name!r}"

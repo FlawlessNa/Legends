@@ -69,7 +69,7 @@ UNTRUNCATED_ULTIMATE = _StubSkill(
 
 
 _TELEPORT_PLAN = (
-    _MovementComponent(MovementTypes.TELEPORT_RIGHT, 3),
+    _MovementComponent(MovementTypes.TELEPORT_RIGHT, 450, casts=3),
     _MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),
 )
 
@@ -80,7 +80,7 @@ _WALK_PLAN = (
 
 _WALK_THEN_TELEPORT_PLAN = (
     _MovementComponent(MovementTypes.WALK_RIGHT, 5),
-    _MovementComponent(MovementTypes.TELEPORT_RIGHT, 3),
+    _MovementComponent(MovementTypes.TELEPORT_RIGHT, 450, casts=3),
     _MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),
 )
 

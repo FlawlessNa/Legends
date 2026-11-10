@@ -215,7 +215,9 @@ def test_jump_on_rope_does_not_re_press_an_inherited_direction() -> None:
         initial_state=InputState(frozenset({"right"})),
     )
 
-    result = movements_v2.jump_on_rope(HANDLE, "right", JUMP_KEY, structure=structure)
+    result = movements_v2.jump_on_rope(
+        HANDLE, "right", JUMP_KEY, structure=structure, duration=0.5
+    )
 
     presses = [key for key, event in _steps(result) if event == "keydown"]
     assert presses.count("right") == 0

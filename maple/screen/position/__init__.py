@@ -24,6 +24,8 @@ from .fusion import (
     PositionFusion,
     PositionSource,
     VirtualPosition,
+    feet_of_marker,
+    marker_of_feet,
 )
 
 __all__ = [
@@ -39,6 +41,8 @@ __all__ = [
     "PositionSource",
     "VirtualPosition",
     "YoloCharacterFinder",
+    "feet_of_marker",
+    "marker_of_feet",
     "play_area_size",
     "tag_upscale",
 ]

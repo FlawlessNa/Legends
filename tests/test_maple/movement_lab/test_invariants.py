@@ -4,7 +4,13 @@ Groups A, B, C, D and E of the offline invariant catalogue
 Corpus rather than over a hand-built plan.
 
 `corpus.plans(entry)` stops at the Movement Plan - compiling it into an Input Sequence
-is this ticket's (issue #104), so every check below calls `compile_movements` itself.
+is this ticket's (issue #104), so every check below calls `compile_movements` itself,
+at the lab's walk and climb speeds (`corpus.LAB_PHYSICS`, virtual px/s).
+
+**Each record compiles from its own seed** (#133): `random_delay` draws on the
+global `random`, so `_compiled` seeds it from the record's map and index before
+compiling. A record's jitter, and so every pass or fail here, no longer depends on
+how many draws the records compiled before it made.
 Each check is a set/interval operation over Steps already produced, or over the
 `Hold`s `KeyboardInputWrapper.holds` derives from them, so sweeping every record and
 every cancel point stays cheap: no real delay is ever awaited here, `compile_movements`
@@ -30,11 +36,11 @@ from __future__ import annotations
 
 import itertools
 import math
+import random
 import warnings
 from collections import Counter
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass, field
-from functools import cache, lru_cache
+from functools import cache
 
 import pytest
 
@@ -44,13 +50,13 @@ from botting.controller.inputs.focused_inputs import (
 )
 from botting.controller.inputs.held_keys_ledger import InputState
 from botting.controller.inputs.inputs_helpers import DELAY, OVERHEAD
-from maple.model.characters.maple_skills import MapleSkill
-from maple.model.mechanics.minimap_creation.minimap_grid import MinimapGrid
+from game_data.catalogue import Rope
 from maple.model.mechanics.movement_mechanics_v2 import (
-    MovementHandler,
+    _MAX_TRAVEL_LENGTH,
     MovementTypes,
     compile_movements,
 )
+from maple.model.navigation import Point, Surface
 from tests.test_maple.movement_lab import corpus
 
 DIRECTIONS = frozenset({"left", "right", "up", "down"})
@@ -83,31 +89,13 @@ ACTION_DURATION = 1.0
 MAX_DELAY = 1.05 * DELAY
 
 
-@dataclass(frozen=True)
-class _StubTeleportSkill(MapleSkill):
-    """
-    A `Skill` whose key bind does not go through the gitignored keybindings config -
-    same shape as `tests/test_botting/test_telecast.py`'s `_StubSkill`.
-
-    `corpus.handler()` carries no Teleport skill - `path_into_movements` never needs
-    one, only `compile_movements` does - so compiling a plan that contains a
-    `TELEPORT_*` component (only `teleport_shaft` and `GhostShip1` sample any) needs
-    one supplied here instead.
-    """
-
-    key: str = field(default="insert", repr=False)
-
-    @lru_cache  # noqa: B019
-    def key_bind(self, ign: str) -> str:
-        return self.key
-
-
-_TELEPORT_SKILL = _StubTeleportSkill("Teleport", "Movement", animation_time=0.15)
+# The Teleport skill a `TELEPORT_*` component compiles with (only `teleport_shaft`
+# and Ellinia sample any): the stub the Corpus plans those maps with.
+_TELEPORT_SKILL = corpus.LAB_TELEPORT
 
 
 def compile_record(
     record: corpus.PlanRecord,
-    grid: MinimapGrid,
     *,
     initial_state: InputState | None = NOBODY,
     total_duration: float | None = None,
@@ -124,7 +112,8 @@ def compile_record(
         movements=record.movements,
         handle=corpus.LAB_HANDLE,
         ign=corpus.LAB_IGN,
-        speed=grid.speed,
+        speed=corpus.LAB_PHYSICS.walk_speed,
+        climb_speed=corpus.LAB_PHYSICS.climb_speed,
         teleport=_TELEPORT_SKILL,
         total_duration=total_duration,
     )
@@ -133,13 +122,13 @@ def compile_record(
 def _reachable_records(
     plans: Iterable[corpus.PlanRecord],
 ) -> Iterator[corpus.PlanRecord]:
-    return (record for record in plans if record.path)
+    return (record for record in plans if record.path is not None)
 
 
 def _reachable(
     plans: Iterable[corpus.PlanRecord],
 ) -> Iterator[tuple[int, corpus.PlanRecord]]:
-    return ((i, record) for i, record in enumerate(plans) if record.path)
+    return ((i, record) for i, record in enumerate(plans) if record.path is not None)
 
 
 @cache
@@ -156,9 +145,10 @@ def _compiled(
     as reliably as the pair itself would.
     """
     record = corpus.plans(corpus_map)[index]
-    return compile_record(
-        record, corpus.grid(corpus_map), total_duration=total_duration
-    )
+    # The same seed whatever `total_duration`: a cut compile then draws the same
+    # delays as the full one up to its cut, which is what B1 compares.
+    random.seed(f"{corpus_map.name}:{index}")
+    return compile_record(record, total_duration=total_duration)
 
 
 def _batches(wrapper: KeyboardInputWrapper) -> list[list[tuple[str, str]]]:
@@ -237,7 +227,6 @@ def _overlaps(a: tuple[float, float], b: tuple[float, float]) -> bool:
 def test_a1_shape(
     corpus_map: corpus.CorpusMap,
     corpus_plans: tuple[corpus.PlanRecord, ...],
-    corpus_grid: MinimapGrid,
 ) -> None:
     violations = []
     for i, record in _reachable(corpus_plans):
@@ -264,7 +253,6 @@ def test_a1_shape(
 def test_a2_terminal_release(
     corpus_map: corpus.CorpusMap,
     corpus_plans: tuple[corpus.PlanRecord, ...],
-    corpus_grid: MinimapGrid,
 ) -> None:
     """Only checkable on a sequence that was **not** truncated - the full compile."""
     violations = []
@@ -284,7 +272,6 @@ def test_a2_terminal_release(
 def test_a3_no_opposing_overlap(
     corpus_map: corpus.CorpusMap,
     corpus_plans: tuple[corpus.PlanRecord, ...],
-    corpus_grid: MinimapGrid,
 ) -> None:
     violations = []
     for i, record in _reachable(corpus_plans):
@@ -305,7 +292,6 @@ def test_a3_no_opposing_overlap(
 def test_a4_skill_key_closure(
     corpus_map: corpus.CorpusMap,
     corpus_plans: tuple[corpus.PlanRecord, ...],
-    corpus_grid: MinimapGrid,
 ) -> None:
     violations = []
     for i, record in _reachable(corpus_plans):
@@ -324,7 +310,6 @@ def test_a4_skill_key_closure(
 def test_a5_delays(
     corpus_map: corpus.CorpusMap,
     corpus_plans: tuple[corpus.PlanRecord, ...],
-    corpus_grid: MinimapGrid,
 ) -> None:
     violations = []
     for i, record in _reachable(corpus_plans):
@@ -340,7 +325,6 @@ def test_a5_delays(
 def test_a6_no_phantom_release(
     corpus_map: corpus.CorpusMap,
     corpus_plans: tuple[corpus.PlanRecord, ...],
-    corpus_grid: MinimapGrid,
 ) -> None:
     violations = []
     for i, record in _reachable(corpus_plans):
@@ -358,7 +342,6 @@ def test_a6_no_phantom_release(
 def test_a7_typematic_legality(
     corpus_map: corpus.CorpusMap,
     corpus_plans: tuple[corpus.PlanRecord, ...],
-    corpus_grid: MinimapGrid,
 ) -> None:
     violations = []
     for i, record in _reachable(corpus_plans):
@@ -386,7 +369,6 @@ def test_a7_typematic_legality(
 def test_b1_truncation_integrity(
     corpus_map: corpus.CorpusMap,
     corpus_plans: tuple[corpus.PlanRecord, ...],
-    corpus_grid: MinimapGrid,
 ) -> None:
     """
     Whether the cut, taken at production's own `ACTION_DURATION`, ever lands inside an
@@ -426,11 +408,11 @@ def test_b1_truncation_integrity(
 def test_b2_fill_bound(
     corpus_map: corpus.CorpusMap,
     corpus_plans: tuple[corpus.PlanRecord, ...],
-    corpus_grid: MinimapGrid,
 ) -> None:
     """
     Literally as the catalogue states it: the elapsed cost of every Step Provenance
-    attributes to this walk component, against `L / grid.speed`.
+    attributes to this walk component, against `L / walk_speed` (virtual px, and
+    virtual px/s).
 
     The catalogue's own note under B2 already flags the reason this does not hold
     everywhere: "release Steps inserted ahead of a component consume budget without
@@ -456,7 +438,7 @@ def test_b2_fill_bound(
                 MovementTypes.WALK_RIGHT,
             ):
                 continue
-            budget = component.length / corpus_grid.speed
+            budget = component.length / corpus.LAB_PHYSICS.walk_speed
             elapsed = spent.get(origin, 0.0)
             # `budget` and `elapsed` sum the same per-Step delays in a different order
             # (one division here, an accumulation of individually-jittered delays in
@@ -475,14 +457,14 @@ def test_b2_fill_bound(
 
 def test_b3_distance_fidelity_needs_a_live_client() -> None:
     pytest.skip(
-        "B3 Distance Fidelity is an Expectation gated on calibration - #13/#14."
+        "B3 Distance Fidelity is an Expectation gated on calibration - #397's "
+        "Trials in virtual px."
     )
 
 
 def test_b4_component_non_empty(
     corpus_map: corpus.CorpusMap,
     corpus_plans: tuple[corpus.PlanRecord, ...],
-    corpus_grid: MinimapGrid,
 ) -> None:
     """
     An Expectation: reported, not gating (catalogue). Every component up to the cut
@@ -590,14 +572,14 @@ def _continuation_compile(
         return None
     h0 = _post_completion_state(full)
     n_plus_1 = corpus.plans(corpus_map)[n_plus_1_index]
-    compiled = compile_record(n_plus_1, corpus.grid(corpus_map), initial_state=h0)
+    random.seed(f"{corpus_map.name}:{n_plus_1_index}:after:{n_index}")
+    compiled = compile_record(n_plus_1, initial_state=h0)
     return h0, compiled
 
 
 def test_c1_inherited_state_agreement(
     corpus_map: corpus.CorpusMap,
     corpus_plans: tuple[corpus.PlanRecord, ...],
-    corpus_grid: MinimapGrid,
 ) -> None:
     violations = []
     for i, j, n, n_plus_1 in _continuation_pairs(corpus_plans):
@@ -615,7 +597,6 @@ def test_c1_inherited_state_agreement(
 def test_c2_boundary_opposing_release(
     corpus_map: corpus.CorpusMap,
     corpus_plans: tuple[corpus.PlanRecord, ...],
-    corpus_grid: MinimapGrid,
 ) -> None:
     violations = []
     for i, j, n, n_plus_1 in _continuation_pairs(corpus_plans):
@@ -652,7 +633,6 @@ def test_c2_boundary_opposing_release(
 def test_c3_no_inherited_stuck_key(
     corpus_map: corpus.CorpusMap,
     corpus_plans: tuple[corpus.PlanRecord, ...],
-    corpus_grid: MinimapGrid,
 ) -> None:
     violations = []
     for i, j, n, n_plus_1 in _continuation_pairs(corpus_plans):
@@ -687,7 +667,6 @@ def test_c3_no_inherited_stuck_key(
 def test_d1_cancel_safety(
     corpus_map: corpus.CorpusMap,
     corpus_plans: tuple[corpus.PlanRecord, ...],
-    corpus_grid: MinimapGrid,
 ) -> None:
     """
     Swept exhaustively over every cancel point `k` in `[0, n]` of every reachable
@@ -713,7 +692,6 @@ def test_d1_cancel_safety(
 def test_d2_preemption_direction_release(
     corpus_map: corpus.CorpusMap,
     corpus_plans: tuple[corpus.PlanRecord, ...],
-    corpus_grid: MinimapGrid,
 ) -> None:
     violations = []
     for i, record in _reachable(corpus_plans):
@@ -736,47 +714,78 @@ def test_e1_path_terminus(
     corpus_map: corpus.CorpusMap, corpus_plans: tuple[corpus.PlanRecord, ...]
 ) -> None:
     """
-    The reachable half - non-empty Path - is already pinned by
-    `test_corpus.test_the_frozen_reachability_still_matches_the_grid`. This is the
-    terminus half: for a reachable pair, the Path's last node is the requested end.
+    The reachable half - a Path exists - is already pinned by
+    `test_corpus.test_the_frozen_reachability_still_matches_the_graph`. This is the
+    terminus half: for a reachable pair, the Path's first move takes off where the
+    graph places the requested start, and its last move lands where it places the
+    requested end.
     """
+    graph = corpus.graph(corpus_map)
     violations = []
     for record in _reachable_records(corpus_plans):
-        last = (record.path[-1].x, record.path[-1].y)
-        if last != record.pair.end:
-            violations.append((record.pair.start, record.pair.end, last))
+        assert record.path is not None
+        start = graph.place(record.pair.start)
+        end = graph.place(record.pair.end)
+        assert start is not None
+        assert end is not None
+        moves = record.path.moves
+        if not moves or moves[0].start != start[2] or moves[-1].end != end[2]:
+            violations.append((record.pair.start, record.pair.end))
     assert not violations, f"E1 Path Terminus: first {violations[0]}"
 
 
-def test_e2_adjacency_legality(
-    corpus_map: corpus.CorpusMap,
-    corpus_plans: tuple[corpus.PlanRecord, ...],
-    corpus_grid: MinimapGrid,
+def _on(point: Point, surface: Surface) -> bool:
+    """Whether `point` lies on `surface`: a platform's line, or a rope's span."""
+    x, y = point
+    if isinstance(surface, Rope):
+        top, bottom = min(surface.y1, surface.y2), max(surface.y1, surface.y2)
+        return abs(x - surface.x) <= 1e-6 and top - 1e-6 <= y <= bottom + 1e-6
+    height = surface.y_at(x)
+    return height is not None and abs(height - y) <= 1e-6
+
+
+def test_e2_move_legality(
+    corpus_map: corpus.CorpusMap, corpus_plans: tuple[corpus.PlanRecord, ...]
 ) -> None:
     """
-    Every consecutive node pair in a Path is a grid neighbour or a declared
-    connection - `path_into_movements` would otherwise have raised `NotImplementedError`
-    while `corpus.plans` built the sample, so this re-derives the same test the
-    compiler's own control flow already passed, directly against the grid.
+    Every move of a Path takes off where the one before it landed, and takes off
+    from and lands on the surfaces it names - the graph's version of "every step
+    is a grid neighbour or a declared connection".
     """
     violations = []
     for record in _reachable_records(corpus_plans):
-        for a, b in zip(record.path, record.path[1:]):
-            if b not in corpus_grid.adjacent_nodes(a) and b not in a.connections:
+        assert record.path is not None
+        moves = record.path.moves
+        for a, b in itertools.pairwise(moves):
+            if a.end != b.start:
                 violations.append((record.pair.start, record.pair.end, a, b))
-    assert not violations, f"E2 Adjacency Legality: first {violations[0]}"
+        for move in moves:
+            if not (_on(move.start, move.start_on) and _on(move.end, move.end_on)):
+                violations.append((record.pair.start, record.pair.end, move))
+    assert not violations, f"E2 Move Legality: first {violations[0]}"
 
 
 def test_e3_walk_squeeze_bound(
     corpus_map: corpus.CorpusMap, corpus_plans: tuple[corpus.PlanRecord, ...]
 ) -> None:
+    """
+    No walk or climb component is longer than `_MAX_TRAVEL_LENGTH` virtual px. A fall
+    off a rope's bottom (a `CLIMB_DOWN` lasting its fall, `duration` set) is one
+    gesture, never cut, and is not travel.
+    """
+    travel = {
+        MovementTypes.WALK_LEFT,
+        MovementTypes.WALK_RIGHT,
+        MovementTypes.CLIMB_UP,
+        MovementTypes.CLIMB_DOWN,
+    }
     violations = [
         (record.pair.start, record.pair.end, component)
         for record in _reachable_records(corpus_plans)
         for component in record.movements
-        if component.movement_type
-        in (MovementTypes.WALK_LEFT, MovementTypes.WALK_RIGHT)
-        and component.length > MovementHandler._MAX_WALK_SIZE
+        if component.movement_type in travel
+        and component.duration is None
+        and component.length > _MAX_TRAVEL_LENGTH + 1e-9
     ]
     assert not violations, f"E3 Walk Squeeze Bound: first {violations[0]}"
 
@@ -787,7 +796,7 @@ def test_e4_plan_non_empty(
     violations = [
         (record.pair.start, record.pair.end)
         for record in _reachable_records(corpus_plans)
-        if len(record.path) >= 2 and len(record.movements) < 2
+        if record.path is not None and record.path.moves and len(record.movements) < 2
     ]
     assert not violations, f"E4 Plan Non-empty: first {violations[0]}"
 

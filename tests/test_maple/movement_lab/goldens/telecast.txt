@@ -1,11 +1,12 @@
 Holds (key, t_down, t_up):
-  f1       0.034 0.069
-  insert   0.034 0.069
-  right    0.000 0.184
+  f1       0.034 0.068
+  insert   0.034 0.068
+  right    0.000 0.360
 
 right keydown for 0.033s
-['insert', 'f1'] ['keydown', 'keydown'] for 0.034s
-['insert', 'f1'] ['keyup', 'keyup'] for 0.114s
+['insert', 'f1'] ['keydown', 'keydown'] for 0.033s
+['insert', 'f1'] ['keyup', 'keyup'] for 0.115s
+[] [] for 0.175s
 ['right'] ['keyup'] for 0.000s
-Total Duration: 0.185s
+Total Duration: 0.361s
 Forced Key Releases: ['insert', 'f1']

@@ -61,8 +61,12 @@ class _StubSkill(MapleSkill):
 TELEPORT_SKILL = _StubSkill("Teleport", "Movement", key="shift", animation_time=0.6)
 
 _WALK_RIGHT = _MovementComponent(MovementTypes.WALK_RIGHT, 20)
-_EDGE_JUMP_RIGHT = _MovementComponent(MovementTypes.JUMP_RIGHT, 1, edge_departure=True)
-_PLAIN_JUMP_RIGHT = _MovementComponent(MovementTypes.JUMP_RIGHT, 1)
+# A jump lasts its flight, which its component carries (#396): any will do here.
+_FLIGHT = 0.6
+_EDGE_JUMP_RIGHT = _MovementComponent(
+    MovementTypes.JUMP_RIGHT, 70, edge_departure=True, duration=_FLIGHT
+)
+_PLAIN_JUMP_RIGHT = _MovementComponent(MovementTypes.JUMP_RIGHT, 70, duration=_FLIGHT)
 _EDGE_TELEPORT_RIGHT = _MovementComponent(
     MovementTypes.TELEPORT_RIGHT, 1, edge_departure=True
 )

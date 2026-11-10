@@ -122,6 +122,31 @@ class Fusion:
     own_elsewhere: bool = False
 
 
+def feet_of_marker(
+    transform: MinimapTransform, marker: tuple[float, float]
+) -> tuple[float, float]:
+    """
+    Where a marker's canvas pixel puts the feet, in virtual px: the middle of
+    the canvas pixel `FEET_ROWS` below the marker's, as fusion places the
+    minimap's position. Also how a target picked in canvas px (a map file's,
+    until #398) becomes a virtual one.
+    """
+    half = transform.scale / 2
+    corner = transform.to_virtual((marker[0], marker[1] + FEET_ROWS))
+    return corner[0] + half, corner[1] + half
+
+
+def marker_of_feet(
+    transform: MinimapTransform, feet: tuple[float, float]
+) -> tuple[int, int]:
+    """
+    The canvas pixel the marker is drawn at for feet at a virtual position:
+    `feet_of_marker`'s inverse, for telemetry's canvas-px fields.
+    """
+    x, y = transform.to_canvas(feet)
+    return math.floor(x), math.floor(y) - FEET_ROWS
+
+
 class CameraSource(Protocol):
     """The part of `CameraReader` fusion calls."""
 
@@ -190,9 +215,7 @@ class PositionFusion:
             why = f"minimap position {marker.status.value}: {marker.detail}"
             return Fusion(Reading.unsure(at, why))
         cell = (marker.value[0], marker.value[1] + FEET_ROWS)
-        half = self._transform.scale / 2
-        corner = self._transform.to_virtual(cell)
-        mx, my = corner[0] + half, corner[1] + half
+        mx, my = feet_of_marker(self._transform, marker.value)
         seen = Fusion(Reading.unsure(at), (round(mx), round(my)))
 
         def coarse(why: str) -> Fusion:

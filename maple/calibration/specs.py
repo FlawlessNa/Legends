@@ -62,10 +62,12 @@ class Knobs:
       i.e. `DecisionMaker._throttle`.
     * ``action_duration`` - the Action duration cap a Movement Plan is compiled
       against, i.e. `data.action_duration`.
-    * ``precision_threshold`` - the platform width (minimap pixels) at or below which
+    * ``precision_threshold`` - the platform width (virtual px since #396; the
+      values in ``configs/trials`` are still minimap px, 16x off, until #397
+      converts them) at or below which
       a jump or teleport gets the landing direction-stop, i.e. `MovementHandler`'s
       ``narrow_platform_threshold``.
-    * ``edge_departure_threshold`` - the distance (minimap pixels) from a platform's
+    * ``edge_departure_threshold`` - the distance (virtual px, likewise) from a platform's
       end, in the travel direction, within which a jump or teleport gets the
       pre-departure stop, i.e. `MovementHandler`'s ``edge_departure_threshold``.
 

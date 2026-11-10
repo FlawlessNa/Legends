@@ -19,7 +19,7 @@ from maple.model.mechanics import MapleMap
 from maple.model.mechanics.minimap_creation.minimap_edits_model import (
     MinimapEditsManager,
 )
-from maple.model.mechanics.physics import Calibration
+from maple.model.mechanics.physics import Calibration, game_physics
 from maple.model.world import WorldMap
 from maple.screen.buffs import ICON_BASE, BuffsReader
 from maple.screen.chat import TARGET_SELECT, ChatReader
@@ -88,8 +88,8 @@ class MapleBot(Bot, ABC):
         self.map_auto = is_auto(map)
         self.game_map = (game_map or "").replace("_", "").replace(" ", "")
         self.open_minimap_editor = open_minimap_editor
-        # Parsed here so a misspelt constant refuses the start. Nothing reads
-        # it until Movement Plans move to virtual px (#396).
+        # Parsed here so a misspelt constant refuses the start; Movement Plans
+        # read it through `data.calibration`.
         self.calibration = Calibration.from_mapping(calibration)
         self.kwargs = kwargs
         self.kwargs.update(ign=ign)
@@ -153,6 +153,7 @@ class MapleBot(Bot, ABC):
         data.set_static("reader_sprites", reader_sprites)
         data.set_static("buff_names", profile.buffs)
         data.set_static("world_map", None)
+        data.set_static("game_physics", None)
         data.set_static("position_fusion", None)
         if reader_sprites.build is not None:
             frame_check = FrameCheck(reader_sprites)
@@ -212,6 +213,10 @@ class MapleBot(Bot, ABC):
         data.create_attribute(
             "current_frame", lambda: frame_source().grab(data.handle), threshold=0.1
         )
+        # The character's current speed and jump stats, from the profile at the
+        # start of a Session. A later reading replaces them (the ability menu's
+        # today, #314's stat window reader next); Movement Plans read them each
+        # time they plan, so the next Path follows the new values.
         data.set_static("speed_multiplier", self.kwargs.get("speed_multiplier", 1.00))
         data.set_static("jump_multiplier", self.kwargs.get("jump_multiplier", 1.00))
         data.set_static("calibration", self.calibration)
@@ -219,15 +224,18 @@ class MapleBot(Bot, ABC):
     def _set_world_map(self, map_id: int, frame_check: FrameCheck) -> None:
         """
         Publishes `world_map`, the map's `WorldMap` from the game data store
-        the readers' sprites came from, and `position_fusion`, the reader of
-        `current_position` on it. Nothing is drawn or indexed here: the static
-        render is, on the first position read.
+        the readers' sprites came from, `game_physics`, the store's
+        `Physics.img` values Movement Plans derive their physics from, and
+        `position_fusion`, the reader of `current_position` on it. Nothing is
+        drawn or indexed here: the static render is, on the first position
+        read.
 
         :raises LookupError: The store's catalogue has no map `map_id`.
         """
         assert self.data is not None
         world_map = WorldMap.load(map_id)
         self.data.set_static("world_map", world_map)
+        self.data.set_static("game_physics", game_physics())
         if world_map.minimap is None:
             logger.warning("Map %d has no minimap: no position is read.", map_id)
             return

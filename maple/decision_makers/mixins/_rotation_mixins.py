@@ -9,12 +9,18 @@ import numpy as np
 
 from botting import PARENT_LOG
 from botting.core import BotData
+from botting.screen import Reading
 from maple.decision_makers.mixins._mob_mixins import MobsHittingMixin
 from maple.model.mechanics import (
     MovementHandler,
     compile_movements,
 )
 from maple.model.mechanics.minimap_creation.minimap_edits_model import MinimapEdits
+from maple.model.mechanics.movement_mechanics_v2 import _MovementComponent
+from maple.model.mechanics.physics import VRPhysics
+from maple.model.navigation import Path, Point
+from maple.model.world import WorldMap
+from maple.screen.position import VirtualPosition, feet_of_marker
 from maple.telemetry_events import MOVEMENT_TARGET_REACHED, target_reached_payload
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -111,11 +117,27 @@ class NextTargetMixin:
         """
         # Not every host of this mixin is a DecisionMaker with `emit`.
         emit = getattr(self, "emit", None)
-        if emit is not None:
-            emit(
-                MOVEMENT_TARGET_REACHED,
-                target_reached_payload(position, target),
-            )
+        if emit is None:
+            return
+        # The virtual fields, as far as they are known without a read: the
+        # target converted as the planner converts it, and the last virtual
+        # position read. Arrival is still judged in canvas px until #398.
+        virtual_target = virtual_position = None
+        world_map: WorldMap | None = getattr(self.data, "world_map", None)
+        if world_map is not None and world_map.minimap is not None:
+            virtual_target = feet_of_marker(world_map.minimap, (target[0], target[1]))
+            last = _last_position(self.data)
+            if last is not None:
+                virtual_position = (last.x, last.y)
+        emit(
+            MOVEMENT_TARGET_REACHED,
+            target_reached_payload(
+                position,
+                target,
+                virtual_position=virtual_position,
+                virtual_target=virtual_target,
+            ),
+        )
 
     def _update_next_target_from_cycle(self) -> None:
         """
@@ -304,7 +326,46 @@ class NextTargetMixin:
         return self.data.next_feature.random()
 
 
+def _last_position(data: BotData) -> VirtualPosition | None:
+    """
+    The last virtual position read, without reading one: `None` before the
+    first read, or when the bot reads none.
+    """
+    try:
+        last = data.get_last_known_value("current_position", update=False)
+    except AttributeError:
+        return None
+    return None if last is None else last.value
+
+
 class MovementsMixin:
+    """
+    Plans a Path on the map's `FootholdGraph`, from the character's virtual
+    position (`current_position`) to the target, and ships its Movement Plan.
+
+    **The target.** `_virtual_target` gives it in virtual px. Rotation's
+    targets are still the map file's, in canvas px, until #398: they are
+    converted through the minimap transform, to where a marker at that pixel
+    puts the feet (`feet_of_marker`). A DecisionMaker whose targets are virtual
+    overrides `_virtual_target`.
+
+    **An unsure position holds.** When `current_position` is `UNSURE` (the
+    reads disagree, or two characters stand where the minimap puts ours), no
+    Path is planned this cycle: the plan is empty, nothing is sent, and the next
+    cycle plans from the next read. A position off every platform and rope (in
+    the air) holds the same way. The minimap's own failures still go to its
+    error handler (`MinimapAttributesMixin._get_position`). On a map with no
+    minimap, or none known, no position is read and nothing is planned: that is
+    logged once, when the attributes are made.
+
+    **The physics follow the stats.** Each Path is planned on the graph of
+    `_physics()`: `VRPhysics` from the game's `Physics.img` (`game_physics`),
+    the character's current `speed_multiplier` and `jump_multiplier`, and the
+    profile's Calibration constants. When a stat changes, the next Path is
+    planned on a graph built for it (`MovementHandler`), and the plan is
+    compiled with its speeds.
+    """
+
     data: BotData
     NO_PATH_FOUND_THRESHOLD: float = 15.0
 
@@ -317,49 +378,108 @@ class MovementsMixin:
     ) -> None:
         """
         :param duration: The Action duration cap a Movement Plan is compiled against.
-        :param narrow_platform_threshold: Overrides the platform width below which a
-            jump or teleport gets its landing direction-stop. `None` leaves
-            `MovementHandler`'s default in place, which is what production wants; a
-            Trial batch sweeping the precision-movement Knob is the one caller that
-            passes anything else.
-        :param edge_departure_threshold: Overrides the distance from a platform's end
-            within which a jump or teleport gets its pre-departure stop. Same shape
-            as `narrow_platform_threshold`.
+        :param narrow_platform_threshold: Overrides the platform width (virtual px)
+            below which a jump or teleport gets its landing direction-stop. `None`
+            leaves `MovementHandler`'s default in place, which is what production
+            wants; a Trial batch sweeping the precision-movement Knob is the one
+            caller that passes anything else.
+        :param edge_departure_threshold: Overrides the distance (virtual px) from a
+            platform's end within which a jump or teleport gets its pre-departure
+            stop. Same shape as `narrow_platform_threshold`.
         """
         self.data.set_static("action_duration", duration)
         self.data.create_or_reconfigure_attribute(
             "movement_handler",
-            lambda: MovementHandler(
-                self.data.handle,
-                self.data.current_minimap,
-                self.data.ign,
-                self.data.character.skills.get("Teleport"),
-                narrow_platform_threshold=narrow_platform_threshold,
-                edge_departure_threshold=edge_departure_threshold,
+            lambda: self._new_handler(
+                narrow_platform_threshold, edge_departure_threshold
             ),
         )
 
         self.data.create_or_reconfigure_attribute(
-            "path",
-            lambda: self.data.movement_handler.compute_path(
-                self.data.current_minimap_position,
-                self.data.next_target,
-                self.data.current_grid,
-            ),
-            threshold=0.1,
+            "path", self._plan_path, threshold=0.1
         )
         self.data.create_or_reconfigure_attribute(
-            "movements",
-            lambda: self.data.movement_handler.path_into_movements(
-                self.data.path, self.data.current_grid
-            ),
-            threshold=0.1,
+            "movements", self._plan_movements, threshold=0.1
         )
         # No compiled `action` attribute: nothing is compiled in this process any
         # more. A DecisionMaker decides from `movements` and ships the plan, which
         # Main Process compiles at dispatch against the Held-Keys Ledger (ADR 0002).
         self.data.set_static("always_release_keys", False)
         self.data.set_feature("has_pathing_attributes")
+
+    def _new_handler(
+        self,
+        narrow_platform_threshold: float | None,
+        edge_departure_threshold: float | None,
+    ) -> MovementHandler | None:
+        """
+        The map's `MovementHandler`; `None`, logged, on a map with no minimap or
+        none known, where no virtual position is read: nothing is planned there.
+        """
+        world_map: WorldMap | None = getattr(self.data, "world_map", None)
+        if world_map is None or world_map.minimap is None:
+            logger.warning(
+                "%s plans no Path: the bot's map isn't known, or has no minimap.",
+                self,
+            )
+            return None
+        return MovementHandler(
+            self.data.handle,
+            world_map,
+            self.data.ign,
+            self.data.character.skills.get("Teleport"),
+            narrow_platform_threshold=narrow_platform_threshold,
+            edge_departure_threshold=edge_departure_threshold,
+        )
+
+    def _world_map(self) -> WorldMap:
+        world_map: WorldMap | None = getattr(self.data, "world_map", None)
+        if world_map is None or world_map.minimap is None:
+            raise ValueError(
+                "no map to plan on: the bot's map isn't known, or has no minimap"
+            )
+        return world_map
+
+    def _physics(self) -> VRPhysics:
+        """The character's physics, with its current speed and jump stats."""
+        values = getattr(self.data, "game_physics", None)
+        if values is None:
+            raise ValueError("no game physics: the bot's map isn't known")
+        return VRPhysics.from_game_files(
+            values,
+            speed_multiplier=self.data.speed_multiplier,
+            jump_multiplier=self.data.jump_multiplier,
+            calibration=getattr(self.data, "calibration", None),
+        )
+
+    def _virtual_target(self) -> Point:
+        """
+        The target, in virtual px: `next_target`, in canvas px, converted
+        through the minimap transform (see the class docstring).
+        """
+        transform = self._world_map().minimap
+        assert transform is not None
+        target = self.data.next_target
+        return feet_of_marker(transform, (target[0], target[1]))
+
+    def _plan_path(self) -> Path | None:
+        """The Path from the current position to the target; `None` holds."""
+        handler: MovementHandler | None = self.data.movement_handler
+        if handler is None:
+            return None
+        reading: Reading[VirtualPosition] = self.data.current_position
+        if reading.value is None:
+            logger.debug("No Path: the position is unsure (%s).", reading.detail)
+            return None
+        position = (float(reading.value.x), float(reading.value.y))
+        return handler.compute_path(position, self._virtual_target(), self._physics())
+
+    def _plan_movements(self) -> tuple[_MovementComponent, ...]:
+        """The Movement Plan of the current Path; empty with no handler."""
+        handler: MovementHandler | None = self.data.movement_handler
+        if handler is None:
+            return ()
+        return handler.path_into_movements(self.data.path)
 
     def _has_movements(self) -> bool:
         """
@@ -379,14 +499,17 @@ class MovementsMixin:
         this handle, from inside the focus-lock critical section.
 
         `MovementHandler` itself cannot travel: its per-instance `lru_cache` wrappers
-        are unpicklable, and the grid is only consulted for its speed.
+        are unpicklable. The speeds are the current physics': a jump's flight is
+        already in its component, from the graph its Path was planned on.
         """
+        physics = self._physics()
         return functools.partial(
             compile_movements,
             movements=self.data.movements,
             handle=self.data.handle,
             ign=self.data.ign,
-            speed=self.data.current_grid.speed,
+            speed=physics.walk_speed,
+            climb_speed=physics.climb_speed,
             teleport=self.data.character.skills.get("Teleport"),
             total_duration=self.data.action_duration,
             always_release=self.data.always_release_keys,
