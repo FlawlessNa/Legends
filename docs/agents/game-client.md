@@ -164,6 +164,18 @@ State what you checked: the exact command you ran, and the PNG path. Attach
 the PNG if it helps the maintainer, since `probe/` is not committed. Say what
 you did not check.
 
+## Position check
+
+`python -m toolkit.position_check` (`toolkit/position_check.py`, its docstring
+has the details) shows what the position readers say: the minimap, the camera,
+the characters found and the fused position, each with its status. It runs
+`live` beside the client or `replay`s a folder of frames. It writes one CSV row
+per frame, prints each map's rates at the end, and saves frames for the frame
+set. **It sends no keys**, so you may replay with it freely. The live mode needs
+the maintainer at the client, who walks while it reads. Read its
+`readings.csv` and `summary.txt` (under `data/position_check/<time>/`), and
+paste the summary into the PR.
+
 ## Live Session
 
 The probe looks at a client with no bot running. This section is for the other
