@@ -29,7 +29,7 @@ from maple.model.mechanics.movement_mechanics_v2 import (
     _MovementComponent,
 )
 from maple.model.world import WorldMap
-from maple.screen.position import PositionSource, VirtualPosition
+from maple.screen.position import PositionSource, VirtualPosition, feet_of_marker
 from maple.telemetry_events import (
     MOVEMENT_PLAN_STARTED,
     MOVEMENT_TARGET_REACHED,
@@ -72,7 +72,7 @@ def test_plan_started_payload_is_json_primitives() -> None:
     )
 
     assert payload == {
-        "components": [["WALK_RIGHT", 5], ["END_OF_MOVEMENT", 0]],
+        "components": [["WALK_RIGHT", 5], ["END_OF_MOVEMENT", 1]],
         "components_v": [["WALK_RIGHT", 80.0], ["END_OF_MOVEMENT", 0.0]],
         "from_x": 3,
         "from_y": 4,
@@ -87,6 +87,40 @@ def test_plan_started_payload_is_json_primitives() -> None:
     assert type(payload["from_x"]) is int
     assert type(payload["components"][0][1]) is int
     assert type(payload["from_vx"]) is float
+
+
+def test_plan_started_components_count_gestures_as_they_always_did() -> None:
+    """
+    `components` keeps its pre-#396 meaning, so an analyzer reads old and new
+    Sessions alike: a walk or a climb in canvas px, a gesture as a count (1 per
+    jump or portal, the casts for a teleport). `components_v` has every length.
+    """
+    plan = (
+        _MovementComponent(MovementTypes.CLIMB_UP, 48.0),
+        _MovementComponent(MovementTypes.JUMP_RIGHT, 69.4, duration=0.555),
+        _MovementComponent(MovementTypes.TELEPORT_UP, 300.0, casts=2),
+        _MovementComponent(MovementTypes.ENTER_PORTAL, 0.0, duration=0.128),
+        _MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),
+    )
+
+    payload = plan_started_payload(
+        plan, (0, 0), (1, 1), virtual_position=(0, 0), virtual_target=(16, 16), scale=16
+    )
+
+    assert payload["components"] == [
+        ["CLIMB_UP", 3],
+        ["JUMP_RIGHT", 1],
+        ["TELEPORT_UP", 2],
+        ["ENTER_PORTAL", 1],
+        ["END_OF_MOVEMENT", 1],
+    ]
+    assert [length for _, length in payload["components_v"]] == [
+        48.0,
+        69.4,
+        300.0,
+        0.0,
+        0.0,
+    ]
 
 
 def test_target_reached_payload_carries_the_distance() -> None:
@@ -280,7 +314,7 @@ def test_rotation_emits_plan_started_before_sending() -> None:
     assert (payload["target_x"], payload["target_y"]) == (20, 5)
     assert (payload["from_vx"], payload["from_vy"]) == FEET_AT_3_5
     assert (payload["target_vx"], payload["target_vy"]) == FEET_AT_20_5
-    assert payload["components"] == [["WALK_RIGHT", 5], ["END_OF_MOVEMENT", 0]]
+    assert payload["components"] == [["WALK_RIGHT", 5], ["END_OF_MOVEMENT", 1]]
     assert payload["components_v"] == [["WALK_RIGHT", 80.0], ["END_OF_MOVEMENT", 0.0]]
 
 
@@ -321,6 +355,31 @@ def test_plan_started_does_not_refresh_a_thresholded_attribute() -> None:
     ((event_type, payload),) = loop.emitted
     assert event_type == MOVEMENT_PLAN_STARTED
     assert payload["from_x"] == 3
+
+
+def test_plan_started_takes_both_targets_from_one_read() -> None:
+    """
+    The canvas target and its virtual equivalent come from the same cached
+    read: a refresh between the two can't make them describe different targets.
+    Here every read of `next_target` would give a new one.
+    """
+    loop = _Loop(emit_works=True)
+    reads = iter(range(20, 40))
+    loop.data.reconfigure_attribute(
+        "next_target", update_function=lambda: (next(reads), 5), threshold=1e-9
+    )
+    transform = WORLD.minimap
+    assert transform is not None
+
+    _decide(loop)
+
+    ((_, payload),) = loop.emitted
+    target_x, target_y = payload["target_x"], payload["target_y"]
+    assert isinstance(target_x, int)
+    assert isinstance(target_y, int)
+    assert (payload["target_vx"], payload["target_vy"]) == feet_of_marker(
+        transform, (target_x, target_y)
+    )
 
 
 def test_no_plan_started_when_there_is_nothing_to_send() -> None:

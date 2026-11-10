@@ -43,7 +43,16 @@ The model gaps (PM2's teleport half, PM3 entirely) were closed by
 (default 5 minimap px, 80 virtual px since #396; a **Knob** on `MovementHandler`,
 mirroring `narrow_platform_threshold`'s shape) of its platform's end in the
 travel direction. Until [#397](https://github.com/FlawlessNa/Legends/issues/397)
-converts them, the Knob values in `configs/trials` are still minimap px, 16× off. The precision pre-stop
+converts them, the Knob values in `configs/trials` are still minimap px, 16× off.
+
+**Reading `movement.plan_started` across #396.** `components` keeps its meaning
+in old and new Sessions alike: `[movement_type, length]`, where a walk's or a
+climb's length is minimap (canvas) px and a gesture's (`JUMP*`, `TELEPORT_*`,
+`ENTER_PORTAL`) is a count — 1 per jump or portal, the casts for a teleport. Since
+#396 each jump is its own component (before, one `JUMP_RIGHT, 2` was two jumps),
+and the new `components_v` gives every component's measured length in virtual
+px, gestures included. An analyzer counting jumps sums the gesture counts in
+either kind of Session. The precision pre-stop
 (direction-key release ahead of the gesture) now fires on that flag unconditionally,
 not only when truncation happens to land there. Grid-baked flags were rejected —
 every map would need re-authoring and nothing could be swept.

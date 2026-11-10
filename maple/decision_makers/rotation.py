@@ -6,7 +6,7 @@ import time
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
-from maple.screen.position import marker_of_feet
+from maple.screen.position import feet_of_marker, marker_of_feet
 from maple.telemetry_events import MOVEMENT_PLAN_STARTED, plan_started_payload
 
 from .mixins import (
@@ -110,6 +110,9 @@ class Rotation(
             return
         assert transform is not None
         virtual_position = (reading.value.x, reading.value.y)
+        # From the one target read above, converted as `_virtual_target` converts
+        # it, so `target_*` and `target_v*` can't describe two targets.
+        virtual_target = feet_of_marker(transform, (target[0], target[1]))
         self.emit(
             MOVEMENT_PLAN_STARTED,
             plan_started_payload(
@@ -117,7 +120,7 @@ class Rotation(
                 marker_of_feet(transform, virtual_position),
                 target,
                 virtual_position=virtual_position,
-                virtual_target=self._virtual_target(),
+                virtual_target=virtual_target,
                 scale=transform.scale,
             ),
         )

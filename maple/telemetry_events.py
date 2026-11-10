@@ -241,9 +241,12 @@ class PlanStartedPayload(TypedDict):
     where.
 
     Each of ``components`` is ``[movement_type, length]``, ``movement_type``
-    being the ``MovementTypes`` member name and ``length`` in minimap (canvas)
-    px, not time; ``components_v`` is the same with ``length`` in virtual px,
-    to 0.1. ``from_vx``/``from_vy`` is the virtual position the Path was
+    being the ``MovementTypes`` member name, with the meaning it always had:
+    for a walk or a climb, ``length`` in minimap (canvas) px, not time; for a
+    gesture (``JUMP*``, ``TELEPORT_*``, ``ENTER_PORTAL``), how many: 1 per jump
+    or portal, the casts for a teleport. ``components_v`` is ``[movement_type,
+    length]`` with every ``length`` measured in virtual px, to 0.1, gestures
+    included (#396). ``from_vx``/``from_vy`` is the virtual position the Path was
     planned from, ``target_vx``/``target_vy`` the virtual target; ``from_x``,
     ``from_y``, ``target_x`` and ``target_y`` are their canvas-px equivalents
     through the minimap transform (the marker's pixel, as the minimap reads
@@ -325,6 +328,11 @@ class PositionReadPayload(TypedDict):
     detail: str
 
 
+#: The ``MovementTypes`` names whose ``components`` length is a distance; every
+#: other component's is a count.
+_TRAVEL = ("WALK_", "CLIMB_")
+
+
 def plan_started_payload(
     movements: Iterable[Any],
     position: Sequence[Any],
@@ -344,12 +352,19 @@ def plan_started_payload(
     :param scale: Virtual px per canvas px, for ``components``' lengths.
     """
     moves = [
-        (getattr(m.movement_type, "name", str(m.movement_type)), float(m.length))
+        (
+            getattr(m.movement_type, "name", str(m.movement_type)),
+            float(m.length),
+            int(getattr(m, "casts", 1)),
+        )
         for m in movements
     ]
     return {
-        "components": [[name, round(length / scale)] for name, length in moves],
-        "components_v": [[name, round(length, 1)] for name, length in moves],
+        "components": [
+            [name, round(length / scale) if name.startswith(_TRAVEL) else casts]
+            for name, length, casts in moves
+        ],
+        "components_v": [[name, round(length, 1)] for name, length, _ in moves],
         "from_x": int(position[0]),
         "from_y": int(position[1]),
         "target_x": int(target[0]),

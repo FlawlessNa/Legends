@@ -219,8 +219,10 @@ def _world_map(map_id: int, minimap: MinimapTransform | None) -> WorldMap:
 def test_child_init_builds_the_world_map_from_the_map_id_it_publishes(
     monkeypatch: pytest.MonkeyPatch, minimap: MinimapTransform | None
 ) -> None:
-    """With the store the readers' sprites came from; and the position's
-    reader on it, when the map has a minimap to check positions against."""
+    """With the store the readers' sprites came from, and that store's
+    `Physics.img` values, which Movement Plans derive their physics from; and
+    the position's reader on it, when the map has a minimap to check positions
+    against."""
     start = _Start(monkeypatch, file_map_id=None)
     start.sprites = ReaderSprites("build")
     loaded: list[int] = []
@@ -229,7 +231,9 @@ def test_child_init_builds_the_world_map_from_the_map_id_it_publishes(
         loaded.append(map_id)
         return _world_map(map_id, minimap)
 
+    physics = {"walkSpeed": 125.0, "jumpSpeed": 555.0}
     monkeypatch.setattr(maple_bot.WorldMap, "load", load)
+    monkeypatch.setattr(maple_bot, "game_physics", lambda: physics)
     monkeypatch.setattr(maple_bot, "FrameCheck", lambda sprites: object())
     monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_, game_map: 10002000)
     bot = _bot(map="Victoria Road: Ellinia")
@@ -240,6 +244,7 @@ def test_child_init_builds_the_world_map_from_the_map_id_it_publishes(
     assert bot.data is not None
     assert loaded == [bot.data.map_id] == [10002000]
     assert bot.data.world_map.id == 10002000
+    assert bot.data.game_physics is physics
     if minimap is None:
         assert bot.data.position_fusion is None
     else:

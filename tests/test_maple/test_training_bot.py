@@ -78,6 +78,7 @@ from tests.test_maple import (
 from tests.test_maple import (
     test_screen_status_bar as status_bar,
 )
+from tests.test_maple.movement_lab.corpus import LAB_PHYSICS_VALUES
 
 WIDTH, HEIGHT = 1024, 768
 BUFF_NAMES = ("Magic Guard", "Invincible")
@@ -227,6 +228,8 @@ def started(
             map_id, None, None, Bounds(0, 0, WIDTH, HEIGHT), None, (), (), (), ()
         ),
     )
+    # Nor its physics: Movement Plans' `Physics.img` values, written out.
+    monkeypatch.setattr(maple_bot, "game_physics", lambda: dict(LAB_PHYSICS_VALUES))
 
     def proxy(
         self: ProxyFactory,
