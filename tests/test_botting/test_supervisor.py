@@ -190,6 +190,32 @@ class TwoLoops(DecisionMaker):
         raise AssertionError("never called: loops() names the decisions")
 
 
+class SlowToUnwind(DecisionMaker):
+    """
+    A decision that cleans up after itself when cancelled, and takes a few turns
+    of the event loop to do it, as `TrialRunner`'s did in its loop's `finally`.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401 - DecisionMaker's own
+        super().__init__(*args, **kwargs)
+        self.deciding = asyncio.Event()
+        self.unwound = False
+        #: What `unwound` was each time `on_stop` ran.
+        self.unwound_at_stop: list[bool] = []
+
+    def on_stop(self) -> None:
+        self.unwound_at_stop.append(self.unwound)
+
+    async def _decide(self) -> None:
+        self.deciding.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            for _ in range(5):
+                await asyncio.sleep(0)
+            self.unwound = True
+
+
 class Crashing(DecisionMaker):
     async def _decide(self) -> None:
         await asyncio.sleep(0)
@@ -344,6 +370,38 @@ def test_on_stop_runs_once_the_loops_stop_by_any_route() -> None:
             assert worker.starts == 2
         # The Bot ending stops the loops too.
         assert worker.stops == 2
+
+    asyncio.run(scenario())
+
+
+def test_on_stop_waits_for_the_loops_to_unwind_when_the_bot_is_cancelled() -> None:
+    async def scenario() -> None:
+        dms, _ = _build(SlowToUnwind)
+        [dm] = dms
+        assert isinstance(dm, SlowToUnwind)
+        supervisor = Supervisor(IGN, dms, resolve_pauses([SlowToUnwind]))
+        run = asyncio.create_task(supervisor.run())
+        await dm.deciding.wait()
+
+        run.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await run
+
+        assert dm.unwound_at_stop == [True]
+
+    asyncio.run(scenario())
+
+
+def test_on_stop_waits_for_the_loops_to_unwind_when_another_loop_raises() -> None:
+    async def scenario() -> None:
+        dms, _ = _build(SlowToUnwind, Crashing)
+        slow = dms[0]
+        assert isinstance(slow, SlowToUnwind)
+        supervisor = Supervisor(IGN, dms, resolve_pauses([SlowToUnwind, Crashing]))
+        with pytest.raises(ExceptionGroup):
+            await asyncio.wait_for(supervisor.run(), timeout=5)
+
+        assert slow.unwound_at_stop == [True]
 
     asyncio.run(scenario())
 

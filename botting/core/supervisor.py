@@ -15,6 +15,7 @@ ADR 0004 records the decisions this module implements.
 """
 
 import asyncio
+import contextlib
 import importlib
 import logging
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -212,8 +213,7 @@ class Supervisor:
                 if slot.tasks:
                     await asyncio.wait(slot.tasks)
             finally:
-                for task in slot.tasks:
-                    task.cancel()
+                await self._stop(slot.tasks)
                 slot.tasks = []
                 dm.on_stop()
             # Loops that ended by themselves rather than by a Pause stay ended
@@ -221,6 +221,28 @@ class Supervisor:
             # task always has. Waiting here is what stops them restarting in a
             # hot loop.
             await self._until(slot, lambda then=generation: slot.generation != then)
+
+    @staticmethod
+    async def _stop(tasks: Sequence[asyncio.Task[None]]) -> None:
+        """
+        Cancel `tasks` and wait until every one has finished unwinding, so that
+        `on_stop` only ever runs once the loops have stopped.
+
+        Only reached with loops still running when `_supervise` itself is
+        leaving on an exception (the Bot is cancelled, or another loop raised),
+        which re-raises once this returns. A further cancellation while waiting
+        is therefore absorbed rather than allowed to skip `on_stop`.
+
+        A loop already being cancelled (by the TaskGroup, as the Bot ends) is
+        not cancelled again: a second cancellation would land inside its own
+        clean-up, at its first `await`, and cut it short.
+        """
+        for task in tasks:
+            if not task.done() and not task.cancelling():
+                task.cancel()
+        while not all(task.done() for task in tasks):
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.wait(tasks)
 
     @staticmethod
     async def _until(slot: _Slot, predicate: Callable[[], bool]) -> None:
