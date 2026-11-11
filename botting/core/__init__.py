@@ -1,7 +1,8 @@
 from .action_data import ActionRequest, ActionWithValidation, DiscordRequest
 from .async_task_manager import AsyncTaskManager
 from .bot import Bot
-from .bot_data import BotData
+from .bot_data import BotData, OwnedByProvider
+from .data_keys import Key, KeyNotDeclared, Provider
 from .decision_maker import (
     DecisionLoop,
     DecisionMaker,
@@ -26,11 +27,15 @@ __all__ = [
     "DecisionMaker",
     "DiscordRequest",
     "Engine",
+    "Key",
+    "KeyNotDeclared",
     "MetadataNamespace",
+    "OwnedByProvider",
     "Pause",
     "PauseNotDeclared",
     "PauseTarget",
     "PeripheralsProcess",
+    "Provider",
     "ProxyFactory",
     "SessionManager",
     "StartupRefused",

@@ -21,6 +21,7 @@ import logging
 import os
 import shutil
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Final
 
@@ -30,6 +31,18 @@ from paths import ROOT
 #: ``botting/`` names itself after ``__name__``; every logger in ``maple/``
 #: prefixes ``__name__`` with this.
 PARENT_LOG: Final = "botting"
+
+
+def producer_logger_name(module: str) -> str:
+    """
+    The logger a Producer defined in `module` attributes its Telemetry Records
+    to, following its own package's convention: a ``botting`` module's name as
+    it is, any other prefixed with ``PARENT_LOG``.
+    """
+    if module == PARENT_LOG or module.startswith(f"{PARENT_LOG}."):
+        return module
+    return f"{PARENT_LOG}.{module}"
+
 
 LOGS_ROOT: Final[Path] = Path(ROOT) / "logs"
 
@@ -123,7 +136,7 @@ _FMT: Final = (
 )
 
 
-def _longest_prefix(name: str, table: dict, default):
+def _longest_prefix[T](name: str, table: Mapping[str, T], default: T) -> T:
     """
     Look ``name`` up in a prefix table, letting the most specific entry win.
 

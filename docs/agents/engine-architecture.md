@@ -16,7 +16,8 @@ question. The rules that a change can *violate* are in
   `QueueListener` thread for logs, the Held-Keys Ledger, and every keystroke
   that reaches a client.
 - **Engine Process** — one per bot group, spawned by `SessionManager.launch()`.
-  Runs `asyncio.run()` over its Bots. Each Bot owns a `BotData`, a set of
+  Runs `asyncio.run()` over its Bots. Each Bot owns a `BotData`, the
+  Providers of the Data Keys its DecisionMakers read, a set of
   `DecisionMaker`s and a `Supervisor`, which runs every DecisionMaker's
   decision loops as asyncio tasks in the Engine's event loop. No thread is
   involved in pausing (ADR 0004).
@@ -138,6 +139,8 @@ registered in `ignored_keys`, or `_monitor_proxy` will try to service it as one.
 | Engine child loop + Main-side listener | `botting/core/engine.py` |
 | Bot lifecycle, Discord pause/resume | `botting/core/bot.py` |
 | Decision loops, Pauses, restarts | `botting/core/supervisor.py` |
+| Data Keys, Providers, assembly order | `botting/core/data_keys.py` |
+| Assembly, before the start barrier | `botting/core/bot.py` (`start`) |
 | Decide cycle, Correlation IDs, `pause`, the legacy shim | `botting/core/decision_maker.py` |
 | Priority, cancellation, `action.*` telemetry | `botting/core/async_task_manager.py` |
 | `ActionRequest`, `ActionWithValidation` | `botting/core/action_data.py` |

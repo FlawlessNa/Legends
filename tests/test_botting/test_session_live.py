@@ -266,11 +266,17 @@ def _end_once_stop_appears(session: Path) -> Callable[[], None]:
 
     def writer() -> None:
         deadline = time.monotonic() + 5
-        while not (session / STOP_FILENAME).exists():
-            if time.monotonic() > deadline:
-                return
-            time.sleep(0.01)
-        reason = (session / STOP_FILENAME).read_text(encoding="utf-8")
+        while True:
+            # Read as the Session's own watch does: a file not there yet, or
+            # not readable yet, is looked at again. On Windows the rename
+            # that writes it can be seen before it can be opened.
+            try:
+                reason = (session / STOP_FILENAME).read_text(encoding="utf-8")
+                break
+            except OSError:
+                if time.monotonic() > deadline:
+                    return
+                time.sleep(0.01)
         append(session, line(5, "session.stop_requested", {"reason": reason}), ended(6))
 
     return writer

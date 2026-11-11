@@ -1,5 +1,3 @@
-from datetime import UTC, datetime, timedelta
-
 import pytest
 from pytest_mock import MockerFixture, MockType
 
@@ -248,16 +246,78 @@ def test_max_retries_default_is_one(bot_data: BotData, mocker: MockerFixture) ->
 # --- attribute access ---------------------------------------------------------
 
 
-def test_getattr_auto_refreshes_on_threshold(
-    bot_data: BotData, mocker: MockerFixture
+class FakeClock:
+    """A monotonic clock that moves only when the test says so."""
+
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
+def test_getattr_auto_refreshes_once_the_threshold_has_passed(
+    mocker: MockerFixture,
 ) -> None:
+    clock = FakeClock()
+    bot_data = BotData("TestBot", clock=clock)
     mock_fn = mocker.Mock(return_value="initial")
-    bot_data.create_attribute("x", mock_fn, threshold=0.1)
-    bot_data._managed["x"].metadata.last_update_time = datetime.now(UTC) - timedelta(
-        seconds=0.2
-    )
+    bot_data.create_attribute("x", mock_fn, threshold=0.5)
     mock_fn.return_value = "refreshed"
+
+    clock.advance(0.5)
+    assert bot_data.x == "initial"
+    clock.advance(0.25)
     assert bot_data.x == "refreshed"
+    assert mock_fn.call_count == 2
+
+
+def test_an_attribute_with_no_threshold_never_refreshes_on_read(
+    mocker: MockerFixture,
+) -> None:
+    clock = FakeClock()
+    bot_data = BotData("TestBot", clock=clock)
+    mock_fn = mocker.Mock(return_value="initial")
+    bot_data.create_attribute("x", mock_fn)
+    clock.advance(1e9)
+    _ = bot_data.x
+    assert mock_fn.call_count == 1
+
+
+def test_an_attribute_given_an_initial_value_refreshes_on_its_first_read(
+    mocker: MockerFixture,
+) -> None:
+    bot_data = BotData("TestBot", clock=FakeClock())
+    mock_fn = mocker.Mock(return_value="fresh")
+    bot_data.create_attribute("x", mock_fn, threshold=60.0, initial_value="preset")
+    assert bot_data.x == "fresh"
+
+
+def test_time_queries_read_the_injected_clock(mocker: MockerFixture) -> None:
+    clock = FakeClock()
+    bot_data = BotData("TestBot", clock=clock)
+    values = iter(["a", "a", None])
+    bot_data.create_attribute("x", mocker.Mock(side_effect=lambda: next(values)))
+    clock.advance(3)
+    bot_data.update_attribute("x")  # same value, still valid
+    assert bot_data.get_time_since_last_valid_update("x") == 0
+    assert bot_data.get_time_since_last_value_change("x") == 3
+    clock.advance(2)
+    bot_data.update_attribute("x")  # None: a change, but not valid
+    clock.advance(1)
+    assert bot_data.get_time_since_last_valid_update("x") == 3
+    assert bot_data.get_time_since_last_value_change("x") == 1
+
+
+def test_an_attribute_never_validly_updated_is_infinitely_stale(
+    mocker: MockerFixture,
+) -> None:
+    bot_data = BotData("TestBot", clock=FakeClock())
+    bot_data.create_attribute("x", mocker.Mock(return_value=None))
+    assert bot_data.get_time_since_last_valid_update("x") == float("inf")
 
 
 def test_getattr_increments_access_count(

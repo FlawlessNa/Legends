@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from typing import Any, ClassVar, NamedTuple
 
-from botting.logging_config import PARENT_LOG
+from botting.logging_config import producer_logger_name
 from botting.telemetry import emit_event
 from botting.telemetry_events import (
     DECISION_DISABLED,
@@ -21,6 +21,7 @@ from botting.telemetry_events import (
 
 from .action_data import ActionRequest, ActionWithValidation
 from .bot_data import BotData
+from .data_keys import Key, KeyNotDeclared
 from .proxy_factory import ProxyFactory
 from .supervisor import USER, Pause, PauseKind, Supervisor
 
@@ -81,6 +82,13 @@ class DecisionMaker(ABC):
     #: resolves to nothing. Pausing a class not named here raises.
     pauses: ClassVar[tuple[type[DecisionMaker] | str, ...]] = ()
 
+    #: The Data Keys this DecisionMaker reads with `read`. Assembly builds and
+    #: sets up their Providers before any DecisionMaker is built.
+    reads: ClassVar[tuple[Key[Any], ...]] = ()
+    #: The Data Keys this DecisionMaker only peeks at with `peek`: their last
+    #: known value, never refreshed. Observing a key never builds its Provider.
+    observes: ClassVar[tuple[Key[Any], ...]] = ()
+
     #: Set by whichever subclass or mixin needs one - `_validate_request_async`
     #: falls back to it when a caller passes no condition of its own.
     _condition: threading.Condition
@@ -108,16 +116,10 @@ class DecisionMaker(ABC):
         self.correlation_id: str | None = None
 
         # Logger name this DecisionMaker's Telemetry Records are attributed to,
-        # following whichever convention its own module follows: botting.*
-        # modules name their logger after __name__, maple.* modules prefix
-        # __name__ with PARENT_LOG. Getting this right is what keeps a record
-        # attributable to the subsystem that produced it.
-        module = type(self).__module__
-        self._logger_name = (
-            module
-            if module == PARENT_LOG or module.startswith(f"{PARENT_LOG}.")
-            else f"{PARENT_LOG}.{module}"
-        )
+        # following whichever convention its own module follows. Getting this
+        # right is what keeps a record attributable to the subsystem that
+        # produced it.
+        self._logger_name = producer_logger_name(type(self).__module__)
 
     def __repr__(self) -> str:
         return action_name(type(self), self.data.ign)
@@ -125,6 +127,42 @@ class DecisionMaker(ABC):
     @abstractmethod
     async def _decide(self) -> None:
         pass
+
+    def setup(self) -> None:
+        """
+        This DecisionMaker's one-time I/O, which `__init__` must not do. Called
+        once by assembly, after every Provider is set up and every DecisionMaker
+        built, before any loop starts. An unported DecisionMaker, which still does
+        its I/O in `__init__`, leaves it empty.
+        """
+
+    # --- Data Keys ----------------------------------------------------------------
+
+    def read[T](self, key: Key[T]) -> T:
+        """
+        `key`'s value, refreshed first when its threshold has passed.
+        :raises KeyNotDeclared: `key` is not in this class's `reads`.
+        """
+        if key not in type(self).reads:
+            raise KeyNotDeclared(
+                f"{self} read {key.name!r}, which {type(self).__name__}.reads does "
+                "not declare."
+            )
+        return self.data.read(key)
+
+    def peek[T](self, key: Key[T]) -> T | None:
+        """
+        `key`'s last known value, without refreshing it, or None when there is
+        none: its Provider may not be built, or not have read anything yet.
+        :raises KeyNotDeclared: `key` is in neither this class's `reads` nor its
+            `observes`.
+        """
+        if key not in type(self).reads and key not in type(self).observes:
+            raise KeyNotDeclared(
+                f"{self} peeked at {key.name!r}, which neither "
+                f"{type(self).__name__}.reads nor .observes declares."
+            )
+        return self.data.peek(key)
 
     # --- what the Supervisor runs -----------------------------------------------
 
