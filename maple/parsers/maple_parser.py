@@ -3,7 +3,13 @@ import logging
 from botting.communications import BaseParser
 from botting.core.action_data import ActionRequest
 from botting.screen import frame_source
-from maple.actions import DEFAULT_CHAT_KEYS, chat_keys, priorities, write_in_chat
+from maple.actions import (
+    DEFAULT_CHAT_KEYS,
+    chat_keys,
+    priorities,
+    started_chat_keys,
+    write_in_chat,
+)
 from maple.screen.client import find_client
 
 logger = logging.getLogger(__name__)
@@ -72,10 +78,14 @@ class MapleParser(BaseParser):
 
 def _chat_keys(ign: str) -> dict[str, str]:
     """
-    `ign`'s chat keys, or the defaults when `configs/keybindings.ini` has no
-    section for it: writing from Discord never needed one, and a mistyped IGN
-    must not end the Session.
+    `ign`'s chat keys, as its bot read them at startup (`started_chat_keys`).
+    For an IGN no bot here started with, they are read now, or are the defaults
+    when `configs/keybindings.ini` has no section for it: writing from Discord
+    never needed one, and a mistyped IGN must not end the Session.
     """
+    started = started_chat_keys(ign)
+    if started is not None:
+        return started
     try:
         return chat_keys(ign)
     except AssertionError, KeyError:

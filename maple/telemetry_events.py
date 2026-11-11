@@ -110,6 +110,18 @@ REBUFF_STATE_RESET: Final = "rebuff.state_reset"
 CHAT_GM_LINE: Final = "chat.gm_line"
 #: Automatic replies were stopped or handed back, from Discord.
 CHAT_REPLIES_TOGGLED: Final = "chat.replies_toggled"
+#: A chat line asks for a reply, or for the model's judgement: one record per
+#: line of the conversation, the first time it is addressed.
+CHAT_LINE_ADDRESSED: Final = "chat.line_addressed"
+#: A reply was handed to Main Process to type.
+CHAT_REPLY_SENT: Final = "chat.reply_sent"
+#: The model chose to say nothing, under any address.
+CHAT_REPLY_SILENT: Final = "chat.reply_silent"
+#: No reply came of lines that asked for one.
+CHAT_REPLY_FAILED: Final = "chat.reply_failed"
+#: The session's model calls passed their limit: the session ends and the game
+#: is closed.
+CHAT_REPLY_LIMITED: Final = "chat.reply_limited"
 
 # --- movement -------------------------------------------------------------
 #: Rotation is about to ship a Movement Plan.
@@ -235,6 +247,58 @@ class ChatLinePayload(TypedDict):
     kind: str
     text: str | None
     row_top: int
+
+
+class LineAddressedPayload(TypedDict):
+    """
+    ``chat.line_addressed``: the line's place in the conversation, its kind, and
+    its address (``gm``, ``must`` or ``judge``). Never who wrote it, or what.
+    """
+
+    seq: int
+    kind: str
+    address: str
+
+
+class ReplySentPayload(TypedDict):
+    """
+    ``chat.reply_sent``: the last line the reply answers (``seq``), the channel
+    and length of the reply, how long the model took (``model_ms``), and how
+    long the reply then waited for the read delay to end (``wait_ms``, 0 when
+    the model took longer than the delay).
+    """
+
+    seq: int
+    channel: str
+    chars: int
+    model_ms: int
+    wait_ms: int
+
+
+class ReplySilentPayload(TypedDict):
+    """``chat.reply_silent``: the last line left unanswered, and its burst's
+    address: a ``must`` or ``gm`` silence is the model ignoring the rules."""
+
+    seq: int
+    address: str
+
+
+class ReplyFailedPayload(TypedDict):
+    """
+    ``chat.reply_failed``: the last line left unanswered, and why, as one word
+    (``model_timeout``, ``model_error``, ``model_refused``, ``rejected``,
+    ``no_target``, ``nothing_read``, ``replies_off``). The full reason is in the
+    log, which may quote what was said; this never does.
+    """
+
+    seq: int
+    reason: str
+
+
+class ReplyLimitedPayload(TypedDict):
+    """``chat.reply_limited``: the model calls made in the window, at the limit."""
+
+    calls_in_window: int
 
 
 class RepliesToggledPayload(TypedDict):

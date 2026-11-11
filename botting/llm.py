@@ -59,7 +59,12 @@ class StructuredModel(Protocol):
     """Anything that can answer one structured question."""
 
     async def ask(
-        self, system: str, user: str, schema: type[BaseModel]
+        self,
+        system: str,
+        user: str,
+        schema: type[BaseModel],
+        *,
+        correlation_id: str | None = None,
     ) -> ModelAnswer: ...
 
 
@@ -91,7 +96,14 @@ class AnthropicModel:
             timeout=timeout_s, max_retries=max_retries
         )
 
-    async def ask(self, system: str, user: str, schema: type[BaseModel]) -> ModelAnswer:
+    async def ask(
+        self,
+        system: str,
+        user: str,
+        schema: type[BaseModel],
+        *,
+        correlation_id: str | None = None,
+    ) -> ModelAnswer:
         """
         Ask one question. Never raises.
 
@@ -103,6 +115,8 @@ class AnthropicModel:
         :param system: The fixed instructions. Cached.
         :param user: The question, including the conversation so far.
         :param schema: The shape of the answer.
+        :param correlation_id: The decision that asks, carried by its
+            ``llm.request`` record; ``None`` when no decision caused it.
         """
         start = time.perf_counter()
         usage: anthropic.types.Usage | None = None
@@ -144,7 +158,7 @@ class AnthropicModel:
             outcome, detail = "error", _describe(exc)
 
         ms = int((time.perf_counter() - start) * 1000)
-        self._record(usage, ms, outcome)
+        self._record(usage, ms, outcome, correlation_id)
         return ModelAnswer(outcome=outcome, value=value, detail=detail, ms=ms)
 
     async def check(self) -> str | None:
@@ -160,7 +174,11 @@ class AnthropicModel:
         return None
 
     def _record(
-        self, usage: anthropic.types.Usage | None, ms: int, outcome: Outcome
+        self,
+        usage: anthropic.types.Usage | None,
+        ms: int,
+        outcome: Outcome,
+        correlation_id: str | None,
     ) -> None:
         """Emit ``llm.request``. Telemetry may never raise inside the caller."""
         try:
@@ -172,6 +190,6 @@ class AnthropicModel:
                 ms=ms,
                 outcome=outcome,
             )
-            emit_event(None, LLM_REQUEST, payload, logger.name)
+            emit_event(correlation_id, LLM_REQUEST, payload, logger.name)
         except Exception:
             logger.debug("llm.request telemetry failed", exc_info=True)

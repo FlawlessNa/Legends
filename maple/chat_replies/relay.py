@@ -13,6 +13,9 @@ whom, is the entries' business: the relay returns words only.
 A reply must be one line, at most `max_reply_chars`, printable ASCII. One that
 is not is asked for once more, with the reason appended to the same user
 message. A second failure is `Failed`. `null` is `Silent` under every address.
+
+A `GM` burst says so in the user message, so the model answers it as the
+instructions' `## GM` section asks: a GM's whisper reads like anyone's.
 """
 
 import logging
@@ -54,6 +57,7 @@ It is a single line, at most {max_reply_chars} characters, and printable ASCII o
 
 _SILENCE_ALLOWED = "You may answer null if these lines were not meant for you."
 _SILENCE_NOT_ALLOWED = "These lines are meant for you: answer them, do not answer null."
+_FROM_A_GM = "They are from a GM: answer as the GM section says."
 _PRINTABLE = frozenset(string.printable) - frozenset("\t\n\r\x0b\x0c")
 
 
@@ -77,10 +81,14 @@ class Silent:
 class Failed:
     """No usable reply: the model failed twice or was not asked.
 
-    :ivar reason: What went wrong, for the log.
+    :ivar reason: What went wrong, for the log. It may quote what was said.
+    :ivar cause: The same, as one word that quotes nothing, for telemetry:
+        ``model_<outcome>`` (``model_timeout``, ``model_error``,
+        ``model_refused``), ``rejected``, ``no_target`` or ``nothing``.
     """
 
     reason: str
+    cause: str = "error"
 
 
 RelayOutcome = Reply | Silent | Failed
@@ -102,35 +110,50 @@ class Relay:
         )
 
     async def reply(
-        self, conversation: Conversation, targets: list[Entry], address: Address
+        self,
+        conversation: Conversation,
+        targets: list[Entry],
+        address: Address,
+        *,
+        correlation_id: str | None = None,
     ) -> RelayOutcome:
         """
         Ask for a reply to `targets`. Never raises.
 
         :param targets: The entries to answer: one burst's.
         :param address: The burst's address. Silence is allowed only for `JUDGE`.
+        :param correlation_id: The decision that asks, for the model's
+            `llm.request` records.
         """
         if not targets:
-            return Failed("nothing to answer")
+            return Failed("nothing to answer", "nothing")
         if any(t.kind is ChatKind.WHISPER and t.speaker is None for t in targets):
-            return Failed("a whisper whose sender could not be read has no target")
+            return Failed(
+                "a whisper whose sender could not be read has no target", "no_target"
+            )
         user = self._user_message(conversation.recent(), targets, address)
 
-        first = await self._attempt(user, address)
+        first = await self._attempt(user, address, correlation_id)
         if not isinstance(first, _Rejected):
             return first
         logger.info("relay: reply rejected, asking once more: %s", first.reason)
         second = await self._attempt(
-            f"{user}Your reply was rejected: {first.reason}.", address
+            f"{user}Your reply was rejected: {first.reason}.", address, correlation_id
         )
         if isinstance(second, _Rejected):
-            return Failed(f"rejected twice: {second.reason}")
+            return Failed(f"rejected twice: {second.reason}", "rejected")
         return second
 
-    async def _attempt(self, user: str, address: Address) -> RelayOutcome | _Rejected:
-        answer = await self._model.ask(self._system, user, _Answer)
+    async def _attempt(
+        self, user: str, address: Address, correlation_id: str | None
+    ) -> RelayOutcome | _Rejected:
+        answer = await self._model.ask(
+            self._system, user, _Answer, correlation_id=correlation_id
+        )
         if answer.outcome != "ok" or not isinstance(answer.value, _Answer):
-            return Failed(f"model {answer.outcome}: {answer.detail}")
+            return Failed(
+                f"model {answer.outcome}: {answer.detail}", f"model_{answer.outcome}"
+            )
         reply = answer.value.reply
         if reply is None:
             if address is not Address.JUDGE:
@@ -155,7 +178,11 @@ class Relay:
         transcript = "\n".join(self._render(entry) for entry in recent)
         numbers = ", ".join(str(t.seq) for t in targets)
         silence = _SILENCE_ALLOWED if address is Address.JUDGE else _SILENCE_NOT_ALLOWED
-        return f"Transcript:\n{transcript}\n\nEntries to answer: {numbers}\n{silence}\n"
+        gm = f"{_FROM_A_GM}\n" if address is Address.GM else ""
+        return (
+            f"Transcript:\n{transcript}\n\nEntries to answer: {numbers}\n"
+            f"{gm}{silence}\n"
+        )
 
     def _render(self, entry: Entry) -> str:
         who = "?" if entry.speaker is None else _one_line(entry.speaker)

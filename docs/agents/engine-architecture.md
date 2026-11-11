@@ -77,6 +77,12 @@ then goes one of two ways:
 - **A command string** (`PAUSE --ign X`) → broadcast to every Engine pipe →
   `_poll_for_updates` matches on ign → `getattr(bot, action)()`.
 
+`Bot.resume()` restarts each DecisionMaker whose task isn't running, after
+asking each one's `on_resume()` hook: a DecisionMaker that disabled others and
+gives them back on RESUME (`ChatReplies`, after a GM) enables them there, and
+their enablers restart them. The enabler and disabler threads restart and
+cancel a decision task through `call_soon_threadsafe`, on the Engine's loop.
+
 `Bot.pause()` is the shape to copy when an Engine needs something done to a
 client: cancel the local tasks, then send a high-priority `ActionRequest` back
 to Main to do the part that requires input.

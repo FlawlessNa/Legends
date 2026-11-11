@@ -456,3 +456,15 @@ _Avoid_: Mention: a whisper names no one, and is addressed all the same.
 Everything one player said on one channel that is left to answer. One reply
 answers a Burst, and its Address is the strongest of its Entries'.
 _Avoid_: Thread, message group.
+
+**Read delay**:
+The human moment before a reply is sent: 2 s plus 60 ms per character, jittered
+by 30 %, capped at 8 s, counted from when the line appeared. The model's
+latency is spent inside it; training goes on until it ends.
+_Avoid_: Typing delay: typing comes after it, at a human pace (`TypingPace`).
+
+**Takeover**:
+The maintainer answering for the character: `REPLIES OFF`, or a Discord
+`WRITE`, which implies it. Lines keep being read and posted to Discord, and
+are never answered, not even once `REPLIES ON` hands the replies back.
+_Avoid_: Pause: `PAUSE` stops every DecisionMaker, replies or not.

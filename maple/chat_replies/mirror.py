@@ -5,6 +5,9 @@ An exchange is one `Burst` and what became of it: `[whisper] Bob: hi u there? �
 ya`, or `→ (silent)` when the model chose to say nothing. A GM's line, and the
 reply it got, start with the maintainer's mention, so they ring.
 
+While automatic replies are off, a line that would have been answered is posted
+on its own, as it is read: `[whisper] Bob: hi → (replies off)`.
+
 `mirror` sends through whatever `send` the caller gives it: an Engine process
 reaches Discord by sending a string down its pipe, which Main Process forwards.
 """
@@ -17,7 +20,7 @@ from botting.communications.messages import QuietMessage
 from botting.utilities import config_reader
 
 from .addressing import Address
-from .conversation import Burst
+from .conversation import Burst, Entry
 from .relay import Failed, RelayOutcome, Reply, Silent
 
 logger = logging.getLogger(__name__)
@@ -35,7 +38,6 @@ def format_exchange(
     :param mention: The maintainer's mention, e.g. ``<@123>``. Put in front of a
         GM exchange; ``None`` leaves it out.
     """
-    said = LINE_JOIN.join(e.message or "?" for e in burst.entries)
     match outcome:
         case Reply(text):
             result = text
@@ -43,6 +45,28 @@ def format_exchange(
             result = "(silent)"
         case Failed(reason):
             result = f"(no reply: {reason})"
+    return _format(burst, result, mention)
+
+
+def format_unanswered(entry: Entry, mention: str | None = None) -> str:
+    """
+    One line read while automatic replies are off, as one Discord message.
+
+    :param mention: As for `format_exchange`.
+    """
+    return _format(_alone(entry), REPLIES_OFF, mention)
+
+
+#: What a line read while automatic replies are off came to.
+REPLIES_OFF = "(replies off)"
+
+
+def _alone(entry: Entry) -> Burst:
+    return Burst(entry.speaker, entry.kind, entry.address, (entry,))
+
+
+def _format(burst: Burst, result: str, mention: str | None) -> str:
+    said = LINE_JOIN.join(e.message or "?" for e in burst.entries)
     line = f"[{burst.channel.value}] {burst.speaker or '?'}: {said} → {result}"
     if burst.address is Address.GM and mention:
         return f"{mention} {line}"
@@ -61,6 +85,15 @@ def mirror(
     """
     text = format_exchange(burst, outcome, mention)
     send(text if burst.address is Address.GM else QuietMessage(text))
+
+
+def mirror_unanswered(
+    send: Callable[[str], object], entry: Entry, mention: str | None = None
+) -> None:
+    """Post one line read while automatic replies are off, through `send`. A GM's
+    rings the maintainer; every other one is posted quietly."""
+    text = format_unanswered(entry, mention)
+    send(text if entry.address is Address.GM else QuietMessage(text))
 
 
 def discord_mention() -> str | None:

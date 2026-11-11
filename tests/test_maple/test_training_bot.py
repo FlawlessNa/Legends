@@ -8,6 +8,9 @@ with the store, the Main Process proxies, the keybindings and the pipe
 stubbed. Each DecisionMaker then makes one decision; their task loops, which
 need Main Process to answer, are not run. Every reader the DecisionMakers name
 must read.
+
+`ChatReplies` replies by default: its check of the model is scripted, as
+`_Model`, so no test reaches the network.
 """
 
 import asyncio
@@ -24,7 +27,7 @@ import pytest
 
 from botting import controller
 from botting.core import ActionRequest, DecisionMaker, ProxyFactory
-from botting.screen import Frame, Status, capture
+from botting.screen import Frame, Reading, Status, capture
 from game_data.catalogue import Bounds
 from game_data.sprites import Sprite
 from maple.actions.menus import toggle_minimap
@@ -39,11 +42,12 @@ from maple.decision_makers import (
     Rotation,
     SoloRebuff,
 )
+from maple.decision_makers import chat_replies as chat_replies_module
 from maple.model.mechanics.minimap_creation import minimap_edits_model
 from maple.model.world import WorldMap
 from maple.screen import client
 from maple.screen.buffs import BUFFS
-from maple.screen.chat import CHAT
+from maple.screen.chat import CHAT, ChatKind, ChatLine
 from maple.screen.minimap import MINIMAP
 from maple.screen.quick_slots import QUICK_SLOTS
 from maple.screen.sprites import (
@@ -52,6 +56,7 @@ from maple.screen.sprites import (
     Declaration,
     Profile,
     ReaderSprites,
+    StartupRefused,
 )
 from maple.screen.status_bar import (
     _EXP_AT,  # pyright: ignore[reportPrivateUsage]
@@ -63,6 +68,7 @@ from maple.screen.status_bar import (
     BACKGROUND,
     STATUS_BAR,
 )
+from maple.telemetry_events import CHAT_GM_LINE
 from tests.test_maple import (
     test_screen_buffs as buffs,
 )
@@ -203,10 +209,38 @@ def _write_map(root: Path) -> None:
     )
 
 
+class _Model:
+    """The model `ChatReplies` checks at start: reachable unless `cause`."""
+
+    cause: str | None = None
+
+    async def ask(self, *args: object, **kwargs: object) -> None:
+        raise AssertionError("no test here asks the model")
+
+    async def check(self) -> str | None:
+        return self.cause
+
+
+Started = tuple[TrainingBot, "_Source", "_Pipe", list[Declaration]]
+
+
 @pytest.fixture
-def started(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> tuple[TrainingBot, _Source, _Pipe, list[Declaration]]:
+def start(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Any:  # noqa: ANN401
+    """Starts the bot, with the profile's settings plus `settings`."""
+    return lambda **settings: _start(monkeypatch, tmp_path, **settings)
+
+
+@pytest.fixture
+def started(start: Any) -> Started:  # noqa: ANN401
+    return start()
+
+
+def _start(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    **settings: Any,  # noqa: ANN401 - a profile setting is any value
+) -> Started:
+    monkeypatch.setattr(chat_replies_module, "AnthropicModel", _Model)
     source = _Source()
     monkeypatch.setattr(capture, "_source", source)
     monkeypatch.setattr(client, "find_window", lambda *_: 4242)
@@ -259,6 +293,7 @@ def started(
         mob_count_threshold=2,
         mob_spawn_alert_timer=60.0,
         mob_spawn_alert_threshold=1,
+        **settings,
     )
     pipe = _Pipe()
     bot.child_init(pipe, None)  # pyright: ignore[reportArgumentType] - no barrier before start()
@@ -324,3 +359,46 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
 
     # The minimap was already shown expanded: its key was never pressed.
     assert not [r for r in pipe.sent if r.procedure is toggle_minimap]
+
+
+# --- chat replies, on by default (#464) ----------------------------------------------
+
+
+def test_the_bot_refuses_to_start_when_the_model_cant_be_reached(
+    start: Any,  # noqa: ANN401
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_Model, "cause", "AuthenticationError: no credentials")
+    bot, _, _, _ = start()
+
+    with pytest.raises(StartupRefused, match="no credentials"):
+        _ = bot.decision_makers
+
+
+def test_with_chat_replies_false_it_starts_and_the_gm_alarm_still_fires(
+    start: Any,  # noqa: ANN401
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_Model, "cause", "AuthenticationError: no credentials")
+    bot, _, _, _ = start(chat_replies=False)
+    data = bot.data
+    assert data is not None
+    chat = _decision_makers(bot)[ChatReplies]
+    gm = ChatLine(ChatKind.GM, np.zeros((16, 20, 3), np.uint8), "hi", 600)
+    monkeypatch.setattr(data.chat_reader, "read", lambda frame: Reading.read([gm], 1.0))
+    alarms: list[str] = []
+    monkeypatch.setattr(chat, "emit", lambda event, *a, **k: alarms.append(event))
+    disabled: list[str] = []
+    monkeypatch.setattr(
+        chat, "_disable_decision_makers", lambda *names, **k: disabled.extend(names)
+    )
+
+    asyncio.run(chat._decide())  # pyright: ignore[reportPrivateUsage]
+
+    assert CHAT_GM_LINE in alarms
+    assert ChatReplies.__name__ not in disabled
+    assert set(disabled) == {
+        c.__name__
+        for c in bot._decision_makers()
+        if c is not ChatReplies  # pyright: ignore[reportPrivateUsage]
+    }
