@@ -20,5 +20,5 @@ class TrainingBot(MapleBot):
             # decision_makers.SpeedPill,
             decision_makers.CheckMobsStillSpawn,
             decision_makers.CheckStillInMap,
-            decision_makers.ChatWatch,
+            decision_makers.ChatReplies,
         ]

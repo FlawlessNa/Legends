@@ -11,7 +11,10 @@ The glyphs are client pixels: they go to the gitignored `data/glyphs/`, which
   matches them exactly (#313). The render only labels: what is kept is the
   frame's own pixels, and nothing reads Arial afterwards. A line the render
   doesn't explain to the last pixel is refused. Arial draws `I` and `l` alike,
-  so they are kept as one glyph, `I`, and the manifest says so.
+  so they are kept as one glyph, `I`, and the manifest says so. Each glyph
+  keeps Arial's bearings (the blank columns before and after its ink), which
+  tell a space from the room a letter like `1` leaves around itself
+  (`font.CHAT_GENERAL`): metrics of the font, not pixels.
 - `countdown`: a buff slot's countdown rows, `[x, y, width, height]`, with the
   digits a person read there. Each digit is one blob of yellow ink; a box whose
   blobs don't number its digits is refused.
@@ -106,6 +109,26 @@ def font_labeller(font: Path, size: int = LABELLER_SIZE) -> dict[str, Mask]:
         ys, xs = np.nonzero(ink)
         drawn[char] = ink[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
     return drawn
+
+
+def font_bearings(font: Path, size: int = LABELLER_SIZE) -> dict[str, tuple[int, int]]:
+    """Each printable ASCII character's bearings in `font`, unantialiased: the
+    columns from where it is drawn to its ink, and from its ink to where the
+    next character is drawn."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    face = ImageFont.truetype(str(font), size)
+    bearings: dict[str, tuple[int, int]] = {}
+    for char in map(chr, range(0x21, 0x7F)):
+        image = Image.new("L", (4 * size, 4 * size), 0)
+        draw = ImageDraw.Draw(image)
+        draw.fontmode = "1"
+        draw.text((size, size), char, font=face, fill=255)
+        xs = np.nonzero(np.array(image) > 127)[1]
+        before = int(xs.min()) - size
+        after = round(face.getlength(char)) - (int(xs.max()) + 1 - size)
+        bearings[char] = (before, after)
+    return bearings
 
 
 def alike(labeller: Mapping[str, Mask]) -> dict[str, str]:
@@ -346,19 +369,23 @@ def main(argv: list[str] | None = None) -> int:
     if problems:
         print("\nNothing written:", *problems, sep="\n  ", file=sys.stderr)
         return 1
-    for spec, harvest, same in (
+    bearings = font_bearings(args.labeller_font)
+    for spec, harvest, same, spacing in (
         (
             CHAT_GENERAL,
             chat,
             {k: v for k, v in alike(labeller).items() if k in chat.glyphs},
+            {k: v for k, v in bearings.items() if k in chat.glyphs},
         ),
-        (COUNTDOWN, digits, {}),
-        (MINIMAP_TITLE, title, {}),
+        (COUNTDOWN, digits, {}, None),
+        (MINIMAP_TITLE, title, {}, None),
     ):
         if not harvest.glyphs:
             print(f"{spec.name}: no source in {tag}, so its set is left as it was")
             continue
-        folder = save_glyph_set(spec, harvest.glyphs, harvest.sources, same, args.out)
+        folder = save_glyph_set(
+            spec, harvest.glyphs, harvest.sources, same, args.out, spacing
+        )
         print(f"wrote {folder}")
     return 0
 

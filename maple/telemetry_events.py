@@ -106,7 +106,7 @@ REBUFF_STATE_RESET: Final = "rebuff.state_reset"
 
 # --- chat -----------------------------------------------------------------
 #: A GM's line appeared in the chat log. One record per line, the first time
-#: it is read; ``ChatWatch`` raises the alarm on it.
+#: it is read; ``ChatReplies`` raises the alarm on it.
 CHAT_GM_LINE: Final = "chat.gm_line"
 
 # --- movement -------------------------------------------------------------

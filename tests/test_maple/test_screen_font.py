@@ -85,6 +85,12 @@ def test_alike_characters_are_kept(tmp_path: Path) -> None:
     assert load_glyph_set(CHAT_GENERAL.name, tmp_path).alike == {"I": "Il"}
 
 
+def test_bearings_are_kept_for_the_glyphs_that_have_them(tmp_path: Path) -> None:
+    save_glyph_set(CHAT_GENERAL, LETTERS, {}, root=tmp_path, bearings={"h": (1, 2)})
+
+    assert load_glyph_set(CHAT_GENERAL.name, tmp_path).bearings == {"h": (1, 2)}
+
+
 def test_saving_again_replaces_the_set(tmp_path: Path) -> None:
     save_glyph_set(COUNTDOWN, DIGITS, {}, root=tmp_path)
     save_glyph_set(COUNTDOWN, {"7": DIGITS["7"]}, {}, root=tmp_path)
@@ -156,6 +162,77 @@ def test_chat_ink_is_exactly_white() -> None:
     pixels = draw(background, [(LETTERS["h"], 2)], (254, 255, 255))
 
     assert GlyphSet(CHAT_GENERAL, LETTERS).read(pixels) == ""
+
+
+UNHARVESTED = cell(["#.#", "#.#", ".#.", "#.#", "#.#"])
+"""A letter the set doesn't have."""
+
+
+def white_line(glyphs: list[tuple[np.ndarray, int]], width: int = 40) -> np.ndarray:
+    background = np.full((CHAT_GENERAL.rows or 0, width, 3), 30, np.uint8)
+    return draw(background, glyphs, (255, 255, 255))
+
+
+def test_a_letter_with_no_glyph_reads_as_one_unread_character_in_its_place() -> None:
+    pixels = white_line([(LETTERS["h"], 2), (UNHARVESTED, 6), (LETTERS["i"], 10)])
+
+    assert GlyphSet(CHAT_GENERAL, LETTERS).read_marked(pixels) == "h\ufffdi"
+    assert GlyphSet(CHAT_GENERAL, LETTERS).read_all(pixels) is None
+
+
+def test_an_unread_letter_keeps_the_spaces_around_it() -> None:
+    pixels = white_line([(LETTERS["h"], 2), (UNHARVESTED, 9), (LETTERS["i"], 16)])
+
+    assert GlyphSet(CHAT_GENERAL, LETTERS).read_marked(pixels) == "h \ufffd i"
+
+
+def test_a_letter_whose_columns_hold_a_harvested_glyph_is_one_unread_letter() -> None:
+    """`I` matches the stem of a letter the set lacks, exactly; the rest of the
+    letter touches it, so the whole is one letter, not `I` and another."""
+    stem_and_foot = cell(["#.", "#.", "#.", "#.", "##"])
+
+    pixels = white_line([(stem_and_foot, 2), (LETTERS["i"], 6)])
+
+    assert GlyphSet(CHAT_GENERAL, LETTERS).read_marked(pixels) == "\ufffdi"
+
+
+def test_harvested_letters_that_touch_are_both_read() -> None:
+    pixels = white_line([(LETTERS["h"], 2), (LETTERS["i"], 5)])
+
+    assert GlyphSet(CHAT_GENERAL, LETTERS).read_marked(pixels) == "hi"
+
+
+def test_a_line_whose_letters_are_all_harvested_reads_as_read_all_reads_it() -> None:
+    pixels = white_line([(LETTERS["h"], 2), (LETTERS["i"], 6), (LETTERS["I"], 12)])
+    glyphs = GlyphSet(CHAT_GENERAL, LETTERS)
+
+    assert glyphs.read_marked(pixels) == glyphs.read_all(pixels) == "hi I"
+
+
+BEARINGS = {"h": (1, 1), "i": (2, 2), "I": (0, 0)}
+"""Made up: `i` drawn with more room around it than `I`."""
+
+
+def test_a_gap_no_wider_than_the_letters_bearings_is_not_a_space() -> None:
+    """3 columns, a plain space by `space_gap`, are `h`'s and `i`'s bearings."""
+    pixels = white_line([(LETTERS["h"], 2), (LETTERS["i"], 8)])
+    glyphs = GlyphSet(CHAT_GENERAL, LETTERS, bearings=BEARINGS)
+
+    assert glyphs.read_marked(pixels) == glyphs.read_all(pixels) == "hi"
+
+
+def test_a_gap_wider_than_the_bearings_by_half_a_space_is_a_space() -> None:
+    pixels = white_line([(LETTERS["h"], 2), (LETTERS["I"], 8)])
+    glyphs = GlyphSet(CHAT_GENERAL, LETTERS, bearings=BEARINGS)
+
+    assert glyphs.read_marked(pixels) == "h I"
+
+
+def test_next_to_an_unread_letter_a_space_is_a_plain_gap() -> None:
+    pixels = white_line([(LETTERS["h"], 2), (UNHARVESTED, 8), (LETTERS["i"], 12)])
+    glyphs = GlyphSet(CHAT_GENERAL, LETTERS, bearings=BEARINGS)
+
+    assert glyphs.read_marked(pixels) == "h �i"
 
 
 def test_countdown_digits_are_read_whatever_the_yellow_is_blended_with() -> None:

@@ -1,9 +1,11 @@
 """
-`ChatWatch`: reads the chat, and raises the alarm on a GM's line.
+`ChatReplies`: the chat's one DecisionMaker. For now it reads the chat and
+raises the alarm on a GM's line, and nothing more.
 
 It sends no input: no key, no click, nothing typed. Its only request to Main
 Process is a no-op Action carrying the Discord alert, sent when Discord is
-configured. Nothing answers chat; that is a later topic (#302).
+configured. Nothing answers chat yet: #464 adds replying here, and the alarm
+stays apart from it (spec of #455, "One chat DecisionMaker").
 
 On MSCW, GM lines haven't been captured yet, so the chat reader reads them as
 `unknown` and this alarm can't fire until their colours are in the frame set
@@ -30,7 +32,7 @@ logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 DISCORD_CONFIG = Path(ROOT) / "configs" / "discord.ini"
 
 
-class ChatWatch(UIMixin, DecisionMaker):
+class ChatReplies(UIMixin, DecisionMaker):
     """Reads `chat_lines` every cycle; on each new GM line, emits
     `chat.gm_line` and, when Discord is configured, alerts with the line's image."""
 

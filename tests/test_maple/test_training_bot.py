@@ -31,7 +31,7 @@ from maple.actions.menus import toggle_minimap
 from maple.bots import maple_bot
 from maple.bots.training import TrainingBot
 from maple.decision_makers import (
-    ChatWatch,
+    ChatReplies,
     CheckMobsStillSpawn,
     CheckStillInMap,
     MobsHitting,
@@ -295,7 +295,7 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
             PetFood,
             CheckMobsStillSpawn,
             CheckStillInMap,
-            ChatWatch,
+            ChatReplies,
         ):
             await dms[kind]._decide()  # pyright: ignore[reportPrivateUsage]
 
