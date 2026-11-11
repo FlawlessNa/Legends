@@ -436,3 +436,23 @@ and layers are stored in, and in which a map is rendered with its VR bounds'
 top-left at pixel (0, 0). Distinct from screen coordinates, which move with the
 camera, and from minimap coordinates, which are scaled.
 _Avoid_: Map coordinates, world coordinates.
+
+## Chat replies
+
+**Conversation**:
+The session's chat, every line read in order as an **Entry**, with which lines
+are the character's own and which are left to answer. Lines it doesn't answer
+stay in it as context. Megaphone, system and `unknown` lines are not in it.
+_Avoid_: History, transcript: the transcript is what a request to the model is
+given, the last part of the Conversation rendered as text.
+
+**Address**:
+What a chat line asks of the character: `MUST` be answered, `GM` (a GM's line,
+answered carefully), `JUDGE` (the model judges whether it was meant for us),
+or `IGNORE`.
+_Avoid_: Mention: a whisper names no one, and is addressed all the same.
+
+**Burst**:
+Everything one player said on one channel that is left to answer. One reply
+answers a Burst, and its Address is the strongest of its Entries'.
+_Avoid_: Thread, message group.
