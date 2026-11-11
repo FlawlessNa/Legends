@@ -87,10 +87,13 @@ class PeripheralsProcess:
                     message: str = self.pipe_main_proc.recv()
                     action: Any = self.discord_parser.parse_message(message)
 
-                    if isinstance(action, ActionRequest):
-                        await async_queue.put(action)
-                    elif action is not None:
-                        self._dispatch_to_engines(action)
+                    # A command may be several, in order: a WRITE takes the
+                    # replies over before it types.
+                    for item in action if isinstance(action, list) else [action]:
+                        if isinstance(item, ActionRequest):
+                            await async_queue.put(item)
+                        elif item is not None:
+                            self._dispatch_to_engines(item)
 
         finally:
             if not self.pipe_main_proc.closed:

@@ -27,7 +27,14 @@ class MapleParser(BaseParser):
             who = ["All"]
         return f"RESUME {' '.join(who)}"
 
-    def write(self, message: str, who: str | None = None) -> ActionRequest:
+    def write(
+        self,
+        message: str,
+        who: str | None = None,
+        *,
+        to: str | None = None,
+        channel: str | None = None,
+    ) -> ActionRequest:
         assert who is not None, "BaseParser names the IGN before it calls write"
         handle = find_client()
         return ActionRequest(
@@ -37,7 +44,7 @@ class MapleParser(BaseParser):
             priorities.USER_REQUESTS,
             block_lower_priority=True,
             args=(handle, message),
-            kwargs={"keys": _chat_keys(who)},
+            kwargs={"keys": _chat_keys(who), **self._where(to, channel)},
             cancel_tasks=[
                 f"Rotation({who})",
                 f"MobsHitting({who})",
@@ -45,6 +52,15 @@ class MapleParser(BaseParser):
             ],
             callbacks=[lambda: self._confirmation_with_image(handle)],
         )
+
+    @staticmethod
+    def _where(to: str | None, channel: str | None) -> dict[str, str]:
+        """The channel and whisper target `write_in_chat` is given."""
+        if to is not None:
+            return {"channel": "whisper", "whisper_to": to}
+        # Neither given: write_in_chat's own default, exactly what a plain
+        # WRITE sent before.
+        return {"channel": channel} if channel else {}
 
     def _confirmation_with_image(self, handle: int) -> None:
         frame = frame_source().grab(handle)
