@@ -120,16 +120,16 @@ class Bot(ABC):
         Each DecisionMaker's ``on_resume`` hook runs first: one that disabled others
         and gives them back on RESUME (``ChatReplies``, after a GM) enables them
         there, and their enablers restart them. Every other DecisionMaker whose task
-        isn't running is restarted, as ``pause`` left it. One still running is left
-        alone, so a RESUME with no PAUSE before it never runs a loop twice.
+        isn't running is restarted, as ``pause`` left it, and counts as enabled
+        again (``DecisionMaker.restart``), so a later enable finds it running. One
+        still running is left alone, so a RESUME with no PAUSE before it never runs
+        a loop twice.
         """
         assert self._tg is not None, "start() must run before resume()"
         enabled = {name for dm in self.decision_makers for name in dm.on_resume()}
         for dm in self.decision_makers:
-            if type(dm).__name__ in enabled or dm.running:
-                continue
-            task = self._tg.create_task(dm.task(), name=f"{dm}")
-            dm.decision_task = task
+            if type(dm).__name__ not in enabled:
+                dm.restart(self._tg)
 
     def replies(self, on: bool, source: str = "discord_replies") -> None:
         """

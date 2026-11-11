@@ -1,5 +1,6 @@
 import logging
 import multiprocessing.managers
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +20,9 @@ class ProxyFactory:
         key: str,
         primitive_type: str,
         shared: bool,
-        *args,
-        **kwargs,
-    ):
+        *args: object,
+        **kwargs: object,
+    ) -> Any:  # noqa: ANN401 - a Manager proxy of whichever `primitive_type` was asked for
         """
         Core proxy request protocol. Writes a tuple into metadata, notifies
         the main process monitor, and waits for the tuple to be replaced
@@ -50,7 +51,9 @@ class ProxyFactory:
             return self._meta[key]
         return self._meta.pop(key)
 
-    def instance(self, owner: str, primitive_type: str, *args, **kwargs):
+    def instance(
+        self, owner: str, primitive_type: str, *args: object, **kwargs: object
+    ) -> Any:  # noqa: ANN401 - a Manager proxy of whichever `primitive_type` was asked for
         """
         Instance-scoped proxy. Popped from metadata after creation.
         Use for per-bot locks and conditions.
@@ -61,7 +64,14 @@ class ProxyFactory:
         key = f"proxy/instance/{owner}/{primitive_type}"
         return self._request(key, primitive_type, False, *args, **kwargs)
 
-    def shared(self, group: str, name: str, primitive_type: str, *args, **kwargs):
+    def shared(
+        self,
+        group: str,
+        name: str,
+        primitive_type: str,
+        *args: object,
+        **kwargs: object,
+    ) -> Any:  # noqa: ANN401 - a Manager proxy of whichever `primitive_type` was asked for
         """
         Class-scoped shared proxy. Persists in metadata and is auto-registered
         in ignored_keys. Use for cross-bot synchronization primitives.
@@ -70,5 +80,11 @@ class ProxyFactory:
         :param primitive_type: Manager method name (e.g. "Lock", "Event").
         :return: The created proxy object.
         """
-        key = f"proxy/shared/{group}/{name}"
-        return self._request(key, primitive_type, True, *args, **kwargs)
+        return self._request(
+            self.shared_key(group, name), primitive_type, True, *args, **kwargs
+        )
+
+    @staticmethod
+    def shared_key(group: str, name: str) -> str:
+        """The metadata key `shared(group, name, ...)` keeps its proxy under."""
+        return f"proxy/shared/{group}/{name}"

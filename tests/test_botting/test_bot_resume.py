@@ -184,6 +184,30 @@ def test_what_a_decision_maker_disabled_comes_back_through_its_hook_once(
     _scenario(metadata, steps)
 
 
+def test_an_enable_after_resume_restarted_a_disabled_loop_runs_no_loop_twice(
+    metadata: dict[str, object],
+) -> None:
+    """A loop disabled by someone whose hook doesn't give it back is restarted by
+    RESUME, as PAUSE leaves it; a later enable then finds it running (#489)."""
+
+    async def steps(bot: _Bot) -> None:
+        chat = next(dm for dm in bot.decision_makers if isinstance(dm, Chat))
+        training = next(dm for dm in bot.decision_makers if isinstance(dm, Training))
+        chat._disable_decision_makers("Training")  # pyright: ignore[reportPrivateUsage]
+        await _until(lambda: not _loops("Training"))
+
+        bot.resume()
+        await _until(lambda: len(_loops("Training")) == 1)
+        assert training._enabled  # pyright: ignore[reportPrivateUsage]
+
+        chat._enable_decision_makers("Training")  # pyright: ignore[reportPrivateUsage]
+        await asyncio.sleep(0.1)
+
+        assert len(_loops("Training")) == 1
+
+    _scenario(metadata, steps)
+
+
 class _Pipe:
     def __init__(self) -> None:
         self.sent: list[object] = []
