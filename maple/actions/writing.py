@@ -15,6 +15,15 @@ Both procedures take the same steps:
 `reply_in_chat` types at a human `TypingPace`. `write_in_chat` types at
 `controller.write`'s own delay, unless its caller passes a pace.
 
+**One chat line at a time** (#488). A client has one chat input, so both
+procedures take its guard (`_chat_input`) for the whole of their steps, from the
+first key released to the Enter that closes the input. A Discord `WRITE` that
+outranks a reply being typed, or a failsafe reaction that ranks with it, is
+scheduled beside it, and waits there: it sends no key until the line before it
+has been sent and closed, then types its own in full. Nothing cuts a line off
+for another, which would leave half of it in the input for the next keys to land
+in. Lines wait in the order they were scheduled.
+
 The key that opens each channel is the character's `Chat Keys` binding
 (`configs/keybindings.ini`), read by `chat_keys`. A channel it leaves out keeps
 the key `write_in_chat` has always pressed.
@@ -30,6 +39,7 @@ import ast
 import asyncio
 import logging
 import random
+import weakref
 from collections.abc import Mapping
 from configparser import SectionProxy
 from types import MappingProxyType
@@ -221,6 +231,24 @@ async def write_in_chat(
     )
 
 
+_CHAT_INPUTS: weakref.WeakKeyDictionary[
+    asyncio.AbstractEventLoop, dict[int, asyncio.Lock]
+] = weakref.WeakKeyDictionary()
+"""Each client's chat-input guard, by the event loop it was taken on."""
+
+
+def _chat_input(handle: int) -> asyncio.Lock:
+    """
+    The guard of `handle`'s chat input: whoever holds it is the only one typing
+    a line there. Main Process runs one event loop; keying by it as well keeps a
+    lock from serving a loop other than its own (each `asyncio.run` is a new one).
+    :param handle: The client's window.
+    :return: Its guard, the same one every time on this loop.
+    """
+    by_handle = _CHAT_INPUTS.setdefault(asyncio.get_running_loop(), {})
+    return by_handle.setdefault(handle, asyncio.Lock())
+
+
 async def _type_in_chat(
     handle: int,
     message: str,
@@ -238,27 +266,29 @@ async def _type_in_chat(
         )
     key = keys.get(channel, DEFAULT_CHAT_KEYS[channel])
 
-    # Stop whatever the character was doing before typing. This has to happen here,
-    # in Main Process, since the requesting DecisionMaker may not send input itself.
-    controller.release_all(handle)
-    await _pause(BEFORE_OPENING)
-    await controller.press(handle, key, silenced=silenced)
-    await _pause(AFTER_OPENING)
+    async with _chat_input(handle):
+        # Stop whatever the character was doing before typing. This has to happen
+        # here, in Main Process, since the requesting DecisionMaker may not send
+        # input itself.
+        controller.release_all(handle)
+        await _pause(BEFORE_OPENING)
+        await controller.press(handle, key, silenced=silenced)
+        await _pause(AFTER_OPENING)
 
-    if channel == WHISPER:
-        if whisper_to is not None:
-            await controller.write(
-                handle, whisper_to, silenced=silenced, **write_kwargs
-            )
+        if channel == WHISPER:
+            if whisper_to is not None:
+                await controller.write(
+                    handle, whisper_to, silenced=silenced, **write_kwargs
+                )
+                await _pause(AFTER_RECIPIENT)
+            await controller.press(handle, "enter", silenced=silenced)
             await _pause(AFTER_RECIPIENT)
-        await controller.press(handle, "enter", silenced=silenced)
-        await _pause(AFTER_RECIPIENT)
 
-    await controller.write(handle, message, silenced=silenced, **write_kwargs)
-    await _pause(BEFORE_SENDING)
-    await controller.press(handle, "enter", silenced=silenced)
-    await _pause(BEFORE_CLOSING)
-    await controller.press(handle, "enter", silenced=silenced)
+        await controller.write(handle, message, silenced=silenced, **write_kwargs)
+        await _pause(BEFORE_SENDING)
+        await controller.press(handle, "enter", silenced=silenced)
+        await _pause(BEFORE_CLOSING)
+        await controller.press(handle, "enter", silenced=silenced)
 
 
 async def _pause(bounds: tuple[float, float]) -> None:
