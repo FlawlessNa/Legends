@@ -64,6 +64,19 @@ them, has neither. A line is `outgoing` when its speaker reads as the
 character's own name (`reads_as`, ignoring case); the outgoing whisper's format
 waits for a frame of one.
 
+**Reads as.** Whether a text read may be a given one, a name or a message, is
+`reads_as`, the one place that says it: as long, and equal letter by letter,
+where an `UNREAD` letter may be any letter and an `ALIKE` letter any of those
+drawn like it. A text with too few letters read (`MIN_READ`) reads as nothing:
+another player whose name reads mostly `UNREAD` is not the character.
+
+**Wrapped lines.** A general row that doesn't fit the format, directly below a
+general row read in the same `read`, `continues` the line above: its text is
+the rest of that line's message. The reader keeps it a row of its own; the
+conversation joins it to the line above (`maple.chat_replies.conversation`).
+A row whose line above scrolled away before it was read can't be told from a
+line that doesn't fit, and doesn't continue anything.
+
 **New lines.** Each row has a signature: which of its pixels are text. A read
 compares the rows with the previous read's: the log scrolls up as lines arrive,
 so the new lines are the bottom rows that the previous rows, shifted up the
@@ -166,6 +179,13 @@ ALIKE: dict[str, str] = {"I": "Il"}
 every letter it may be (`toolkit.harvest_glyphs.alike`; a `frames` test checks
 the harvested set says the same)."""
 
+MIN_READ = 2
+"""The fewest letters (spaces aside) a text must have read for `reads_as` to
+match it with anything, and it must have read at least half of them too. A
+shorter text must have read all of them. 43 printable characters have no glyph
+yet (`font.CHAT_GENERAL`), so a 4-letter name read `UNREAD` throughout would
+otherwise be anyone of 4 letters, the character among them (#484)."""
+
 _GENERAL_FORMAT = re.compile(
     rf"(?:\[[^\]]*\] )?(?P<speaker>[A-Za-z0-9{UNREAD}]+) : (?P<message>.+)"
 )
@@ -177,9 +197,10 @@ def reads_as(read: str, written: str, *, ignore_case: bool = False) -> bool:
     """
     Whether chat text read as `read` may be `written`: as long, and equal letter
     by letter, where `UNREAD` may be any letter and a letter of `ALIKE` any of
-    those drawn like it.
+    those drawn like it. `read` must have read enough of its letters
+    (`MIN_READ`): one that hasn't is never anything.
     """
-    if len(read) != len(written):
+    if len(read) != len(written) or not _read_enough(read):
         return False
     for r, w in zip(read, written, strict=True):
         if r == UNREAD:
@@ -191,6 +212,15 @@ def reads_as(read: str, written: str, *, ignore_case: bool = False) -> bool:
         elif w not in could_be:
             return False
     return True
+
+
+def _read_enough(read: str) -> bool:
+    """Whether `read` has read enough of its letters to be matched (`MIN_READ`)."""
+    letters = [c for c in read if not c.isspace()]
+    known = sum(c != UNREAD for c in letters)
+    return (
+        known > 0 and known >= min(MIN_READ, len(letters)) and 2 * known >= len(letters)
+    )
 
 
 class ChatKind(enum.Enum):
@@ -221,7 +251,11 @@ class ChatLine:
         reads it as `you · whisper to <speaker>` (#462). No whisper is read yet.
     :ivar message: What they wrote, split the same way; `None` with `speaker`.
     :ivar outgoing: The character sent it: its speaker reads as the
-        character's name.
+        character's name (`reads_as`, ignoring case, so it must have read
+        enough of its letters).
+    :ivar continues: The row is the rest of the line above, which wrapped: a
+        general row that doesn't fit the format, directly below a general row of
+        the same `read`. Its words are in `text` only.
     """
 
     kind: ChatKind
@@ -231,6 +265,7 @@ class ChatLine:
     speaker: str | None = None
     message: str | None = None
     outgoing: bool = False
+    continues: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -352,10 +387,11 @@ class ChatReader:
             rows.append(row)
         new = _new_rows(self._previous, rows)
         self._previous = rows
-        return Reading.read(
-            [self._line(frame.pixels, located.point[0], row) for row in new],
-            frame.captured_at,
-        )
+        lines: list[ChatLine] = []
+        for row in new:
+            above = lines[-1] if lines else None
+            lines.append(self._line(frame.pixels, located.point[0], row, above))
+        return Reading.read(lines, frame.captured_at)
 
     def forget(self) -> None:
         """Forget the rows seen, so the next `read` returns every line shown."""
@@ -424,7 +460,16 @@ class ChatReader:
             kind = ChatKind.UNKNOWN if background is None else ChatKind.MEGAPHONE
         return _Row(kind, kind.value.encode() + np.packbits(ink).tobytes(), image, top)
 
-    def _line(self, pixels: NDArray[np.uint8], x: int, row: _Row) -> ChatLine:
+    def _line(
+        self,
+        pixels: NDArray[np.uint8],
+        x: int,
+        row: _Row,
+        above: ChatLine | None,
+    ) -> ChatLine:
+        """The line of `row`; `above` is the line of the new row read before it,
+        which a row that doesn't fit the format continues when it is directly
+        above, and general."""
         assert row.kind is not None
         if row.kind is not ChatKind.GENERAL:
             return ChatLine(row.kind, row.image.copy(), None, row.top)
@@ -436,7 +481,14 @@ class ChatReader:
         text = self._glyphs.read_marked(cell)
         split = _GENERAL_FORMAT.fullmatch(text)
         if split is None:
-            return ChatLine(row.kind, row.image.copy(), text, row.top)
+            continues = (
+                above is not None
+                and above.kind is ChatKind.GENERAL
+                and above.top + ROW_HEIGHT == row.top
+            )
+            return ChatLine(
+                row.kind, row.image.copy(), text, row.top, continues=continues
+            )
         speaker = split["speaker"]
         return ChatLine(
             row.kind,

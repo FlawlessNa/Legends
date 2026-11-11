@@ -28,6 +28,8 @@ class Line:
     speaker: str | None
     message: str | None
     outgoing: bool = False
+    text: str | None = None
+    continues: bool = False
 
 
 class Clock:
@@ -54,6 +56,11 @@ def whisper(speaker: str, message: str | None, *, outgoing: bool = False) -> Lin
 
 def general(speaker: str | None, message: str | None) -> Line:
     return Line(ChatKind.GENERAL, speaker, message)
+
+
+def rest(text: str, kind: ChatKind = ChatKind.GENERAL) -> Line:
+    """A row that continues the line above, which wrapped."""
+    return Line(kind, None, None, text=text, continues=True)
 
 
 # Appending.
@@ -159,6 +166,63 @@ def test_the_echo_of_a_reply_is_ours_even_with_its_speaker_misread(
     assert conversation.pending() == []
 
 
+@pytest.mark.parametrize(
+    "read",
+    ["IoI ty", f"I{UNREAD}I ty", f"lol {UNREAD}y"],
+    ids=["l read as I", "and one unread", "one unread"],
+)
+def test_the_echo_of_a_reply_is_ours_as_read(
+    conversation: Conversation, read: str
+) -> None:
+    conversation.expect_echo("lol ty", ChatKind.GENERAL)
+
+    entry = conversation.append(general("Mapier", read), Address.JUDGE)
+
+    assert entry is not None
+    assert entry.ours
+
+
+@pytest.mark.parametrize(
+    ("sent", "read"),
+    [
+        ("brb gtg", f"{UNREAD * 3} {UNREAD}{UNREAD}g"),
+        ("ya", f"{UNREAD}a"),
+        ("brb gtg", "brb gtG"),
+    ],
+    ids=["mostly unread", "half of two", "case"],
+)
+def test_a_line_with_too_few_letters_read_is_not_our_echo(
+    conversation: Conversation, sent: str, read: str
+) -> None:
+    conversation.expect_echo(sent, ChatKind.GENERAL)
+
+    entry = conversation.append(general("Bob", read), Address.JUDGE)
+
+    assert entry is not None
+    assert not entry.ours
+    assert entry.state is EntryState.PENDING
+
+
+@pytest.mark.parametrize("speaker", ["MapIer", f"Map{UNREAD}er"])
+def test_a_speaker_read_as_the_ign_is_ours(
+    conversation: Conversation, speaker: str
+) -> None:
+    entry = conversation.append(general(speaker, "brb"), Address.JUDGE)
+
+    assert entry is not None
+    assert entry.ours
+
+
+def test_a_speaker_with_too_few_letters_read_is_not_ours(
+    conversation: Conversation,
+) -> None:
+    entry = conversation.append(whisper(f"M{UNREAD * 5}", "hi"), Address.MUST)
+
+    assert entry is not None
+    assert not entry.ours
+    assert entry.state is EntryState.PENDING
+
+
 def test_an_echo_is_recognised_up_to_ten_seconds_and_not_after(
     conversation: Conversation, clock: Clock
 ) -> None:
@@ -245,6 +309,31 @@ def test_pending_groups_by_player_and_channel_oldest_first(
     ]
 
 
+def test_a_burst_groups_a_speaker_whatever_its_case(
+    conversation: Conversation,
+) -> None:
+    conversation.append(whisper("Bob", "hi"), Address.MUST)
+    conversation.append(whisper("bob", "u there?"), Address.MUST)
+    conversation.append(whisper("BOB", "hello??"), Address.MUST)
+
+    [burst] = conversation.pending()
+
+    assert (burst.speaker, [e.seq for e in burst.entries]) == ("Bob", [1, 2, 3])
+
+
+def test_a_burst_groups_a_speaker_read_in_part_and_names_the_best_read(
+    conversation: Conversation,
+) -> None:
+    conversation.append(whisper(f"B{UNREAD}b", "hi"), Address.MUST)
+    conversation.append(whisper("Bob", "u there?"), Address.MUST)
+    conversation.append(whisper("Bo", "hey"), Address.MUST)
+
+    first, other = conversation.pending()
+
+    assert (first.speaker, [e.seq for e in first.entries]) == ("Bob", [1, 2])
+    assert (other.speaker, [e.seq for e in other.entries]) == ("Bo", [3])
+
+
 def test_a_burst_takes_the_gm_address_over_must(conversation: Conversation) -> None:
     conversation.append(Line(ChatKind.GM, "Gee", "hello"), Address.GM)
     conversation.append(Line(ChatKind.GM, "Gee", "mapler?"), Address.MUST)
@@ -252,6 +341,111 @@ def test_a_burst_takes_the_gm_address_over_must(conversation: Conversation) -> N
     [burst] = conversation.pending()
 
     assert burst.address is Address.GM
+
+
+# Wrapped lines.
+
+
+def test_a_row_that_continues_a_line_is_joined_to_it(
+    conversation: Conversation,
+) -> None:
+    head = conversation.append(general("Bob", "hey whats"), Address.JUDGE)
+    joined = conversation.append(rest(" up Mapler? "), Address.MUST)
+
+    assert head is not None
+    assert joined is not None
+    assert (joined.seq, joined.speaker, joined.message) == (
+        1,
+        "Bob",
+        "hey whats up Mapler?",
+    )
+    assert joined.address is Address.MUST
+    assert conversation.recent() == [joined]
+    [burst] = conversation.pending()
+    assert (burst.address, burst.entries) == (Address.MUST, (joined,))
+
+
+def test_a_row_that_continues_a_line_keeps_its_stronger_address(
+    conversation: Conversation,
+) -> None:
+    conversation.append(Line(ChatKind.GENERAL, "Gee", "hello"), Address.GM)
+
+    joined = conversation.append(rest("there"), Address.IGNORE)
+
+    assert joined is not None
+    assert (joined.message, joined.address) == ("hello there", Address.GM)
+    assert joined.state is EntryState.PENDING
+
+
+def test_a_line_ignored_on_its_first_row_is_answered_when_the_next_names_us(
+    conversation: Conversation,
+) -> None:
+    conversation.append(general("Bob", "hey"), Address.IGNORE)
+
+    joined = conversation.append(rest("Mapler"), Address.MUST)
+
+    assert joined is not None
+    assert joined.state is EntryState.PENDING
+
+
+def test_a_row_that_continues_a_line_appended_while_replies_are_off_stays_context(
+    conversation: Conversation,
+) -> None:
+    conversation.append(general("Bob", "hey"), Address.IGNORE, replies_on=False)
+
+    joined = conversation.append(rest("Mapler"), Address.MUST, replies_on=False)
+
+    assert joined is not None
+    assert joined.state is EntryState.CONTEXT
+
+
+def test_a_row_that_continues_our_line_is_ours(conversation: Conversation) -> None:
+    conversation.append(general(IGN, "sry map's"), Address.IGNORE)
+
+    joined = conversation.append(rest("full Mapler"), Address.MUST)
+
+    assert joined is not None
+    assert joined.ours
+    assert (joined.address, joined.state) == (Address.IGNORE, EntryState.CONTEXT)
+    assert conversation.pending() == []
+
+
+def test_a_reply_that_wraps_is_our_echo_once_joined(
+    conversation: Conversation,
+) -> None:
+    conversation.expect_echo("sry map's full, maybe later", ChatKind.GENERAL)
+    head = conversation.append(general("Mapier", "sry map's full,"), Address.JUDGE)
+    assert head is not None
+    assert not head.ours
+
+    joined = conversation.append(rest("maybe later"), Address.IGNORE)
+
+    assert joined is not None
+    assert joined.ours
+    assert joined.state is EntryState.CONTEXT
+    assert conversation.pending() == []
+
+
+@pytest.mark.parametrize(
+    "above",
+    [None, whisper("Bob", "hi")],
+    ids=["nothing above", "another kind above"],
+)
+def test_a_row_that_continues_nothing_is_appended_as_it_is(
+    conversation: Conversation, above: Line | None
+) -> None:
+    if above is not None:
+        conversation.append(above, Address.MUST)
+
+    entry = conversation.append(rest("whats up"), Address.IGNORE)
+
+    assert entry is not None
+    assert (entry.seq, entry.speaker, entry.message) == (
+        len(conversation.recent()),
+        None,
+        None,
+    )
+    assert entry.state is EntryState.CONTEXT
 
 
 # Resolving.
