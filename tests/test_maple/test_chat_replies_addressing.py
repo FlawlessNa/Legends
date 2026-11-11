@@ -19,6 +19,7 @@ from maple.chat_replies.addressing import (
 )
 from maple.chat_replies.line import ReadLine
 from maple.screen.chat import ChatKind
+from maple.screen.font import UNREAD
 
 IGN = "Mapler"
 
@@ -29,6 +30,8 @@ class Line:
     speaker: str | None
     message: str | None
     outgoing: bool = False
+    text: str | None = None
+    continues: bool = False
 
 
 @pytest.mark.parametrize(
@@ -70,6 +73,7 @@ def test_each_kind_and_case_maps_to_its_address(line: Line, address: Address) ->
         Line(ChatKind.GENERAL, "Gee", "hello"),
         Line(ChatKind.WHISPER, "Gee", "are you there?"),
         Line(ChatKind.GENERAL, "gee", "hello"),
+        Line(ChatKind.GENERAL, f"G{UNREAD}e", "hello"),
     ],
 )
 def test_a_later_line_from_a_speaker_seen_as_gm_is_gm(later: Line) -> None:
@@ -90,6 +94,72 @@ def test_our_whisper_to_a_gm_is_still_ours() -> None:
     reply = Line(ChatKind.WHISPER, "Gee", "hello, yes", outgoing=True)
 
     assert classifier.classify(reply) is Address.IGNORE
+
+
+# Names, as read (#484).
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "hi MapIer",  # Arial draws `l` as `I`.
+        f"hi Map{UNREAD}er",  # One letter unread.
+        f"{UNREAD}apIer, party?",
+        "mapIer?",
+    ],
+)
+def test_a_message_naming_the_ign_as_read_must_be_answered(message: str) -> None:
+    line = Line(ChatKind.GENERAL, "Bob", message)
+
+    assert Addressing(IGN).classify(line) is Address.MUST
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        f"hi M{UNREAD * 5}",  # Too few letters read: anyone of six letters.
+        f"hi {UNREAD * 6}",
+        f"hi Mapler{UNREAD}",  # The unread letter may go on the word: `Maplers`.
+        f"hi {UNREAD}Mapler",
+        "hi MapIerz",
+    ],
+)
+def test_a_message_that_may_not_name_the_ign_is_judged(message: str) -> None:
+    line = Line(ChatKind.GENERAL, "Bob", message)
+
+    assert Addressing(IGN).classify(line) is Address.JUDGE
+
+
+@pytest.mark.parametrize("speaker", ["MapIer", f"Map{UNREAD}er", f"{UNREAD}APLER"])
+def test_a_speaker_read_as_the_ign_is_ours(speaker: str) -> None:
+    line = Line(ChatKind.GENERAL, speaker, "brb")
+
+    assert Addressing(IGN).classify(line) is Address.IGNORE
+
+
+@pytest.mark.parametrize("speaker", [UNREAD * 6, f"M{UNREAD * 5}", f"Ma{UNREAD * 4}"])
+def test_a_speaker_with_too_few_letters_read_is_not_ours(speaker: str) -> None:
+    """Another player whose name reads mostly unread must still be answered."""
+    whisper = Line(ChatKind.WHISPER, speaker, "hi")
+    general = Line(ChatKind.GENERAL, speaker, "hi")
+
+    assert Addressing(IGN).classify(whisper) is Address.MUST
+    assert Addressing(IGN).classify(general) is Address.JUDGE
+
+
+# A row that continues the line above.
+
+
+def test_a_row_that_continues_a_line_and_names_us_must_be_answered() -> None:
+    rest = Line(ChatKind.GENERAL, None, None, text="u there MapIer?", continues=True)
+
+    assert Addressing(IGN).classify(rest) is Address.MUST
+
+
+def test_a_row_that_continues_a_line_asks_nothing_on_its_own() -> None:
+    rest = Line(ChatKind.GENERAL, None, None, text="lol", continues=True)
+
+    assert Addressing(IGN).classify(rest) is Address.IGNORE
 
 
 def test_gm_speakers_are_remembered_per_classifier() -> None:
