@@ -10,7 +10,9 @@ from botting.controller import release_keys
 
 from .action_data import ActionRequest
 from .bot_data import BotData
+from .data_keys import Provider, build_providers, resolve_providers
 from .decision_maker import DecisionMaker
+from .proxy_factory import ProxyFactory
 from .supervisor import Supervisor, resolve_pauses
 
 logger = logging.getLogger(__name__)
@@ -45,6 +47,9 @@ class Bot(ABC):
         #: Runs every DecisionMaker's loops. Built by `start`, once the
         #: DecisionMakers are.
         self.supervisor: Supervisor | None = None
+        #: The Providers of every key the DecisionMakers read, built and set up
+        #: by `start`, each after those it needs.
+        self.providers: list[Provider] = []
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.ign})"
@@ -67,14 +72,31 @@ class Bot(ABC):
         Called by the Engine: assemble the Bot, then run its DecisionMakers.
 
         Assembly happens before the start barrier, so a Bot wired wrong is
-        refused before any bot starts: the class-level declarations are resolved
-        first, with no DecisionMaker built, then the DecisionMakers are built and
-        handed to the Supervisor, which runs their loops until the Bot ends.
-        :raises StartupRefused: a declaration resolves to nothing.
+        refused before any bot starts:
+
+        1. the class-level declarations are resolved, with nothing built: the
+           Pauses, and the Providers of every key read, in the order to build
+           them;
+        2. the Providers are built, then set up, in that order;
+        3. the DecisionMakers are built, then set up;
+        4. the Supervisor takes them, and runs their loops until the Bot ends.
+        :raises StartupRefused: a declaration resolves to nothing, two keys share
+            a name, the Providers form a cycle, or a Provider registers less
+            than it provides.
         """
         self._bot = asyncio.current_task()
+        assert self.data is not None, "child_init() must run before start()"
+        assert self.pipe is not None, "child_init() must run before start()"
 
-        declared_pauses = resolve_pauses(self._decision_makers())
+        classes = self._decision_makers()
+        declared_pauses = resolve_pauses(classes)
+        providers = resolve_providers(classes)
+
+        self.providers = build_providers(
+            providers, self.data, self.pipe, ProxyFactory(self.metadata), self.kwargs
+        )
+        for decision_maker in self.decision_makers:
+            decision_maker.setup()
         self.supervisor = Supervisor(self.ign, self.decision_makers, declared_pauses)
 
         # Synchronizes the start of all bots at the same time.

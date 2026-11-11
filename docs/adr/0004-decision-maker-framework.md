@@ -17,7 +17,7 @@ When a DecisionMaker died half-way through a pause or a steer, nothing undid it.
 
 The intent and the approved spec are in epic #432.
 This ADR records the decisions; the terms are defined in `CONTEXT.md` (Supervisor, Pause, Data Key, Provider, Claim, Signal).
-The Supervisor and Pauses were delivered first (#433); what is named here but not yet in the tree is delivered by the later tickets of #432.
+The Supervisor and Pauses were delivered first (#433), then Data Keys, Providers and assembly (#434); what is named here but not yet in the tree is delivered by the later tickets of #432.
 
 ## Decision
 
@@ -84,6 +84,21 @@ A one-at-a-time gate replaces the hand-rolled per-DecisionMaker lock in Rotation
   It is the only source that exists before any DecisionMaker is built, and it is single, so there is nothing to reconcile.
 - **Provider Actions carry no Correlation ID.**
   Passing the reading decision's id would need ambient propagation, which the codebase rules out (ADR 0001: Correlation IDs are passed explicitly).
+- **A key names its Provider, and the key fills the Provider's `provides`.**
+  `Key(name, provider=..., legacy_name=..., steerable=...)` is defined after its Provider's class, and making it appends it to that class's `provides`; a Provider that declares `provides` itself is a `TypeError`.
+  So a key has one producer by construction, and `provides` cannot drift from the keys.
+  Rejected: a dotted-path `provider`, as `pauses` allows, which would leave the key untyped until assembly.
+- **A key's value is stored under its `name`; `legacy_name` is an alias.**
+  `data.<legacy_name>`, and every `BotData` method that takes a name, reach the key's attribute, so unported code reads and updates it unchanged, and dropping the alias with the last mixin moves nothing.
+  `create_attribute`, `create_or_reconfigure_attribute` and `set_static` on a name a Provider owns raise `OwnedByProvider`; `set_static` too, since a static of that name would silently be shadowed.
+  `reconfigure_attribute`, `snapshot_attribute` and `restore_attribute` still work on it, for the unported code that steers today, until Claims replace them.
+- **Assembly is `Bot.start`, before the start barrier.**
+  `resolve_providers` reads the class-level `reads`, `observes` and `needs` with nothing built, and refuses two keys of one name (a legacy name counts as a name) and any cycle between Providers, naming it.
+  Every Provider is then built before any is set up, so a Provider that cannot even be built stops the start before any I/O; each `setup()` runs after those of the Providers it needs, and must register every key its class provides.
+  The DecisionMakers are built after that, then each `setup()` runs; an old-style DecisionMaker's is empty.
+- **A Provider takes the profile settings as keywords**, as a DecisionMaker does, so a Provider names the settings it uses in its signature.
+- **`BotData` measures time on an injected monotonic clock** (#57, for `BotData` only).
+  `AttributeMetadata`'s timestamps are readings of that clock, and "never" is minus infinity, so the time since an attribute that was never validly updated is infinite rather than the two thousand years `datetime.min` gave; every comparison against it is unchanged.
 - **`StartupRefused` lives in `botting/core/`** (`errors.py`), and `maple/screen/sprites.py` raises that class.
   Two exception types for the same thing would make every caller catch both.
   It moved with the Supervisor, the first engine code to refuse a start, so that no step had two.
