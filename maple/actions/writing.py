@@ -18,10 +18,17 @@ Both procedures take the same steps:
 The key that opens each channel is the character's `Chat Keys` binding
 (`configs/keybindings.ini`), read by `chat_keys`. A channel it leaves out keeps
 the key `write_in_chat` has always pressed.
+
+A bot reads them once, when it is built (`startup_chat_keys`): a malformed
+binding refuses the start there, rather than after a failsafe or a Discord
+`WRITE`. Its DecisionMakers then take the keys from its `BotData`, and the
+Discord parser, in the same process as the bot's build, from
+`started_chat_keys`.
 """
 
 import ast
 import asyncio
+import logging
 import random
 from collections.abc import Mapping
 from configparser import SectionProxy
@@ -31,6 +38,8 @@ from typing import Any
 from botting import controller
 from botting.controller import KEYBOARD_MAPPING, TypingPace
 from botting.utilities import config_reader
+
+logger = logging.getLogger(__name__)
 
 CHAT_KEYS_OPTION = "Chat Keys"
 """The option of a character's keybindings section that binds the channels."""
@@ -73,6 +82,39 @@ def chat_keys(ign: str) -> dict[str, str]:
     section = config_reader("keybindings", ign)
     assert isinstance(section, SectionProxy), f"No keybindings section for {ign!r}."
     return read_chat_keys(section.get(CHAT_KEYS_OPTION), ign)
+
+
+_STARTED: dict[str, Mapping[str, str]] = {}
+"""The keys `startup_chat_keys` read, by IGN, in this process."""
+
+
+def startup_chat_keys(ign: str) -> dict[str, str]:
+    """
+    `ign`'s chat keys, read once when its bot is built, and kept for
+    `started_chat_keys`. A missing keybindings section gives the defaults, as
+    writing from Discord always allowed; a malformed binding raises.
+    :param ign: The character.
+    :return: Every channel's key.
+    :raises TypeError: When `Chat Keys` is not a dict.
+    :raises ValueError: When it binds an unknown channel, or binds one to no key.
+    """
+    try:
+        keys = chat_keys(ign)
+    except AssertionError, KeyError:
+        logger.warning(
+            "No keybindings section for %r: chatting with the default chat keys.",
+            ign,
+        )
+        keys = dict(DEFAULT_CHAT_KEYS)
+    _STARTED[ign] = MappingProxyType(dict(keys))
+    return keys
+
+
+def started_chat_keys(ign: str) -> dict[str, str] | None:
+    """The keys `startup_chat_keys` read for `ign` in this process, or `None`
+    when no bot of that name was built here."""
+    keys = _STARTED.get(ign)
+    return None if keys is None else dict(keys)
 
 
 def read_chat_keys(raw: str | None, ign: str) -> dict[str, str]:

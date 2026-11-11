@@ -93,6 +93,15 @@ settings:
   mob_spawn_alert_timer: 15
   mob_spawn_alert_threshold: 4
 
+  # -- Chat replies ---------------------------------------------------------
+  # The character answers players who talk to it, through Claude Haiku 5.5,
+  # with the instructions in configs/chat_replies/. On by default: the bot
+  # refuses to start when the instructions don't load or the model can't be
+  # reached (set ANTHROPIC_API_KEY, or `ant auth login`). `false` turns the
+  # replies off; the GM alarm still runs. From Discord, `REPLIES OFF|ON`
+  # pauses and hands them back for a session.
+  # chat_replies: false
+
   # -- Movement tuning ------------------------------------------------------
   # Leave these out unless movement is visibly mistimed. Speed and jump
   # multipliers correct for gear/buffs the physics model doesn't know about;

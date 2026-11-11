@@ -10,21 +10,25 @@ is a rate limit, not part of what is checked, so the undecorated function is cal
 
 import itertools
 from collections.abc import Iterator
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from botting.core import ActionRequest
-from botting.utilities import config_reader
-from maple.actions import DEFAULT_CHAT_KEYS, priorities, write_in_chat, writing
+from maple.actions import DEFAULT_CHAT_KEYS, priorities, write_in_chat
 from maple.decision_makers.mixins import ReactionsMixin
+
+KEYS = {**DEFAULT_CHAT_KEYS, "general": "g"}
+"""The character's chat keys, as its bot read them at startup."""
 
 
 class _Reactor(ReactionsMixin):
     def __init__(self) -> None:
         self.data = SimpleNamespace(  # type: ignore[assignment]
-            ign="tester", handle=1234, current_frame=SimpleNamespace(pixels=None)
+            ign="tester",
+            handle=1234,
+            current_frame=SimpleNamespace(pixels=None),
+            chat_keys=KEYS,
         )
         self.sent: list[ActionRequest] = []
         self.send = self.sent.append
@@ -34,21 +38,6 @@ class _Reactor(ReactionsMixin):
 
     def react(self, reaction_type: str) -> None:
         type(self)._react.__wrapped__(self, reaction_type)  # type: ignore[attr-defined]
-
-
-@pytest.fixture(autouse=True)
-def _keybindings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """
-    A real keybindings config for "tester": `configs/keybindings.ini` is gitignored,
-    so a worktree or CI has none, and `_react` reads the character's chat keys from it.
-    """
-    ini = tmp_path / "keybindings.ini"
-    ini.write_text("[tester]\nChat Keys = {\n    'general': 'g',\n    }\n")
-    monkeypatch.setattr(
-        writing,
-        "config_reader",
-        lambda name, section: config_reader(name, section, full_path=str(ini)),
-    )
 
 
 @pytest.fixture(autouse=True)
@@ -76,7 +65,7 @@ def test_reacting_past_the_list_length_keeps_sending_one_chat_request_each(
         assert request.priority == priorities.ANTI_DETECTION
         assert request.args[0] == 1234
         assert isinstance(request.args[1], str)
-        assert request.kwargs == {"keys": {**DEFAULT_CHAT_KEYS, "general": "g"}}
+        assert request.kwargs == {"keys": KEYS}
 
 
 @pytest.mark.parametrize("reaction_type", ["light", "advanced"])

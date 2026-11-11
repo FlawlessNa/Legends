@@ -51,9 +51,18 @@ class ScriptedModel:
     def __init__(self, *answers: ModelAnswer) -> None:
         self.answers = list(answers)
         self.requests: list[tuple[str, str, type[BaseModel]]] = []
+        self.correlation_ids: list[str | None] = []
 
-    async def ask(self, system: str, user: str, schema: type[BaseModel]) -> ModelAnswer:
+    async def ask(
+        self,
+        system: str,
+        user: str,
+        schema: type[BaseModel],
+        *,
+        correlation_id: str | None = None,
+    ) -> ModelAnswer:
         self.requests.append((system, user, schema))
+        self.correlation_ids.append(correlation_id)
         return self.answers.pop(0)
 
 
@@ -230,6 +239,7 @@ def test_two_bad_replies_fail() -> None:
     outcome = run(relay, conversation, targets, Address.MUST)
 
     assert isinstance(outcome, Failed)
+    assert outcome.cause == "rejected"
     assert len(model.requests) == 2
 
 
@@ -249,6 +259,7 @@ def test_a_model_that_did_not_answer_fails_without_a_retry(outcome: str) -> None
 
     assert isinstance(result, Failed)
     assert outcome in result.reason
+    assert result.cause == f"model_{outcome}"
     assert len(model.requests) == 1
 
 
@@ -265,6 +276,7 @@ def test_a_whisper_burst_with_no_speaker_is_refused_without_asking() -> None:
     result = run(relay, conversation, list(burst.entries), Address.MUST)
 
     assert isinstance(result, Failed)
+    assert result.cause == "no_target"
     assert model.requests == []
 
 
@@ -284,3 +296,29 @@ def test_nothing_to_answer_is_not_asked() -> None:
 
     assert isinstance(result, Failed)
     assert model.requests == []
+
+
+def test_a_gm_burst_is_said_to_be_from_a_gm() -> None:
+    relay, model = relay_with(says("yes, I am here"), says("ya"))
+    conversation, targets = talk()
+
+    run(relay, conversation, targets, Address.GM)
+    run(relay, conversation, targets, Address.MUST)
+
+    gm, must = (user for _, user, _ in model.requests)
+    assert gm.endswith(
+        "They are from a GM: answer as the GM section says.\n"
+        "These lines are meant for you: answer them, do not answer null.\n"
+    )
+    assert "GM" not in must
+
+
+def test_every_request_carries_the_correlation_id_of_the_decision() -> None:
+    relay, model = relay_with(says("x" * 99), says("ya"))
+    conversation, targets = talk()
+
+    asyncio.run(
+        relay.reply(conversation, targets, Address.MUST, correlation_id="decision-3")
+    )
+
+    assert model.correlation_ids == ["decision-3", "decision-3"]

@@ -10,7 +10,7 @@ from botting import PARENT_LOG, emit_event
 from botting.core import Bot, ProxyFactory
 from botting.screen import Frame, frame_source
 from botting.visuals import InGameDetectionVisuals
-from maple.actions import ensure_minimap_displayed
+from maple.actions import ensure_minimap_displayed, startup_chat_keys
 from maple.bots.map_check import check_named_map, identify_map
 from maple.bots.map_setting import is_auto, resolve_map_id
 from maple.decision_makers.rebuffs import solo_buffs
@@ -79,6 +79,15 @@ class MapleBot(Bot, ABC):
         **kwargs: Any,  # noqa: ANN401
     ) -> None:
         super().__init__(ign, metadata, **kwargs)
+        # Read once, here: a malformed `Chat Keys` refuses the start, rather than
+        # after a failsafe reaction or a Discord WRITE. DecisionMakers take them
+        # from `data.chat_keys`, the Discord parser from `started_chat_keys`.
+        try:
+            self.chat_keys = startup_chat_keys(ign)
+        except (TypeError, ValueError) as exc:
+            message = f"Refusing to start {ign}: {exc}"
+            logger.critical(message)
+            raise StartupRefused(message) from exc
         if not character_class:
             raise ValueError(
                 f"{type(self).__name__} for {ign!r} needs `character_class` in the "
@@ -227,6 +236,7 @@ class MapleBot(Bot, ABC):
         data.set_static("speed_multiplier", self.kwargs.get("speed_multiplier", 1.00))
         data.set_static("jump_multiplier", self.kwargs.get("jump_multiplier", 1.00))
         data.set_static("calibration", self.calibration)
+        data.set_static("chat_keys", self.chat_keys)
 
     def _set_world_map(self, map_id: int, frame_check: FrameCheck) -> None:
         """

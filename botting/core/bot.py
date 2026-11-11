@@ -51,6 +51,11 @@ class Bot(ABC):
         self.data = BotData(self.ign)
         self.data.set_static("handle", self.find_handle())
         self.data.set_static("replies_on", True)
+        # What a DecisionMaker that stops the others' (ChatReplies, on a GM) names.
+        self.data.set_static(
+            "decision_maker_names",
+            tuple(class_.__name__ for class_ in self._decision_makers()),
+        )
         self.pipe = pipe
         self.barrier = barrier
 
@@ -111,9 +116,18 @@ class Bot(ABC):
     def resume(self) -> None:
         """
         Resumes the DecisionMakers tasks.
+
+        Each DecisionMaker's ``on_resume`` hook runs first: one that disabled others
+        and gives them back on RESUME (``ChatReplies``, after a GM) enables them
+        there, and their enablers restart them. Every other DecisionMaker whose task
+        isn't running is restarted, as ``pause`` left it. One still running is left
+        alone, so a RESUME with no PAUSE before it never runs a loop twice.
         """
         assert self._tg is not None, "start() must run before resume()"
+        enabled = {name for dm in self.decision_makers for name in dm.on_resume()}
         for dm in self.decision_makers:
+            if type(dm).__name__ in enabled or dm.running:
+                continue
             task = self._tg.create_task(dm.task(), name=f"{dm}")
             dm.decision_task = task
 

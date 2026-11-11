@@ -17,7 +17,12 @@
   },
   "maple.telemetry_events": {
     "CHAT_GM_LINE": "chat.gm_line",
+    "CHAT_LINE_ADDRESSED": "chat.line_addressed",
     "CHAT_REPLIES_TOGGLED": "chat.replies_toggled",
+    "CHAT_REPLY_FAILED": "chat.reply_failed",
+    "CHAT_REPLY_LIMITED": "chat.reply_limited",
+    "CHAT_REPLY_SENT": "chat.reply_sent",
+    "CHAT_REPLY_SILENT": "chat.reply_silent",
     "COMBAT_MOBS_HIT": "combat.mobs_hit",
     "COMBAT_TELECAST": "combat.telecast",
     "COMBAT_TELECAST_UNAVAILABLE": "combat.telecast_unavailable",

@@ -230,3 +230,14 @@ def test_telemetry_failing_never_breaks_the_answer(mocker: MockerFixture) -> Non
     mocker.patch("botting.llm.emit_event", side_effect=RuntimeError("sink gone"))
     answer = _ask(_model(lambda r: httpx2.Response(200, json=_message())))
     assert answer.outcome == "ok"
+
+
+def test_llm_request_carries_the_correlation_id_of_the_decision_that_asked(
+    mocker: MockerFixture,
+) -> None:
+    emitted = mocker.patch("botting.llm.emit_event")
+    model = _model(lambda r: httpx2.Response(200, json=_message()))
+
+    asyncio.run(model.ask("system", "user", Reply, correlation_id="decision-7"))
+
+    assert emitted.call_args.args[:2] == ("decision-7", LLM_REQUEST)

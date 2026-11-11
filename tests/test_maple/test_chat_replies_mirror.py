@@ -3,7 +3,7 @@
 from botting.communications.messages import QuietMessage
 from maple.chat_replies.addressing import Address
 from maple.chat_replies.conversation import Burst, Entry, EntryState
-from maple.chat_replies.mirror import format_exchange, mirror
+from maple.chat_replies.mirror import format_exchange, mirror, mirror_unanswered
 from maple.chat_replies.relay import Failed, Reply, Silent
 from maple.screen.chat import ChatKind
 
@@ -80,3 +80,23 @@ def test_a_gm_exchange_is_posted_with_the_mention_and_others_quietly() -> None:
     assert sent[0].startswith("<@42> ")
     assert isinstance(sent[1], QuietMessage)
     assert "<@" not in sent[1]
+
+
+def test_a_line_read_with_replies_off_is_posted_quietly_on_its_own() -> None:
+    (entry,) = _burst(ChatKind.WHISPER, "Bob", ["hi"], Address.MUST).entries
+    sent: list[str] = []
+
+    mirror_unanswered(sent.append, entry, "<@42>")
+
+    assert sent == ["[whisper] Bob: hi → (replies off)"]
+    assert isinstance(sent[0], QuietMessage)
+
+
+def test_a_gm_line_read_with_replies_off_rings() -> None:
+    (entry,) = _burst(ChatKind.GM, "Zed", ["hello?"], Address.GM).entries
+    sent: list[str] = []
+
+    mirror_unanswered(sent.append, entry, "<@42>")
+
+    assert sent == ["<@42> [gm] Zed: hello? → (replies off)"]
+    assert not isinstance(sent[0], QuietMessage)

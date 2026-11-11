@@ -19,6 +19,10 @@ import win32process
 # Enough to read a process's image name, and grantable on an elevated process
 # to an elevated caller (the bot runs elevated to send input to the client).
 _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+# Enough to end a process and wait for it to be gone.
+_PROCESS_TERMINATE = 0x0001
+_SYNCHRONIZE = 0x00100000
+_WAIT_OBJECT_0 = 0x00000000
 _MAX_PATH_CHARS = 32768
 
 _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -33,6 +37,10 @@ _kernel32.QueryFullProcessImageNameW.argtypes = [
 _kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
 _kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
 _kernel32.CloseHandle.restype = wintypes.BOOL
+_kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+_kernel32.TerminateProcess.restype = wintypes.BOOL
+_kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+_kernel32.WaitForSingleObject.restype = wintypes.DWORD
 
 Rect = tuple[int, int, int, int]  # left, top, right, bottom
 
@@ -77,6 +85,32 @@ def process_image_path(hwnd: int) -> str | None:
         ):
             return None
         return buffer.value
+    finally:
+        _kernel32.CloseHandle(process)
+
+
+def is_window(hwnd: int) -> bool:
+    """Whether `hwnd` is still a window."""
+    return bool(win32gui.IsWindow(hwnd))
+
+
+def terminate_window_process(hwnd: int, exit_code: int, timeout_ms: int) -> str | None:
+    """
+    End the process that owns `hwnd`, and wait up to `timeout_ms` for it to be
+    gone. `None` when it ended, else why not.
+    """
+    _, pid = win32process.GetWindowThreadProcessId(hwnd)
+    if not pid:
+        return f"window {hwnd} has no owning process"
+    process = _kernel32.OpenProcess(_PROCESS_TERMINATE | _SYNCHRONIZE, False, pid)
+    if not process:
+        return f"process {pid} can't be opened: error {ctypes.get_last_error()}"
+    try:
+        if not _kernel32.TerminateProcess(process, exit_code):
+            return f"process {pid} can't be ended: error {ctypes.get_last_error()}"
+        if _kernel32.WaitForSingleObject(process, timeout_ms) != _WAIT_OBJECT_0:
+            return f"process {pid} was still running after {timeout_ms} ms"
+        return None
     finally:
         _kernel32.CloseHandle(process)
 

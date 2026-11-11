@@ -32,10 +32,11 @@ from maple.actions.writing import (
     reply_in_chat,
     write_in_chat,
 )
-from maple.decision_makers.mixins import _reactions_mixins
+from maple.bots.training import TrainingBot
 from maple.decision_makers.mixins._reactions_mixins import ReactionsMixin
 from maple.parsers import maple_parser
 from maple.parsers.maple_parser import MapleParser
+from maple.screen.sprites import StartupRefused
 from tests import sent_input
 from tests.sent_input import Event, SentInput
 
@@ -374,8 +375,8 @@ def test_chat_keys_reads_the_characters_section(
 class _Reacting(ReactionsMixin):
     """The mixin on a bot that only records what it sends."""
 
-    def __init__(self) -> None:
-        self.data = SimpleNamespace(ign=IGN, handle=HANDLE)  # pyright: ignore[reportAttributeAccessIssue]
+    def __init__(self, chat_keys: dict[str, str]) -> None:
+        self.data = SimpleNamespace(ign=IGN, handle=HANDLE, chat_keys=chat_keys)  # pyright: ignore[reportAttributeAccessIssue]
         self.sent: list[ActionRequest] = []
         self.send = self.sent.append
 
@@ -383,10 +384,11 @@ class _Reacting(ReactionsMixin):
 def test_a_reaction_writes_with_the_characters_chat_keys(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """The keys its bot read at startup, never read again here."""
     bound = {**DEFAULT_CHAT_KEYS, "general": "g"}
-    monkeypatch.setattr(_reactions_mixins, "chat_keys", {IGN: bound}.__getitem__)
+    monkeypatch.setattr(writing, "config_reader", _no_config)
     monkeypatch.setattr(ReactionsMixin, "_light_reactions", ["wtf"])
-    reacting = _Reacting()
+    reacting = _Reacting(bound)
 
     # Past `cooldown`, whose clock is shared by every bot in the process.
     ReactionsMixin._react.__wrapped__(reacting, "light")  # pyright: ignore[reportFunctionMemberAccess]
@@ -422,3 +424,65 @@ def test_writing_from_discord_for_an_ign_with_no_bindings_uses_the_defaults(
 
     assert request.kwargs == {"keys": DEFAULT_CHAT_KEYS}
     pickle.dumps(request.kwargs)
+
+
+def _no_config(*args: object, **kwargs: object) -> None:
+    raise AssertionError("the keybindings were read again after startup")
+
+
+# --- read once, at startup (#477's review) ---------------------------------------
+
+
+@pytest.fixture
+def keybindings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """`configs/keybindings.ini` for the test to write, and no keys started yet."""
+    ini = tmp_path / "keybindings.ini"
+    monkeypatch.setattr(
+        writing,
+        "config_reader",
+        lambda name, section: config_reader(name, section, full_path=str(ini)),
+    )
+    monkeypatch.setattr(writing, "_STARTED", {})
+    return ini
+
+
+def test_startup_reads_the_keys_once_and_the_parser_uses_them(
+    monkeypatch: pytest.MonkeyPatch, keybindings: Path
+) -> None:
+    keybindings.write_text(f"[{IGN}]\nChat Keys = {{'party': 'p'}}\n")
+    assert writing.startup_chat_keys(IGN) == {**DEFAULT_CHAT_KEYS, "party": "p"}
+
+    # Edited mid-session: what started is what is used.
+    keybindings.write_text(f"[{IGN}]\nChat Keys = {{'party': 'z'}}\n")
+    monkeypatch.setattr(maple_parser, "find_client", lambda: HANDLE)
+    request = object.__new__(MapleParser).write("hello", IGN, channel="party")
+
+    assert request.kwargs["keys"] == {**DEFAULT_CHAT_KEYS, "party": "p"}
+
+
+def test_startup_with_no_section_uses_the_defaults(keybindings: Path) -> None:
+    keybindings.write_text("[Someone else]\n")
+
+    assert writing.startup_chat_keys(IGN) == DEFAULT_CHAT_KEYS
+    assert writing.started_chat_keys(IGN) == DEFAULT_CHAT_KEYS
+
+
+@pytest.mark.parametrize(
+    ("raw", "error"),
+    [("['party']", TypeError), ("{'shout': 'p'}", ValueError), ("{'party", ValueError)],
+)
+def test_a_malformed_binding_raises_at_startup(
+    keybindings: Path, raw: str, error: type[Exception]
+) -> None:
+    keybindings.write_text(f"[{IGN}]\nChat Keys = {raw}\n")
+
+    with pytest.raises(error):
+        writing.startup_chat_keys(IGN)
+    assert writing.started_chat_keys(IGN) is None
+
+
+def test_a_bot_with_a_malformed_binding_refuses_to_start(keybindings: Path) -> None:
+    keybindings.write_text(f"[{IGN}]\nChat Keys = {{'shout': 'p'}}\n")
+
+    with pytest.raises(StartupRefused, match=f"Refusing to start {IGN}.*shout"):
+        TrainingBot(IGN, {}, character_class="Bishop")  # pyright: ignore[reportArgumentType]
