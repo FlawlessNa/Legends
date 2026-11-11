@@ -138,6 +138,13 @@ says `error_max_turns`, or the comment is missing) did not judge anything:
 re-run it with `gh run rerun <run-id> --failed` before acting. If it fails the
 same way twice on a large PR, ask the agent to shrink or split the PR.
 
+The review retries once by itself on a fallback Claude account when the main
+one returns no verdict (`CLAUDE_CODE_OAUTH_TOKEN_FALLBACK`, see the header of
+`.github/workflows/claude-review.yml`). The gate log says which account
+judged. A run that still has no verdict means both accounts failed, or the
+fallback secret is not set: tell the maintainer rather than re-running in a
+loop.
+
 The epic branch is protected, so nothing but a ticket PR reaches it. A change
 to `docs/` or the skills that the tickets need goes through its own PR into
 `dev`; tickets branch off the epic as it is.
