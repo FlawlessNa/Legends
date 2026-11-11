@@ -23,6 +23,7 @@ from .action_data import ActionRequest, ActionWithValidation
 from .bot_data import BotData
 from .data_keys import Key, KeyNotDeclared
 from .proxy_factory import ProxyFactory
+from .signals import Announcement, Signal, SignalBoard
 from .supervisor import USER, Pause, PauseKind, Supervisor
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,11 @@ class DecisionMaker(ABC):
     #: The Data Keys this DecisionMaker only peeks at with `peek`: their last
     #: known value, never refreshed. Observing a key never builds its Provider.
     observes: ClassVar[tuple[Key[Any], ...]] = ()
+    #: The Signals this DecisionMaker announces, with `announce`.
+    announces: ClassVar[tuple[Signal[Any], ...]] = ()
+    #: The Signals this DecisionMaker waits for, with `wait_for`. Assembly refuses
+    #: the start when nothing in the Bot announces one.
+    awaits: ClassVar[tuple[Signal[Any], ...]] = ()
 
     #: Set by whichever subclass or mixin needs one - `_validate_request_async`
     #: falls back to it when a caller passes no condition of its own.
@@ -108,6 +114,8 @@ class DecisionMaker(ABC):
         #: Set by the Supervisor that runs this DecisionMaker's loops, once the
         #: Bot is assembled. None for a DecisionMaker built on its own.
         self._supervisor: Supervisor | None = None
+        #: Set by assembly before `setup()`. None for a DecisionMaker built alone.
+        self._signals: SignalBoard | None = None
 
         # Identifies the current _decide() call. Minted by the decision loop, read by
         # send() and by any Producer that must carry the id into a procedure itself.
@@ -163,6 +171,37 @@ class DecisionMaker(ABC):
                 f"{type(self).__name__}.reads nor .observes declares."
             )
         return self.data.peek(key)
+
+    # --- Signals ------------------------------------------------------------------
+
+    def announce[T](self, signal: Signal[T], payload: T) -> None:
+        """
+        Announce `signal`, waking every DecisionMaker waiting for it.
+        :raises SignalNotDeclared: `signal` is not in this class's `announces`.
+        """
+        self._board().announce(signal, payload, by=self)
+
+    async def wait_for[T](self, signal: Signal[T]) -> T:
+        """
+        The payload of the next announcement of `signal` after this call.
+        :raises SignalNotDeclared: `signal` is not in this class's `awaits`.
+        """
+        return await self._board().wait_for(signal, by=self)
+
+    def last[T](self, signal: Signal[T]) -> Announcement[T] | None:
+        """
+        The latest announcement of `signal`: its payload and when it came, on the
+        Bot's clock. None when it has not been announced yet.
+        :raises SignalNotDeclared: `signal` is in neither `announces` nor `awaits`.
+        """
+        return self._board().last(signal, by=self)
+
+    def _board(self) -> SignalBoard:
+        if self._signals is None:
+            raise RuntimeError(
+                f"{self} has no Signals: they exist only once its Bot has started."
+            )
+        return self._signals
 
     # --- what the Supervisor runs -----------------------------------------------
 

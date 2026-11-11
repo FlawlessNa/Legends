@@ -126,6 +126,10 @@ A one-at-a-time gate replaces the hand-rolled per-DecisionMaker lock in Rotation
 
 - **Signals are built before their first user.**
   The cost is small, and a framework that lacks one makes the first user invent its own.
+- **A Signal's waiters and latest announcement live on one board per Bot.**
+  `wait_for` is a future per call on the Bot's event loop, resolved by `announce`, so every waiter wakes, and a cancelled wait (a Pause cancels a DecisionMaker's loops) leaves nothing behind.
+  It waits for the next announcement only; a DecisionMaker that must not miss one reads `last` first.
+  Rejected: a queue or event per waiter registered at assembly, which would make a Signal's waiters a thing to build and tear down.
 - **`CheckStillInMap` is the first port, not `StateSnapshot` (a change from D14).**
   `StateSnapshot` only observes values others have read, so it moves last, once every key it observes has a Provider.
 - **#57 is folded in only for `BotData`'s clock.**

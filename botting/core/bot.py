@@ -13,6 +13,7 @@ from .bot_data import BotData
 from .data_keys import Provider, build_providers, resolve_providers
 from .decision_maker import DecisionMaker
 from .proxy_factory import ProxyFactory
+from .signals import SignalBoard, check_signals
 from .supervisor import Supervisor, resolve_pauses
 
 logger = logging.getLogger(__name__)
@@ -75,13 +76,14 @@ class Bot(ABC):
         refused before any bot starts:
 
         1. the class-level declarations are resolved, with nothing built: the
-           Pauses, and the Providers of every key read, in the order to build
-           them;
+           Pauses, the Providers of every key read in the order to build them,
+           and the Signals awaited;
         2. the Providers are built, then set up, in that order;
         3. the DecisionMakers are built, then set up;
         4. the Supervisor takes them, and runs their loops until the Bot ends.
         :raises StartupRefused: a declaration resolves to nothing, two keys share
-            a name, the Providers form a cycle, or a Provider registers less
+            a name, the Providers form a cycle, a Signal is awaited that nothing
+            announces, or a Provider registers less
             than it provides.
         """
         self._bot = asyncio.current_task()
@@ -91,10 +93,19 @@ class Bot(ABC):
         classes = self._decision_makers()
         declared_pauses = resolve_pauses(classes)
         providers = resolve_providers(classes)
+        check_signals(classes, providers)
 
+        signals = SignalBoard(self.data.clock)
         self.providers = build_providers(
-            providers, self.data, self.pipe, ProxyFactory(self.metadata), self.kwargs
+            providers,
+            self.data,
+            self.pipe,
+            ProxyFactory(self.metadata),
+            self.kwargs,
+            signals,
         )
+        for decision_maker in self.decision_makers:
+            decision_maker._signals = signals  # pyright: ignore[reportPrivateUsage] - assembly wires it
         for decision_maker in self.decision_makers:
             decision_maker.setup()
         self.supervisor = Supervisor(self.ign, self.decision_makers, declared_pauses)
