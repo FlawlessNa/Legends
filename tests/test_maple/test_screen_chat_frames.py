@@ -95,7 +95,7 @@ def test_every_expected_chat_reading(frames: FrameSet, reader: ChatReader) -> No
 def test_a_frame_read_twice_has_no_new_line_the_second_time(
     frames: FrameSet, reader: ChatReader
 ) -> None:
-    """The signature that tells a line from another is stable on the same
+    """The text pixels that tell a line from another are stable on the same
     pixels, whatever the line."""
     for entry in frames.entries:
         reader.forget()
@@ -191,6 +191,27 @@ def test_a_line_is_outgoing_when_the_character_is_its_speaker(
         checked += 1
     assert checked
     assert not wrong, "\n".join(wrong)
+
+
+@pytest.mark.parametrize(
+    "file", ["henesysL_1920x1080_11.png", "henesyscrowd_1920x1080_048.png"]
+)
+def test_the_newest_line_reads_whole_where_the_log_fades(
+    frames: FrameSet, reader: ChatReader, file: str
+) -> None:
+    """The newest line's baseline and descenders are drawn where the log fades
+    out (#483): on these frames, its letters there still read, none `UNREAD`.
+    The text isn't compared with Arial's label, which can't label the faded
+    pixels, nor printed, since it holds a player's name."""
+    reader.forget()
+    reading = reader.read(_frame(frames, file))
+    assert reading.value is not None, reading.detail
+    newest = max(reading.value, key=lambda line: line.top)
+
+    assert newest.kind is ChatKind.GENERAL
+    assert newest.text is not None
+    unread = newest.text.count(UNREAD)
+    assert unread == 0, f"{unread} letters of the newest line read UNREAD"
 
 
 def test_the_harvested_chat_glyphs_are_as_the_reader_reads_them() -> None:

@@ -9,8 +9,9 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 
-from botting.screen import Frame, Status
+from botting.screen import Frame, Reading, Status
 from game_data.sprites import Sprite
+from maple.screen import chat as chat_module
 from maple.screen.chat import (
     BAND_LEFT,
     BAND_RIGHT,
@@ -299,14 +300,14 @@ def test_the_newest_line_is_read_where_the_log_fades_out() -> None:
     ]
 
 
-def cursor_over(rows: list[Row], column: int, row: int = 0) -> Frame:
+def cursor_over(rows: list[Row], column: int, row: int = 0, down: int = 4) -> Frame:
     """The log's `rows`, with the cursor drawn over the given row, from
-    `column` of its band. The cursor is taller than a row, so it covers the
-    next row too."""
+    `column` of its band and `down` rows below its top. The cursor is taller
+    than a row, so it covers the next row too."""
     pixels = screen()
     draw_chat(pixels, rows)
     top = POINT[1] + LOG_BOTTOM - ROW_HEIGHT * (len(rows) - row)
-    paste(pixels, CURSOR, POINT[0] + BAND_LEFT + column, top + 4)
+    paste(pixels, CURSOR, POINT[0] + BAND_LEFT + column, top + down)
     return frame(pixels)
 
 
@@ -686,6 +687,106 @@ def test_the_chat_is_found_again_after_the_client_is_resized() -> None:
     reading = r.read(frame(pixels))
     assert reading.status is Status.READ
     assert reading.value == []
+
+
+# --- the cursor and new lines ---------------------------------------------
+
+CURSOR_LOG = [Row(text="Hi : Hi!"), Row(TEAL_BAND, "Hi"), Row(text="H : i"), Row()]
+"""A log the cursor crosses: a general line, a megaphone, a general line."""
+
+
+def texts(reading: Reading[list[ChatLine]]) -> list[str | None]:
+    assert reading.status is Status.READ, reading.detail
+    assert reading.value is not None
+    return [line.text for line in reading.value]
+
+
+@pytest.mark.parametrize("row", [0, 1, 2])
+def test_a_line_is_reported_once_while_the_cursor_crosses_it(row: int) -> None:
+    """The cursor rests on a row, crosses it column by column, and leaves."""
+    r = reader()
+    assert len(texts(r.read(chat_frame(CURSOR_LOG)))) == 3
+
+    for column in range(4, 60, 4):
+        assert texts(r.read(cursor_over(CURSOR_LOG, column, row))) == []
+        assert texts(r.read(cursor_over(CURSOR_LOG, column, row))) == []
+    assert texts(r.read(chat_frame(CURSOR_LOG))) == []
+
+
+@pytest.mark.parametrize("row", [0, 1, 2])
+def test_a_line_first_read_under_the_cursor_is_reported_once(row: int) -> None:
+    r = reader()
+    assert len(texts(r.read(cursor_over(CURSOR_LOG, 12, row)))) == 3
+
+    assert texts(r.read(cursor_over(CURSOR_LOG, 30, row))) == []
+    assert texts(r.read(chat_frame(CURSOR_LOG))) == []
+
+
+def test_a_line_arriving_under_the_resting_cursor_is_reported_once() -> None:
+    r = reader()
+    r.read(chat_frame(CURSOR_LOG))
+    assert texts(r.read(cursor_over(CURSOR_LOG, 12, row=2))) == []
+
+    # The cursor rests on the log's two bottom rows: the empty one, and the
+    # line that arrives there.
+    arrived = [*CURSOR_LOG[1:], Row(text="H : Hi")]
+    [line] = texts(r.read(cursor_over(arrived, 12, row=2)))
+    assert line is not None
+    assert line.startswith("H :")
+    assert UNREAD in line
+
+    assert texts(r.read(cursor_over(arrived, 40, row=2))) == []
+    assert texts(r.read(chat_frame(arrived))) == []
+
+
+def test_a_line_the_cursor_hid_whole_is_reported_once_it_shows() -> None:
+    """Nothing of it was read while the cursor hid it, so it is new when it
+    shows, and the lines above it aren't."""
+    r = reader()
+    r.read(chat_frame(CURSOR_LOG))
+    hidden = [*CURSOR_LOG[1:], Row(text=" " * 32 + "i")]
+    assert texts(r.read(cursor_over(hidden, 90, row=3, down=2))) == []
+
+    shown = r.read(chat_frame(hidden))
+    assert [line.kind for line in shown.value or []] == [ChatKind.GENERAL]
+    assert texts(r.read(chat_frame(hidden))) == []
+
+
+@pytest.mark.parametrize(
+    ("bottom_cut", "left_cut"),
+    [(1, 0), (2, 0), (0, 3), (0, 12), (1, 3)],
+    ids=["glyph cell cut", "row cut", "band cut", "cursor cut", "both"],
+)
+def test_the_cursor_mask_never_raises_at_the_frames_edges(
+    bottom_cut: int, left_cut: int
+) -> None:
+    """The last row's glyph cell runs a row past the log, and a band could run
+    off the frame's left: what the cursor hides is cut with the cell. `read`
+    can't get there, since the chat's bar is below the log and its buttons left
+    of the band, so its line is made from the helpers `read` uses."""
+    rows = [Row(text="Hi : Hi!")]
+    full = cursor_over(rows, 6).pixels
+    bottom = POINT[1] + LOG_BOTTOM
+    top = bottom - ROW_HEIGHT
+    # `left_cut` columns of the band are off the frame's left.
+    cut = POINT[0] + BAND_LEFT + left_cut if left_cut else 0
+    pixels = np.ascontiguousarray(full[: bottom + 1 - bottom_cut, cut:])
+    x = POINT[0] - cut
+    cursor = chat_module._Cursor(pixels, [CURSOR.rgba], x, top, bottom + 1, 0.5)
+    r = reader()
+    row = r._row(
+        full,
+        POINT[0],
+        top,
+        chat_module._Cursor(full, [CURSOR.rgba], POINT[0], top, bottom + 1, 0.5),
+    )
+    assert isinstance(row, chat_module._Row)
+    assert row.under_cursor
+
+    line = r._line(pixels, x, row, None, bottom, cursor)
+
+    assert line.kind is ChatKind.GENERAL
+    assert line.text is not None
 
 
 # --- statuses -------------------------------------------------------------

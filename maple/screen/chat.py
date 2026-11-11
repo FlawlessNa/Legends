@@ -48,7 +48,7 @@ narrower than `COVER_RUN`, and is caught only over a row's end.
 
 The mouse cursor over a row's text (`cursor.CURSOR_PATHS`) is none of the
 row's: when a row's text isn't of one kind, the cursor is looked for, and the
-pixels it is drawn over are left out of the row's kind and its signature. In
+pixels it is drawn over are left out of the row's kind and its text pixels. In
 its text, what the cursor hides reads `UNREAD`, one for each run of columns it
 covers, text or not.
 
@@ -87,17 +87,23 @@ conversation joins it to the line above (`maple.chat_replies.conversation`).
 A row whose line above scrolled away before it was read can't be told from a
 line that doesn't fit, and doesn't continue anything.
 
-**New lines.** Each row has a signature: which of its pixels are text. A read
-compares the rows with the previous read's: the log scrolls up as lines arrive,
-so the new lines are the bottom rows that the previous rows, shifted up the
-fewest rows, don't explain. A line repeated exactly, as many times as the log
-has rows, can't be told from no new line.
+**New lines.** Each row has its text pixels, and the reader keeps what the
+reads so far showed of each row. A read compares its rows with them: the log
+scrolls up as lines arrive, so the new lines are the bottom rows that the rows
+seen before, shifted up the fewest rows, don't explain. A line repeated
+exactly, as many times as the log has rows, can't be told from no new line.
+
+The cursor moves over the log, so a row and what was seen of it are compared
+only where the cursor was over neither: a line is reported once, whether the
+cursor rests on it, crosses it or leaves it, and what the cursor hid when it
+was reported reads `UNREAD` in it. A row whose text the cursor hid whole was
+never reported: it is new in the first read that shows any of its text.
 """
 
 import enum
 import re
-from collections.abc import Sequence
-from dataclasses import dataclass, field
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
@@ -138,6 +144,8 @@ _END = 2
 """Columns read at each end of a row for its background."""
 _CELL_TOP = 3
 """A row's glyph cell starts this many rows below its top (`font.CHAT_GENERAL`)."""
+_CELL_ROWS = CHAT_GENERAL.rows or ROW_HEIGHT
+"""A row's glyph cell's height: it runs past the row, into the next one's top."""
 _GAP_ROW = 2
 """A row's third pixel row holds no text: its own starts below it, and the line
 above's descenders end above it. Only the channel badges of megaphones cross it."""
@@ -225,9 +233,9 @@ FADE = (251, 243, 231, 214)
 below them that the bottom row's descenders reach (`LOG_BOTTOM`), draw white as
 these, top to bottom, and every colour by as much. Measured on every frame of
 the set, at every client size; the log's top doesn't fade."""
-_SIGNATURE_DIFFERENCE = 48
+_INK_DIFFERENCE = 48
 """On a band, a pixel more than this from the band's colour, in any channel,
-is text, for the row's signature."""
+is text, for the row's text pixels."""
 
 
 ALIKE: dict[str, str] = {"I": "Il"}
@@ -313,15 +321,32 @@ class ChatLine:
     continues: bool = False
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, eq=False, slots=True)
 class _Row:
     kind: ChatKind | None
     """`None` for an empty row."""
-    signature: bytes
-    image: NDArray[np.uint8] = field(compare=False)
-    top: int = field(compare=False)
-    under_cursor: bool = field(default=False, compare=False)
+    ink: NDArray[np.bool_]
+    """Which of its pixels, from its glyph cell's top (`_CELL_TOP`) to its
+    bottom, are text, the cursor's left out where it was looked for."""
+    image: NDArray[np.uint8]
+    top: int
+    under_cursor: bool = False
     """The mouse cursor is drawn over its text."""
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class _Seen:
+    """
+    What the reads so far showed of a row of the log: its kind, and which of
+    its pixels are text (`_Row.ink`), except the `hidden` ones, which the cursor
+    was over in every read that showed the row.
+    """
+
+    kind: ChatKind | None
+    """`None` while the row has shown no text: an empty row, or one whose text
+    the cursor hid whole, which no line was reported of."""
+    ink: NDArray[np.bool_]
+    hidden: NDArray[np.bool_]
 
 
 class ChatReader:
@@ -355,7 +380,7 @@ class ChatReader:
         self._glyphs: GlyphSet = sprites.glyph_set(CHAT_GENERAL.name)
         self._cursors = [sprites.canvas(path).rgba for path in CURSOR_PATHS]
         self.locator = Locator(self._target, (self._shown,), tolerance)
-        self._previous: list[_Row] | None = None
+        self._seen: list[_Seen] = []
 
     # The chat's state.
 
@@ -429,15 +454,21 @@ class ChatReader:
             return Reading.covered(frame.captured_at, f"log top not found: {SCROLL_UP}")
         x = located.point[0]
         bottom = located.point[1] + LOG_BOTTOM
-        cursor = _Cursor(frame.pixels, self._cursors, x, arrow, bottom, self._tolerance)
+        cursor = _Cursor(
+            frame.pixels,
+            self._cursors,
+            x,
+            arrow,
+            bottom - ROW_HEIGHT + _CELL_TOP + _CELL_ROWS,
+            self._tolerance,
+        )
         rows: list[_Row] = []
         for top in self._row_tops(located, arrow):
             row = self._row(frame.pixels, x, top, cursor)
             if isinstance(row, str):
                 return Reading.covered(frame.captured_at, row)
             rows.append(row)
-        new = _new_rows(self._previous, rows)
-        self._previous = rows
+        new, self._seen = _new_rows(self._seen, rows, cursor.over_row)
         lines: list[ChatLine] = []
         for row in new:
             above = lines[-1] if lines else None
@@ -446,7 +477,7 @@ class ChatReader:
 
     def forget(self) -> None:
         """Forget the rows seen, so the next `read` returns every line shown."""
-        self._previous = None
+        self._seen = []
 
     # Helpers.
 
@@ -499,13 +530,12 @@ class ChatReader:
             under = np.zeros_like(ink)
             if ink.any() and _text_kind(own[ink]) is ChatKind.UNKNOWN:
                 # The cursor, drawn over the text, isn't the line's.
-                under = cursor.over(top + _CELL_TOP, top + ROW_HEIGHT)
+                under = cursor.over_row(top)
                 ink &= ~under
             if not ink.any():
-                return _Row(None, b"", image, top)
+                return _Row(None, ink, image, top)
             kind = _text_kind(own[ink])
-            signature = kind.value.encode() + np.packbits(ink).tobytes()
-            return _Row(kind, signature, image, top, bool(under.any()))
+            return _Row(kind, ink, image, top, bool(under.any()))
         elif background is None:
             # Ends that agree on no known band are a band not seen yet, or
             # something drawn across the whole row: `unknown` either way.
@@ -513,16 +543,16 @@ class ChatReader:
             gap = _off(pixels16[_GAP_ROW : _GAP_ROW + 1], colour, BAND_TOLERANCE)
             if _longest_run(gap[0]) > COVER_RUN:
                 return f"something is over the log's row at y={top}"
-            ink = _off(own, colour, _SIGNATURE_DIFFERENCE)
+            ink = _off(own, colour, _INK_DIFFERENCE)
             kind = ChatKind.UNKNOWN
         else:
             band = MEGAPHONE_BANDS[background]
             gap = _off_band(pixels16[_GAP_ROW : _GAP_ROW + 1], band) > BAND_TOLERANCE
             if _longest_run(gap[0]) > COVER_RUN:
                 return f"something is over the log's row at y={top}"
-            ink = _off_band(own, band) > _SIGNATURE_DIFFERENCE
+            ink = _off_band(own, band) > _INK_DIFFERENCE
             kind = ChatKind.MEGAPHONE
-        return _Row(kind, kind.value.encode() + np.packbits(ink).tobytes(), image, top)
+        return _Row(kind, ink, image, top)
 
     def _line(
         self,
@@ -541,15 +571,18 @@ class ChatReader:
         if row.kind is not ChatKind.GENERAL:
             return ChatLine(row.kind, row.image.copy(), None, row.top)
         cell_top = row.top + _CELL_TOP
-        cell_bottom = cell_top + (CHAT_GENERAL.rows or ROW_HEIGHT)
+        cell_bottom = cell_top + _CELL_ROWS
+        left = x + BAND_LEFT
         cell = _unfaded(
-            pixels[cell_top:cell_bottom, x + BAND_LEFT : x + BAND_RIGHT],
+            pixels[cell_top:cell_bottom, max(left, 0) : x + BAND_RIGHT],
             cell_top,
             bottom,
         )
         if row.under_cursor:
-            # What the cursor hides reads `UNREAD`, never as nothing.
-            cell[cursor.over(cell_top, cell_bottom)] = 255
+            # What the cursor hides reads `UNREAD`, never as nothing. The cell
+            # is cut where the frame ends, and the cursor's pixels with it.
+            under = cursor.over(cell_top, cell_bottom)[:, max(-left, 0) :]
+            cell[under[: cell.shape[0], : cell.shape[1]]] = 255
         text = self._glyphs.read_marked(cell)
         split = _GENERAL_FORMAT.fullmatch(text)
         if split is None:
@@ -683,40 +716,112 @@ class _Cursor:
         bottom: int,
         tolerance: float,
     ) -> None:
-        """`top` is the log's top, and `bottom` where its rows end
-        (`LOG_BOTTOM`), whose row the last row's cell reaches."""
+        """The cursor is looked for over the rows' band, from client row `top`,
+        the log's top, to `bottom` (excluded), the last row's glyph cell's
+        bottom, past where the log's rows end."""
         self._pixels = pixels
         self._cursors = cursors
-        self._area = (x + BAND_LEFT, top, BAND_RIGHT - BAND_LEFT, bottom + 1 - top)
+        self._area = (x + BAND_LEFT, top, BAND_RIGHT - BAND_LEFT, bottom - top)
         self._tolerance = tolerance
         self._mask: NDArray[np.bool_] | None = None
 
     def over(self, top: int, bottom: int) -> NDArray[np.bool_]:
         """Which pixels of the rows' band, from client row `top` to `bottom`
-        (excluded), the cursor is drawn over."""
+        (excluded), the cursor is drawn over: always `bottom - top` rows, none
+        of them over the rows outside where it was looked for."""
         mask = self._mask
         if mask is None:
             mask = cursor_mask(self._pixels, self._cursors, self._area, self._tolerance)
             self._mask = mask
         first = self._area[1]
-        return mask[top - first : bottom - first]
+        over = np.zeros((bottom - top, mask.shape[1]), dtype=bool)
+        start, stop = max(top, first), min(bottom, first + mask.shape[0])
+        if start < stop:
+            over[start - top : stop - top] = mask[start - first : stop - first]
+        return over
+
+    def over_row(self, top: int) -> NDArray[np.bool_]:
+        """Which of a row's text pixels (`_Row.ink`) the cursor is over; `top`
+        is the row's top."""
+        return self.over(top + _CELL_TOP, top + ROW_HEIGHT)
 
 
-def _new_rows(previous: Sequence[_Row] | None, rows: Sequence[_Row]) -> list[_Row]:
+def _new_rows(
+    seen: Sequence[_Seen],
+    rows: Sequence[_Row],
+    hidden: Callable[[int], NDArray[np.bool_]],
+) -> tuple[list[_Row], list[_Seen]]:
     """
-    The rows of `rows` that `previous` doesn't explain, without the empty ones.
+    The rows of `rows` that no line was reported of before, without the empty
+    ones, top to bottom, and what is seen of each row after this read. `seen`
+    is what was seen of each row before, top to bottom, and `hidden` which of a
+    row's text pixels the cursor is over, given the row's top.
 
     The log scrolls up as lines arrive: with `k` new lines, the top rows of
-    `rows` are the bottom rows of `previous`, shifted up by `k`. The smallest
-    such `k` is taken, so an unchanged log has no new line.
+    `rows` are the bottom rows of `seen`, shifted up by `k`. The smallest such
+    `k` is taken, so an unchanged log has no new line. A row kept is new only
+    when it shows text for the first time, its text hidden whole before.
     """
-    if previous is None:
-        return [row for row in rows if row.kind is not None]
     n = len(rows)
     for k in range(n + 1):
         kept = n - k
-        if kept <= len(previous) and list(rows[:kept]) == list(
-            previous[len(previous) - kept :]
-        ):
-            return [row for row in rows[kept:] if row.kind is not None]
+        if kept > len(seen):
+            continue
+        before = seen[len(seen) - kept :]
+        known = _still_seen(before, rows[:kept], hidden)
+        if known is not None:
+            shown = [
+                row
+                for row, was in zip(rows[:kept], before, strict=True)
+                if was.kind is None and row.kind is not None
+            ]
+            arrived = rows[kept:]
+            new = shown + [row for row in arrived if row.kind is not None]
+            known += [_Seen(row.kind, row.ink, hidden(row.top)) for row in arrived]
+            return new, known
     raise AssertionError("k == n always explains the rows")
+
+
+def _still_seen(
+    seen: Sequence[_Seen],
+    rows: Sequence[_Row],
+    hidden: Callable[[int], NDArray[np.bool_]],
+) -> list[_Seen] | None:
+    """What is seen of each row after `rows` show them, when each of `rows` is
+    the row `seen` says, at the same place; `None` when one isn't."""
+    known: list[_Seen] = []
+    for was, row in zip(seen, rows, strict=True):
+        now = _same_row(was, row, hidden)
+        if now is None:
+            return None
+        known.append(now)
+    return known
+
+
+def _same_row(
+    was: _Seen, row: _Row, hidden: Callable[[int], NDArray[np.bool_]]
+) -> _Seen | None:
+    """
+    What is seen of a row after `row` shows it, when `row` is the row `was`
+    says; `None` when it isn't. They are compared where the cursor was over
+    neither: their text pixels there must be the same, and their kinds too,
+    unless one of them showed no text with the cursor over it.
+    """
+    if was.kind == row.kind and np.array_equal(was.ink, row.ink):
+        return was
+    cover = hidden(row.top)
+    unknown = was.hidden | cover
+    if not unknown.any():
+        return None
+    hid_all = (was.kind is None and bool(was.hidden.any())) or (
+        row.kind is None and bool(cover.any())
+    )
+    if was.kind != row.kind and not hid_all:
+        return None
+    if not np.array_equal(was.ink & ~unknown, row.ink & ~unknown):
+        return None
+    return _Seen(
+        was.kind if was.kind is not None else row.kind,
+        (was.ink & ~was.hidden) | (row.ink & ~cover),
+        was.hidden & cover,
+    )
