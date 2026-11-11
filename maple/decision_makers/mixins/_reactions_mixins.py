@@ -5,7 +5,7 @@ from typing import ClassVar
 
 from botting.core import ActionRequest, BotData, DiscordRequest
 from botting.utilities import cooldown
-from maple.actions import priorities, write_in_chat
+from maple.actions import chat_keys, priorities, write_in_chat
 
 
 class ReactionsMixin:
@@ -67,6 +67,7 @@ class ReactionsMixin:
                 priorities.ANTI_DETECTION,
                 block_lower_priority=True,
                 args=(self.data.handle, selected),
+                kwargs={"keys": chat_keys(self.data.ign)},
                 discord_request=disc_alert,
             )
         )

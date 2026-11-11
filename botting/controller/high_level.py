@@ -29,6 +29,7 @@ from .inputs import (
     release_all,
     require_main_process,
 )
+from .typing_pace import TypingPace
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +159,7 @@ async def write(
     message: str,
     silenced: bool = True,
     delay: float = 0.033 - time.get_clock_info("monotonic").resolution,
+    pace: TypingPace | None = None,
 ) -> None:
     """
     Write a message in the specified window.
@@ -177,12 +179,18 @@ async def write(
      If True, the key is sent through PostMessage(...) instead of SendInput(...).
     :param delay: Delay between each character.
         If 0, the entire message is sent at once.
+        With a `pace`, how long each key is held instead (silenced=False only).
+    :param pace: How fast a person types: the time from one character to the
+        next. None spaces every Step by `delay`, as it always has. With a pace,
+        `write` returns as soon as the last character is sent: nothing follows
+        it to wait for.
     :return: None
     Note:
         When silenced=False, the focused_inputs is shielded from cancellation, such
         that the entire message is written before the lock releases.
     """
     release_all(handle)
+    gaps = _gaps(pace, message)
     if silenced:
         logger.info("Writing message %s in window %s silently.", message, handle)
         inputs = message_constructor(
@@ -190,22 +198,33 @@ async def write(
             list(message),
             [win32con.WM_CHAR] * len(message),
         )
-        delays = [random.uniform(0.95, 1.05) * delay for _ in range(len(message))]
+        if gaps is None:
+            delays = [random.uniform(0.95, 1.05) * delay for _ in range(len(message))]
+        else:
+            delays = gaps
         await non_focused_input(inputs, delays)
 
     else:
         logger.info("Writing message %s in window %s LOUDLY.", message, handle)
         release_keys = list(set(message))
+        stroke: list[EVENTS] = ["keydown", "keyup"]
 
         chars: list[str | list[str]]
         events: list[EVENTS | list[EVENTS]] = []
         delays: list[float]
-        if delay == 0:
+        if gaps is not None:
+            # Each key is held for `delay`; the next keydown follows this one's
+            # by the pace's gap.
+            chars = [[char] for char in list(message) for _ in range(2)]
+            events = [[event] for _ in message for event in stroke]
+            delays = []
+            for gap in gaps:
+                hold = random.uniform(0.95, 1.05) * delay
+                delays.extend((hold, max(gap - hold, 0.0)))
+        elif delay == 0:
             # One Step carrying every keystroke: nothing to space out.
             chars = [[char for char in list(message) for _ in range(2)]]
-            first = chars[0]
-            for _ in range(len(first) // 2):
-                events.append(["keydown", "keyup"])
+            events = [stroke * len(message)]
             delays = [0.0]
         else:
             chars = [[char] for char in list(message) for _ in range(2)]
@@ -220,6 +239,20 @@ async def write(
                 handle, inputs, delays, release_keys, keys=chars, events=events
             )
         )
+
+
+def _gaps(pace: TypingPace | None, message: str) -> list[float] | None:
+    """
+    The time to wait after each character of `message` at `pace`, or None
+    without a pace. The last character's is zero: once it is sent, the message
+    is typed.
+    """
+    if pace is None:
+        return None
+    gaps = pace.delays(message)
+    if gaps:
+        gaps[-1] = 0.0
+    return gaps
 
 
 @randomize_params("total_duration")
