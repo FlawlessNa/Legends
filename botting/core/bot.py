@@ -50,6 +50,7 @@ class Bot(ABC):
         """
         self.data = BotData(self.ign)
         self.data.set_static("handle", self.find_handle())
+        self.data.set_static("replies_on", True)
         self.pipe = pipe
         self.barrier = barrier
 
@@ -115,6 +116,28 @@ class Bot(ABC):
         for dm in self.decision_makers:
             task = self._tg.create_task(dm.task(), name=f"{dm}")
             dm.decision_task = task
+
+    def replies(self, on: bool, source: str = "discord_replies") -> None:
+        """
+        Stops (``on=False``) or hands back the automatic replies of this Bot.
+        Sets the ``replies_on`` static of its BotData, which the DecisionMaker
+        that replies reads before each reply, and reports the switch.
+        :param on: Whether automatic replies are on.
+        :param source: Which command did it, for the report.
+        """
+        assert self.data is not None, "child_init() must run before replies()"
+        self.data.set_static("replies_on", on)
+        self._replies_toggled(on, source)
+
+    def takeover(self) -> None:
+        """The maintainer writes for this Bot: its automatic replies stop."""
+        self.replies(False, source="discord_write")
+
+    def _replies_toggled(self, on: bool, source: str) -> None:
+        """
+        Called once `replies` has switched. A game layer overrides it to emit its
+        own Event Type: the engine knows no game's events.
+        """
 
     @cached_property
     def decision_makers(self) -> list[DecisionMaker]:

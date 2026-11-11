@@ -60,3 +60,23 @@ def test_a_frame_that_is_not_ok_is_reported_as_text(
     assert len(pipe.sent) == 1
     assert isinstance(pipe.sent[0], str)
     assert "window not in front" in pipe.sent[0]
+
+
+def test_write_whispers_a_player_when_given_to(monkeypatch: pytest.MonkeyPatch) -> None:
+    parser, _ = _parser(monkeypatch, _frame(True))
+    monkeypatch.setattr(maple_parser, "find_client", lambda: 7)
+
+    request = parser.write("hello", "Alice", to="Bob")
+
+    assert request.args == (7, "hello")
+    assert request.kwargs == {"channel": "whisper", "whisper_to": "Bob"}
+
+
+def test_write_defaults_to_general_and_takes_a_channel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parser, _ = _parser(monkeypatch, _frame(True))
+    monkeypatch.setattr(maple_parser, "find_client", lambda: 7)
+
+    assert parser.write("hi", "Alice").kwargs == {"channel": "general"}
+    assert parser.write("hi", "Alice", channel="party").kwargs == {"channel": "party"}

@@ -130,10 +130,11 @@ class DiscordIO(discord.Client):
                                 self.__class__.__name__,
                                 signal,
                             )
-                            msg = (
-                                f"<@{self.config[self.config_section]['DISCORD_ID']}"
-                                f"> {signal}"
+                            mention = (
+                                f"<@{self.config[self.config_section]['DISCORD_ID']}>"
                             )
+                            # A message that already rings is not rung twice.
+                            msg = signal if mention in signal else f"{mention} {signal}"
                             await self.channel.send(msg)
                         elif isinstance(signal, np.ndarray):
                             # Encoded in memory rather than through a temp file:
