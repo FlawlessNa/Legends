@@ -6,7 +6,7 @@ from abc import ABC
 from collections.abc import Mapping
 from typing import Any
 
-from botting import PARENT_LOG
+from botting import PARENT_LOG, emit_event
 from botting.core import Bot, ProxyFactory
 from botting.screen import Frame, frame_source
 from botting.visuals import InGameDetectionVisuals
@@ -40,6 +40,7 @@ from maple.screen.sprites import (
 )
 from maple.screen.status_bar import BACKGROUND as STATUS_BAR_BACKGROUND
 from maple.screen.status_bar import StatusBarReader
+from maple.telemetry_events import CHAT_REPLIES_TOGGLED, RepliesToggledPayload
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -54,6 +55,10 @@ class MapleBot(Bot, ABC):
     map or on one it can't tell. Showing the minimap for that check may press
     the minimap key.
     """
+
+    def _replies_toggled(self, on: bool, source: str) -> None:
+        payload: RepliesToggledPayload = {"on": on, "source": source}
+        emit_event(None, CHAT_REPLIES_TOGGLED, payload, logger.name)
 
     MINIMAP_TIME_LIMIT = 7.5
     """Seconds the minimap key is pressed for at start to show the minimap, as

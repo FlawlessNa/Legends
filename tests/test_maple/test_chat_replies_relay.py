@@ -41,6 +41,8 @@ class Line:
     speaker: str | None
     message: str | None
     outgoing: bool = False
+    text: str | None = None
+    continues: bool = False
 
 
 class ScriptedModel:

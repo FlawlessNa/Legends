@@ -11,6 +11,8 @@ import numpy as np
 
 from botting.utilities import config_reader
 
+from .messages import QuietMessage
+
 logger = logging.getLogger(__name__)
 
 
@@ -130,10 +132,15 @@ class DiscordIO(discord.Client):
                                 self.__class__.__name__,
                                 signal,
                             )
-                            msg = (
-                                f"<@{self.config[self.config_section]['DISCORD_ID']}"
-                                f"> {signal}"
+                            mention = (
+                                f"<@{self.config[self.config_section]['DISCORD_ID']}>"
                             )
+                            # A quiet message never rings, and a message that
+                            # already rings is not rung twice.
+                            if isinstance(signal, QuietMessage) or mention in signal:
+                                msg = str(signal)
+                            else:
+                                msg = f"{mention} {signal}"
                             await self.channel.send(msg)
                         elif isinstance(signal, np.ndarray):
                             # Encoded in memory rather than through a temp file:

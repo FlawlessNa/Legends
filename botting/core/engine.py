@@ -3,6 +3,7 @@ import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from botting.utilities import install_loop_diagnostics, setup_child_proc_logging
@@ -41,6 +42,14 @@ class EngineFailed(Exception):
     def __init__(self, failure: EngineFailure) -> None:
         super().__init__(f"{failure.engine} raised {failure.error}")
         self.failure = failure
+
+
+#: The commands that declare one argument, which comes right after the action:
+#: the keyword the Bot method takes it as, and how to read the word. A command
+#: not here declares none.
+_COMMAND_ARGUMENTS: dict[str, tuple[str, Callable[[str], object]]] = {
+    "replies": ("on", lambda word: word.upper() == "ON"),
+}
 
 
 class _ChildProcessEngine:
@@ -183,11 +192,32 @@ class _ChildProcessEngine:
                     logger.info("%s received None from MainProcess. Exiting.", self)
                     break
                 elif isinstance(data, str):
-                    action = data.split()[0].lower()
-                    targets = data.split()[1:]
-                    for bot in self.bots:
-                        if bot.ign in targets or targets == ["All"]:
-                            getattr(bot, action)()
+                    self._dispatch(data)
+
+    def _dispatch(self, command: str) -> None:
+        """
+        Calls the Bot method a command string names, on the Bots it names.
+
+        The string is ``<ACTION> [argument] <IGN>...``. A command may declare one
+        argument (``_COMMAND_ARGUMENTS``), which comes right after the action;
+        every word after it is an IGN, or ``All``. ``PAUSE`` and ``RESUME``
+        declare none, so every word after them is an IGN.
+        """
+        words = command.split()
+        action = words[0].lower()
+        call_kwargs: dict[str, object] = {}
+        rest = words[1:]
+        declared = _COMMAND_ARGUMENTS.get(action)
+        if declared is not None:
+            name, convert = declared
+            if not rest:
+                logger.warning("%s: %r is missing its argument.", self, command)
+                return
+            call_kwargs[name] = convert(rest[0])
+            rest = rest[1:]
+        for bot in self.bots:
+            if bot.ign in rest or rest == ["All"]:
+                getattr(bot, action)(**call_kwargs)
 
 
 class Engine(_ChildProcessEngine):
@@ -276,6 +306,7 @@ class Engine(_ChildProcessEngine):
                         elif isinstance(request, str):
                             logger.info("Received %s from %s.", request, engine.name)
                             discord_pipe.send(request)
+                            continue  # never on the queue: it is no request
 
                         await queue.put(request)
 

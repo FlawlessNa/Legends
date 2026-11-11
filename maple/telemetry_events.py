@@ -108,6 +108,8 @@ REBUFF_STATE_RESET: Final = "rebuff.state_reset"
 #: A GM's line appeared in the chat log. One record per line, the first time
 #: it is read; ``ChatReplies`` raises the alarm on it.
 CHAT_GM_LINE: Final = "chat.gm_line"
+#: Automatic replies were stopped or handed back, from Discord.
+CHAT_REPLIES_TOGGLED: Final = "chat.replies_toggled"
 
 # --- movement -------------------------------------------------------------
 #: Rotation is about to ship a Movement Plan.
@@ -233,6 +235,17 @@ class ChatLinePayload(TypedDict):
     kind: str
     text: str | None
     row_top: int
+
+
+class RepliesToggledPayload(TypedDict):
+    """
+    ``chat.replies_toggled``: whether automatic replies are now on, and which
+    Discord command did it: ``discord_replies`` for ``REPLIES``,
+    ``discord_write`` for the ``WRITE`` that implies it.
+    """
+
+    on: bool
+    source: str
 
 
 class PlanStartedPayload(TypedDict):

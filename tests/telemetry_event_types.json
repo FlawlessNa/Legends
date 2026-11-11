@@ -17,6 +17,7 @@
   },
   "maple.telemetry_events": {
     "CHAT_GM_LINE": "chat.gm_line",
+    "CHAT_REPLIES_TOGGLED": "chat.replies_toggled",
     "COMBAT_MOBS_HIT": "combat.mobs_hit",
     "COMBAT_TELECAST": "combat.telecast",
     "COMBAT_TELECAST_UNAVAILABLE": "combat.telecast_unavailable",

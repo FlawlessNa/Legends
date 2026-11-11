@@ -212,9 +212,7 @@ def kinds(rows: list[Row]) -> list[ChatKind]:
 
 @pytest.mark.parametrize("name", MEGAPHONE_BANDS)
 def test_a_megaphone_band_is_a_megaphone(name: str) -> None:
-    assert kinds([Row(MEGAPHONE_BANDS[name].dark, "Hi", WHITE)]) == [
-        ChatKind.MEGAPHONE
-    ]
+    assert kinds([Row(MEGAPHONE_BANDS[name].dark, "Hi", WHITE)]) == [ChatKind.MEGAPHONE]
 
 
 @pytest.mark.parametrize(
@@ -249,7 +247,11 @@ def test_a_band_drawn_a_little_off_its_colour_is_still_that_band() -> None:
 
 @pytest.mark.parametrize(
     ("colour", "kind"),
-    [(WHITE, ChatKind.GENERAL), (YELLOW, ChatKind.SYSTEM), (NOTICE_BLUE, ChatKind.SYSTEM)],
+    [
+        (WHITE, ChatKind.GENERAL),
+        (YELLOW, ChatKind.SYSTEM),
+        (NOTICE_BLUE, ChatKind.SYSTEM),
+    ],
     ids=["general", "system", "event notice"],
 )
 def test_a_line_over_a_bright_map_has_its_kind(colour: RGB, kind: ChatKind) -> None:
@@ -316,7 +318,9 @@ def cursor_over(rows: list[Row], column: int, row: int = 0) -> Frame:
 def test_the_cursor_over_a_line_is_none_of_its_text(
     colour: RGB, kind: ChatKind
 ) -> None:
-    reading = reader().read(cursor_over([Row(text="Hi Hi!", colour=colour), Row(), Row()], 12))
+    reading = reader().read(
+        cursor_over([Row(text="Hi Hi!", colour=colour), Row(), Row()], 12)
+    )
 
     assert reading.status is Status.READ
     assert reading.value is not None
@@ -334,7 +338,9 @@ def test_what_the_cursor_hides_reads_unread() -> None:
 
 
 def test_the_cursor_over_an_empty_row_is_no_line() -> None:
-    reading = reader().read(cursor_over([Row(text="Hi"), Row(), Row(), Row()], 40, row=1))
+    reading = reader().read(
+        cursor_over([Row(text="Hi"), Row(), Row(), Row()], 40, row=1)
+    )
 
     assert reading.value is not None
     assert [line.text for line in reading.value] == ["Hi"]
@@ -455,9 +461,29 @@ def test_a_line_is_outgoing_when_its_speaker_is_the_character(
 
 
 def test_a_speaker_read_in_part_is_the_character_when_the_rest_reads_as_it() -> None:
-    line = read_one(Row(text=f"H{UNREAD} : i"), ign="Hx")
+    line = read_one(Row(text=f"H{UNREAD}i : i"), ign="Hxi")
 
     assert line.outgoing
+
+
+@pytest.mark.parametrize(
+    ("speaker", "ign"),
+    [
+        (UNREAD * 4, "Abcd"),
+        (f"H{UNREAD * 3}", "Hxyz"),
+        (f"H{UNREAD}", "Hx"),
+    ],
+    ids=["nothing read", "a quarter read", "one letter read"],
+)
+def test_a_speaker_with_too_few_letters_read_is_never_the_character(
+    speaker: str, ign: str
+) -> None:
+    """Another player whose name reads mostly unread is not us: we would never
+    answer them (#484)."""
+    line = read_one(Row(text=f"{speaker} : i"), ign=ign)
+
+    assert line.speaker == speaker
+    assert not line.outgoing
 
 
 def test_no_line_is_outgoing_without_the_character_s_name() -> None:
@@ -482,7 +508,8 @@ def test_other_kinds_have_no_speaker(row: Row) -> None:
         ("IoI", "lol", True),
         ("IoI", "IoI", True),
         ("lol", "IoI", False),
-        (f"H{UNREAD}", "Hx", True),
+        (f"H{UNREAD}i", "Hxi", True),
+        (f"I{UNREAD}", "lx", False),
         ("Hi", "Hi!", False),
         ("Hi", "hi", False),
     ],
@@ -493,9 +520,89 @@ def test_reads_as_allows_unread_and_alike_letters(
     assert reads_as(read, written) is same
 
 
+@pytest.mark.parametrize(
+    ("read", "written", "same"),
+    [
+        # At least half the letters read, and at least two.
+        (f"A{UNREAD * 2}d", "Abcd", True),
+        (f"A{UNREAD * 3}", "Abcd", False),
+        (UNREAD * 4, "Abcd", False),
+        (f"H{UNREAD}", "Hx", False),
+        # A text of one letter must read it.
+        ("k", "k", True),
+        (UNREAD, "k", False),
+        # Spaces aren't letters.
+        (f"s{UNREAD} {UNREAD}k", "sa bk", True),
+        (f"{UNREAD} {UNREAD} k", "a b k", False),
+        ("", "", False),
+    ],
+)
+def test_reads_as_needs_enough_letters_read(
+    read: str, written: str, same: bool
+) -> None:
+    assert reads_as(read, written) is same
+    assert reads_as(read, written, ignore_case=True) is same
+
+
 def test_reads_as_may_ignore_case() -> None:
     assert reads_as("HI", "hl", ignore_case=True)
     assert not reads_as("HI", "hx", ignore_case=True)
+
+
+# --- wrapped lines --------------------------------------------------------
+
+
+def test_a_row_that_does_not_fit_below_a_general_line_continues_it() -> None:
+    reading = reader().read(chat_frame([Row(text="Hi : i"), Row(text="Hi H")]))
+    assert reading.value is not None
+    head, rest = reading.value
+
+    assert not head.continues
+    assert rest.continues
+    assert (rest.kind, rest.text, rest.speaker, rest.message) == (
+        ChatKind.GENERAL,
+        "Hi H",
+        None,
+        None,
+    )
+    assert rest.top == head.top + ROW_HEIGHT
+
+
+def test_every_row_of_a_line_wrapped_twice_continues_it() -> None:
+    rows = [Row(text="Hi : i"), Row(text="Hi H"), Row(text="H i")]
+    reading = reader().read(chat_frame(rows))
+    assert reading.value is not None
+
+    assert [line.continues for line in reading.value] == [False, True, True]
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        [Row(text="Hi H")],
+        [Row(TEAL_BAND, "Hi"), Row(text="Hi H")],
+        [Row(text="Hi", colour=YELLOW), Row(text="Hi H")],
+        [Row(text="Hi : i"), Row(text="Hi : H")],
+    ],
+    ids=["top of the log", "below a megaphone", "below a system line", "fits"],
+)
+def test_a_row_continues_only_a_general_line_directly_above(rows: list[Row]) -> None:
+    reading = reader().read(chat_frame(rows))
+    assert reading.value is not None
+
+    assert not reading.value[-1].continues
+
+
+def test_a_row_continues_nothing_read_in_an_earlier_read() -> None:
+    """Both rows of a wrapped line arrive at once, so a row that doesn't fit,
+    alone in a read, can't be told from a line that doesn't fit."""
+    r = reader()
+    r.read(chat_frame([Row(text="Hi : i")]))
+    reading = r.read(chat_frame([Row(text="Hi : i"), Row(text="Hi H")]))
+    assert reading.value is not None
+    [line] = reading.value
+
+    assert (line.text, line.continues) == ("Hi H", False)
 
 
 def test_a_line_carries_its_row_image_and_top() -> None:
