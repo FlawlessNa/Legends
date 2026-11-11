@@ -262,15 +262,23 @@ def test_watch_without_a_session_exits_1(
 
 
 def _end_once_stop_appears(session: Path) -> Callable[[], None]:
-    """What a Session does with the stop file: notice it, then end."""
+    """
+    What a Session does with the stop file: notice it, then end. Like the
+    Session's own `watch_stop_file`, a file that can't be read yet is looked at
+    again: on Windows, opening it while `request_stop`'s rename is finishing is
+    refused (`PermissionError`).
+    """
 
     def writer() -> None:
         deadline = time.monotonic() + 5
-        while not (session / STOP_FILENAME).exists():
-            if time.monotonic() > deadline:
-                return
-            time.sleep(0.01)
-        reason = (session / STOP_FILENAME).read_text(encoding="utf-8")
+        while True:
+            try:
+                reason = (session / STOP_FILENAME).read_text(encoding="utf-8")
+                break
+            except OSError:
+                if time.monotonic() > deadline:
+                    return
+                time.sleep(0.01)
         append(session, line(5, "session.stop_requested", {"reason": reason}), ended(6))
 
     return writer
@@ -286,6 +294,37 @@ def test_stop_writes_the_reason_and_exits_0_on_session_ended(
     assert code == 0
     assert out == "stopped: stop_file at +00:06.0"
     assert (session / STOP_FILENAME).read_text(encoding="utf-8") == "tests done"
+
+
+def test_stop_ends_when_the_stop_file_is_unreadable_at_first(
+    session: Path,
+    capsys: pytest.CaptureFixture[str],
+    in_background: Background,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    On Windows, opening the stop file while `request_stop`'s rename is still
+    finishing is refused with `PermissionError`, and under load the stand-in
+    Session met that (#472). The Session waits it out (`watch_stop_file`), and
+    so must its stand-in here, or `stop` never sees `session.ended`.
+    """
+    real = Path.read_text
+    refused: list[Path] = []
+
+    def in_use_once(self: Path, encoding: str | None = None) -> str:
+        if self.name == STOP_FILENAME and not refused:
+            refused.append(self)
+            raise PermissionError(13, "Permission denied", str(self))
+        return real(self, encoding=encoding)
+
+    monkeypatch.setattr(Path, "read_text", in_use_once)
+    in_background(_end_once_stop_appears(session))
+
+    code, out, _ = run(capsys, "stop", str(session), "--timeout", "3")
+
+    assert refused
+    assert code == 0
+    assert out == "stopped: stop_file at +00:06.0"
 
 
 def test_stop_without_a_reason_writes_the_default(
