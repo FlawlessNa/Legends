@@ -34,15 +34,23 @@ narrower than `COVER_RUN`, and is caught only over a row's end.
 
 **Kinds.** Then:
 
-- a band of one of `MEGAPHONE_BANDS` is a megaphone;
-- no band (the log's dark backdrop over the game) with all its text white is
-  general, and all yellow is system (`TEXT_COLOURS`);
+- a band of one of `MEGAPHONE_BANDS` is a megaphone. A band is translucent, so
+  the map behind it moves its colour: each band is known by its colour over the
+  darkest and the brightest map seen (`Band`);
+- no band (the log's backdrop, black at half opacity over the game, so never
+  brighter than `BACKDROP_MAX`) with all its text white is general, and all
+  yellow, or the light blue of an event's notice, is system (`TEXT_COLOURS`);
 - a row with no band and no text is empty, and isn't a line;
 - anything else is `unknown`: party, buddy, whisper and GM lines haven't been
   captured (frame set `v3` has none), so their colours aren't known, and they
   read `unknown` until frames of them are in the set (#456). So does a
-  megaphone band not seen yet, and a general or system line over a map bright
-  enough that the backdrop's ends read above `BACKDROP_MAX` (Henesys, in `v3`).
+  megaphone band not seen yet.
+
+The mouse cursor over a row's text (`cursor.CURSOR_PATHS`) is none of the
+row's: when a row's text isn't of one kind, the cursor is looked for, and the
+pixels it is drawn over are left out of the row's kind and its signature. In
+its text, what the cursor hides reads `UNREAD`, one for each run of columns it
+covers, text or not.
 
 A line that wraps is one row per screen row, each with the kind of its colours.
 
@@ -53,7 +61,9 @@ rows below its top. A letter with no glyph reads `UNREAD` (U+FFFD) in its place
 its text. Frame set `v3` holds 52 of the 95 printable characters in white, the
 space among them (`toolkit/glyph_sources/v3.json`); the others read `UNREAD`
 until frames of them are harvested. Arial draws `I` and `l` alike, so both read
-`I` (`ALIKE`).
+`I` (`ALIKE`). The log fades out over its last rows of pixels (`FADE`), which
+the newest line's baseline and descenders are drawn in: the fade is undone
+before its glyphs are read.
 System, party, buddy, whisper and GM text waits for those colours' glyphs.
 
 **Speaker and message** are split from a general line's text by its format,
@@ -83,6 +93,7 @@ from botting.screen import Frame, Reading, match, matches_at
 from botting.utilities import Box
 from game_data.sprites import Sprite
 
+from .cursor import CURSOR_PATHS, cursor_mask
 from .font import CHAT_GENERAL, UNREAD, GlyphSet
 from .locator import FrameCheck, Located, Locator, Part
 from .sprites import Declaration, ReaderSprites
@@ -95,7 +106,7 @@ LOG_HIDDEN = "UI/StatusBar.img/button:ChatLogMax/normal/0"
 
 CHAT = Declaration(
     "chat",
-    canvases=(TARGET_SELECT, SCROLL_UP, LOG_SHOWN, LOG_HIDDEN),
+    canvases=(TARGET_SELECT, SCROLL_UP, LOG_SHOWN, LOG_HIDDEN, *CURSOR_PATHS),
     glyph_sets=(CHAT_GENERAL.name,),
 )
 
@@ -126,36 +137,81 @@ unless it covers a row's end."""
 
 type RGB = tuple[int, int, int]
 
-MEGAPHONE_BANDS: dict[RGB, str] = {
-    (223, 174, 1): "yellow: f001 row 1 (v1); (224, 178, 1) in j_1366x768_pageup_1 (v2)",
-    (206, 155, 178): "pink: f024 rows 1-4 (v1); (209, 161, 179) in j_* (v2)",
-    (82, 208, 191): "teal: f011 rows 1-4 (v1)",
-    (144, 164, 179): "light blue: f001 row 4 (v1)",
+
+class ChatKind(enum.Enum):
+    GENERAL = "general"
+    PARTY = "party"
+    BUDDY = "buddy"
+    WHISPER = "whisper"
+    GM = "gm"
+    MEGAPHONE = "megaphone"
+    SYSTEM = "system"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class Band:
+    """
+    A megaphone band's colour, in RGB, over the darkest and the brightest map
+    it was read on. The band is drawn translucent, so the game behind it shows
+    through: its row ends read anywhere between the two.
+    """
+
+    dark: RGB
+    bright: RGB
+    seen: str
+    """The frames each end was read from."""
+
+
+MEGAPHONE_BANDS: dict[str, Band] = {
+    "yellow": Band((221, 172, 0), (238, 189, 17), "f022 row 3 (v1); ellinia_042 (v3)"),
+    "pink": Band((204, 153, 177), (229, 178, 202), "f024 row 1 (v1); ellinia_036 (v3)"),
+    "teal": Band((81, 207, 191), (98, 224, 208), "f012 row 1 (v1); ellinia_038 (v3)"),
+    "light blue": Band(
+        (142, 162, 179), (175, 195, 214), "f001 row 4 (v1); henesyscrowd_030 (v3)"
+    ),
+    "red": Band(
+        (138, 60, 49),
+        (187, 105, 106),
+        "j_1280x720_pagedown_3 and _4 (v2); henesyscrowd_000 (v3)",
+    ),
 }
-"""Each megaphone band's colour, in RGB, and the frames it was read from. The
-band is drawn a little translucent, so the same band differs by a few levels
-between frames; `BAND_TOLERANCE` covers that."""
+"""Each megaphone band, by its colour's name. The red band carries the client's
+announcements of what a player obtained from a crate, a broadcast like the
+megaphones'. Over the game, yellow, pink and teal brighten by 17 levels from
+their darkest to their brightest, light blue by 33 and red by about 50: the
+more translucent a band, the more the map behind it moves it."""
 BAND_TOLERANCE = 24
-"""How far, per channel, a row's end may be from a band's colour and still be
-that band. Over the game, the same band drifted by up to 13 across the frame set
-(light blue, f007 row 1); two bands differ by 62 or more."""
-BACKDROP_MAX = 80
-"""A row end with no channel above this is the log's dark backdrop, not a band:
-the backdrop over the game read at most 63 at a row's ends in the frame set. A
-darker band than this would be taken for the backdrop."""
-TEXT_MIN = 128
-"""On the backdrop, a pixel with a channel above this is text. The backdrop is
-translucent, and the game behind it shows through brighter than at its ends."""
+"""How far, per channel, a row's end may be from a band, between its dark and
+bright colours, and still be that band; the nearest band, when two are in
+reach. A band's ends in the frame set were within 11 of it; two bands are 46 or
+more apart (pink and light blue)."""
+BACKDROP_MAX = 127
+"""A row end with no channel above this is the log's backdrop, not a band. The
+backdrop is black drawn at half opacity over the game, so no pixel of it is
+brighter than 127: in the frame set, its brightest pixel read 127, over Henesys,
+and the darkest band end 132 (red, over Ellinia). A band darker than this would
+be taken for the backdrop, and its row read `unknown`: its text isn't one of
+`TEXT_COLOURS` alone. On the backdrop, a pixel with a channel above this is
+text."""
 INK_MIN = 200
-TEXT_COLOURS: dict[str, RGB] = {
-    "white": (255, 255, 255),  # general lines: f001 rows 2-3 (v1)
-    "yellow": (255, 255, 0),  # system lines: f065 rows 3-4 (v1)
+TEXT_COLOURS: dict[RGB, ChatKind] = {
+    (255, 255, 255): ChatKind.GENERAL,  # f001 rows 2-3 (v1)
+    (255, 255, 0): ChatKind.SYSTEM,  # f065 rows 3-4 (v1)
+    (96, 206, 255): ChatKind.SYSTEM,  # an event's notice: henesys_1366x768_08 (v3)
 }
-"""The text colours of the rows with no band. On the backdrop, any pixel with a
-channel above `TEXT_MIN` is text. It is white when every channel is at least
-`INK_MIN`, and yellow when red and green are and blue is at most
-`YELLOW_BLUE_MAX`: the system lines' edges were drawn down to (243, 243, 0)."""
-YELLOW_BLUE_MAX = 60
+"""The text colours of the rows on the backdrop, and the kind of line each is.
+A text pixel is one of these colours dimmed, by `FADE` at the log's bottom, to
+a brightest channel no lower than `INK_MIN`, within `COLOUR_TOLERANCE`."""
+COLOUR_TOLERANCE = 6
+"""How far, per channel, a text pixel may be from its colour, dimmed as bright
+as the pixel. The text is drawn unantialiased: in the frame set, every pixel of
+a line was its colour exactly, or dimmed by the fade."""
+FADE = (251, 243, 231, 214)
+"""The log fades out at its bottom: its last three rows of pixels, and the one
+below them that the bottom row's descenders reach (`LOG_BOTTOM`), draw white as
+these, top to bottom, and every colour by as much. Measured on every frame of
+the set, at every client size; the log's top doesn't fade."""
 _SIGNATURE_DIFFERENCE = 48
 """On a band, a pixel more than this from the band's colour, in any channel,
 is text, for the row's signature."""
@@ -191,17 +247,6 @@ def reads_as(read: str, written: str, *, ignore_case: bool = False) -> bool:
         elif w not in could_be:
             return False
     return True
-
-
-class ChatKind(enum.Enum):
-    GENERAL = "general"
-    PARTY = "party"
-    BUDDY = "buddy"
-    WHISPER = "whisper"
-    GM = "gm"
-    MEGAPHONE = "megaphone"
-    SYSTEM = "system"
-    UNKNOWN = "unknown"
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -240,6 +285,8 @@ class _Row:
     signature: bytes
     image: NDArray[np.uint8] = field(compare=False)
     top: int = field(compare=False)
+    under_cursor: bool = field(default=False, compare=False)
+    """The mouse cursor is drawn over its text."""
 
 
 class ChatReader:
@@ -271,6 +318,7 @@ class ChatReader:
         self._target = Part(Sprite(target.path, rgba, target.origin))
         self._bar_bottom = target.rgba.shape[0] - target.origin[1]
         self._glyphs: GlyphSet = sprites.glyph_set(CHAT_GENERAL.name)
+        self._cursors = [sprites.canvas(path).rgba for path in CURSOR_PATHS]
         self.locator = Locator(self._target, (self._shown,), tolerance)
         self._previous: list[_Row] | None = None
 
@@ -344,16 +392,19 @@ class ChatReader:
         arrow = self._find_scroll_up(frame, located)
         if arrow is None:
             return Reading.covered(frame.captured_at, f"log top not found: {SCROLL_UP}")
+        x = located.point[0]
+        bottom = located.point[1] + LOG_BOTTOM
+        cursor = _Cursor(frame.pixels, self._cursors, x, arrow, bottom, self._tolerance)
         rows: list[_Row] = []
         for top in self._row_tops(located, arrow):
-            row = self._row(frame.pixels, located.point[0], top)
+            row = self._row(frame.pixels, x, top, cursor)
             if isinstance(row, str):
                 return Reading.covered(frame.captured_at, row)
             rows.append(row)
         new = _new_rows(self._previous, rows)
         self._previous = rows
         return Reading.read(
-            [self._line(frame.pixels, located.point[0], row) for row in new],
+            [self._line(frame.pixels, x, row, bottom, cursor) for row in new],
             frame.captured_at,
         )
 
@@ -390,7 +441,9 @@ class ChatReader:
         count = (bottom - log_top) // ROW_HEIGHT
         return [bottom - ROW_HEIGHT * (count - i) for i in range(count)]
 
-    def _row(self, pixels: NDArray[np.uint8], x: int, top: int) -> _Row | str:
+    def _row(
+        self, pixels: NDArray[np.uint8], x: int, top: int, cursor: _Cursor
+    ) -> _Row | str:
         """A row of the log, or why it can't be read."""
         left, right = x + BAND_LEFT, x + BAND_RIGHT
         image = pixels[top : top + ROW_HEIGHT, max(left, 0) : right]
@@ -402,37 +455,60 @@ class ChatReader:
         pixels16 = image.astype(np.int16)
         # The row's own text: its top rows hold the descenders of the line above.
         own = pixels16[_CELL_TOP:]
-        if background == "backdrop":
-            if _longest_run(pixels16[_GAP_ROW].max(axis=1) > TEXT_MIN) > COVER_RUN:
+        if background == _BACKDROP:
+            gap = pixels16[_GAP_ROW].max(axis=1) > BACKDROP_MAX
+            if _longest_run(gap) > COVER_RUN:
                 return f"something is over the log's row at y={top}"
-            ink = _backdrop_ink(own)
+            ink = own.max(axis=2) > BACKDROP_MAX
+            under = np.zeros_like(ink)
+            if ink.any() and _text_kind(own[ink]) is ChatKind.UNKNOWN:
+                # The cursor, drawn over the text, isn't the line's.
+                under = cursor.over(top + _CELL_TOP, top + ROW_HEIGHT)
+                ink &= ~under
             if not ink.any():
                 return _Row(None, b"", image, top)
             kind = _text_kind(own[ink])
-        else:
+            signature = kind.value.encode() + np.packbits(ink).tobytes()
+            return _Row(kind, signature, image, top, bool(under.any()))
+        elif background is None:
             # Ends that agree on no known band are a band not seen yet, or
             # something drawn across the whole row: `unknown` either way.
-            colour = (
-                _median(image[:, :_END])
-                if background is None
-                else np.array(background, np.int16)
-            )
+            colour = _median(image[:, :_END])
             gap = _off(pixels16[_GAP_ROW : _GAP_ROW + 1], colour, BAND_TOLERANCE)
             if _longest_run(gap[0]) > COVER_RUN:
                 return f"something is over the log's row at y={top}"
             ink = _off(own, colour, _SIGNATURE_DIFFERENCE)
-            kind = ChatKind.UNKNOWN if background is None else ChatKind.MEGAPHONE
+            kind = ChatKind.UNKNOWN
+        else:
+            band = MEGAPHONE_BANDS[background]
+            gap = _off_band(pixels16[_GAP_ROW : _GAP_ROW + 1], band) > BAND_TOLERANCE
+            if _longest_run(gap[0]) > COVER_RUN:
+                return f"something is over the log's row at y={top}"
+            ink = _off_band(own, band) > _SIGNATURE_DIFFERENCE
+            kind = ChatKind.MEGAPHONE
         return _Row(kind, kind.value.encode() + np.packbits(ink).tobytes(), image, top)
 
-    def _line(self, pixels: NDArray[np.uint8], x: int, row: _Row) -> ChatLine:
+    def _line(
+        self,
+        pixels: NDArray[np.uint8],
+        x: int,
+        row: _Row,
+        bottom: int,
+        cursor: _Cursor,
+    ) -> ChatLine:
         assert row.kind is not None
         if row.kind is not ChatKind.GENERAL:
             return ChatLine(row.kind, row.image.copy(), None, row.top)
         cell_top = row.top + _CELL_TOP
-        cell = pixels[
-            cell_top : cell_top + (CHAT_GENERAL.rows or ROW_HEIGHT),
-            x + BAND_LEFT : x + BAND_RIGHT,
-        ]
+        cell_bottom = cell_top + (CHAT_GENERAL.rows or ROW_HEIGHT)
+        cell = _unfaded(
+            pixels[cell_top:cell_bottom, x + BAND_LEFT : x + BAND_RIGHT],
+            cell_top,
+            bottom,
+        )
+        if row.under_cursor:
+            # What the cursor hides reads `UNREAD`, never as nothing.
+            cell[cursor.over(cell_top, cell_bottom)] = 255
         text = self._glyphs.read_marked(cell)
         split = _GENERAL_FORMAT.fullmatch(text)
         if split is None:
@@ -459,23 +535,50 @@ def _median(pixels: NDArray[np.uint8]) -> NDArray[np.int16]:
     return np.median(pixels.reshape(-1, 3), axis=0).astype(np.int16)[::-1]
 
 
-def _background(end: NDArray[np.uint8]) -> RGB | str | None:
+_BACKDROP = "backdrop"
+
+
+def _background(end: NDArray[np.uint8]) -> str | None:
     """
-    What a row's end shows: a megaphone band's colour, `"backdrop"` for the
-    log's dark backdrop, or `None` for any other colour.
+    What a row's end shows: `_BACKDROP` for the log's backdrop, a megaphone
+    band's name, or `None` for any other colour.
     """
     colour = _median(end)
     if int(colour.max()) <= BACKDROP_MAX:
-        return "backdrop"
-    for band in MEGAPHONE_BANDS:
-        if (np.abs(colour - np.array(band, np.int16)) <= BAND_TOLERANCE).all():
-            return band
-    return None
+        return _BACKDROP
+    bgr = colour[::-1].reshape(1, 3)
+    off = {name: int(_off_band(bgr, band)[0]) for name, band in MEGAPHONE_BANDS.items()}
+    nearest = min(off, key=lambda name: off[name])
+    return nearest if off[nearest] <= BAND_TOLERANCE else None
 
 
-def _backdrop_ink(image: NDArray[np.int16]) -> NDArray[np.bool_]:
-    """The text pixels of a row with no band: brighter than the backdrop."""
-    return image.max(axis=2) > TEXT_MIN
+def _off_band(image: NDArray[np.int16], band: Band) -> NDArray[np.int16]:
+    """
+    How far each pixel of `image` (`... x 3`, BGR) is from `band`: the largest
+    difference, over the channels, from the nearest colour between its dark and
+    bright ones.
+    """
+    dark = np.array(band.dark[::-1], np.float64)
+    span = np.array(band.bright[::-1], np.float64) - dark
+    along = np.clip(((image - dark) @ span) / (span @ span), 0.0, 1.0)
+    nearest = dark + along[..., np.newaxis] * span
+    return np.abs(image - nearest).max(axis=-1).round().astype(np.int16)
+
+
+def _unfaded(cell: NDArray[np.uint8], cell_top: int, bottom: int) -> NDArray[np.uint8]:
+    """
+    A copy of `cell`, whose first row is at `cell_top`, with the log's `FADE`
+    undone in the rows it dims, so that its text is drawn in its own colour
+    again. `bottom` is where the log's rows end (`LOG_BOTTOM`).
+    """
+    cell = cell.copy()
+    first = bottom - len(FADE) + 1
+    for i, level in enumerate(FADE):
+        y = first + i - cell_top
+        if 0 <= y < cell.shape[0]:
+            scaled = cell[y].astype(np.float64) * 255 / level
+            cell[y] = np.clip(scaled.round(), 0, 255).astype(np.uint8)
+    return cell
 
 
 def _off(
@@ -496,14 +599,59 @@ def _longest_run(flags: NDArray[np.bool_]) -> int:
 
 
 def _text_kind(ink: NDArray[np.int16]) -> ChatKind:
-    """General when every text pixel (`N x 3`, BGR) is white, system when every
-    one is yellow, `unknown` otherwise."""
-    if (ink >= INK_MIN).all():
-        return ChatKind.GENERAL
-    yellow = (ink[:, 1:] >= INK_MIN).all(axis=1) & (ink[:, 0] <= YELLOW_BLUE_MAX)
-    if yellow.all():
-        return ChatKind.SYSTEM
-    return ChatKind.UNKNOWN
+    """
+    The kind of a row on the backdrop, from its text pixels `ink` (`N x 3`,
+    BGR): the kind of `TEXT_COLOURS` every pixel is a colour of, `unknown` when
+    some pixel is none of them, or they are of more than one kind.
+    """
+    brightest = ink.max(axis=1, keepdims=True).astype(np.float64)
+    explained = (brightest >= INK_MIN)[:, 0]
+    kinds: set[ChatKind] = set()
+    of_some_colour = np.zeros(len(ink), dtype=bool)
+    for colour, kind in TEXT_COLOURS.items():
+        bgr = np.array(colour[::-1], np.float64)
+        dimmed = bgr * brightest / bgr.max()
+        this = explained & (np.abs(ink - dimmed) <= COLOUR_TOLERANCE).all(axis=1)
+        if this.any():
+            kinds.add(kind)
+        of_some_colour |= this
+    if not of_some_colour.all() or len(kinds) != 1:
+        return ChatKind.UNKNOWN
+    return kinds.pop()
+
+
+class _Cursor:
+    """
+    Where the mouse cursor is drawn over the log's rows. It is looked for only
+    when a row asks, and once per read.
+    """
+
+    def __init__(
+        self,
+        pixels: NDArray[np.uint8],
+        cursors: list[NDArray[np.uint8]],
+        x: int,
+        top: int,
+        bottom: int,
+        tolerance: float,
+    ) -> None:
+        """`top` is the log's top, and `bottom` where its rows end
+        (`LOG_BOTTOM`), whose row the last row's cell reaches."""
+        self._pixels = pixels
+        self._cursors = cursors
+        self._area = (x + BAND_LEFT, top, BAND_RIGHT - BAND_LEFT, bottom + 1 - top)
+        self._tolerance = tolerance
+        self._mask: NDArray[np.bool_] | None = None
+
+    def over(self, top: int, bottom: int) -> NDArray[np.bool_]:
+        """Which pixels of the rows' band, from client row `top` to `bottom`
+        (excluded), the cursor is drawn over."""
+        mask = self._mask
+        if mask is None:
+            mask = cursor_mask(self._pixels, self._cursors, self._area, self._tolerance)
+            self._mask = mask
+        first = self._area[1]
+        return mask[top - first : bottom - first]
 
 
 def _new_rows(previous: Sequence[_Row] | None, rows: Sequence[_Row]) -> list[_Row]:

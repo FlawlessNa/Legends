@@ -98,6 +98,15 @@ map over all its frames).
   `self_position` is `null` where the marker is clipped at the canvas's edge
   (our character at Henesys's right end), which the reader reads as no
   position.
+- **`chat`** (`v3`'s new frames only, `v1`'s format, #483): the production
+  `ChatReader`'s kinds, each frame read with nothing remembered. Every
+  distinct log (101 of them, frames whose rows' text pixels are the same
+  taken once) was looked at with each row's kind written beside it, and every
+  kind is the row's: a band is a megaphone (yellow, pink, teal, light blue,
+  and the red band of a crate's announcement), yellow text and an event's
+  light-blue text with no band are system, and white text with no band is
+  general. No window or notice is over the log on any of them. The 11 frames
+  at 2560x1440 are `unsure`: the UI is upscaled there, as for `minimap`.
 
 ### Corrected by hand
 
