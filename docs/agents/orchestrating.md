@@ -22,7 +22,9 @@ code, narrowly, when that is the only way to settle a dispute (below).
    the old terminal version and no longer exist.)
 3. Make sure `epic/<slug>` exists (`topics.md`, "Publishing and splitting"):
    `git push origin origin/dev:refs/heads/epic/<slug>`.
-4. Tell the maintainer the plan in a few lines: which tickets start now,
+4. Find the epic's verification epic, or create it if the epic has none
+   (see "The verification epic" below).
+5. Tell the maintainer the plan in a few lines: which tickets start now,
    which wait for what, and which carry checks only a human can do.
 
 ## Starting a ticket
@@ -103,7 +105,7 @@ may still have a background shell running, so don't treat idle alone as done.
 | ---------------------------------------- | ------------------------------------------------------- |
 | PR open, review running                  | `gh pr checks <pr> --watch` in the background           |
 | Review requested changes                 | Prompt the agent: read the review comment, follow "The epic flow" in `tickets.md` |
-| PR merged into the epic                  | Close the ticket, tick it on the epic, clean up, start what it unblocked |
+| PR merged into the epic                  | Close the ticket, tick it on the epic, add its live checks to the verification epic, clean up, start what it unblocked |
 | Agent stopped and asks a question        | Answer from the ticket or epic if they answer it; otherwise ask the maintainer |
 | Agent `blocked` (`hc get tk<n>`) on an approval dialog    | Ask the maintainer. Never approve it yourself           |
 | Agent disagrees with the review          | Settle it yourself: see "Disputes" below                |
@@ -117,6 +119,24 @@ abandoned: `hc kill tk<n>` then `hc rm tk<n>` ends the agent,
 `git worktree remove ../Legends-worktrees/t<n>` removes the checkout, and
 `git branch -D ticket/<n>-<slug>` drops the local branch. The workflow already
 deleted the remote one.
+
+## The verification epic
+
+Every epic has one standalone issue that collects the checks only the maintainer can do live.
+The maintainer runs them later, in batches, and the ticket PRs scatter them; this issue is where none of them gets lost.
+**Keeping it current is the orchestrator's job**, not the ticket agents'.
+
+- **Shape.** Title it `Epic: verify <topic> live`, label it `epic` and `ready-for-human`, and give it no child tickets.
+  Its first line is `Follow-up to #<epic>`.
+  Follow #300 and #379: checkbox sections grouped by where a check runs (for example a live Test Session, by eye, on the bot's path), and a last section, "Notes from the run (not investigated)".
+- **Create it** before the first ticket starts, or as soon as the first merged ticket leaves a live check.
+  Link it from a comment on the epic.
+- **On every merge,** copy each live item from the PR's "Could not verify" and "Handoff" sections into it, as a checkbox that names the ticket and the PR it came from and says what to look for.
+  Leave out what a later ticket or the cleanup pass will settle offline; note those on the epic instead.
+- **Also add** the live checks of any PR into `dev` the run needed (a workflow fix, a flaky test on the input path), and oddities seen along the way that nobody investigated.
+- **Don't tick items yourself.** The maintainer ticks them once checked live.
+  If a later ticket makes an item moot, say so in the item rather than deleting it.
+- **It outlives the epic.** It stays open after the PR into `dev` merges, until the maintainer has run every check.
 
 ## Disputes
 
@@ -201,5 +221,6 @@ interfaces that grew one parameter per ticket; nobody else looks at the whole.
 When the cleanup pass is merged or closed, open one PR from `epic/<slug>` into
 `dev`. Its
 body lists each ticket with its PR, then gathers every "could not verify" item
-from the ticket PRs: that list is what the maintainer checks. Then tell them
+from the ticket PRs: that list is what the maintainer checks. Bring the
+verification epic up to date first, and link it from the body. Then tell them
 it is ready. You never merge it.
