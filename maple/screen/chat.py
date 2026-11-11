@@ -216,7 +216,9 @@ class ChatLine:
         the other kinds.
     :ivar top: The row's top, in client pixels.
     :ivar speaker: Who wrote it, split from `text` by its kind's format; `None`
-        when the kind has none known, or the row doesn't fit it.
+        when the kind has none known, or the row doesn't fit it. On an outgoing
+        whisper, it is whom the whisper went to, not the character: the relay
+        reads it as `you · whisper to <speaker>` (#462). No whisper is read yet.
     :ivar message: What they wrote, split the same way; `None` with `speaker`.
     :ivar outgoing: The character sent it: its speaker reads as the
         character's name.
