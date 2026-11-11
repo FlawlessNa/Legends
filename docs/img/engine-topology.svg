@@ -100,13 +100,13 @@ text{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Consolas,"Liberatio
 <rect class="state" x="756" y="266" width="160" height="22" rx="3"/>
 <text class="ts" x="836" y="281" text-anchor="middle">DecisionMakers ×N</text>
 <rect class="state" x="756" y="294" width="160" height="22" rx="3"/>
-<text class="ts" x="836" y="309" text-anchor="middle">one asyncio task each</text>
+<text class="ts" x="836" y="309" text-anchor="middle">loops run by a Supervisor</text>
 <rect class="task" x="744" y="338" width="184" height="88" rx="4"/>
 <text class="tt" x="836" y="358" text-anchor="middle">Bot B · BotData</text>
 <rect class="state" x="756" y="366" width="160" height="22" rx="3"/>
 <text class="ts" x="836" y="381" text-anchor="middle">DecisionMakers ×N</text>
 <rect class="state" x="756" y="394" width="160" height="22" rx="3"/>
-<text class="ts" x="836" y="409" text-anchor="middle">one asyncio task each</text>
+<text class="ts" x="836" y="409" text-anchor="middle">loops run by a Supervisor</text>
 <text class="ts" x="836" y="441" text-anchor="middle">one Bot per client</text>
 
 <line class="a-hot" x1="400" y1="132" x2="400" y2="80" marker-end="url(#ahh)"/>

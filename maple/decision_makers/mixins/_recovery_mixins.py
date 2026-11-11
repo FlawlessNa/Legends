@@ -278,15 +278,12 @@ class MovementRecoveryMixin:
         """
         The last rung: stop deciding, drop the keys, and wait for a human.
 
-        Idempotent, because the disable takes effect when the disabler thread
-        cancels this task and one or more further cycles may reach here first.
+        Idempotent, so that a caller reaching here again before the disable has
+        cancelled this loop ships no second alert.
 
-        The suspension is `_disable_decision_makers`, which is the only pause a
-        DecisionMaker can reach from inside an Engine - `Bot.pause()` is driven
-        from Main Process by the Discord PAUSE command. Resume is the Discord
-        RESUME command, which calls `Bot.resume()`; that it recreates tasks for
-        DecisionMakers which were never suspended is a pre-existing wart and issue
-        #121's to settle, not this one's.
+        The suspension is the legacy `_disable_decision_makers`, which lasts
+        until the Discord RESUME command (`Bot.resume()`) ends every shim Pause.
+        Its port moves it to `pause_for_user` (ADR 0004).
         """
         if self._escalated:
             return

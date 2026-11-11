@@ -3,11 +3,11 @@ import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import threading
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from functools import partial
 
 from botting import PARENT_LOG
-from botting.core import BotData, DecisionMaker
+from botting.core import BotData, DecisionLoop, DecisionMaker
 from maple.model.characters import MapleSkill
 from maple.screen.buffs import BUFFS
 
@@ -54,36 +54,28 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
         self._buffs = solo_buffs(
             self.data.character.skills, included_buffs, excluded_buffs
         )
-        self._sub_tasks: dict[str, asyncio.Task] = {}
-        self._tg: asyncio.TaskGroup | None = None
+        # One per buff, made once: a restart after a Pause reuses it.
+        self._conditions: dict[str, threading.Condition] = {
+            buff.name: self._proxies.instance(f"{self} - {buff.name}", "Condition")
+            for buff in self._buffs
+        }
 
-    async def start(self, tg: asyncio.TaskGroup) -> None:
-        """
-        Overwrites the DecisionMaker start method such that a new task is created for
-        each buff individually.
-        :return:
-        """
-        self._tg = tg
-        await super().start(tg)
-
-    async def task(self) -> None:
+    def loops(self) -> Sequence[DecisionLoop]:
         """
         One decision loop per buff, instead of the base class's single one.
 
-        Each buff has its own duration, so each needs its own clock; they used
-        to get one by calling the base `task` with extra arguments and relying
-        on a vararg passthrough. `_decision_loop` is that same machinery, named:
-        the loops mint their own Correlation IDs and log under their own names,
-        exactly as before.
+        Each buff has its own duration, so each needs its own clock. The
+        Supervisor runs them on the base class's machinery: the loops mint their
+        own Correlation IDs and log under their own names, and a Pause on
+        `SoloRebuff` stops and restarts them all.
         """
-        assert self._tg is not None, "start() must run before task()"
-        for buff in self._buffs:
-            ident = f"{self} - {buff.name}"
-            condition = self._proxies.instance(ident, "Condition")
-            self._sub_tasks[ident] = self._tg.create_task(
-                self._decision_loop(ident, partial(self._recast, buff, condition)),
-                name=ident,
+        return [
+            DecisionLoop(
+                f"{self} - {buff.name}",
+                partial(self._recast, buff, self._conditions[buff.name]),
             )
+            for buff in self._buffs
+        ]
 
     async def _recast(self, buff: MapleSkill, condition: threading.Condition) -> None:
         """One buff's decision: cast it, then sleep out its duration."""

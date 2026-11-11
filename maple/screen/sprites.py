@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
+from botting.core.errors import StartupRefused
 from game_data.catalogue.catalogue import Catalogue
 from game_data.catalogue.model import Ref, SkillData
 from game_data.config import CONFIG, STORE, ClientPathNotSet, client_data_path
@@ -31,10 +32,6 @@ from game_data.sprites import Sprite, SpriteNotFound, Sprites
 
 GAUGE_LABEL = "UI/StatusBar.img/canvas:gaugeLabel"
 """The status bar's anchor, which the frame check looks for at 1:1."""
-
-
-class StartupRefused(Exception):
-    """The bot can't start: what its readers need is missing. Says what to do."""
 
 
 @dataclass(frozen=True, slots=True)

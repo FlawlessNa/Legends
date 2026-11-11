@@ -251,10 +251,25 @@ def test_a_cancelled_run_leaves_the_trial_in_flight_marked_abandoned(
     assert [o.result for o in outcomes] == ["abandoned"]
 
 
+def test_the_loop_stopping_closes_the_record_out(harness: _Harness) -> None:
+    """
+    The Supervisor calls `on_stop` once the loop has stopped, by whatever route -
+    the Session ending included - and that is what closes the record.
+    """
+    start, _ = _pair(ENTRY)
+    harness.positions.extend([start, start])
+    asyncio.run(harness.runner._decide())
+
+    harness.runner.on_stop()
+
+    outcomes = [r for r in harness.writer if isinstance(r, TrialOutcome)]
+    assert [o.result for o in outcomes] == ["abandoned"]
+
+
 def test_finishing_twice_ships_one_key_release(harness: _Harness) -> None:
     """
-    `_finish` disables this DecisionMaker, but the disabler thread cancels the task
-    asynchronously, so further cycles can reach `_finish` first. Each one would
+    `_finish` disables this DecisionMaker, but the cancellation lands only at the
+    loop's next `await`, so `_finish` can be reached again first. Each call would
     otherwise send another release Action into the priority queue.
     """
     harness.runner._disable_decision_makers = lambda *names: None  # type: ignore[method-assign]

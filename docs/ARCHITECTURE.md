@@ -75,10 +75,13 @@ every Engine as a plain command string.
 
 ![Discord control plane](img/engine-control-plane.svg)
 
-Pausing is the clearest illustration of the input rule. An Engine can cancel its
-own `DecisionMaker` tasks locally, but the movement keys those tasks left held
-are Main Process' to release — so `Bot.pause()` cancels, then sends a
-high-priority `ActionRequest` back the other way to drop the keys.
+Pausing is the clearest illustration of the input rule. An Engine can stop its
+own DecisionMakers locally: `Bot.pause()` takes a Pause held by the user on
+every one of them, and the Bot's Supervisor cancels their decision loops. But
+the movement keys those loops left held are Main Process' to release, so
+`Bot.pause()` then sends a high-priority `ActionRequest` back the other way to
+drop the keys. `RESUME` releases the user's Pauses, and the Supervisor starts
+the loops again (ADR 0004).
 
 ## The observability plane
 
@@ -120,10 +123,11 @@ pending request is registered there, so the listener finds the outstanding one
 by elimination rather than by protocol tagging.
 
 `ProxyFactory` wraps this in two namespaced calls. `instance()` proxies are
-popped after creation — use them for per-bot locks. `shared()` proxies persist,
-keyed by `DecisionMaker` class name, and are auto-registered in `ignored_keys` —
-they're what makes `_disable_decision_makers("Rotation")` reach every bot in the
-Session at once.
+popped after creation: use them for per-bot locks. `shared()` proxies persist
+under a group name and are auto-registered in `ignored_keys`: they are for
+cross-bot synchronisation. Pausing does not use them: a Pause is held by the
+Bot's Supervisor, in the Engine's own event loop, and reaches only its own Bot
+(ADR 0004).
 
 ## Rules that crash, not conventions
 
