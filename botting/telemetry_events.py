@@ -22,6 +22,8 @@ events inverts the dependency. Areas here:
   are the records that close the Correlation ID chain: the DecisionMaker end
   says what was decided, and these say what became of it.
 * ``decision`` - one ``DecisionMaker`` gating another.
+* ``llm`` - a request to the language model (``botting.llm``): which model,
+  what it cost in tokens, how long it took and how it ended.
 * ``recording`` - the screen recorder, in the Peripherals process: where the
   video is, and a checkpoint about once a second that maps the telemetry clock
   to a frame index (``botting.session`` cuts frames with them). Like
@@ -67,6 +69,10 @@ ACTION_FINISHED: Final = "action.finished"
 DECISION_DISABLED: Final = "decision.disabled"
 #: A DecisionMaker resumed another one, across every Engine.
 DECISION_ENABLED: Final = "decision.enabled"
+
+# --- llm ------------------------------------------------------------------
+#: One request to the language model ended, whatever the outcome.
+LLM_REQUEST: Final = "llm.request"
 
 # --- recording ------------------------------------------------------------
 #: The recorder's writer is open; the video at ``path`` is being written.
@@ -147,6 +153,19 @@ class SessionEndedPayload(TypedDict):
     cause: SessionEndCause
     #: ``"<ExceptionType>: <message>"`` when ``cause`` is ``error``, else null.
     error: str | None
+
+
+class LlmRequestPayload(TypedDict):
+    """``llm.request``: the model asked, what it cost, and how the call ended."""
+
+    model: str
+    input_tokens: int
+    #: Input tokens served from the prompt cache.
+    cached_tokens: int
+    output_tokens: int
+    ms: int
+    #: ``ok``, ``refused``, ``timeout`` or ``error`` (``botting.llm.Outcome``).
+    outcome: str
 
 
 class RecordingStartedPayload(TypedDict):
