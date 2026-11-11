@@ -120,10 +120,11 @@ pending request is registered there, so the listener finds the outstanding one
 by elimination rather than by protocol tagging.
 
 `ProxyFactory` wraps this in two namespaced calls. `instance()` proxies are
-popped after creation — use them for per-bot locks. `shared()` proxies persist,
-keyed by `DecisionMaker` class name, and are auto-registered in `ignored_keys` —
-they're what makes `_disable_decision_makers("Rotation")` reach every bot in the
-Session at once.
+popped after creation — use them for per-bot locks. `shared()` proxies persist
+and are auto-registered in `ignored_keys`, so every Engine finds the same
+object. Each `DecisionMaker` waits on its own enabler and disabler, keyed by
+class name and IGN: `_disable_decision_makers("Rotation")` notifies every bot's
+in the Session, and `self_only=True` only its own bot's.
 
 ## Rules that crash, not conventions
 

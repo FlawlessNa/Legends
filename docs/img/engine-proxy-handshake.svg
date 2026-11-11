@@ -30,9 +30,9 @@ text{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Consolas,"Liberatio
 <text class="tb" x="980" y="48" text-anchor="middle">Proxy Listener</text>
 <text class="ts" x="980" y="66" text-anchor="middle">in Main Process</text>
 
-<line class="life" x1="140" y1="84" x2="140" y2="416"/>
-<line class="life" x1="560" y1="84" x2="560" y2="416"/>
-<line class="life" x1="980" y1="84" x2="980" y2="416"/>
+<line class="life" x1="140" y1="84" x2="140" y2="356"/>
+<line class="life" x1="560" y1="84" x2="560" y2="356"/>
+<line class="life" x1="980" y1="84" x2="980" y2="356"/>
 
 <line class="a" x1="140" y1="130" x2="556" y2="130" marker-end="url(#ai)"/>
 <text class="num" x="150" y="121">1</text>
@@ -55,6 +55,6 @@ text{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Consolas,"Liberatio
 <text class="al" x="526" y="329" text-anchor="end">the wait() returns · the DecisionMaker holds a live proxy</text>
 
 <rect class="note" x="24" y="368" width="1072" height="52" rx="4"/>
-<text class="ts" x="44" y="391">Shared proxies are keyed by DecisionMaker class name, so they are the same object in every Engine. That is what lets</text>
-<text class="ts" x="44" y="409">_disable_decision_makers("Rotation") reach every bot in the Session at once: one notify_all() on a Condition they all wait on.</text>
+<text class="ts" x="44" y="391">Shared proxies persist, so every Engine finds the same object. Each bot's DecisionMaker waits on its own gate, keyed by class</text>
+<text class="ts" x="44" y="409">name and IGN: _disable_decision_makers("Rotation") notifies every bot's, and with self_only=True only its own bot's.</text>
 </svg>

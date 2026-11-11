@@ -6,8 +6,9 @@ alarm on a GM's line, and answers players who talk to the character (#455).
 everything about replies: replies being off (`chat_replies: false`, `REPLIES
 OFF`), the model being unreachable, or a reply in flight never delay or silence
 it. A GM's line, and any later line of the same speaker, also stops training:
-every other DecisionMaker of the bot is disabled (`_disable_decision_makers`)
-until `RESUME` gives them back (`on_resume`, called by `Bot.resume`).
+every other DecisionMaker of the bot, and of no other bot, is disabled
+(`_disable_decision_makers`, `self_only`) until `RESUME` gives them back
+(`on_resume`, called by `Bot.resume`).
 
 **Following the conversation.** Every cycle each line read is addressed
 (`Addressing`) and appended to the `Conversation`. Lines on screen at the first
@@ -620,8 +621,8 @@ class ChatReplies(UIMixin, DecisionMaker):
             )
 
     def _stop_training(self) -> None:
-        """A GM is talking: disable every other DecisionMaker of the bot, until
-        RESUME."""
+        """A GM is talking: disable every other DecisionMaker of this bot, until
+        RESUME. The other bots of the session keep training."""
         if self._stopped:
             return
         mine = type(self).__name__
@@ -633,11 +634,11 @@ class ChatReplies(UIMixin, DecisionMaker):
             self.data.ign,
             ", ".join(names),
         )
-        self._disable_decision_makers(*names)
+        self._disable_decision_makers(*names, self_only=True)
         self._stopped = names
 
     def on_resume(self) -> tuple[str, ...]:
-        """RESUME gives back what a GM stopped, and nothing else."""
+        """RESUME gives back what a GM stopped on this bot, and nothing else."""
         stopped, self._stopped = self._stopped, ()
         if stopped:
             logger.info(
@@ -645,7 +646,7 @@ class ChatReplies(UIMixin, DecisionMaker):
                 self.data.ign,
                 ", ".join(stopped),
             )
-            self._enable_decision_makers(*stopped)
+            self._enable_decision_makers(*stopped, self_only=True)
         return stopped
 
 

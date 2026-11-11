@@ -82,6 +82,9 @@ asking each one's `on_resume()` hook: a DecisionMaker that disabled others and
 gives them back on RESUME (`ChatReplies`, after a GM) enables them there, and
 their enablers restart them. The enabler and disabler threads restart and
 cancel a decision task through `call_soon_threadsafe`, on the Engine's loop.
+An enable and a RESUME both restart a loop through `DecisionMaker.restart`,
+which counts it enabled and starts it only if it isn't running, so neither can
+start a second loop beside the other's.
 
 `Bot.pause()` is the shape to copy when an Engine needs something done to a
 client: cancel the local tasks, then send a high-priority `ActionRequest` back
@@ -109,9 +112,12 @@ not in `ignored_keys`, replaces it with a real proxy, and notifies back.
 Use `ProxyFactory` rather than the raw protocol:
 
 - `instance(owner, type)` — popped after creation. Per-bot locks and conditions.
-- `shared(group, name, type)` — persists, auto-registered in `ignored_keys`.
-  Keyed by `DecisionMaker` class name, which is what makes
-  `_disable_decision_makers("Rotation")` reach every bot in every Engine.
+- `shared(group, name, type)` — persists, auto-registered in `ignored_keys`,
+  so every Engine finds the same object. Each `DecisionMaker` waits on its
+  own enabler and disabler, keyed by class name and IGN
+  (`proxy/shared/Rotation/disabler/<IGN>`): `_disable_decision_makers("Rotation")`
+  notifies every bot's in every Engine, and `self_only=True` only its own
+  bot's (a GM's stop, in `ChatReplies`).
 
 Anything written into `metadata` that is *not* a pending proxy request must be
 registered in `ignored_keys`, or `_monitor_proxy` will try to service it as one.
