@@ -8,6 +8,7 @@
     "ACTION_SELF_CANCELLED": "action.self_cancelled",
     "DECISION_DISABLED": "decision.disabled",
     "DECISION_ENABLED": "decision.enabled",
+    "LLM_REQUEST": "llm.request",
     "RECORDING_CHECKPOINT": "recording.checkpoint",
     "RECORDING_STARTED": "recording.started",
     "SESSION_ENDED": "session.ended",
