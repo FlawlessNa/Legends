@@ -232,6 +232,20 @@ def test_truncate_lands_exactly_on_the_limit_for_a_multi_step_walk() -> None:
     assert wrapper.truncate(1.0).duration == pytest.approx(1.0, abs=1e-9)
 
 
+def test_truncate_lands_exactly_when_less_than_one_step_overhead_is_left() -> None:
+    """
+    Issue #229: the next Step cannot fit in a remainder smaller than `OVERHEAD`, and the
+    cut used to stop that much short. Which walks hit it depended on the random delays,
+    so the multi-step test above failed about 7% of runs.
+    """
+    wrapper = KeyboardInputWrapper(
+        HANDLE, ["right", "right"], ["keydown"] * 2, [0.5, 0.5], initial_state=NOBODY
+    )
+    limit = 0.5 + OVERHEAD + OVERHEAD / 2
+
+    assert wrapper.truncate(limit).duration == pytest.approx(limit, abs=1e-9)
+
+
 def test_truncate_keeps_the_step_whose_delay_it_trims() -> None:
     """The keydown still reaches the game; only the wait after it is shortened."""
     wrapper = KeyboardInputWrapper(
