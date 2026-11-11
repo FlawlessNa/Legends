@@ -126,7 +126,10 @@ left, Henesys Market (the minimap scrolls sideways), Henesys crowded with
 other players, and Ellinia climbing (the minimap scrolls vertically). Its new
 frames read `minimap` (Henesys Market's banner is `Victoria Road: Henesys
 Market`; `self_position` is `null` where the marker is clipped at the
-canvas's edge) and none of `v1`'s other readers. `v2` and `v3` give every
+canvas's edge) and `chat` (#483: megaphones, including the red band of a
+crate's announcement, system lines, including an event's light-blue notice,
+and general lines; `unsure` at 2560x1440, where the UI is upscaled), and none
+of `v1`'s other readers. `v2` and `v3` give every
 frame three position readings in virtual px: `camera` (`{x, y}`, the play
 area's top-left), `feet` (`{x, y}`, our character's, or `covered`) and
 `map_id`. `tests/frames/README.md` says how each was made and checked.

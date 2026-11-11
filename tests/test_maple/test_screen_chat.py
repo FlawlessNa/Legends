@@ -14,6 +14,7 @@ from game_data.sprites import Sprite
 from maple.screen.chat import (
     BAND_LEFT,
     BAND_RIGHT,
+    FADE,
     LOG_BOTTOM,
     LOG_HIDDEN,
     LOG_SHOWN,
@@ -27,6 +28,7 @@ from maple.screen.chat import (
     ChatReader,
     reads_as,
 )
+from maple.screen.cursor import CURSOR_PATHS
 from maple.screen.font import CHAT_GENERAL, UNREAD, GlyphSet
 from maple.screen.locator import UI_NOT_FOUND, FrameCheck
 from maple.screen.sprites import GAUGE_LABEL, ReaderSprites
@@ -35,12 +37,19 @@ RNG = np.random.default_rng(315)
 
 type RGB = tuple[int, int, int]
 
-YELLOW_BAND, PINK_BAND, TEAL_BAND, BLUE_BAND = MEGAPHONE_BANDS
+YELLOW_BAND = MEGAPHONE_BANDS["yellow"].dark
+PINK_BAND = MEGAPHONE_BANDS["pink"].dark
+TEAL_BAND = MEGAPHONE_BANDS["teal"].dark
+BLUE_BAND = MEGAPHONE_BANDS["light blue"].dark
 BACKDROP: RGB = (20, 20, 10)
+BRIGHT_BACKDROP: RGB = (119, 119, 124)
+"""The backdrop over a bright map: a row's end on henesyscrowd_044 (v3)."""
 WHITE: RGB = (255, 255, 255)
 YELLOW: RGB = (255, 255, 0)
+NOTICE_BLUE: RGB = (96, 206, 255)
 GREEN: RGB = (0, 255, 0)
-DARK_RED: RGB = (119, 0, 66)
+DARK_RED: RGB = (170, 0, 90)
+"""A band not captured yet, brighter than the backdrop and off every band."""
 WINDOW: RGB = (240, 240, 240)
 
 
@@ -59,7 +68,9 @@ SPRITES = {
     LOG_HIDDEN: sprite(LOG_HIDDEN, 12, 12, (-539, -14)),
     SCROLL_UP: sprite(SCROLL_UP, 15, 13),
     GAUGE_LABEL: sprite(GAUGE_LABEL, 20, 8),
+    **{path: sprite(path, 20, 26) for path in CURSOR_PATHS},
 }
+CURSOR = SPRITES[CURSOR_PATHS[0]]
 
 
 def glyph(columns: list[int]) -> np.ndarray:
@@ -119,6 +130,9 @@ class Row:
     background: RGB = BACKDROP
     text: str = ""
     colour: RGB = WHITE
+    right_end: RGB | None = None
+    """The band's colour at its right end, when the map behind it makes it
+    differ from its left end's."""
 
 
 POINT = (40, 200)
@@ -136,7 +150,10 @@ def draw_chat(
     rows: list[Row],
     point: tuple[int, int] = POINT,
     hidden: bool = False,
+    fade: bool = True,
 ) -> None:
+    """Draw the chat, and its log's `rows`, faded at the log's bottom as the
+    client draws it, unless not to `fade`."""
     x, y = point
     paste(pixels, SPRITES[TARGET_SELECT], x, y)
     paste(pixels, SPRITES[LOG_HIDDEN if hidden else LOG_SHOWN], x, y)
@@ -147,9 +164,11 @@ def draw_chat(
     paste(pixels, SPRITES[SCROLL_UP], x + SCROLL_X, top)
     for i, row in enumerate(rows):
         row_top = top + ROW_HEIGHT * i
-        pixels[row_top : row_top + ROW_HEIGHT, x + BAND_LEFT : x + BAND_RIGHT] = (
-            row.background[::-1]
-        )
+        left, right = x + BAND_LEFT, x + BAND_RIGHT
+        ends = np.array([row.background, row.right_end or row.background], float)
+        across = np.linspace(0.0, 1.0, right - left)[:, np.newaxis]
+        band = (ends[0] + across * (ends[1] - ends[0])).round().astype(np.uint8)
+        pixels[row_top : row_top + ROW_HEIGHT, left:right] = band[:, ::-1]
         masks = [{**GLYPHS, UNREAD: UNHARVESTED}.get(c) for c in row.text]
         cx = x + BAND_LEFT + 2
         for mask in masks:
@@ -162,6 +181,11 @@ def draw_chat(
             cell = pixels[row_top + 3 : row_top + 3 + h, cx : cx + w]
             cell[mask[: cell.shape[0]]] = row.colour[::-1]
             cx += w + 1
+    if fade:
+        first = bottom - len(FADE) + 1
+        for i, level in enumerate(FADE):
+            band = pixels[first + i, x + BAND_LEFT : x + BAND_RIGHT]
+            band[:] = (band * (level / 255)).round().astype(np.uint8)
 
 
 def frame(pixels: np.ndarray, ok: bool = True) -> Frame:
@@ -186,14 +210,140 @@ def kinds(rows: list[Row]) -> list[ChatKind]:
 # --- kinds ----------------------------------------------------------------
 
 
-@pytest.mark.parametrize("band", MEGAPHONE_BANDS)
-def test_a_megaphone_band_is_a_megaphone(band: RGB) -> None:
+@pytest.mark.parametrize("name", MEGAPHONE_BANDS)
+def test_a_megaphone_band_is_a_megaphone(name: str) -> None:
+    assert kinds([Row(MEGAPHONE_BANDS[name].dark, "Hi", WHITE)]) == [ChatKind.MEGAPHONE]
+
+
+@pytest.mark.parametrize(
+    "band",
+    [
+        (132, 67, 49),  # red over Ellinia: j_1280x720_pagedown_3 (v2)
+        (166, 80, 72),  # red, where Henesys's grass shows behind: henesyscrowd_004
+        (187, 105, 106),  # red over Henesys: henesyscrowd_000 (v3)
+        (175, 195, 214),  # light blue over Henesys: henesyscrowd_030 (v3)
+        (238, 189, 17),  # yellow over Ellinia's brightest: ellinia_042 (v3)
+        (229, 178, 202),  # pink, the same: ellinia_036 (v3)
+    ],
+)
+def test_a_band_over_a_map_that_shows_through_it_is_still_a_megaphone(
+    band: RGB,
+) -> None:
+    """A band is translucent: the colours its ends read on the frame set, by
+    up to 50 levels apart for the red band."""
     assert kinds([Row(band, "Hi", WHITE)]) == [ChatKind.MEGAPHONE]
+
+
+def test_a_band_whose_ends_differ_over_the_map_behind_it_is_one_band() -> None:
+    """henesys_1280x720_08 (v3): a red band's ends, over two parts of the map."""
+    row = Row((157, 84, 66), "Hi", WHITE, right_end=(178, 101, 102))
+    assert kinds([row]) == [ChatKind.MEGAPHONE]
 
 
 def test_a_band_drawn_a_little_off_its_colour_is_still_that_band() -> None:
     r, g, b = BLUE_BAND
     assert kinds([Row((r + 3, g + 13, b), "Hi", WHITE)]) == [ChatKind.MEGAPHONE]
+
+
+@pytest.mark.parametrize(
+    ("colour", "kind"),
+    [
+        (WHITE, ChatKind.GENERAL),
+        (YELLOW, ChatKind.SYSTEM),
+        (NOTICE_BLUE, ChatKind.SYSTEM),
+    ],
+    ids=["general", "system", "event notice"],
+)
+def test_a_line_over_a_bright_map_has_its_kind(colour: RGB, kind: ChatKind) -> None:
+    """The backdrop is black at half opacity, so over Henesys it reads up to
+    127, the ends of a row included, and its rows are no band."""
+    left, right = BRIGHT_BACKDROP, BACKDROP
+    assert kinds([Row(left, "Hi", colour, right_end=right)]) == [kind]
+
+
+def test_a_general_line_over_a_bright_map_is_read() -> None:
+    line = read_one(Row(BRIGHT_BACKDROP, "Hi : H!"))
+
+    assert (line.kind, line.speaker, line.message) == (ChatKind.GENERAL, "Hi", "H!")
+
+
+def test_an_events_notice_is_a_system_line() -> None:
+    assert kinds([Row(text="Hi", colour=NOTICE_BLUE)]) == [ChatKind.SYSTEM]
+
+
+def test_text_of_two_kinds_is_unknown() -> None:
+    pixels = screen()
+    draw_chat(pixels, [Row(text="Hi Hi")])
+    top = POINT[1] + LOG_BOTTOM - ROW_HEIGHT
+    text = pixels[top : top + ROW_HEIGHT, POINT[0] + BAND_LEFT + 12 :]
+    text[(text == 255).all(axis=2)] = YELLOW[::-1]
+    reading = reader().read(frame(pixels))
+
+    assert reading.value is not None
+    assert [line.kind for line in reading.value] == [ChatKind.UNKNOWN]
+
+
+def test_the_newest_line_is_read_where_the_log_fades_out() -> None:
+    """The log's last rows of pixels fade, and the bottom row's baseline and
+    descenders are drawn in them: its text is still read."""
+    faded = chat_frame([Row(text="H"), Row(text="Hi : H!")])
+    unfaded = screen()
+    draw_chat(unfaded, [Row(text="H"), Row(text="Hi : H!")], fade=False)
+
+    assert not np.array_equal(faded.pixels, unfaded)
+    reading = reader().read(faded)
+    assert reading.value is not None
+    assert [(line.text, line.speaker) for line in reading.value] == [
+        ("H", None),
+        ("Hi : H!", "Hi"),
+    ]
+
+
+def cursor_over(rows: list[Row], column: int, row: int = 0) -> Frame:
+    """The log's `rows`, with the cursor drawn over the given row, from
+    `column` of its band. The cursor is taller than a row, so it covers the
+    next row too."""
+    pixels = screen()
+    draw_chat(pixels, rows)
+    top = POINT[1] + LOG_BOTTOM - ROW_HEIGHT * (len(rows) - row)
+    paste(pixels, CURSOR, POINT[0] + BAND_LEFT + column, top + 4)
+    return frame(pixels)
+
+
+@pytest.mark.parametrize(
+    ("colour", "kind"),
+    [(WHITE, ChatKind.GENERAL), (YELLOW, ChatKind.SYSTEM)],
+    ids=["general", "system"],
+)
+def test_the_cursor_over_a_line_is_none_of_its_text(
+    colour: RGB, kind: ChatKind
+) -> None:
+    reading = reader().read(
+        cursor_over([Row(text="Hi Hi!", colour=colour), Row(), Row()], 12)
+    )
+
+    assert reading.status is Status.READ
+    assert reading.value is not None
+    assert [line.kind for line in reading.value] == [kind]
+
+
+def test_what_the_cursor_hides_reads_unread() -> None:
+    """Never a line with its letters left out: the columns the cursor covers,
+    here the whole of the message, read as one letter that has no glyph."""
+    reading = reader().read(cursor_over([Row(text="Hi : Hi!"), Row(), Row()], 18))
+
+    assert reading.value is not None
+    [line] = reading.value
+    assert (line.text, line.speaker) == (f"Hi : {UNREAD}", "Hi")
+
+
+def test_the_cursor_over_an_empty_row_is_no_line() -> None:
+    reading = reader().read(
+        cursor_over([Row(text="Hi"), Row(), Row(), Row()], 40, row=1)
+    )
+
+    assert reading.value is not None
+    assert [line.text for line in reading.value] == ["Hi"]
 
 
 def test_white_text_with_no_band_is_general_and_is_read() -> None:
