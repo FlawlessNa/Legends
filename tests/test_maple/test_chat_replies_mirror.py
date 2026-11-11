@@ -1,5 +1,6 @@
 """The Discord mirror formats one exchange, and sends it through `send`."""
 
+from botting.communications.messages import QuietMessage
 from maple.chat_replies.addressing import Address
 from maple.chat_replies.conversation import Burst, Entry, EntryState
 from maple.chat_replies.mirror import format_exchange, mirror
@@ -65,3 +66,17 @@ def test_mirror_sends_the_formatted_exchange() -> None:
     mirror(sent.append, burst, Reply("ya"))
 
     assert sent == ["[whisper] Bob: hi → ya"]
+
+
+def test_a_gm_exchange_is_posted_with_the_mention_and_others_quietly() -> None:
+    sent: list[str] = []
+    gm = _burst(ChatKind.GM, "Zed", ["hello"], Address.GM)
+    other = _burst(ChatKind.WHISPER, "Bob", ["hi"], Address.MUST)
+
+    mirror(sent.append, gm, Reply("hi"), "<@42>")
+    mirror(sent.append, other, Reply("ya"), "<@42>")
+
+    assert not isinstance(sent[0], QuietMessage)
+    assert sent[0].startswith("<@42> ")
+    assert isinstance(sent[1], QuietMessage)
+    assert "<@" not in sent[1]

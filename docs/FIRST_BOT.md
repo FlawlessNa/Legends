@@ -39,7 +39,7 @@ copy configs\keybindings.example.ini configs\keybindings.ini
 ```
 
 Then edit it. Rename the `[YourCharacterName]` section to your character's
-**exact** in-game name, and fill in the three dicts:
+**exact** in-game name, and fill in the dicts:
 
 - **`Non Skill Keys`** — jump, pet food, the menu toggles, chat toggle.
 - **`Skill Keys`** — every skill the bot will cast: your attack, your buffs,
@@ -48,6 +48,9 @@ Then edit it. Rename the `[YourCharacterName]` section to your character's
   list simply can't be used.
 - **`Quick slots`** — where your potions and pet food sit in the in-game
   quick-slot bar, numbered `[1,2,3,4]` on the top row and `[5,6,7,8]` below.
+- **`Chat Keys`** (optional) - the key that opens each chat channel, for the
+  bot's chat replies and for writing from Discord. A channel you leave out
+  keeps the key the example shows.
 
 Two rules worth repeating: the values are **Python dict literals** read with
 `eval()`, so the quoting and commas matter; and they must mirror your **actual

@@ -39,16 +39,30 @@ narrower than `COVER_RUN`, and is caught only over a row's end.
   general, and all yellow is system (`TEXT_COLOURS`);
 - a row with no band and no text is empty, and isn't a line;
 - anything else is `unknown`: party, buddy, whisper and GM lines haven't been
-  captured, so their colours aren't known, and they read `unknown` until frames
-  of them are in the set (#315). So does a megaphone band not seen yet.
+  captured (frame set `v3` has none), so their colours aren't known, and they
+  read `unknown` until frames of them are in the set (#456). So does a
+  megaphone band not seen yet, and a general or system line over a map bright
+  enough that the backdrop's ends read above `BACKDROP_MAX` (Henesys, in `v3`).
 
 A line that wraps is one row per screen row, each with the kind of its colours.
 
 **Text** is read for general lines, with the white glyphs harvested from the
-frames (`font.CHAT_GENERAL`, #313), in each row's 14-row glyph cell, 3 rows
-below its top. Only some characters were harvested: a line with ink that no
-glyph explains has `text=None` rather than a string with characters missing.
-Party, buddy, whisper and GM text waits for those colours' glyphs.
+frames (`font.CHAT_GENERAL`, #313, #456), in each row's 14-row glyph cell, 3
+rows below its top. A letter with no glyph reads `UNREAD` (U+FFFD) in its place
+(`GlyphSet.read_marked`), so a partly read line keeps its kind and the rest of
+its text. Frame set `v3` holds 52 of the 95 printable characters in white, the
+space among them (`toolkit/glyph_sources/v3.json`); the others read `UNREAD`
+until frames of them are harvested. Arial draws `I` and `l` alike, so both read
+`I` (`ALIKE`).
+System, party, buddy, whisper and GM text waits for those colours' glyphs.
+
+**Speaker and message** are split from a general line's text by its format,
+`Name : message`, read on frame sets `v1` (f001-f005) and `v3`, where the client
+puts the time before it: `[16:22] Name : message`. A name is letters and digits
+(or `UNREAD`). A row that doesn't fit, the second row of a wrapped line among
+them, has neither. A line is `outgoing` when its speaker reads as the
+character's own name (`reads_as`, ignoring case); the outgoing whisper's format
+waits for a frame of one.
 
 **New lines.** Each row has a signature: which of its pixels are text. A read
 compares the rows with the previous read's: the log scrolls up as lines arrive,
@@ -58,6 +72,7 @@ has rows, can't be told from no new line.
 """
 
 import enum
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
@@ -68,7 +83,7 @@ from botting.screen import Frame, Reading, match, matches_at
 from botting.utilities import Box
 from game_data.sprites import Sprite
 
-from .font import CHAT_GENERAL, GlyphSet
+from .font import CHAT_GENERAL, UNREAD, GlyphSet
 from .locator import FrameCheck, Located, Locator, Part
 from .sprites import Declaration, ReaderSprites
 
@@ -146,6 +161,38 @@ _SIGNATURE_DIFFERENCE = 48
 is text, for the row's signature."""
 
 
+ALIKE: dict[str, str] = {"I": "Il"}
+"""Letters the chat's font, Arial at 14 px, draws alike: the one a line reads ->
+every letter it may be (`toolkit.harvest_glyphs.alike`; a `frames` test checks
+the harvested set says the same)."""
+
+_GENERAL_FORMAT = re.compile(
+    rf"(?:\[[^\]]*\] )?(?P<speaker>[A-Za-z0-9{UNREAD}]+) : (?P<message>.+)"
+)
+"""A general line: the time the client may put first, the speaker, then the
+message (module docstring)."""
+
+
+def reads_as(read: str, written: str, *, ignore_case: bool = False) -> bool:
+    """
+    Whether chat text read as `read` may be `written`: as long, and equal letter
+    by letter, where `UNREAD` may be any letter and a letter of `ALIKE` any of
+    those drawn like it.
+    """
+    if len(read) != len(written):
+        return False
+    for r, w in zip(read, written, strict=True):
+        if r == UNREAD:
+            continue
+        could_be = ALIKE.get(r, r)
+        if ignore_case:
+            if w.casefold() not in {c.casefold() for c in could_be}:
+                return False
+        elif w not in could_be:
+            return False
+    return True
+
+
 class ChatKind(enum.Enum):
     GENERAL = "general"
     PARTY = "party"
@@ -165,14 +212,25 @@ class ChatLine:
     :ivar kind: What kind of line it is, from its colours.
     :ivar image: The row, as captured (`H x W x 3`, BGR).
     :ivar text: What it says, for the kinds whose glyphs are harvested (general,
-        for now), when every bit of its text was read; `None` otherwise.
+        for now), with `UNREAD` for each letter that has no glyph; `None` for
+        the other kinds.
     :ivar top: The row's top, in client pixels.
+    :ivar speaker: Who wrote it, split from `text` by its kind's format; `None`
+        when the kind has none known, or the row doesn't fit it. On an outgoing
+        whisper, it is whom the whisper went to, not the character: the relay
+        reads it as `you · whisper to <speaker>` (#462). No whisper is read yet.
+    :ivar message: What they wrote, split the same way; `None` with `speaker`.
+    :ivar outgoing: The character sent it: its speaker reads as the
+        character's name.
     """
 
     kind: ChatKind
     image: NDArray[np.uint8]
     text: str | None
     top: int
+    speaker: str | None = None
+    message: str | None = None
+    outgoing: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,13 +247,20 @@ class ChatReader:
     Reads the chat. One per bot, sharing its `FrameCheck`.
 
     It remembers where the chat was, and the rows it saw last, so `read` returns
-    only the lines that are new since its previous `read`.
+    only the lines that are new since its previous `read`. Given the
+    character's name, `ign`, it tells the lines the character sent; without it,
+    no line is `outgoing`.
     """
 
     def __init__(
-        self, sprites: ReaderSprites, frame_check: FrameCheck, tolerance: float = 0.5
+        self,
+        sprites: ReaderSprites,
+        frame_check: FrameCheck,
+        tolerance: float = 0.5,
+        ign: str | None = None,
     ) -> None:
         self._frame_check = frame_check
+        self._ign = ign
         self._tolerance = tolerance
         target = sprites.canvas(TARGET_SELECT)
         rgba = target.rgba.copy()
@@ -361,15 +426,27 @@ class ChatReader:
 
     def _line(self, pixels: NDArray[np.uint8], x: int, row: _Row) -> ChatLine:
         assert row.kind is not None
-        text = None
-        if row.kind is ChatKind.GENERAL:
-            cell_top = row.top + _CELL_TOP
-            cell = pixels[
-                cell_top : cell_top + (CHAT_GENERAL.rows or ROW_HEIGHT),
-                x + BAND_LEFT : x + BAND_RIGHT,
-            ]
-            text = self._glyphs.read_all(cell)
-        return ChatLine(row.kind, row.image.copy(), text, row.top)
+        if row.kind is not ChatKind.GENERAL:
+            return ChatLine(row.kind, row.image.copy(), None, row.top)
+        cell_top = row.top + _CELL_TOP
+        cell = pixels[
+            cell_top : cell_top + (CHAT_GENERAL.rows or ROW_HEIGHT),
+            x + BAND_LEFT : x + BAND_RIGHT,
+        ]
+        text = self._glyphs.read_marked(cell)
+        split = _GENERAL_FORMAT.fullmatch(text)
+        if split is None:
+            return ChatLine(row.kind, row.image.copy(), text, row.top)
+        speaker = split["speaker"]
+        return ChatLine(
+            row.kind,
+            row.image.copy(),
+            text,
+            row.top,
+            speaker,
+            split["message"],
+            self._ign is not None and reads_as(speaker, self._ign, ignore_case=True),
+        )
 
 
 _COVERED_TOGGLE = (

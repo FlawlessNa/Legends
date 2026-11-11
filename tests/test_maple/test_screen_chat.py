@@ -4,7 +4,7 @@ origins, rows of the log painted in the frame set's band and text colours, and
 made-up glyphs. No client pixels.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import pytest
@@ -23,9 +23,11 @@ from maple.screen.chat import (
     SCROLL_X,
     TARGET_SELECT,
     ChatKind,
+    ChatLine,
     ChatReader,
+    reads_as,
 )
-from maple.screen.font import CHAT_GENERAL, GlyphSet
+from maple.screen.font import CHAT_GENERAL, UNREAD, GlyphSet
 from maple.screen.locator import UI_NOT_FOUND, FrameCheck
 from maple.screen.sprites import GAUGE_LABEL, ReaderSprites
 
@@ -68,9 +70,25 @@ def glyph(columns: list[int]) -> np.ndarray:
     return mask
 
 
-GLYPHS = {"H": glyph([9, 2, 2, 9]), "i": glyph([1, 0, 9]), "!": glyph([7])}
+def marks(columns: list[list[int]]) -> np.ndarray:
+    """A 14-row glyph, each column inked on the rows it lists."""
+    mask = np.zeros((CHAT_GENERAL.rows or 14, len(columns)), bool)
+    for x, rows in enumerate(columns):
+        mask[rows, x] = True
+    return mask
+
+
+GLYPHS = {
+    "H": glyph([9, 2, 2, 9]),
+    "i": glyph([1, 0, 9]),
+    "!": glyph([7]),
+    ":": marks([[5, 6, 10, 11]]),
+    "1": marks([[4], list(range(3, 12))]),
+    "[": marks([list(range(2, 13)), [2, 12]]),
+    "]": marks([[2, 12], list(range(2, 13))]),
+}
 UNHARVESTED = glyph([5, 5, 1, 5, 5])
-"""A glyph the set doesn't have."""
+"""A glyph the set doesn't have, drawn where a row's text says `UNREAD`."""
 
 
 def sprites() -> ReaderSprites:
@@ -81,9 +99,9 @@ def sprites() -> ReaderSprites:
     )
 
 
-def reader() -> ChatReader:
+def reader(ign: str | None = None) -> ChatReader:
     s = sprites()
-    return ChatReader(s, FrameCheck(s))
+    return ChatReader(s, FrameCheck(s), ign=ign)
 
 
 def paste(pixels: np.ndarray, s: Sprite, x: int, y: int) -> None:
@@ -95,12 +113,12 @@ def paste(pixels: np.ndarray, s: Sprite, x: int, y: int) -> None:
 
 @dataclass
 class Row:
-    """One row of the log: its band (or the backdrop), and its text."""
+    """One row of the log: its band (or the backdrop), and its text, where
+    `UNREAD` draws a glyph the set lacks."""
 
     background: RGB = BACKDROP
     text: str = ""
     colour: RGB = WHITE
-    extra: list[np.ndarray] = field(default_factory=list[np.ndarray])
 
 
 POINT = (40, 200)
@@ -132,7 +150,7 @@ def draw_chat(
         pixels[row_top : row_top + ROW_HEIGHT, x + BAND_LEFT : x + BAND_RIGHT] = (
             row.background[::-1]
         )
-        masks = [GLYPHS.get(c) for c in row.text] + row.extra
+        masks = [{**GLYPHS, UNREAD: UNHARVESTED}.get(c) for c in row.text]
         cx = x + BAND_LEFT + 2
         for mask in masks:
             if mask is None:  # a space: a gap of 3 columns or more
@@ -226,13 +244,114 @@ def test_empty_rows_are_not_lines() -> None:
     ]
 
 
-def test_a_line_with_a_character_not_harvested_has_no_text() -> None:
-    """Its text isn't a string with the character missing."""
-    reading = reader().read(chat_frame([Row(text="Hi", extra=[UNHARVESTED])]))
-    assert reading.value is not None
+def read_one(row: Row, ign: str | None = None) -> ChatLine:
+    reading = reader(ign).read(chat_frame([row]))
+    assert reading.value is not None, reading.detail
     [line] = reading.value
+    return line
+
+
+def test_a_character_not_harvested_reads_as_unread_in_its_place() -> None:
+    """The line keeps its kind and the rest of its text, rather than reading
+    `None` or a string with the character missing."""
+    line = read_one(Row(text=f"H{UNREAD}i H{UNREAD}"))
+
     assert line.kind is ChatKind.GENERAL
-    assert line.text is None
+    assert line.text == f"H{UNREAD}i H{UNREAD}"
+
+
+# --- speaker and message ----------------------------------------------------
+
+
+def test_a_general_line_is_split_into_its_speaker_and_message() -> None:
+    line = read_one(Row(text="Hi : Hi H! i"))
+
+    assert (line.text, line.speaker, line.message) == ("Hi : Hi H! i", "Hi", "Hi H! i")
+    assert not line.outgoing
+
+
+def test_the_time_before_a_general_line_is_neither_speaker_nor_message() -> None:
+    line = read_one(Row(text="[11:1] HiH : i"))
+
+    assert (line.speaker, line.message) == ("HiH", "i")
+
+
+def test_a_message_that_holds_the_separator_is_split_at_the_first() -> None:
+    line = read_one(Row(text="Hi : H : i"))
+
+    assert (line.speaker, line.message) == ("Hi", "H : i")
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["Hi H!", f"H{UNREAD} H", "Hi :", "H! : i", ": i"],
+    ids=["no separator", "wrapped row", "no message", "not a name", "no name"],
+)
+def test_a_general_row_that_doesnt_fit_the_format_has_no_speaker(text: str) -> None:
+    line = read_one(Row(text=text))
+
+    assert (line.kind, line.text) == (ChatKind.GENERAL, text)
+    assert (line.speaker, line.message, line.outgoing) == (None, None, False)
+
+
+def test_an_unread_letter_in_a_name_is_kept_in_the_speaker() -> None:
+    line = read_one(Row(text=f"H{UNREAD}i : i"))
+
+    assert (line.speaker, line.message) == (f"H{UNREAD}i", "i")
+
+
+@pytest.mark.parametrize(
+    ("ign", "outgoing"),
+    [("Hi", True), ("hI", True), ("Hl", False), ("Hii", False), ("H", False)],
+)
+def test_a_line_is_outgoing_when_its_speaker_is_the_character(
+    ign: str, outgoing: bool
+) -> None:
+    assert read_one(Row(text="Hi : i"), ign=ign).outgoing is outgoing
+
+
+def test_a_speaker_read_in_part_is_the_character_when_the_rest_reads_as_it() -> None:
+    line = read_one(Row(text=f"H{UNREAD} : i"), ign="Hx")
+
+    assert line.outgoing
+
+
+def test_no_line_is_outgoing_without_the_character_s_name() -> None:
+    assert not read_one(Row(text="Hi : i")).outgoing
+
+
+@pytest.mark.parametrize(
+    "row",
+    [Row(TEAL_BAND, "Hi : i"), Row(text="Hi : i", colour=YELLOW)],
+    ids=["megaphone", "system"],
+)
+def test_other_kinds_have_no_speaker(row: Row) -> None:
+    line = read_one(row, ign="Hi")
+
+    assert (line.speaker, line.message, line.outgoing) == (None, None, False)
+
+
+@pytest.mark.parametrize(
+    ("read", "written", "same"),
+    [
+        ("Hi", "Hi", True),
+        ("IoI", "lol", True),
+        ("IoI", "IoI", True),
+        ("lol", "IoI", False),
+        (f"H{UNREAD}", "Hx", True),
+        ("Hi", "Hi!", False),
+        ("Hi", "hi", False),
+    ],
+)
+def test_reads_as_allows_unread_and_alike_letters(
+    read: str, written: str, same: bool
+) -> None:
+    assert reads_as(read, written) is same
+
+
+def test_reads_as_may_ignore_case() -> None:
+    assert reads_as("HI", "hl", ignore_case=True)
+    assert not reads_as("HI", "hx", ignore_case=True)
 
 
 def test_a_line_carries_its_row_image_and_top() -> None:

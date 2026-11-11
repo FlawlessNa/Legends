@@ -189,3 +189,45 @@ def test_a_string_an_engine_sends_goes_to_discord_and_never_the_queue() -> None:
 
     assert discord == ["[whisper] Bob: hi -> ya"]
     assert queued == [None]
+
+
+def _posted(signals: list[object]) -> list[str]:
+    """What `DiscordIO.relay_main_to_disc` posts for these signals."""
+    from botting.communications import DiscordIO
+
+    posted: list[str] = []
+
+    class _Channel:
+        async def send(self, text: str | None = None, **_: object) -> None:
+            if text is not None:
+                posted.append(text)
+
+    sender, receiver = multiprocessing.Pipe()
+    for signal in [*signals, None]:
+        sender.send(signal)
+
+    class _Client(DiscordIO):
+        channel = _Channel()  # pyright: ignore[reportAssignmentType,reportIncompatibleMethodOverride]
+        user = "bot"  # pyright: ignore[reportAssignmentType,reportIncompatibleMethodOverride,reportIncompatibleVariableOverride]
+
+        def is_closed(self) -> bool:
+            return True
+
+    client = object.__new__(_Client)
+    client.pipe = receiver  # pyright: ignore[reportAttributeAccessIssue]
+    client.config = {"User x": {"DISCORD_ID": "42"}}  # pyright: ignore[reportAttributeAccessIssue]
+    client.config_section = "User x"
+    asyncio.run(client.relay_main_to_disc())
+    return posted[:-1]  # the last one announces the stop
+
+
+def test_every_ordinary_message_still_rings_and_a_quiet_one_does_not() -> None:
+    from botting.communications.messages import QuietMessage
+
+    posted = _posted(["Kill request", QuietMessage("[whisper] Bob: hi -> ya")])
+
+    assert posted == ["<@42> Kill request", "[whisper] Bob: hi -> ya"]
+
+
+def test_a_message_that_already_rings_is_not_rung_twice() -> None:
+    assert _posted(["<@42> [gm] Zed: hello -> hi"]) == ["<@42> [gm] Zed: hello -> hi"]

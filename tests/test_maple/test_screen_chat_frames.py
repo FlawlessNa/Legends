@@ -1,39 +1,64 @@
 """
 The chat reader on the real MSCW frame set: every expected `chat` reading, and
-the text of every general line.
+the text, speaker, message and `outgoing` of every general line.
 
 The expected `chat` value is each visible line's kind, top to bottom. Each frame
 is read by a reader that has forgotten the rows before, so every line shown is
 new. The text isn't committed, because it holds other players' names: it is
 labelled here by a render of Arial, as `toolkit/harvest_glyphs.py` labels it,
 and compared with what the reader read with the harvested glyphs
-(`python -m toolkit.harvest_glyphs`). Run with `pytest -m frames`.
+(`python -m toolkit.harvest_glyphs`). The speaker and message are split from
+that label too, so no name is committed either. Run with `pytest -m frames`.
 """
+
+import re
+from collections.abc import Iterator
 
 import numpy as np
 import pytest
 
 from botting.screen import Frame, Status
 from game_data.config import CONFIG, STORE
-from maple.screen.chat import BAND_LEFT, BAND_RIGHT, CHAT, ChatKind, ChatReader
-from maple.screen.font import CHAT_GENERAL
+from maple.screen.chat import (
+    ALIKE,
+    BAND_LEFT,
+    BAND_RIGHT,
+    CHAT,
+    ChatKind,
+    ChatLine,
+    ChatReader,
+)
+from maple.screen.font import CHAT_GENERAL, UNREAD, GlyphSet, load_glyph_set
 from maple.screen.locator import FrameCheck
-from maple.screen.sprites import FRAME_CHECK, Profile, load_reader_sprites
+from maple.screen.sprites import (
+    FRAME_CHECK,
+    Profile,
+    ReaderSprites,
+    load_reader_sprites,
+)
 from tests.frame_set import FrameSet
 from toolkit import harvest_glyphs
 
 pytestmark = [pytest.mark.frames, pytest.mark.client_files]
 
 
+NOBODY = "Qx0q"
+"""A made-up name, which no line of the frame set is from."""
+
+
 @pytest.fixture(scope="module")
-def reader() -> ChatReader:
-    sprites = load_reader_sprites(
+def sprites() -> ReaderSprites:
+    return load_reader_sprites(
         [FRAME_CHECK, CHAT],
         Profile(job="Swordsman", game_map="x"),
         STORE,
         config=CONFIG,
     )
-    return ChatReader(sprites, FrameCheck(sprites))
+
+
+@pytest.fixture(scope="module")
+def reader(sprites: ReaderSprites) -> ChatReader:
+    return ChatReader(sprites, FrameCheck(sprites), ign=NOBODY)
 
 
 def _frame(frames: FrameSet, file: str) -> Frame:
@@ -81,16 +106,14 @@ def test_a_frame_read_twice_has_no_new_line_the_second_time(
         assert again.value == [], entry.file
 
 
-def test_every_general_line_reads_as_arial_labels_it(
+def _general_lines(
     frames: FrameSet, reader: ChatReader
-) -> None:
-    """Text is compared with the labeller's, never committed. A general line
-    with a character the harvest lacks reads `None`, never a shorter string."""
+) -> Iterator[tuple[str, ChatLine, str | None]]:
+    """Every general line of the frame set: its frame, the line, and its label
+    (`_labelled`)."""
     if not harvest_glyphs.ARIAL.is_file():
         pytest.skip(f"the labelling font {harvest_glyphs.ARIAL} isn't on this machine")
     labeller = harvest_glyphs.font_labeller(harvest_glyphs.ARIAL)
-    read = unread = 0
-    wrong: list[str] = []
     for entry in frames.entries:
         reader.forget()
         frame = _frame(frames, entry.file)
@@ -100,15 +123,95 @@ def test_every_general_line_reads_as_arial_labels_it(
             if line.kind is not ChatKind.GENERAL:
                 continue
             assert region is not None
-            labelled = _labelled(frame, region.left, line.top, labeller)
-            if line.text is None:
-                unread += 1
-            elif labelled is None or line.text.replace(" ", "") != labelled:
-                wrong.append(f"{entry.file} row {line.top}: read text not the label")
-            else:
-                read += 1
+            yield entry.file, line, _labelled(frame, region.left, line.top, labeller)
+
+
+def test_every_general_line_reads_as_arial_labels_it(
+    frames: FrameSet, reader: ChatReader
+) -> None:
+    """Text is compared with the labeller's, never committed. Every general
+    line the labeller explains has its glyphs harvested, so none reads
+    `UNREAD`; one it doesn't explain must still read, as some text."""
+    read = 0
+    wrong: list[str] = []
+    for file, line, labelled in _general_lines(frames, reader):
+        if line.text is None:
+            wrong.append(f"{file} row {line.top}: a general line with no text")
+        elif labelled is not None and line.text.replace(" ", "") != labelled:
+            wrong.append(f"{file} row {line.top}: read text not the label")
+        elif labelled is not None:
+            read += 1
     assert read
     assert not wrong, "\n".join(wrong)
+
+
+def test_every_general_line_has_the_speaker_and_message_its_label_has(
+    frames: FrameSet, reader: ChatReader
+) -> None:
+    """The label is split by hand here: the time in brackets, then the name, up
+    to the first `:`. The label has no spaces, so neither has what is compared."""
+    split = 0
+    wrong: list[str] = []
+    for file, line, labelled in _general_lines(frames, reader):
+        if labelled is None:
+            continue
+        expected = _label_split(labelled)
+        got = (
+            None
+            if line.speaker is None or line.message is None
+            else (line.speaker, line.message.replace(" ", ""))
+        )
+        if got != expected:
+            wrong.append(f"{file} row {line.top}: split not as labelled")
+        elif line.outgoing:
+            wrong.append(f"{file} row {line.top}: outgoing for {NOBODY!r}")
+        split += expected is not None
+    assert split
+    assert not wrong, "\n".join(wrong)
+
+
+def test_a_line_is_outgoing_when_the_character_is_its_speaker(
+    frames: FrameSet, sprites: ReaderSprites
+) -> None:
+    """Each frame's speakers, taken in turn as the character's name, in another
+    case: their lines, and only theirs, are outgoing."""
+    checked = 0
+    wrong: list[str] = []
+    for file, line, _ in _general_lines(
+        frames, ChatReader(sprites, FrameCheck(sprites))
+    ):
+        if line.speaker is None:
+            continue
+        as_speaker = ChatReader(sprites, FrameCheck(sprites), ign=line.speaker.lower())
+        reading = as_speaker.read(_frame(frames, file))
+        assert reading.value is not None
+        for other in reading.value:
+            if other.outgoing != (other.speaker == line.speaker):
+                wrong.append(f"{file} row {other.top}: outgoing {other.outgoing}")
+        checked += 1
+    assert checked
+    assert not wrong, "\n".join(wrong)
+
+
+def test_the_harvested_chat_glyphs_are_as_the_reader_reads_them() -> None:
+    glyphs: GlyphSet = load_glyph_set(CHAT_GENERAL.name)
+
+    assert dict(glyphs.alike) == {k: v for k, v in ALIKE.items() if k in glyphs.glyphs}
+    assert UNREAD not in glyphs.glyphs
+    assert set(glyphs.bearings) == set(glyphs.glyphs), "spaces need every bearing"
+
+
+_TIME = re.compile(r"\[[^\]]*\]")
+
+
+def _label_split(labelled: str) -> tuple[str, str] | None:
+    """The speaker and message of a label (no spaces): the time in brackets the
+    client may put first, the name up to the first `:`, then the rest."""
+    rest = _TIME.sub("", labelled, count=1) if labelled.startswith("[") else labelled
+    speaker, colon, message = rest.partition(":")
+    if not colon or not speaker.isalnum() or not message:
+        return None
+    return speaker, message
 
 
 def _labelled(

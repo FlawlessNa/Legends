@@ -183,7 +183,9 @@ class MapleBot(Bot, ABC):
                     MinimapReader(reader_sprites, frame_check, map_id=map_id),
                 )
             if TARGET_SELECT in reader_sprites.canvases:
-                data.set_static("chat_reader", ChatReader(reader_sprites, frame_check))
+                data.set_static(
+                    "chat_reader", ChatReader(reader_sprites, frame_check, ign=self.ign)
+                )
         InGameDetectionVisuals.register_models(self.models_path)
         InGameDetectionVisuals.register_cache_id(data.handle)
         data.create_attribute(

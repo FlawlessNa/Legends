@@ -13,6 +13,7 @@ import logging
 from collections.abc import Callable
 from configparser import ConfigParser
 
+from botting.communications.messages import QuietMessage
 from botting.utilities import config_reader
 
 from .addressing import Address
@@ -54,8 +55,12 @@ def mirror(
     outcome: RelayOutcome,
     mention: str | None = None,
 ) -> None:
-    """Post one exchange to Discord through `send`."""
-    send(format_exchange(burst, outcome, mention))
+    """
+    Post one exchange to Discord through `send`. A GM exchange rings the
+    maintainer; every other one is posted quietly.
+    """
+    text = format_exchange(burst, outcome, mention)
+    send(text if burst.address is Address.GM else QuietMessage(text))
 
 
 def discord_mention() -> str | None:

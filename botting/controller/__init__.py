@@ -37,6 +37,7 @@ from .inputs.inputs_helpers import (
     typematic_delay,
 )
 from .inputs.non_focused_inputs import message_constructor, non_focused_input
+from .typing_pace import TypingPace
 
 __all__ = [
     "DELAY",
@@ -50,6 +51,7 @@ __all__ = [
     "HeldKeysLedger",
     "InputState",
     "KeyboardInputWrapper",
+    "TypingPace",
     "click",
     "compile_and_send",
     "focused_inputs",

@@ -1,8 +1,12 @@
+import logging
+
 from botting.communications import BaseParser
 from botting.core.action_data import ActionRequest
 from botting.screen import frame_source
-from maple.actions import priorities, write_in_chat
+from maple.actions import DEFAULT_CHAT_KEYS, chat_keys, priorities, write_in_chat
 from maple.screen.client import find_client
+
+logger = logging.getLogger(__name__)
 
 
 class MapleParser(BaseParser):
@@ -40,7 +44,7 @@ class MapleParser(BaseParser):
             priorities.USER_REQUESTS,
             block_lower_priority=True,
             args=(handle, message),
-            kwargs=self._where(to, channel),
+            kwargs={"keys": _chat_keys(who), **self._where(to, channel)},
             cancel_tasks=[
                 f"Rotation({who})",
                 f"MobsHitting({who})",
@@ -54,7 +58,9 @@ class MapleParser(BaseParser):
         """The channel and whisper target `write_in_chat` is given."""
         if to is not None:
             return {"channel": "whisper", "whisper_to": to}
-        return {"channel": channel or "general"}
+        # Neither given: write_in_chat's own default, exactly what a plain
+        # WRITE sent before.
+        return {"channel": channel} if channel else {}
 
     def _confirmation_with_image(self, handle: int) -> None:
         frame = frame_source().grab(handle)
@@ -62,3 +68,18 @@ class MapleParser(BaseParser):
             self.pipe.send(f"Could not capture the client: {frame.reason}")
             return
         self.pipe.send(frame.pixels)
+
+
+def _chat_keys(ign: str) -> dict[str, str]:
+    """
+    `ign`'s chat keys, or the defaults when `configs/keybindings.ini` has no
+    section for it: writing from Discord never needed one, and a mistyped IGN
+    must not end the Session.
+    """
+    try:
+        return chat_keys(ign)
+    except AssertionError, KeyError:
+        logger.warning(
+            "No keybindings section for %r: writing with the default chat keys.", ign
+        )
+        return dict(DEFAULT_CHAT_KEYS)
