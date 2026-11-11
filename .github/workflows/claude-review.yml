@@ -29,6 +29,11 @@
 # `merge` waits for `gates` on the reviewed commit before merging (#414). This
 # workflow is the only actor that merges into an epic branch; no agent does.
 #
+# Merge method (#453): a PR is squash-merged, unless any commit in it has more
+# than one parent (it brings dev in). Then it is merge-committed, so the epic
+# keeps dev's history and its later PR into dev does not see dev's work as
+# unmerged. The rule is read from the PR's commits through the API.
+#
 # Off switch: `gh workflow disable "Claude review"`.
 
 name: Claude review
@@ -190,11 +195,22 @@ jobs:
         # pushed after the review started. gh refuses client-side while GitHub
         # still reports the PR BLOCKED, which can lag a just-finished check,
         # so retry for a few minutes; the state line goes to the log.
+        # The method is decided from the PR's commits (API only, no checkout):
+        # any commit with more than one parent means --merge, else --squash.
         run: |
+          merge_commits="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/commits" \
+            --jq '.[] | select((.parents | length) > 1) | .sha')"
+          if [ -n "$merge_commits" ]; then
+            method="--merge"
+            echo "Merge method: merge commit, because the PR contains merge commit(s): $(echo "$merge_commits" | cut -c1-8 | paste -sd, -)"
+          else
+            method="--squash"
+            echo "Merge method: squash, because no commit in the PR is a merge commit"
+          fi
           for attempt in 1 2 3 4 5 6; do
             gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json mergeStateStatus,mergeable,statusCheckRollup \
               --jq '"mergeStateStatus=\(.mergeStateStatus) mergeable=\(.mergeable) checks=\([.statusCheckRollup[] | "\(.name // .context):\(.conclusion // .state // .status)"] | join(","))"'
-            if gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --squash --delete-branch --match-head-commit "$HEAD_SHA"; then
+            if gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" "$method" --delete-branch --match-head-commit "$HEAD_SHA"; then
               exit 0
             fi
             sleep 30
