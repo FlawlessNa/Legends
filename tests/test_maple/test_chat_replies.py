@@ -1,5 +1,5 @@
 """
-`ChatWatch` on stubbed `chat_lines` readings: a GM line emits `chat.gm_line` and,
+`ChatReplies` on stubbed `chat_lines` readings: a GM line emits `chat.gm_line` and,
 when Discord is configured, rides a Discord alert with the line's image on a
 no-op Action. Nothing else is sent. No client.
 """
@@ -15,8 +15,8 @@ from pytest_mock import MockerFixture
 from botting.core import ActionRequest
 from botting.screen import Reading
 from maple.bots.training import TrainingBot
-from maple.decision_makers import chat_watch as module
-from maple.decision_makers.chat_watch import ChatWatch
+from maple.decision_makers import chat_replies as module
+from maple.decision_makers.chat_replies import ChatReplies
 from maple.screen.chat import CHAT, ChatKind, ChatLine
 from maple.telemetry_events import CHAT_GM_LINE
 
@@ -37,21 +37,21 @@ class Harness:
         self.data.ign = "Bot"
         self.data.update_attributes.side_effect = self._advance
         self.pipe = mocker.Mock()
-        watch = object.__new__(ChatWatch)
-        watch.data = self.data
-        watch.pipe = self.pipe
-        watch.correlation_id = None
-        watch._discord_config = discord  # pyright: ignore[reportPrivateUsage]
-        watch._last_status = None  # pyright: ignore[reportPrivateUsage]
-        self.emit = mocker.patch.object(watch, "emit")
-        self.watch = watch
+        replies = object.__new__(ChatReplies)
+        replies.data = self.data
+        replies.pipe = self.pipe
+        replies.correlation_id = None
+        replies._discord_config = discord  # pyright: ignore[reportPrivateUsage]
+        replies._last_status = None  # pyright: ignore[reportPrivateUsage]
+        self.emit = mocker.patch.object(replies, "emit")
+        self.replies = replies
 
     def _advance(self, *names: str) -> None:
         assert names == ("current_frame", "chat_lines")
         self.data.chat_lines = next(self.readings)
 
     def decide(self) -> None:
-        asyncio.run(self.watch._decide())  # pyright: ignore[reportPrivateUsage]
+        asyncio.run(self.replies._decide())  # pyright: ignore[reportPrivateUsage]
 
     @property
     def sent(self) -> list[ActionRequest]:
@@ -133,6 +133,6 @@ def test_an_unreadable_chat_raises_nothing_and_is_logged_once_per_change(
     assert len([r for r in caplog.records if "can't read the chat" in r.message]) == 2
 
 
-def test_the_training_bot_runs_chat_watch_which_declares_the_chat() -> None:
-    assert ChatWatch in TrainingBot._decision_makers(None)  # pyright: ignore[reportArgumentType, reportPrivateUsage]
-    assert CHAT in ChatWatch.screen_readers
+def test_the_training_bot_runs_chat_replies_which_declares_the_chat() -> None:
+    assert ChatReplies in TrainingBot._decision_makers(None)  # pyright: ignore[reportArgumentType, reportPrivateUsage]
+    assert CHAT in ChatReplies.screen_readers
