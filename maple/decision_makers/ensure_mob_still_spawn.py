@@ -41,9 +41,8 @@ class CheckMobsStillSpawn(
         if not self.data.has_chat_feed_attributes:
             self._create_chat_feed_attributes()
 
-    async def task(self) -> None:
+    def on_start(self) -> None:
         self._last_valid_detection = time.perf_counter() + 10.0
-        await super().task()
 
     async def _decide(self) -> None:
         mob_count = self.mob_count_in_img(

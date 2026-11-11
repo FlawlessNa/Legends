@@ -72,9 +72,8 @@ class Rotation(
         # Movement recovery
         self._create_recovery_attributes()
 
-    async def task(self) -> None:
+    def on_start(self) -> None:
         self._restart_recovery_grace_period()
-        await super().task()
 
     async def _decide(self) -> None:
         # Every cycle, before the lock is contended for: a cycle that cannot

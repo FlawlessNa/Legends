@@ -95,9 +95,7 @@ class _Loop(MovementRecoveryMixin, NextTargetMixin):
         self.emit = lambda event_type, payload: self.emitted.append(
             (event_type, payload)
         )
-        self._disable_decision_makers = lambda *names, self_only=False: (
-            self.disabled.extend(names)
-        )
+        self._disable_decision_makers = lambda *names: self.disabled.extend(names)
         self._has_movements = lambda: len(self.plan) > 1
         # What `Rotation._request` reads besides the recovery wiring.
         self.lock: object = None
@@ -389,9 +387,9 @@ def test_escalate_suspends_the_loop_and_drops_the_keys(loop: _Loop) -> None:
 
 def test_escalate_is_idempotent(loop: _Loop) -> None:
     """
-    The disable takes effect when the disabler thread cancels the task, so one or
-    more further cycles reach here first - each of which would otherwise ship
-    another alert and another key-release Action.
+    The disable cancels the loop only at its next `await`, so a caller can
+    reach here again first - and each call would otherwise ship another alert
+    and another key-release Action.
     """
     for _ in range(4):
         _react(loop, Rung.ESCALATE)

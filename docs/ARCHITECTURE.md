@@ -75,10 +75,13 @@ every Engine as a plain command string.
 
 ![Discord control plane](img/engine-control-plane.svg)
 
-Pausing is the clearest illustration of the input rule. An Engine can cancel its
-own `DecisionMaker` tasks locally, but the movement keys those tasks left held
-are Main Process' to release — so `Bot.pause()` cancels, then sends a
-high-priority `ActionRequest` back the other way to drop the keys.
+Pausing is the clearest illustration of the input rule. An Engine can stop its
+own DecisionMakers locally: `Bot.pause()` takes a Pause held by the user on
+every one of them, and the Bot's Supervisor cancels their decision loops. But
+the movement keys those loops left held are Main Process' to release, so
+`Bot.pause()` then sends a high-priority `ActionRequest` back the other way to
+drop the keys. `RESUME` releases the user's Pauses, and the Supervisor starts
+the loops again (ADR 0004).
 
 ## The observability plane
 

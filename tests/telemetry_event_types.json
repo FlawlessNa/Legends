@@ -8,6 +8,8 @@
     "ACTION_SELF_CANCELLED": "action.self_cancelled",
     "DECISION_DISABLED": "decision.disabled",
     "DECISION_ENABLED": "decision.enabled",
+    "DECISION_PAUSED": "decision.paused",
+    "DECISION_RESUMED": "decision.resumed",
     "RECORDING_CHECKPOINT": "recording.checkpoint",
     "RECORDING_STARTED": "recording.started",
     "SESSION_ENDED": "session.ended",

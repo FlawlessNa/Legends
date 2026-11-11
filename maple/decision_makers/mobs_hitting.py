@@ -52,11 +52,11 @@ class MobsHitting(
             # error_handler=...,  # TODO - Implement error handler
         )
 
-    async def task(self) -> None:
-        # Ensures the lock is actually released before task is started, no matter what.
+    def on_start(self) -> None:
+        # Ensures the lock is actually released before the loop starts, no matter
+        # what: a run cancelled while holding it would otherwise leave it held.
         self.lock.acquire(blocking=False)
         self.lock.release()
-        await super().task()
 
     def _hit_mobs(self, direction: str | None) -> ActionRequest:
         """

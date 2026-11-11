@@ -67,7 +67,7 @@ text{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Consolas,"Liberatio
 <line class="a-ctrl" x1="904" y1="350" x2="904" y2="378" marker-end="url(#ac)"/>
 <rect class="task" x="804" y="382" width="200" height="64" rx="7"/>
 <text class="tb" x="904" y="408" text-anchor="middle">bot.pause() / resume()</text>
-<text class="ts" x="904" y="427" text-anchor="middle">cancels DecisionMaker tasks</text>
+<text class="ts" x="904" y="427" text-anchor="middle">user Pause on every DecisionMaker</text>
 
 <polyline class="a-hot" points="804,414 490,414 490,222 520,222" marker-end="url(#ahh)"/>
 <text class="al-hot" x="648" y="392" text-anchor="middle">…and sends an ActionRequest back to Main</text>

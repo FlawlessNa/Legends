@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import threading
@@ -10,6 +11,9 @@ from botting.controller import release_keys
 from .action_data import ActionRequest
 from .bot_data import BotData
 from .decision_maker import DecisionMaker
+from .supervisor import Supervisor, resolve_pauses
+
+logger = logging.getLogger(__name__)
 
 USER_REQUESTS_PRIORITY = 98  # Matches a user-issued request: pause comes from Discord.
 
@@ -17,8 +21,8 @@ USER_REQUESTS_PRIORITY = 98  # Matches a user-issued request: pause comes from D
 class Bot(ABC):
     """
     Abstract base class to represent a Bot of any kind.
-    A Bot is a container of DecisionMakers, which are cycled and called
-    one at a time.
+    A Bot is a container of DecisionMakers, whose decision loops its Supervisor
+    runs concurrently.
 
     A bot represents a single game client entity and is assigned a single
     BotData instance which it shares with all its DecisionMakers.
@@ -38,7 +42,12 @@ class Bot(ABC):
         self.kwargs = kwargs
 
         self._bot: asyncio.Task | None = None
-        self._tg: asyncio.TaskGroup | None = None
+        #: Runs every DecisionMaker's loops. Built by `start`, once the
+        #: DecisionMakers are.
+        self.supervisor: Supervisor | None = None
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.ign})"
 
     def child_init(
         self,
@@ -55,37 +64,37 @@ class Bot(ABC):
 
     async def start(self) -> None:
         """
-        Called by the Engine to start the DecisionMakers tasks.
-        Passes the TaskGroup to each DecisionMaker, such that they can define sub-tasks
-        if required.
+        Called by the Engine: assemble the Bot, then run its DecisionMakers.
+
+        Assembly happens before the start barrier, so a Bot wired wrong is
+        refused before any bot starts: the class-level declarations are resolved
+        first, with no DecisionMaker built, then the DecisionMakers are built and
+        handed to the Supervisor, which runs their loops until the Bot ends.
+        :raises StartupRefused: a declaration resolves to nothing.
         """
         self._bot = asyncio.current_task()
 
-        async with asyncio.TaskGroup() as tg:
-            self._tg = tg
-            decision_makers = self.decision_makers  # Instantiate DecisionMakers.
+        declared_pauses = resolve_pauses(self._decision_makers())
+        self.supervisor = Supervisor(self.ign, self.decision_makers, declared_pauses)
 
-            # Synchronizes the start of all bots at the same time.
-            assert self.barrier is not None, "child_init() must run before start()"
-            await asyncio.to_thread(self.barrier.wait)
+        # Synchronizes the start of all bots at the same time.
+        assert self.barrier is not None, "child_init() must run before start()"
+        await asyncio.to_thread(self.barrier.wait)
 
-            for dm in decision_makers:
-                tg.create_task(dm.start(tg), name=f"{dm}")
+        await self.supervisor.run()
 
     def pause(self) -> None:
         """
-        Pauses all DecisionMakers tasks.
-        This can be overridden to provide custom behavior.
-        Runs inside the Engine process, which may not send input, so the movement keys
-        are dropped through an ActionRequest executed in Main Process instead.
+        Discord `PAUSE`: a Pause held by the user on every DecisionMaker, which
+        only `resume` releases, and the movement keys released.
+
+        Runs inside the Engine process, which may not send input, so the movement
+        keys are dropped through an ActionRequest executed in Main Process instead.
         """
-        for dm_class in self._decision_makers():
-            for task in asyncio.all_tasks():
-                name = task.get_name()
-                if "Enabler" in name or "Disabler" in name:
-                    continue
-                elif name.startswith(dm_class.__name__):
-                    task.cancel()
+        if self.supervisor is None:
+            logger.warning("%s is not running yet: there is nothing to pause.", self)
+        else:
+            self.supervisor.pause_for_user(reason="Discord PAUSE")
         assert self.pipe is not None
         assert self.data is not None
         self.pipe.send(
@@ -109,12 +118,14 @@ class Bot(ABC):
 
     def resume(self) -> None:
         """
-        Resumes the DecisionMakers tasks.
+        Discord `RESUME`: release every user-held Pause, and every legacy shim
+        Pause, as `RESUME` has always restarted every DecisionMaker. A Pause a
+        DecisionMaker holds in a block stays held until the block exits.
         """
-        assert self._tg is not None, "start() must run before resume()"
-        for dm in self.decision_makers:
-            task = self._tg.create_task(dm.task(), name=f"{dm}")
-            dm.decision_task = task
+        if self.supervisor is None:
+            logger.warning("%s is not running yet: there is nothing to resume.", self)
+            return
+        self.supervisor.resume_for_user()
 
     @cached_property
     def decision_makers(self) -> list[DecisionMaker]:

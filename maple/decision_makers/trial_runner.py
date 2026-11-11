@@ -118,19 +118,17 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
 
     # --- the decision cycle -------------------------------------------------------
 
-    async def task(self) -> None:
+    def on_stop(self) -> None:
         """
-        The decision loop, with the record closed out however it ends.
+        Close the record out, however the decision loop ended.
 
         A calibration sitting usually ends by being stopped rather than by the
-        schedule running out, and a cancelled task takes the Engine down with it. The
-        `finally` is what turns that into an `abandoned` outcome and a flushed file
-        instead of a record that trails off mid-cycle.
+        schedule running out, and a cancelled loop takes the Engine down with it.
+        The Supervisor calls this once the loop has stopped, by any route, which is
+        what turns that into an `abandoned` outcome and a flushed file instead of a
+        record that trails off mid-cycle.
         """
-        try:
-            await super().task()
-        finally:
-            self._close_record()
+        self._close_record()
 
     async def _decide(self) -> None:
         if self._driver.finished:
@@ -228,9 +226,9 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         """
         Close the record and stop deciding.
 
-        Idempotent: the disable below takes effect when the disabler thread cancels
-        the task, so one or more further cycles may reach here first, and each would
-        otherwise ship another key-release Action.
+        Idempotent: the disable below cancels this loop at its next `await`, and
+        a caller that reaches here again before then would otherwise ship another
+        key-release Action.
 
         The direction keys are dropped through an `ActionRequest` rather than here:
         an Engine may not send input, so this mirrors `Bot.pause`'s handoff to Main
