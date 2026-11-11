@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from .bot_data import BotData
     from .decision_maker import DecisionMaker
     from .proxy_factory import ProxyFactory
+    from .signals import Announcement, Signal, SignalBoard
 
 
 class KeyNotDeclared(Exception):
@@ -110,6 +111,8 @@ class Provider:
     provides: ClassVar[tuple[Key[Any], ...]] = ()
     #: The keys of other Providers this one reads.
     needs: ClassVar[tuple[Key[Any], ...]] = ()
+    #: The Signals this Provider announces, with `announce`.
+    announces: ClassVar[tuple[Signal[Any], ...]] = ()
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
@@ -142,6 +145,8 @@ class Provider:
         self.pipe = pipe
         self.proxies = proxies
         self.settings = settings
+        #: Set by assembly before any `setup()`. None for a Provider built alone.
+        self._signals: SignalBoard | None = None
         self._logger_name = producer_logger_name(type(self).__module__)
 
     def __repr__(self) -> str:
@@ -196,6 +201,27 @@ class Provider:
                 "does not declare."
             )
         return self.data.read(key)
+
+    def announce[T](self, signal: Signal[T], payload: T) -> None:
+        """
+        Announce `signal`, waking every DecisionMaker waiting for it.
+        :raises SignalNotDeclared: `signal` is not in this class's `announces`.
+        """
+        self._board().announce(signal, payload, by=self)
+
+    def last[T](self, signal: Signal[T]) -> Announcement[T] | None:
+        """
+        The latest announcement of `signal`, or None.
+        :raises SignalNotDeclared: `signal` is not in this class's `announces`.
+        """
+        return self._board().last(signal, by=self)
+
+    def _board(self) -> SignalBoard:
+        if self._signals is None:
+            raise RuntimeError(
+                f"{self} has no Signals: they exist only once its Bot has started."
+            )
+        return self._signals
 
     def send(self, request: ActionRequest) -> None:
         """Send an Action to Main Process. It carries no Correlation ID."""
@@ -294,6 +320,7 @@ def build_providers(
     pipe: multiprocessing.connection.Connection,
     proxies: ProxyFactory,
     settings: Mapping[str, object],
+    signals: SignalBoard | None = None,
 ) -> list[Provider]:
     """
     Build every Provider in `order`, then set each up, in `order`: every
@@ -303,6 +330,8 @@ def build_providers(
         provides.
     """
     providers = [cls(data, pipe, proxies, **settings) for cls in order]
+    for provider in providers:
+        provider._signals = signals  # pyright: ignore[reportPrivateUsage] - assembly wires it
     for provider in providers:
         provider.setup()
         missing = [

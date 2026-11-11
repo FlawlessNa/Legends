@@ -95,7 +95,7 @@ prevent.
 ## Decision-making
 
 The framework DecisionMakers are built on (ADR 0004).
-The Supervisor and Pauses exist today; Data Keys, Providers, Claims and Signals are being built by epic #432.
+The Supervisor, Pauses, Data Keys, Providers and Signals exist today; Claims are being built by epic #432.
 
 **Supervisor**:
 The one owner of a Bot's decision loops (`botting/core/supervisor.py`).
@@ -130,6 +130,7 @@ _Avoid_: Override, lock, reconfigure - `reconfigure_attribute` is the unscoped l
 **Signal**:
 A typed announcement, within one Bot, that something happened.
 A DecisionMaker or a Provider announces it, and the DecisionMakers that await it wake on it instead of polling.
+A Bot whose DecisionMaker awaits a Signal that nothing in it announces is refused at assembly.
 _Avoid_: Event - a Telemetry Record has an Event Type; a Signal is not recorded.
 
 ## Movement compilation

@@ -1,11 +1,11 @@
 # Writing a DecisionMaker
 
-How to write a new DecisionMaker, or port an old one, against the framework of ADR 0004: Data Keys, Providers and Pauses.
+How to write a new DecisionMaker, or port an old one, against the framework of ADR 0004: Data Keys, Providers, Pauses and Signals.
 The terms are defined in `CONTEXT.md` ("Decision-making"); use them.
 
 The framework is being built by epic #432.
-What exists today: the Supervisor, Pauses, Data Keys, Providers and assembly.
-What does not exist yet: Claims (`steers`), Signals (`announces`, `awaits`) and the crash policy.
+What exists today: the Supervisor, Pauses, Data Keys, Providers, Signals and assembly.
+What does not exist yet: Claims (`steers`) and the crash policy.
 No game Provider exists yet either; MapleStory's keys and Providers arrive with the first port.
 Until then, an old-style DecisionMaker keeps its mixins, and the two kinds run side by side in one Bot.
 
@@ -106,7 +106,7 @@ It belongs to the Bot, not to a DecisionMaker.
 
 1. It collects the class-level declarations of every DecisionMaker; nothing is built yet.
 2. It resolves the Providers of every key read, then of every key those Providers need, and orders them.
-3. It refuses the start with `StartupRefused` on a cycle between Providers (naming it), two keys with the same name (naming both), or a `pauses` entry that resolves to nothing.
+3. It refuses the start with `StartupRefused` on a cycle between Providers (naming it), two keys with the same name (naming both), a `pauses` entry that resolves to nothing, or a Signal awaited that nothing in the Bot announces (naming the Signal and the DecisionMaker).
 4. It builds every Provider, then runs each `setup()`, in order.
 5. It builds every DecisionMaker, then runs each `setup()`.
 
@@ -123,6 +123,47 @@ So a Bot wired wrong fails at startup with a message that names the cause, never
 - A paused DecisionMaker keeps its state.
   Before every start and restart, the Supervisor calls `on_start()`, and once its loops have stopped, `on_stop()`: put resets there, never in an override of the loop.
 - A DecisionMaker with several loops (one per buff) overrides `loops()`, and nothing else.
+
+## Signals
+
+A Signal, `Signal[T]`, announces that something happened, so that other DecisionMakers wait for it instead of polling.
+It is typed by its payload, and in-process: no Manager object, no thread, and nothing is sent to Main Process.
+A Signal is not a Telemetry Record.
+
+```python
+MOB_KILLED: Signal[int] = Signal("mob_killed")
+
+
+class Hitter(DecisionMaker):
+    announces = (MOB_KILLED,)
+
+    async def _decide(self) -> None:
+        ...
+        self.announce(MOB_KILLED, mob_id)
+
+
+class Looter(DecisionMaker):
+    awaits = (MOB_KILLED,)
+
+    async def _decide(self) -> None:
+        mob_id = await self.wait_for(MOB_KILLED)
+```
+
+- Define a Signal once, in the module of whoever announces it; whoever awaits it imports it.
+  It is compared by identity.
+- `announces` is declared by a DecisionMaker or a Provider.
+  `awaits` is declared by a DecisionMaker.
+  A Provider may announce from `setup()` or from an update function.
+- `self.announce(SIGNAL, payload)` wakes every waiter.
+  It raises `SignalNotDeclared` when the Signal is not in `announces`.
+- `await self.wait_for(SIGNAL)` returns the payload of the next announcement after the call.
+  An announcement made before the call does not count, so a DecisionMaker that must not miss one reads `last` first, then waits.
+  It raises `SignalNotDeclared` when the Signal is not in `awaits`.
+  Cancelling the wait, which a Pause does, leaves nothing behind.
+- `self.last(SIGNAL)` returns the latest announcement, whose `.payload` is the payload and `.at` is when it came on the Bot's clock, or None when it has not been announced.
+  The Signal must be in `announces` or `awaits`.
+- Assembly refuses the start when a DecisionMaker awaits a Signal that no DecisionMaker or Provider of the Bot announces.
+  A Provider is only built when a DecisionMaker reads one of its keys, so a Provider whose only job is to announce must also provide a key that is read.
 
 ## Old and new side by side
 

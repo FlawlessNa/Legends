@@ -15,11 +15,13 @@ from .metadata import MetadataNamespace
 from .peripherals_process import PeripheralsProcess
 from .proxy_factory import ProxyFactory
 from .session_manager import SessionManager
+from .signals import Announcement, Signal, SignalBoard, SignalNotDeclared
 from .supervisor import Pause, PauseTarget, Supervisor
 
 __all__ = [
     "ActionRequest",
     "ActionWithValidation",
+    "Announcement",
     "AsyncTaskManager",
     "Bot",
     "BotData",
@@ -38,6 +40,9 @@ __all__ = [
     "Provider",
     "ProxyFactory",
     "SessionManager",
+    "Signal",
+    "SignalBoard",
+    "SignalNotDeclared",
     "StartupRefused",
     "Supervisor",
     "action_name",

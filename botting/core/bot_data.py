@@ -251,6 +251,11 @@ class BotData:
     def __str__(self) -> str:
         return f"BotData({self.ign})"
 
+    @property
+    def clock(self) -> Clock:
+        """What this data's thresholds and time queries are measured on."""
+        return self._clock
+
     def __getattr__(self, name: str) -> Any:
         """
         Returns the value of an attribute, checking _managed, _static, and _features.
