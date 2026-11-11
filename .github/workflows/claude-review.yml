@@ -32,7 +32,9 @@
 # Merge method (#453): a PR is squash-merged, unless any commit in it has more
 # than one parent (it brings dev in). Then it is merge-committed, so the epic
 # keeps dev's history and its later PR into dev does not see dev's work as
-# unmerged. The rule is read from the PR's commits through the API.
+# unmerged. The rule is read from the PR's commits through the API, which
+# lists at most 250; if the list is shorter than the PR, the job fails rather
+# than squash on a guess.
 #
 # Off switch: `gh workflow disable "Claude review"`.
 
@@ -198,14 +200,28 @@ jobs:
         # The method is decided from the PR's commits (API only, no checkout):
         # any commit with more than one parent means --merge, else --squash.
         run: |
-          merge_commits="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/commits" \
-            --jq '.[] | select((.parents | length) > 1) | .sha')"
-          if [ -n "$merge_commits" ]; then
+          # The commits list is capped at 250 (GitHub docs), oldest first, even
+          # with --paginate. So also check the head commit directly, and refuse
+          # to guess when the list is shorter than the PR's commit count.
+          list_json="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/commits" \
+            --jq '.[] | {sha, parents: (.parents | length)}')"
+          merge_commits="$(echo "$list_json" | jq -r 'select(.parents > 1) | .sha')"
+          listed="$(echo "$list_json" | jq -s 'length')"
+          total="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .commits)"
+          head_parents="$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA" --jq '.parents | length')"
+          echo "PR commits: total=$total listed=$listed head_parents=$head_parents"
+          if [ "$head_parents" -gt 1 ]; then
+            method="--merge"
+            echo "Merge method: merge commit, because the head commit ${HEAD_SHA:0:8} is a merge commit"
+          elif [ -n "$merge_commits" ]; then
             method="--merge"
             echo "Merge method: merge commit, because the PR contains merge commit(s): $(echo "$merge_commits" | cut -c1-8 | paste -sd, -)"
+          elif [ "$listed" -lt "$total" ]; then
+            echo "::error::GitHub listed only $listed of the PR's $total commits (the API caps at 250), so a merge commit could be hidden. Not merging; a person must choose the method."
+            exit 1
           else
             method="--squash"
-            echo "Merge method: squash, because no commit in the PR is a merge commit"
+            echo "Merge method: squash, because none of the PR's $total commits is a merge commit"
           fi
           for attempt in 1 2 3 4 5 6; do
             gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json mergeStateStatus,mergeable,statusCheckRollup \
