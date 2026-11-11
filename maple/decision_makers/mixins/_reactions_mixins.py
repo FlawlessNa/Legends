@@ -1,3 +1,4 @@
+import itertools
 import multiprocessing.managers
 import random
 from collections.abc import Callable
@@ -6,6 +7,12 @@ from typing import ClassVar
 from botting.core import ActionRequest, BotData, DiscordRequest
 from botting.utilities import cooldown
 from maple.actions import priorities, write_in_chat
+
+_REACTIONS = itertools.count(1)
+"""Numbers each reaction's request. A reaction may wait behind a reply being typed
+(`writing`'s chat-input guard) for longer than its cooldown, so the next can come
+while it is still running, and two requests sharing an identifier end the Task
+Manager."""
 
 
 class ReactionsMixin:
@@ -79,7 +86,7 @@ class ReactionsMixin:
         selected = self._draw(reaction_type, choices)
         self.send(
             ActionRequest(
-                f"{self} - Writing to chat",
+                f"{self} - Writing to chat #{next(_REACTIONS)}",
                 write_in_chat,
                 self.data.ign,
                 priorities.ANTI_DETECTION,

@@ -36,7 +36,10 @@ as `KILL` does, its Discord alert ringing the maintainer.
 
 **Takeover.** `replies_on` (`REPLIES OFF`, a Discord `WRITE`) stops the
 replies, not the reading: lines read then are context, posted to Discord as they
-come, and lines left pending are given up, never answered late.
+come, and lines left pending are given up, never answered late. A `WRITE` that
+comes while a reply is being typed never cuts it off: Main Process types one
+chat line at a time (`maple.actions.writing`), so the `WRITE` waits for the
+reply's last Enter, then types in full.
 
 Speakers' names and messages are logged and posted to Discord, never put in an
 event payload.

@@ -1,3 +1,4 @@
+import itertools
 import logging
 
 from botting.communications import BaseParser
@@ -13,6 +14,11 @@ from maple.actions import (
 from maple.screen.client import find_client
 
 logger = logging.getLogger(__name__)
+
+_WRITES = itertools.count(1)
+"""Numbers each `WRITE`'s request. A `WRITE` may wait behind the line being typed
+(`writing`'s chat-input guard), so the next can come while it is still running,
+and two requests sharing an identifier end the Task Manager."""
 
 
 class MapleParser(BaseParser):
@@ -44,7 +50,7 @@ class MapleParser(BaseParser):
         assert who is not None, "BaseParser names the IGN before it calls write"
         handle = find_client()
         return ActionRequest(
-            "Writing Message received from Discord",
+            f"Writing Message received from Discord #{next(_WRITES)}",
             write_in_chat,
             who,
             priorities.USER_REQUESTS,
