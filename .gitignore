@@ -200,3 +200,7 @@ cython_debug/
 # Agent probe output and throwaway Bots (docs/agents/game-client.md).
 probe/
 scratch/
+
+# Per-character chat reply instructions (maple/chat_replies/instructions.py).
+configs/chat_replies/*.extend.md
+configs/chat_replies/*.replace.md
