@@ -570,6 +570,13 @@ class KeyboardInputWrapper:
             # overshooting by that fixed cost.
             room = limit - result.duration - OVERHEAD
             if room < 0:
+                # No Step fits, yet less than `OVERHEAD` of the limit is left. That
+                # remainder is time the game spends still holding the last Step's
+                # state, so it belongs to that Step's delay: without it the cut
+                # landed short by a random amount below `OVERHEAD`, whichever way
+                # the random delays happened to fall.
+                if result.delays:
+                    result.delays[-1] += max(0.0, limit - result.duration)
                 break
             result.append(key, event, min(delay, room))
             if result.duration > limit:
