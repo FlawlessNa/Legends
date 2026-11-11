@@ -39,6 +39,25 @@ class ReactionsMixin:
         "Uhm Hello?",
     ]
 
+    def _draw(self, reaction_type: str, choices: list[str]) -> str:
+        """
+        Draws a line without replacement from this instance's own shuffled copy of
+        `choices`, and reshuffles a fresh copy once it is used up. The class-level
+        list is never modified, and a refill never starts with the line just sent.
+        """
+        decks: dict[str, list[str]] = self.__dict__.setdefault("_reaction_decks", {})
+        last: dict[str, str] = self.__dict__.setdefault("_reaction_last", {})
+        deck = decks.get(reaction_type)
+        if not deck:
+            deck = random.sample(choices, len(choices))
+            if len(deck) > 1 and deck[-1] == last.get(reaction_type):
+                # Lines are drawn from the end, so swap the repeat out of it.
+                deck[0], deck[-1] = deck[-1], deck[0]
+            decks[reaction_type] = deck
+        selected = deck.pop()
+        last[reaction_type] = selected
+        return selected
+
     @cooldown(10)
     def _react(self, reaction_type: str, disc_msg: str | None = None) -> None:
         """
@@ -57,8 +76,7 @@ class ReactionsMixin:
             )
             choices = self._advanced_reactions
 
-        selected = random.choice(choices)
-        choices.remove(selected)
+        selected = self._draw(reaction_type, choices)
         self.send(
             ActionRequest(
                 f"{self} - Writing to chat",
