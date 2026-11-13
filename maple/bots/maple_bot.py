@@ -13,6 +13,7 @@ from botting.visuals import InGameDetectionVisuals
 from maple.actions import ensure_minimap_displayed
 from maple.bots.map_check import check_named_map, identify_map
 from maple.bots.map_setting import is_auto, refuse_game_map, resolve_map_id
+from maple.decision_makers.mobs_hitting import MobsHitting
 from maple.decision_makers.rebuffs import solo_buffs
 from maple.launchers.profile import ProfileError
 from maple.model.characters import MAPPING as CHARACTER_MAPPING
@@ -93,6 +94,15 @@ class MapleBot(Bot, ABC):
                 f"`mobs: {mobs}` must be a list of mob names, such as `[{mobs}]`."
             )
         self.mobs = tuple(mobs or ())
+        if not self.mobs and MobsHitting in self._decision_makers():
+            # `MobsHitting` counts 0 mobs every cycle and the bot never casts.
+            # An empty list stays valid for a bot that does not train.
+            logger.warning(
+                "Profile %r has no `mobs`: this bot hits mobs, but its detection "
+                "looks for none, so it will never cast. Add `mobs: [...]` to "
+                "the profile's settings.",
+                ign,
+            )
         # Parsed here so a misspelt constant refuses the start; Movement Plans
         # read it through `data.calibration`.
         self.calibration = Calibration.from_mapping(calibration)

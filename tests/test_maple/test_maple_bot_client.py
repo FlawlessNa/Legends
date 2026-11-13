@@ -1,6 +1,7 @@
 """How a MapleBot finds its client, and what it needs from the profile: its job,
 its map and the mobs it looks for."""
 
+import logging
 from collections.abc import Sequence
 from types import SimpleNamespace
 from typing import Any
@@ -12,6 +13,7 @@ from botting.screen import Frame
 from game_data.catalogue import Bounds
 from maple.bots import maple_bot
 from maple.bots.maple_bot import MapleBot
+from maple.decision_makers.mobs_hitting import MobsHitting
 from maple.launchers.profile import ProfileError
 from maple.model.mechanics.physics import Calibration
 from maple.model.world import MinimapTransform, WorldMap
@@ -130,6 +132,57 @@ def test_mobs_must_be_a_list() -> None:
             character_class="Bishop",
             mobs="Bubbling",
         )
+
+
+class _TrainingBot(_Bot):
+    def _decision_makers(self) -> list[type[DecisionMaker]]:
+        return [MobsHitting]
+
+
+def _warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+
+
+@pytest.mark.parametrize("mobs", [None, []])
+def test_a_training_bot_without_mobs_warns_once(
+    caplog: pytest.LogCaptureFixture, mobs: list[str] | None
+) -> None:
+    with caplog.at_level(logging.WARNING, logger=maple_bot.logger.name):
+        _TrainingBot(
+            "Someone",
+            {},  # pyright: ignore[reportArgumentType] - metadata is never read here
+            map="auto",
+            character_class="Bishop",
+            mobs=mobs,
+        )
+
+    (message,) = _warnings(caplog)
+    assert "Someone" in message
+    assert "`mobs`" in message
+
+
+def test_a_training_bot_with_mobs_does_not_warn(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger=maple_bot.logger.name):
+        _TrainingBot(
+            "Someone",
+            {},  # pyright: ignore[reportArgumentType] - metadata is never read here
+            map="auto",
+            character_class="Bishop",
+            mobs=["Bubbling"],
+        )
+
+    assert _warnings(caplog) == []
+
+
+def test_a_bot_that_does_not_train_may_have_no_mobs(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger=maple_bot.logger.name):
+        _bot(map="auto")
+
+    assert _warnings(caplog) == []
 
 
 def _bot(**settings: Any) -> _Bot:  # noqa: ANN401 - profile settings
