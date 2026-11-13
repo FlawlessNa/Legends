@@ -123,9 +123,6 @@ gitignored, and everyone runs their own bot, so there's no reason for it to be
 shared. Same for `configs/keybindings.ini`, `configs/recordings.ini`, and your
 `profiles/*.yaml`.
 
-**Do commit `configs/maps/`.** Recorded maps are shared work and expensive to
-reproduce. When you record one, it belongs in a PR.
-
 **`configs/game.ini` and `configs/character_detection.ini` are shared.**
 Changing them changes everyone's setup — call it out in the PR description.
 

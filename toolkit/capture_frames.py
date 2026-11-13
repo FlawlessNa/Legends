@@ -97,7 +97,7 @@ if __name__ == "__main__":
     parser.add_argument("--interval", type=float, default=2.0)
     args = parser.parse_args()
 
-    sprites = load_reader_sprites([FRAME_CHECK], Profile(job="", game_map=""))
+    sprites = load_reader_sprites([FRAME_CHECK], Profile(job=""))
     kept = capture(
         frame_source(),
         find_client(),

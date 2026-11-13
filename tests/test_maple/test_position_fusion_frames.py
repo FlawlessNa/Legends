@@ -80,7 +80,7 @@ def _by_map(frames: FrameSet) -> dict[int, list[FrameEntry]]:
 def _read_map(
     frames: FrameSet, map_id: int, entries: list[FrameEntry], finder: NameTagFinder
 ) -> Iterator[Fused]:
-    profile = Profile(job="Swordsman", game_map="x", map_id=map_id)
+    profile = Profile(job="Swordsman", map_id=map_id)
     sprites = load_reader_sprites([FRAME_CHECK, MINIMAP], profile, STORE, config=CONFIG)
     frame_check = FrameCheck(sprites)
     minimap = MinimapReader(sprites, frame_check, map_id=map_id)

@@ -59,13 +59,7 @@ CONTRACTS = [
 ]
 
 # (file relative to ROOT, the module it imports) -> the issue that removes it.
-KNOWN_EXCEPTIONS: dict[tuple[str, str], str] = {
-    # The GUI map editor draws its key timeline with the toolkit's visualiser.
-    (
-        "maple/model/mechanics/minimap_creation/map_editor.py",
-        "toolkit.movement_timeline",
-    ): "#383",
-}
+KNOWN_EXCEPTIONS: dict[tuple[str, str], str] = {}
 
 
 def imported_modules(source: str, package: tuple[str, ...]) -> set[str]:

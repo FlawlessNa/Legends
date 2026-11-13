@@ -43,7 +43,9 @@ on another machine, reaching this one through an SSH tunnel
 - `tests/`: the pytest suite. Opt-in markers `live`, `system`, `lab`,
   `client_files` and `frames` are deselected by default
   (`docs/agents/testing.md`).
-  `configs/`: `.ini` settings, plus one JSON per map under `configs/maps/`.
+  `configs/`: `.ini` settings, and the Trial schedules under `configs/trials/`.
+  Maps come from the client's files through `game_data/`, not from a
+  hand-made file (ADR 0004).
 - `toolkit/`: standalone scripts that no production code imports (only
   `tests/` may, to test them). `ml_training/`: model
   training.

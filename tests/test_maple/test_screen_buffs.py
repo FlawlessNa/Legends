@@ -344,7 +344,7 @@ def test_a_buff_whose_icon_wasnt_loaded_is_a_programming_error(
 
 
 def test_the_declaration_names_the_base_and_the_profiles_buffs() -> None:
-    profile = Profile(job="Cleric", game_map="x", buffs=("Bless", "Invincible"))
+    profile = Profile(job="Cleric", buffs=("Bless", "Invincible"))
 
     assert BUFFS.canvas_paths(profile) == (ICON_BASE,)
     assert BUFFS.skill_names(profile) == ("Bless", "Invincible")

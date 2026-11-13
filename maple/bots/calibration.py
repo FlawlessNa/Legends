@@ -25,7 +25,6 @@ class CalibrationBot(MapleBot):
         bot: calibration
         settings:
           map: "Victoria Road: Ellinia"
-          game_map: GhostShip1   # still required until #399; never read by Trials
           character_class: Bishop
           trial_schedule: physics
 

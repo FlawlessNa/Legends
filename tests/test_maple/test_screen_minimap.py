@@ -583,10 +583,8 @@ def test_a_maps_canvas_path_follows_the_clients_folders() -> None:
 
 
 def test_the_declaration_names_the_maps_canvas_only_when_the_map_id_is_known() -> None:
-    without = MINIMAP.canvas_paths(Profile(job="Cleric", game_map="Somewhere"))
-    with_id = MINIMAP.canvas_paths(
-        Profile(job="Cleric", game_map="Somewhere", map_id=MAP_ID)
-    )
+    without = MINIMAP.canvas_paths(Profile(job="Cleric"))
+    with_id = MINIMAP.canvas_paths(Profile(job="Cleric", map_id=MAP_ID))
 
     markers = {marker_path(kind) for kind in MARKER_KINDS}
     assert set(without) == {*FRAME_PARTS, USER, *markers}

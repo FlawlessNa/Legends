@@ -2,7 +2,9 @@
 
 A MapleStory botting framework. `botting/` is the generic engine (process
 orchestration, input control, logging); `maple/` is the game-specific layer
-(movement, decision-making, minimap model) built on top of it.
+(movement, decision-making, screen reading) built on top of it. The map comes
+from the client's files through `game_data/`, and navigation works in its
+virtual coordinates (ADR 0004).
 
 ## Language
 
@@ -95,12 +97,13 @@ prevent.
 ## Movement compilation
 
 **Path**:
-The moves leading from the character's current position to its target, as the
-foothold graph plans them on the map's own platforms and ropes: each a walk,
+The moves leading from the character's Virtual position to its target, as the
+Foothold graph plans them on the map's own Platforms and ropes: each a walk,
 climb, jump, drop, fall, teleport or portal, with an exact take-off and landing
-in virtual coordinates.
+in virtual coordinates. No longer a chain of minimap grid cells: the grid and
+the hand-made map files it was built from are retired (#399).
 _Avoid_: Route — "route cycle" already means the repeating decide-and-move loop,
-not the cells themselves.
+not the moves themselves.
 
 **Movement Plan**:
 The Path expressed as game-level intent — a sequence of typed movements with
@@ -112,7 +115,7 @@ _Avoid_: Movements, movement list.
 **Input Sequence**:
 A Movement Plan compiled down to a keystroke script: the ordered keys, events
 and delays that will be handed to `SendInput`, plus the keys declared for forced
-release. Deterministic given a map config, a start, an end, and the keys held
+release. Deterministic given a map, a start, an end, and the keys held
 going in.
 _Avoid_: Action, structure, input structure — "Action" is a different thing
 (below), and `structure` is the local variable name, not the concept.
@@ -220,8 +223,9 @@ _Avoid_: Movement tests, movement framework — "framework" is the whole effort,
 the lab is only its offline half.
 
 **Fixture map**:
-A small synthetic map (game data's `MapData`, written in code) for the lab, built
-to force one movement type rather than to describe a real place. Distinguished
+A small synthetic map (game data's `MapData`, written in code, never a
+hand-written map file) for the lab, built to force one movement type rather than
+to describe a real place. Distinguished
 from the real maps of the game data store the bot actually runs on, which the
 lab also uses but which cover only whatever movements they happen to contain.
 _Avoid_: Test map, fake map — the real maps in the corpus are test maps too.
@@ -256,20 +260,20 @@ _Avoid_: Run, experiment, test — a Session run, a measured experiment, and a
 lab test are each different things here.
 
 **Calibration constant**:
-A value the movement system consumes that only the live game can settle,
-supplied per stat-value (speed% / jump%) as session config. Starts from the
+A value the movement system consumes that only the live game can settle: walk,
+jump, climb or teleport, set in the profile's `calibration:` mapping and applied
+on top of the character's speed and jump multipliers. Starts at 1.0 on the
 game-file physics derivations and is adjusted only when Trials demonstrate a
 systematic bias — and then as a multiplier on the derivation, never as an
-absolute minimap distance, so an adjustment fitted on one map ports to every
-map's scale. Good enough for the loop to converge is the bar; exact is not a
-goal.
+absolute distance. Good enough for the loop to converge is the bar; exact is
+not a goal.
 _Avoid_: Physics constant — those are the fixed game-file source values a
 calibration constant starts from.
 
 **Knob**:
 A controller parameter a Trial batch may override to sweep its effect — the
 decision-loop interval, the Action duration cap, the narrow-platform and
-edge-departure thresholds. Choosing new defaults from the measured curves is
+edge-departure thresholds (in virtual px). Choosing new defaults from the measured curves is
 calibration; redesigning the controller is a different effort.
 _Avoid_: Setting, parameter — too generic to name the swept things.
 
@@ -359,7 +363,8 @@ detection this term replaces, defeated by knockback jitter.
 
 **Stagnation**:
 The Stuck symptom where the character moves but the remaining Path time stops
-shrinking over the window. Measured on the freshly recomputed Path, never on
+shrinking over the window (time on the Foothold graph's moves; a Path has no
+nodes to count). Measured on the freshly recomputed Path, never on
 distance-to-target, so a legitimate detour away from the target is not
 Stagnation by construction.
 _Avoid_: No-progress — two words, and "progress" invites the distance-to-target
@@ -377,8 +382,8 @@ Churn is the live detector whose firings the counter should corroborate.
 The Stuck symptom where one target has not been reached within a budget derived
 from its initial Path's time, regardless of apparent motion. The backstop that
 holds even when every finer detector is blind.
-_Avoid_: Unreachable — reachability is the pathfinder's word for a grid
-property; this is a live budget expiring.
+_Avoid_: Unreachable — reachability is the Foothold graph's property; this is
+a live budget expiring.
 
 **Starvation**:
 The Stuck symptom where the rotation keeps producing movements but no movement
@@ -434,10 +439,11 @@ Pixels on the map's own minimap canvas (`miniMap/canvas` in its map image),
 from the canvas's top-left. On MSCW the minimap's map area is only a window on
 that canvas: centred when the canvas is narrower, scrolling with the character
 when it is taller. So a position is read by locating the canvas in the map
-area, which needs the map file's `map_id`; without one no position is read. The
-character's minimap position is where the origin of its marker,
-`Map/MapHelper.img/minimap/user`, is drawn. `configs/maps/` and pathfinding
-work in this unit.
+area, which needs the map's id (the profile's `map`, or the map `auto`
+identified); without one no position is read. The character's minimap position
+is where the origin of its marker, `Map/MapHelper.img/minimap/user`, is drawn.
+It is converted to virtual coordinates (`canvas × 16 − centre`, plus the feet
+correction) for the coarse Virtual position; nothing plans in this unit.
 _Avoid_: Minimap pixels from the map area's corner (they move as it scrolls),
 from the frame's corner, or from the screen.
 
@@ -445,5 +451,43 @@ from the frame's corner, or from the screen.
 The map's own coordinate system, the one its footholds, ropes, portals, spawns
 and layers are stored in, and in which a map is rendered with its VR bounds'
 top-left at pixel (0, 0). Distinct from screen coordinates, which move with the
-camera, and from minimap coordinates, which are scaled.
-_Avoid_: Map coordinates, world coordinates.
+camera, and from minimap coordinates, which are scaled. The unit of
+navigation: positions, footholds, Paths and Movement Plan lengths are in
+virtual px (ADR 0004).
+_Avoid_: Map coordinates, world coordinates. `WorldMap` names the map model,
+not a unit.
+
+## Navigation
+
+**Virtual position**:
+Where our character's feet are, in virtual coordinates, read every cycle as a
+`Reading[VirtualPosition]` (`data.current_position`). Fused from two reads: the
+play area for precision (the Camera plus the feet found on screen) and the
+minimap as the check and the fallback. A position from the minimap alone is
+flagged coarse; one that can't be placed, or whose reads disagree, is `UNSURE`,
+never a plausible number.
+_Avoid_: Minimap position (that is one of its two reads), world position.
+
+**Camera**:
+The virtual coordinate of the play area's top-left: where on the map the client
+is looking. Read by matching the play area against the map's static render;
+adding it to the feet found on screen gives their Virtual position.
+_Avoid_: Viewport, scroll — the client scrolls the minimap too.
+
+**Platform**:
+A maximal chain of non-vertical footholds joined by their `prev`/`next`, from
+the map's game files, in virtual px. What the character stands and walks on;
+rotation picks its targets on Platforms. A vertical foothold is a wall, never
+part of one.
+_Avoid_: Feature, floor — a feature was a hand-drawn region of the retired map
+files.
+
+**Foothold graph**:
+The map's Platforms, ropes, ladders and portals as a graph: nodes are platform
+ends, rope ends and attachments, and portals; edges are moves with a time cost
+(walk, climb, drop, fall, jump, teleport, portal), a drop or jump that works
+from a stretch of platform stored as an x-range. A query inserts the start and
+the goal and runs A*; its answer is a Path. Built per map and per speed and
+jump stats, off the decision loop.
+_Avoid_: Grid, minimap grid — the grid it replaced, one node per minimap
+pixel, is retired.

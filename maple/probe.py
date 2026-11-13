@@ -141,7 +141,7 @@ def readers() -> Readers:
     """
     try:
         sprites = load_reader_sprites(
-            [FRAME_CHECK, STATUS_BAR, MINIMAP, BUFFS], Profile(job="", game_map="")
+            [FRAME_CHECK, STATUS_BAR, MINIMAP, BUFFS], Profile(job="")
         )
     except StartupRefused as err:
         raise ProbeError(EXIT_ERROR, f"The regions need the game data: {err}")
@@ -615,9 +615,7 @@ def cmd_click(args: argparse.Namespace) -> dict:
 def menu_sprites() -> ReaderSprites:
     """The Game Menu's and Options window's sprites, from the `game_data` store."""
     try:
-        return load_reader_sprites(
-            list(menus.DECLARATIONS), Profile(job="", game_map="")
-        )
+        return load_reader_sprites(list(menus.DECLARATIONS), Profile(job=""))
     except StartupRefused as err:
         raise ProbeError(EXIT_ERROR, f"`resolution` needs the game data: {err}")
 

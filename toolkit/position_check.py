@@ -280,7 +280,7 @@ class MapReaders:
         :raises LookupError: The store's catalogue has no map `map_id`.
         :raises ValueError: The map has no minimap.
         """
-        profile = Profile(job="", game_map="", map_id=map_id)
+        profile = Profile(job="", map_id=map_id)
         sprites = load_reader_sprites(
             [FRAME_CHECK, MINIMAP], profile, store, config=config
         )
@@ -835,7 +835,7 @@ class Identifier:
         from maple.screen.minimap_title import MinimapTitleReader
 
         sprites = load_reader_sprites(
-            [FRAME_CHECK, MINIMAP], Profile(job="", game_map=""), store, config=config
+            [FRAME_CHECK, MINIMAP], Profile(job=""), store, config=config
         )
         self.frame_check = FrameCheck(sprites)
         minimap = MinimapReader(sprites, self.frame_check)

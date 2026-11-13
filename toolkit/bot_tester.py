@@ -11,7 +11,7 @@ logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
 IGN = "StarBase"
-GAME_MAP = "GhostShip1"
+MAP = "auto"
 CHARACTER_CLASS = "Priest"
 
 
@@ -28,7 +28,7 @@ async def test() -> None:
         bot = TestBot(
             IGN,
             session.metadata,
-            game_map=GAME_MAP,
+            map=MAP,
             character_class=CHARACTER_CLASS,
         )
         await session.launch([bot])

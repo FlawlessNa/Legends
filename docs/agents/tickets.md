@@ -93,7 +93,7 @@ starts and you read with the Session reader.
   verdict with counts and the Session directory (`game-client.md`, "Live
   Session").
 - **Not verified:** say why (no client open, the maintainer was not available
-  to start a Session, the change needs a minimap trail), and put what a human
+  to start a Session, the change needs a Trial run at the client), and put what a human
   must watch in the PR's handoff. That is a legitimate outcome, not a failure;
   "Nothing to verify" is not one when keys or timing can change.
 
@@ -106,8 +106,8 @@ Stop rather than finish whenever the work needs:
 - a **running game client**, to reproduce, confirm or record, beyond the
   probe and a Test Session the maintainer starts for you ("Against the live
   game" above);
-- a **minimap trail**, recorded through the GUI editor in
-  `maple/model/mechanics/minimap_creation/`;
+- a **Trial run**: a Trial schedule (`configs/trials/`) driven at the client,
+  which the maintainer starts;
 - a judgment that reduces to **watching the character**.
 
 Stopping is compliance, not failure. Report what you finished, what you did
@@ -125,7 +125,8 @@ config parsing, logging.
 - the input send path, focus handling, and the Held-Keys Ledger (ADR 0002);
 - the telemetry envelope and transport (ADR 0001);
 - anything an ADR decides;
-- map JSON under `configs/maps/`, and pinned dependency versions;
+- what is left of `configs/maps/` (retired by #399, ADR 0004), and pinned
+  dependency versions;
 - `maple/decision_makers/inventory_manager.py`, which is parked (see
   `maple/AGENTS.md`).
 

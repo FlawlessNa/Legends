@@ -24,10 +24,11 @@ editing a test; what follows is only the shape of the suite.
   Held-Keys Ledger's cross-test state doesn't leak into your assertions.
   Modules that touch the ledger directly reset it with their own `autouse`
   fixture — see `test_botting/test_held_keys_ledger.py`.
-- **`test_maple/movement_lab/`** holds the movement lab's **Corpus**: hand-written
-  **fixture maps** under `maps/`, and one frozen sample of `(start, end, reachable)`
-  triples per map under `pairs/`. `corpus.py` is the only loader — it caches each
-  map's grid, Paths and Movement Plans for the session, so add a check by reading
+- **`test_maple/movement_lab/`** holds the movement lab's **Corpus**: synthetic
+  **fixture maps** (`MapData` written in `fixture_maps.py`) beside real maps from
+  the game data store, and one frozen sample of `(start, end, reachable)` triples
+  per map under `pairs/`. `corpus.py` is the only loader — it caches each map's
+  Foothold graph, Paths and Movement Plans for the session, so add a check by reading
   `corpus.plans(entry)` rather than by computing Paths again. The samples are
   generated, never hand-edited: `python toolkit/generate_movement_lab_pairs.py`
   (`--check` reports drift without writing). A pair whose reachability changed is a

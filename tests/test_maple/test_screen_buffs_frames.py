@@ -24,7 +24,7 @@ NAMES = ("Recovery", "Nimble Feet")
 def reader() -> BuffsReader:
     sprites = load_reader_sprites(
         [FRAME_CHECK, BUFFS],
-        Profile(job="Swordsman", game_map="x", buffs=NAMES),
+        Profile(job="Swordsman", buffs=NAMES),
         STORE,
         config=CONFIG,
     )
