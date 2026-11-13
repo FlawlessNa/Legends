@@ -181,9 +181,9 @@ def _find_name_tags(pixels: NDArray[np.uint8], scale: float) -> list[_Tag]:
     small gaps (`hybrid_tracker.find_name_tags`). Two tags drawn side by side
     can join into one.
     """
-    lightest = pixels.min(axis=2)
+    lightest = _channel_min(pixels)
     white = (lightest >= _white(scale)).astype(np.uint8)
-    dark = pixels.max(axis=2) <= _dark(scale)
+    dark = _channel_max(pixels) <= _dark(scale)
     joined = cv2.dilate(white, np.ones((1, max(3, round(7 * scale))), np.uint8))
     _, _, stats, _ = cv2.connectedComponentsWithStats(joined, connectivity=8)
     rows, cols = pixels.shape[:2]
@@ -310,8 +310,20 @@ def _searched(pixels: NDArray[np.uint8]) -> NDArray[np.uint8]:
     return pixels[: max(0, pixels.shape[0] - STATUS_BAR_ROWS)]
 
 
+def _channel_min(pixels: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    """Each pixel's darkest channel: `pixels.min(axis=2)`, which takes 38 ms on
+    a 1920x1080 frame where this takes 3 (numpy reduces a 3-wide last axis
+    slowly; #508)."""
+    return np.minimum(np.minimum(pixels[..., 0], pixels[..., 1]), pixels[..., 2])
+
+
+def _channel_max(pixels: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    """Each pixel's brightest channel: `pixels.max(axis=2)`, as `_channel_min`."""
+    return np.maximum(np.maximum(pixels[..., 0], pixels[..., 1]), pixels[..., 2])
+
+
 def _lightest(pixels: NDArray[np.uint8]) -> NDArray[np.float32]:
-    return pixels.min(axis=2).astype(np.float32)
+    return _channel_min(pixels).astype(np.float32)
 
 
 def _feet(box: Box, scale: float) -> tuple[float, float]:
@@ -373,7 +385,12 @@ def _scores(
     hay: NDArray[np.float32], needle: NDArray[np.float32]
 ) -> NDArray[np.float32]:
     score = cv2.matchTemplate(hay, needle, cv2.TM_CCOEFF_NORMED)
-    return np.nan_to_num(score, nan=-1.0).astype(np.float32, copy=False)
+    # OpenCV's normalised scores are finite or NaN (a flat window); only NaN
+    # needs a value. `np.nan_to_num` also scanned the frame for infinities, 7 ms
+    # on a 1920x1080 frame (#508).
+    score = np.asarray(score, dtype=np.float32)
+    score[np.isnan(score)] = -1.0
+    return score
 
 
 def _best(
