@@ -16,10 +16,16 @@ machine.
 import pytest
 
 from botting.screen import Reading
-from maple.calibration.driver import COARSE_SLACK, DefectPolicy, TrialDriver
+from maple.calibration.driver import (
+    COARSE_SLACK,
+    SETUP_MOVE_FAILURES,
+    DefectPolicy,
+    TrialDriver,
+)
 from maple.calibration.records import (
     CycleRecord,
     ListSink,
+    MovementSummary,
     Phase,
     ScheduleHeader,
     TrialOutcome,
@@ -149,6 +155,134 @@ def test_a_trial_that_never_reached_its_start_reports_no_measurement() -> None:
     (outcome,) = outcomes(sink)
     assert outcome.result == TrialResult.SETUP_FAILED
     assert outcome.time_to_arrival is None
+
+
+# --- A move the positioning Path keeps failing (#509) ------------------------------
+#
+# Live, `gap-right-1` planned the same jump off a ledge again after each fall,
+# for 61 s. The plans below are that shape: walk to the ledge's take-off, jump
+# up (J1), then jump on (J2); after a fall, a grab onto the rope back up first.
+
+
+def move(
+    kind: str, start: tuple[float, float], end: tuple[float, float]
+) -> MovementSummary:
+    return MovementSummary(
+        kind,
+        abs(end[0] - start[0]) + abs(end[1] - start[1]),
+        False,
+        False,
+        start=start,
+        end=end,
+    )
+
+
+J1 = move("JUMP_LEFT", (-413, -2), (-483, -42))
+J2 = move("JUMP_LEFT", (-484, -42), (-564, -53))
+GRAB = move("JUMP_RIGHT", (-327, 228), (-316, 193))
+
+
+def at_ledge(walk: float = 59.0) -> tuple[MovementSummary, ...]:
+    """On the ledge, `walk` px short of J1's take-off."""
+    return (
+        move("WALK_LEFT", (-413 + walk, -2), (-413, -2)),
+        J1,
+        move("WALK_LEFT", (-483, -42), (-484, -42)),
+        J2,
+        move("WALK_LEFT", (-564, -53), (-620, -52)),
+    )
+
+
+def fallen() -> tuple[MovementSummary, ...]:
+    """Back on the ground: to the rope, up it, and along the ledge to J1."""
+    return (
+        move("WALK_RIGHT", (-694, 284), (-327, 228)),
+        GRAB,
+        move("CLIMB_UP", (-316, 193), (-316, -2)),
+        *at_ledge(97.0),
+    )
+
+
+def positioning_driver() -> tuple[TrialDriver, ListSink]:
+    return driver(
+        schedule(TrialBatch("b", (spec(start=(-620, -52), setup_budget=60.0),)))
+    )
+
+
+def test_a_move_that_fails_three_times_closes_the_setup_early_naming_it() -> None:
+    d, sink = positioning_driver()
+    plans = [at_ledge(), fallen(), at_ledge(), fallen(), at_ledge(), fallen()]
+    verdicts = [
+        d.advance(at(0, 0), float(t), plan=plan) for t, plan in enumerate(plans)
+    ]
+
+    (outcome,) = outcomes(sink)
+    assert outcome.result == TrialResult.SETUP_FAILED
+    assert outcome.failed_move == J1
+    assert outcome.duration == 5.0
+    assert [v.dispatch for v in verdicts] == [True] * 5 + [False]
+    assert not cycles(sink)[-1].dispatched
+    assert SETUP_MOVE_FAILURES == 3
+
+
+def test_a_move_that_worked_is_no_failure() -> None:
+    d, sink = positioning_driver()
+    on_upper = (J2, move("WALK_LEFT", (-564, -53), (-620, -52)))
+    walking = (move("WALK_LEFT", (-600, -52), (-620, -52)),)
+    # The grab works (the next plan opens on J1), J1 works (on J2), J2 works
+    # (no move left), each time; a Path that keeps working never gives up.
+    for t in range(0, 30, 4):
+        for k, plan in enumerate((fallen(), at_ledge(), on_upper, walking)):
+            d.advance(at(0, 0), float(t + k), plan=plan)
+
+    assert outcomes(sink) == []
+
+
+def test_a_fall_back_short_of_the_same_move_is_a_failure() -> None:
+    """
+    Live, the `branch-` Trials fell back onto the platform they jumped from:
+    the next plan opened on the same jump, only further from it.
+    """
+    d, sink = positioning_driver()
+    for t, walk in enumerate([100, 20, 157, 30, 150, 10, 160]):
+        d.advance(at(0, 0), float(t), plan=at_ledge(walk))
+
+    (outcome,) = outcomes(sink)
+    assert outcome.failed_move == J1
+    assert outcome.duration == 6.0
+
+
+def test_walking_up_to_a_move_over_many_cycles_is_no_failure() -> None:
+    d, sink = positioning_driver()
+    for t, walk in enumerate([400, 330, 340, 260, 190, 120, 50, 5, 12]):
+        d.advance(at(0, 0), float(t), plan=at_ledge(walk))
+
+    assert outcomes(sink) == []
+
+
+def test_a_cycle_with_no_plan_judges_no_move() -> None:
+    d, sink = positioning_driver()
+    for t, plan in enumerate([at_ledge(), (), fallen(), (), at_ledge(), ()]):
+        d.advance(at(0, 0), float(t), plan=plan)
+    d.advance(unsure(), 6.0, plan=fallen())
+
+    assert outcomes(sink) == []
+
+
+def test_a_measured_move_that_fails_runs_to_its_budget() -> None:
+    """What the measured phase does is the measurement: it is never cut short."""
+    d, sink = driver(
+        schedule(TrialBatch("b", (spec(start=(0, 0), target=(-620, -52)),)))
+    )
+    d.advance(at(0, 0), 0.0)
+    for t in range(1, 9):
+        d.advance(at(-400, 0), float(t), plan=at_ledge() if t % 2 else fallen())
+
+    assert outcomes(sink) == []
+    d.advance(at(-400, 0), 11.0, plan=fallen())
+    (outcome,) = outcomes(sink)
+    assert outcome.result == TrialResult.TIMEOUT
+    assert outcome.failed_move is None
 
 
 def test_positioning_cycles_are_recorded_and_labelled() -> None:

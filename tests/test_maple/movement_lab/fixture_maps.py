@@ -165,11 +165,14 @@ def teleport_shaft() -> MapData:
 
 
 def narrow_perch() -> MapData:
-    """Two floors with a 30 px perch between them, 50 px from each."""
+    """
+    Two floors with a 40 px perch between them, 50 px from each: narrow, and
+    still wide enough for a jump to land `LANDING_MARGIN` inside both its ends.
+    """
     return _map(
         900_000_007,
         "narrow_perch",
-        _footholds((0, 0, 200, 0), (250, 0, 280, 0), (330, 0, 530, 0)),
+        _footholds((0, 0, 200, 0), (250, 0, 290, 0), (340, 0, 540, 0)),
     )
 
 

@@ -193,7 +193,7 @@ _MOVEMENT_TYPE_CASES: dict[
     "jump_down": ("jump_ledge", (380.0, -50.0), (372.0, 0.0)),
     "enter_portal": ("portal_pair", (156.0, 0.0), (724.0, -400.0)),
     "teleport": ("teleport_shaft", (96.0, -110.0), (268.0, -110.0)),
-    "narrow_jump": ("narrow_perch", (160.0, 0.0), (258.0, 0.0)),
+    "narrow_jump": ("narrow_perch", (116.0, 0.0), (278.0, 0.0)),
     # A jump straight up into a rope's bottom (#111), and a sideways one onto it.
     "rope_grab_up": ("rope_grab", (300.0, 0.0), (300.0, -150.0)),
     "rope_grab_side": ("rope_grab", (356.0, 0.0), (300.0, -82.0)),

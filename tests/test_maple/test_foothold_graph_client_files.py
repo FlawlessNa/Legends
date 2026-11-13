@@ -11,7 +11,7 @@ from collections.abc import Callable, Iterator
 import pytest
 
 from game_data.catalogue import Rope
-from maple.model.mechanics.physics import VRPhysics
+from maple.model.mechanics.physics import Calibration, VRPhysics
 from maple.model.navigation import (
     Direction,
     FootholdGraph,
@@ -221,3 +221,49 @@ def test_no_path_between_joined_platforms_holds_a_jump_that_saves_no_time(
         assert MoveKind.JUMP not in {m.kind for m in path.moves}, (join, path)
     # Damp Forest has no joins; Ellinia's are flat and plentiful.
     assert trips or not any(m.kind is MoveKind.WALK for m in graph.moves)
+
+
+# --- the jumps the physics Trials could not land (#509) ---------------------------
+
+#: The physics of the `physics-jump-only` run of 2026-11-13: speed 100%, the
+#: walk Calibration constant 1.19.
+JUMP_RUN = Calibration(walk=1.19)
+
+#: What that run saw land: the highest rise onto a platform, and the landing
+#: nearest an open end that landed (`JUMP_RISE_SHARE`, `LANDING_MARGIN`).
+HIGHEST_RISE_SEEN = 73.6
+NARROWEST_MARGIN_SEEN = 15.5
+
+
+@pytest.mark.parametrize(
+    ("start", "goal"),
+    [
+        # From the bottom up the rope at x -316 to the `gap-` Trials' start: the
+        # Path jumped off the rope-top ledge at x -413 to land 1.1 px inside the
+        # left end of the platform above, and fell (1 landing in 6).
+        ((-420.0, 237.0), (-620.0, -52.0)),
+        # The `branch-` Trials' start, from the slope they fell back to: the
+        # Path jumped left at x 663 to land 77.0 px up, at the top of a 77.006
+        # px arc (no landing in 40).
+        ((565.0, 153.0), (180.0, -40.0)),
+    ],
+)
+def test_ellinias_paths_jump_only_where_a_landing_was_seen_live(
+    start: Point, goal: Point
+) -> None:
+    world = WorldMap.load("Victoria Road: Ellinia")
+    physics = VRPhysics.load(calibration=JUMP_RUN)
+    graph = FootholdGraph.build(world, physics)
+
+    path = graph.path(start, goal)
+
+    assert path is not None
+    for move in path.moves:
+        if move.kind is not MoveKind.JUMP or not isinstance(move.end_on, Platform):
+            continue
+        assert move.start[1] - move.end[1] <= HIGHEST_RISE_SEEN, move
+        if move.direction in (Direction.LEFT, Direction.RIGHT):
+            inside = min(
+                move.end[0] - move.end_on.left, move.end_on.right - move.end[0]
+            )
+            assert inside >= NARROWEST_MARGIN_SEEN, move

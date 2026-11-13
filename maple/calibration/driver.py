@@ -64,6 +64,26 @@ MINIMAP_PX: Final = 16.0
 #: canvas pixel to a corner, half a pixel on each axis.
 COARSE_SLACK: Final = MINIMAP_PX / 2 * math.sqrt(2)
 
+#: How many times one move of the positioning Path may fail before the Trial
+#: closes as `SETUP_FAILED`, rather than when the setup budget runs out (#509).
+#: The precision-movement taxonomy's tightest rows (PM1 to PM3) give a move 3
+#: Attempts (`docs/planning/precision-movement-taxonomy.md`), and production's
+#: Reaction Ladder abandons a target on the third failure (2 Reflexes, then
+#: Abandon: `RecoveryThresholds.reflex_attempts`). The live records of
+#: 2026-11-13 replayed through it: `gap-right-1` gives up at 27 s instead of
+#: 61, the `branch-` setups at 8 s instead of 60, and no Trial that arrived is
+#: cut short; `branch-right-1` failed one jump twice, then arrived, so 2 would.
+SETUP_MOVE_FAILURES: Final = 3
+
+#: How near two moves' take-offs, and their landings, lie to be one move, in
+#: virtual px: one minimap px. A replan from a fresh read moves a take-off by
+#: less; a different take-off on the same platform is another move.
+SAME_MOVE_PX: Final = MINIMAP_PX
+
+#: Movement Plan components that travel along one surface; every other one is
+#: a move between two (a jump, a drop, a teleport, a portal).
+_TRAVEL: Final = frozenset({"WALK_LEFT", "WALK_RIGHT", "CLIMB_UP", "CLIMB_DOWN"})
+
 
 @dataclass(frozen=True)
 class DefectPolicy:
@@ -164,6 +184,78 @@ class Verdict:
     finished: bool = False
 
 
+@dataclass
+class _MoveFailures:
+    """
+    Which move of the positioning Path keeps failing (#509), read off the
+    cycles' Movement Plans alone. A plan's *next move* is its first component
+    that is no walk or climb, and its *lead* the walking and climbing before
+    it. When a later plan opens on the move after it, the move worked; on the
+    same move, it is still under way, unless its lead grew by more than
+    `SAME_MOVE_PX`: the character fell back short of it, or went past it. On
+    any other move, it failed and the character is somewhere else. A plan with
+    no move left worked too, and a cycle with no plan judges nothing.
+
+    This is no Attempt count (`toolkit/movement_attempts.py`): it reads no
+    position, and needs none to see a Path start over somewhere else.
+    """
+
+    _failures: list[tuple[MovementSummary, int]] = field(
+        default_factory=list, init=False
+    )
+    _next: MovementSummary | None = field(default=None, init=False)
+    _after: MovementSummary | None = field(default=None, init=False)
+    _lead: float = field(default=0.0, init=False)
+
+    def observe(self, plan: tuple[MovementSummary, ...]) -> MovementSummary | None:
+        """
+        Take one cycle's plan: the move that has now failed
+        `SETUP_MOVE_FAILURES` times, or `None`.
+        """
+        if not plan:
+            return None
+        moves = [
+            k
+            for k, c in enumerate(plan)
+            if c.movement_type not in _TRAVEL
+            and c.start is not None
+            and c.end is not None
+        ]
+        previous, expected, lead = self._next, self._after, self._lead
+        self._next = plan[moves[0]] if moves else None
+        self._after = plan[moves[1]] if len(moves) > 1 else None
+        self._lead = sum(c.length for c in plan[: moves[0] if moves else 0])
+        first = self._next
+        if (
+            previous is None
+            or first is None
+            or (_same_move(first, previous) and self._lead <= lead + SAME_MOVE_PX)
+            or (expected is not None and _same_move(first, expected))
+        ):
+            return None
+        for k, (move, count) in enumerate(self._failures):
+            if _same_move(move, previous):
+                break
+        else:
+            k, move, count = len(self._failures), previous, 0
+            self._failures.append((move, count))
+        self._failures[k] = (move, count + 1)
+        return move if count + 1 >= SETUP_MOVE_FAILURES else None
+
+
+def _same_move(a: MovementSummary, b: MovementSummary) -> bool:
+    """One kind of move, taking off and landing within `SAME_MOVE_PX`."""
+    return (
+        a.movement_type == b.movement_type
+        and a.start is not None
+        and b.start is not None
+        and a.end is not None
+        and b.end is not None
+        and math.dist(a.start, b.start) <= SAME_MOVE_PX
+        and math.dist(a.end, b.end) <= SAME_MOVE_PX
+    )
+
+
 class TrialDriver:
     """
     Walks a `TrialSchedule` one decision cycle at a time.
@@ -171,7 +263,10 @@ class TrialDriver:
     Each Trial runs in two phases. **Positioning** moves the character to the Trial's
     ``start`` and is not measured; it exists because a Trial that began somewhere
     else measured the wrong thing, and running out of its budget closes the Trial as
-    `SETUP_FAILED` rather than producing a measurement nobody can trust.
+    `SETUP_FAILED` rather than producing a measurement nobody can trust. So does
+    one move of its Path failing `SETUP_MOVE_FAILURES` times (`_MoveFailures`):
+    the planner, which keeps no memory of a failure, would plan it again until
+    the budget ran out (#509).
     **Measuring** moves it to ``target``, and that is the phase the outcome describes.
 
     Nothing here reads a clock. `now` is passed in - `time.monotonic()` on the
@@ -206,6 +301,7 @@ class TrialDriver:
         self._cycles = 0
         self._unsure = 0
         self._counters = _Defects(self.policy, (0, 0))
+        self._move_failures = _MoveFailures()
         self._last_error: float | None = None
         self._in_flight: str | None = None
         self._started_at = utc_now()
@@ -304,7 +400,12 @@ class TrialDriver:
             else trial.positioning_budget
         )
         expired = elapsed >= budget
-        dispatch = value is not None and not (arrived or expired)
+        gave_up = (
+            self._move_failures.observe(_as_summaries(plan))
+            if self._phase is Phase.POSITIONING and value is not None and not arrived
+            else None
+        )
+        dispatch = value is not None and not (arrived or expired or gave_up is not None)
 
         record = CycleRecord(
             schedule=self.schedule.name,
@@ -330,8 +431,10 @@ class TrialDriver:
             if arrived:
                 self._begin_measuring(now)
                 return Verdict(dispatch=False, target=self.target, cycle=record)
-            if expired:
-                outcome = self._close(TrialResult.SETUP_FAILED, None, elapsed)
+            if expired or gave_up is not None:
+                outcome = self._close(
+                    TrialResult.SETUP_FAILED, None, elapsed, failed_move=gave_up
+                )
                 return Verdict(
                     dispatch=False,
                     target=self.target,
@@ -417,6 +520,7 @@ class TrialDriver:
         self._last_error = None
         self._in_flight = None
         self._counters = _Defects(self.policy, self._trial.start)
+        self._move_failures = _MoveFailures()
 
     def _begin_measuring(self, now: float) -> None:
         assert self._trial is not None
@@ -435,6 +539,8 @@ class TrialDriver:
         result: TrialResult,
         time_to_arrival: float | None,
         duration: float,
+        *,
+        failed_move: MovementSummary | None = None,
     ) -> TrialOutcome:
         assert self._trial is not None
         assert self._batch is not None
@@ -460,6 +566,7 @@ class TrialDriver:
             measures=None
             if self._trial.measures is None
             else str(self._trial.measures),
+            failed_move=failed_move,
         )
         self.sink.write(outcome)
         self._arm_next()
