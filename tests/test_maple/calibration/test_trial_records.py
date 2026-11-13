@@ -117,17 +117,41 @@ NEVER_READ = TrialOutcome(
     **{**OUTCOME.__dict__, "result": str(TrialResult.SETUP_FAILED), "final_error": None}
 )
 
+GAVE_UP = TrialOutcome(
+    **{
+        **OUTCOME.__dict__,
+        "result": str(TrialResult.SETUP_FAILED),
+        "failed_move": MovementSummary(
+            "JUMP_LEFT", 69.9, False, True, 0.47, start=(-413, -2), end=(-483, -42)
+        ),
+    }
+)
+
 
 # --- Round-tripping ---------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
     "record",
-    [HEADER, BARE_HEADER, CYCLE, SAMPLE, OUTCOME, NEVER_READ],
-    ids=["header", "bare-header", "cycle", "sample", "outcome", "never-read"],
+    [HEADER, BARE_HEADER, CYCLE, SAMPLE, OUTCOME, NEVER_READ, GAVE_UP],
+    ids=[
+        "header",
+        "bare-header",
+        "cycle",
+        "sample",
+        "outcome",
+        "never-read",
+        "gave-up",
+    ],
 )
 def test_a_record_survives_json_unchanged(record: Record) -> None:
     assert type(record).from_json(json.loads(json.dumps(record.to_json()))) == record
+
+
+def test_an_outcome_written_before_failed_moves_reads_with_none() -> None:
+    payload = OUTCOME.to_json()
+    del payload["failed_move"]
+    assert TrialOutcome.from_json(payload) == OUTCOME
 
 
 def test_a_whole_file_reads_back_as_what_was_written(tmp_path: Path) -> None:

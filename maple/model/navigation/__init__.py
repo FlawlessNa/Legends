@@ -17,6 +17,8 @@ Movement Plans are planned on it (`MovementHandler`, #396).
 from .foothold_graph import (
     DROP_REACH,
     JOIN_TOLERANCE,
+    JUMP_RISE_SHARE,
+    LANDING_MARGIN,
     PLACE_TOLERANCE,
     PORTAL_TIME,
     ROPE_TOP_SNAP,
@@ -30,6 +32,8 @@ from .terrain import Hits, Terrain
 __all__ = [
     "DROP_REACH",
     "JOIN_TOLERANCE",
+    "JUMP_RISE_SHARE",
+    "LANDING_MARGIN",
     "PLACE_TOLERANCE",
     "PORTAL_TIME",
     "ROPE_TOP_SNAP",

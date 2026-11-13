@@ -497,6 +497,9 @@ class TrialOutcome:
     ``final_error`` is virtual px, from the last cycle whose position was read;
     `None` when no cycle of the Trial read one. ``unsure_cycles`` counts the
     measured cycles whose position was not read, which judged nothing.
+    ``failed_move`` is the move a `SETUP_FAILED` gave up on, failed
+    `SETUP_MOVE_FAILURES` times (`TrialDriver`); `None` otherwise, and in a
+    record written before #509.
     """
 
     schedule: str
@@ -518,6 +521,7 @@ class TrialOutcome:
     started_at: str
     unsure_cycles: int = 0
     measures: str | None = None
+    failed_move: MovementSummary | None = None
 
     kind: ClassVar[str] = "outcome"
 
@@ -543,11 +547,15 @@ class TrialOutcome:
             "started_at": self.started_at,
             "unsure_cycles": self.unsure_cycles,
             "measures": self.measures,
+            "failed_move": (
+                None if self.failed_move is None else self.failed_move.to_json()
+            ),
         }
 
     @classmethod
     def from_json(cls, payload: dict[str, Any]) -> TrialOutcome:
         time_to_arrival = payload["time_to_arrival"]
+        failed_move = payload.get("failed_move")
         return cls(
             schedule=str(payload["schedule"]),
             batch=str(payload["batch"]),
@@ -570,6 +578,9 @@ class TrialOutcome:
             started_at=str(payload["started_at"]),
             unsure_cycles=int(payload.get("unsure_cycles", 0)),
             measures=payload.get("measures"),
+            failed_move=(
+                None if failed_move is None else MovementSummary.from_json(failed_move)
+            ),
         )
 
 
