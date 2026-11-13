@@ -530,8 +530,11 @@ class KeyboardInputWrapper:
         """
         A copy of this sequence cut at `limit` seconds.
 
-        The cut lands **exactly** on the limit: the Step that would overshoot is copied
-        with its delay shortened, rather than taken whole. A delay is elapsed time, and
+        The cut lands on the limit: the Step that would overshoot is copied
+        with its delay shortened, rather than taken whole. "On" means exactly when that
+        Step has room for its `OVERHEAD`; when the limit falls less than `OVERHEAD`
+        past a Step boundary no further Step fits, and the copy stops short by less
+        than `OVERHEAD` (never over), since a Step's cost cannot be trimmed. A delay is elapsed time, and
         shortening elapsed time is precisely what truncating means - the keydown still
         reaches the game, the character just walks for less of it.
 

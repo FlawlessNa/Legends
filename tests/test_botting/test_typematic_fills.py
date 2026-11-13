@@ -227,10 +227,32 @@ def test_truncate_lands_exactly_on_the_limit_for_a_single_long_step() -> None:
     assert wrapper.truncate(1.0).duration == pytest.approx(1.0, abs=1e-9)
 
 
-def test_truncate_lands_exactly_on_the_limit_for_a_multi_step_walk() -> None:
-    wrapper = mv.move(HANDLE, "right", duration=3.0, initial_state=NOBODY)
+def test_truncate_is_exact_when_the_last_step_can_be_trimmed() -> None:
+    """Fixed delays, so the cut falls inside a Step with room to spare: exact."""
+    wrapper = KeyboardInputWrapper(
+        HANDLE,
+        ["right"] * 4,
+        ["keydown"] * 4,
+        [0.4, 0.4, 0.4, 0.4],
+        initial_state=NOBODY,
+    )
 
     assert wrapper.truncate(1.0).duration == pytest.approx(1.0, abs=1e-9)
+
+
+def test_truncate_of_a_walk_lands_within_one_overhead_of_the_limit() -> None:
+    """
+    A Step costs `OVERHEAD` that no trim can take back, so when the cut falls less
+    than `OVERHEAD` past a Step boundary there is no Step that fits: the copy stops
+    short, by under `OVERHEAD`, and never over. Whether it does depends on the walk's
+    random Step delays and on the `OVERHEAD` measured on this machine, which is why
+    this was once flaky as an exact-equality test (#498).
+    """
+    wrapper = mv.move(HANDLE, "right", duration=3.0, initial_state=NOBODY)
+
+    duration = wrapper.truncate(1.0).duration
+
+    assert 1.0 - OVERHEAD < duration <= 1.0 + 1e-9
 
 
 def test_truncate_keeps_the_step_whose_delay_it_trims() -> None:
