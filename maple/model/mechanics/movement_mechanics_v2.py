@@ -59,6 +59,7 @@ from maple.model.world import Platform
 
 if TYPE_CHECKING:
     from maple.model.navigation.foothold_graph import FootholdGraph
+    from maple.model.navigation.foothold_graphs import FootholdGraphs
     from maple.model.world import WorldMap
 
     from .physics import VRPhysics
@@ -533,14 +534,16 @@ class MovementHandler:
 
     **The graph follows the character's stats.** Its jump ranges and times
     depend on the jump arc, so the graph is built per `VRPhysics`: a path is
-    planned on the graph of the physics it is asked with, built the first time
-    those physics are seen and kept while they stay current (`_GRAPHS` are
-    kept, so a stat that flips back costs nothing). A change of speed or jump
-    stat is a new `VRPhysics`, and the next Path is planned on its graph.
+    planned on the graph of the physics it is asked with. A change of speed or
+    jump stat is a new `VRPhysics`, and the next Path is planned on its graph.
+
+    **The graphs are built off the decision loop** (`FootholdGraphs`, #430).
+    `ready_graph` never blocks: while the graph of the current physics builds,
+    it returns `None` and the live planner holds. `graph` and `compute_path`
+    block until the graph is built, for offline callers.
     """
 
     _CACHE_MAXSIZE = 256  # bounded: plans for stale positions age out
-    _GRAPHS = 2
 
     def __init__(
         self,
@@ -551,6 +554,7 @@ class MovementHandler:
         *,
         narrow_platform_threshold: float | None = None,
         edge_departure_threshold: float | None = None,
+        graphs: FootholdGraphs | None = None,
     ) -> None:
         """
         :param world_map: The map the paths are planned on.
@@ -570,7 +574,25 @@ class MovementHandler:
             pre-departure stop. Same shape as `narrow_platform_threshold`: `None`
             is the module default, per-instance because it is a Knob, and read by
             `compile_movements` only through the component's `edge_departure` flag.
+        :param graphs: The map's graphs, shared with the other handlers of the
+            Bot so a graph is built once however many DecisionMakers plan
+            (`BotData.foothold_graphs`). `None` keeps graphs of its own.
+        :raises ValueError: `graphs` are another map's, or disagree with
+            `teleport`.
         """
+        # Imported here: `maple.model.navigation` imports this package's
+        # `physics`, so a module-level import would be circular.
+        from maple.model.navigation.foothold_graphs import FootholdGraphs
+
+        if graphs is None:
+            graphs = FootholdGraphs(world_map, teleport=teleport is not None)
+        elif graphs.world_map is not world_map or graphs.teleport != (
+            teleport is not None
+        ):
+            raise ValueError(
+                "the graphs given are another map's, or disagree on teleport"
+            )
+        self.graphs = graphs
         self.handle = handle
         self.world_map = world_map
         self.ign = ign
@@ -589,7 +611,6 @@ class MovementHandler:
         # on `self`, pinning every handler ever created in memory for the process
         # lifetime. Binding the cache here scopes it to this instance, so it's freed
         # when the handler is.
-        self.graph = lru_cache(maxsize=self._GRAPHS)(self._build_graph)
         self._compute_path = lru_cache(maxsize=self._CACHE_MAXSIZE)(
             self._compute_path_uncached
         )
@@ -597,23 +618,33 @@ class MovementHandler:
             self._path_into_movements_uncached
         )
 
-    def _build_graph(self, physics: VRPhysics) -> FootholdGraph:
-        # Imported here: `maple.model.navigation` imports this package's
-        # `physics`, so a module-level import would be circular.
-        from maple.model.navigation.foothold_graph import FootholdGraph
+    def graph(self, physics: VRPhysics) -> FootholdGraph:
+        """The graph of `physics`; blocks until it is built (offline callers)."""
+        return self.graphs.graph(physics)
 
-        logger.info("Building the foothold graph of map %d.", self.world_map.id)
-        return FootholdGraph.build(
-            self.world_map, physics, teleport=self.teleport is not None
-        )
+    def ready_graph(self, physics: VRPhysics) -> FootholdGraph | None:
+        """
+        The graph of `physics` if it is built; otherwise `None`, and it is
+        built off the caller's thread. Never blocks on a build.
+        """
+        return self.graphs.ready(physics)
 
     def compute_path(
-        self, start: Point, goal: Point, physics: VRPhysics
+        self,
+        start: Point,
+        goal: Point,
+        physics: VRPhysics,
+        *,
+        graph: FootholdGraph | None = None,
     ) -> Path | None:
         """
         The quickest Path from `start` to `goal`, in virtual px, on the graph of
         `physics`.
 
+        :param graph: That graph, as `ready_graph` returned it: the live
+            planner passes it, so the Path is planned on it even if it has
+            since been dropped from the kept graphs. `None` blocks until the
+            graph of `physics` is built (offline callers).
         :return: `None` when no path joins them, or when either lies on no
             platform or rope (the character in the air, say): the caller plans
             again from its next position.
@@ -622,15 +653,22 @@ class MovementHandler:
             (float(start[0]), float(start[1])),
             (float(goal[0]), float(goal[1])),
             physics,
+            graph,
         )
 
     def _compute_path_uncached(
-        self, start: Point, goal: Point, physics: VRPhysics
+        self,
+        start: Point,
+        goal: Point,
+        physics: VRPhysics,
+        graph: FootholdGraph | None,
     ) -> Path | None:
         # Per-cycle pathing traces, so DEBUG is the honest level.
         logger.debug("Computing path from %s to %s", start, goal)
+        if graph is None:
+            graph = self.graph(physics)
         try:
-            return self.graph(physics).path(start, goal)
+            return graph.path(start, goal)
         except ValueError as error:
             logger.debug("No path: %s", error)
             return None

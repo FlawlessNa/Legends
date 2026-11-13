@@ -6,6 +6,8 @@ wander, and the ladder check before a cast. No game client, no game data store.
 
 import asyncio
 import random
+import threading
+import time
 from collections.abc import Callable
 
 import pytest
@@ -14,8 +16,12 @@ from botting.core import BotData
 from botting.screen import Reading
 from maple.decision_makers.ensure_mob_still_spawn import CheckMobsStillSpawn
 from maple.decision_makers.mixins import MovementsMixin, NextTargetMixin
-from maple.decision_makers.mixins._rotation_mixins import read_position
+from maple.decision_makers.mixins._rotation_mixins import (
+    _reachable_platforms,
+    read_position,
+)
 from maple.decision_makers.mobs_hitting import MobsHitting
+from maple.model.navigation import FootholdGraph
 from maple.model.world import WorldMap
 from maple.screen.position import PositionSource, VirtualPosition
 from maple.telemetry_events import MOVEMENT_TARGET_REACHED
@@ -57,12 +63,52 @@ def _fused(x: float, y: float) -> Reading[VirtualPosition]:
     return Reading.read(VirtualPosition(x, y, PositionSource.FUSED), 0.0)
 
 
-def _rotation(at: Callable[[], Reading[VirtualPosition]]) -> _Rotation:
-    """Targets made before planning: the first is drawn blind, as `Rotation` does."""
+def _rotation(
+    at: Callable[[], Reading[VirtualPosition]], *, wait: bool = True
+) -> _Rotation:
+    """
+    Targets made before planning: the first is drawn blind, as `Rotation` does.
+    The graph builds off the loop from the pathing attributes on (#430); until
+    it is built, targets are drawn blind too. `wait` waits for it, as a Session
+    does after its first seconds.
+    """
     rotation = _Rotation(_data(PORTALS, at))
     rotation._create_rotation_attributes()
     rotation._create_pathing_attributes(1.0)
+    if wait:
+        rotation.data.movement_handler.graph(rotation._physics())
     return rotation
+
+
+def test_a_target_is_drawn_blind_while_the_graph_builds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Reachability needs the graph of the current physics. While it builds off the
+    loop, asking never waits for it: the target is drawn as before a position is
+    read, and checked once the graph is there.
+    """
+    reached, release = threading.Event(), threading.Event()
+    build_graph = FootholdGraph._build_graph
+
+    def held(graph: FootholdGraph) -> None:
+        reached.set()
+        assert release.wait(5), "the test never let the build go on"
+        build_graph(graph)
+
+    monkeypatch.setattr(FootholdGraph, "_build_graph", held)
+    try:
+        rotation = _rotation(lambda: _fused(750.0, -400.0), wait=False)
+        assert reached.wait(5)  # the graph is half-built in the worker
+        asked = time.perf_counter()
+        rotation.data.update_attribute("next_target")
+        assert time.perf_counter() - asked < 1.0  # the build is held for up to 5 s
+        assert _reachable_platforms(rotation.data) is None
+    finally:
+        release.set()
+
+    rotation.data.movement_handler.graph(rotation._physics())
+    assert _reachable_platforms(rotation.data) == (UPPER,)
 
 
 def test_a_rotation_needs_the_bots_map() -> None:

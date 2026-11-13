@@ -17,7 +17,7 @@ from maple.model.mechanics import (
 )
 from maple.model.mechanics.movement_mechanics_v2 import _MovementComponent
 from maple.model.mechanics.physics import VRPhysics
-from maple.model.navigation import Path, Point
+from maple.model.navigation import FootholdGraphs, Path, Point
 from maple.model.world import Platform, WorldMap
 from maple.screen.position import PositionFusion, VirtualPosition, marker_of_feet
 from maple.telemetry_events import MOVEMENT_TARGET_REACHED, target_reached_payload
@@ -362,11 +362,13 @@ def _reachable_platforms(data: BotData) -> tuple[Platform, ...] | None:
     """
     The platforms a Path reaches from the character's last position read, on
     the graph of its current physics. `None` while that isn't known: no
-    `MovementHandler` yet (or none on this map), no position read or an unsure
-    one, or a position on no surface (in the air).
+    `MovementHandler` yet (or none on this map), the graph of the current
+    physics still building, no position read or an unsure one, or a position
+    on no surface (in the air).
 
     Reads no position: it is the last one read. The graph is the handler's,
-    so asking before the first Path builds the graph that Path would build.
+    and is never waited for: while it builds off the loop (#430), asking
+    starts its build if nothing had, and answers `None`.
     """
     try:
         handler: MovementHandler | None = data.movement_handler
@@ -375,8 +377,11 @@ def _reachable_platforms(data: BotData) -> tuple[Platform, ...] | None:
     last = _last_position(data)
     if handler is None or last is None:
         return None
+    graph = handler.ready_graph(current_physics(data))
+    if graph is None:
+        return None
     try:
-        surfaces = handler.graph(current_physics(data)).reachable((last.x, last.y))
+        surfaces = graph.reachable((last.x, last.y))
     except ValueError:
         return None
     platforms = tuple(s for s in surfaces if isinstance(s, Platform))
@@ -420,6 +425,16 @@ class MovementsMixin:
     profile's Calibration constants. When a stat changes, the next Path is
     planned on a graph built for it (`MovementHandler`), and the plan is
     compiled with its speeds.
+
+    **The graph is built off the decision loop** (#430). Its build starts when
+    the pathing attributes are made, at the DecisionMaker's setup, with the
+    stats known then; a stat change starts the next one when a Path is next
+    planned. The build runs in a worker thread (`FootholdGraphs`), shared by
+    every DecisionMaker of the Bot (`data.foothold_graphs`, one per teleport
+    setting). **While the graph
+    of the current stats builds, planning holds**, as for an unsure position:
+    no Path is planned on the previous stats' graph, whose jump ranges and
+    flights are another arc's, and none on a half-built graph.
     """
 
     data: BotData
@@ -450,6 +465,10 @@ class MovementsMixin:
                 narrow_platform_threshold, edge_departure_threshold
             ),
         )
+        handler: MovementHandler | None = self.data.movement_handler
+        if handler is not None:
+            # Built now, off the loop, so the first Path doesn't wait for it.
+            handler.graphs.prepare(self._physics())
 
         self.data.create_or_reconfigure_attribute(
             "path", self._plan_path, threshold=0.1
@@ -479,14 +498,36 @@ class MovementsMixin:
                 self,
             )
             return None
+        teleport = self._teleport_skill()
         return MovementHandler(
             self.data.handle,
             world_map,
             self.data.ign,
-            self._teleport_skill(),
+            teleport,
             narrow_platform_threshold=narrow_platform_threshold,
             edge_departure_threshold=edge_departure_threshold,
+            graphs=self._graphs(world_map, teleport=teleport is not None),
         )
+
+    def _graphs(self, world_map: WorldMap, *, teleport: bool) -> FootholdGraphs:
+        """
+        The Bot's `FootholdGraphs` for `world_map` and `teleport`, made the first
+        time: every handler of the Bot plans on the same graphs, so a graph is
+        built once however many DecisionMakers plan, or however often a handler
+        is remade (a Trial batch remakes it). One is kept per teleport setting,
+        so Trial batches that alternate planning with and without teleport
+        build each setting's graph once, not at every switch.
+        """
+        kept: dict[bool, FootholdGraphs] | None = getattr(
+            self.data, "foothold_graphs", None
+        )
+        if kept is None or any(g.world_map is not world_map for g in kept.values()):
+            kept = {}
+            self.data.set_static("foothold_graphs", kept)
+        graphs = kept.get(teleport)
+        if graphs is None:
+            graphs = kept[teleport] = FootholdGraphs(world_map, teleport=teleport)
+        return graphs
 
     def _teleport_skill(self) -> MapleSkill | None:
         """
@@ -521,8 +562,15 @@ class MovementsMixin:
         if reading.value is None:
             logger.debug("No Path: the position is unsure (%s).", reading.detail)
             return None
+        physics = self._physics()
+        graph = handler.ready_graph(physics)
+        if graph is None:
+            logger.debug("No Path: the foothold graph of the current stats builds.")
+            return None
         position = (float(reading.value.x), float(reading.value.y))
-        return handler.compute_path(position, self._virtual_target(), self._physics())
+        return handler.compute_path(
+            position, self._virtual_target(), physics, graph=graph
+        )
 
     def _plan_movements(self) -> tuple[_MovementComponent, ...]:
         """The Movement Plan of the current Path; empty with no handler."""

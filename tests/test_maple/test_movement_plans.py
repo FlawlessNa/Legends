@@ -11,7 +11,9 @@ gravity 2000 px/s², so a jump that lands at its take-off's height flies
 
 import math
 import random
+import threading
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 
@@ -30,7 +32,14 @@ from maple.model.mechanics.movement_mechanics_v2 import (
     compile_movements,
 )
 from maple.model.mechanics.physics import VRPhysics
-from maple.model.navigation import Direction, Move, MoveKind, Path
+from maple.model.navigation import (
+    Direction,
+    FootholdGraph,
+    FootholdGraphs,
+    Move,
+    MoveKind,
+    Path,
+)
 from maple.screen.position import (
     PositionSource,
     VirtualPosition,
@@ -332,10 +341,32 @@ def _planner(
     target: tuple[float, float],
     *,
     status_read: bool = True,
+    wait: bool = True,
 ) -> _Planner:
+    data = _planning_data(name, position, target, status_read=status_read)
+    planner = _Planner(data)
+    planner._create_pathing_attributes(1.0)
+    if wait:
+        # The graph builds in a worker thread from setup on (#430), and planning
+        # holds until it is there: waited for here, so the tests below plan.
+        data.movement_handler.graph(planner._physics())
+    data.reconfigure_attribute("path", threshold=1e-9)
+    data.reconfigure_attribute("movements", threshold=1e-9)
+    return planner
+
+
+def _planning_data(
+    name: str,
+    position: tuple[float, float],
+    target: tuple[float, float],
+    *,
+    status_read: bool = True,
+    character: object | None = None,
+) -> BotData:
+    """What a DecisionMaker plans from: the map, the physics, a position, a target."""
     data = BotData("T")
     data.set_static("handle", 0)
-    data.set_static("character", _Character())
+    data.set_static("character", _Character() if character is None else character)
     data.set_static("world_map", corpus.world_map(_entry(name)))
     data.set_static("game_physics", corpus.LAB_PHYSICS_VALUES)
     data.set_static("speed_multiplier", 1.0)
@@ -347,11 +378,7 @@ def _planner(
     )
     data.create_attribute("current_position", lambda: reading, threshold=1e-9)
     data.create_attribute("next_target", lambda: target)
-    planner = _Planner(data)
-    planner._create_pathing_attributes(1.0)
-    data.reconfigure_attribute("path", threshold=1e-9)
-    data.reconfigure_attribute("movements", threshold=1e-9)
-    return planner
+    return data
 
 
 def test_the_target_is_planned_to_as_it_is_in_virtual_px() -> None:
@@ -411,6 +438,7 @@ def test_a_change_of_jump_stat_between_two_paths_changes_the_ranges_and_the_flig
     before = jump()
     planner.data.jump_multiplier = 1.2  # a buff, say: a new reading replaces it
     after_physics = planner._physics()
+    handler.graph(after_physics)  # built off the loop (#430): waited for here
     after = jump()
 
     assert after_physics.jump_speed == pytest.approx(1.2 * before_physics.jump_speed)
@@ -433,6 +461,162 @@ def test_a_change_of_jump_stat_between_two_paths_changes_the_ranges_and_the_flig
         return landed - take_off
 
     assert hold(after) - hold(before) == pytest.approx(2 * 0.2 * 555 / 2000, abs=0.005)
+
+
+def _hold_build_half_way(
+    monkeypatch: pytest.MonkeyPatch, physics: VRPhysics | None = None
+) -> tuple[threading.Event, threading.Event]:
+    """
+    Holds the build of the graph of `physics` (of any, for `None`) half-way:
+    its moves are traced and its nodes and edges not yet made. Returns the event
+    set when a build gets there, and the one that lets it go on.
+    """
+    reached, release = threading.Event(), threading.Event()
+    build_graph = FootholdGraph._build_graph
+
+    def held(graph: FootholdGraph) -> None:
+        if physics is None or graph._physics == physics:
+            reached.set()
+            assert release.wait(5), "the test never let the build go on"
+        build_graph(graph)
+
+    monkeypatch.setattr(FootholdGraph, "_build_graph", held)
+    return reached, release
+
+
+def test_while_the_new_stats_graph_builds_nothing_is_planned_then_the_next_path_is_on_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    The jump stat changes while the graph is in use. The new graph builds in the
+    worker, and until it is whole no Path is planned: neither on the old stats'
+    graph, whose arc is another's, nor on the half-built one. The next Path after
+    it is built is planned on it, with its flight.
+    """
+    planner = _planner("jump_gap", (100.0, 0.0), (300.0, 0.0))
+    handler: MovementHandler = planner.data.movement_handler
+
+    def plan() -> tuple[_MovementComponent, ...]:
+        planner.data.update_attribute("movements")
+        return planner.data.movements
+
+    def flight(movements: tuple[_MovementComponent, ...]) -> float | None:
+        (jump,) = [c for c in movements if c.movement_type is MovementTypes.JUMP_RIGHT]
+        return jump.duration
+
+    assert flight(plan()) == pytest.approx(2 * 555 / 2000)
+    planner.data.jump_multiplier = 1.2
+    buffed = planner._physics()
+    reached, release = _hold_build_half_way(monkeypatch, buffed)
+    try:
+        assert plan() == ()  # the change is seen: its graph starts, planning holds
+        assert reached.wait(5)  # the new graph is half-built in the worker
+        assert planner.data.path is None
+        assert plan() == ()
+        assert handler.ready_graph(buffed) is None
+    finally:
+        release.set()
+
+    handler.graph(buffed)  # waits for the worker's build to finish
+    assert flight(plan()) == pytest.approx(2 * 1.2 * 555 / 2000)
+    assert planner.data.path is not None
+
+
+def test_the_graph_starts_building_at_setup_before_any_path_is_asked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unsure position asks for no graph, so only the setup can have started it."""
+    reached, release = _hold_build_half_way(monkeypatch)
+    try:
+        planner = _planner(
+            "jump_gap", (100.0, 0.0), (0, 0), status_read=False, wait=False
+        )
+        assert reached.wait(5)
+        assert planner.data.movement_handler.graphs.is_building()
+    finally:
+        release.set()
+
+
+def test_a_remade_handler_plans_on_the_graphs_already_built() -> None:
+    """A Trial batch remakes the handler; another DecisionMaker makes its own."""
+    planner = _planner("jump_gap", (100.0, 0.0), (300.0, 0.0))
+    first: MovementHandler = planner.data.movement_handler
+
+    planner.data.update_attribute("movement_handler")
+    second: MovementHandler = planner.data.movement_handler
+
+    assert second is not first
+    assert second.graphs is first.graphs
+    assert second.ready_graph(planner._physics()) is first.graph(planner._physics())
+
+
+def test_trial_batches_that_switch_teleport_build_each_settings_graph_once() -> None:
+    """
+    A Trial alternates batches planned with and without teleport (`TrialRunner`
+    overrides `_teleport_skill`). Each setting keeps its own graphs, so switching
+    back needs no build.
+    """
+    planner = _planner("jump_gap", (100.0, 0.0), (300.0, 0.0))
+    world = planner.data.world_map
+
+    walking = planner._graphs(world, teleport=False)
+    teleporting = planner._graphs(world, teleport=True)
+
+    assert walking.teleport is False
+    assert teleporting.teleport is True
+    assert planner._graphs(world, teleport=False) is walking
+    assert planner._graphs(world, teleport=True) is teleporting
+    assert planner._graphs(replace(world), teleport=False) is not walking  # a new map
+
+
+class _Teleport:
+    name = "Teleport"
+
+
+@pytest.mark.parametrize(
+    "disable_teleport", [False, True], ids=["teleport", "teleport-disabled"]
+)
+def test_a_rotation_plans_with_the_characters_teleport_unless_disabled(
+    monkeypatch: pytest.MonkeyPatch, disable_teleport: bool
+) -> None:
+    """
+    `Rotation.__init__` makes the pathing attributes, and `_new_handler` asks
+    `_teleport_skill()` for the skill. The window-reading setup is stubbed out.
+    """
+    from botting.core import DecisionMaker
+    from maple.decision_makers.rotation import Rotation
+
+    def engine_free_init(
+        self: DecisionMaker, metadata: object, data: BotData, pipe: object
+    ) -> None:
+        self.data = data
+        self._proxies = SimpleNamespace(instance=lambda *_: threading.Lock())  # type: ignore[assignment]
+
+    monkeypatch.setattr(DecisionMaker, "__init__", engine_free_init)
+    for reads_the_window in (
+        "_create_minimap_attributes",
+        "_create_rotation_attributes",
+        "_create_recovery_attributes",
+    ):
+        monkeypatch.setattr(Rotation, reads_the_window, lambda *_, **__: None)
+    teleport = _Teleport()
+    character = SimpleNamespace(skills={"Teleport": teleport})
+    data = _planning_data(
+        "jump_gap", (100.0, 0.0), (0, 0), status_read=False, character=character
+    )
+
+    Rotation({}, data, None, disable_teleport=disable_teleport)  # type: ignore[arg-type]
+
+    handler: MovementHandler = data.movement_handler
+    assert handler.teleport is (None if disable_teleport else teleport)
+    assert handler.graphs.teleport is not disable_teleport
+
+
+def test_a_handler_refuses_another_maps_graphs() -> None:
+    graphs = FootholdGraphs(corpus.world_map(_entry("rope_grab")), teleport=False)
+
+    with pytest.raises(ValueError, match="another map's"):
+        MovementHandler(0, corpus.world_map(_entry("jump_gap")), "T", graphs=graphs)
 
 
 def test_the_compile_speeds_follow_the_current_speed_stat() -> None:

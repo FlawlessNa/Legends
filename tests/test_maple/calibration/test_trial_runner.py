@@ -142,6 +142,10 @@ def harness() -> _Harness:
     self._applied_batch = None
     self._finished = False
     self._apply_knobs()
+    # The graph builds in a worker thread from setup on (#430), and planning holds
+    # until it is there; a Session's first cycles would. Waited for here, so the
+    # cycles below plan.
+    data.movement_handler.graph(self._physics())
     # `path` refreshes on a 0.1s threshold, which production's decision interval
     # spaces its cycles out by. These cycles run in microseconds, so without this the
     # second one would re-read the first one's Path - a test-clock artefact, not
