@@ -568,6 +568,9 @@ class MovementsMixin:
             logger.debug("No Path: the foothold graph of the current stats builds.")
             return None
         position = (float(reading.value.x), float(reading.value.y))
+        # The frame the Path starts from: the compile leads the plan by how far
+        # the character has walked since (`_movement_compiler`).
+        self._path_read_at: float | None = reading.frame_time
         return handler.compute_path(
             position, self._virtual_target(), physics, graph=graph
         )
@@ -599,6 +602,12 @@ class MovementsMixin:
         `MovementHandler` itself cannot travel: its per-instance `lru_cache` wrappers
         are unpicklable. The speeds are the current physics': a jump's flight is
         already in its component, from the graph its Path was planned on.
+
+        **Walks stop where planned** (#503): the walk's acceleration and slide,
+        and the capture time of the frame the Path was planned from, let the
+        compile time the first and last walks by where the character comes to
+        rest, at dispatch (`compile_movements`, `_time_walks`). A host whose
+        plan was not planned here (no Path read) gets no lead.
         """
         physics = self._physics()
         return functools.partial(
@@ -611,4 +620,7 @@ class MovementsMixin:
             teleport=self.data.character.skills.get("Teleport"),
             total_duration=self.data.action_duration,
             always_release=self.data.always_release_keys,
+            walk_acceleration=physics.walk_acceleration,
+            walk_deceleration=physics.walk_deceleration,
+            read_at=getattr(self, "_path_read_at", None),
         )

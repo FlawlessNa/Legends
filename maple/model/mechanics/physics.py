@@ -36,8 +36,22 @@ TELEPORT_REACH = 150.0
 #: measures it (#397).
 CLIMB_SPEED = 125.0
 
+#: The character's mass, by which the client divides `Physics.img`'s forces
+#: (`walkForce`, `walkDrag`) into accelerations. The game's own value, not a
+#: tuning constant: 100 when nothing (shoes, a mount) changes it. Trial records
+#: agree (#503): walks started from rest travel their timed length plus about 3
+#: virtual px, against 6 derived from these accelerations.
+CHARACTER_MASS = 100.0
+
 #: The `Physics.img` keys `VRPhysics` reads.
-PHYSICS_KEYS = ("walkSpeed", "jumpSpeed", "gravityAcc", "fallSpeed")
+PHYSICS_KEYS = (
+    "walkSpeed",
+    "jumpSpeed",
+    "gravityAcc",
+    "fallSpeed",
+    "walkForce",
+    "walkDrag",
+)
 
 #: The Calibration constants a profile's `calibration` setting may name.
 CALIBRATION_KEYS = ("walk", "jump", "climb", "teleport")
@@ -118,6 +132,12 @@ class VRPhysics:
     :ivar fall_speed: The fastest the character falls, virtual px/s.
     :ivar climb_speed: Virtual px/s on a rope or ladder.
     :ivar teleport_reach: Virtual px one teleport moves the character.
+    :ivar walk_acceleration: Virtual px/s² the character gains walking from rest,
+        a direction key down: `walkForce ÷ CHARACTER_MASS`. Infinite (at full
+        speed at once) when built by hand.
+    :ivar walk_deceleration: Virtual px/s² the character loses once the direction
+        key is up, sliding to a stop: `walkDrag ÷ CHARACTER_MASS`. Infinite (no
+        slide) when built by hand.
     """
 
     walk_speed: float
@@ -126,6 +146,8 @@ class VRPhysics:
     fall_speed: float
     climb_speed: float
     teleport_reach: float
+    walk_acceleration: float = math.inf
+    walk_deceleration: float = math.inf
 
     @classmethod
     def load(
@@ -166,7 +188,8 @@ class VRPhysics:
         and the take-off speed `jumpSpeed × jump_multiplier × calibration.jump`.
         The climb speed takes the speed multiplier too, since climbs are timed
         like walks today; the teleport reach takes neither multiplier, as
-        today. Gravity and the fall speed are the game's own.
+        today. Gravity, the fall speed and the walk's acceleration and
+        deceleration are the game's own (`CHARACTER_MASS`).
 
         :raises KeyError: `physics` lacks a key `VRPhysics` reads, named in
             the message.
@@ -182,6 +205,29 @@ class VRPhysics:
             fall_speed=physics["fallSpeed"],
             climb_speed=CLIMB_SPEED * speed_multiplier * constants.climb,
             teleport_reach=TELEPORT_REACH * constants.teleport,
+            walk_acceleration=physics["walkForce"] / CHARACTER_MASS,
+            walk_deceleration=physics["walkDrag"] / CHARACTER_MASS,
+        )
+
+    @property
+    def stop_slide(self) -> float:
+        """
+        Virtual px the character slides on, walking at `walk_speed`, after its
+        direction key comes up: `walk_speed² ÷ 2 walk_deceleration`.
+        """
+        return walk_stop_slide(self.walk_speed, self.walk_deceleration)
+
+    def walk_press_time(self, distance: float, *, moving: bool) -> float:
+        """
+        Seconds to hold the direction key so the character comes to rest
+        `distance` virtual px ahead (`walk_press_time`).
+        """
+        return walk_press_time(
+            distance,
+            speed=self.walk_speed,
+            acceleration=self.walk_acceleration,
+            deceleration=self.walk_deceleration,
+            moving=moving,
         )
 
     @property
@@ -234,3 +280,45 @@ class VRPhysics:
             self.fall_speed / self.gravity
             + (distance - to_full_speed) / self.fall_speed
         )
+
+
+def walk_stop_slide(speed: float, deceleration: float) -> float:
+    """Virtual px a character walking at `speed` slides on once its key is up."""
+    return speed**2 / (2 * deceleration)
+
+
+def walk_press_time(
+    distance: float,
+    *,
+    speed: float,
+    acceleration: float,
+    deceleration: float,
+    moving: bool,
+) -> float:
+    """
+    Seconds to hold a direction key so the character comes to rest `distance`
+    virtual px ahead, once the slide after the key comes up is counted (#503).
+
+    `moving`: the character already walks that way at `speed` when the key's
+    hold starts (the key was down already), so it covers `speed` px every
+    second held, then slides `walk_stop_slide`. From rest, it first
+    accelerates at `acceleration`, which costs `speed² ÷ 2 acceleration` px
+    against a walk at full speed; a hold too short to reach full speed slides
+    from the speed it reached.
+
+    Never negative: a character already moving that would slide past
+    `distance` is released at once, the least it can travel.
+
+    With an infinite acceleration and deceleration, this is `distance ÷ speed`,
+    a walk timed by its length alone.
+    """
+    if distance <= 0:
+        return 0.0
+    slide = walk_stop_slide(speed, deceleration)
+    if moving:
+        return max(0.0, (distance - slide) / speed)
+    ramp = speed**2 / (2 * acceleration)
+    if distance >= ramp + slide:
+        return (distance + ramp - slide) / speed
+    # Released before full speed: ½aT² while held, then (aT)² ÷ 2d sliding.
+    return math.sqrt(2 * distance / (acceleration * (1 + acceleration / deceleration)))

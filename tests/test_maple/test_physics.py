@@ -24,6 +24,7 @@ GAME_FILES = {
     "gravityAcc": 2400.0,
     "fallSpeed": 700.0,
     "walkForce": 140000.0,
+    "walkDrag": 60000.0,
 }
 
 
@@ -83,6 +84,63 @@ def test_a_long_fall_is_capped_at_the_fall_speed() -> None:
 def test_a_missing_game_file_value_is_named() -> None:
     with pytest.raises(KeyError, match="jumpSpeed, fallSpeed"):
         VRPhysics.from_game_files({"walkSpeed": 125.0, "gravityAcc": 2000.0})
+
+
+# --- the walk's start and stop (#503) -------------------------------------------
+
+
+def test_the_walks_acceleration_and_slide_are_its_forces_over_the_mass() -> None:
+    vr = _physics()
+
+    assert vr.walk_acceleration == pytest.approx(140000.0 / 100)  # 1400 px/s²
+    assert vr.walk_deceleration == pytest.approx(60000.0 / 100)  # 600 px/s²
+    assert vr.stop_slide == pytest.approx(100.0**2 / (2 * 600.0))
+
+
+def test_a_faster_character_slides_further_on_the_same_drag() -> None:
+    base, fast = _physics(), _physics(speed_multiplier=1.4)
+
+    assert fast.walk_deceleration == base.walk_deceleration
+    assert fast.stop_slide == pytest.approx(1.4**2 * base.stop_slide)
+
+
+def test_a_moving_walk_releases_its_slide_early() -> None:
+    vr = _physics()
+
+    # Walking at 100 px/s, the key held T s then a slide: 100 T + slide = 60.
+    assert vr.walk_press_time(60.0, moving=True) == pytest.approx(
+        (60.0 - vr.stop_slide) / 100.0
+    )
+    # Nearer than the slide: released at once, never a negative hold.
+    assert vr.walk_press_time(vr.stop_slide / 2, moving=True) == 0.0
+    assert vr.walk_press_time(-5.0, moving=True) == 0.0
+
+
+def test_a_walk_from_rest_pays_for_its_acceleration() -> None:
+    vr = _physics()
+    ramp = 100.0**2 / (2 * 1400.0)
+
+    assert vr.walk_press_time(60.0, moving=False) == pytest.approx(
+        (60.0 + ramp - vr.stop_slide) / 100.0
+    )
+
+
+def test_a_walk_too_short_to_reach_full_speed_slides_from_the_speed_it_reached() -> (
+    None
+):
+    vr = _physics()
+    held = vr.walk_press_time(5.0, moving=False)
+    reached = 1400.0 * held
+
+    assert reached < vr.walk_speed
+    assert 0.5 * 1400.0 * held**2 + reached**2 / (2 * 600.0) == pytest.approx(5.0)
+
+
+def test_with_no_acceleration_or_slide_a_walk_lasts_its_length() -> None:
+    vr = VRPhysics(100.0, 600.0, 2400.0, 700.0, 125.0, 150.0)
+
+    assert vr.walk_press_time(60.0, moving=False) == pytest.approx(0.6)
+    assert vr.walk_press_time(60.0, moving=True) == pytest.approx(0.6)
 
 
 # --- multipliers -----------------------------------------------------------------

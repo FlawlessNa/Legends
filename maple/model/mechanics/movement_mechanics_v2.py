@@ -15,6 +15,14 @@ graph says it takes (`_MovementComponent.duration`): a jump its flight, a drop
 its fall, a portal its planning time. No compile time is a fixed number of
 seconds of its own.
 
+**Where a walk stops** (#503). Given the walk's acceleration and deceleration,
+`compile_movements` times two walks by where the character comes to rest
+rather than by length alone (`_time_walks`): the plan's last walk, which ends
+in a key release, stops short by the slide after the release; and a first walk
+whose key is already down is shortened by how far the character has walked
+since the frame its position was read on (`read_at`), up to the moment of
+compiling.
+
 **Which graph moves become which component.**
 
 - `WALK` left or right: `WALK_LEFT`/`WALK_RIGHT`, its length along x. A walk
@@ -37,6 +45,8 @@ from __future__ import annotations
 
 import logging
 import math
+import time
+from collections.abc import Callable, Sequence
 from enum import IntEnum
 from functools import lru_cache
 from itertools import pairwise
@@ -48,6 +58,7 @@ from botting.controller import (
     NO_COMPONENT,
     InputState,
     KeyboardInputWrapper,
+    get_held_movement_keys,
     key_binds,
 )
 from game_data.catalogue import Rope
@@ -56,6 +67,8 @@ from maple.model.characters.maple_skills import MapleSkill
 from maple.model.navigation.moves import Direction as MoveDirection
 from maple.model.navigation.moves import Move, MoveKind, Path, Point
 from maple.model.world import Platform
+
+from .physics import walk_press_time, walk_stop_slide
 
 if TYPE_CHECKING:
     from maple.model.navigation.foothold_graph import FootholdGraph
@@ -152,8 +165,11 @@ _TELEPORTS = frozenset(
     }
 )
 
+#: Walks: the moves the walk's acceleration and slide apply to.
+_WALKS = frozenset({MovementTypes.WALK_LEFT, MovementTypes.WALK_RIGHT})
+
 #: Components that are travel along a surface: merged and cut by length.
-_TRAVEL = frozenset({MovementTypes.WALK_LEFT, MovementTypes.WALK_RIGHT}) | _CLIMBS
+_TRAVEL = _WALKS | _CLIMBS
 
 # Landing width (PM2) applies to any jump, drop or teleport that lands on a platform.
 _NARROW_KINDS = frozenset({MoveKind.JUMP, MoveKind.DROP, MoveKind.TELEPORT})
@@ -232,6 +248,10 @@ def compile_movements(
     teleport: MapleSkill | None = None,
     total_duration: float | None = None,
     always_release: bool = False,
+    walk_acceleration: float = math.inf,
+    walk_deceleration: float = math.inf,
+    read_at: float | None = None,
+    clock: Callable[[], float] = time.monotonic,
 ) -> KeyboardInputWrapper | None:
     """
     Compiles a Movement Plan into an Input Sequence.
@@ -257,11 +277,32 @@ def compile_movements(
     :param always_release: Force-release every key still held at the end of the
         sequence. This is the flag form of what `_always_release_keys_on_actions`
         used to do by post-processing a compiled Action in the Engine process.
+    :param walk_acceleration: Virtual px/s² from rest (`VRPhysics`). With
+        `walk_deceleration`, it times the first and last walks by where the
+        character stops (`_time_walks`); both infinite (the default), a walk
+        lasts its length at `speed`.
+    :param walk_deceleration: Virtual px/s² sliding to a stop (`VRPhysics`).
+    :param read_at: When the frame the plan's start was read on was captured,
+        on `clock`. The character has walked since, when the first walk's key
+        is already down. `None`: no lead.
+    :param clock: The frames' clock, `time.monotonic`; a test passes its own.
     :return: The Input Sequence, or None when the plan compiles to nothing.
     :raises ValueError: A jump carries no `duration`, a drop grabs a rope, or a
         teleport is planned with no teleport skill.
     """
     climb = speed if climb_speed is None else climb_speed
+    since_read = None if read_at is None else max(0.0, clock() - read_at)
+    if since_read is not None or not (
+        math.isinf(walk_acceleration) and math.isinf(walk_deceleration)
+    ):
+        movements = _time_walks(
+            movements,
+            _held_keys(handle, initial_state),
+            since_read=since_read,
+            speed=speed,
+            acceleration=walk_acceleration,
+            deceleration=walk_deceleration,
+        )
     structure = None
     for origin, (move, upcoming_move) in enumerate(pairwise(movements)):
         # Provenance: every Step the builders below emit belongs to component `origin`.
@@ -438,7 +479,17 @@ def compile_movements(
         structure.attribute(origin)
 
         # Else just consider current move and disregard previous.
-        if total_duration is not None and structure.duration >= total_duration:
+        if (
+            total_duration is not None
+            and structure.duration >= total_duration
+            and not _finish_instead_of_cut(
+                movements,
+                origin,
+                structure.duration - total_duration,
+                since_read,
+                walk_stop_slide(speed, walk_deceleration) / speed,
+            )
+        ):
             structure = structure.truncate(total_duration)
             # The cut lands mid-walk with the horizontal key still down, and the
             # next chunk opens on a jump or a portal - a move that misses unless
@@ -509,6 +560,135 @@ def compile_movements(
             if key not in structure.forced_key_releases:
                 structure.forced_key_releases.append(key)
     return structure
+
+
+def _held_keys(handle: int, initial_state: InputState | None) -> set[str]:
+    """The movement keys down as the sequence starts, as `movements_v2` reads them."""
+    if initial_state is not None:
+        return set(initial_state.held_keys)
+    return set(get_held_movement_keys(handle))
+
+
+def _walk_run(movements: Sequence[_MovementComponent], start: int, step: int) -> range:
+    """
+    The indices of the walks the same way as `movements[start]`, from `start`
+    on, forwards (`step` 1) or backwards (-1): one walk the planner cut into
+    pieces. Empty when `movements[start]` is no walk.
+    """
+    first = movements[start]
+    if first.movement_type not in _WALKS:
+        return range(start, start)
+    end = start
+    while (
+        0 <= end + step < len(movements)
+        and movements[end + step].movement_type is first.movement_type
+    ):
+        end += step
+    return range(min(start, end), max(start, end) + 1)
+
+
+def _time_walks(
+    movements: tuple[_MovementComponent, ...],
+    held_keys: set[str],
+    *,
+    since_read: float | None,
+    speed: float,
+    acceleration: float,
+    deceleration: float,
+) -> tuple[_MovementComponent, ...]:
+    """
+    The plan, with its first and last walks timed by where the character
+    comes to rest (#503), as a `duration` on each of their pieces.
+
+    - **The last walk**, which the sequence's final release ends, holds its
+      key only until the slide after the release carries the character the
+      rest of the way (`walk_press_time`).
+    - **The first walk, its key already down** (a Continuation): the character
+      has walked at `speed` from the frame its position was read on until now,
+      `since_read` seconds, so that much less is left to walk. Without it, a
+      plan compiled from a read 0.2 to 0.4 s old walks 30 to 60 px past its
+      end (the live record of #503).
+
+    When the first walk is also the last, both apply. The last walk starts
+    from rest only when it is the plan's first move and its key is up; after
+    any other move it counts as moving, which errs short, by at most the
+    acceleration's cost (`speed² ÷ 2 acceleration`), rather than long.
+
+    Every other component is left as it was: a walk lasting its length at
+    `speed`.
+    """
+    if len(movements) < 2:
+        return movements
+    timed = list(movements)
+    first = _walk_run(movements, 0, 1)
+    held = bool(first) and _direction_of(movements[0]) in held_keys
+    lead = speed * since_read if held and since_read is not None else 0.0
+    # The END_OF_MOVEMENT sentinel closes every plan: the last move is before it.
+    last = _walk_run(movements, len(movements) - 2, -1)
+
+    def length(run: range) -> float:
+        return sum(movements[i].length for i in run)
+
+    def spread(run: range, seconds: float) -> None:
+        total = length(run)
+        for i in run:
+            share = movements[i].length / total if total > 0 else 1 / len(run)
+            timed[i] = movements[i]._replace(duration=seconds * share)
+
+    def press(distance: float, *, moving: bool) -> float:
+        return walk_press_time(
+            distance,
+            speed=speed,
+            acceleration=acceleration,
+            deceleration=deceleration,
+            moving=moving,
+        )
+
+    if first and first == last:
+        spread(first, press(length(first) - lead, moving=held))
+        return tuple(timed)
+    if first and held:
+        spread(first, max(0.0, length(first) - lead) / speed)
+    if last:
+        spread(last, press(length(last), moving=last.start > 0 or held))
+    return tuple(timed)
+
+
+def _finish_instead_of_cut(
+    movements: tuple[_MovementComponent, ...],
+    origin: int,
+    overrun: float,
+    since_read: float | None,
+    slide_time: float,
+) -> bool:
+    """
+    Whether to compile the plan to its end rather than cut it at the Action
+    duration cap, because the cut lands in its last walk too near the stop for
+    the next plan to make it (#503).
+
+    A cut leaves the direction key down (a Continuation), and the next plan
+    can release it only once the next position is read and compiled: about
+    `since_read` seconds, what this plan's own read took. If less of the last
+    walk is left after the cut than that, plus the slide's worth of walk
+    (`slide_time`), the character walks past the target before anything can
+    stop it: the live record walked 60 to 70 px past it that way. Finishing
+    the walk here instead stops it where `_time_walks` timed it to.
+
+    :param origin: The component being compiled when the cap was reached.
+    :param overrun: Seconds the sequence runs past the cap so far.
+    """
+    if since_read is None:
+        return False
+    last = _walk_run(movements, len(movements) - 2, -1)
+    if origin not in last:
+        return False
+    left = overrun + sum(movements[i].duration or 0.0 for i in last if i > origin)
+    return left < since_read + slide_time
+
+
+def _direction_of(move: _MovementComponent) -> str:
+    """The direction key a walk holds."""
+    return _DIRECTIONS[move.movement_type.name.split("_")[-1].lower()]
 
 
 def _narrow_stop(
