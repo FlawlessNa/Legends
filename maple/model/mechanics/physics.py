@@ -6,7 +6,7 @@ Virtual coordinates): walk speed, climb speed, jump arc and teleport reach.
 Walk and jump come from the game files (`Map/Physics.img`, through
 `Catalogue.physics()`), times the character's speed and jump multipliers.
 Climb and teleport are not in the game files, so they start from named
-constants until Trials measure them (#397). Each value is then multiplied by
+constants until Trials measure them (`configs/trials/physics.json`, #397). Each value is then multiplied by
 its Calibration constant (`Calibration`).
 
 Movement Plans are planned and compiled on it (#396), with the character's
@@ -32,12 +32,14 @@ from game_data.catalogue import Catalogue
 from game_data.config import STORE
 
 #: Virtual px one teleport moves the character. Not in `Physics.img`: it
-#: starts from today's `TELEPORT_DISTANCE` (below), until measured by #397.
+#: starts from today's `TELEPORT_DISTANCE` (below), until the physics Trial
+#: schedule measures it (#397).
 TELEPORT_REACH = 150.0
 
 #: Virtual px/s the character climbs a rope or ladder at. Not in
 #: `Physics.img`: `compile_movements` times climbs at the walk speed today
-#: (`walkSpeed`, 125), so it starts there, until measured by #397.
+#: (`walkSpeed`, 125), so it starts there, until the physics Trial schedule
+#: measures it (#397).
 CLIMB_SPEED = 125.0
 
 #: The `Physics.img` keys `VRPhysics` reads.

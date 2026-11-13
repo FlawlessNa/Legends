@@ -10,6 +10,7 @@ import numpy as np
 from botting import PARENT_LOG
 from botting.core import BotData
 from botting.screen import Frame, Reading
+from maple.model.characters.maple_skills import MapleSkill
 from maple.model.mechanics import (
     MovementHandler,
     compile_movements,
@@ -401,8 +402,8 @@ class MovementsMixin:
 
     **The target.** `_virtual_target` gives it in virtual px: `next_target`,
     which the rotation picks on the map's platforms (`NextTargetMixin`, #398).
-    A DecisionMaker whose targets are in another unit (`TrialRunner`'s, in
-    canvas px until #397) overrides it.
+    A DecisionMaker whose target is not `next_target` (`TrialRunner`, whose
+    driver owns it) overrides it.
 
     **An unsure position holds.** When `current_position` is `UNSURE` (the
     reads disagree, or two characters stand where the minimap puts ours), no
@@ -482,10 +483,17 @@ class MovementsMixin:
             self.data.handle,
             world_map,
             self.data.ign,
-            self.data.character.skills.get("Teleport"),
+            self._teleport_skill(),
             narrow_platform_threshold=narrow_platform_threshold,
             edge_departure_threshold=edge_departure_threshold,
         )
+
+    def _teleport_skill(self) -> MapleSkill | None:
+        """
+        The teleport skill Paths may cast: the character's, or `None` when it has
+        none. A Trial batch planned without it overrides this (`TrialRunner`).
+        """
+        return self.data.character.skills.get("Teleport")
 
     def _world_map(self) -> WorldMap:
         world_map: WorldMap | None = getattr(self.data, "world_map", None)

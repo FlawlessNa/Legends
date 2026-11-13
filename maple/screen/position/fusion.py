@@ -128,8 +128,8 @@ def feet_of_marker(
     """
     Where a marker's canvas pixel puts the feet, in virtual px: the middle of
     the canvas pixel `FEET_ROWS` below the marker's, as fusion places the
-    minimap's position. Also how a target picked in canvas px (a Trial's,
-    until #397) becomes a virtual one.
+    minimap's position. Also how a target picked in canvas px becomes a
+    virtual one.
     """
     half = transform.scale / 2
     corner = transform.to_virtual((marker[0], marker[1] + FEET_ROWS))

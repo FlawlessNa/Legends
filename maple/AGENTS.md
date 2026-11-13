@@ -76,7 +76,8 @@ virtual px on `data.world_map`:
 - `CheckStillInMap` checks the minimap against `world_map`'s canvas.
 - Mobs found on screen are placed through the camera of the frame they were
   found on (`PositionFusion.camera`, `MobsHittingMixin.mobs_in_virtual_px`).
-- `TrialRunner` still judges in canvas px, converted at its edge, until #397.
+- `TrialRunner` judges Trials on `current_position`, to the driver's target in
+  virtual px (#397).
 
 Game files are read by `game_data/` (top level, importing neither `maple` nor
 `botting`), not by this package. See `docs/agents/game-data.md`.

@@ -42,8 +42,8 @@ The model gaps (PM2's teleport half, PM3 entirely) were closed by
 `_MovementComponent` marks a take-off within `edge_departure_threshold`
 (default 5 minimap px, 80 virtual px since #396; a **Knob** on `MovementHandler`,
 mirroring `narrow_platform_threshold`'s shape) of its platform's end in the
-travel direction. Until [#397](https://github.com/FlawlessNa/Legends/issues/397)
-converts them, the Knob values in `configs/trials` are still minimap px, 16× off.
+travel direction. [#397](https://github.com/FlawlessNa/Legends/issues/397)
+converted the Knob values in `configs/trials` to virtual px (×16).
 
 **Reading `movement.plan_started` across #396.** `components` keeps its meaning
 in old and new Sessions alike: `[movement_type, length]`, where a walk's or a

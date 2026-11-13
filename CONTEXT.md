@@ -274,8 +274,9 @@ calibration; redesigning the controller is a different effort.
 _Avoid_: Setting, parameter — too generic to name the swept things.
 
 **Trial schedule**:
-The checked-in definition of one calibration experiment: a map, and the batches
-of Trials to walk in order. Nested Schedule -> Batch -> Trial because a **Knob**
+The checked-in definition of one calibration experiment: a map (by its game name
+or id), and the batches of Trials to walk in order, with positions and tolerances
+in virtual px. Nested Schedule -> Batch -> Trial because a **Knob**
 override is per batch, so a sweep is several batches over the same Trial list in
 one reviewable file. Lives under `configs/trials/`; it is shared project data,
 not per-user config.
@@ -284,7 +285,8 @@ Movement Plan is already taken.
 
 **Trial record**:
 What a run of a Trial schedule leaves behind: per-machine JSONL, one line per
-decision cycle and one per Trial outcome, under the gitignored `trial_records/`.
+decision cycle, one per position sample read while an Action is in flight, and
+one per Trial outcome, under the gitignored `trial_records/`.
 An experiment artifact, **not** Session telemetry — `telemetry.jsonl` describes a
 Session and the logging map owns it. The two are joined on the Correlation ID a
 cycle carries, never merged.
