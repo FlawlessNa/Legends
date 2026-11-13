@@ -15,11 +15,21 @@ the Delivered Prefix a cancel truncated it to. So `CycleRecord.sequence` is opti
 filled in by an offline compile (`summarize_sequence`) where the framework compiles
 for itself, and `None` on the live path, where the Correlation ID stands in for it.
 
-One file per run of a schedule, three kinds of line:
+One file per run of a schedule, four kinds of line:
 
-* ``header``  - once, first: which schedule, which machine, when.
+* ``header``  - once, first: which schedule, which map, which machine, when, and
+  the physics the sitting planned with.
 * ``cycle``   - one per decision cycle.
+* ``sample``  - one per position read while an Action is in flight: what the
+  analyzer measures the physics from (`maple/calibration/analysis.py`).
 * ``outcome`` - one per Trial, after its last cycle.
+
+**Units.** Positions, targets, errors and tolerances are virtual px. A position is
+recorded as it was read: its status, and for a read one its source (``fused``
+from the play area, ``coarse`` from the minimap alone), so an unsure read is a
+line that says so rather than a plausible number (C-NOGUESS). ``frame_time`` is
+the read's frame capture time (`time.monotonic()`), the clock the physics are
+measured on.
 
 The format round-trips: `read_records(path)` returns exactly what was written, so an
 analyzer and the framework never disagree about what a file says.
@@ -38,11 +48,13 @@ from types import TracebackType
 from typing import Any, ClassVar, Final, Protocol, Self
 
 from botting.controller import KeyboardInputWrapper
+from botting.screen import Reading
 from maple.calibration.specs import Knobs
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
     _MovementComponent,
 )
+from maple.screen.position import VirtualPosition
 from paths import ROOT
 
 #: Where records land. Gitignored: a record is measured on one machine, by one
@@ -75,20 +87,53 @@ class TrialResult(StrEnum):
 
 @dataclass(frozen=True)
 class MovementSummary:
-    """One component of a Movement Plan, reduced to JSON primitives."""
+    """
+    One component of a Movement Plan, reduced to JSON primitives.
+
+    ``length`` is virtual px (`_MovementComponent.length`), rounded to 0.1.
+    ``duration`` is the component's own seconds where it sets them (a jump's
+    flight, a drop's or a fall's time), which is what the analyzer checks a
+    measured flight against; ``start`` and ``end`` are its planned take-off and
+    landing, virtual px. All three are `None` where the component has none.
+    """
 
     movement_type: str
-    length: int
+    length: float
     narrow: bool
     edge_departure: bool
+    duration: float | None = None
+    casts: int = 1
+    grabs_rope: bool = False
+    start: tuple[float, float] | None = None
+    end: tuple[float, float] | None = None
 
-    def to_json(self) -> list[Any]:
-        return [self.movement_type, self.length, self.narrow, self.edge_departure]
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "type": self.movement_type,
+            "length": self.length,
+            "narrow": self.narrow,
+            "edge_departure": self.edge_departure,
+            "duration": self.duration,
+            "casts": self.casts,
+            "grabs_rope": self.grabs_rope,
+            "start": None if self.start is None else list(self.start),
+            "end": None if self.end is None else list(self.end),
+        }
 
     @classmethod
-    def from_json(cls, payload: list[Any]) -> MovementSummary:
-        movement_type, length, narrow, edge_departure = payload
-        return cls(str(movement_type), int(length), bool(narrow), bool(edge_departure))
+    def from_json(cls, payload: dict[str, Any]) -> MovementSummary:
+        duration = payload.get("duration")
+        return cls(
+            movement_type=str(payload["type"]),
+            length=float(payload["length"]),
+            narrow=bool(payload["narrow"]),
+            edge_departure=bool(payload["edge_departure"]),
+            duration=None if duration is None else float(duration),
+            casts=int(payload.get("casts", 1)),
+            grabs_rope=bool(payload.get("grabs_rope", False)),
+            start=_optional_xy(payload.get("start")),
+            end=_optional_xy(payload.get("end")),
+        )
 
 
 def summarize_plan(
@@ -103,12 +148,72 @@ def summarize_plan(
     return tuple(
         MovementSummary(
             MovementTypes(component.movement_type).name,
-            int(component.length),
+            round(float(component.length), 1),
             bool(component.narrow),
             bool(component.edge_departure),
+            duration=(
+                None if component.duration is None else float(component.duration)
+            ),
+            casts=int(component.casts),
+            grabs_rope=bool(component.grabs_rope),
+            start=_rounded_xy(component.start),
+            end=_rounded_xy(component.end),
         )
         for component in movements
     )
+
+
+@dataclass(frozen=True)
+class PositionRecord:
+    """
+    A `Reading[VirtualPosition]` as it goes into a record: the status always, the
+    feet and their source only for a read one.
+
+    :ivar status: The reading's status (``read``, ``unsure``, ...).
+    :ivar position: The feet, virtual px, rounded to 0.1; `None` unless read.
+    :ivar source: ``fused`` or ``coarse``; `None` unless read.
+    :ivar frame_time: When the frame it was read from was captured
+        (`time.monotonic()`).
+    """
+
+    status: str
+    position: tuple[float, float] | None
+    source: str | None
+    frame_time: float
+
+    @property
+    def is_read(self) -> bool:
+        return self.position is not None
+
+    @classmethod
+    def of(cls, reading: Reading[VirtualPosition]) -> PositionRecord:
+        value = reading.value
+        if value is None:
+            return cls(reading.status.value, None, None, float(reading.frame_time))
+        return cls(
+            reading.status.value,
+            (round(float(value.x), 1), round(float(value.y), 1)),
+            value.source.value,
+            float(reading.frame_time),
+        )
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "position": None if self.position is None else list(self.position),
+            "source": self.source,
+            "frame_time": self.frame_time,
+        }
+
+    @classmethod
+    def from_json(cls, payload: dict[str, Any]) -> PositionRecord:
+        source = payload.get("source")
+        return cls(
+            status=str(payload["status"]),
+            position=_optional_xy(payload.get("position")),
+            source=None if source is None else str(source),
+            frame_time=float(payload["frame_time"]),
+        )
 
 
 @dataclass(frozen=True)
@@ -174,12 +279,27 @@ def summarize_sequence(sequence: KeyboardInputWrapper | None) -> SequenceSummary
 
 @dataclass(frozen=True)
 class ScheduleHeader:
-    """The first line of a file: which experiment this is, and where it was run."""
+    """
+    The first line of a file: which experiment this is, and where it was run.
+
+    ``map`` is the schedule's own, a game name or an id; ``map_id`` is what it
+    resolved to on the bot's map. The rest is what the analyzer needs to turn
+    measured speeds into Calibration constants, which multiply the game-file
+    derivations: the `Physics.img` values the sitting planned with
+    (``physics``), the character's ``speed_multiplier`` and ``jump_multiplier``,
+    and the ``calibration`` constants in force. Each is `None` where the run had
+    none to give (an offline run, a test).
+    """
 
     schedule: str
-    map_name: str
+    map: str | int
     started_at: str
     machine: str
+    map_id: int | None = None
+    physics: dict[str, float] | None = None
+    speed_multiplier: float | None = None
+    jump_multiplier: float | None = None
+    calibration: dict[str, float] | None = None
 
     kind: ClassVar[str] = "header"
 
@@ -187,23 +307,56 @@ class ScheduleHeader:
         return {
             "kind": self.kind,
             "schedule": self.schedule,
-            "map": self.map_name,
+            "map": self.map,
             "started_at": self.started_at,
             "machine": self.machine,
+            "map_id": self.map_id,
+            "physics": self.physics,
+            "speed_multiplier": self.speed_multiplier,
+            "jump_multiplier": self.jump_multiplier,
+            "calibration": self.calibration,
         }
 
     @classmethod
     def from_json(cls, payload: dict[str, Any]) -> ScheduleHeader:
+        map_setting = payload["map"]
+        map_id = payload.get("map_id")
         return cls(
             schedule=str(payload["schedule"]),
-            map_name=str(payload["map"]),
+            map=map_setting if isinstance(map_setting, int) else str(map_setting),
             started_at=str(payload["started_at"]),
             machine=str(payload["machine"]),
+            map_id=None if map_id is None else int(map_id),
+            physics=_optional_floats(payload.get("physics")),
+            speed_multiplier=_optional_float(payload.get("speed_multiplier")),
+            jump_multiplier=_optional_float(payload.get("jump_multiplier")),
+            calibration=_optional_floats(payload.get("calibration")),
         )
 
     @classmethod
-    def now(cls, schedule: str, map_name: str) -> ScheduleHeader:
-        return cls(schedule, map_name, utc_now(), platform.node())
+    def now(
+        cls,
+        schedule: str,
+        map_setting: str | int,
+        *,
+        map_id: int | None = None,
+        physics: dict[str, float] | None = None,
+        speed_multiplier: float | None = None,
+        jump_multiplier: float | None = None,
+        calibration: dict[str, float] | None = None,
+    ) -> Self:
+        """A header stamped now, on this machine."""
+        return cls(
+            schedule,
+            map_setting,
+            utc_now(),
+            platform.node(),
+            map_id=map_id,
+            physics=physics,
+            speed_multiplier=speed_multiplier,
+            jump_multiplier=jump_multiplier,
+            calibration=calibration,
+        )
 
 
 @dataclass(frozen=True)
@@ -215,6 +368,9 @@ class CycleRecord:
     ``dispatched`` separates a cycle that shipped a Movement Plan from one that
     decided it had arrived (or run out of budget) and sent nothing - without it, a
     Trial's last cycle looks like a plan that vanished.
+
+    ``error`` is the distance to ``target`` in virtual px, `None` when the
+    position was not read: an unsure cycle is judged on nothing.
     """
 
     schedule: str
@@ -224,9 +380,9 @@ class CycleRecord:
     cycle: int
     elapsed: float
     wall_clock: str
-    position: tuple[int, int]
+    position: PositionRecord
     target: tuple[int, int]
-    error: float
+    error: float | None
     dispatched: bool
     correlation_id: str | None = None
     plan: tuple[MovementSummary, ...] = ()
@@ -244,7 +400,7 @@ class CycleRecord:
             "cycle": self.cycle,
             "elapsed": self.elapsed,
             "wall_clock": self.wall_clock,
-            "position": list(self.position),
+            **self.position.to_json(),
             "target": list(self.target),
             "error": self.error,
             "dispatched": self.dispatched,
@@ -263,9 +419,9 @@ class CycleRecord:
             cycle=int(payload["cycle"]),
             elapsed=float(payload["elapsed"]),
             wall_clock=str(payload["wall_clock"]),
-            position=_point(payload["position"]),
+            position=PositionRecord.from_json(payload),
             target=_point(payload["target"]),
-            error=float(payload["error"]),
+            error=_optional_float(payload["error"]),
             dispatched=bool(payload["dispatched"]),
             correlation_id=payload["correlation_id"],
             plan=tuple(
@@ -280,6 +436,55 @@ class CycleRecord:
 
 
 @dataclass(frozen=True)
+class SampleRecord:
+    """
+    One position read between decision cycles, while an Action is in flight.
+
+    Not a decision cycle: nothing is judged or dispatched on it, and it counts in
+    no outcome. It exists because a decision cycle only comes once an Action has
+    finished, so cycles alone never see a jump in the air or a walk at full speed;
+    the analyzer measures the physics from these (`maple/calibration/analysis.py`).
+
+    ``correlation_id`` is the cycle's whose Action is in flight, the join key into
+    the Session's `action.*` records for it.
+    """
+
+    schedule: str
+    batch: str
+    trial: str
+    phase: str
+    elapsed: float
+    position: PositionRecord
+    correlation_id: str | None = None
+
+    kind: ClassVar[str] = "sample"
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "schedule": self.schedule,
+            "batch": self.batch,
+            "trial": self.trial,
+            "phase": self.phase,
+            "elapsed": self.elapsed,
+            **self.position.to_json(),
+            "correlation_id": self.correlation_id,
+        }
+
+    @classmethod
+    def from_json(cls, payload: dict[str, Any]) -> SampleRecord:
+        return cls(
+            schedule=str(payload["schedule"]),
+            batch=str(payload["batch"]),
+            trial=str(payload["trial"]),
+            phase=str(payload["phase"]),
+            elapsed=float(payload["elapsed"]),
+            position=PositionRecord.from_json(payload),
+            correlation_id=payload.get("correlation_id"),
+        )
+
+
+@dataclass(frozen=True)
 class TrialOutcome:
     """
     One Trial's verdict and its two defect counters.
@@ -288,6 +493,10 @@ class TrialOutcome:
     definition in `CONTEXT.md`; ``oscillations`` and ``stuck_events`` are *counted*
     rather than folded into a score, because a Knob setting that arrives reliably by
     oscillating is not the same result as one that arrives straight.
+
+    ``final_error`` is virtual px, from the last cycle whose position was read;
+    `None` when no cycle of the Trial read one. ``unsure_cycles`` counts the
+    measured cycles whose position was not read, which judged nothing.
     """
 
     schedule: str
@@ -299,7 +508,7 @@ class TrialOutcome:
     tolerance: float
     time_budget: float
     result: str
-    final_error: float
+    final_error: float | None
     time_to_arrival: float | None
     duration: float
     cycles: int
@@ -307,6 +516,8 @@ class TrialOutcome:
     stuck_events: int
     longest_stall: int
     started_at: str
+    unsure_cycles: int = 0
+    measures: str | None = None
 
     kind: ClassVar[str] = "outcome"
 
@@ -330,6 +541,8 @@ class TrialOutcome:
             "stuck_events": self.stuck_events,
             "longest_stall": self.longest_stall,
             "started_at": self.started_at,
+            "unsure_cycles": self.unsure_cycles,
+            "measures": self.measures,
         }
 
     @classmethod
@@ -345,7 +558,7 @@ class TrialOutcome:
             tolerance=float(payload["tolerance"]),
             time_budget=float(payload["time_budget"]),
             result=str(payload["result"]),
-            final_error=float(payload["final_error"]),
+            final_error=_optional_float(payload["final_error"]),
             time_to_arrival=(
                 None if time_to_arrival is None else float(time_to_arrival)
             ),
@@ -355,14 +568,17 @@ class TrialOutcome:
             stuck_events=int(payload["stuck_events"]),
             longest_stall=int(payload["longest_stall"]),
             started_at=str(payload["started_at"]),
+            unsure_cycles=int(payload.get("unsure_cycles", 0)),
+            measures=payload.get("measures"),
         )
 
 
-Record = ScheduleHeader | CycleRecord | TrialOutcome
+Record = ScheduleHeader | CycleRecord | SampleRecord | TrialOutcome
 
 _RECORD_KINDS: Final[dict[str, Any]] = {
     ScheduleHeader.kind: ScheduleHeader,
     CycleRecord.kind: CycleRecord,
+    SampleRecord.kind: SampleRecord,
     TrialOutcome.kind: TrialOutcome,
 }
 
@@ -484,3 +700,23 @@ def default_record_path(
 
 def _point(value: list[Any]) -> tuple[int, int]:
     return int(value[0]), int(value[1])
+
+
+def _optional_xy(value: list[Any] | None) -> tuple[float, float] | None:
+    return None if value is None else (float(value[0]), float(value[1]))
+
+
+def _rounded_xy(value: tuple[float, float] | None) -> tuple[float, float] | None:
+    if value is None:
+        return None
+    return round(float(value[0]), 1), round(float(value[1]), 1)
+
+
+def _optional_float(value: object) -> float | None:
+    return None if value is None else float(value)  # type: ignore[arg-type]
+
+
+def _optional_floats(value: dict[str, Any] | None) -> dict[str, float] | None:
+    if value is None:
+        return None
+    return {str(key): float(number) for key, number in value.items()}

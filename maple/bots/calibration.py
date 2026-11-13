@@ -24,9 +24,13 @@ class CalibrationBot(MapleBot):
         ign: YourChar
         bot: calibration
         settings:
-          game_map: GhostShip1
+          map: "Victoria Road: Ellinia"
+          game_map: GhostShip1   # still required until #399; never read by Trials
           character_class: Bishop
-          trial_schedule: example
+          trial_schedule: physics
+
+    The schedule's `map` must be the bot's: `TrialRunner` refuses to start on
+    another map.
     """
 
     def _decision_makers(self) -> list[type[DecisionMaker]]:

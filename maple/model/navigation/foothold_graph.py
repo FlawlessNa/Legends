@@ -66,7 +66,8 @@ from .terrain import Floats, Ints, Terrain
 
 #: How far below its take-off a drop may land, in virtual px. Today's grid
 #: allows `JUMP_DOWN_LIMIT`, 30 minimap px; at 16 virtual px each that is 480.
-#: Whether the client limits a drop at all is unverified (#397).
+#: Whether the client limits a drop at all is unverified: the physics Trial
+#: schedule's drops (`configs/trials/physics.json`, #397) measure it live.
 DROP_REACH = 480.0
 
 #: How far above a rope's top a platform may lie and still meet it, in virtual
@@ -93,7 +94,8 @@ TELEPORT_TIME = (2 + 0.4 * 150 / 16) * 16 / 125
 
 #: The upward speed a jump off a rope starts with, in virtual px/s. Today's
 #: grid starts it at the top of the arc, with none; whether the client pushes
-#: the character up is unverified (#397). With none, a jump from one rope to
+#: the character up is unverified: the physics Trial schedule's jumps off a
+#: rope measure it live (#397). With none, a jump from one rope to
 #: another always loses height.
 ROPE_JUMP_SPEED = 0.0
 
