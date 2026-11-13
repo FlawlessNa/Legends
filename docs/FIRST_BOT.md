@@ -162,6 +162,13 @@ window shows them). What is still off after that is a Calibration constant
 (`calibration:` in the profile), measured by a Trial schedule
 (`configs/trials/`, `bot: calibration`). Don't guess these.
 
+A calibration profile is short: `ign`, `bot: calibration`, and under `settings`
+the `map`, your `character_class` (the skill table decides whether Plans may
+Teleport; `Swordsman` has none) and `trial_schedule`. It has no `models_path`,
+because the bot detects no mobs. It needs `configs/recordings.ini` (copy
+`recordings.example.ini`), and runs without `configs/discord.ini`. The Session
+ends when the schedule has finished. See `maple/bots/calibration.py`.
+
 **It doesn't notice it's stuck** — `mob_spawn_alert_timer` and
 `mob_spawn_alert_threshold` control the "no mobs are spawning" alert, which is
 usually the first sign the bot is wedged or someone took the map.

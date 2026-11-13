@@ -236,6 +236,37 @@ def test_the_walk_speed_is_measured_and_rounded_down_into_its_constant() -> None
     assert report.constants["walk"] == math.floor(report.walk.speed / 125 * 100) / 100
 
 
+def _walk_every(step: float, speed: float = 150.0) -> list[tuple[float, float, float]]:
+    """A 4 s walk read every ``step`` seconds, as the runner's cycle reads it."""
+    reads = []
+    t = OFFSET
+    while t <= 5.0:
+        reads.append((t, 50.0 + speed * min(max(t - 0.3, 0.0), 4.0), 0.0))
+        t += step
+    return reads
+
+
+def test_a_walk_read_at_the_runner_s_cycle_cadence_gives_its_constant() -> None:
+    """
+    The live run of 2026-11-13 read every 0.32 s (up to 0.57 s), not every 0.1 s:
+    the steady walk must survive it, and give the same speed.
+    """
+    report = run(("w", "walk", _walk_every(0.32)))
+    assert report.walk is not None
+    assert report.walk.speed == pytest.approx(150.0, abs=0.5)
+    assert report.constants["walk"] == 1.2
+
+
+def test_a_walk_read_too_rarely_says_what_a_steady_walk_needs() -> None:
+    report = run(("w", "walk", _walk_every(1.0)))
+    assert report.walk is None
+    text = render(report)
+    assert "No steady walk was read" in text
+    assert "at least 3 intervals" in text
+    assert "0.75 s apart" in text
+    assert "median of 1.00 s" in text
+
+
 def test_standing_and_starting_are_not_counted_in_the_walk_speed() -> None:
     report = run(("w", "walk", walk(150.0)))
     assert report.walk is not None

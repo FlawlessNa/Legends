@@ -127,7 +127,13 @@ class MapleBot(Bot, ABC):
         # `Bot.child_init` is what builds `self.data`; everything below reads it,
         # including the lambdas, which a narrowing assert alone would not reach.
         assert self.data is not None
-        assert self.models_path is not None
+        if self.models_path is None and MobsHitting in self._decision_makers():
+            # Mob and character detection are what read a model; a bot that
+            # detects neither (a calibration sitting) needs no `models_path`.
+            raise ValueError(
+                f"{type(self).__name__} for {self.ign!r} hits mobs, which needs "
+                "`models_path` in the profile's settings (see profiles/example.yaml)."
+            )
         data = self.data
         # The readers' sprites are loaded once, before any reader attribute
         # exists: a missing or stale store refuses the start here, not mid-cycle.

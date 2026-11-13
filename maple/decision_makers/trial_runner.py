@@ -41,6 +41,7 @@ from pathlib import Path
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
 from botting.screen import Reading
+from botting.stop_file import request_stop
 from game_data.catalogue import Catalogue
 from maple.actions import priorities
 from maple.calibration import (
@@ -290,6 +291,26 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             )
         )
         self._disable_decision_makers(type(self).__name__)
+        self._end_session()
+
+    def _end_session(self) -> None:
+        """
+        Ask the Session to stop, as `Ctrl+C` does: through the stop file
+        (`botting.stop_file`), which ends `SessionManager.launch` normally and
+        has `__exit__` release every key and stop every process. The calibration
+        bot has nothing left to do once its schedule has run, and would otherwise
+        idle until stopped by hand.
+
+        Nothing to ask when the Session did not publish its directory (a bot
+        run outside a `SessionManager`).
+        """
+        session_dir = self.metadata.get("session_dir")
+        if session_dir is None:
+            return
+        try:
+            request_stop(Path(session_dir), f"schedule {self.schedule.name!r} finished")
+        except OSError:
+            logger.exception("Could not ask the Session to stop; stop it by hand.")
 
     def _close_record(self) -> None:
         """

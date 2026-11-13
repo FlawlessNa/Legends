@@ -2,6 +2,7 @@ from .character import Character
 from .magicians import Bishop, Cleric, FPArchMage, FPMage, FPWizard, Magician, Priest
 from .maple_skills import MapleBuff, MaplePartyBuff, MapleSkill
 from .thiefs import Assassin, Hermit, Rogue
+from .warriors import Swordsman
 
 MAPPING = {
     "Magician": Magician,
@@ -9,6 +10,7 @@ MAPPING = {
     "Priest": Priest,
     "Bishop": Bishop,
     "Rogue": Rogue,
+    "Swordsman": Swordsman,
     "Assassin": Assassin,
     "Hermit": Hermit,
     "WizardFirePoison": FPWizard,
@@ -31,4 +33,5 @@ __all__ = [
     "MapleSkill",
     "Priest",
     "Rogue",
+    "Swordsman",
 ]

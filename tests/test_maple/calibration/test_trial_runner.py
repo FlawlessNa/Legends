@@ -22,6 +22,7 @@ DecisionMaker starts up against a real client. It cannot; nothing offline can.
 import asyncio
 import threading
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, ClassVar, Self, cast
 
 import pytest
@@ -29,6 +30,7 @@ import pytest
 from botting.core import ActionRequest
 from botting.core.bot_data import BotData
 from botting.screen import Reading
+from botting.stop_file import STOP_FILENAME
 from maple.calibration.driver import TrialDriver
 from maple.calibration.records import (
     CycleRecord,
@@ -132,6 +134,7 @@ def harness() -> _Harness:
     self: Any = object.__new__(TrialRunner)
     self.data = data
     self.pipe = pipe
+    self.metadata = {}
     self.lock = threading.Lock()
     self.correlation_id = "cid-0"
     self.schedule = _schedule(entry)
@@ -285,6 +288,32 @@ def test_finishing_twice_ships_one_key_release(harness: _Harness) -> None:
     harness.runner._finish()
 
     assert len(harness.pipe.sent) == 1
+
+
+def test_finishing_the_schedule_asks_the_session_to_stop(
+    harness: _Harness, tmp_path: Path
+) -> None:
+    """
+    A calibration sitting has nothing left to do after its schedule, so it ends
+    the Session the way `python -m botting.session stop` does, through the stop
+    file in the Session directory the Session published.
+    """
+    harness.runner._disable_decision_makers = lambda *names: None  # type: ignore[method-assign]
+    harness.runner.metadata["session_dir"] = str(tmp_path)
+
+    harness.runner._finish()
+
+    assert "runner-lab" in (tmp_path / STOP_FILENAME).read_text(encoding="utf-8")
+
+
+def test_a_runner_outside_a_session_has_no_one_to_ask_to_stop(
+    harness: _Harness, tmp_path: Path
+) -> None:
+    harness.runner._disable_decision_makers = lambda *names: None  # type: ignore[method-assign]
+
+    harness.runner._finish()  # no `session_dir` in the metadata: nothing raised
+
+    assert list(tmp_path.iterdir()) == []
 
 
 # --- Knobs ------------------------------------------------------------------------

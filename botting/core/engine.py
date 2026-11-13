@@ -5,7 +5,11 @@ import multiprocessing.managers
 import threading
 from dataclasses import dataclass
 
-from botting.utilities import install_loop_diagnostics, setup_child_proc_logging
+from botting.utilities import (
+    exit_with_parent,
+    install_loop_diagnostics,
+    setup_child_proc_logging,
+)
 
 from .action_data import ActionRequest
 from .bot import Bot
@@ -86,6 +90,7 @@ class _ChildProcessEngine:
         :return:
         """
         setup_child_proc_logging(metadata["logging_queue"])
+        exit_with_parent()
         engine = cls(pipe, metadata, bots, barrier)
         logger.info("%s Started.", engine)
         # None (not False) so that PYTHONASYNCIODEBUG still wins when the flag is off.
