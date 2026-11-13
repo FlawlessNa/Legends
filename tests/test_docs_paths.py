@@ -26,8 +26,10 @@ DOC_NAMES = ("AGENTS.md",)
 HISTORICAL: dict[tuple[str, str], str] = {
     ("botting/AGENTS.md", "botting/visuals/object_detection.py"): "removed by #85",
     ("docs/ARCHITECTURE.md", "botting/visuals/object_detection.py"): "removed by #85",
-    # The tutorial's own example: the reader makes this file, with their own name.
-    ("docs/FIRST_BOT.md", "configs/maps/YourMapName.json"): "a placeholder name",
+    (
+        "docs/adr/0004-virtual-coordinates-and-map-from-game-data.md",
+        "toolkit/create_map.py",
+    ): "removed by #399",
 }
 
 BACKTICKED = re.compile(r"`([^`\n]+)`")

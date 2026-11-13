@@ -11,8 +11,8 @@ source can be added to the lists, overlapping or not.
 along a platform, a climb along a rope), each a `MoveRange`:
 
 - `JUMP` left, right and up from every x of a platform, and left and right
-  from every y of a rope (from the top of the arc, as today's grid does);
-  each traced along `VRPhysics`' arc (`terrain`). A jump that lands back on
+  from every y of a rope (from the top of the arc, as the retired minimap grid
+  did); each traced along `VRPhysics`' arc (`terrain`). A jump that lands back on
   its own platform is no move. A sideways jump may instead grab the first
   rope it crosses, and a jump up from right under a rope's bottom grabs it.
 - `DROP` down through a platform, onto the next platform below within
@@ -26,7 +26,7 @@ along a platform, a climb along a rope), each a `MoveRange`:
   continuing the same way.
 - `PORTAL` from each portal pair's source to its target.
 - `TELEPORT` (only with `teleport=True`) left, right, up and down, with
-  today's grid's rules.
+  the retired minimap grid's rules.
 
 A move that works from a stretch is stored once, as an x-range (or a y-range
 on a rope), split wherever its landing surface changes. Ranges are found by
@@ -83,17 +83,19 @@ JOIN_TOLERANCE = 1.0
 #: on, in virtual px: one minimap px.
 PLACE_TOLERANCE = 16.0
 
-#: Seconds a portal is planned to take. Not in the game files: today's grid
-#: charges a portal 1 minimap px of walking, 16 virtual px at 125 px/s.
+#: Seconds a portal is planned to take. Not in the game files: the retired
+#: minimap grid charged a portal 1 minimap px of walking, 16 virtual px at
+#: 125 px/s.
 PORTAL_TIME = 16 / 125
 
-#: Seconds a teleport is planned to take. Not in the game files: today's grid
-#: charges a full-reach teleport (150 px, 9.375 minimap px) 2 minimap px plus
-#: 40% of its length, as walking at 16 virtual px per minimap px and 125 px/s.
+#: Seconds a teleport is planned to take. Not in the game files: the retired
+#: minimap grid charged a full-reach teleport (150 px, 9.375 minimap px)
+#: 2 minimap px plus 40% of its length, as walking at 16 virtual px per minimap
+#: px and 125 px/s.
 TELEPORT_TIME = (2 + 0.4 * 150 / 16) * 16 / 125
 
-#: The upward speed a jump off a rope starts with, in virtual px/s. Today's
-#: grid starts it at the top of the arc, with none; whether the client pushes
+#: The upward speed a jump off a rope starts with, in virtual px/s. The retired
+#: grid started it at the top of the arc, with none; whether the client pushes
 #: the character up is unverified: the physics Trial schedule's jumps off a
 #: rope measure it live (#397). With none, a jump from one rope to
 #: another always loses height.
@@ -400,7 +402,7 @@ class FootholdGraph:
             reach = self._physics.teleport_reach
             to = xs + sign * reach
             # The nearest platform at or above the take-off's height, else the
-            # nearest below, within half the reach: today's grid's rule.
+            # nearest below, within half the reach: the retired grid's rule.
             up, up_y = self._terrain.nearest(to, ys - reach / 2, ys, highest=False)
             down, down_y = self._terrain.nearest(
                 to, ys + _TOL, ys + reach / 2, highest=True

@@ -14,7 +14,6 @@ from maple.model.mechanics.physics import (
     CLIMB_SPEED,
     TELEPORT_REACH,
     Calibration,
-    MinimapPhysics,
     VRPhysics,
 )
 
@@ -103,8 +102,8 @@ def test_the_jump_multiplier_scales_the_take_off_speed_linearly() -> None:
     base, high = _physics(), _physics(jump_multiplier=1.1)
 
     assert high.jump_speed == pytest.approx(1.1 * base.jump_speed)
-    # The arc follows from the take-off speed, as `MinimapPhysics` has it: the
-    # height goes with its square, the time in the air and the reach with it.
+    # The arc follows from the take-off speed: the height goes with its square,
+    # the time in the air and the reach with it.
     assert high.jump_height == pytest.approx(1.1**2 * base.jump_height)
     assert high.jump_duration == pytest.approx(1.1 * base.jump_duration)
     assert high.jump_reach() == pytest.approx(1.1 * base.jump_reach())
@@ -212,15 +211,3 @@ def test_load_reads_the_latest_catalogues_physics(
 
     assert roots == [tmp_path]
     assert vr == _physics(speed_multiplier=1.4, calibration=Calibration(jump=0.9))
-
-
-# --- MinimapPhysics, until #399 ---------------------------------------------------
-
-
-def test_minimap_physics_keeps_its_hard_coded_values() -> None:
-    minimap = MinimapPhysics(scale_x=0.1, scale_y=0.05)
-
-    assert minimap.minimap_speed == pytest.approx(12.5)
-    assert minimap.jump_height == pytest.approx(555.0**2 / 4000.0 * 0.05)
-    assert minimap.jump_distance == pytest.approx(2 * 555.0 / 2000.0 * 125.0 * 0.1)
-    assert minimap.teleport_h_dist == pytest.approx(15.0)

@@ -1,4 +1,5 @@
-"""How a MapleBot finds its client, and why it needs its job from the profile."""
+"""How a MapleBot finds its client, and what it needs from the profile: its job,
+its map and the mobs it looks for."""
 
 from collections.abc import Sequence
 from types import SimpleNamespace
@@ -11,6 +12,7 @@ from botting.screen import Frame
 from game_data.catalogue import Bounds
 from maple.bots import maple_bot
 from maple.bots.maple_bot import MapleBot
+from maple.launchers.profile import ProfileError
 from maple.model.mechanics.physics import Calibration
 from maple.model.world import MinimapTransform, WorldMap
 from maple.screen import client
@@ -61,7 +63,7 @@ def test_find_handle_uses_class_name_and_executable_from_game_ini(
         return 4242
 
     monkeypatch.setattr(client, "find_window", _find_window)
-    bot = _Bot("Someone", {}, game_map="Line1Area1", character_class="Bishop")  # pyright: ignore[reportArgumentType] - metadata is never read here
+    bot = _Bot("Someone", {}, map="auto", character_class="Bishop")  # pyright: ignore[reportArgumentType] - metadata is never read here
 
     assert bot.find_handle() == 4242
     assert calls == [("MapleStoryClass", "MapleStory.exe")]
@@ -69,7 +71,7 @@ def test_find_handle_uses_class_name_and_executable_from_game_ini(
 
 def test_construction_without_character_class_names_the_profile_key() -> None:
     with pytest.raises(ValueError, match="character_class"):
-        _Bot("Someone", {}, game_map="Line1Area1")  # pyright: ignore[reportArgumentType] - metadata is never read here
+        _Bot("Someone", {}, map="auto")  # pyright: ignore[reportArgumentType] - metadata is never read here
 
 
 def test_child_init_takes_the_handle_from_find_handle() -> None:
@@ -90,17 +92,44 @@ def test_child_init_takes_the_handle_from_find_handle() -> None:
 def test_construction_reads_the_map_setting_and_stores_its_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_, game_map: 10002000)
+    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_: 10002000)
     bot = _Bot(
         "Someone",
         {},  # pyright: ignore[reportArgumentType] - metadata is never read here
         map="Victoria Road: Ellinia",
-        game_map="Line1Area1",
         character_class="Bishop",
     )
 
     assert bot.map_id == 10002000
-    assert bot.game_map == "Line1Area1"
+
+
+def test_game_map_is_refused_naming_map_and_mobs() -> None:
+    """The map files are retired (#399): a profile still naming one refuses the
+    start, saying what replaces it."""
+    with pytest.raises(ProfileError, match=r"`map`.*`mobs`"):
+        _Bot(
+            "Someone",
+            {},  # pyright: ignore[reportArgumentType] - metadata is never read here
+            map="auto",
+            game_map="Line1Area1",
+            character_class="Bishop",
+        )
+
+
+def test_a_profile_without_map_is_refused() -> None:
+    with pytest.raises(ProfileError, match="need `map`"):
+        _Bot("Someone", {}, character_class="Bishop")  # pyright: ignore[reportArgumentType] - metadata is never read here
+
+
+def test_mobs_must_be_a_list() -> None:
+    with pytest.raises(ProfileError, match=r"\[Bubbling\]"):
+        _Bot(
+            "Someone",
+            {},  # pyright: ignore[reportArgumentType] - metadata is never read here
+            map="auto",
+            character_class="Bishop",
+            mobs="Bubbling",
+        )
 
 
 def _bot(**settings: Any) -> _Bot:  # noqa: ANN401 - profile settings
@@ -117,18 +146,11 @@ class _Start:
     """What `child_init` loaded and checked, up to the first reader attribute,
     where it stops."""
 
-    def __init__(
-        self, monkeypatch: pytest.MonkeyPatch, file_map_id: int | None
-    ) -> None:
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self.readers: list[Declaration] = []
         self.profiles: list[Profile] = []
-        self.checked: list[int | None] = []
+        self.checked = 0
         self.sprites = ReaderSprites(None)
-        monkeypatch.setattr(
-            maple_bot.MinimapEditsManager,
-            "from_json",
-            lambda name: SimpleNamespace(map_id=file_map_id),
-        )
         monkeypatch.setattr(maple_bot, "load_reader_sprites", self._load)
         monkeypatch.setattr(MapleBot, "_check_map_at_start", self._check)
         monkeypatch.setattr(client, "find_window", lambda *_: 4242)
@@ -143,19 +165,17 @@ class _Start:
         self.profiles.append(profile)
         return self.sprites
 
-    def _check(
-        self, sprites: ReaderSprites, file_map_id: int | None
-    ) -> tuple[int, ReaderSprites]:
-        self.checked.append(file_map_id)
+    def _check(self, sprites: ReaderSprites) -> tuple[int, ReaderSprites]:
+        self.checked += 1
         return 10002000, sprites
 
 
-def test_child_init_publishes_the_map_settings_id_not_the_map_files_once_checked(
+def test_child_init_publishes_the_map_settings_id_once_checked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    start = _Start(monkeypatch, file_map_id=999)
-    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_, game_map: 10002000)
-    bot = _bot(map="Victoria Road: Ellinia", game_map="Line1Area1")
+    start = _Start(monkeypatch)
+    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_: 10002000)
+    bot = _bot(map="Victoria Road: Ellinia")
 
     with pytest.raises(_Stop):
         bot.child_init(None, None)  # pyright: ignore[reportArgumentType] - neither is used before start()
@@ -163,27 +183,27 @@ def test_child_init_publishes_the_map_settings_id_not_the_map_files_once_checked
     assert bot.data is not None
     assert bot.data.map_id == 10002000
     assert start.profiles[0].map_id == 10002000
-    assert start.checked == [999]
+    assert start.checked == 1
 
 
 def test_a_named_map_is_checked_on_screen_with_the_minimap_reader(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    start = _Start(monkeypatch, file_map_id=None)
-    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_, game_map: 10002000)
+    start = _Start(monkeypatch)
+    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_: 10002000)
 
     with pytest.raises(_Stop):
-        _bot(map="Victoria Road: Ellinia", game_map="Line1Area1").child_init(None, None)  # pyright: ignore[reportArgumentType]
+        _bot(map="Victoria Road: Ellinia").child_init(None, None)  # pyright: ignore[reportArgumentType]
 
     assert start.readers == [FRAME_CHECK, MINIMAP]
-    assert start.checked == [None]
+    assert start.checked == 1
 
 
 def test_auto_loads_the_titles_glyphs_and_publishes_the_map_identified(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    start = _Start(monkeypatch, file_map_id=None)
-    bot = _bot(map="auto", game_map="Line1Area1")
+    start = _Start(monkeypatch)
+    bot = _bot(map="auto")
 
     with pytest.raises(_Stop):
         bot.child_init(None, None)  # pyright: ignore[reportArgumentType]
@@ -194,21 +214,28 @@ def test_auto_loads_the_titles_glyphs_and_publishes_the_map_identified(
     assert bot.data.map_id == 10002000
 
 
-def test_a_map_file_alone_is_not_checked_at_start(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("settings", "names"),
+    [({"mobs": ["Bubbling", "PacPinky"]}, ["Bubbling", "PacPinky"]), ({}, [])],
+)
+def test_current_mobs_are_the_profiles_mobs_and_none_without_them(
+    monkeypatch: pytest.MonkeyPatch, settings: dict[str, Any], names: list[str]
 ) -> None:
-    """Only `map` asks for the check; a profile naming only its map file starts
-    as before, `CheckStillInMap` alone watching the map."""
-    start = _Start(monkeypatch, file_map_id=999)
-    bot = _bot(game_map="Line1Area1")
+    """What a map file's `mobs` list was: the detection classes to look for. A
+    profile naming none looks for none, as a map file with an empty list did."""
+    _Start(monkeypatch)
+    monkeypatch.setattr(
+        maple_bot.InGameDetectionVisuals, "register_models", lambda *_: None
+    )
+    monkeypatch.setattr(
+        maple_bot.InGameDetectionVisuals, "register_cache_id", lambda *_: None
+    )
+    bot = _bot(map="auto", **settings)
 
-    with pytest.raises(_Stop):
-        bot.child_init(None, None)  # pyright: ignore[reportArgumentType]
+    bot.child_init(None, None)  # pyright: ignore[reportArgumentType]
 
-    assert start.readers == []
-    assert start.checked == []
     assert bot.data is not None
-    assert bot.data.map_id == 999
+    assert [type(mob).__name__ for mob in bot.data.current_mobs] == names
 
 
 def _world_map(map_id: int, minimap: MinimapTransform | None) -> WorldMap:
@@ -223,7 +250,7 @@ def test_child_init_builds_the_world_map_from_the_map_id_it_publishes(
     `Physics.img` values, which Movement Plans derive their physics from; and
     the position's reader on it, when the map has a minimap to check positions
     against."""
-    start = _Start(monkeypatch, file_map_id=None)
+    start = _Start(monkeypatch)
     start.sprites = ReaderSprites("build")
     loaded: list[int] = []
 
@@ -235,7 +262,7 @@ def test_child_init_builds_the_world_map_from_the_map_id_it_publishes(
     monkeypatch.setattr(maple_bot.WorldMap, "load", load)
     monkeypatch.setattr(maple_bot, "game_physics", lambda: physics)
     monkeypatch.setattr(maple_bot, "FrameCheck", lambda sprites: object())
-    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_, game_map: 10002000)
+    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_: 10002000)
     bot = _bot(map="Victoria Road: Ellinia")
 
     with pytest.raises(_Stop):
@@ -249,23 +276,6 @@ def test_child_init_builds_the_world_map_from_the_map_id_it_publishes(
         assert bot.data.position_fusion is None
     else:
         assert isinstance(bot.data.position_fusion, PositionFusion)
-
-
-def test_without_a_map_id_there_is_no_world_map(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    start = _Start(monkeypatch, file_map_id=None)
-    start.sprites = ReaderSprites("build")
-    monkeypatch.setattr(maple_bot, "FrameCheck", lambda sprites: object())
-    bot = _bot(game_map="Line1Area1")
-
-    with pytest.raises(_Stop):
-        bot.child_init(None, None)  # pyright: ignore[reportArgumentType]
-
-    assert bot.data is not None
-    assert bot.data.map_id is None
-    assert bot.data.world_map is None
-    assert bot.data.position_fusion is None
 
 
 # --- The check itself, on synthetic frames ------------------------------------
@@ -296,7 +306,6 @@ def _on_screen(
     )
     bot = object.__new__(_Bot)
     bot.ign = "Someone"
-    bot.game_map = "Line1Area1"
     bot.map_auto = map_auto
     bot.map_id = map_id
     bot.data = SimpleNamespace(handle=4242)  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
@@ -323,31 +332,18 @@ def test_auto_identifies_the_map_and_adds_its_canvas(
 ) -> None:
     bot = _on_screen(monkeypatch, _showing(), map_auto=True, map_id=None)
 
-    map_id, sprites = bot._check_map_at_start(
-        _sprites_without_the_maps_canvases(), None
-    )
+    map_id, sprites = bot._check_map_at_start(_sprites_without_the_maps_canvases())
 
     assert map_id == MAP_ID
     assert sprites.canvas(minimap_canvas_path(MAP_ID)).rgba is CANVAS.rgba
     assert bot.shown == [True]  # pyright: ignore[reportAttributeAccessIssue]
 
 
-def test_auto_refuses_when_the_map_file_is_another_map(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bot = _on_screen(monkeypatch, _showing(), map_auto=True, map_id=None)
-
-    with pytest.raises(
-        StartupRefused, match=f"map file 'Line1Area1' is map {OTHER_MAP_ID}"
-    ):
-        bot._check_map_at_start(_sprites_without_the_maps_canvases(), OTHER_MAP_ID)
-
-
 def test_a_named_map_starts_on_its_own_minimap(monkeypatch: pytest.MonkeyPatch) -> None:
     bot = _on_screen(monkeypatch, _showing(), map_auto=False, map_id=MAP_ID)
 
     sprites = title_sprites()
-    assert bot._check_map_at_start(sprites, None) == (MAP_ID, sprites)
+    assert bot._check_map_at_start(sprites) == (MAP_ID, sprites)
     assert bot.shown == [False]  # pyright: ignore[reportAttributeAccessIssue]
 
 
@@ -357,7 +353,7 @@ def test_a_named_map_refuses_another_maps_minimap(
     bot = _on_screen(monkeypatch, _showing(OTHER_CANVAS), map_auto=False, map_id=MAP_ID)
 
     with pytest.raises(StartupRefused, match=f"another map than map {MAP_ID}"):
-        bot._check_map_at_start(title_sprites(), None)
+        bot._check_map_at_start(title_sprites())
 
 
 def test_when_the_banner_cant_be_shown_any_expanded_minimap_will_do(
@@ -388,31 +384,29 @@ def test_when_the_banner_cant_be_shown_any_expanded_minimap_will_do(
 def test_construction_parses_the_calibration_setting(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_, game_map: 10002000)
+    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_: 10002000)
     bot = _Bot(
         "Someone",
         {},  # pyright: ignore[reportArgumentType] - metadata is never read here
         map="Victoria Road: Ellinia",
-        game_map="Line1Area1",
         character_class="Bishop",
         calibration={"walk": 1.1, "teleport": 0.9},
     )
 
     assert bot.calibration == Calibration(walk=1.1, teleport=0.9)
-    # It stays out of the kwargs that reach `MapleMap` and the DecisionMakers.
+    # It stays out of the kwargs that reach the DecisionMakers.
     assert "calibration" not in bot.kwargs
 
 
 def test_construction_refuses_a_misspelt_calibration_constant(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_, game_map: 10002000)
+    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_: 10002000)
     with pytest.raises(ValueError, match="no constant 'speed'"):
         _Bot(
             "Someone",
             {},  # pyright: ignore[reportArgumentType] - metadata is never read here
             map="Victoria Road: Ellinia",
-            game_map="Line1Area1",
             character_class="Bishop",
             calibration={"speed": 1.1},
         )

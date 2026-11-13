@@ -39,13 +39,18 @@ settings:
   # far. Either way the bot may press the minimap key to show the minimap
   # expanded (with its banner, for `auto`).
   #
-  # `game_map` is required alongside it until the map files are retired (#399):
-  # the old map loading needs a file in configs/maps/, without the .json
-  # extension. A `map` without `game_map` refuses to start, and so does a map
-  # file whose own `map_id` names another map than `map`. Keep the two on the
-  # same map. (Check the name against your client: `python -m game_data`.)
-  map: "Subway: Line 1 Area 1"
-  game_map: Line1Area1
+  # The map comes from the client's files (`python -m game_data extract`), so
+  # there is no map file: find the name with `python -m game_data search
+  # <part of it> --kind map`. `game_map`, the retired map file's name, refuses
+  # to start (#399).
+  map: "Victoria Road: Ellinia"
+
+  # -- Mobs -----------------------------------------------------------------
+  # The mobs to attack, by the detection model's class names (see
+  # models.manifest.json). What a map file's `mobs` list was. Left out, the
+  # bot detects no mobs, so it never casts its training skill.
+  # mobs:
+  #   - Bubbling
 
   # -- Detection model ------------------------------------------------------
   # Maps a mob class to the directory holding its weights. "All" means one
@@ -95,14 +100,13 @@ settings:
 
   # -- Movement tuning ------------------------------------------------------
   # Leave these out unless movement is visibly mistimed. Speed and jump
-  # multipliers correct for gear/buffs the physics model doesn't know about;
-  # measure them in the map editor (`python toolkit/create_map.py --map
-  # <MapName> --ign <YourIGN>`) rather than guessing.
+  # multipliers are the character's speed and jump stats (the ability window
+  # shows them), which the game-file physics are multiplied by.
   # speed_multiplier: 1.4
   # jump_multiplier: 1.23
   # Calibration constants: multipliers on the game-file physics, set from
   # what Trials measure (CONTEXT.md -> Calibration constant). Each is 1.0
-  # when left out. Not read yet: movement moves to virtual px in #396.
+  # when left out. Movement Plans read them (#396).
   # calibration:
   #   walk: 1.0
   #   jump: 1.0

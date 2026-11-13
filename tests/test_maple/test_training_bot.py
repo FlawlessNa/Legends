@@ -11,12 +11,10 @@ must read.
 """
 
 import asyncio
-import json
 import queue
 import threading
 from collections import defaultdict
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -39,7 +37,6 @@ from maple.decision_makers import (
     Rotation,
     SoloRebuff,
 )
-from maple.model.mechanics.minimap_creation import minimap_edits_model
 from maple.model.world import WorldMap, chain_platforms
 from maple.screen import client
 from maple.screen.buffs import BUFFS
@@ -167,51 +164,21 @@ class _Pipe:
         self.sent.append(request)
 
 
-def _write_map(root: Path) -> None:
-    """A map file for the synthetic minimap: one floor across its canvas."""
-    floor = {
-        "offset": [0, 0],
-        "walkable": True,
-        "weight": 1,
-        "avoid_right_edge": False,
-        "avoid_left_edge": False,
-        "edge_threshold": 0,
-        "no_jump_connections_from_endpoints": False,
-        "rotation_indexes": [],
-        "left": 10,
-        "right": 110,
-        "top": USER_AT[1],
-        "bottom": USER_AT[1],
-    }
-    (root / "Synthetic.json").write_text(
-        json.dumps(
-            {
-                "_meta": {
-                    "scale_x": 0.0625467102010949,
-                    "scale_y": 0.04618260326870873,
-                    "canvas_width": minimap.AREA_W,
-                    "canvas_height": minimap.AREA_H,
-                },
-                "map_id": minimap.MAP_ID,
-                "title_img_path": None,
-                "mobs": [],
-                "party_rebuff_zone": None,
-                "features": {"floor": floor},
-                "portals": [],
-            }
-        )
-    )
-
-
 @pytest.fixture
 def started(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[TrainingBot, _Source, _Pipe, list[Declaration]]:
     source = _Source()
     monkeypatch.setattr(capture, "_source", source)
     monkeypatch.setattr(client, "find_window", lambda *_: 4242)
-    _write_map(tmp_path)
-    monkeypatch.setattr(minimap_edits_model, "_EDITS_ROOT", str(tmp_path))
+    # The synthetic minimap's map, as the profile would name it; the check at
+    # start that the minimap shows it is `test_maple_bot_client`'s.
+    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_: minimap.MAP_ID)
+    monkeypatch.setattr(
+        maple_bot.MapleBot,
+        "_check_map_at_start",
+        lambda self, sprites: (minimap.MAP_ID, sprites),
+    )
     loaded: list[Declaration] = []
 
     def load(readers: Sequence[Declaration], profile: Profile) -> ReaderSprites:
@@ -254,7 +221,7 @@ def started(
     bot = TrainingBot(
         "Someone",
         {},  # pyright: ignore[reportArgumentType] - the proxies are stubbed above
-        game_map="Synthetic",
+        map=minimap.MAP_ID,
         character_class="Bishop",
         models_path={},
         included_buffs=list(BUFF_NAMES),

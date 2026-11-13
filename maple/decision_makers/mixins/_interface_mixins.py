@@ -46,18 +46,10 @@ class MenusMixin:
             "jump_multiplier",
             lambda: menu.get_jump(self.data.handle, self.data.current_frame.pixels),
         )
-        # Refresh minimap grid with new speed and jump multipliers
-        if self.data.has_minimap_attributes:
-            self.data.current_minimap.generate_grid_template(
-                self.data.character.skills.get("Teleport") is not None,
-                self.data.speed_multiplier,
-                self.data.jump_multiplier,
-            )
-
         if self.data.has_pathing_attributes:
-            # Refresh the Movement Plan against the regenerated grid. This used to
-            # refresh the compiled `action`; nothing is compiled before dispatch any
-            # more, so `movements` is the live path's downstream attribute.
+            # Refresh the Movement Plan with the new speed and jump multipliers.
+            # Nothing is compiled before dispatch, so `movements` is the live
+            # path's downstream attribute.
             self.data.update_attribute("movements")
 
         ensure_ability_menu_displayed(

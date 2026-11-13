@@ -2,20 +2,15 @@
 `FootholdGraph` on the real client's maps, from the latest extraction in the
 store (`python -m game_data extract`). Marked `client_files`; run with
 `pytest -m client_files`. The benchmark is also `lab`: run it with
-`pytest -m lab`; it records its numbers as
-`grid_ms` and `graph_longest_ms` (`--junitxml`).
+`pytest -m lab`; it records its number as `graph_longest_ms` (`--junitxml`).
 """
 
 import time
-from collections import deque
 from collections.abc import Callable, Iterator
 
-import numpy as np
 import pytest
-from pathfinding.finder.dijkstra import DijkstraFinder
 
 from game_data.catalogue import Rope
-from maple.model.mechanics.minimap_creation.minimap_grid import MinimapGrid
 from maple.model.mechanics.physics import VRPhysics
 from maple.model.navigation import (
     Direction,
@@ -35,7 +30,7 @@ MAPS = ("Dungeon: Damp Forest", "Victoria Road: Ellinia")
 #: floor (23, 79), the low ledge (61) and the rope-top ledge (49) to the
 #: middle ledges (70, 76) and the top (36, 44 to 47) is jumping between the
 #: hanging ropes, whose tops are no platform (`uf` 0); the graph, like
-#: today's grid, starts a jump off a rope at the top of its arc
+#: the retired minimap grid, starts a jump off a rope at the top of its arc
 #: (`ROPE_JUMP_SPEED` 0), so a jump from rope to rope always loses height.
 NO_PATH = {
     "Victoria Road: Ellinia": {},
@@ -167,62 +162,11 @@ def test_ellinia_bottom_to_top_takes_the_portal_and_ropes() -> None:
     assert {"portal", "climb", "jump"} <= kinds
 
 
-# --- the benchmark against today's grid -------------------------------------
+# --- the benchmark ---------------------------------------------------------------
 
-#: Virtual px per grid cell: today's minimap scale.
-CELL = 16
-
-
-def rasterise(world: WorldMap) -> np.ndarray:
-    """The map's platforms and ropes drawn into cells of `CELL` virtual px."""
-    b = world.bounds
-    left = min(b.left, *(p.left for p in world.platforms))
-    top = min(b.top, *(min(f.y1, f.y2) for p in world.platforms for f in p.footholds))
-    right = max(b.right, *(p.right for p in world.platforms))
-    bottom = max(
-        b.bottom, *(max(f.y1, f.y2) for p in world.platforms for f in p.footholds)
-    )
-    canvas = np.zeros(
-        ((bottom - top) // CELL + 2, (right - left) // CELL + 2), np.uint8
-    )
-    for p in world.platforms:
-        for f in p.footholds:
-            for x in np.arange(min(f.x1, f.x2), max(f.x1, f.x2) + 1):
-                y = f.y1 + (f.y2 - f.y1) * (x - f.x1) / (f.x2 - f.x1)
-                canvas[int(y - top) // CELL, int(x - left) // CELL] = 1
-    for r in world.ropes:
-        for y in range(min(r.y1, r.y2), max(r.y1, r.y2) + 1):
-            canvas[(y - top) // CELL, (r.x - left) // CELL] = 1
-    return canvas
-
-
-def farthest_pair(canvas: np.ndarray) -> tuple[tuple[int, int], tuple[int, int]]:
-    """The largest connected set of cells, and two cells of it far apart."""
-    seen = np.zeros_like(canvas, dtype=bool)
-    best: list[tuple[int, int]] = []
-    for y, x in zip(*np.nonzero(canvas), strict=True):
-        if seen[y, x]:
-            continue
-        group = [(int(x), int(y))]
-        seen[y, x] = True
-        todo = deque(group)
-        while todo:
-            cx, cy = todo.popleft()
-            for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
-                if (
-                    0 <= ny < canvas.shape[0]
-                    and 0 <= nx < canvas.shape[1]
-                    and canvas[ny, nx]
-                    and not seen[ny, nx]
-                ):
-                    seen[ny, nx] = True
-                    group.append((nx, ny))
-                    todo.append((nx, ny))
-        if len(group) > len(best):
-            best = group
-    start = max(best, key=lambda c: c[1])
-    goal = max(best, key=lambda c: abs(c[0] - start[0]) + abs(c[1] - start[1]))
-    return start, goal
+#: #302's acceptance criterion 6: a path on Ellinia in under 20 ms. It replaced
+#: the comparison with the minimap grid, which #399 retired with the map files.
+LONGEST_QUERY_S = 0.020
 
 
 def best_of(runs: int, query: object) -> float:
@@ -236,21 +180,10 @@ def best_of(runs: int, query: object) -> float:
 
 
 @pytest.mark.lab
-def test_the_graphs_longest_query_on_ellinia_is_no_slower_than_todays_grid(
+def test_the_graphs_longest_query_on_ellinia_takes_under_20_ms(
     physics: VRPhysics, record_property: Callable[[str, object], None]
 ) -> None:
     world = WorldMap.load("Victoria Road: Ellinia")
-    canvas = rasterise(world)
-    grid = MinimapGrid(canvas, speed=physics.walk_speed / CELL)
-    (sx, sy), (gx, gy) = farthest_pair(canvas)
-
-    def grid_query() -> None:
-        path, _ = DijkstraFinder().find_path(grid.node(sx, sy), grid.node(gx, gy), grid)
-        grid.cleanup()
-        assert path
-
-    baseline = best_of(3, grid_query)
-
     graph = FootholdGraph.build(world, physics)
     lowest = max(world.platforms, key=lambda p: middle(p)[1])
     highest = min(world.platforms, key=lambda p: middle(p)[1])
@@ -259,11 +192,9 @@ def test_the_graphs_longest_query_on_ellinia_is_no_slower_than_todays_grid(
         for start, goal in ((middle(lowest), middle(p)), (middle(p), middle(highest))):
             longest = max(longest, best_of(3, lambda s=start, g=goal: graph.path(s, g)))
 
-    record_property("grid_ms", round(1000 * baseline, 1))
     record_property("graph_longest_ms", round(1000 * longest, 1))
-    assert longest <= baseline, (
-        f"grid ({canvas.shape[1]}x{canvas.shape[0]} cells of {CELL} px) "
-        f"{1000 * baseline:.1f} ms; FootholdGraph's longest query {1000 * longest:.1f} ms"
+    assert longest < LONGEST_QUERY_S, (
+        f"FootholdGraph's longest query {1000 * longest:.1f} ms"
     )
 
 

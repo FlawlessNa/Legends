@@ -11,9 +11,6 @@ from __future__ import annotations
 
 from game_data.catalogue import Catalogue, CatalogueError
 from maple.launchers.profile import ProfileError
-from maple.model.mechanics.minimap_creation.minimap_edits_model import (
-    MinimapEditsManager,
-)
 
 AUTO = "auto"
 
@@ -23,42 +20,42 @@ def is_auto(map_setting: str | int | None) -> bool:
     return isinstance(map_setting, str) and map_setting.strip().casefold() == AUTO
 
 
-def resolve_map_id(map_setting: str | int | None, game_map: str | None) -> int | None:
+def refuse_game_map(game_map: object) -> None:
     """
-    The id of the map the profile names, or `None` when it names it only by a
-    map file (`game_map`, kept until the map files are retired) or says `auto`.
+    `game_map` named a hand-made map file under `configs/maps/`. The map files
+    are retired (#399): the map comes from the game files, named by `map`, and
+    the mobs to look for from `mobs`.
+
+    :raises ProfileError: `game_map` is set.
+    """
+    if game_map is None:
+        return
+    raise ProfileError(
+        f"`game_map: {game_map}` is retired with the map files (#399). Name the "
+        "map by `map`: its game name such as 'Victoria Road: Ellinia', its id, or "
+        "`auto`. The map file's `mobs` list moves to the profile's `mobs` "
+        "setting, for example `mobs: [Bubbling]`."
+    )
+
+
+def resolve_map_id(map_setting: str | int | None) -> int | None:
+    """
+    The id of the map the profile names, or `None` when it says `auto`.
 
     :param map_setting: The profile's `map`: a game map name, a map id, or `auto`.
-    :param game_map: The profile's `game_map`: a JSON map file's name.
-    :raises ProfileError: Neither is set; `map` is set without `game_map` (the
-        old map loading still needs a map file, until #399); `map` is unknown
-        or ambiguous; or the map file's own `map_id` is another map than `map`.
+    :raises ProfileError: `map` is not set, or is unknown or ambiguous.
     """
     if map_setting is None:
-        if not game_map:
-            raise ProfileError(
-                "The profile's settings need `map`: a game map name such as "
-                "'Victoria Road: Ellinia', or a map id."
-            )
-        return None
-    if not game_map:
         raise ProfileError(
-            f"`map: {map_setting}` needs `game_map` too: the map file in "
-            "configs/maps/ is still needed until the map files are retired (#399)."
+            "The profile's settings need `map`: a game map name such as "
+            "'Victoria Road: Ellinia', a map id, or `auto`."
         )
     if is_auto(map_setting):
         return None
     try:
         with Catalogue.latest() as catalogue:
-            map_id = catalogue.map(map_setting).id
+            return catalogue.map(map_setting).id
     except CatalogueError as error:
         raise ProfileError(f"`map` can't be resolved: {error}") from error
     except LookupError as error:
         raise ProfileError(f"`map: {map_setting}`: {error}") from error
-    map_file = MinimapEditsManager.from_json(game_map)
-    if map_file is not None and map_file.map_id not in (None, map_id):
-        raise ProfileError(
-            f"`map: {map_setting}` is map {map_id}, but the map file "
-            f"{game_map!r} says it is map {map_file.map_id}."
-        )
-    return map_id

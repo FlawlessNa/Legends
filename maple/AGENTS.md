@@ -50,14 +50,16 @@ Event Types are constants in `maple/telemetry_events.py`, and payloads are the
 
 ## Maps and minimaps
 
-The live path is **JSON, one file per map, under `configs/maps/`**, authored
-with the GUI editor in `maple/model/mechanics/minimap_creation/`.
-
-A map file may name the client's `map_id`, which is how a profile without
-`map` names its map. `MapleMinimap` is the map's data only: positions and where
-the minimap is drawn are read by `maple/screen/minimap.py`. No DecisionMaker
-reads a map file's features or a minimap position any more (#398); the map
-files go with #399.
+The map comes from the client's files: the profile's `map` (a game name, an
+id, or `auto`) is resolved through `game_data`'s Catalogue, and `MapleBot`
+publishes `data.world_map`, the map's `WorldMap` (platforms, walls, ropes,
+portals, NPCs, the minimap transform and the static render). Navigation is in
+virtual px (ADR 0004). The hand-made map files, `MapleMinimap`, `MinimapGrid`,
+`MinimapPhysics` and the GUI map editor are retired (#399): don't bring them
+back. A profile that sets `game_map` refuses to start. `data.current_map`,
+`current_minimap` and `current_grid` are gone. `data.current_mobs`, the mobs
+detection looks for, stays: it is built from the profile's `mobs`, by detection
+class name (none when the profile names none).
 
 `current_position` is the character's position in virtual px,
 `Reading[VirtualPosition]`: the minimap, the camera and the characters on
@@ -95,7 +97,8 @@ Classic World (MSCW) client and have not been updated for it.
 `maple/decision_makers/inventory_manager.py` is **parked**: it predates the JSON
 minimap rewrite, still imports `maple._old.maps` and
 `maple.model.mechanics.MinimapConnection` — both gone — and therefore raises on
-import. It is disconnected at the import boundary (commented-out lines in
+import. It also still reads `current_map`, `current_minimap` and their grid,
+which went with the map files (#399). It is disconnected at the import boundary (commented-out lines in
 `decision_makers/__init__.py`), so nothing executes it and it never reaches test
 collection.
 

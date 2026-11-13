@@ -26,7 +26,7 @@ def canvases() -> MapCanvases:
 
 
 def _readers(canvases: MapCanvases) -> tuple[MinimapReader, MinimapTitleReader]:
-    profile = Profile(job="Swordsman", game_map="x")
+    profile = Profile(job="Swordsman")
     sprites = load_reader_sprites(
         [FRAME_CHECK, MINIMAP, MINIMAP_TITLE_READER], profile, STORE, config=CONFIG
     )

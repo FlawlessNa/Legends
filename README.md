@@ -82,9 +82,9 @@ is nobody else's business.
 `configs/recordings.ini` and `profiles/*.yaml` are yours. Each has a committed
 `.example` template beside it.
 
-Everything else under `configs/` **is** tracked and shared — most importantly
-`configs/maps/`, which holds the recorded minimap layouts. Those take real
-effort to produce, so when you record a new map, commit it.
+Everything else under `configs/` **is** tracked and shared, such as the Trial
+schedules under `configs/trials/`. Maps are not recorded by hand: the bot reads
+them from the client's files through `game_data/`.
 
 ## Documentation
 

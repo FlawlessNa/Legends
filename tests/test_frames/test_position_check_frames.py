@@ -69,7 +69,7 @@ def _order(frames: FrameSet) -> list[tuple[int | None, list[FrameEntry]]]:
 def _read_map(
     frames: FrameSet, map_id: int, entries: list[FrameEntry], finder: NameTagFinder
 ) -> Iterator[Direct]:
-    profile = Profile(job="", game_map="", map_id=map_id)
+    profile = Profile(job="", map_id=map_id)
     sprites = load_reader_sprites([FRAME_CHECK, MINIMAP], profile, STORE, config=CONFIG)
     frame_check = FrameCheck(sprites)
     minimap = MinimapReader(sprites, frame_check, map_id=map_id)

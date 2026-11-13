@@ -64,38 +64,27 @@ You should get one flat dict with every key you listed.
 
 ---
 
-## 3. Pick or record a map
+## 3. Extract the game data and pick a map
 
-Maps live in `configs/maps/` as JSON. Two ship with the repo: `Line1Area1`
-and `GhostShip1`. If one of those is where you want to farm, skip to step 4.
-
-Otherwise, record your own. Stand your character in the map, then:
+The bot reads every map's platforms, ropes and portals from the client's own
+files, through `game_data/`. There is no map file to record. Extract the
+installed client once (and again after a patch):
 
 ```
-python toolkit/create_map.py --map YourMapName --ign YourCharacterName
+copy configs\game_data.example.ini configs\game_data.ini
+python -m game_data extract
 ```
 
-The editor opens with three modes:
+Set the client's `Data` folder in `configs/game_data.ini` first;
+[docs/agents/game-data.md](agents/game-data.md) has the details. Then find the
+game's name for the map you want to farm:
 
-**Trail Recording** — walk your character around the map. The tool traces your
-path as coloured dots (blue on platforms, green on ladders, grey mid-air).
-Cover every platform and every ladder. Then, for each one: click *Set Start
-Dot*, click *Set End Dot*, choose Platform or Ladder, name it, and click *Mark
-as Feature*.
+```
+python -m game_data search Ellinia --kind map
+```
 
-**Feature Selection** — draw feature boxes by hand, fine-tune what the trail
-produced, and add portals (a link between two cells, one-way or bidirectional).
-
-**Pathfinding** — once features exist, visualise the graph the bot will
-actually navigate. Use it before you trust the map: if the path between two
-platforms looks wrong here, it will be wrong at runtime.
-
-*Save Edits* writes `configs/maps/YourMapName.json`.
-
-Add `--scale 8` if the minimap is small and hard to click accurately.
-
-Recording a map is real work, and `configs/maps/` **is** tracked — when you
-finish one, commit it so nobody has to do it twice.
+A map is named `street: map name`, such as `"Victoria Road: Ellinia"`. Its id
+works too.
 
 ---
 
@@ -108,10 +97,12 @@ copy profiles\example.yaml profiles\yourname.yaml
 Open it and set, at minimum:
 
 - `ign` — your character's exact in-game name, matching your keybindings section
-- `map` — the game's name for your map (`"Subway: Line 1 Area 1"`), or its
-  id, and `game_map`, the map file from step 3 without `.json`. Set both, on
-  the same map: `game_map` is needed until the map files are retired, and a
-  `map` without it refuses to start
+- `map` — the game's name for your map from step 3
+  (`"Victoria Road: Ellinia"`), its id, or `auto` to have the bot read it off
+  the minimap at start
+- `mobs` — the mobs to attack, by the detection model's class names (see
+  [models.manifest.json](../models.manifest.json)), e.g. `[Bubbling]`. With
+  none, the bot detects no mobs and never casts its training skill
 - `training_skill` — your attack, which must be in your `Skill Keys`
 - `included_buffs` — buffs to keep up, each also in `Skill Keys`
 - `client_size` — `large` or `medium`, matching the client
@@ -125,21 +116,20 @@ Profiles are gitignored apart from the template, so yours is yours.
 
 ---
 
-## 5. Dry-run the map
+## 5. Check the position read
 
-Before letting it loose, look at what the bot thinks the map is. Open your map
-in the editor's Pathfinding mode with your character standing in it:
+Before letting it loose, check that the bot can place your character on the
+map. With your character standing in it, run the position check beside the
+client. It sends no keys:
 
 ```
-python toolkit/create_map.py --map YourMapName --ign YourCharacterName
+python -m toolkit.position_check live --map "Victoria Road: Ellinia"
 ```
 
-Confirm two things: your character is detected where it actually is, and the
-computed paths between platforms look sane. If position tracking is off here,
-nothing downstream will work — and this is far easier to diagnose in the editor
-than by watching a bot walk into a wall.
-
-Close the editor without saving if you changed nothing.
+Walk around (by hand) and confirm the fused position follows your character and
+is rarely `UNSURE`. If position reading is off here, nothing downstream will
+work, and it is far easier to diagnose here than by watching a bot walk into a
+wall.
 
 ---
 
@@ -166,11 +156,11 @@ Once it runs at all, these are the dials worth turning, roughly in order:
 **It attacks too rarely or too eagerly** — `mob_count_threshold` is the minimum
 mobs on screen before the attack is worth casting.
 
-**It mistimes jumps or overshoots platforms** — the physics model doesn't know
-about your gear or speed buffs. Measure the real values in the map editor
-(`python toolkit/create_map.py --map <MapName> --ign <YourIGN>`), which derives
-them from a recorded walk, and set `speed_multiplier` / `jump_multiplier`.
-Don't guess these.
+**It mistimes jumps or overshoots platforms** — set `speed_multiplier` /
+`jump_multiplier` to your character's real speed and jump stats (the ability
+window shows them). What is still off after that is a Calibration constant
+(`calibration:` in the profile), measured by a Trial schedule
+(`configs/trials/`, `bot: calibration`). Don't guess these.
 
 **It doesn't notice it's stuck** — `mob_spawn_alert_timer` and
 `mob_spawn_alert_threshold` control the "no mobs are spawning" alert, which is

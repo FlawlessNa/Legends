@@ -35,7 +35,7 @@ def map_ids() -> dict[str, int]:
 
 
 def reader_for(map_id: int | None = None) -> MinimapReader:
-    profile = Profile(job="Swordsman", game_map="x", map_id=map_id)
+    profile = Profile(job="Swordsman", map_id=map_id)
     sprites = load_reader_sprites([FRAME_CHECK, MINIMAP], profile, STORE, config=CONFIG)
     return MinimapReader(sprites, FrameCheck(sprites), map_id=map_id, read_markers=True)
 
