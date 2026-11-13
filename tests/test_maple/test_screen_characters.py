@@ -5,7 +5,8 @@ the feet over it and learns ours from where the minimap puts it, and
 `test_screen_characters_frames.py`.
 """
 
-from collections.abc import Mapping, Sequence
+import time
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 import cv2
@@ -21,7 +22,13 @@ from maple.screen.position import (
     YoloCharacterFinder,
     tag_upscale,
 )
-from maple.screen.position.characters import TAG_TO_FEET, TAG_X_TO_FEET
+from maple.screen.position.characters import (
+    TAG_TO_FEET,
+    TAG_X_TO_FEET,
+    _channel_max,
+    _channel_min,
+    _lightest,
+)
 
 OURS = "Mangoose"
 THEIRS = "Rower"
@@ -385,3 +392,42 @@ def test_yolo_cannot_tell_ours_apart() -> None:
     finder = YoloCharacterFinder(StubModel([detection("Character", (1, 2, 3, 4), 0.9)]))
     assert finder.learn_own(frame(blank()), (2, 4)) is False
     assert not any(s.own for s in finder.find(frame(blank())).value or [])
+
+
+# ------------------------------------------------------------------------- speed
+
+
+def test_the_channel_reductions_are_numpys() -> None:
+    rng = np.random.default_rng(508)
+    image = rng.integers(0, 256, (40, 60, 3), dtype=np.uint8)
+    assert np.array_equal(_channel_min(image), image.min(axis=2))
+    assert np.array_equal(_channel_max(image), image.max(axis=2))
+
+
+def test_a_learned_finder_reads_a_full_frame_in_budget() -> None:
+    """
+    #508: the finder took 165 to 220 ms on a 1920x1080 frame, most of it numpy
+    reducing the channels slowly, and a position waited on it. Now about 50 ms
+    here: the best of five reads must come in under 150 ms, which a machine
+    twice as slow as this one still does, and a stage that got 3x slower does
+    not. It can't see the camera's read, the frame grab, or a machine short
+    on memory; `toolkit.position_check replay` and `live` time those.
+    """
+    image = blank((1920, 1080))
+    draw_tag(image, OURS, 900, 600)
+    draw_tag(image, THEIRS, 1300, 400)
+    x0, y0, x1, y1 = text_box(image, 890, 1000)
+    scale = tag_upscale((1920, 1080))
+    assert scale is not None
+    finder = NameTagFinder()
+    finder._learned[scale] = _lightest(image[y0:y1, x0:x1])  # pyright: ignore[reportPrivateUsage]
+    shown = frame(image)
+    assert finder.find(shown).value is not None
+    best = min(_seconds(lambda: finder.find(shown)) for _ in range(5))
+    assert best < 0.150, f"{best * 1000:.0f} ms"
+
+
+def _seconds(call: Callable[[], object]) -> float:
+    start = time.perf_counter()
+    call()
+    return time.perf_counter() - start
