@@ -11,6 +11,7 @@ from botting import PARENT_LOG
 from botting.core import BotData
 from botting.screen import Reading
 from maple.decision_makers.mixins._mob_mixins import MobsHittingMixin
+from maple.model.characters.maple_skills import MapleSkill
 from maple.model.mechanics import (
     MovementHandler,
     compile_movements,
@@ -427,10 +428,17 @@ class MovementsMixin:
             self.data.handle,
             world_map,
             self.data.ign,
-            self.data.character.skills.get("Teleport"),
+            self._teleport_skill(),
             narrow_platform_threshold=narrow_platform_threshold,
             edge_departure_threshold=edge_departure_threshold,
         )
+
+    def _teleport_skill(self) -> MapleSkill | None:
+        """
+        The teleport skill Paths may cast: the character's, or `None` when it has
+        none. A Trial batch planned without it overrides this (`TrialRunner`).
+        """
+        return self.data.character.skills.get("Teleport")
 
     def _world_map(self) -> WorldMap:
         world_map: WorldMap | None = getattr(self.data, "world_map", None)

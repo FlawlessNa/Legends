@@ -18,13 +18,16 @@ from pathlib import Path
 import pytest
 
 from botting.controller import KeyboardInputWrapper
+from botting.screen import Reading
 from maple.calibration.records import (
     CycleRecord,
     JsonlRecordWriter,
     ListSink,
     MovementSummary,
     Phase,
+    PositionRecord,
     Record,
+    SampleRecord,
     ScheduleHeader,
     SequenceSummary,
     TrialOutcome,
@@ -39,8 +42,24 @@ from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
     _MovementComponent,
 )
+from maple.screen.position import PositionSource, VirtualPosition
 
-HEADER = ScheduleHeader("example", "GhostShip1", "2026-01-01T00:00:00+00:00", "host")
+HEADER = ScheduleHeader(
+    "example",
+    "Victoria Road: Ellinia",
+    "2026-01-01T00:00:00+00:00",
+    "host",
+    map_id=10002000,
+    physics={"walkSpeed": 125.0, "jumpSpeed": 555.0},
+    speed_multiplier=1.2,
+    jump_multiplier=1.1,
+    calibration={"walk": 1.0, "jump": 0.98, "climb": 1.0, "teleport": 1.0},
+)
+
+#: A header as the offline lab writes it: no map id, no physics.
+BARE_HEADER = ScheduleHeader("lab", 10002000, "2026-01-01T00:00:00+00:00", "host")
+
+FUSED = PositionRecord("read", (-899.5, 300.0), "fused", 1234.5)
 
 CYCLE = CycleRecord(
     schedule="example",
@@ -50,14 +69,14 @@ CYCLE = CycleRecord(
     cycle=3,
     elapsed=1.25,
     wall_clock="2026-01-01T00:00:01+00:00",
-    position=(15, 42),
-    target=(109, 42),
-    error=94.0,
+    position=FUSED,
+    target=(1300, 321),
+    error=2199.6,
     dispatched=True,
     correlation_id="6f1f7d4e-0000-4000-8000-000000000000",
     plan=(
-        MovementSummary("WALK_RIGHT", 5, False, False),
-        MovementSummary("JUMP", 1, True, False),
+        MovementSummary("WALK_RIGHT", 80.5, False, False, start=(-899.5, 300.0)),
+        MovementSummary("JUMP_RIGHT", 69.0, True, False, 0.555, end=(-760.0, 290.0)),
     ),
     sequence=SequenceSummary(4, 0.75, ("right", "space"), ("right",)),
 )
@@ -67,10 +86,10 @@ OUTCOME = TrialOutcome(
     batch="baseline",
     trial="long-run",
     knobs=Knobs(decision_interval=0.25, precision_threshold=8),
-    start=(15, 42),
-    target=(109, 42),
-    tolerance=2.0,
-    time_budget=20.0,
+    start=(-900, 300),
+    target=(1300, 321),
+    tolerance=16.0,
+    time_budget=40.0,
     result=str(TrialResult.ARRIVED),
     final_error=1.4,
     time_to_arrival=8.5,
@@ -80,6 +99,22 @@ OUTCOME = TrialOutcome(
     stuck_events=1,
     longest_stall=6,
     started_at="2026-01-01T00:00:00+00:00",
+    unsure_cycles=3,
+    measures="walk",
+)
+
+SAMPLE = SampleRecord(
+    schedule="example",
+    batch="baseline",
+    trial="long-run",
+    phase=str(Phase.MEASURING),
+    elapsed=1.35,
+    position=PositionRecord("unsure", None, None, 1234.6),
+    correlation_id="6f1f7d4e-0000-4000-8000-000000000000",
+)
+
+NEVER_READ = TrialOutcome(
+    **{**OUTCOME.__dict__, "result": str(TrialResult.SETUP_FAILED), "final_error": None}
 )
 
 
@@ -87,7 +122,9 @@ OUTCOME = TrialOutcome(
 
 
 @pytest.mark.parametrize(
-    "record", [HEADER, CYCLE, OUTCOME], ids=["header", "cycle", "outcome"]
+    "record",
+    [HEADER, BARE_HEADER, CYCLE, SAMPLE, OUTCOME, NEVER_READ],
+    ids=["header", "bare-header", "cycle", "sample", "outcome", "never-read"],
 )
 def test_a_record_survives_json_unchanged(record: Record) -> None:
     assert type(record).from_json(json.loads(json.dumps(record.to_json()))) == record
@@ -96,9 +133,9 @@ def test_a_record_survives_json_unchanged(record: Record) -> None:
 def test_a_whole_file_reads_back_as_what_was_written(tmp_path: Path) -> None:
     path = tmp_path / "run.jsonl"
     with JsonlRecordWriter(path) as writer:
-        for record in (HEADER, CYCLE, OUTCOME):
+        for record in (HEADER, CYCLE, SAMPLE, OUTCOME):
             writer.write(record)
-    assert read_records(path) == [HEADER, CYCLE, OUTCOME]
+    assert read_records(path) == [HEADER, CYCLE, SAMPLE, OUTCOME]
 
 
 def test_a_cycle_with_no_compiled_sequence_round_trips_as_none(tmp_path: Path) -> None:
@@ -115,9 +152,9 @@ def test_a_cycle_with_no_compiled_sequence_round_trips_as_none(tmp_path: Path) -
         cycle=1,
         elapsed=0.0,
         wall_clock="2026-01-01T00:00:00+00:00",
-        position=(15, 42),
-        target=(15, 42),
-        error=0.0,
+        position=PositionRecord("unsure", None, None, 0.5),
+        target=(-900, 300),
+        error=None,
         dispatched=False,
     )
     path = tmp_path / "bare.jsonl"
@@ -253,3 +290,43 @@ def test_the_list_sink_keeps_records_in_order() -> None:
     sink.write(HEADER)
     sink.write(CYCLE)
     assert list(sink) == [HEADER, CYCLE]
+
+
+# --- Positions (#397) -------------------------------------------------------------
+
+
+def test_a_read_position_is_recorded_with_its_source_and_frame_time() -> None:
+    reading = Reading.read(VirtualPosition(-899.54, 300.01, PositionSource.COARSE), 7.5)
+    assert PositionRecord.of(reading) == PositionRecord(
+        "read", (-899.5, 300.0), "coarse", 7.5
+    )
+
+
+def test_an_unsure_position_is_recorded_as_unsure_with_no_number() -> None:
+    """C-NOGUESS: what was not read is written as not read, never as a position."""
+    record = PositionRecord.of(Reading.unsure(7.5, "reads disagree"))
+    assert record == PositionRecord("unsure", None, None, 7.5)
+    assert not record.is_read
+
+
+def test_a_summary_keeps_a_jump_s_flight_and_its_take_off_and_landing() -> None:
+    """The analyzer checks a measured flight against the one the plan held for."""
+    jump = _MovementComponent(
+        MovementTypes.JUMP_RIGHT,
+        69.04,
+        duration=0.555,
+        grabs_rope=True,
+        start=(-760.04, 290.0),
+        end=(-691.0, 288.96),
+    )
+    (summary,) = summarize_plan((jump,))
+    assert summary == MovementSummary(
+        "JUMP_RIGHT",
+        69.0,
+        False,
+        False,
+        duration=0.555,
+        grabs_rope=True,
+        start=(-760.0, 290.0),
+        end=(-691.0, 289.0),
+    )
