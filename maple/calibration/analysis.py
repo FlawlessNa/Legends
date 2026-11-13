@@ -98,6 +98,20 @@ ROPE_TOL: Final = 4.0
 #: across it would average over whatever happened unseen.
 MAX_GAP: Final = 0.3
 
+#: The longest gap between two reads, in seconds, that still counts as one
+#: interval of a *steady* walk or climb. The Trial runner reads once per decision
+#: cycle, which a live run (2026-11-13, 4 walks, 124 reads) measured at 0.32 s
+#: apart, up to 0.57 s when a read was slow: not the 0.1 s `MAX_GAP` assumed. So
+#: this is twice the cadence, rounded up, which takes in the slowest read seen
+#: with room to spare. A speed over a gap this long is still a rate: the interval
+#: has to start and end on one surface, move at least `MOVING_PX` and keep the
+#: run's direction, so a stop or a turn inside it is not averaged in. Flights and
+#: teleports keep `MAX_GAP`: a gap that long would hide the flight itself.
+STEADY_GAP: Final = 0.75
+
+#: How many steady intervals a walk or climb speed needs before it is trusted.
+MIN_STEADY: Final = 3
+
 #: The least movement, in virtual px, between two reads that counts as moving:
 #: above the fused read's jitter.
 MOVING_PX: Final = 3.0
@@ -292,7 +306,7 @@ def steady_speed(
     """
     The steady intervals of ``reads``: ``(distance, path length, seconds)`` of each
     interval inside a run of moving intervals on one surface, each run's first and
-    last interval dropped.
+    last interval dropped. An interval is two reads at most `STEADY_GAP` apart.
     """
     kept: list[tuple[float, float, float]] = []
     run: list[tuple[float, float, float]] = []
@@ -312,7 +326,7 @@ def steady_speed(
             and surfaces.at(b.x, b.y) == surface
         )
         step_sign = (moved > 0) - (moved < 0)
-        if not (same and 0 < dt <= MAX_GAP and abs(moved) >= MOVING_PX):
+        if not (same and 0 < dt <= STEADY_GAP and abs(moved) >= MOVING_PX):
             close()
             sign = 0
             continue
@@ -530,6 +544,8 @@ def analyze(
     )
     surfaces = Surfaces(world_map)
 
+    walk_gaps: list[float] = []
+    climb_gaps: list[float] = []
     walk_steps: list[tuple[float, float, float]] = []
     climb_steps: list[tuple[float, float, float]] = []
     jumps: list[Flight] = []
@@ -547,10 +563,12 @@ def analyze(
         reads = entry.reads
         match entry.measures:
             case Measure.WALK:
+                walk_gaps += _gaps(reads)
                 walk_steps += steady_speed(
                     reads, surfaces, vertical=False, on_rope=False
                 )
             case Measure.CLIMB:
+                climb_gaps += _gaps(reads)
                 climb_steps += steady_speed(
                     reads, surfaces, vertical=True, on_rope=True
                 )
@@ -574,11 +592,16 @@ def analyze(
     if walk is not None:
         constants["walk"] = _floor(walk.speed / (values["walkSpeed"] * speed_x))
     else:
-        notes.append("No steady walk was read: no walk constant.")
+        notes.append(
+            f"No steady walk was read: no walk constant. {_STEADY}{_cadence(walk_gaps)}"
+        )
     if climb is not None:
         constants["climb"] = round(climb.speed / (CLIMB_SPEED * speed_x), 2)
     else:
-        notes.append("No steady climb was read: no climb constant.")
+        notes.append(
+            f"No steady climb was read: no climb constant. {_STEADY}"
+            f"{_cadence(climb_gaps)}"
+        )
     take_offs = [f.up_speed for f in jumps if f.up_speed is not None and f.gravity_fit]
     if take_offs:
         constants["jump"] = _floor(min(take_offs) / (values["jumpSpeed"] * jump_x))
@@ -724,8 +747,30 @@ def render(report: CalibrationReport) -> str:
     return "\n".join(lines) + "\n"
 
 
+_STEADY = (
+    f"A steady speed needs at least {MIN_STEADY} intervals: two fused reads at most "
+    f"{STEADY_GAP} s apart, on one platform (or rope), at least {MOVING_PX:g} px "
+    "apart and in one direction, with the first and last interval of each such run "
+    "dropped."
+)
+
+
+def _gaps(reads: Sequence[Read]) -> list[float]:
+    return [b.t - a.t for a, b in itertools.pairwise(reads)]
+
+
+def _cadence(gaps: Sequence[float]) -> str:
+    """What the reads' spacing was, when it explains a run with no steady speed."""
+    if not gaps:
+        return " The measured Trials had no fused reads at all."
+    return (
+        f" Those Trials' reads were a median of {statistics.median(gaps):.2f} s apart "
+        f"(longest {max(gaps):.2f} s)."
+    )
+
+
 def _speed(steps: list[tuple[float, float, float]]) -> Speed | None:
-    if len(steps) < 3:
+    if len(steps) < MIN_STEADY:
         return None
     seconds = sum(step[2] for step in steps)
     return Speed(sum(step[0] for step in steps) / seconds, seconds, len(steps))

@@ -148,6 +148,7 @@ class SessionManager:
         *,
         debug: bool = False,
         recording_section: str = "DEFAULT",
+        discord: bool = True,
     ) -> None:
         """
         Creates all necessary objects to start a new Session.
@@ -155,7 +156,13 @@ class SessionManager:
         ActionRequests.
         :param recording_section: The ``recordings.ini`` section the Recorder reads;
         ``"TEST"`` for a test Session. Unused in debug mode, which has no recording.
+        :param discord: ``False`` runs without Discord: nothing connects, and every
+        message meant for it is dropped (``configs/discord.ini`` is then not read).
         """
+        # Before the metadata, which publishes it: a child process that must ask
+        # for this Session to stop (a finished calibration schedule) finds the
+        # stop file's directory there.
+        self.session_dir = new_session_dir()
         # Create a Manager Process to share data between processes.
         self.process_manager = multiprocessing.Manager()
         initial_metadata: dict[str, Any] = {
@@ -165,6 +172,9 @@ class SessionManager:
             # Set here, before ignored_keys is computed, so the proxy-request scan in
             # _monitor_proxy keeps skipping it.
             "debug": debug,
+            # Where the Session's logs, telemetry and stop file live (a string:
+            # it crosses a process boundary).
+            "session_dir": str(self.session_dir),
         }
         self.metadata = self.process_manager.dict(initial_metadata)
         self.metadata["ignored_keys"] = set(self.metadata.keys()).union(
@@ -177,6 +187,7 @@ class SessionManager:
                 self.metadata["logging_queue"],
                 discord_parser,
                 recording_section=recording_section,
+                discord=discord,
             )
         else:
             from unittest.mock import AsyncMock, Mock
@@ -194,11 +205,11 @@ class SessionManager:
             discord_pipe=self.peripherals.pipe_main_proc,  # pyright: ignore[reportArgumentType]
         )
 
-        # One Session, one directory - text logs and telemetry alike. Built here
-        # rather than in __enter__ because the QueueListener below snapshots the
-        # parent logger's handlers at construction: attach the sink after that
-        # and every Telemetry Record emitted in a child process reaches nothing.
-        self.session_dir = new_session_dir()
+        # One Session, one directory - text logs and telemetry alike (made above).
+        # Built here rather than in __enter__ because the QueueListener below
+        # snapshots the parent logger's handlers at construction: attach the sink
+        # after that and every Telemetry Record emitted in a child process
+        # reaches nothing.
 
         # The handlers themselves: one file per Log Bucket, the combined
         # session.log, and the console. dictConfig *replaces* the parent

@@ -296,10 +296,11 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         InGameDetectionVisuals._arg_cache[cache_id] = None  # pyright: ignore[reportArgumentType]
 
     @staticmethod
-    def register_models(models_path: dict[str, str]) -> None:
+    def register_models(models_path: dict[str, str] | None) -> None:
         """
         Register models based on their path specifications, if not already registered.
         All models are registered to the base class InGameDetectionVisuals.
+        ``None`` registers none: a bot that detects nothing needs no model.
         """
         if models_path is None:
             return
