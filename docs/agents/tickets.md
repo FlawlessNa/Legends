@@ -34,8 +34,12 @@ A PR into `epic/**` is reviewed and merged without the maintainer
 (`.github/workflows/claude-review.yml`):
 
 1. Claude reviews it against the ticket, the epic's intent, and this file,
-   then posts one comment that starts with its verdict.
-2. **On approve,** the workflow squash-merges exactly the reviewed commit.
+   then posts one comment that starts with its verdict. If the main Claude
+   account returns no verdict (for example it is out of usage), the review
+   runs once more on a fallback account, when one is configured.
+2. **On approve,** the workflow merges exactly the reviewed commit. It
+   squash-merges, unless a commit in the PR has more than one parent (it brings
+   `dev` in): then it merge-commits, so the epic keeps `dev`'s history.
 3. **On request-changes,** the `review` check fails. Read the comment, fix
    every blocking finding, and push. The push triggers a fresh review.
    If you disagree with a finding, say so in the PR and stop: the maintainer
