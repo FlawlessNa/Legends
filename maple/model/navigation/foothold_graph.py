@@ -110,9 +110,9 @@ _TOL = 1e-6
 #: the arc's height (`VRPhysics.jump_height`); a take-off whose landing lies
 #: higher is no move. The arc reaches its height at no speed, so a platform
 #: there is met only exactly. Measured live (#509, Ellinia, Swordsman, speed
-#: 100%, 2026-11-13): 33 jumps planned to land 77.0 px up, against an arc of
-#: 77.006, all fell back; the highest landing seen rose 73.6 px, its airborne
-#: read on the traced arc to 2 px. 73.6 / 77.006 is 0.956: rounded down to the
+#: 100%, 2026-11-13): 40 jumps planned to land 77.0 px up, against an arc of
+#: 77.006, and none landed there; the highest landing seen rose 73.6 px, its
+#: airborne read on the traced arc to 2 px. 73.6 / 77.006 is 0.956: rounded down to the
 #: hundredth, as a feasibility value is (`maple/calibration/analysis.py`).
 JUMP_RISE_SHARE = 0.95
 
@@ -121,7 +121,7 @@ JUMP_RISE_SHARE = 0.95
 #: at it and no platform continuing it. A take-off whose landing lies nearer is
 #: no move. A jump's landing moves with its take-off, and the take-off is
 #: where an open-loop walk stopped. Measured live (#509, the same runs):
-#: jumps landing 0.4 to 8.6 px inside an open end landed 1 time in 11; those
+#: jumps landing 0.4 to 8.6 px inside an open end landed 2 times in 13; those
 #: landing 15.5 and 19.6 px inside landed 4 times in 5. So the narrowest
 #: margin measured to land, not rounded: none between 8.6 and 15.5 was seen,
 #: and a margin rounded down would plan landings no run has shown.

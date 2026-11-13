@@ -440,8 +440,8 @@ def test_a_long_jump_lands_when_the_physics_says_past_the_fall_speed() -> None:
 
 
 def test_a_platform_too_near_the_top_of_the_jump_is_not_jumped_onto() -> None:
-    # The arc tops out 80 px up; 0.95 of it is 76. Live, 33 jumps planned to
-    # land at the top of the arc all fell back.
+    # The arc tops out 80 px up; 0.95 of it is 76. Live, 40 jumps planned to
+    # land at the top of the arc, and none landed there.
     ground = platform(1, 0, 200, 0)
     near_top, within = platform(2, 150, 400, -78), platform(3, 150, 400, -76)
 

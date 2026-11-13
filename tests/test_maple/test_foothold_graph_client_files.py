@@ -244,7 +244,7 @@ NARROWEST_MARGIN_SEEN = 15.5
         ((-420.0, 237.0), (-620.0, -52.0)),
         # The `branch-` Trials' start, from the slope they fell back to: the
         # Path jumped left at x 663 to land 77.0 px up, at the top of a 77.006
-        # px arc (no landing in 33).
+        # px arc (no landing in 40).
         ((565.0, 153.0), (180.0, -40.0)),
     ],
 )
