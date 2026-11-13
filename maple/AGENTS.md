@@ -53,21 +53,30 @@ Event Types are constants in `maple/telemetry_events.py`, and payloads are the
 The live path is **JSON, one file per map, under `configs/maps/`**, authored
 with the GUI editor in `maple/model/mechanics/minimap_creation/`.
 
-A map file may name the client's `map_id`. With it, `CheckStillInMap` compares
-the minimap on screen with that map's own `miniMap` canvas, and positions are
-read at all: they are pixels on that canvas, which the minimap only shows a
-scrolling window of. Without it, a position reads `UNSURE`, so pathfinding and
-every DecisionMaker reading `current_minimap_position` need the `map_id`. `MapleMinimap` is
-the map's data only: positions and where the minimap is drawn are read by
-`maple/screen/minimap.py`.
+A map file may name the client's `map_id`, which is how a profile without
+`map` names its map. `MapleMinimap` is the map's data only: positions and where
+the minimap is drawn are read by `maple/screen/minimap.py`. No DecisionMaker
+reads a map file's features or a minimap position any more (#398); the map
+files go with #399.
 
 `current_position` is the character's position in virtual px,
 `Reading[VirtualPosition]`: the minimap, the camera and the characters on
 screen, fused by `maple/screen/position/fusion.py` on `data.world_map`. It is
-read only when asked. Movement Plans are planned from it on the map's
-`FootholdGraph` (`MovementsMixin`, #396): an `UNSURE` read plans nothing. The
-rotation's targets, its arrival checks and movement recovery still read
-`current_minimap_position` in canvas px until #398.
+read only when asked, and it is the only position in `BotData`
+(`current_minimap_position` is gone, #398). Every DecisionMaker works in
+virtual px on `data.world_map`:
+
+- Movement Plans are planned from it on the map's `FootholdGraph`
+  (`MovementsMixin`, #396): an `UNSURE` read plans nothing.
+- The rotation's targets are random points on the platforms a Path reaches
+  (`NextTargetMixin`), and arrival is judged in virtual px. A `game_data` map
+  has no feature cycle; custom rotation patterns are a later epic.
+- Movement recovery judges virtual positions and the graph Path's remaining
+  time (`maple/movement_recovery.py`), and reports a long `UNSURE` streak.
+- `CheckStillInMap` checks the minimap against `world_map`'s canvas.
+- Mobs found on screen are placed through the camera of the frame they were
+  found on (`PositionFusion.camera`, `MobsHittingMixin.mobs_in_virtual_px`).
+- `TrialRunner` still judges in canvas px, converted at its edge, until #397.
 
 Game files are read by `game_data/` (top level, importing neither `maple` nor
 `botting`), not by this package. See `docs/agents/game-data.md`.

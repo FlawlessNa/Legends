@@ -356,7 +356,7 @@ _Avoid_: Static position, not moving — raw coordinate equality is exactly the
 detection this term replaces, defeated by knockback jitter.
 
 **Stagnation**:
-The Stuck symptom where the character moves but the remaining Path length stops
+The Stuck symptom where the character moves but the remaining Path time stops
 shrinking over the window. Measured on the freshly recomputed Path, never on
 distance-to-target, so a legitimate detour away from the target is not
 Stagnation by construction.
@@ -373,7 +373,7 @@ Churn is the live detector whose firings the counter should corroborate.
 
 **Target Timeout**:
 The Stuck symptom where one target has not been reached within a budget derived
-from its initial Path length, regardless of apparent motion. The backstop that
+from its initial Path's time, regardless of apparent motion. The backstop that
 holds even when every finer detector is blind.
 _Avoid_: Unreachable — reachability is the pathfinder's word for a grid
 property; this is a live budget expiring.
@@ -385,6 +385,15 @@ blocked by terrain. Observed and reported only; it triggers no in-game
 reaction, because nothing about the map is wrong.
 _Avoid_: Deadlock, lock contention — those are causes; Starvation names the
 observable symptom whatever the cause.
+
+**Unsure position**:
+A rotation loop that has held for a whole window because it can't place the
+character: its position read `UNSURE` (two characters where the minimap puts
+ours, or the play area and the minimap disagreeing) or not read at all. Not a
+Stuck symptom: holding is the loop doing its job, and every Stuck clock is
+frozen while it holds. Reported once per episode, with an alert, and never
+reacted to in-game, since moving a character nobody placed would be a guess.
+_Avoid_: Blind — the bot can see; it can't tell where it is.
 
 **Reaction Ladder**:
 The single per-target escalation every Stuck symptom advances: Reflex (release

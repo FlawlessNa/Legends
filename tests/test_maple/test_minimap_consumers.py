@@ -16,7 +16,7 @@ from botting.core import BotData
 from botting.screen import Frame, Reading, Status
 from game_data.sprites import Sprite
 from maple.actions import menus
-from maple.decision_makers.ensure_still_in_map import CheckStillInMap
+from maple.decision_makers.ensure_still_in_map import CheckStillInMap, map_title
 from maple.decision_makers.mixins import MinimapAttributesMixin
 from maple.screen.minimap import MINIMAP, MinimapReader, MinimapState, MinimapView
 from maple.screen.position import Fusion, PositionSource, VirtualPosition
@@ -45,7 +45,7 @@ def _check(shown: Frame, map_id: int | None) -> CheckStillInMap:
         ign="Tester",
         current_frame=shown,
         minimap_reader=reader(),
-        current_minimap=SimpleNamespace(map_id=map_id),
+        world_map=None if map_id is None else SimpleNamespace(id=map_id),
     )
     return check
 
@@ -83,6 +83,15 @@ def _minimised() -> Frame:
 @pytest.mark.parametrize("map_id", [MAP_ID, None])
 def test_a_minimised_minimap_fails_the_check(map_id: int | None) -> None:
     assert not _check(_minimised(), map_id)._perform_check()
+
+
+def test_the_check_names_the_map_as_the_client_does() -> None:
+    """The map comes from `WorldMap` (#398), so its name does too."""
+    world = SimpleNamespace(id=10002000, name="Ellinia", street="Victoria Road")
+
+    assert map_title(world) == "Victoria Road: Ellinia"  # pyright: ignore[reportArgumentType]
+    assert map_title(SimpleNamespace(id=7, name=None, street=None)) == "7"  # pyright: ignore[reportArgumentType]
+    assert map_title(None) == "an unknown map"
 
 
 def test_a_covered_minimap_fails_the_check() -> None:
@@ -422,8 +431,8 @@ def test_the_position_attribute_has_the_minimaps_error_handler_and_waits_to_be_r
     mocker: MockerFixture,
 ) -> None:
     """Creating it reads nothing, so it sends nothing: the first consumer to
-    ask reads it, and an unsure read goes to the handler
-    `current_minimap_position` has."""
+    ask reads it, and a read the minimap can't place goes to the minimap's
+    error handler. `current_minimap_position` is gone from `BotData` (#398)."""
     from maple.decision_makers.mixins import _map_mixins
 
     mocker.patch.object(_map_mixins, "ensure_minimap_displayed")
@@ -445,10 +454,9 @@ def test_the_position_attribute_has_the_minimaps_error_handler_and_waits_to_be_r
 
     managed = data._managed  # pyright: ignore[reportPrivateUsage] - the attribute's configuration
     assert fusion.reads == 0
-    assert (
-        managed["current_position"].error_handler
-        == managed["current_minimap_position"].error_handler
-        == located._minimap_pos_error_handler
+    assert managed["current_position"].error_handler == (
+        located._minimap_pos_error_handler
     )
+    assert "current_minimap_position" not in managed
     assert data.current_position == fused
     assert fusion.reads == 1

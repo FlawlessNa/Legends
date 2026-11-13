@@ -109,18 +109,17 @@ def harness() -> _Harness:
     data.set_static("speed_multiplier", 1.0)
     data.set_static("jump_multiplier", 1.0)
     data.set_static("character", _Character())
-    data.create_attribute(
-        "current_minimap_position",
-        lambda: positions.pop(0) if positions else target,
-        initial_value=start,
-    )
 
-    def virtual() -> Reading[VirtualPosition]:
-        marker = data.current_minimap_position  # no threshold: never re-read here
+    def coarse(marker: tuple[int, int]) -> Reading[VirtualPosition]:
         feet = feet_of_marker(transform, marker)
         return Reading.read(VirtualPosition(*feet, PositionSource.COARSE), 0.0)
 
-    data.create_attribute("current_position", virtual, threshold=1e-9)
+    # No threshold: read once a cycle, by the runner, and planned from as read.
+    data.create_attribute(
+        "current_position",
+        lambda: coarse(positions.pop(0) if positions else target),
+        initial_value=coarse(start),
+    )
 
     # Assembled through a deliberately untyped handle: every field below is a
     # stand-in for something only a live Session provides.

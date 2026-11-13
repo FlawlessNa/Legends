@@ -25,7 +25,7 @@ import pytest
 from botting import controller
 from botting.core import ActionRequest, DecisionMaker, ProxyFactory
 from botting.screen import Frame, Status, capture
-from game_data.catalogue import Bounds
+from game_data.catalogue import Bounds, Foothold
 from game_data.sprites import Sprite
 from maple.actions.menus import toggle_minimap
 from maple.bots import maple_bot
@@ -40,7 +40,7 @@ from maple.decision_makers import (
     SoloRebuff,
 )
 from maple.model.mechanics.minimap_creation import minimap_edits_model
-from maple.model.world import WorldMap
+from maple.model.world import WorldMap, chain_platforms
 from maple.screen import client
 from maple.screen.buffs import BUFFS
 from maple.screen.chat import CHAT
@@ -220,12 +220,14 @@ def started(
 
     monkeypatch.setattr(maple_bot, "load_reader_sprites", load)
     # The synthetic map isn't in any store: a map with no minimap, so no
-    # position is read on it either.
+    # position is read on it either, and one floor the rotation picks its
+    # targets on.
+    floor, _ = chain_platforms([Foothold("map", 0, 0, 1, 0, 0, 700, 0, 0, 0)])
     monkeypatch.setattr(
         maple_bot.WorldMap,
         "load",
         lambda map_id: WorldMap(
-            map_id, None, None, Bounds(0, 0, WIDTH, HEIGHT), None, (), (), (), ()
+            map_id, None, None, Bounds(0, 0, WIDTH, HEIGHT), None, floor, (), (), ()
         ),
     )
     # Nor its physics: Movement Plans' `Physics.img` values, written out.
@@ -318,7 +320,10 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
         name: True for name in BUFF_NAMES
     }
     assert data.minimap_reading.status is Status.READ, data.minimap_reading.detail
-    assert data.current_minimap_position == USER_AT
+    minimap_view = data.minimap_reading.value
+    assert minimap_view is not None
+    assert minimap_view.self_position.value == USER_AT
+    assert "current_minimap_position" not in data._managed  # pyright: ignore[reportPrivateUsage]
     assert data.current_entire_minimap_box is not None
     assert data.chat_lines.status is Status.READ, data.chat_lines.detail
 

@@ -27,6 +27,7 @@ from pathlib import Path
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
+from botting.screen import Reading
 from maple.actions import priorities
 from maple.calibration import (
     JsonlRecordWriter,
@@ -37,6 +38,8 @@ from maple.calibration import (
     default_record_path,
     load_schedule,
 )
+from maple.model.navigation import Point
+from maple.screen.position import VirtualPosition, feet_of_marker, marker_of_feet
 
 from .mixins import MinimapAttributesMixin, MovementsMixin
 
@@ -145,8 +148,11 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         dispatched = False
         try:
             self._apply_knobs()
-            self.data.update_attribute("current_minimap_position")
-            position = self.data.current_minimap_position
+            position = self._canvas_position()
+            if position is None:
+                # An unsure position holds, as `MovementsMixin` does: no
+                # Trial cycle is judged on a position nobody could place.
+                return
             self.data.update_attribute("next_target")
             self.data.update_attribute("movements")
 
@@ -272,6 +278,30 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         controller.release_keys(["left", "up", "down", "right"], handle)
 
     # --- Helpers ------------------------------------------------------------------
+
+    def _canvas_position(self) -> tuple[int, int] | None:
+        """
+        The position the driver judges, in canvas px as Trials are written
+        until #397: where the minimap draws the marker for the virtual
+        position (`marker_of_feet`). `None` when the position is `UNSURE`.
+        """
+        self.data.update_attribute("current_position")
+        reading: Reading[VirtualPosition] = self.data.current_position
+        if reading.value is None:
+            return None
+        transform = self._world_map().minimap
+        assert transform is not None
+        return marker_of_feet(transform, (reading.value.x, reading.value.y))
+
+    def _virtual_target(self) -> Point:
+        """
+        The driver's target, in canvas px until #397, as a virtual one: where a
+        marker at that pixel puts the feet (`feet_of_marker`).
+        """
+        transform = self._world_map().minimap
+        assert transform is not None
+        target = self.data.next_target
+        return feet_of_marker(transform, (target[0], target[1]))
 
     def _driver_target(self) -> tuple[int, int]:
         """
