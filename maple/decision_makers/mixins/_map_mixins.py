@@ -10,7 +10,7 @@ import win32gui
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, ProxyFactory
-from botting.screen import Reading
+from botting.screen import Reading, Status
 from botting.utilities import Box
 from maple.actions import ensure_minimap_displayed
 from maple.screen.minimap import MINIMAP, MinimapState, MinimapView
@@ -20,6 +20,23 @@ from maple.telemetry_events import POSITION_READ, PositionReadPayload
 from ._readings import HeldReading
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
+
+UNPLACED_LIMIT = 120.0
+"""
+Wall seconds the minimap may stay shown without placing the character's
+marker before the bot stops holding (#502). Until then the position is
+`UNSURE`, so no Path is planned and no movement key is sent; past it,
+`current_position`'s error handler gets one last try (moving the cursor off the
+minimap, re-showing it, 5 checks: about 10 s more), and the bot fails if that
+can't place it either.
+
+Why 120 s: movement recovery reports an unsure position after 30 s
+(`RecoveryThresholds.unsure_window`), so the hold is logged and reported well
+before it ends. What it waits out passes in seconds: a player or a window over
+the marker, the character walking out of a corner where too little of it is
+drawn. A character that can't be placed for two minutes is standing still in
+front of anyone watching, and a bot that can't see itself shouldn't go on.
+"""
 
 
 class MinimapAttributesMixin:
@@ -32,6 +49,8 @@ class MinimapAttributesMixin:
     MINIMAP_POS_REFRESH_RATE = 0.1
     ERROR_HANDLING_TIME_LIMIT = 7.5
     screen_readers = (MINIMAP,)
+    # When the minimap, shown, stopped placing the character's marker.
+    _unplaced_since: float | None = None
 
     def _read_minimap(self) -> Reading[MinimapView]:
         return self.data.minimap_reader.read(self.data.current_frame)
@@ -71,9 +90,16 @@ class MinimapAttributesMixin:
         (`MovementsMixin` plans no Path, the rotation keeps its target). A long
         streak of them is reported by movement recovery (#398).
 
-        :raises ValueError: The minimap gave no position, or the bot has no
-            position fusion (no map, or no frame check), which hands over to
-            `_minimap_pos_error_handler`.
+        **A shown minimap that doesn't place the marker holds too** (#502). Its
+        position is `COVERED` (too little of the marker drawn): re-showing the
+        minimap can't fix that, so the `UNSURE` reading is returned, the cause
+        is logged once, and every read tries again. Only once that has lasted
+        `UNPLACED_LIMIT` does this raise, for the error handler's last try.
+
+        :raises ValueError: The minimap gave no position (not shown, not read,
+            its canvas not found, or its marker unplaced for `UNPLACED_LIMIT`),
+            or the bot has no position fusion (no map, or no frame check), which
+            hands over to `_minimap_pos_error_handler`.
         """
         fusion: PositionFusion | None = getattr(self.data, "position_fusion", None)
         if fusion is None:
@@ -82,8 +108,34 @@ class MinimapAttributesMixin:
         result = fusion.read(self.data.current_frame, minimap)
         self.emit(POSITION_READ, position_read_payload(result))
         position = result.position
-        if position.value is None and result.minimap is None:
+        if result.minimap is not None:
+            self._unplaced_since = None
+        elif _marker_unplaced(minimap):
+            return self._hold_unplaced(position)
+        elif position.value is None:
             raise ValueError(f"position {position.status.value}: {position.detail}")
+        return position
+
+    def _hold_unplaced(
+        self, position: Reading[VirtualPosition]
+    ) -> Reading[VirtualPosition]:
+        """`position`, the minimap shown but its marker unplaced; it raises
+        once that has lasted `UNPLACED_LIMIT`."""
+        now = time.monotonic()
+        if self._unplaced_since is None:
+            self._unplaced_since = now
+            logger.warning(
+                "%s holds: %s. It gives up if this lasts %.0f s.",
+                self,
+                position.detail,
+                UNPLACED_LIMIT,
+            )
+        elif now - self._unplaced_since >= UNPLACED_LIMIT:
+            self._unplaced_since = None
+            raise ValueError(
+                f"position {position.status.value} for {UNPLACED_LIMIT:.0f} s: "
+                f"{position.detail}"
+            )
         return position
 
     def _minimap_pos_error_handler(self) -> None:
@@ -232,6 +284,17 @@ class MinimapAttributesMixin:
             error_handler=self._minimap_pos_error_handler,
         )
         self.data.set_feature("has_minimap_attributes")
+
+
+def _marker_unplaced(minimap: Reading[MinimapView]) -> bool:
+    """Whether the minimap is read, shown with its map found, and only the
+    character's marker isn't placed (`COVERED`)."""
+    view = minimap.value
+    return (
+        view is not None
+        and view.state is MinimapState.EXPANDED
+        and view.self_position.status is Status.COVERED
+    )
 
 
 def position_read_payload(fusion: Fusion) -> PositionReadPayload:

@@ -112,8 +112,7 @@ def _labelled(f: Fused) -> tuple[int, int] | None:
 
 def _minimap_places(entry: FrameEntry) -> bool:
     """Whether the frame's `minimap` label reads a position: not where it is
-    minimised, covered, the marker clipped at the canvas's edge, or at
-    2560x1440, where the UI is upscaled."""
+    minimised, covered, or at 2560x1440, where the UI is upscaled."""
     minimap = entry.expect.get("minimap")
     if minimap is None or minimap.status is not Status.READ:
         return False
