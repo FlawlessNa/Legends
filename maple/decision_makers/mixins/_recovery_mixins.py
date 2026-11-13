@@ -3,7 +3,7 @@ The thin half of movement recovery: the plumbing a `StuckMonitor` refuses to kno
 about.
 
 Every judgement - which symptom fired, which rung the Reaction Ladder is on, what
-the suspected grid connection is - belongs to `maple.movement_recovery.StuckMonitor`,
+the suspected move is - belongs to `maple.movement_recovery.StuckMonitor`,
 which runs offline and is checked offline. What lives here is reading the loop's
 state out of `BotData`, measuring the Delivery Gate across the process boundary, and
 turning a `Reaction` into an `ActionRequest`. This mirrors the
@@ -19,8 +19,8 @@ reading the gate wants: preemption stops the clocks.
 """
 
 import asyncio
+import functools
 import logging
-import math
 import queue
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -29,10 +29,9 @@ from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DiscordRequest, ProxyFactory
 from maple.actions import priorities
 from maple.actions.movements_v2 import random_jump
-from maple.model.mechanics.movement_mechanics_v2 import _MovementComponent
 from maple.model.mechanics.physics import VRPhysics
-from maple.model.navigation import Path
-from maple.model.world import MinimapTransform, WorldMap
+from maple.model.navigation import Path, Point
+from maple.model.world import WorldMap
 from maple.movement_recovery import (
     Reaction,
     RecoveryThresholds,
@@ -41,6 +40,8 @@ from maple.movement_recovery import (
     Symptom,
 )
 from maple.screen.position import marker_of_feet
+
+from ._rotation_mixins import read_position
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -72,7 +73,7 @@ class MovementRecoveryMixin:
     emit: Callable[[str, Mapping[str, object]], None]
     _proxies: ProxyFactory
     _disable_decision_makers: Callable[..., None]
-    _abandon_current_target: Callable[[], tuple[int, int]]
+    _abandon_current_target: Callable[[], Point]
     _has_movements: Callable[[], bool]
     # Supplied by `MovementsMixin`, which `Rotation` co-inherits: the Reflex's jump
     # lasts the flight of the character's current jump.
@@ -100,7 +101,18 @@ class MovementRecoveryMixin:
             provisional defaults, which issue #120's Trials are what actually fit.
         :param escalation_targets: The DecisionMakers an Escalate suspends.
         """
-        self._monitor = StuckMonitor(thresholds, emit=self.emit)
+        # Telemetry keeps the target's canvas px beside its virtual px (R-D2).
+        world_map: WorldMap | None = getattr(self.data, "world_map", None)
+        transform = None if world_map is None else world_map.minimap
+        self._monitor = StuckMonitor(
+            thresholds,
+            emit=self.emit,
+            to_canvas=(
+                None
+                if transform is None
+                else functools.partial(marker_of_feet, transform)
+            ),
+        )
         self._recovery_starts_at = time.perf_counter() + self.RECOVERY_GRACE_PERIOD
         self._escalation_targets = tuple(escalation_targets)
         self._escalated = False
@@ -136,25 +148,22 @@ class MovementRecoveryMixin:
         if now < self._recovery_starts_at:
             return
 
-        # The monitor still judges in canvas px, as the minimap reads them, until
-        # #398: the Path and the plan are handed over in that unit.
-        world_map: WorldMap | None = getattr(self.data, "world_map", None)
-        transform = None if world_map is None else world_map.minimap
+        # Virtual px throughout (#398): the position fusion read, the target on
+        # the map's platforms, and the graph Path's remaining time.
+        reading = read_position(self.data)
+        position = None if reading.value is None else (reading.value.x, reading.value.y)
+        path: Path | None = self.data.path
         reaction = self._monitor.observe(
-            self.data.current_minimap_position,
+            position,
             now,
             target=self.data.next_target,
-            path=_as_points(self.data.path, transform),
+            remaining=None if path is None else path.duration,
             # The *actionable* plan, which is what both the Delivery Gate and
             # Starvation ask about. A plan holding nothing but the END_OF_MOVEMENT
             # sentinel compiles to no Input Sequence and is never dispatched, so
             # handing it over as non-empty would report a loop that is planning
             # when it is not.
-            plan=(
-                _in_canvas_px(self.data.movements, transform)
-                if self._has_movements()
-                else ()
-            ),
+            plan=self.data.movements if self._has_movements() else (),
             delivered_steps=delivered,
             position_valid=self._position_is_valid(),
             on_expected_minimap=self._on_expected_minimap(),
@@ -185,12 +194,13 @@ class MovementRecoveryMixin:
 
     def _position_is_valid(self) -> bool:
         """
-        Whether the position the detectors are about to judge was actually detected
+        Whether the position the detectors are about to judge was actually read
         recently. Reacting to a detection outage is `_minimap_pos_error_handler`'s;
         this only stops the Stuck clocks from charging the outage to the rotation,
-        which is how a blind bot used to look exactly like a stuck one.
+        which is how a blind bot used to look exactly like a stuck one. An
+        `UNSURE` read is handed over as no position, which freezes them too.
         """
-        age = self.data.get_time_since_last_valid_update("current_minimap_position")
+        age = self.data.get_time_since_last_valid_update("current_position")
         return age <= self.STALE_POSITION_AFTER
 
     def _on_expected_minimap(self) -> bool:
@@ -232,6 +242,8 @@ class MovementRecoveryMixin:
             self.send(self._alert_request(self._abandon_message(reaction, replacement)))
         elif reaction.rung is Rung.ESCALATE:
             self._escalate(reaction)
+        elif reaction.symptom is Symptom.UNSURE_POSITION:
+            self._report_unsure_position()
         else:
             # Starvation: reported, never reacted to in-game. Nothing about the map
             # is wrong, so a Reflex would be noise and an Abandon would be a lie.
@@ -246,6 +258,26 @@ class MovementRecoveryMixin:
                     f"reaching the client."
                 )
             )
+
+    def _report_unsure_position(self) -> None:
+        """
+        The Unsure position: an alert, and nothing in-game. Moving a character the
+        bot can't place would be a guess (C-NOGUESS), so the rotation keeps
+        holding and a human looks.
+        """
+        reading = read_position(self.data)
+        window = self._monitor.thresholds.unsure_window
+        detail = reading.detail or "no detail"
+        logger.error(
+            "%s could not place itself for %.0f s: %s", self.data.ign, window, detail
+        )
+        self.send(
+            self._alert_request(
+                f"{self.data.ign} has not been able to place itself for "
+                f"{window:.0f} s ({detail}), so the rotation is holding. Another "
+                f"player standing on it is the usual cause."
+            )
+        )
 
     def _reflex_request(self, reaction: Reaction) -> ActionRequest:
         """
@@ -329,22 +361,19 @@ class MovementRecoveryMixin:
 
     # --- messages ----------------------------------------------------------------------
 
-    def _abandon_message(self, reaction: Reaction, replacement: tuple[int, int]) -> str:
+    def _abandon_message(self, reaction: Reaction, replacement: Point) -> str:
         return (
-            f"{self.data.ign} gave up on {reaction.target} after "
-            f"{reaction.symptom.value} and is heading for {replacement} instead. "
-            f"{self._suspect_clause(reaction)}"
+            f"{self.data.ign} gave up on {_px(reaction.target)} after "
+            f"{reaction.symptom.value} and is heading for {_px(replacement)} "
+            f"instead. {self._suspect_clause(reaction)}"
         )
 
     def _escalate_message(self, reaction: Reaction) -> str:
+        target = _px(reaction.target)
         if reaction.abandon_count:
-            cause = (
-                f"has now abandoned {reaction.target} {reaction.abandon_count} times"
-            )
+            cause = f"has now abandoned {target} {reaction.abandon_count} times"
         else:
-            cause = (
-                f"could not recover from {reaction.symptom.value} at {reaction.target}"
-            )
+            cause = f"could not recover from {reaction.symptom.value} at {target}"
         return (
             f"{self.data.ign} {cause} and is paused with its keys released. "
             f"{self._suspect_clause(reaction)} Send RESUME when it is unstuck."
@@ -386,42 +415,9 @@ class MovementRecoveryMixin:
         """An Action whose whole purpose is the Discord alert riding on it."""
 
 
-def _as_points(
-    path: Path | None, transform: MinimapTransform | None
-) -> tuple[tuple[int, int], ...]:
-    """
-    The Path as canvas-px points, the unit the monitor judges in until #398:
-    each move sampled every canvas px along the straight line from its take-off
-    to its landing, at the pixel the minimap marker would be drawn at
-    (`marker_of_feet`), repeats dropped. Its length is then about the Path's
-    length in canvas px, which is what Target Timeout and Stagnation read, as
-    they read the grid's node count before. Empty with no Path, or no minimap.
-    """
-    if path is None or not path.moves or transform is None:
-        return ()
-    points: list[tuple[int, int]] = []
-    for move in path.moves:
-        (x0, y0), (x1, y1) = move.start, move.end
-        steps = max(1, math.ceil(max(abs(x1 - x0), abs(y1 - y0)) / transform.scale))
-        for k in range(steps + 1):
-            share = k / steps
-            point = marker_of_feet(
-                transform, (x0 + (x1 - x0) * share, y0 + (y1 - y0) * share)
-            )
-            if not points or points[-1] != point:
-                points.append(point)
-    return tuple(points)
-
-
-def _in_canvas_px(
-    plan: Sequence[_MovementComponent], transform: MinimapTransform | None
-) -> tuple[_MovementComponent, ...]:
-    """
-    The plan with its lengths in canvas px, so the monitor locates a suspected
-    move along `_as_points`' Path by its walks' lengths, as it did on the grid.
-    """
-    scale = 1 if transform is None else transform.scale
-    return tuple(c._replace(length=round(c.length / scale)) for c in plan)
+def _px(point: Point) -> str:
+    """A virtual position, rounded to the px, for a human to read."""
+    return f"({round(point[0])}, {round(point[1])}) virtual px"
 
 
 #: Re-exported so a caller configuring the mixin does not also have to import from

@@ -1,27 +1,25 @@
 import functools
-import itertools
 import logging
 import math
+import statistics
 import time
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Sequence
 
 import numpy as np
 
 from botting import PARENT_LOG
 from botting.core import BotData
-from botting.screen import Reading
-from maple.decision_makers.mixins._mob_mixins import MobsHittingMixin
+from botting.screen import Frame, Reading
 from maple.model.characters.maple_skills import MapleSkill
 from maple.model.mechanics import (
     MovementHandler,
     compile_movements,
 )
-from maple.model.mechanics.minimap_creation.minimap_edits_model import MinimapEdits
 from maple.model.mechanics.movement_mechanics_v2 import _MovementComponent
 from maple.model.mechanics.physics import VRPhysics
 from maple.model.navigation import Path, Point
-from maple.model.world import WorldMap
-from maple.screen.position import VirtualPosition, feet_of_marker
+from maple.model.world import Platform, WorldMap
+from maple.screen.position import PositionFusion, VirtualPosition, marker_of_feet
 from maple.telemetry_events import MOVEMENT_TARGET_REACHED, target_reached_payload
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -29,25 +27,47 @@ logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 class NextTargetMixin:
     """
-    Utility function to set next target.
+    The rotation's target, in virtual px, on the bot's `WorldMap` (#398).
+
+    **The no-cycle path, on platforms.** A map from `game_data` has no feature
+    cycle, so the rotation heads for random points on the map's platforms
+    (`WorldMap.random_point`, platforms weighted by their width), and the
+    feature a target is on is the platform under it (`next_feature`,
+    `WorldMap.platform_at`). Custom rotation patterns are a later epic.
+
+    **Only platforms a Path reaches.** The draw is restricted to the platforms
+    the foothold graph reaches from the character's position, when the graph
+    and a position are known: some maps have platforms nothing reaches (on
+    Damp Forest, 7 of its 11, 37 % of their width, from its widest platform), and a
+    target there is one no Path joins, which only movement recovery would
+    ever drop. A target drawn before then is checked, and drawn again, once
+    they are known.
     """
 
     data: BotData
     # Supplied by MobsHittingMixin, which smart rotation asserts is co-inherited.
     get_mobs_positions_in_img: Callable[..., list[Sequence[int]]]
-    BASE_ROTATION_THRESHOLD = 10  # Used for basic rotation mechanism
-    SMART_ROTATION_THRESHOLD = 4  # Used for "gravitate towards mobs" rotation mechanism
+    mobs_in_virtual_px: Callable[..., list[Point]]
+    #: Arrival for the basic rotation, in virtual px: 10 minimap px, as it was
+    #: judged in minimap px before #398 (16 virtual px each, `mag` 4).
+    BASE_ROTATION_THRESHOLD = 160.0
+    #: Arrival for the "gravitate towards mobs" rotation: 4 minimap px.
+    SMART_ROTATION_THRESHOLD = 64.0
+    #: How far smart rotation steps towards the mobs at most: 10 minimap px.
+    SMART_ROTATION_STEP = 160.0
     TIME_ON_TARGET = 0.75  # Used for "smart rotation" mechanism
     MIN_MOBS_THRESHOLD = 2
 
     def _create_rotation_attributes(
         self,
         *,
-        cycle: Iterator[MinimapEdits] | None = None,
         smart_rotation: bool = False,
         mob_count_threshold: int | None = None,
     ) -> None:
-
+        """
+        :raises ValueError: The bot's map isn't known: there is nothing to
+            pick a target on.
+        """
         if smart_rotation is True:
             self.data.set_feature("has_smart_rotation")
             assert mob_count_threshold is not None, (
@@ -55,149 +75,124 @@ class NextTargetMixin:
             )
             self.data.set_static("mob_threshold", mob_count_threshold)
 
-        # If the map has a cycle provided for features, use it
-        if self.data.current_minimap.feature_cycle:
-            if cycle is None:
-                self.data.set_static(
-                    "feature_cycle",
-                    itertools.cycle(self.data.current_minimap.feature_cycle),
-                )
-            self.data.create_or_reconfigure_attribute(
-                "next_feature",
-                lambda: next(self.data.feature_cycle),
-            )
-            if not self.data.has_smart_rotation:
-                self.data.create_or_reconfigure_attribute(
-                    "next_target",
-                    self._update_next_target_from_cycle,
-                    initial_value=self.data.next_feature.random(),
-                )
-            else:
-                self.data.create_or_reconfigure_attribute(
-                    "next_target",
-                    self._smart_rotation_target,
-                    initial_value=self.data.next_feature.random(),
-                )
-        # If not cycle provided for current map, rotate at random
-        else:
-            if not self.data.has_smart_rotation:
-                self.data.create_or_reconfigure_attribute(
-                    "next_target",
-                    self._update_next_random_target,
-                    initial_value=self.data.current_minimap.random_point(),
-                )
-            else:
-                self.data.create_or_reconfigure_attribute(
-                    "next_target",
-                    self._smart_rotation_target,
-                    initial_value=self.data.current_minimap.random_point(),
-                )
-            self.data.create_or_reconfigure_attribute(
-                "next_feature",
-                lambda: self.data.current_minimap.get_feature_containing(
-                    self.data.next_target
-                ),
-            )
+        world_map = _world_map_of(self.data)
+        update = (
+            self._smart_rotation_target
+            if self.data.has_smart_rotation
+            else self._update_next_random_target
+        )
+        self.data.create_or_reconfigure_attribute(
+            "next_target", update, initial_value=self._random_target()
+        )
+        self.data.create_or_reconfigure_attribute(
+            "next_feature", lambda: world_map.platform_at(self.data.next_target)
+        )
         self.data.set_feature("has_rotation_attributes")
 
-    def _emit_target_reached(
-        self, position: Sequence[int], target: Sequence[int]
-    ) -> None:
+    # --- targets on platforms ------------------------------------------------
+
+    def _random_target(self) -> Point:
+        """
+        A random point on the platforms a Path reaches from the character, or
+        on every platform before the graph and a position are known.
+        """
+        world_map = _world_map_of(self.data)
+        among = _reachable_platforms(self.data)
+        self._target_checked = among is not None
+        return world_map.random_point(among)
+
+    def _checked_target(self, target: Point) -> Point:
+        """
+        `target`, or a fresh draw when it was drawn before reachability was
+        known, and the platform it is on turns out to be one no Path reaches
+        from the character.
+        """
+        if getattr(self, "_target_checked", True):
+            return target
+        among = _reachable_platforms(self.data)
+        if among is None:
+            return target
+        self._target_checked = True
+        if _world_map_of(self.data).platform_at(target) in among:
+            return target
+        logger.info("%s: target %s is on no reachable platform.", self, target)
+        redrawn = _world_map_of(self.data).random_point(among)
+        self.data.next_feature = _world_map_of(self.data).platform_at(redrawn)
+        return redrawn
+
+    def _emit_target_reached(self, position: Point, target: Point) -> None:
         """
         Record that a rotation mode judged the character to have arrived. Every
         place that judges arrival calls this, so the count means one thing.
 
-        `EnsureMobStillSpawn` installs `_update_next_target_from_cycle` as its own
+        `EnsureMobStillSpawn` installs `_update_next_random_target` as its own
         target update while it is active, so its records are attributed to it: a
         count of these against `movement.plan_started` (Rotation only) will run
         higher while it is.
 
         Takes the values the caller just judged arrival with, rather than reading
         them off `BotData`: a read can refresh a thresholded attribute, and
-        telemetry must not do work inside the thing it observes.
+        telemetry must not do work inside the thing it observes. Both are
+        virtual px; the canvas fields are where the minimap draws the marker
+        for each (`marker_of_feet`).
         """
         # Not every host of this mixin is a DecisionMaker with `emit`.
         emit = getattr(self, "emit", None)
-        if emit is None:
-            return
-        # The virtual fields, as far as they are known without a read: the
-        # target converted as the planner converts it, and the last virtual
-        # position read. Arrival is still judged in canvas px until #398.
-        virtual_target = virtual_position = None
         world_map: WorldMap | None = getattr(self.data, "world_map", None)
-        if world_map is not None and world_map.minimap is not None:
-            virtual_target = feet_of_marker(world_map.minimap, (target[0], target[1]))
-            last = _last_position(self.data)
-            if last is not None:
-                virtual_position = (last.x, last.y)
+        if emit is None or world_map is None or world_map.minimap is None:
+            # No minimap, no position read: nothing is judged to arrive there.
+            return
+        transform = world_map.minimap
         emit(
             MOVEMENT_TARGET_REACHED,
             target_reached_payload(
-                position,
-                target,
-                virtual_position=virtual_position,
-                virtual_target=virtual_target,
+                marker_of_feet(transform, position),
+                marker_of_feet(transform, target),
+                virtual_position=position,
+                virtual_target=target,
             ),
         )
 
-    def _update_next_target_from_cycle(self) -> None:
+    def _update_next_random_target(self) -> Point:
         """
-        Updates the next target from the feature cycle.
-        :return:
+        The current target until the character is within
+        `BASE_ROTATION_THRESHOLD` of it, then a new random one. An unsure
+        position holds the target: arrival can't be judged from it.
         """
-        position = self.data.current_minimap_position
-        target = self.data.next_target
+        target = self._checked_target(self.data.next_target)
+        reading = read_position(self.data)
+        if reading.value is None:
+            return target
+        position = (reading.value.x, reading.value.y)
         if math.dist(position, target) > self.BASE_ROTATION_THRESHOLD:
             return target
-        else:
-            self._emit_target_reached(position, target)
-            self.data.update_attribute("next_feature")
-            return self.data.next_feature.random()
+        self._emit_target_reached(position, target)
+        next_target = self._random_target()
+        self.data.next_feature = _world_map_of(self.data).platform_at(next_target)
+        return next_target
 
-    def _update_next_random_target(self) -> tuple[int, int]:
-        """
-        Sets the next target from the feature cycle.
-        :return:
-        """
-        position = self.data.current_minimap_position
-        target = self.data.next_target
-        if math.dist(position, target) > self.BASE_ROTATION_THRESHOLD:
-            return target
-        else:
-            self._emit_target_reached(position, target)
-            next_target = self.data.current_minimap.random_point()
-            self.data.next_feature = self.data.current_minimap.get_feature_containing(
-                next_target
-            )
-            return next_target
-
-    def _abandon_current_target(self) -> tuple[int, int]:
+    def _abandon_current_target(self) -> Point:
         """
         Drop the target the rotation is heading for and pick a different one.
 
         Movement recovery's **Abandon** rung (`CONTEXT.md` -> Reaction Ladder).
-        Both update functions above return the *current* target until the
-        character is within threshold of it, which is exactly what keeps a Stuck
-        loop stuck: re-deciding cannot change where it is going. So the new target
-        is written straight onto the attribute, and each branch picks it with its
-        own machinery - advancing the feature cycle where there is one, drawing a
-        fresh random point where there is not.
+        The update functions return the *current* target until the character is
+        within threshold of it, which is exactly what keeps a Stuck loop stuck:
+        re-deciding cannot change where it is going. So the new target is written
+        straight onto the attribute: a fresh random point on a reachable
+        platform.
 
-        The draw may of course land back on the same feature. That is not worth
+        The draw may of course land back on the same platform. That is not worth
         guarding: the ladder is already at Abandon, so the next symptom escalates.
         :return: The new target.
         """
-        if self.data.current_minimap.feature_cycle:
-            self.data.update_attribute("next_feature")
-            self.data.next_target = self.data.next_feature.random()
-        else:
-            self.data.next_target = self.data.current_minimap.random_point()
-            self.data.update_attribute("next_feature")
+        self.data.next_target = self._random_target()
+        self.data.update_attribute("next_feature")
         return self.data.next_target
 
-    def _set_fixed_target(self, target: tuple[int, int]) -> None:
+    def _set_fixed_target(self, target: Point) -> None:
         """
-        Move to the location where the buffs are cast.
+        Move to a fixed target, in virtual px (where the buffs are cast, say).
         """
         if self.data.has_rotation_attributes:
             # Overwrite how the next_target attribute is set until the rebuff is done.
@@ -219,12 +214,13 @@ class NextTargetMixin:
         if self.data.has_rotation_attributes:
             self.data.restore_attribute("next_target")
 
-    def _smart_rotation_target(self) -> tuple[int, int]:
+    def _smart_rotation_target(self) -> Point:
         """
         Determines the next target to move towards in a "smart way".
         Uses current on-screen location to get a wide view on the current platform.
         If there are mobs, target the "average" position of those in the direction
-        where there are most. Otherwise, move towards the next feature in the cycle.
+        where there are most, on the target's platform. Otherwise, a random point on
+        that platform (the no-cycle path's "next feature").
         :return:
         """
         assert hasattr(self.data, "mob_threshold"), (
@@ -238,8 +234,11 @@ class NextTargetMixin:
         if not hasattr(self, "_last_target_reached_at"):
             self._last_target_reached_at = time.perf_counter()
 
-        position = self.data.current_minimap_position
-        target = self.data.next_target
+        target = self._checked_target(self.data.next_target)
+        reading = read_position(self.data)
+        if reading.value is None:
+            return target
+        position = (reading.value.x, reading.value.y)
         if math.dist(position, target) > self.SMART_ROTATION_THRESHOLD:
             self._first_time_on_target = True
             return target
@@ -249,9 +248,9 @@ class NextTargetMixin:
             self._emit_target_reached(position, target)
             self._first_time_on_target = False
             self._last_target_reached_at = time.perf_counter()
-            return self.data.next_target
+            return target
         elif time.perf_counter() - self._last_target_reached_at < self.TIME_ON_TARGET:
-            return self.data.next_target
+            return target
 
         # Reach this code once you've been on target for > time_limit seconds.
         self._first_time_on_target = True
@@ -260,71 +259,128 @@ class NextTargetMixin:
         on_screen_pos = self.data.get_last_known_value("current_on_screen_position")
         if on_screen_pos is not None:
             x1, y1, x2, y2 = on_screen_pos
-            pixels = self.data.current_frame.pixels
-            shape = pixels.shape
+            frame = self.data.current_frame
+            shape = frame.pixels.shape
             mask = np.zeros(shape, np.uint8)
             mask[
                 max(0, y1 - 100) : min(shape[0], y2 + 100),
                 max(0, x1 - 500) : min(shape[1], x2 + 500),
             ] = 255
             mobs_locations = self.get_mobs_positions_in_img(
-                pixels, self.data.current_mobs, mask=mask
+                frame.pixels, self.data.current_mobs, mask=mask
             )
-
-            cx = (x1 + x2) / 2
             if len(mobs_locations) >= max(
                 self.data.mob_threshold, self.MIN_MOBS_THRESHOLD
             ):
-                # Compute "center of mass" of mobs at the character's left and right
-                center_x = [
-                    MobsHittingMixin.box_center(rect)[0] for rect in mobs_locations
-                ]
-                left_x = [rect_x for rect_x in center_x if rect_x < cx]
-                right_x = [rect_x for rect_x in center_x if rect_x >= cx]
-
-                minimap_width = self.data.current_minimap.map_area_width
-                map_width = self.data.current_map.vr_width
-
-                # Go towards left
-                if len(left_x) > len(right_x):
-                    avg_dist = sum([abs(rect_x - cx) for rect_x in left_x]) / len(
-                        left_x
-                    )
-                    minimap_dist = min(int(avg_dist * minimap_width / map_width), 10)
-                    minimap_x = self.data.current_minimap_position[0]
-                    curr_feature = self.data.current_minimap.get_feature_containing(
-                        self.data.next_target
-                    )
-                    minimum_x = curr_feature.left
-                    if curr_feature.avoid_edges:
-                        minimum_x += curr_feature.edge_threshold
-                    target = (
-                        max(minimap_x - minimap_dist, minimum_x),
-                        curr_feature.top,
-                    )
-                    return target
-
-                # Go towards right
-                else:
-                    avg_dist = sum([abs(rect_x - cx) for rect_x in right_x]) / len(
-                        right_x
-                    )
-                    minimap_dist = min(int(avg_dist * minimap_width / map_width), 10)
-                    minimap_x = self.data.current_minimap_position[0]
-                    curr_feature = self.data.current_minimap.get_feature_containing(
-                        self.data.next_target
-                    )
-                    maximum_x = curr_feature.right
-                    if curr_feature.avoid_edges:
-                        maximum_x -= curr_feature.edge_threshold
-                    target = (
-                        min(minimap_x + minimap_dist, maximum_x),
-                        curr_feature.top,
-                    )
-                    return target
+                stepped = self._step_towards_mobs(mobs_locations, frame, target)
+                if stepped is not None:
+                    return stepped
 
         self.data.update_attribute("next_feature")
-        return self.data.next_feature.random()
+        platform: Platform | None = self.data.next_feature
+        if platform is None:
+            return self._random_target()
+        return _world_map_of(self.data).random_point((platform,))
+
+    def _step_towards_mobs(
+        self, mobs: list[Sequence[int]], frame: Frame, target: Point
+    ) -> Point | None:
+        """
+        A point on the target's platform, towards the side most of `mobs` are on:
+        their mean distance from the character, at most `SMART_ROTATION_STEP`.
+        The mobs are placed in virtual px through the camera of the frame they
+        were found on; `None` when that frame's camera or position isn't read,
+        or the target is on no platform.
+        """
+        # Read on this frame, so its camera is the one that places the mobs.
+        self.data.update_attribute("current_position")
+        reading: Reading[VirtualPosition] = self.data.current_position
+        fusion: PositionFusion | None = getattr(self.data, "position_fusion", None)
+        camera = None if fusion is None else fusion.camera
+        platform = _world_map_of(self.data).platform_at(target)
+        if camera is None or reading.value is None or platform is None:
+            return None
+        here = reading.value.x
+        xs = [x for x, _ in self.mobs_in_virtual_px(mobs, frame.client_size, camera)]
+        left = [here - x for x in xs if x < here]
+        right = [x - here for x in xs if x >= here]
+        if len(left) > len(right):
+            x = max(
+                here - min(statistics.mean(left), self.SMART_ROTATION_STEP),
+                platform.left,
+            )
+        else:
+            x = min(
+                here + min(statistics.mean(right), self.SMART_ROTATION_STEP),
+                platform.right,
+            )
+        y = platform.y_at(x)
+        return None if y is None else (x, y)
+
+
+def read_position(data: BotData) -> Reading[VirtualPosition]:
+    """
+    `current_position`, read when it is stale; `UNSURE`, without a read, on a
+    map no position is read on (the map not known, or with no minimap), where a
+    read could only fail into the minimap's error handler.
+    """
+    world_map: WorldMap | None = getattr(data, "world_map", None)
+    if world_map is None or world_map.minimap is None:
+        return Reading.unsure(0.0, "no position is read on this map")
+    return data.current_position
+
+
+def _world_map_of(data: BotData) -> WorldMap:
+    """
+    The bot's map.
+
+    :raises ValueError: It isn't known (the profile names no map).
+    """
+    world_map: WorldMap | None = getattr(data, "world_map", None)
+    if world_map is None:
+        raise ValueError(
+            "no map to rotate on: the bot's map isn't known (name it with the "
+            "profile's `map` setting)"
+        )
+    return world_map
+
+
+def current_physics(data: BotData) -> VRPhysics:
+    """The character's physics, with its current speed and jump stats."""
+    values = getattr(data, "game_physics", None)
+    if values is None:
+        raise ValueError("no game physics: the bot's map isn't known")
+    return VRPhysics.from_game_files(
+        values,
+        speed_multiplier=data.speed_multiplier,
+        jump_multiplier=data.jump_multiplier,
+        calibration=getattr(data, "calibration", None),
+    )
+
+
+def _reachable_platforms(data: BotData) -> tuple[Platform, ...] | None:
+    """
+    The platforms a Path reaches from the character's last position read, on
+    the graph of its current physics. `None` while that isn't known: no
+    `MovementHandler` yet (or none on this map), no position read or an unsure
+    one, or a position on no surface (in the air).
+
+    Reads no position: it is the last one read. The graph is the handler's,
+    so asking before the first Path builds the graph that Path would build.
+    """
+    try:
+        handler: MovementHandler | None = data.movement_handler
+    except AttributeError:
+        return None
+    last = _last_position(data)
+    if handler is None or last is None:
+        return None
+    try:
+        surfaces = handler.graph(current_physics(data)).reachable((last.x, last.y))
+    except ValueError:
+        return None
+    platforms = tuple(s for s in surfaces if isinstance(s, Platform))
+    return platforms or None
 
 
 def _last_position(data: BotData) -> VirtualPosition | None:
@@ -344,11 +400,10 @@ class MovementsMixin:
     Plans a Path on the map's `FootholdGraph`, from the character's virtual
     position (`current_position`) to the target, and ships its Movement Plan.
 
-    **The target.** `_virtual_target` gives it in virtual px. Rotation's
-    targets are still the map file's, in canvas px, until #398: they are
-    converted through the minimap transform, to where a marker at that pixel
-    puts the feet (`feet_of_marker`). A DecisionMaker whose targets are virtual
-    overrides `_virtual_target`.
+    **The target.** `_virtual_target` gives it in virtual px: `next_target`,
+    which the rotation picks on the map's platforms (`NextTargetMixin`, #398).
+    A DecisionMaker whose target is not `next_target` (`TrialRunner`, whose
+    driver owns it) overrides it.
 
     **An unsure position holds.** When `current_position` is `UNSURE` (the
     reads disagree, or two characters stand where the minimap puts ours), no
@@ -450,25 +505,12 @@ class MovementsMixin:
 
     def _physics(self) -> VRPhysics:
         """The character's physics, with its current speed and jump stats."""
-        values = getattr(self.data, "game_physics", None)
-        if values is None:
-            raise ValueError("no game physics: the bot's map isn't known")
-        return VRPhysics.from_game_files(
-            values,
-            speed_multiplier=self.data.speed_multiplier,
-            jump_multiplier=self.data.jump_multiplier,
-            calibration=getattr(self.data, "calibration", None),
-        )
+        return current_physics(self.data)
 
     def _virtual_target(self) -> Point:
-        """
-        The target, in virtual px: `next_target`, in canvas px, converted
-        through the minimap transform (see the class docstring).
-        """
-        transform = self._world_map().minimap
-        assert transform is not None
+        """The target, in virtual px: `next_target` (see the class docstring)."""
         target = self.data.next_target
-        return feet_of_marker(transform, (target[0], target[1]))
+        return float(target[0]), float(target[1])
 
     def _plan_path(self) -> Path | None:
         """The Path from the current position to the target; `None` holds."""

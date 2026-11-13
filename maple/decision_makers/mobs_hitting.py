@@ -10,11 +10,14 @@ import numpy as np
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
+from botting.screen import Reading
 from botting.utilities import Box
 from maple.actions.skills_related_v2 import cast_skill_compiler
 from maple.model.characters import MapleSkill
+from maple.model.world import WorldMap
 from maple.screen.chat import CHAT
 from maple.screen.minimap import MINIMAP
+from maple.screen.position import VirtualPosition
 from maple.telemetry_events import COMBAT_MOBS_HIT, MobsHitPayload
 
 from .mixins import MinimapAttributesMixin, MobsHittingMixin, NextTargetMixin
@@ -192,13 +195,23 @@ class MobsHitting(
         )
 
     def _currently_on_ladder(self) -> bool:
-        return getattr(
-            self.data.current_minimap.get_feature_containing(
-                self.data.current_minimap_position
-            ),
-            "is_ladder",
-            False,
-        )
+        """
+        Whether the character is on a rope or a ladder of the bot's `WorldMap`,
+        where no skill is cast. An unsure position, or no map, isn't: the cast
+        is tried, as it was when the position was on no feature.
+        """
+        world_map: WorldMap | None = getattr(self.data, "world_map", None)
+        try:
+            # The last read, without reading: the rotation reads it every cycle,
+            # and a read here would cost a camera match per cast.
+            reading: Reading[VirtualPosition] | None = self.data.get_last_known_value(
+                "current_position", update=False
+            )
+        except AttributeError:
+            return False
+        if world_map is None or reading is None or reading.value is None:
+            return False
+        return world_map.rope_at((reading.value.x, reading.value.y)) is not None
 
     def _closest_mob_direction(
         self,

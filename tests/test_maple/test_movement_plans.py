@@ -21,7 +21,6 @@ from botting.screen import Reading
 from game_data.catalogue import Rope
 from maple.actions import movements_v2
 from maple.decision_makers.mixins import MovementsMixin
-from maple.decision_makers.mixins._recovery_mixins import _in_canvas_px
 from maple.model.mechanics import movement_mechanics_v2
 from maple.model.mechanics.movement_mechanics_v2 import (
     _MAX_TRAVEL_LENGTH,
@@ -330,7 +329,7 @@ class _Character:
 def _planner(
     name: str,
     position: tuple[float, float],
-    target: tuple[int, int],
+    target: tuple[float, float],
     *,
     status_read: bool = True,
 ) -> _Planner:
@@ -355,30 +354,18 @@ def _planner(
     return planner
 
 
-def _canvas(name: str, feet: tuple[float, float]) -> tuple[int, int]:
-    transform = corpus.world_map(_entry(name)).minimap
-    assert transform is not None
-    return marker_of_feet(transform, feet)
+def test_the_target_is_planned_to_as_it_is_in_virtual_px() -> None:
+    """The rotation's targets are virtual since #398: no conversion on the way."""
+    planner = _planner("jump_gap", (100.0, 0.0), (600.0, 0.0))
 
-
-def test_the_target_in_canvas_px_is_planned_to_where_its_marker_puts_the_feet() -> None:
-    """Rotation's targets are the map file's, in canvas px, until #398."""
-    target = _canvas("jump_gap", (600.0, 0.0))
-    planner = _planner("jump_gap", (100.0, 0.0), target)
-
-    transform = corpus.world_map(_entry("jump_gap")).minimap
-    assert transform is not None
-    goal = feet_of_marker(transform, target)
     path = planner.data.path
     assert path is not None
     assert path.moves[0].start == (100.0, 0.0)
-    assert path.moves[-1].end == (goal[0], 0.0)
+    assert path.moves[-1].end == (600.0, 0.0)
 
 
 def test_an_unsure_position_plans_nothing_and_sends_nothing() -> None:
-    planner = _planner(
-        "jump_gap", (100.0, 0.0), _canvas("jump_gap", (600.0, 0.0)), status_read=False
-    )
+    planner = _planner("jump_gap", (100.0, 0.0), (600.0, 0.0), status_read=False)
 
     assert planner.data.path is None
     assert planner.data.movements == ()
@@ -408,7 +395,7 @@ def test_a_change_of_jump_stat_between_two_paths_changes_the_ranges_and_the_flig
     after the change, the next Path is on a graph built for the new jump: its jump
     ranges differ, and so does the flight its jump carries and is compiled with.
     """
-    planner = _planner("jump_gap", (100.0, 0.0), _canvas("jump_gap", (300.0, 0.0)))
+    planner = _planner("jump_gap", (100.0, 0.0), (300.0, 0.0))
     handler: MovementHandler = planner.data.movement_handler
 
     def jump() -> _MovementComponent:
@@ -449,7 +436,7 @@ def test_a_change_of_jump_stat_between_two_paths_changes_the_ranges_and_the_flig
 
 
 def test_the_compile_speeds_follow_the_current_speed_stat() -> None:
-    planner = _planner("jump_gap", (100.0, 0.0), _canvas("jump_gap", (300.0, 0.0)))
+    planner = _planner("jump_gap", (100.0, 0.0), (300.0, 0.0))
     planner.data.speed_multiplier = 1.4
 
     compiler = planner._movement_compiler()
@@ -467,17 +454,7 @@ def test_the_graph_is_built_once_per_physics() -> None:
     )
 
 
-# --- the recovery monitor's canvas px, until #398 ---------------------------------
-
-
-def test_the_plan_is_handed_to_the_recovery_monitor_in_canvas_px() -> None:
-    world = corpus.world_map(_entry("jump_gap"))
-    plan = (
-        _MovementComponent(MovementTypes.WALK_RIGHT, 80.0),
-        _MovementComponent(MovementTypes.JUMP_RIGHT, 69.4, duration=0.555),
-    )
-
-    assert [c.length for c in _in_canvas_px(plan, world.minimap)] == [5, 4]
+# --- the minimap transform ----------------------------------------------------------
 
 
 def test_feet_and_marker_convert_both_ways() -> None:

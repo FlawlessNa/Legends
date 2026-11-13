@@ -4,7 +4,8 @@ streams.
 
 `CONTEXT.md` -> **Movement recovery**. The whole point of the `StuckMonitor` seam
 is that this file exists: the monitor is handed a position, a clock reading, a
-target, a Path, a Movement Plan and a delivered-Step count, and every symptom's
+target, the Path's remaining time, a Movement Plan and a delivered-Step count, and
+every symptom's
 firing and every rung's advance is decidable offline. Nothing here touches a
 client, and nothing here is an Expectation - the thresholds are *supplied* by each
 test, because their real values are issue #120's to fit.
@@ -15,7 +16,8 @@ stream will otherwise race, and a test that passes because a *different* symptom
 fired first is worse than no test.
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
+from dataclasses import replace
 
 import pytest
 
@@ -34,6 +36,7 @@ from maple.telemetry_events import (
     RECOVERY_ABANDON,
     RECOVERY_ESCALATE,
     RECOVERY_LADDER_RESET,
+    RECOVERY_POSITION_UNSURE,
     RECOVERY_REFLEX,
     RECOVERY_STUCK_DETECTED,
 )
@@ -42,7 +45,8 @@ from maple.telemetry_events import (
 NEVER = 1e9
 
 WALK = (_MovementComponent(MovementTypes.WALK_RIGHT, 5),)
-PATH = tuple((x, 0) for x in range(10))
+#: The freshly recomputed Path's remaining time, in seconds (`Path.duration`).
+REMAINING = 10.0
 
 
 def _thresholds(**overrides: float) -> RecoveryThresholds:
@@ -56,6 +60,7 @@ def _thresholds(**overrides: float) -> RecoveryThresholds:
         "timeout_multiplier": NEVER,
         "timeout_floor": NEVER,
         "starvation_window": NEVER,
+        "unsure_window": NEVER,
     }
     base.update(overrides)
     return RecoveryThresholds(**base)
@@ -70,22 +75,24 @@ class _Monitor:
     silently exercise the default and pass for the wrong reason.
     """
 
-    def __init__(self, thresholds: RecoveryThresholds) -> None:
+    def __init__(self, thresholds: RecoveryThresholds, **kwargs: object) -> None:
         self.events: list[tuple[str, Mapping[str, object]]] = []
         self.monitor = StuckMonitor(
-            thresholds, emit=lambda e, p: self.events.append((e, p))
+            thresholds,
+            emit=lambda e, p: self.events.append((e, p)),
+            **kwargs,  # pyright: ignore[reportArgumentType]
         )
         self.now = 0.0
-        self.target: tuple[int, int] = (100, 0)
+        self.target: tuple[float, float] = (100.0, 0.0)
         self.plan: tuple[_MovementComponent, ...] = WALK
         self.delivered_steps = 3
 
     def tick(
         self,
-        position: tuple[int, int] = (0, 0),
+        position: tuple[float, float] | None = (0.0, 0.0),
         *,
         dt: float = 0.5,
-        path: Sequence[tuple[int, int]] = PATH,
+        remaining: float | None = REMAINING,
         plan: tuple[_MovementComponent, ...] | None = None,
         delivered_steps: int | None = None,
         position_valid: bool = True,
@@ -98,7 +105,7 @@ class _Monitor:
             position,
             self.now,
             target=self.target,
-            path=path,
+            remaining=remaining,
             plan=self.plan if plan is None else plan,
             delivered_steps=(
                 self.delivered_steps if delivered_steps is None else delivered_steps
@@ -171,8 +178,8 @@ def test_stagnation_fires_when_the_remaining_path_stops_shrinking() -> None:
     # The character moves steadily away from the target, and the Path shortens
     # anyway: that is a legitimate detour, and nothing fires.
     for step in range(1, 7):
-        away = (-step * 10, 0)
-        assert detouring.tick(away, path=PATH[step:]) is None
+        away = (-step * 10.0, 0.0)
+        assert detouring.tick(away, remaining=REMAINING - step) is None
 
     stuck = _Monitor(_thresholds(stagnation_window=1.0, progress_epsilon=1.0))
     reaction = stuck.run(6, position=(0, 0))
@@ -199,7 +206,7 @@ def test_plan_churn_ignores_a_plan_re_derived_while_the_path_shrinks() -> None:
     )
 
     reactions = [
-        progressing.tick((0, 0), path=PATH[: len(PATH) - step]) for step in range(6)
+        progressing.tick((0, 0), remaining=REMAINING - step) for step in range(6)
     ]
 
     assert not any(reactions)
@@ -220,15 +227,13 @@ def test_plan_churn_is_behind_the_gate_like_every_other_detector() -> None:
 
 
 def test_target_timeout_fires_however_the_character_is_moving() -> None:
-    """The backstop: it holds when a bad grid connection makes the Path lie."""
-    timing_out = _Monitor(
-        _thresholds(timeout_multiplier=1.0, seconds_per_node=0.1, timeout_floor=1.0)
-    )
+    """The backstop: it holds when a bad move makes the Path lie."""
+    timing_out = _Monitor(_thresholds(timeout_multiplier=0.1, timeout_floor=1.0))
 
     # Moving the whole time, and the Path shrinking: every finer detector is blind.
     reaction = None
     for step in range(1, 8):
-        reaction = timing_out.tick((step * 10, 0), path=PATH[: max(1, 9 - step)])
+        reaction = timing_out.tick((step * 10, 0), remaining=max(1.0, 9.0 - step))
         if reaction is not None:
             break
 
@@ -300,7 +305,7 @@ def test_an_unplannable_loop_is_judged_even_though_it_delivers_nothing() -> None
     """
     pathless = _Monitor(_thresholds(stall_window=1.0, jitter_bound=1.0))
 
-    reaction = pathless.run(6, plan=(), path=(), delivered_steps=0)
+    reaction = pathless.run(6, plan=(), remaining=None, delivered_steps=0)
 
     assert reaction is not None
     assert reaction.symptom is Symptom.STALL
@@ -381,7 +386,7 @@ def test_real_progress_resets_the_ladder(climbing: _Monitor) -> None:
     assert _rungs(climbing, 2) == [Rung.REFLEX, Rung.REFLEX]
 
     # The Path shortens: the character is genuinely on its way again.
-    climbing.tick((50, 0), path=PATH[:4])
+    climbing.tick((50, 0), remaining=4.0)
 
     assert climbing.fire().rung is Rung.REFLEX
     assert _reset_reasons(climbing) == ["progress"]
@@ -462,10 +467,15 @@ def test_an_abandon_that_did_not_change_the_target_escalates(
 def test_the_suspected_connection_is_the_first_gesture_ahead(
     stalling: _Monitor,
 ) -> None:
+    """From the take-off to the landing its component carries, in virtual px."""
     plan = (
-        _MovementComponent(MovementTypes.WALK_RIGHT, 3),
-        _MovementComponent(MovementTypes.JUMP, 1),
-        _MovementComponent(MovementTypes.WALK_RIGHT, 2),
+        _MovementComponent(
+            MovementTypes.WALK_RIGHT, 30, start=(0.0, 0.0), end=(30.0, 0.0)
+        ),
+        _MovementComponent(MovementTypes.JUMP, 0, start=(30.0, 0.0), end=(30.4, -49.6)),
+        _MovementComponent(
+            MovementTypes.WALK_RIGHT, 20, start=(30.4, -49.6), end=(50.0, -50.0)
+        ),
         _MovementComponent(MovementTypes.END_OF_MOVEMENT, 1),
     )
 
@@ -474,33 +484,131 @@ def test_the_suspected_connection_is_the_first_gesture_ahead(
     suspect = reaction.suspected_connection
     assert suspect is not None
     assert suspect.movement_type == "JUMP"
-    assert (suspect.start, suspect.end) == (PATH[3], PATH[4])
+    assert (suspect.start, suspect.end) == ((30, 0), (30, -50))
 
 
 def test_a_plan_that_is_only_walking_blames_where_it_started(
     stalling: _Monitor,
 ) -> None:
     """A wall mid-platform is still a place worth naming."""
-    reaction = stalling.fire(6, plan=WALK)
+    walk = (
+        _MovementComponent(
+            MovementTypes.WALK_RIGHT, 80, start=(10.0, 0.0), end=(90.0, 0.0)
+        ),
+    )
+
+    reaction = stalling.fire(6, plan=walk)
 
     suspect = reaction.suspected_connection
     assert suspect is not None
     assert suspect.movement_type == "WALK_RIGHT"
-    assert suspect.start == PATH[0]
+    assert suspect.start == (10, 0)
 
 
-def test_attribution_survives_a_path_shorter_than_the_plan_claims(
-    stalling: _Monitor,
-) -> None:
-    """Indexing off the end would raise inside the thing that is recovering."""
-    plan = (
-        _MovementComponent(MovementTypes.WALK_RIGHT, 50),
-        _MovementComponent(MovementTypes.JUMP, 50),
-    )
+def test_a_plan_built_by_hand_names_no_suspect(stalling: _Monitor) -> None:
+    """With no take-off or landing on the component, there is no place to name."""
+    reaction = stalling.fire(6, plan=WALK)
 
-    reaction = stalling.fire(6, plan=plan, path=PATH[:2])
+    assert reaction.suspected_connection is None
 
-    assert reaction.suspected_connection is not None
+
+# --- units (#398) -------------------------------------------------------------
+
+
+def test_the_defaults_are_the_minimap_px_values_in_virtual_px() -> None:
+    """16 virtual px per minimap px (`mag` 4), and a node's walk at 125 px/s."""
+    defaults = RecoveryThresholds()
+
+    assert defaults.jitter_bound == 16.0
+    assert defaults.churn_quantum == 32.0
+    assert defaults.progress_epsilon == pytest.approx(16 / 125)
+
+
+def test_a_coarse_position_stepping_one_canvas_pixel_is_jitter() -> None:
+    """
+    The coarse position moves in steps of one canvas pixel (16 virtual px), so a
+    reading that flips between two neighbouring pixels is not movement.
+    """
+    flipping = _Monitor(replace(RecoveryThresholds(), stall_window=1.0))
+
+    reactions = [flipping.tick((8.0 + 16 * (k % 2), 0.0)) for k in range(6)]
+
+    assert any(r is not None and r.symptom is Symptom.STALL for r in reactions)
+
+
+def test_a_target_no_path_reaches_stagnates() -> None:
+    """No Path is no progress, however long it goes on."""
+    pathless = _Monitor(_thresholds(stagnation_window=1.0))
+
+    reaction = pathless.run(6, remaining=None)
+
+    assert reaction is not None
+    assert reaction.symptom is Symptom.STAGNATION
+
+
+def test_the_timeout_budget_is_a_multiple_of_the_paths_own_time() -> None:
+    timing_out = _Monitor(_thresholds(timeout_multiplier=0.25, timeout_floor=0.0))
+
+    reaction = timing_out.run(20, remaining=8.0, dt=0.5)
+
+    assert reaction is not None
+    assert reaction.symptom is Symptom.TARGET_TIMEOUT
+    detected = next(p for e, p in timing_out.events if e == RECOVERY_STUCK_DETECTED)
+    assert detected["threshold"] == 2.0
+
+
+# --- the Unsure position (#398) ----------------------------------------------
+
+
+def test_an_unsure_position_freezes_every_clock(stalling: _Monitor) -> None:
+    reactions = [stalling.tick(None) for _ in range(20)]
+
+    assert not any(reactions)
+
+
+def test_a_long_unsure_streak_is_reported_once_and_changes_nothing_in_game() -> None:
+    """
+    The loop holds while it can't place the character, so no Stuck clock runs:
+    without this nothing would ever say it is standing still on purpose.
+    """
+    unsure = _Monitor(_thresholds(unsure_window=3.0))
+
+    reactions = [unsure.tick(None, dt=0.5) for _ in range(20)]
+    reported = [r for r in reactions if r is not None]
+
+    assert len(reported) == 1
+    assert reported[0].symptom is Symptom.UNSURE_POSITION
+    assert reported[0].rung is None
+    assert reactions.index(reported[0]) == 6  # 3.0 s at 0.5 s a cycle, after the first
+    assert unsure.types() == [RECOVERY_POSITION_UNSURE]
+
+
+def test_a_stale_position_counts_as_unsure() -> None:
+    unsure = _Monitor(_thresholds(unsure_window=1.0))
+
+    reaction = unsure.run(6, position_valid=False)
+
+    assert reaction is not None
+    assert reaction.symptom is Symptom.UNSURE_POSITION
+
+
+def test_a_placed_position_ends_the_streak() -> None:
+    unsure = _Monitor(_thresholds(unsure_window=2.0))
+
+    for _ in range(3):
+        assert unsure.tick(None) is None
+    unsure.tick((0.0, 0.0))
+    assert not any(unsure.tick(None) for _ in range(3))
+
+    assert unsure.run(2, position=None) is not None
+
+
+def test_an_unsure_streak_is_wall_clock_whatever_is_delivered() -> None:
+    unsure = _Monitor(_thresholds(unsure_window=2.0))
+
+    reaction = unsure.run(6, position=None, delivered_steps=0)
+
+    assert reaction is not None
 
 
 # --- telemetry --------------------------------------------------------------
@@ -544,10 +652,17 @@ def test_payloads_carry_json_primitives_only(stalling: _Monitor) -> None:
 
 
 def test_the_abandon_record_names_the_suspected_connection(climbing: _Monitor) -> None:
+    climbing.plan = (
+        _MovementComponent(
+            MovementTypes.WALK_RIGHT, 80, start=(10.0, 0.0), end=(90.0, 0.0)
+        ),
+    )
     _rungs(climbing, 3)
 
     abandon = next(p for e, p in climbing.events if e == RECOVERY_ABANDON)
     assert abandon["suspected_movement"] == "WALK_RIGHT"
+    assert (abandon["suspected_start_vx"], abandon["suspected_end_vx"]) == (10.0, 90.0)
+    assert abandon["suspected_start_x"] is None  # no canvas conversion given
     assert abandon["abandon_count"] == 1
 
 
@@ -556,6 +671,48 @@ def test_a_ladder_that_never_engaged_records_no_reset() -> None:
     healthy = _Monitor(_thresholds(stall_window=1.0, jitter_bound=1.0))
 
     for step in range(1, 8):
-        healthy.tick((step * 10, 0), path=PATH[: max(1, 9 - step)])
+        healthy.tick((step * 10, 0), remaining=max(1.0, 9.0 - step))
 
     assert healthy.types() == []
+
+
+def test_the_target_is_recorded_in_canvas_px_and_in_virtual_px() -> None:
+    """R-D2: the canvas fields keep their meaning, and the virtual ones are added."""
+    recorded = _Monitor(
+        _thresholds(stall_window=1.0),
+        to_canvas=lambda point: (int(point[0] // 16), int(point[1] // 16)),
+    )
+    recorded.target = (100.4, -40.0)
+
+    recorded.run(6)
+
+    stuck = next(p for e, p in recorded.events if e == RECOVERY_STUCK_DETECTED)
+    assert (stuck["target_x"], stuck["target_y"]) == (6, -3)
+    assert (stuck["target_vx"], stuck["target_vy"]) == (100.4, -40.0)
+
+
+def test_without_a_conversion_the_canvas_fields_are_none(stalling: _Monitor) -> None:
+    stalling.run(6)
+
+    stuck = next(p for e, p in stalling.events if e == RECOVERY_STUCK_DETECTED)
+    assert stuck["target_x"] is None
+    assert stuck["target_vx"] == 100.0
+
+
+def test_the_suspected_move_is_recorded_in_canvas_px_and_in_virtual_px() -> None:
+    recorded = _Monitor(
+        _thresholds(stall_window=1.0, reflex_attempts=1),
+        to_canvas=lambda point: (int(point[0] // 16), int(point[1] // 16)),
+    )
+    recorded.plan = (
+        _MovementComponent(
+            MovementTypes.JUMP_RIGHT, 70, start=(40.0, 0.0), end=(110.0, -32.0)
+        ),
+    )
+
+    recorded.fire()
+
+    reflex = next(p for e, p in recorded.events if e == RECOVERY_REFLEX)
+    assert (reflex["suspected_start_x"], reflex["suspected_start_y"]) == (2, 0)
+    assert (reflex["suspected_end_x"], reflex["suspected_end_y"]) == (6, -2)
+    assert (reflex["suspected_start_vx"], reflex["suspected_end_vy"]) == (40.0, -32.0)

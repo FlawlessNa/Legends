@@ -128,8 +128,8 @@ def feet_of_marker(
     """
     Where a marker's canvas pixel puts the feet, in virtual px: the middle of
     the canvas pixel `FEET_ROWS` below the marker's, as fusion places the
-    minimap's position. Also how a target picked in canvas px (a map file's,
-    until #398) becomes a virtual one.
+    minimap's position. Also how a target picked in canvas px becomes a
+    virtual one.
     """
     half = transform.scale / 2
     corner = transform.to_virtual((marker[0], marker[1] + FEET_ROWS))
@@ -177,6 +177,17 @@ class PositionFusion:
         self._make_camera = camera
         self._finder = finder
         self._last_camera: Camera | None = None
+        self._read_camera: Camera | None = None
+
+    @property
+    def camera(self) -> Camera | None:
+        """
+        The camera the last read matched: what places things found on that
+        read's frame, such as mobs (`MobsHittingMixin.mobs_in_virtual_px`).
+        `None` before the first read, and when the last read matched none
+        (the minimap unread, or the camera `UNSURE`): never an older camera.
+        """
+        return self._read_camera
 
     @classmethod
     def for_map(
@@ -207,6 +218,7 @@ class PositionFusion:
         :param minimap: The minimap read on the same frame.
         """
         at = frame.captured_at
+        self._read_camera = None
         if minimap.value is None:
             why = f"minimap {minimap.status.value}: {minimap.detail}"
             return Fusion(Reading.unsure(at, why))
@@ -225,7 +237,7 @@ class PositionFusion:
         camera = self._camera.read(frame, self._last_camera)
         if camera.value is None:
             return coarse(f"camera {camera.status.value}: {camera.detail}")
-        cam = self._last_camera = camera.value
+        cam = self._last_camera = self._read_camera = camera.value
         seen = replace(seen, camera=cam)
         width, height = frame.client_size
         sx, sy = width / cam.play_area[0], height / cam.play_area[1]
@@ -236,8 +248,7 @@ class PositionFusion:
         if found.value is None:
             return coarse(f"characters {found.status.value}: {found.detail}")
         placed = [
-            ((cam.x + s.feet[0] / sx, cam.y + s.feet[1] / sy), s.own)
-            for s in found.value
+            (cam.to_virtual(s.feet, frame.client_size), s.own) for s in found.value
         ]
         inside = [
             abs(p[0] - mx) <= WINDOW and abs(p[1] - my) <= WINDOW for p, _ in placed
