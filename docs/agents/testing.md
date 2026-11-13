@@ -125,8 +125,9 @@ client size the client lists (1920x1200 and 2560x1440 too), Henesys walking
 left, Henesys Market (the minimap scrolls sideways), Henesys crowded with
 other players, and Ellinia climbing (the minimap scrolls vertically). Its new
 frames read `minimap` (Henesys Market's banner is `Victoria Road: Henesys
-Market`; `self_position` is `null` where the marker is clipped at the
-canvas's edge) and none of `v1`'s other readers. `v2` and `v3` give every
+Market`; where the marker is clipped at the canvas's edge, `self_position` is
+where the whole marker would be, as the reader places it since #502) and none
+of `v1`'s other readers. `v2` and `v3` give every
 frame three position readings in virtual px: `camera` (`{x, y}`, the play
 area's top-left), `feet` (`{x, y}`, our character's, or `covered`) and
 `map_id`. `tests/frames/README.md` says how each was made and checked.

@@ -95,9 +95,12 @@ map over all its frames).
 - **`minimap`** (`v3`'s new frames only, the existing reading's format):
   `hybrid_tracker`'s canvas pixel for the marker, which the production
   `MinimapReader` given the map's ID reads identically on every new frame.
-  `self_position` is `null` where the marker is clipped at the canvas's edge
-  (our character at Henesys's right end), which the reader reads as no
-  position.
+  Where the marker is clipped at the canvas's edge (our character at
+  Henesys's right end, 25 frames), the tracker found none; those were `null`
+  until #502 made the reader place a clipped marker. They now hold `[429, 56]`,
+  the reader's: on every one, the frame's `feet` label falls inside that canvas
+  pixel (12 and 7 virtual px from its top-left corner, of 16), and the
+  previous step reads `[424, 56]`.
 
 ### Corrected by hand
 

@@ -6,6 +6,8 @@ one without; and the expected-map check against every map the set shows. Run
 with `pytest -m frames`.
 """
 
+import cv2
+import numpy as np
 import pytest
 
 from botting.screen import Frame, Status
@@ -13,9 +15,15 @@ from game_data.catalogue import Catalogue
 from game_data.config import CONFIG, STORE
 from maple.screen.locator import FrameCheck
 from maple.screen.minimap import MINIMAP, MinimapReader, MinimapState
-from maple.screen.sprites import FRAME_CHECK, Profile, load_reader_sprites
+from maple.screen.sprites import (
+    FRAME_CHECK,
+    GAUGE_LABEL,
+    Profile,
+    ReaderSprites,
+    load_reader_sprites,
+)
 from tests import frame_set
-from tests.frame_set import FrameEntry, FrameSet, load_expected
+from tests.frame_set import FRAMES_ROOT, FrameEntry, FrameSet, load_expected
 
 pytestmark = [pytest.mark.frames, pytest.mark.client_files]
 
@@ -34,9 +42,13 @@ def map_ids() -> dict[str, int]:
         return {name: catalogue.map(name).id for name in MAPS}
 
 
-def reader_for(map_id: int | None = None) -> MinimapReader:
+def reader_sprites(map_id: int | None = None) -> ReaderSprites:
     profile = Profile(job="Swordsman", map_id=map_id)
-    sprites = load_reader_sprites([FRAME_CHECK, MINIMAP], profile, STORE, config=CONFIG)
+    return load_reader_sprites([FRAME_CHECK, MINIMAP], profile, STORE, config=CONFIG)
+
+
+def reader_for(map_id: int | None = None) -> MinimapReader:
+    sprites = reader_sprites(map_id)
     return MinimapReader(sprites, FrameCheck(sprites), map_id=map_id, read_markers=True)
 
 
@@ -89,7 +101,8 @@ def test_the_position_is_read_on_the_maps_canvas(
 ) -> None:
     """With the map's map_id, every expanded frame of it reads the character's
     position within 1 pixel of where the oracle puts it on the canvas, and
-    none where the oracle has none (the marker clipped at the canvas's edge)."""
+    none where the oracle has none. A marker clipped at the canvas's edge is
+    placed (#502): Henesys's right end."""
     reader = reader_for(map_ids[shown])
     wrong: list[str] = []
     for entry in expanded(frames, shown):
@@ -164,3 +177,39 @@ def test_the_npcs_seen_in_ellinia_are_read_as_npc_markers(
             tuple((kind, len(markers.get(kind, ()))) for kind in ("npc", "trunk"))
         )
     assert found == {(("npc", 4), ("trunk", 1))}
+
+
+LEFT_EDGE = FRAMES_ROOT.parent / "live_run1" / "minimap_marker_at_left_edge.png"
+"""The minimap, cropped from the first live run's frame (#502): our character at
+Ellinia's left end, its marker cut by the canvas's edge and touching a portal.
+A client pixel, so never committed: the maintainer keeps it in
+`.scratch/live_run1/`, and this test reads it from `data/live_run1/`."""
+
+
+def test_the_marker_clipped_at_ellinias_left_end_is_placed(
+    map_ids: dict[str, int],
+) -> None:
+    """Read live as `COVERED`, which stopped the bot. The crop is pasted into a
+    blank client with the status bar's anchor, which the frame check asks for."""
+    if not LEFT_EDGE.is_file():
+        pytest.skip(f"copy minimap_marker_at_left_edge.png to {LEFT_EDGE}")
+    ellinia = map_ids["Victoria Road: Ellinia"]
+    sprites = reader_sprites(ellinia)
+    reader = MinimapReader(sprites, FrameCheck(sprites), map_id=ellinia)
+    crop = cv2.imread(str(LEFT_EDGE), cv2.IMREAD_COLOR)
+    assert crop is not None, f"{LEFT_EDGE} isn't an image"
+    pixels = np.zeros((600, 800, 3), np.uint8)
+    pixels[: crop.shape[0], : crop.shape[1]] = crop
+    label = sprites.canvas(GAUGE_LABEL).rgba
+    opaque = label[:, :, 3] == 255
+    h, w = opaque.shape
+    pixels[560 : 560 + h, 10 : 10 + w][opaque] = label[:, :, 2::-1][opaque]
+
+    reading = reader.read(Frame(pixels, (800, 600), 0.0, True, True))
+
+    assert reading.value is not None
+    position = reading.value.self_position
+    assert position.status is Status.READ, position
+    # Where the whole marker's origin is: 1 of its 8 columns is cut off.
+    assert position.value == (3, 297)
+    assert position.detail == "the character's marker 92% drawn"

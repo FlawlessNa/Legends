@@ -9,7 +9,7 @@ pixels.
 import numpy as np
 import pytest
 
-from botting.screen import Frame, Status
+from botting.screen import Frame, Reading, Status
 from botting.utilities import Box
 from game_data.catalogue import Minimap
 from game_data.sprites import Sprite
@@ -308,6 +308,121 @@ def test_a_minimap_without_the_players_marker_reads_its_position_covered() -> No
     assert reading.value is not None
     assert reading.value.self_position.status is Status.COVERED
     assert reading.value.self_position.value is None
+
+
+# --- The character's marker, partly hidden (#502) -----------------------------
+
+
+def draw_user_clipped(pixels: np.ndarray, area: Box, at: tuple[int, int]) -> None:
+    """The player's marker with its origin at `at` in the map area, clipped to
+    it, as the client draws it: the frame around the area stays."""
+    inside = pixels[area.top : area.bottom, area.left : area.right]
+    paste(inside, SPRITES[USER], at[0] - 6, at[1] - 6)
+
+
+def draw_marker(pixels: np.ndarray, area: Box, kind: str, at: tuple[int, int]) -> None:
+    """A `kind` marker with its centre at `at` in the map area, clipped to it."""
+    drawn = SPRITES[marker_path(kind)]
+    h, w = drawn.rgba.shape[:2]
+    inside = pixels[area.top : area.bottom, area.left : area.right]
+    paste(inside, drawn, at[0] - w // 2, at[1] - h // 2)
+
+
+# The marker's 8x8 opaque core spans 4 pixels left of and above its origin to 3
+# right of and below it; each of these leaves 2 or 3 of its 8 columns or rows
+# outside the map area.
+@pytest.mark.parametrize(
+    ("edge", "at"),
+    [
+        ("left", (1, 30)),
+        ("right", (AREA_W - 2, 30)),
+        ("top", (60, 1)),
+        ("bottom", (60, AREA_H - 2)),
+    ],
+)
+def test_a_marker_clipped_by_the_areas_edge_is_placed_by_its_origin(
+    edge: str, at: tuple[int, int]
+) -> None:
+    pixels = screen()
+    area = draw_minimap(pixels, 250, 20)
+    draw_user_clipped(pixels, area, at)
+
+    reading = reader().read(frame(pixels))
+
+    assert reading.value is not None
+    position = reading.value.self_position
+    assert position.status is Status.READ, f"{edge}: {position}"
+    assert position.value == at
+    assert "drawn" in position.detail
+
+
+def test_a_marker_touching_a_portal_is_read_whole() -> None:
+    pixels = screen()
+    area = draw_minimap(pixels, 250, 20)
+    draw_marker(pixels, area, "portal", (40, 30))
+    draw_user_clipped(pixels, area, (32, 30))
+
+    reading = reader().read(frame(pixels))
+
+    assert reading.value is not None
+    assert reading.value.self_position == Reading.read((32, 30), 7.0)
+    assert reading.value.markers == {"portal": ((40, 30),)}
+
+
+def test_a_marker_partly_under_a_portal_is_placed() -> None:
+    """The portal, drawn over it, hides 3 of its 8 columns on 7 of its rows."""
+    pixels = screen()
+    area = draw_minimap(pixels, 250, 20)
+    draw_user_clipped(pixels, area, (30, 30))
+    draw_marker(pixels, area, "portal", (34, 30))
+
+    reading = reader().read(frame(pixels))
+
+    assert reading.value is not None
+    position = reading.value.self_position
+    assert position.status is Status.READ
+    assert position.value == (30, 30)
+    assert position.detail == "the character's marker 67% drawn"
+
+
+def test_a_marker_clipped_at_the_edge_next_to_a_portal_is_placed() -> None:
+    """As on the first live run (#502): at the map's left end, cut by the
+    edge, with a portal one marker to its right."""
+    pixels = screen()
+    area = draw_minimap(pixels, 250, 20)
+    draw_marker(pixels, area, "portal", (8, 40))
+    draw_user_clipped(pixels, area, (2, 40))
+
+    reading = reader().read(frame(pixels))
+
+    assert reading.value is not None
+    assert reading.value.self_position.value == (2, 40)
+
+
+def test_a_marker_mostly_hidden_reads_covered() -> None:
+    """Less than `MARKER_DRAWN_SHARE` drawn: 6 of its 8 columns under a window."""
+    pixels = screen()
+    area = draw_minimap(pixels, 250, 20)
+    draw_user_clipped(pixels, area, (30, 30))
+    occlude(pixels, area.left + 26, area.top + 20, 6, 20)
+
+    reading = reader().read(frame(pixels))
+
+    assert reading.value is not None
+    assert reading.value.self_position.status is Status.COVERED
+    assert "isn't found" in reading.value.self_position.detail
+
+
+def test_a_portal_alone_is_not_taken_for_the_marker() -> None:
+    pixels = screen()
+    area = draw_minimap(pixels, 250, 20)
+    draw_marker(pixels, area, "portal", (2, 40))
+    draw_marker(pixels, area, "another", (60, 30))
+
+    reading = reader().read(frame(pixels))
+
+    assert reading.value is not None
+    assert reading.value.self_position.status is Status.COVERED
 
 
 # --- Positions are pixels on the map's canvas ---------------------------------
