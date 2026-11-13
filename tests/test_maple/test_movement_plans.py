@@ -13,6 +13,7 @@ import math
 import random
 import threading
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 
@@ -343,9 +344,30 @@ def _planner(
     status_read: bool = True,
     wait: bool = True,
 ) -> _Planner:
+    data = _planning_data(name, position, target, status_read=status_read)
+    planner = _Planner(data)
+    planner._create_pathing_attributes(1.0)
+    if wait:
+        # The graph builds in a worker thread from setup on (#430), and planning
+        # holds until it is there: waited for here, so the tests below plan.
+        data.movement_handler.graph(planner._physics())
+    data.reconfigure_attribute("path", threshold=1e-9)
+    data.reconfigure_attribute("movements", threshold=1e-9)
+    return planner
+
+
+def _planning_data(
+    name: str,
+    position: tuple[float, float],
+    target: tuple[int, int],
+    *,
+    status_read: bool = True,
+    character: object | None = None,
+) -> BotData:
+    """What a DecisionMaker plans from: the map, the physics, a position, a target."""
     data = BotData("T")
     data.set_static("handle", 0)
-    data.set_static("character", _Character())
+    data.set_static("character", _Character() if character is None else character)
     data.set_static("world_map", corpus.world_map(_entry(name)))
     data.set_static("game_physics", corpus.LAB_PHYSICS_VALUES)
     data.set_static("speed_multiplier", 1.0)
@@ -357,15 +379,7 @@ def _planner(
     )
     data.create_attribute("current_position", lambda: reading, threshold=1e-9)
     data.create_attribute("next_target", lambda: target)
-    planner = _Planner(data)
-    planner._create_pathing_attributes(1.0)
-    if wait:
-        # The graph builds in a worker thread from setup on (#430), and planning
-        # holds until it is there: waited for here, so the tests below plan.
-        data.movement_handler.graph(planner._physics())
-    data.reconfigure_attribute("path", threshold=1e-9)
-    data.reconfigure_attribute("movements", threshold=1e-9)
-    return planner
+    return data
 
 
 def _canvas(name: str, feet: tuple[float, float]) -> tuple[int, int]:
@@ -547,6 +561,68 @@ def test_a_remade_handler_plans_on_the_graphs_already_built() -> None:
     assert second is not first
     assert second.graphs is first.graphs
     assert second.ready_graph(planner._physics()) is first.graph(planner._physics())
+
+
+def test_trial_batches_that_switch_teleport_build_each_settings_graph_once() -> None:
+    """
+    A Trial alternates batches planned with and without teleport (`TrialRunner`
+    overrides `_teleport_skill`). Each setting keeps its own graphs, so switching
+    back needs no build.
+    """
+    planner = _planner("jump_gap", (100.0, 0.0), _canvas("jump_gap", (300.0, 0.0)))
+    world = planner.data.world_map
+
+    walking = planner._graphs(world, teleport=False)
+    teleporting = planner._graphs(world, teleport=True)
+
+    assert walking.teleport is False
+    assert teleporting.teleport is True
+    assert planner._graphs(world, teleport=False) is walking
+    assert planner._graphs(world, teleport=True) is teleporting
+    assert planner._graphs(replace(world), teleport=False) is not walking  # a new map
+
+
+class _Teleport:
+    name = "Teleport"
+
+
+@pytest.mark.parametrize(
+    "disable_teleport", [False, True], ids=["teleport", "teleport-disabled"]
+)
+def test_a_rotation_plans_with_the_characters_teleport_unless_disabled(
+    monkeypatch: pytest.MonkeyPatch, disable_teleport: bool
+) -> None:
+    """
+    `Rotation.__init__` makes the pathing attributes, and `_new_handler` asks
+    `_teleport_skill()` for the skill. The window-reading setup is stubbed out.
+    """
+    from botting.core import DecisionMaker
+    from maple.decision_makers.rotation import Rotation
+
+    def engine_free_init(
+        self: DecisionMaker, metadata: object, data: BotData, pipe: object
+    ) -> None:
+        self.data = data
+        self._proxies = SimpleNamespace(instance=lambda *_: threading.Lock())  # type: ignore[assignment]
+
+    monkeypatch.setattr(DecisionMaker, "__init__", engine_free_init)
+    for reads_the_window in (
+        "_create_minimap_attributes",
+        "_create_rotation_attributes",
+        "_create_recovery_attributes",
+    ):
+        monkeypatch.setattr(Rotation, reads_the_window, lambda *_, **__: None)
+    teleport = _Teleport()
+    character = SimpleNamespace(skills={"Teleport": teleport})
+    data = _planning_data(
+        "jump_gap", (100.0, 0.0), (0, 0), status_read=False, character=character
+    )
+
+    Rotation({}, data, None, disable_teleport=disable_teleport)  # type: ignore[arg-type]
+
+    handler: MovementHandler = data.movement_handler
+    assert handler.teleport is (None if disable_teleport else teleport)
+    assert handler.graphs.teleport is not disable_teleport
 
 
 def test_a_handler_refuses_another_maps_graphs() -> None:

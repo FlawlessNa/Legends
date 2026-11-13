@@ -29,11 +29,21 @@ during a build need no graph for the values in between.
 
 `LRU` graphs are kept, so a stat that flips back (a buff on, then off) costs
 nothing.
+
+**A build that raises is tried again after a back-off**: `RETRY_AFTER`
+seconds, doubled at each failure up to `RETRY_MAX`. Each failure is logged at
+`ERROR` with its traceback, its attempt and when it is tried next. Until then
+those stats hold, and nothing is built every cycle. A transient failure (a
+`MemoryError` on a loaded machine) recovers; a bug keeps logging, at most
+every `RETRY_MAX`.
 """
 
 import logging
 import threading
+import time
 from collections import OrderedDict
+from collections.abc import Callable
+from typing import NamedTuple
 
 from botting import PARENT_LOG
 from maple.model.mechanics.physics import VRPhysics
@@ -42,6 +52,13 @@ from maple.model.world import WorldMap
 from .foothold_graph import FootholdGraph
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
+
+
+class _Failure(NamedTuple):
+    """The last failed build of one set of physics."""
+
+    attempts: int
+    retry_at: float  # on `FootholdGraphs`' clock
 
 
 class FootholdGraphs:
@@ -54,10 +71,24 @@ class FootholdGraphs:
 
     #: How many graphs are kept, the most recently asked for first.
     LRU = 2
+    #: Seconds before a failed build is tried again, doubled at each failure.
+    RETRY_AFTER = 10.0
+    #: The longest wait between two tries of a failing build, in seconds.
+    RETRY_MAX = 300.0
 
-    def __init__(self, world_map: WorldMap, *, teleport: bool) -> None:
+    def __init__(
+        self,
+        world_map: WorldMap,
+        *,
+        teleport: bool,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        """
+        :param clock: Seconds, for the retry back-off; tests pass their own.
+        """
         self.world_map = world_map
         self.teleport = teleport
+        self._clock = clock
         self._lock = threading.Lock()
         self._built = threading.Condition(self._lock)
         self._graphs: OrderedDict[VRPhysics, FootholdGraph] = OrderedDict()
@@ -65,9 +96,9 @@ class FootholdGraphs:
         # next; and the physics it is building now.
         self._wanted: VRPhysics | None = None
         self._building: VRPhysics | None = None
-        # Physics whose build raised: not tried again, so a bug in the build
-        # logs once instead of every cycle.
-        self._failed: dict[VRPhysics, BaseException] = {}
+        # Physics whose last build raised, and when to try again: not every
+        # cycle, so a bug in the build doesn't rebuild and log at each one.
+        self._failed: dict[VRPhysics, _Failure] = {}
         self._worker: threading.Thread | None = None
 
     def ready(self, physics: VRPhysics) -> FootholdGraph | None:
@@ -80,7 +111,13 @@ class FootholdGraphs:
             if graph is not None:
                 self._graphs.move_to_end(physics)
                 return graph
-            if physics not in self._failed and physics != self._building:
+            failure = self._failed.get(physics)
+            if failure is not None and self._clock() < failure.retry_at:
+                return None
+            if physics != self._building:
+                if self._wanted is not None and self._wanted != physics:
+                    # A `graph()` waiting on the stats replaced builds them itself.
+                    self._built.notify_all()
                 self._wanted = physics
                 self._start_worker()
             return None
@@ -97,7 +134,8 @@ class FootholdGraphs:
     def graph(self, physics: VRPhysics) -> FootholdGraph:
         """
         The graph of `physics`, built now if it isn't, or waited for if the
-        worker is building it. Blocks: for offline callers only.
+        worker is building it. Blocks: for offline callers only. A failed
+        build is tried again now, whatever the back-off.
 
         :raises Exception: Whatever its build raised.
         """
@@ -108,10 +146,9 @@ class FootholdGraphs:
             if graph is not None:
                 self._graphs.move_to_end(physics)
                 return graph
-            if physics in self._failed:
-                raise self._failed[physics]
         graph = self._build(physics)
         with self._lock:
+            self._failed.pop(physics, None)
             return self._store(physics, graph)
 
     # --- the worker -------------------------------------------------------------
@@ -128,35 +165,55 @@ class FootholdGraphs:
         self._worker.start()
 
     def _work(self) -> None:
+        # Every way out of the lock notifies: a `graph()` caller waits while its
+        # physics are `_wanted`, and must be woken when they no longer are.
         while True:
             with self._lock:
                 physics = self._wanted
                 self._wanted = None
                 if physics is None:
                     self._worker = None
+                    self._built.notify_all()
                     return
                 if physics in self._graphs:
+                    self._built.notify_all()
                     continue
                 self._building = physics
             try:
                 graph: FootholdGraph | None = self._build(physics)
-            except Exception as error:
-                logger.exception(
-                    "Building the foothold graph of map %d failed: no Path is "
-                    "planned with these stats.",
-                    self.world_map.id,
-                )
+            except Exception:
                 graph = None
-                failure: BaseException | None = error
-            else:
-                failure = None
+                attempts, delay = self._record_failure(physics)
+                logger.exception(
+                    "Building the foothold graph of map %d failed (attempt %d, "
+                    "teleport %s): no Path is planned with these stats until a "
+                    "build succeeds. Next try in %.0f s. Physics: %s",
+                    self.world_map.id,
+                    attempts,
+                    self.teleport,
+                    delay,
+                    physics,
+                )
             with self._lock:
                 if graph is not None:
+                    self._failed.pop(physics, None)
                     self._store(physics, graph)
-                elif failure is not None:
-                    self._failed[physics] = failure
                 self._building = None
                 self._built.notify_all()
+
+    def _record_failure(self, physics: VRPhysics) -> tuple[int, float]:
+        """
+        Records a failed build of `physics`, and when to try it again.
+
+        :returns: How many builds of `physics` have failed in a row, and the
+            seconds until the next try.
+        """
+        with self._lock:
+            previous = self._failed.get(physics)
+            attempts = 1 if previous is None else previous.attempts + 1
+            delay = min(self.RETRY_AFTER * 2 ** (attempts - 1), self.RETRY_MAX)
+            self._failed[physics] = _Failure(attempts, self._clock() + delay)
+        return attempts, delay
 
     def _build(self, physics: VRPhysics) -> FootholdGraph:
         logger.info("Building the foothold graph of map %d.", self.world_map.id)

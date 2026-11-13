@@ -22,7 +22,7 @@ DecisionMaker starts up against a real client. It cannot; nothing offline can.
 import asyncio
 import threading
 from dataclasses import dataclass
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, Self, cast
 
 import pytest
 
@@ -30,21 +30,30 @@ from botting.core import ActionRequest
 from botting.core.bot_data import BotData
 from botting.screen import Reading
 from maple.calibration.driver import TrialDriver
-from maple.calibration.records import CycleRecord, ListSink, TrialOutcome
-from maple.calibration.specs import Knobs, TrialBatch, TrialSchedule, TrialSpec
+from maple.calibration.records import (
+    CycleRecord,
+    ListSink,
+    SampleRecord,
+    TrialOutcome,
+)
+from maple.calibration.specs import (
+    Knobs,
+    TrialBatch,
+    TrialSchedule,
+    TrialSpec,
+    TrialSpecError,
+)
 from maple.decision_makers.trial_runner import TrialRunner
 from maple.model.mechanics.movement_mechanics_v2 import _NARROW_PLATFORM_THRESHOLD
-from maple.screen.position import PositionSource, VirtualPosition, feet_of_marker
+from maple.screen.position import PositionSource, VirtualPosition
 from tests.test_maple.movement_lab import corpus
 
 ENTRY = next(e for e in corpus.FIXTURE_MAPS if e.name == "walk_corridor")
 
-#: A Trial's start and target, in canvas px: Trials still judge in minimap
-#: positions until #397. On `walk_corridor` (minimap centre (1000, 1000), `mag` 4)
-#: a marker at (63, 56) puts the feet at virtual (16, 0), and one at (80, 56) at
-#: (288, 0): both on its floor, a walk apart.
-START = (63, 56)
-TARGET = (80, 56)
+#: A Trial's start and target, the feet in virtual px: both on `walk_corridor`'s
+#: floor, a walk apart.
+START = (16, 0)
+TARGET = (288, 0)
 
 
 class _Pipe:
@@ -76,7 +85,7 @@ class _Harness:
     """
 
     runner: TrialRunner
-    positions: list[tuple[int, int]]
+    positions: list[tuple[float, float]]
     pipe: _Pipe
     writer: ListSink
 
@@ -89,18 +98,16 @@ def harness() -> _Harness:
     `__init__` is skipped because `_create_minimap_attributes` reads a game window.
     What is built here is everything downstream of that: a real `BotData` over a real
     Corpus map, so `_create_pathing_attributes` builds a real `MovementHandler` and
-    `path`/`movements` compute real Paths. The Trial judges the minimap position it
-    is fed (canvas px); the Path is planned from the virtual position a marker there
-    puts the feet at, as fusion's coarse position does.
+    `path`/`movements` compute real Paths. `current_position` hands out the
+    virtual positions a check queues, as fused reads; the Trial judges them, and the
+    Path is planned from them.
     """
     entry = ENTRY
     start, target = START, TARGET
-    positions: list[tuple[int, int]] = []
+    positions: list[tuple[float, float]] = []
     pipe = _Pipe()
     writer = ListSink()
     world_map = corpus.world_map(entry)
-    assert world_map.minimap is not None
-    transform = world_map.minimap
 
     data = BotData("Lab")
     data.set_static("handle", corpus.LAB_HANDLE)
@@ -109,18 +116,16 @@ def harness() -> _Harness:
     data.set_static("speed_multiplier", 1.0)
     data.set_static("jump_multiplier", 1.0)
     data.set_static("character", _Character())
-    data.create_attribute(
-        "current_minimap_position",
-        lambda: positions.pop(0) if positions else target,
-        initial_value=start,
-    )
 
     def virtual() -> Reading[VirtualPosition]:
-        marker = data.current_minimap_position  # no threshold: never re-read here
-        feet = feet_of_marker(transform, marker)
-        return Reading.read(VirtualPosition(*feet, PositionSource.COARSE), 0.0)
+        x, y = positions.pop(0) if positions else target
+        return Reading.read(VirtualPosition(x, y, PositionSource.FUSED), 0.0)
 
-    data.create_attribute("current_position", virtual, threshold=1e-9)
+    # No threshold: read once per cycle, by the runner's `update_attribute`, as
+    # production's 0.1 s threshold does at its decision interval.
+    data.create_attribute(
+        "current_position", virtual, initial_value=_read((float(start[0]), 0.0))
+    )
 
     # Assembled through a deliberately untyped handle: every field below is a
     # stand-in for something only a live Session provides.
@@ -132,10 +137,7 @@ def harness() -> _Harness:
     self.schedule = _schedule(entry)
     self._writer = writer
     self._last_target = start
-    data.create_or_reconfigure_attribute(
-        "next_target", self._driver_target, initial_value=start
-    )
-    data.set_feature("has_rotation_attributes")
+    self._batch_teleport = True
     self._driver = TrialDriver(self.schedule, writer)
     self._applied_batch = None
     self._finished = False
@@ -334,12 +336,148 @@ def _advance_to_batch(harness: _Harness, name: str) -> None:
         if batch.name == name:
             harness.runner._apply_knobs()
             return
-        harness.runner._driver.advance(start, 0.0)
-        harness.runner._driver.advance(target, 1.0)
+        harness.runner._driver.advance(_read(start), 0.0)
+        harness.runner._driver.advance(_read(target), 1.0)
     pytest.fail(f"never reached batch {name!r}")
+
+
+def _read(point: tuple[float, float]) -> Reading[VirtualPosition]:
+    return Reading.read(VirtualPosition(*point, PositionSource.FUSED), 0.0)
 
 
 def _compile_movements() -> object:
     from maple.model.mechanics import compile_movements
 
     return compile_movements
+
+
+# --- Virtual positions and game map names (#397) ----------------------------------
+
+
+def test_a_cycle_while_an_action_is_in_flight_records_a_sample(
+    harness: _Harness,
+) -> None:
+    """
+    It decides nothing and sends nothing, but its read is what the physics are
+    measured from. Its read failing (no position fusion here) is an unsure sample,
+    not a call to the minimap's error handler, which would send input mid-Action.
+    """
+    harness.positions.extend([START, START])
+    asyncio.run(harness.runner._decide())  # positioning completes
+    asyncio.run(harness.runner._decide())  # dispatches, and keeps the lock
+    asyncio.run(harness.runner._decide())  # in flight: a sample
+
+    assert len(harness.pipe.sent) == 1
+    (sample,) = [r for r in harness.writer if isinstance(r, SampleRecord)]
+    assert sample.correlation_id == "cid-0"
+    assert sample.position.status == "unsure"
+
+
+def test_the_path_is_planned_to_the_driver_s_target_in_virtual_px(
+    harness: _Harness,
+) -> None:
+    assert harness.runner._virtual_target() == (16.0, 0.0)
+    harness.runner._driver.advance(_read(START), 0.0)
+    assert harness.runner._virtual_target() == (288.0, 0.0)
+
+
+def test_a_batch_planned_without_teleport_builds_a_handler_without_it(
+    harness: _Harness,
+) -> None:
+    """
+    The physics schedule's walk and jump batches: a teleporting class would
+    otherwise teleport along the walk being measured.
+    """
+
+    class _Teleporter:
+        skills: ClassVar[dict[str, object]] = {"Teleport": corpus.LAB_TELEPORT}
+
+    runner: Any = harness.runner
+    runner.data.set_static("character", _Teleporter())
+    runner.schedule = TrialSchedule(
+        "teleport-lab",
+        ENTRY.name,
+        (
+            TrialBatch(
+                "walks", (TrialSpec("t", START, TARGET, 16.0, 60.0),), teleport=False
+            ),
+            TrialBatch("teleports", (TrialSpec("t", START, TARGET, 16.0, 60.0),)),
+        ),
+    )
+    runner._driver = TrialDriver(runner.schedule, harness.writer)
+    runner._applied_batch = None
+
+    runner._apply_knobs()
+    assert runner.data.movement_handler.teleport is None
+
+    _advance_to_batch(harness, "teleports")
+    assert runner.data.movement_handler.teleport is corpus.LAB_TELEPORT
+
+
+class _Catalogue:
+    """Resolves the one name the checks below use; anything else is unknown."""
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def map(self, name_or_id: object) -> object:
+        if name_or_id not in ("Victoria Road: Ellinia", 10002000):
+            raise LookupError(f"no map {name_or_id!r}")
+        return type("MapData", (), {"id": 10002000})()
+
+
+def _runner_on(map_id: int | None, schedule_map: str) -> TrialRunner:
+    runner: Any = object.__new__(TrialRunner)
+    data = BotData("Lab")
+    data.set_static("map_id", map_id)
+    data.set_static("world_map", corpus.world_map(ENTRY))
+    runner.data = data
+    runner.schedule = TrialSchedule(
+        "s",
+        schedule_map,
+        (TrialBatch("b", (TrialSpec("t", START, TARGET, 16.0, 9.0),)),),
+    )
+    return cast(TrialRunner, runner)
+
+
+def test_the_schedule_s_map_must_be_the_bot_s(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    The schedule names its map by game name; the catalogue resolves it, and the
+    bot's own map id must match. Run elsewhere, the coordinates would name real
+    places on the wrong map and record a plausible wrong experiment.
+    """
+    monkeypatch.setattr(
+        "maple.decision_makers.trial_runner.Catalogue.latest", lambda: _Catalogue()
+    )
+    _runner_on(10002000, "Victoria Road: Ellinia")._assert_schedule_matches_map()
+
+    with pytest.raises(TrialSpecError, match="map 100000000"):
+        _runner_on(100000000, "Victoria Road: Ellinia")._assert_schedule_matches_map()
+    with pytest.raises(TrialSpecError, match="no known map"):
+        _runner_on(None, "Victoria Road: Ellinia")._assert_schedule_matches_map()
+    with pytest.raises(TrialSpecError, match="no map 'Nowhere'"):
+        _runner_on(10002000, "Nowhere")._assert_schedule_matches_map()
+
+
+def test_the_record_header_names_the_physics_the_sitting_planned_with(
+    harness: _Harness,
+) -> None:
+    """What the analyzer turns measured speeds into Calibration constants with."""
+    from maple.model.mechanics.physics import Calibration
+
+    runner: Any = harness.runner
+    runner.data.set_static("map_id", 10002000)
+    runner.data.set_static("calibration", Calibration(jump=0.98))
+    header = runner._header()
+    assert header.map_id == 10002000
+    assert header.physics == corpus.LAB_PHYSICS_VALUES
+    assert (header.speed_multiplier, header.jump_multiplier) == (1.0, 1.0)
+    assert header.calibration == {
+        "walk": 1.0,
+        "jump": 0.98,
+        "climb": 1.0,
+        "teleport": 1.0,
+    }

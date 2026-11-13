@@ -630,13 +630,21 @@ class MovementHandler:
         return self.graphs.ready(physics)
 
     def compute_path(
-        self, start: Point, goal: Point, physics: VRPhysics
+        self,
+        start: Point,
+        goal: Point,
+        physics: VRPhysics,
+        *,
+        graph: FootholdGraph | None = None,
     ) -> Path | None:
         """
         The quickest Path from `start` to `goal`, in virtual px, on the graph of
-        `physics`. Blocks until that graph is built: the live planner asks
-        `ready_graph` first, and holds while it is `None`.
+        `physics`.
 
+        :param graph: That graph, as `ready_graph` returned it: the live
+            planner passes it, so the Path is planned on it even if it has
+            since been dropped from the kept graphs. `None` blocks until the
+            graph of `physics` is built (offline callers).
         :return: `None` when no path joins them, or when either lies on no
             platform or rope (the character in the air, say): the caller plans
             again from its next position.
@@ -645,15 +653,22 @@ class MovementHandler:
             (float(start[0]), float(start[1])),
             (float(goal[0]), float(goal[1])),
             physics,
+            graph,
         )
 
     def _compute_path_uncached(
-        self, start: Point, goal: Point, physics: VRPhysics
+        self,
+        start: Point,
+        goal: Point,
+        physics: VRPhysics,
+        graph: FootholdGraph | None,
     ) -> Path | None:
         # Per-cycle pathing traces, so DEBUG is the honest level.
         logger.debug("Computing path from %s to %s", start, goal)
+        if graph is None:
+            graph = self.graph(physics)
         try:
-            return self.graph(physics).path(start, goal)
+            return graph.path(start, goal)
         except ValueError as error:
             logger.debug("No path: %s", error)
             return None

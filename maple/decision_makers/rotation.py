@@ -54,7 +54,8 @@ class Rotation(
         **kwargs: object,
     ) -> None:
         super().__init__(metadata, data, pipe)
-        self._teleport_skill = self.data.character.skills.get("Teleport")
+        # No `self._teleport_skill` attribute: it would shadow
+        # `MovementsMixin._teleport_skill()`, which `_new_handler` calls below.
         self.lock = self._proxies.instance(repr(self), "Lock")
 
         if disable_teleport:

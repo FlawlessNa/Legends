@@ -145,23 +145,116 @@ def test_the_least_recently_asked_graph_is_dropped(builds: _Builds) -> None:
     assert builds.started == [PHYSICS, BUFFED, FASTER, PHYSICS]
 
 
-def test_a_build_that_raises_is_logged_once_and_not_retried(
+class _Clock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def test_a_build_that_raises_is_tried_again_after_a_back_off(
     builds: _Builds, caplog: pytest.LogCaptureFixture
 ) -> None:
-    graphs = FootholdGraphs(_world(), teleport=False)
+    clock = _Clock()
+    graphs = FootholdGraphs(_world(), teleport=False, clock=clock)
     builds.fail.add(PHYSICS)
     builds.gate(PHYSICS).set()
 
     with caplog.at_level(logging.ERROR):
         graphs.prepare(PHYSICS)
         _settle(graphs)
+        clock.now = FootholdGraphs.RETRY_AFTER - 0.1
+        assert graphs.ready(PHYSICS) is None  # inside the back-off: not tried
+        _settle(graphs)
+        assert builds.started == [PHYSICS]
+
+        clock.now = FootholdGraphs.RETRY_AFTER
+        assert graphs.ready(PHYSICS) is None  # tried again, and fails again
+        _settle(graphs)
+        assert builds.started == [PHYSICS, PHYSICS]
+        clock.now += 2 * FootholdGraphs.RETRY_AFTER - 0.1  # the back-off doubled
         assert graphs.ready(PHYSICS) is None
         _settle(graphs)
+        assert builds.started == [PHYSICS, PHYSICS]
 
-    assert builds.started == [PHYSICS]
-    assert len([r for r in caplog.records if "failed" in r.getMessage()]) == 1
+    failures = [r for r in caplog.records if "failed" in r.getMessage()]
+    assert [r.levelno for r in failures] == [logging.ERROR, logging.ERROR]
+    assert all(r.exc_info is not None for r in failures)  # with the traceback
+    assert "attempt 2" in failures[1].getMessage()
+    assert "Next try in 20 s" in failures[1].getMessage()
+
+    builds.fail.clear()  # whatever broke it is gone
+    clock.now += 0.1
+    assert graphs.ready(PHYSICS) is None
+    _settle(graphs)
+    assert graphs.ready(PHYSICS) == ("graph", PHYSICS)
+
+
+def test_the_back_off_stops_growing_at_its_longest(builds: _Builds) -> None:
+    clock = _Clock()
+    graphs = FootholdGraphs(_world(), teleport=False, clock=clock)
+    builds.fail.add(PHYSICS)
+    builds.gate(PHYSICS).set()
+
+    for _ in range(12):
+        clock.now += FootholdGraphs.RETRY_MAX
+        graphs.prepare(PHYSICS)
+        _settle(graphs)
+
+    assert len(builds.started) == 12
+
+
+def test_the_blocking_graph_tries_a_failed_build_again_at_once(builds: _Builds) -> None:
+    graphs = FootholdGraphs(_world(), teleport=False, clock=_Clock())
+    builds.fail.add(PHYSICS)
+    builds.gate(PHYSICS).set()
+    graphs.prepare(PHYSICS)
+    _settle(graphs)
+
     with pytest.raises(RuntimeError, match="the build broke"):
         graphs.graph(PHYSICS)
+    builds.fail.clear()
+    assert graphs.graph(PHYSICS) == ("graph", PHYSICS)
+
+
+def test_a_blocking_graph_wakes_when_the_worker_finds_its_graph_built(
+    builds: _Builds,
+) -> None:
+    """
+    #497's review, finding 2: when the worker popped stats already built (a
+    `graph()` call had built them on its own thread), or exited, it notified no
+    one, so a `graph()` waiting while those stats were wanted slept on.
+
+    The interleaving that hangs depends on scheduling, so the worker's loop is
+    run here on the test thread, from the state that interleaving reaches: the
+    stats are built and still wanted, and a `graph()` waits on them.
+    """
+    graphs = FootholdGraphs(_world(), teleport=False)
+    builds.gate(BUFFED).set()
+    built = graphs.graph(BUFFED)  # built on this thread, nobody had asked
+    with graphs._lock:
+        graphs._wanted = BUFFED  # asked meanwhile, while the worker was busy
+        graphs._worker = threading.current_thread()  # the worker: run below
+    got: list[object] = []
+    waiter = threading.Thread(
+        target=lambda: got.append(graphs.graph(BUFFED)), daemon=True
+    )
+    waiter.start()
+    deadline = time.monotonic() + WAIT
+    while not graphs._built._waiters:  # pyright: ignore[reportAttributeAccessIssue]
+        assert time.monotonic() < deadline, "graph() never waited"
+        time.sleep(0.001)
+
+    try:
+        graphs._work()  # pops BUFFED: already built; then nothing left: exits
+        waiter.join(1.0)
+        assert not waiter.is_alive(), "graph() slept on after the worker moved on"
+    finally:
+        with graphs._lock:  # never leave the waiter asleep, red or green
+            graphs._built.notify_all()
+    assert got == [built]
+    assert builds.started == [BUFFED]
 
 
 def test_the_blocking_graph_waits_for_the_build_under_way(builds: _Builds) -> None:

@@ -11,6 +11,7 @@ from botting import PARENT_LOG
 from botting.core import BotData
 from botting.screen import Reading
 from maple.decision_makers.mixins._mob_mixins import MobsHittingMixin
+from maple.model.characters.maple_skills import MapleSkill
 from maple.model.mechanics import (
     MovementHandler,
     compile_movements,
@@ -369,7 +370,8 @@ class MovementsMixin:
     the pathing attributes are made, at the DecisionMaker's setup, with the
     stats known then; a stat change starts the next one when a Path is next
     planned. The build runs in a worker thread (`FootholdGraphs`), shared by
-    every DecisionMaker of the Bot (`data.foothold_graphs`). **While the graph
+    every DecisionMaker of the Bot (`data.foothold_graphs`, one per teleport
+    setting). **While the graph
     of the current stats builds, planning holds**, as for an unsure position:
     no Path is planned on the previous stats' graph, whose jump ranges and
     flights are another arc's, and none on a half-built graph.
@@ -436,7 +438,7 @@ class MovementsMixin:
                 self,
             )
             return None
-        teleport = self.data.character.skills.get("Teleport")
+        teleport = self._teleport_skill()
         return MovementHandler(
             self.data.handle,
             world_map,
@@ -449,20 +451,30 @@ class MovementsMixin:
 
     def _graphs(self, world_map: WorldMap, *, teleport: bool) -> FootholdGraphs:
         """
-        The Bot's `FootholdGraphs` for `world_map`, made the first time: every
-        handler of the Bot plans on the same graphs, so a graph is built once
-        however many DecisionMakers plan, or however often a handler is
-        remade (a Trial batch remakes it).
+        The Bot's `FootholdGraphs` for `world_map` and `teleport`, made the first
+        time: every handler of the Bot plans on the same graphs, so a graph is
+        built once however many DecisionMakers plan, or however often a handler
+        is remade (a Trial batch remakes it). One is kept per teleport setting,
+        so Trial batches that alternate planning with and without teleport
+        build each setting's graph once, not at every switch.
         """
-        graphs: FootholdGraphs | None = getattr(self.data, "foothold_graphs", None)
-        if (
-            graphs is None
-            or graphs.world_map is not world_map
-            or graphs.teleport != teleport
-        ):
-            graphs = FootholdGraphs(world_map, teleport=teleport)
-            self.data.set_static("foothold_graphs", graphs)
+        kept: dict[bool, FootholdGraphs] | None = getattr(
+            self.data, "foothold_graphs", None
+        )
+        if kept is None or any(g.world_map is not world_map for g in kept.values()):
+            kept = {}
+            self.data.set_static("foothold_graphs", kept)
+        graphs = kept.get(teleport)
+        if graphs is None:
+            graphs = kept[teleport] = FootholdGraphs(world_map, teleport=teleport)
         return graphs
+
+    def _teleport_skill(self) -> MapleSkill | None:
+        """
+        The teleport skill Paths may cast: the character's, or `None` when it has
+        none. A Trial batch planned without it overrides this (`TrialRunner`).
+        """
+        return self.data.character.skills.get("Teleport")
 
     def _world_map(self) -> WorldMap:
         world_map: WorldMap | None = getattr(self.data, "world_map", None)
@@ -504,11 +516,14 @@ class MovementsMixin:
             logger.debug("No Path: the position is unsure (%s).", reading.detail)
             return None
         physics = self._physics()
-        if handler.ready_graph(physics) is None:
+        graph = handler.ready_graph(physics)
+        if graph is None:
             logger.debug("No Path: the foothold graph of the current stats builds.")
             return None
         position = (float(reading.value.x), float(reading.value.y))
-        return handler.compute_path(position, self._virtual_target(), physics)
+        return handler.compute_path(
+            position, self._virtual_target(), physics, graph=graph
+        )
 
     def _plan_movements(self) -> tuple[_MovementComponent, ...]:
         """The Movement Plan of the current Path; empty with no handler."""
