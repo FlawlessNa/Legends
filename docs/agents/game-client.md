@@ -190,7 +190,7 @@ you do to it. The maintainer starts it.
 ### The steps
 
 1. **State the expectation in the PR, before the run.** Say what the bot should
-   do and how you will count it, with numbers where you can: "on `Line1Area1`,
+   do and how you will count it, with numbers where you can: "on `Victoria Road: Ellinia`,
    `Rotation` should plan and reach about 10 targets in 3 minutes, and nearly
    every `action.finished` should be `completed`." Write it first, so the run
    can prove you wrong.
@@ -284,7 +284,7 @@ text log for the same purpose: it is narrative, not a contract.
 
 You changed how `Rotation` picks its next target. In the PR, before the run:
 
-> Expect on `Line1Area1`, in 3 minutes: about 10 `movement.plan_started`,
+> Expect on `Victoria Road: Ellinia`, in 3 minutes: about 10 `movement.plan_started`,
 > nearly all Rotation `action.finished` as `completed`, and a
 > `movement.target_reached` within 3 units of each Plan's target.
 
