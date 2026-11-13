@@ -309,3 +309,36 @@ def test_a_map_without_a_minimap_has_no_fusion() -> None:
 
     with pytest.raises(ValueError, match="no minimap"):
         PositionFusion.for_map(world_map)
+
+
+# --- the camera of the last read (#398) ----------------------------------------
+
+
+def test_the_last_reads_camera_places_what_was_found_on_its_frame() -> None:
+    reader, _ = fusion(seen((605, 340)))
+    assert reader.camera is None  # before the first read
+
+    reader.read(screen(), minimap())
+
+    assert reader.camera == CAMERA
+    assert CAMERA.to_virtual((405.0, 290.0), (1366, 768)) == (605.0, 340.0)
+
+
+def test_a_read_that_matched_no_camera_has_none_never_an_older_one() -> None:
+    cameras = Cameras(Reading.read(CAMERA, AT))
+    reader, _ = fusion(seen((605, 340)), cameras)
+    reader.read(screen(), minimap())
+
+    cameras.reading = Reading.unsure(AT, "mid-resize")
+    reader.read(screen(), minimap())
+
+    assert reader.camera is None
+
+
+def test_a_camera_places_client_px_scaled_to_the_play_area() -> None:
+    """1366x768 drawn at 1920x1080: 1920 client px are 1366 virtual px wide."""
+    camera = Camera(200, 50, 0.9, 3.0, (1366, 768))
+
+    x, y = camera.to_virtual((960.0, 540.0), (1920, 1080))
+
+    assert (x, y) == pytest.approx((200 + 683, 50 + 384))

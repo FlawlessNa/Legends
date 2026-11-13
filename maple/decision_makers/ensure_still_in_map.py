@@ -5,6 +5,7 @@ import multiprocessing.managers
 
 from botting import PARENT_LOG
 from botting.core import BotData, DecisionMaker
+from maple.model.world import WorldMap
 from maple.screen.minimap import MinimapState
 from maple.telemetry_events import (
     RECOVERY_MAP_CHECK_FAILED,
@@ -20,6 +21,20 @@ from .mixins import (
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
+def map_title(world_map: WorldMap | None) -> str:
+    """
+    The map as the client names it, "street: name" as a profile names it; its
+    ID when the client names it nowhere, and "an unknown map" with no map.
+    """
+    if world_map is None:
+        return "an unknown map"
+    if world_map.name is None:
+        return str(world_map.id)
+    if world_map.street is None:
+        return world_map.name
+    return f"{world_map.street}: {world_map.name}"
+
+
 class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
     _throttle = 3.0
 
@@ -33,7 +48,7 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
         super().__init__(metadata, data, pipe)
         if not self.data.has_minimap_attributes:
             self._create_minimap_attributes()
-        self.map_name = self.data.current_map.map_name
+        self.map_name = map_title(self.data.world_map)
 
     async def _decide(self) -> None:
         still_in_map = self._perform_check()
@@ -64,14 +79,15 @@ class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
     def _perform_check(self) -> bool:
         """
         Whether the bot is still in its map: the minimap shows the map's own
-        `miniMap` canvas when the map file names its `map_id`, or, without one,
-        the minimap is shown expanded. Anything but a reading that says so counts
-        as not in the map, which the caller retries once after recovering.
+        `miniMap` canvas when the bot's `WorldMap` is known, or, without one, the
+        minimap is shown expanded. Anything but a reading that says so counts as
+        not in the map, which the caller retries once after recovering.
         """
         self.data.update_attribute("current_frame")
         frame = self.data.current_frame
         reader = self.data.minimap_reader
-        map_id = self.data.current_minimap.map_id
+        world_map: WorldMap | None = self.data.world_map
+        map_id = None if world_map is None else world_map.id
         if map_id is None:
             reading = reader.read(frame)
             in_map = (

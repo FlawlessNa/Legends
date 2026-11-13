@@ -38,6 +38,7 @@
     "RECOVERY_MAP_CHECK_FAILED": "recovery.map_check_failed",
     "RECOVERY_MAP_CHECK_RECOVERED": "recovery.map_check_recovered",
     "RECOVERY_MOB_SPAWN_RESTORED": "recovery.mob_spawn_restored",
+    "RECOVERY_POSITION_UNSURE": "recovery.position_unsure",
     "RECOVERY_REFLEX": "recovery.reflex",
     "RECOVERY_STUCK_DETECTED": "recovery.stuck_detected",
     "STATE_SNAPSHOT": "state.snapshot"

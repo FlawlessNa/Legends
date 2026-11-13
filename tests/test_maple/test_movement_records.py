@@ -17,7 +17,6 @@ from types import SimpleNamespace
 from typing import cast
 
 import numpy as np
-import pytest
 
 from botting.core import ActionRequest, BotData
 from botting.screen import Reading
@@ -29,7 +28,7 @@ from maple.model.mechanics.movement_mechanics_v2 import (
     _MovementComponent,
 )
 from maple.model.world import WorldMap
-from maple.screen.position import PositionSource, VirtualPosition, feet_of_marker
+from maple.screen.position import PositionSource, VirtualPosition, marker_of_feet
 from maple.telemetry_events import (
     MOVEMENT_PLAN_STARTED,
     MOVEMENT_TARGET_REACHED,
@@ -178,7 +177,25 @@ def test_state_snapshot_payload_converts_numpy_and_centres_the_box() -> None:
         "target_y": 4,
         "on_screen_x": 20,
         "on_screen_y": 40,
+        "vx": None,
+        "vy": None,
+        "target_vx": None,
+        "target_vy": None,
     }
+    json.dumps(payload)
+
+
+def test_state_snapshot_payload_carries_the_virtual_fields_beside() -> None:
+    payload = state_snapshot_payload(
+        (3, 5),
+        (20, 5),
+        None,
+        virtual_position=(np.float64(-944.04), -816.0),
+        virtual_target=FEET_AT_20_5,
+    )
+
+    assert (payload["vx"], payload["vy"]) == (-944.0, -816.0)
+    assert (payload["target_vx"], payload["target_vy"]) == FEET_AT_20_5
     json.dumps(payload)
 
 
@@ -219,33 +236,51 @@ def test_state_snapshot_emits_nulls_when_nothing_is_known() -> None:
         "target_y": None,
         "on_screen_x": None,
         "on_screen_y": None,
+        "vx": None,
+        "vy": None,
+        "target_vx": None,
+        "target_vy": None,
     }
 
 
 def test_state_snapshot_reads_the_cache_without_updating() -> None:
+    """
+    The virtual position and target, and their canvas px as the minimap draws
+    the marker for each (#398): `current_minimap_position` is gone.
+    """
     calls: list[str] = []
     data = BotData("TestBot")
+    data.set_static("world_map", WORLD)
     data.create_attribute(
-        "current_minimap_position", lambda: calls.append("pos") or (7, 8)
+        "current_position", lambda: calls.append("pos") or _fused(FEET_AT_3_5)
     )
-    data.create_attribute("next_target", lambda: calls.append("target") or (1, 2))
+    data.create_attribute("next_target", lambda: calls.append("target") or FEET_AT_20_5)
     data.create_attribute(
         "current_on_screen_position", lambda: calls.append("screen") or (0, 0, 2, 2)
     )
-    for name in (
-        "current_minimap_position",
-        "next_target",
-        "current_on_screen_position",
-    ):
+    for name in ("current_position", "next_target", "current_on_screen_position"):
         data.update_attribute(name)
     calls.clear()
 
     ((_, payload),) = _snapshot(data)
 
     assert calls == []
-    assert payload["x"] == 7
-    assert payload["target_x"] == 1
+    assert (payload["x"], payload["y"]) == (3, 5)
+    assert (payload["vx"], payload["vy"]) == FEET_AT_3_5
+    assert (payload["target_x"], payload["target_y"]) == (20, 5)
+    assert (payload["target_vx"], payload["target_vy"]) == FEET_AT_20_5
     assert payload["on_screen_x"] == 1
+
+
+def test_state_snapshot_of_an_unsure_position_has_no_position() -> None:
+    data = BotData("TestBot")
+    data.set_static("world_map", WORLD)
+    data.create_attribute("current_position", lambda: Reading.unsure(0.0, "two"))
+
+    ((_, payload),) = _snapshot(data)
+
+    assert payload["x"] is None
+    assert payload["vx"] is None
 
 
 # --- Rotation -----------------------------------------------------------------
@@ -261,10 +296,8 @@ class _Loop:
         data = BotData("TestBot")
         data.set_static("handle", 1234)
         data.set_static("world_map", WORLD)
-        data.create_attribute("next_target", lambda: (20, 5))
+        data.create_attribute("next_target", lambda: FEET_AT_20_5)
         data.create_attribute("movements", lambda: PLAN)
-        data.create_attribute("current_minimap_position", lambda: (3, 5))
-        data.update_attribute("current_minimap_position")
         data.create_attribute("current_position", lambda: _fused(FEET_AT_3_5))
         data.update_attribute("current_position")
         self.data = data
@@ -369,14 +402,17 @@ def test_plan_started_does_not_refresh_a_thresholded_attribute() -> None:
 
 def test_plan_started_takes_both_targets_from_one_read() -> None:
     """
-    The canvas target and its virtual equivalent come from the same cached
+    The virtual target and its canvas equivalent come from the same cached
     read: a refresh between the two can't make them describe different targets.
-    Here every read of `next_target` would give a new one.
+    Here every read of `next_target` would give a new one, 16 px (a canvas
+    pixel) further along each time.
     """
     loop = _Loop(emit_works=True)
-    reads = iter(range(20, 40))
+    reads = iter(range(0, 320, 16))
     loop.data.reconfigure_attribute(
-        "next_target", update_function=lambda: (next(reads), 5), threshold=1e-9
+        "next_target",
+        update_function=lambda: (FEET_AT_20_5[0] + next(reads), FEET_AT_20_5[1]),
+        threshold=1e-9,
     )
     transform = WORLD.minimap
     assert transform is not None
@@ -384,11 +420,11 @@ def test_plan_started_takes_both_targets_from_one_read() -> None:
     _decide(loop)
 
     ((_, payload),) = loop.emitted
-    target_x, target_y = payload["target_x"], payload["target_y"]
-    assert isinstance(target_x, int)
-    assert isinstance(target_y, int)
-    assert (payload["target_vx"], payload["target_vy"]) == feet_of_marker(
-        transform, (target_x, target_y)
+    target_vx, target_vy = payload["target_vx"], payload["target_vy"]
+    assert isinstance(target_vx, float)
+    assert isinstance(target_vy, float)
+    assert (payload["target_x"], payload["target_y"]) == marker_of_feet(
+        transform, (target_vx, target_vy)
     )
 
 
@@ -405,20 +441,8 @@ def test_no_plan_started_when_there_is_nothing_to_send() -> None:
 # --- target_reached -----------------------------------------------------------
 
 
-class _Feature:
-    def random(self) -> tuple[int, int]:
-        return 50, 50
-
-
-class _Minimap:
-    def __init__(self, cycle: bool) -> None:
-        self.feature_cycle = [_Feature()] if cycle else None
-
-    def random_point(self) -> tuple[int, int]:
-        return 50, 50
-
-    def get_feature_containing(self, target: tuple[int, int]) -> _Feature:
-        return _Feature()
+#: The rotation's target in the arrival tests: on `WORLD`'s floor.
+TARGET = (100.0, 0.0)
 
 
 class _Owner(NextTargetMixin):
@@ -431,80 +455,86 @@ class _Owner(NextTargetMixin):
         self.get_mobs_positions_in_img = lambda *a, **k: []
 
 
-def _owner(position: tuple[int, int], *, cycle: bool, smart: bool = False) -> _Owner:
+def _owner(position: tuple[float, float], *, smart: bool = False) -> _Owner:
     data = BotData("TestBot")
-    data.set_static("current_minimap", _Minimap(cycle))
-    data.set_static("current_minimap_position", position)
+    data.set_static("world_map", WORLD)
+    data.create_attribute("current_position", lambda: _fused(position))
     owner = _Owner(data)
     owner._create_rotation_attributes(
         smart_rotation=smart, mob_count_threshold=2 if smart else None
     )
-    data.next_target = (10, 10)
+    data.next_target = TARGET
     return owner
 
 
-@pytest.mark.parametrize("cycle", [True, False], ids=["cycle", "random"])
-def test_basic_rotation_emits_on_arrival(cycle: bool) -> None:
-    owner = _owner((10, 12), cycle=cycle)
+def test_basic_rotation_emits_on_arrival_in_virtual_px() -> None:
+    """
+    Arrival is judged in virtual px since #398: within 160 px (10 minimap px). The
+    canvas fields are where the minimap draws the marker for each.
+    """
+    owner = _owner((130.0, 0.0))
+    transform = WORLD.minimap
+    assert transform is not None
 
     owner.data.update_attribute("next_target")
 
     ((event_type, payload),) = owner.emitted
     assert event_type == MOVEMENT_TARGET_REACHED
+    here, there = (
+        marker_of_feet(transform, (130.0, 0.0)),
+        marker_of_feet(transform, TARGET),
+    )
     assert payload == {
-        "target_x": 10,
-        "target_y": 10,
-        "distance": 2.0,
-        "target_vx": None,
-        "target_vy": None,
-        "vx": None,
-        "vy": None,
-        "virtual_distance": None,
+        "target_x": there[0],
+        "target_y": there[1],
+        "distance": math.dist(here, there),
+        "target_vx": 100.0,
+        "target_vy": 0.0,
+        "vx": 130.0,
+        "vy": 0.0,
+        "virtual_distance": 30.0,
     }
+    assert owner.data.next_target != TARGET
+    assert WORLD.platform_at(owner.data.next_target) is not None
 
 
-def test_rotation_arrival_carries_the_virtual_target_and_last_position() -> None:
-    """
-    Rotation still judges arrival in canvas px (#398), but its record carries the
-    target converted as the planner converts it, and the last virtual position
-    read, without reading a new one.
-    """
-    owner = _owner((3, 6), cycle=True)
-    owner.data.set_static("world_map", WORLD)
-    owner.data.create_attribute("current_position", lambda: _fused((-940.0, -800.0)))
-    owner.data.update_attribute("current_position")
-    owner.data.next_target = (3, 5)
-
-    owner.data.update_attribute("next_target")
-
-    ((_, payload),) = owner.emitted
-    assert (payload["target_vx"], payload["target_vy"]) == FEET_AT_3_5
-    assert (payload["vx"], payload["vy"]) == (-940.0, -800.0)
-    assert payload["virtual_distance"] == round(math.dist((-940, -800), FEET_AT_3_5), 1)
-
-
-@pytest.mark.parametrize("cycle", [True, False], ids=["cycle", "random"])
-def test_basic_rotation_is_silent_while_travelling(cycle: bool) -> None:
-    owner = _owner((100, 10), cycle=cycle)
+def test_basic_rotation_is_silent_while_travelling() -> None:
+    owner = _owner((400.0, -20.0))
 
     owner.data.update_attribute("next_target")
 
     assert owner.emitted == []
+    assert owner.data.next_target == TARGET
+
+
+def test_an_unsure_position_holds_the_target() -> None:
+    """Arrival can't be judged from a position nobody placed."""
+    owner = _owner((100.0, 0.0))
+    owner.data.reconfigure_attribute(
+        "current_position", update_function=lambda: Reading.unsure(0.0, "two")
+    )
+    owner.data.update_attribute("current_position")
+
+    owner.data.update_attribute("next_target")
+
+    assert owner.emitted == []
+    assert owner.data.next_target == TARGET
 
 
 def test_smart_rotation_emits_once_on_arrival() -> None:
-    owner = _owner((10, 11), cycle=True, smart=True)
+    owner = _owner((110.0, 0.0), smart=True)
 
     owner.data.update_attribute("next_target")
     owner.data.update_attribute("next_target")  # still dwelling: no second record
 
     ((event_type, payload),) = owner.emitted
     assert event_type == MOVEMENT_TARGET_REACHED
-    assert payload["distance"] == 1.0
+    assert payload["virtual_distance"] == 10.0
 
 
 def test_smart_rotation_is_silent_while_travelling() -> None:
-    owner = _owner((100, 10), cycle=True, smart=True)
+    """Its arrival is 64 px (4 minimap px)."""
+    owner = _owner((170.0, 0.0), smart=True)
 
     owner.data.update_attribute("next_target")
 

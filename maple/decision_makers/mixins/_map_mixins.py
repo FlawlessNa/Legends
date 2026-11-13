@@ -38,12 +38,13 @@ class MinimapAttributesMixin:
 
     def _get_minimap_pos(self) -> tuple[int, int]:
         """
-        The character's position in minimap coordinates: pixels on the map's
-        canvas, which needs the map file's `map_id`.
+        The minimap marker's canvas pixel: whether the minimap places the
+        character at all, which is what `_minimap_pos_error_handler` checks
+        after each attempt. No DecisionMaker positions itself by it since #398:
+        `current_position` is the position, in virtual px.
 
-        :raises ValueError: The minimap wasn't read, or the position wasn't (no
-            `map_id`, the map's canvas not found, or its marker covered), which
-            hands over to `_minimap_pos_error_handler`.
+        :raises ValueError: The minimap wasn't read, or the position wasn't (the
+            map's canvas not found, or its marker covered).
         """
         reading: Reading[MinimapView] = self.data.minimap_reading
         if reading.value is None:
@@ -58,21 +59,21 @@ class MinimapAttributesMixin:
     def _get_position(self) -> Reading[VirtualPosition]:
         """
         The character's virtual position (`PositionFusion`), from the minimap
-        reading `current_minimap_position` comes from and the current frame.
-        Every read is recorded (`position.read`), unsure ones included.
+        reading and the current frame. Every read is recorded (`position.read`),
+        unsure ones included.
 
         **Who handles an unsure position** (#396). When the minimap gave no
         position, this raises, and `_minimap_pos_error_handler` makes the
-        minimap readable again, as for `current_minimap_position`. When the
-        minimap read is fine but fusion is `UNSURE` (the reads disagree, or
-        two characters stand where the minimap puts ours), the `UNSURE`
-        reading is returned: the minimap handler can't fix that, and a
-        consumer holds until a read places the character (`MovementsMixin`
-        plans no Path).
+        minimap readable again. When the minimap read is fine but fusion is
+        `UNSURE` (the reads disagree, or two characters stand where the minimap
+        puts ours), the `UNSURE` reading is returned: the minimap handler can't
+        fix that, and a consumer holds until a read places the character
+        (`MovementsMixin` plans no Path, the rotation keeps its target). A long
+        streak of them is reported by movement recovery (#398).
 
         :raises ValueError: The minimap gave no position, or the bot has no
             position fusion (no map, or no frame check), which hands over to
-            `_minimap_pos_error_handler`, as `_get_minimap_pos` does.
+            `_minimap_pos_error_handler`.
         """
         fusion: PositionFusion | None = getattr(self.data, "position_fusion", None)
         if fusion is None:
@@ -87,11 +88,11 @@ class MinimapAttributesMixin:
 
     def _minimap_pos_error_handler(self) -> None:
         """
-        Blocks the current Bot (& Engine) until the current_minimap_position the handler
-        had time to attempt fixing the issue uninterrupted by other tasks.
+        Blocks the current Bot (& Engine) until the handler had time to make the
+        minimap place the character again, uninterrupted by other tasks.
         :return:
         """
-        identifier = f"{self}.current_minimap_position Error Handler"
+        identifier = f"{self}.current_position Error Handler"
         logger.warning("%s Attempt", identifier)
         condition = self._proxies.instance(identifier, "Condition")
         attempt = 0
@@ -220,14 +221,9 @@ class MinimapAttributesMixin:
             self._entire_minimap_box,
             threshold=self.MINIMAP_POS_REFRESH_RATE,
         )
-        self.data.create_or_reconfigure_attribute(
-            "current_minimap_position",
-            self._get_minimap_pos,
-            threshold=self.MINIMAP_POS_REFRESH_RATE,
-            error_handler=self._minimap_pos_error_handler,
-        )
-        # Not read here: the first consumer to ask reads it (Movement Plans
-        # are planned from it), and its reads cost a camera match each.
+        # The character's position, in virtual px, for every DecisionMaker
+        # (#398). Not read here: the first consumer to ask reads it, and its
+        # reads cost a camera match each.
         self.data.create_or_reconfigure_attribute(
             "current_position",
             self._get_position,
