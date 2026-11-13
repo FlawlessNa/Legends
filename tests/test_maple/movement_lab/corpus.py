@@ -49,7 +49,8 @@ _LAB_ROOT = Path(__file__).parent
 PAIRS_ROOT = _LAB_ROOT / "pairs"
 
 #: The client's own `Map/Physics.img` values (`walkSpeed`, `jumpSpeed`,
-#: `gravityAcc`, `fallSpeed`), as the game data store holds them: written out
+#: `gravityAcc`, `fallSpeed`, `walkForce`, `walkDrag`), as the game data store
+#: holds them: written out
 #: so the default suite needs no store. The lab plans as a character with no
 #: stat bonuses and no Calibration constants, so a Movement Plan's lengths and
 #: times are the map's own and not a build's.
@@ -58,6 +59,8 @@ LAB_PHYSICS_VALUES = {
     "jumpSpeed": 555.0,
     "gravityAcc": 2000.0,
     "fallSpeed": 670.0,
+    "walkForce": 140000.0,
+    "walkDrag": 80000.0,
 }
 LAB_PHYSICS = VRPhysics.from_game_files(LAB_PHYSICS_VALUES)
 

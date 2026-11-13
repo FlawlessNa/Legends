@@ -257,6 +257,15 @@ is true rather than merely convenient. Every bound on this page that spends `OVE
 — B2's `max_delay + OVERHEAD`, B5's `1.05 * DELAY + OVERHEAD` — was loose by ~10ms per
 Step until then, and `t(i)` at the top of this page with it.
 
+**B2 is stated for a walk timed by its length** (#503). Compiled with the walk's
+acceleration and deceleration, or a read time, as the live path compiles
+(`MovementsMixin._movement_compiler`), the plan's last walk is timed to stop on
+its end after the slide, and a first walk whose key is already down is
+shortened by the distance walked since the read (`_time_walks` in
+`movement_mechanics_v2.py`): their `L` is then the duration `_time_walks` sets
+times `walk_speed`, not their length. The movement lab compiles without
+either, so B2 is checked there as before.
+
 **B2 bounds the elapsed budget, not the Hold.** Release Steps inserted ahead of
 a component consume budget without extending the direction's Hold, so the two
 diverge. This turned out to matter: [#104](https://github.com/FlawlessNa/Legends/issues/104)'s
