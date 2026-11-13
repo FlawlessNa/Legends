@@ -18,7 +18,7 @@ from maple.model.mechanics import (
 from maple.model.mechanics.minimap_creation.minimap_edits_model import MinimapEdits
 from maple.model.mechanics.movement_mechanics_v2 import _MovementComponent
 from maple.model.mechanics.physics import VRPhysics
-from maple.model.navigation import Path, Point
+from maple.model.navigation import FootholdGraphs, Path, Point
 from maple.model.world import WorldMap
 from maple.screen.position import VirtualPosition, feet_of_marker
 from maple.telemetry_events import MOVEMENT_TARGET_REACHED, target_reached_payload
@@ -364,6 +364,15 @@ class MovementsMixin:
     profile's Calibration constants. When a stat changes, the next Path is
     planned on a graph built for it (`MovementHandler`), and the plan is
     compiled with its speeds.
+
+    **The graph is built off the decision loop** (#430). Its build starts when
+    the pathing attributes are made, at the DecisionMaker's setup, with the
+    stats known then; a stat change starts the next one when a Path is next
+    planned. The build runs in a worker thread (`FootholdGraphs`), shared by
+    every DecisionMaker of the Bot (`data.foothold_graphs`). **While the graph
+    of the current stats builds, planning holds**, as for an unsure position:
+    no Path is planned on the previous stats' graph, whose jump ranges and
+    flights are another arc's, and none on a half-built graph.
     """
 
     data: BotData
@@ -394,6 +403,10 @@ class MovementsMixin:
                 narrow_platform_threshold, edge_departure_threshold
             ),
         )
+        handler: MovementHandler | None = self.data.movement_handler
+        if handler is not None:
+            # Built now, off the loop, so the first Path doesn't wait for it.
+            handler.graphs.prepare(self._physics())
 
         self.data.create_or_reconfigure_attribute(
             "path", self._plan_path, threshold=0.1
@@ -423,14 +436,33 @@ class MovementsMixin:
                 self,
             )
             return None
+        teleport = self.data.character.skills.get("Teleport")
         return MovementHandler(
             self.data.handle,
             world_map,
             self.data.ign,
-            self.data.character.skills.get("Teleport"),
+            teleport,
             narrow_platform_threshold=narrow_platform_threshold,
             edge_departure_threshold=edge_departure_threshold,
+            graphs=self._graphs(world_map, teleport=teleport is not None),
         )
+
+    def _graphs(self, world_map: WorldMap, *, teleport: bool) -> FootholdGraphs:
+        """
+        The Bot's `FootholdGraphs` for `world_map`, made the first time: every
+        handler of the Bot plans on the same graphs, so a graph is built once
+        however many DecisionMakers plan, or however often a handler is
+        remade (a Trial batch remakes it).
+        """
+        graphs: FootholdGraphs | None = getattr(self.data, "foothold_graphs", None)
+        if (
+            graphs is None
+            or graphs.world_map is not world_map
+            or graphs.teleport != teleport
+        ):
+            graphs = FootholdGraphs(world_map, teleport=teleport)
+            self.data.set_static("foothold_graphs", graphs)
+        return graphs
 
     def _world_map(self) -> WorldMap:
         world_map: WorldMap | None = getattr(self.data, "world_map", None)
@@ -471,8 +503,12 @@ class MovementsMixin:
         if reading.value is None:
             logger.debug("No Path: the position is unsure (%s).", reading.detail)
             return None
+        physics = self._physics()
+        if handler.ready_graph(physics) is None:
+            logger.debug("No Path: the foothold graph of the current stats builds.")
+            return None
         position = (float(reading.value.x), float(reading.value.y))
-        return handler.compute_path(position, self._virtual_target(), self._physics())
+        return handler.compute_path(position, self._virtual_target(), physics)
 
     def _plan_movements(self) -> tuple[_MovementComponent, ...]:
         """The Movement Plan of the current Path; empty with no handler."""
