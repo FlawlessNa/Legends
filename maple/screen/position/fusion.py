@@ -25,6 +25,16 @@ kept, and ours is chosen among them:
   next to our character while our own tag is hidden.
 - Before then, one kept is ours, and several are `UNSURE`.
 
+**Our tag behind the map's art** (#517). The client draws a character, its
+name tag too, with its foothold's layer, and the tiles and objects of every
+layer above over it: at the top of Ellinia the ladder's top hides most of our
+tag, and the finder no longer finds it. So when the finder can tell ours apart
+and found none ours, ours is looked for once more near the minimap's feet
+position, on what the art of the layers above ours leaves seen
+(`CharacterFinder.find_own_hidden`, the map's `FrontArt`, the layer from
+`WorldMap.layer_near`). What it finds is ours like any sighting marked ours:
+in the window, and cross-checked.
+
 Our tag counts only inside the window: a tag learned wrong (`NameTagFinder`
 never forgets one) can't move the position away from the minimap's, and one
 found outside the window is only reported (`Fusion.own_elsewhere`).
@@ -36,8 +46,8 @@ the position, `fused`.
 
 **The fallback.** When the play area doesn't place our character (the camera
 or the finder `UNSURE`, under a dialog say; no character in the window; or
-none of ours there, our name tag hidden), the minimap's feet position is the
-position, `coarse`.
+none of ours there, our name tag hidden other than by the map's art), the
+minimap's feet position is the position, `coarse`.
 
 Every read returns a `Reading` that is `READ` or `UNSURE`, never a plausible
 number (C-NOGUESS); what each read said is kept beside it, in `Fusion`.
@@ -52,13 +62,17 @@ from dataclasses import dataclass, replace
 from functools import cached_property
 from typing import Final, Protocol
 
+import cv2
+import numpy as np
+from numpy.typing import NDArray
+
 from botting.screen import Frame, Reading
-from maple.model.world import MinimapTransform, WorldMap
+from maple.model.world import FrontArt, MinimapTransform, WorldMap
 from maple.screen.locator import FrameCheck
 from maple.screen.minimap import FEET_ROWS, MinimapView
 
 from .camera import Camera, CameraReader
-from .characters import CharacterFinder, NameTagFinder
+from .characters import Box, CharacterFinder, CharacterSighting, NameTagFinder
 
 WINDOW: Final = 32
 """Virtual px a character's feet may be from the minimap's feet position, in x
@@ -165,6 +179,9 @@ class PositionFusion:
         minimap: MinimapTransform,
         camera: Callable[[], CameraSource],
         finder: CharacterFinder,
+        *,
+        world_map: WorldMap | None = None,
+        front_art: Callable[[], FrontArt] | None = None,
     ) -> None:
         """
         :param minimap: The map's minimap transform.
@@ -172,10 +189,17 @@ class PositionFusion:
             map's static render takes time and memory nothing spends before a
             position is asked for.
         :param finder: Finds the characters on screen.
+        :param world_map: The map, for the layer our character is drawn on.
+        :param front_art: Makes the map's `FrontArt`, the first time our tag
+            isn't found. With `world_map`, our tag is then looked for where
+            the art drawn in front of our character doesn't hide it; without
+            either, it isn't.
         """
         self._transform = minimap
         self._make_camera = camera
         self._finder = finder
+        self._world_map = world_map
+        self._make_front_art = front_art
         self._last_camera: Camera | None = None
         self._read_camera: Camera | None = None
 
@@ -205,11 +229,42 @@ class PositionFusion:
             world_map.minimap,
             lambda: CameraReader(world_map, frame_check=frame_check),
             NameTagFinder(),
+            world_map=world_map,
+            front_art=front_art_of(world_map),
         )
 
     @cached_property
     def _camera(self) -> CameraSource:
         return self._make_camera()
+
+    @cached_property
+    def _front_art(self) -> FrontArt | None:
+        return None if self._make_front_art is None else self._make_front_art()
+
+    def _hidden(
+        self,
+        frame: Frame,
+        near: tuple[float, float],
+        feet: tuple[float, float],
+        cam: Camera,
+    ) -> CharacterSighting | None:
+        """
+        Ours, part of its tag hidden by the map's art drawn in front of it:
+        looked for when nothing found ours, with the art of the layers above
+        the lowest our character could be drawn on near the minimap's feet
+        position (`WorldMap.layer_near`). `None` without a map or its art.
+
+        :param near: The minimap's feet position, in client px.
+        :param feet: The same, in virtual px.
+        """
+        if self._world_map is None or self._make_front_art is None:
+            return None
+        layer = self._world_map.layer_near(feet, WINDOW)
+        art = self._front_art
+        if layer is None or art is None:
+            return None
+        covered = _covered_on_screen(art, layer, cam, frame.client_size)
+        return self._finder.find_own_hidden(frame, near, covered)
 
     def read(self, frame: Frame, minimap: Reading[MinimapView]) -> Fusion:
         """
@@ -241,15 +296,19 @@ class PositionFusion:
         seen = replace(seen, camera=cam)
         width, height = frame.client_size
         sx, sy = width / cam.play_area[0], height / cam.play_area[1]
-        knows_ours = self._finder.learn_own(
-            frame, ((mx - cam.x) * sx, (my - cam.y) * sy)
-        )
+        near = ((mx - cam.x) * sx, (my - cam.y) * sy)
+        knows_ours = self._finder.learn_own(frame, near)
         found = self._finder.find(frame)
         if found.value is None:
             return coarse(f"characters {found.status.value}: {found.detail}")
         placed = [
             (cam.to_virtual(s.feet, frame.client_size), s.own) for s in found.value
         ]
+        hidden = None
+        if knows_ours and not any(own for _, own in placed):
+            hidden = self._hidden(frame, near, (mx, my), cam)
+            if hidden is not None:
+                placed.append((cam.to_virtual(hidden.feet, frame.client_size), True))
         inside = [
             abs(p[0] - mx) <= WINDOW and abs(p[1] - my) <= WINDOW for p, _ in placed
         ]
@@ -284,4 +343,44 @@ class PositionFusion:
             return replace(seen, position=Reading.unsure(at, why))
         position = VirtualPosition(chosen[0], chosen[1], PositionSource.FUSED)
         detail = "ours by its tag" if knows_ours else "the one character there"
+        if hidden is not None:
+            detail += ", part of it behind the map's art"
         return replace(seen, position=Reading.read(position, at, detail))
+
+
+def front_art_of(world_map: WorldMap) -> Callable[[], FrontArt] | None:
+    """
+    Makes a map's `FrontArt`, from the extraction its static render is drawn
+    from; `None` for a map not loaded from a store.
+    """
+    render = world_map.static_render
+    if render is None:
+        return None
+    return lambda: FrontArt.load(render.build, render.map_id, render.root)
+
+
+def _covered_on_screen(
+    art: FrontArt, layer: int, cam: Camera, client_size: tuple[int, int]
+) -> Callable[[Box], NDArray[np.bool_]]:
+    """
+    `art.covered` for a character on `layer`, in client px: each client pixel
+    takes the virtual pixel its middle falls in, through `cam`. Above 1:1 the
+    client upscales the play area bilinearly, which blends art into the
+    client pixels around it: those count as covered too.
+    """
+    sx = client_size[0] / cam.play_area[0]
+    sy = client_size[1] / cam.play_area[1]
+
+    def covered(box: Box) -> NDArray[np.bool_]:
+        x0, y0, x1, y1 = box
+        vx = np.floor((np.arange(x0, x1) + 0.5) / sx + cam.x).astype(np.int64)
+        vy = np.floor((np.arange(y0, y1) + 0.5) / sy + cam.y).astype(np.int64)
+        left, top = int(vx[0]), int(vy[0])
+        drawn = art.covered(layer, (left, top, int(vx[-1]) + 1, int(vy[-1]) + 1))
+        mask = drawn[np.ix_(vy - top, vx - left)]
+        if sx == 1 and sy == 1:
+            return mask
+        grown = cv2.dilate(mask.astype(np.uint8), np.ones((3, 3), np.uint8))
+        return np.asarray(grown, np.uint8) > 0
+
+    return covered
