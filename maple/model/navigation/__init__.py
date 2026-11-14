@@ -23,6 +23,7 @@ from .foothold_graph import (
     PORTAL_TIME,
     ROPE_GRAB_REACH,
     ROPE_TOP_SNAP,
+    TAKEOFF_STEP,
     TELEPORT_TIME,
     FootholdGraph,
 )
@@ -39,6 +40,7 @@ __all__ = [
     "PORTAL_TIME",
     "ROPE_GRAB_REACH",
     "ROPE_TOP_SNAP",
+    "TAKEOFF_STEP",
     "TELEPORT_TIME",
     "Direction",
     "FootholdGraph",

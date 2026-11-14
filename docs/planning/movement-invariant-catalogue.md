@@ -219,6 +219,22 @@ copy so the release cannot target a direction whose keydown fell past the cut
 (**A6**). The release costs one `OVERHEAD` on top of the overshoot `truncate`
 already carries. Pinned by `tests/test_botting/test_precision_pre_stop.py`.
 
+**A chained jump is not cut before its take-off** (#515). A cut leaves the walk's key
+down, and the next plan presses keys only once a frame captured after the cut is
+read: up to two reads later, and later still when that frame finds the character in
+the air. When the character walks into an edge-departure jump sooner than that after
+the cut (counting only the walk after a landing, when the cut lands in a flight),
+`compile_movements` compiles past the cap through that jump and cuts at the end of
+its flight (`_jump_to_finish`): the walk is not stopped by the precision pre-stop,
+and the cut does not land inside that jump, so **B1** holds for it. Live, the cut at
+the cap left 0.25 s before the next plan's keys and the second jump of a chain went
+down in the air. The same ticket left the edge departure's release out ahead of a
+sideways jump the walk runs into the same way (`_walks_into`), and the narrow
+landing's release ahead of a walk on from it (`_walks_on`): each came straight back up
+one Step later, a release the game never sees, and only delayed the take-off by one
+input delay (five ahead of a jump onto a rope). Pinned by
+`tests/test_maple/movement_lab/test_chained_takeoff.py`.
+
 That leaves B1 as the remaining half of the truncation problem. It is now
 expressible — [#102](https://github.com/FlawlessNa/Legends/issues/102) gave Steps
 their Provenance — and expressing it showed it failing.

@@ -12,7 +12,7 @@ read off graph moves in virtual px (#396).
 Both are plan-time properties of the move, so these tests hand
 `MovementHandler.path_into_movements` a Path of one move over `narrow_perch`'s
 platforms (`tests/test_maple/movement_lab/fixture_maps.py`): a 200 px floor from 0
-to 200, a 40 px perch from 250 to 290, and another floor from 340 to 540.
+to 200, a 40 px perch from 245 to 285, and another floor from 330 to 530.
 """
 
 from maple.model.mechanics.movement_mechanics_v2 import (
@@ -78,8 +78,8 @@ def _jump_onto_the_far_floor() -> Move:
 
 def test_the_fixture_has_the_widths_these_tests_rely_on() -> None:
     assert (_FLOOR.left, _FLOOR.right) == (0, 200)
-    assert (_PERCH.left, _PERCH.right) == (250, 290)
-    assert (_FAR_FLOOR.left, _FAR_FLOOR.right) == (340, 540)
+    assert (_PERCH.left, _PERCH.right) == (245, 285)
+    assert (_FAR_FLOOR.left, _FAR_FLOOR.right) == (330, 530)
 
 
 def test_a_jump_onto_the_narrow_perch_is_flagged_narrow() -> None:

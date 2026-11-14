@@ -23,6 +23,14 @@ whose key is already down is shortened by how far the character has walked
 since the frame its position was read on (`read_at`), up to the moment of
 compiling.
 
+**Where a jump takes off** (#515). A sideways jump the character walks into,
+the same way, presses its jump key as the walk reaches the take-off: no
+release goes before it (`_walks_into`), nor before a walk on from a narrow
+landing (`_walks_on`), since the next press would undo it one Step later. And
+a cut at the Action duration cap that the character would follow into an
+edge-departure jump sooner than the next plan can press it is moved past that
+jump (`_jump_to_finish`).
+
 **No walk inside the read** (#516). A Path that is only a walk no longer than
 the start's own uncertainty (half a canvas px on a coarse read) is planned as
 no move (`compute_path`'s `resolution`).
@@ -313,6 +321,10 @@ def compile_movements(
             deceleration=walk_deceleration,
         )
     structure = None
+    # Where the sequence is cut: the Action duration cap, moved to the end of a
+    # jump compiled past it (`_jump_to_finish`).
+    cut_at = total_duration
+    finishing: int | None = None
     for origin, (move, upcoming_move) in enumerate(pairwise(movements)):
         # Provenance: every Step the builders below emit belongs to component `origin`.
         # The cursor moves here, ahead of the build, because a builder appends and
@@ -419,7 +431,8 @@ def compile_movements(
                         initial_state=initial_state,
                         duration=flight,
                     )
-                    structure = _narrow_stop(structure, move)
+                    if not _walks_on(move, upcoming_move):
+                        structure = _narrow_stop(structure, move)
 
             case MovementTypes.JUMP_DOWN:
                 if move.grabs_rope:
@@ -487,19 +500,40 @@ def compile_movements(
 
         structure.attribute(origin)
 
+        if finishing is not None and origin >= finishing:
+            # The jump compiled past the cap has taken off: the cut moves to
+            # the end of its flight, and another jump may follow it too near.
+            # When nothing follows, the plan ends there: no cut, so its keys
+            # come up as any plan's do.
+            finishing = None
+            cut_at = (
+                None
+                if upcoming_move.movement_type is MovementTypes.END_OF_MOVEMENT
+                else structure.duration
+            )
+        if finishing is None and cut_at is not None and structure.duration >= cut_at:
+            finishing = _jump_to_finish(
+                movements,
+                origin,
+                structure.duration - cut_at,
+                since_read,
+                speed,
+                structure.keys_held,
+            )
         # Else just consider current move and disregard previous.
         if (
-            total_duration is not None
-            and structure.duration >= total_duration
+            finishing is None
+            and cut_at is not None
+            and structure.duration >= cut_at
             and not _finish_instead_of_cut(
                 movements,
                 origin,
-                structure.duration - total_duration,
+                structure.duration - cut_at,
                 since_read,
                 walk_stop_slide(speed, walk_deceleration) / speed,
             )
         ):
-            structure = structure.truncate(total_duration)
+            structure = structure.truncate(cut_at)
             # The cut lands mid-walk with the horizontal key still down, and the
             # next chunk opens on a jump or a portal - a move that misses unless
             # the character is standing still. Release the direction so the next
@@ -541,7 +575,7 @@ def compile_movements(
             held_dir = next(
                 (k for k in structure.keys_held if k in ("left", "right")), None
             )
-            if held_dir:
+            if held_dir and not _walks_into(upcoming_move, held_dir):
                 structure.append(held_dir, "keyup", 0)
     else:
         # Loop ran to completion (no truncation): release any keys still held
@@ -693,6 +727,93 @@ def _finish_instead_of_cut(
         return False
     left = overrun + sum(movements[i].duration or 0.0 for i in last if i > origin)
     return left < since_read + slide_time
+
+
+def _jump_to_finish(
+    movements: tuple[_MovementComponent, ...],
+    origin: int,
+    overrun: float,
+    since_read: float | None,
+    speed: float,
+    held: set[str],
+) -> int | None:
+    """
+    The edge-departure jump to compile past the Action duration cap rather
+    than cut before, because the character walks into it and the next plan
+    could not press its jump key in time (#515); `None` to cut as usual.
+
+    A cut leaves the direction key down (a Continuation), and the character
+    walks on. The next plan presses keys only once a frame captured after the
+    cut is read and compiled: up to one read after the cut until that frame,
+    then one read more, each about `since_read`. A frame captured in the air
+    plans nothing, so when the cut lands in a jump's flight, only the walk
+    after its landing counts. If the character reaches the jump's take-off
+    sooner than that, it walks past it, off the platform's end when the
+    take-off lies near it (live: cut to next keys 0.25 s at a `since_read` of
+    0.13, and the next plan's jump went down in the air). Finishing the jump
+    here takes off where the plan times it.
+
+    :param origin: The component being compiled when the cap was reached.
+    :param overrun: Seconds the sequence runs past the cap so far.
+    :param held: The keys down at the end of component `origin`.
+    :return: The index of that jump in `movements`.
+    """
+    if since_read is None:
+        return None
+    left = overrun if movements[origin].movement_type in _WALKS else 0.0
+    for index in range(origin + 1, len(movements)):
+        move = movements[index]
+        if move.movement_type in _WALKS:
+            if _direction_of(move) not in held:
+                return None
+            left += move.length / speed if move.duration is None else move.duration
+            continue
+        if (
+            move.edge_departure
+            and any(_walks_into(move, key) for key in held)
+            and left < 2 * since_read
+        ):
+            return index
+        return None
+    return None
+
+
+def _walks_into(move: _MovementComponent, held_dir: str) -> bool:
+    """
+    Whether `move` is a sideways jump the character walks straight into: its
+    direction is `held_dir`, the key already down (#515).
+
+    Such a jump takes off where its jump key goes down, so the key goes down
+    as the walk reaches the take-off, with no stop before it. The edge
+    departure's release (PM3) would come straight back up as the jump presses
+    its direction again, one Step later: a release the game never sees, which
+    only delays the take-off by one input delay (five for a jump onto a rope,
+    `jump_on_rope`). At the walk speed, the take-off then lands past its
+    point; at a platform's open end, past the end, and the jump never happens.
+    """
+    match move.movement_type:
+        case MovementTypes.JUMP_LEFT:
+            return held_dir == "left"
+        case MovementTypes.JUMP_RIGHT:
+            return held_dir == "right"
+        case _:
+            return False
+
+
+def _walks_on(jump: _MovementComponent, upcoming: _MovementComponent) -> bool:
+    """
+    Whether the plan walks on from `jump`'s landing the way it jumped (#515).
+
+    The narrow landing's stop is then left out: the walk presses the
+    direction again one Step after its release, a release the game never
+    sees. Left in, it only makes the walk a fresh press, whose last repeat
+    can run one Step past its time and so carry a jump after it past its
+    take-off; and it hides that the character walks into that jump
+    (`_jump_to_finish`).
+    """
+    return upcoming.movement_type in _WALKS and _walks_into(
+        jump, _direction_of(upcoming)
+    )
 
 
 def _direction_of(move: _MovementComponent) -> str:

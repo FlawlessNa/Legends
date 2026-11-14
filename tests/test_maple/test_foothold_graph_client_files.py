@@ -14,6 +14,7 @@ from game_data.catalogue import Rope
 from maple.model.mechanics.physics import Calibration, VRPhysics
 from maple.model.navigation import (
     ROPE_GRAB_REACH,
+    TAKEOFF_STEP,
     Direction,
     FootholdGraph,
     MoveKind,
@@ -284,3 +285,40 @@ def test_ellinia_down_from_the_ladders_top_drops_nowhere_within_its_reach(
     for move in path.moves:
         if move.kind is MoveKind.DROP:
             assert abs(move.start[0] - 627) > ROPE_GRAB_REACH
+
+
+# --- the chained jump that never took off (#515) ----------------------------------
+
+
+@pytest.mark.parametrize(
+    "start",
+    [
+        # `gap-right-1`'s cycle 9, on the rope-top ledge: the Path jumped onto
+        # the slope above, walked 16.5 px to its open left end at x -484, and
+        # jumped from that end exactly, the one point that jump lands from. The
+        # jump key went down after the character had walked off it.
+        (-379.4, -1.5),
+        # The same chain from the top of the rope at x -316.
+        (-316.0, -1.7),
+    ],
+)
+def test_ellinias_chain_to_the_gap_trials_takes_off_inside_every_open_end(
+    start: Point,
+) -> None:
+    world = WorldMap.load("Victoria Road: Ellinia")
+    physics = VRPhysics.load(calibration=JUMP_RUN)
+    graph = FootholdGraph.build(world, physics)
+
+    path = graph.path(start, (-620.0, -52.0))
+
+    assert path is not None
+    margin = physics.walk_speed * TAKEOFF_STEP
+    jumps = [m for m in path.moves if m.kind is MoveKind.JUMP]
+    assert jumps
+    for move in jumps:
+        if not isinstance(move.start_on, Platform):
+            continue
+        if move.direction is Direction.LEFT:
+            assert move.start[0] - move.start_on.left >= margin - 1e-6, move
+        elif move.direction is Direction.RIGHT:
+            assert move.start_on.right - move.start[0] >= margin - 1e-6, move
