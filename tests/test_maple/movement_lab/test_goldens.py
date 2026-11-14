@@ -188,12 +188,12 @@ _MOVEMENT_TYPE_CASES: dict[
 ] = {
     "walk": ("walk_corridor", (528.0, -20.0), (524.0, -20.0)),
     "climb": ("ladder_climb", (300.0, -58.0), (300.0, -114.0)),
-    "jump_left_right": ("jump_gap", (180.0, 0.0), (270.0, 0.0)),
+    "jump_left_right": ("jump_gap", (180.0, 0.0), (265.0, 0.0)),
     "jump": ("jump_ledge", (308.0, 0.0), (308.0, -50.0)),
     "jump_down": ("jump_ledge", (380.0, -50.0), (372.0, 0.0)),
     "enter_portal": ("portal_pair", (156.0, 0.0), (724.0, -400.0)),
     "teleport": ("teleport_shaft", (96.0, -110.0), (268.0, -110.0)),
-    "narrow_jump": ("narrow_perch", (116.0, 0.0), (278.0, 0.0)),
+    "narrow_jump": ("narrow_perch", (116.0, 0.0), (273.0, 0.0)),
     # A jump straight up into a rope's bottom (#111), and a sideways one onto it.
     "rope_grab_up": ("rope_grab", (300.0, 0.0), (300.0, -150.0)),
     "rope_grab_side": ("rope_grab", (356.0, 0.0), (300.0, -82.0)),
@@ -244,7 +244,7 @@ def _case_preemption_mid_jump() -> str:
     the note below it is the direction release D2 adds on the cancellation path,
     which a plain `truncate()` does not (see `focused_inputs`'s `finally` block)."""
     map_name = "narrow_perch"
-    record = _record(map_name, (108.0, 0.0), (250.0, 0.0))
+    record = _record(map_name, (108.0, 0.0), (245.0, 0.0))
     cut = _seeded_compile(record, map_name, total_duration=ACTION_DURATION)
     remaining = _post_cancel_held(frozenset(cut.keys_held), cut.forced_key_releases)
     released_by_preemption = sorted((cut.keys_held & DIRECTIONS) - remaining)

@@ -54,7 +54,11 @@ and the new `components_v` gives every component's measured length in virtual
 px, gestures included. An analyzer counting jumps sums the gesture counts in
 either kind of Session. The precision pre-stop
 (direction-key release ahead of the gesture) now fires on that flag unconditionally,
-not only when truncation happens to land there. Grid-baked flags were rejected —
+not only when truncation happens to land there, except ahead of a sideways jump the
+walk runs into the same way (#515): that release came straight back up one Step
+later, when the jump pressed its direction again, so it stopped nothing and only
+made the take-off one input delay late, past a platform's open end in the live
+record. Grid-baked flags were rejected —
 every map would need re-authoring and nothing could be swept.
 
 ## Tiers and budgets

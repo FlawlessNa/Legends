@@ -52,7 +52,7 @@ def test_a_point_is_drawn_among_the_platforms_given_only() -> None:
 
     points = [GAP.random_point((right,), rng) for _ in range(50)]
 
-    assert all(500 <= x <= 700 and y == 0 for x, y in points)
+    assert all(490 <= x <= 690 and y == 0 for x, y in points)
 
 
 def test_no_platform_with_a_width_is_refused() -> None:

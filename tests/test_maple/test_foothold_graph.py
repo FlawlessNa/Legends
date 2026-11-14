@@ -12,10 +12,12 @@ speed is never reached. So:
 A fixture lists every move the graph should hold, as `(kind, direction, from,
 low, high, to)`, ranges in whole px. A fixture that pins the arc's own ranges
 builds with `traced`, which keeps the landings `JUMP_RISE_SHARE` and
-`LANDING_MARGIN` leave out; those two are tested on their own (#509).
+`LANDING_MARGIN` leave out (#509), and the take-offs `TAKEOFF_STEP` leaves out
+(#515); each is tested on its own.
 """
 
 import math
+from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -25,6 +27,7 @@ from maple.model.mechanics.physics import VRPhysics
 from maple.model.navigation import (
     LANDING_MARGIN,
     PORTAL_TIME,
+    TAKEOFF_STEP,
     TELEPORT_TIME,
     Direction,
     FootholdGraph,
@@ -69,11 +72,18 @@ def traced(
     platforms: list[Platform], walls: list[Foothold] | None = None
 ) -> FootholdGraph:
     """
-    The graph with every landing the arc traces, however near the top of
-    the arc or a platform's end: the fixtures that pin the arc itself.
+    The graph with every landing and take-off the arc traces, however near
+    the top of the arc or a platform's end: the fixtures that pin the arc
+    itself.
     """
     return FootholdGraph.from_surfaces(
-        platforms, walls or [], [], PHYSICS, rise_share=1.0, landing_margin=0.0
+        platforms,
+        walls or [],
+        [],
+        PHYSICS,
+        rise_share=1.0,
+        landing_margin=0.0,
+        takeoff_step=0.0,
     )
 
 
@@ -212,8 +222,10 @@ def test_a_drop_too_far_to_jump_back_is_one_way() -> None:
         (D, DN, "A", 0, 100, "B"),
         (F, L, "A", 0, 0, "B"),
         (F, R, "A", 100, 100, "B"),
-        (J, L, "A", 0, 80, "B"),
-        (J, R, "A", 20, 100, "B"),
+        # A sideways jump takes off `TAKEOFF_STEP` of walking (3.3 px) inside
+        # the open end it heads for.
+        (J, L, "A", 4, 80, "B"),
+        (J, R, "A", 20, 96, "B"),
     }
     assert graph.path((50, 200), (50, 0)) is None
     path = graph.path((50, 0), (50, 200))
@@ -283,8 +295,8 @@ def test_a_rope_is_grabbed_climbed_and_left_by_the_expected_moves() -> None:
         (D, DN, "T", -300, 0, "G"),
         (F, L, "T", -300, -300, "G"),
         (F, R, "T", 0, 0, "G"),
-        (J, L, "T", -300, -220, "G"),
-        (J, R, "T", -80, 0, "G"),
+        (J, L, "T", -296, -220, "G"),
+        (J, R, "T", -80, -4, "G"),
         (C, DN, "T", 0, 0, "R"),
         (C, U, "R", -200, -200, "T"),
         (F, DN, "R", -40, -40, "G"),
@@ -463,7 +475,7 @@ def test_a_platform_too_near_the_top_of_the_jump_is_not_jumped_onto() -> None:
 
 def test_a_sideways_jump_lands_a_margin_inside_an_open_end_of_its_platform() -> None:
     a, b = gap()
-    graph = FootholdGraph.from_surfaces([a, b], [], [], PHYSICS)
+    graph = FootholdGraph.from_surfaces([a, b], [], [], PHYSICS, takeoff_step=0.0)
 
     # As traced, A's x in [76, 100] lands B's x in [156.8, 180.8]. A landing
     # 15.5 px inside B's left end (171.5) needs a take-off from x >= 90.7;
@@ -488,3 +500,56 @@ def test_an_end_another_platform_continues_needs_no_margin() -> None:
     # C's x - 80.8 lands on B from x 236.8; 15.5 inside B's open left end
     # needs x >= 252.3. Up to C's x 280 it lands 0.8 px short of the join.
     assert [(round(m.low), round(m.high), m.target) for m in from_c] == [(253, 280, b)]
+
+
+# --- take-offs only an exact walk makes (#515) ------------------------------------
+
+
+def test_a_sideways_jump_takes_off_a_step_of_walking_inside_the_end_it_heads_for() -> (
+    None
+):
+    a, b = gap()
+    graph = FootholdGraph.from_surfaces([a, b], [], [], PHYSICS, landing_margin=0.0)
+
+    # As traced, A's x in [76, 100] lands on B, and B's x in [156, 180] on A.
+    # One Step of walking at 101 px/s is 3.3 px: A's take-offs end at 96.7 and
+    # B's start at 159.3, each short of the open end it heads for.
+    assert summary(graph, {a: "A", b: "B"}) == {
+        (J, R, "A", 76, 96, "B"),
+        (J, L, "B", 160, 180, "A"),
+    }
+    path = graph.path((10, 0), (250, 0))
+    assert path is not None
+    jump = next(m for m in path.moves if m.kind is J)
+    assert a.right - jump.start[0] >= PHYSICS.walk_speed * TAKEOFF_STEP
+
+
+def test_a_jump_only_the_open_end_itself_takes_off_for_is_no_move() -> None:
+    # A level jump carries 80.8 px: only A's x 100, its open end, reaches B at
+    # 180, and back only B's x 180, its own open end. Live, a jump planned so
+    # took off after the character had walked off that end (#515).
+    a, b = platform(1, 0, 100, 0), platform(2, 180, 300, 0)
+    names: dict[Platform | Rope, str] = {a: "A", b: "B"}
+
+    exact = FootholdGraph.from_surfaces(
+        [a, b], [], [], PHYSICS, landing_margin=0.0, takeoff_step=0.0
+    )
+    graph = FootholdGraph.from_surfaces([a, b], [], [], PHYSICS, landing_margin=0.0)
+
+    assert summary(exact, names) == {
+        (J, R, "A", 100, 100, "B"),
+        (J, L, "B", 180, 180, "A"),
+    }
+    assert summary(graph, names) == set()
+    assert graph.path((50, 0), (250, 0)) is None
+
+
+def test_the_take_off_margin_is_a_step_of_the_characters_own_walk() -> None:
+    # Twice the walk speed: a level jump carries 161.6 px, so all of A lands on
+    # B as traced, and one Step of walking is 6.7 px.
+    a, b = gap()
+    faster = replace(PHYSICS, walk_speed=2 * PHYSICS.walk_speed)
+    graph = FootholdGraph.from_surfaces([a, b], [], [], faster, landing_margin=0.0)
+
+    right = [m for m in graph.moves if (m.kind, m.direction, m.source) == (J, R, a)]
+    assert [(round(m.low), round(m.high)) for m in right] == [(0, 93)]

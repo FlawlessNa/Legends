@@ -18,6 +18,8 @@ along a platform, a climb along a rope), each a `MoveRange`:
   A landing the character makes only with an exact take-off is no move
   either (#509): one on a platform higher than `JUMP_RISE_SHARE` of the arc,
   or a sideways jump's within `LANDING_MARGIN` of its platform's open end.
+  Nor is a sideways jump off a platform that takes off within one input
+  Step's walk of the open end it heads for (`TAKEOFF_STEP`, #515).
 - `DROP` down through a platform, onto the next platform below within
   `DROP_REACH`.
 - `FALL` off a platform's end, unless a wall rises there or another platform
@@ -60,6 +62,7 @@ from typing import NamedTuple
 
 import numpy as np
 
+from botting.controller import TYPEMATIC_REPEAT
 from game_data.catalogue import Foothold, Rope
 from maple.model.mechanics.physics import VRPhysics
 from maple.model.world import Platform, WorldMap
@@ -127,6 +130,18 @@ JUMP_RISE_SHARE = 0.95
 #: and a margin rounded down would plan landings no run has shown.
 LANDING_MARGIN = 15.5
 
+#: Seconds of walking a sideways jump off a platform must take off before the
+#: open end it heads for: a take-off nearer that end is no move (#515). A jump
+#: the character walks into takes off when its jump key goes down, and the
+#: compile places that key no finer than one Step of the walk before it (a
+#: walk's repeats are `TYPEMATIC_REPEAT` apart, and the last one can run that
+#: far past the walk's time). So the take-off's margin is the walk speed times
+#: this, in virtual px: 4.9 at the 149 px/s of the live runs. Live (#515,
+#: Ellinia, 2026-11-14), a chained jump planned from a platform's open end
+#: exactly, the one point it lands from, took off after the character had
+#: walked off that end.
+TAKEOFF_STEP = TYPEMATIC_REPEAT
+
 #: Seconds `path` adds to a jump's cost when choosing between routes, so that
 #: a tie goes to the walk. Under a frame (a 60 fps frame is 16.7 ms), and far
 #: above the arc tracing's rounding.
@@ -161,6 +176,7 @@ class FootholdGraph:
         drop_reach: float,
         rise_share: float = JUMP_RISE_SHARE,
         landing_margin: float = LANDING_MARGIN,
+        takeoff_step: float = TAKEOFF_STEP,
     ) -> None:
         self._terrain = terrain
         self._physics = terrain.physics
@@ -170,6 +186,7 @@ class FootholdGraph:
         self._drop_reach = drop_reach
         self._max_rise = rise_share * terrain.physics.jump_height
         self._landing_margin = landing_margin
+        self._takeoff_margin = takeoff_step * terrain.physics.walk_speed
         self._surfaces: tuple[Surface, ...] = (*self._platforms, *self._ropes)
         ends = [self._open(i) for i in range(len(self._platforms))]
         self._open_left = np.array(
@@ -250,6 +267,7 @@ class FootholdGraph:
         drop_reach: float = DROP_REACH,
         rise_share: float = JUMP_RISE_SHARE,
         landing_margin: float = LANDING_MARGIN,
+        takeoff_step: float = TAKEOFF_STEP,
     ) -> FootholdGraph:
         """
         The graph of the surfaces given, from any source.
@@ -266,6 +284,9 @@ class FootholdGraph:
         :param landing_margin: How far inside an open end of its landing
             platform a sideways jump must land (`LANDING_MARGIN`); 0 takes
             the arc as traced.
+        :param takeoff_step: Seconds of walking a sideways jump off a platform
+            must take off before the open end it heads for (`TAKEOFF_STEP`);
+            0 takes every take-off as traced.
         """
         terrain = Terrain(platforms, walls, ropes, physics)
         return cls(
@@ -275,6 +296,7 @@ class FootholdGraph:
             drop_reach=drop_reach,
             rise_share=rise_share,
             landing_margin=landing_margin,
+            takeoff_step=takeoff_step,
         )
 
     def _build_moves(self, portals: Sequence[tuple[Point, Point]]) -> None:
@@ -400,6 +422,11 @@ class FootholdGraph:
                 end, float(self._terrain.platform_y(i, np.array([end]))[0])
             ):
                 surface[at_end] = -1
+            # Too near the open end it heads for, the jump key can go down
+            # after the character has walked off it (`TAKEOFF_STEP`).
+            ahead = self._open_right[i] if vx > 0 else self._open_left[i]
+            if not np.isnan(ahead):
+                surface[np.abs(xs - ahead) < self._takeoff_margin - _TOL] = -1
             surface = self._sure_landings(surface, ys, hits.x, hits.y)
             return surface, hits.x, hits.y, hits.t
 

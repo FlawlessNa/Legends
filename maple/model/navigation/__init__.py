@@ -22,6 +22,7 @@ from .foothold_graph import (
     PLACE_TOLERANCE,
     PORTAL_TIME,
     ROPE_TOP_SNAP,
+    TAKEOFF_STEP,
     TELEPORT_TIME,
     FootholdGraph,
 )
@@ -37,6 +38,7 @@ __all__ = [
     "PLACE_TOLERANCE",
     "PORTAL_TIME",
     "ROPE_TOP_SNAP",
+    "TAKEOFF_STEP",
     "TELEPORT_TIME",
     "Direction",
     "FootholdGraph",
