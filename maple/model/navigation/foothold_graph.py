@@ -21,7 +21,9 @@ along a platform, a climb along a rope), each a `MoveRange`:
   Nor is a sideways jump off a platform that takes off within one input
   Step's walk of the open end it heads for (`TAKEOFF_STEP`, #515).
 - `DROP` down through a platform, onto the next platform below within
-  `DROP_REACH`.
+  `DROP_REACH`, except within `ROPE_GRAB_REACH` of a rope whose top meets
+  that platform and is `usable_from_foothold`: there the down key grabs the
+  rope, and the character climbs down it instead of dropping (#516).
 - `FALL` off a platform's end, unless a wall rises there or another platform
   continues it (a join); and off a rope's bottom, straight down.
 - `CLIMB` between a rope and a platform that meets it: one crossing it inside
@@ -80,6 +82,20 @@ DROP_REACH = 480.0
 #: px. The files put a rope's top 2 to 3 px below the platform it climbs onto
 #: (every rope of Ellinia and Damp Forest).
 ROPE_TOP_SNAP = 4.0
+
+#: How far either side of a rope's x the down key grabs the rope from the
+#: platform at its top, in virtual px; the game files hold no such range (a
+#: rope is `x`, `y1`, `y2`, `l`, `uf` and `page`). Measured live (#516,
+#: Ellinia, Swordsman, speed 100%, 2026-11-14, `physics-ladder-only`): every
+#: down press at a rope's top that the records show grabbed the rope, 4 of 4
+#: (two drops planned from a coarse read 9 px off the ladder at x 627, two
+#: from a fused read 1 px off the rope at x -316), and a walk into the
+#: rope at x 635 with down held grabbed it before reaching it: on the frame
+#: 0.118 s after one at x 665.9, walking at 163.5 px/s, the character was on
+#: the rope and 4.4 px down it, where walking on would have put it at 646.6,
+#: 11.6 px from the rope. So the narrowest reach the record proves, not
+#: rounded; the grab came earlier than that frame, so the real reach is wider.
+ROPE_GRAB_REACH = 11.6
 
 #: How close a platform's end must lie to another platform to walk across, in
 #: virtual px: the client's own joins coincide exactly.
@@ -177,6 +193,7 @@ class FootholdGraph:
         rise_share: float = JUMP_RISE_SHARE,
         landing_margin: float = LANDING_MARGIN,
         takeoff_step: float = TAKEOFF_STEP,
+        grab_reach: float = ROPE_GRAB_REACH,
     ) -> None:
         self._terrain = terrain
         self._physics = terrain.physics
@@ -187,7 +204,9 @@ class FootholdGraph:
         self._max_rise = rise_share * terrain.physics.jump_height
         self._landing_margin = landing_margin
         self._takeoff_margin = takeoff_step * terrain.physics.walk_speed
+        self._grab_reach = grab_reach
         self._surfaces: tuple[Surface, ...] = (*self._platforms, *self._ropes)
+        self._rope_tops = self._find_rope_tops()
         ends = [self._open(i) for i in range(len(self._platforms))]
         self._open_left = np.array(
             [np.nan if a is None else a for a, _ in ends], dtype=float
@@ -268,6 +287,7 @@ class FootholdGraph:
         rise_share: float = JUMP_RISE_SHARE,
         landing_margin: float = LANDING_MARGIN,
         takeoff_step: float = TAKEOFF_STEP,
+        grab_reach: float = ROPE_GRAB_REACH,
     ) -> FootholdGraph:
         """
         The graph of the surfaces given, from any source.
@@ -287,6 +307,9 @@ class FootholdGraph:
         :param takeoff_step: Seconds of walking a sideways jump off a platform
             must take off before the open end it heads for (`TAKEOFF_STEP`);
             0 takes every take-off as traced.
+        :param grab_reach: How far either side of a rope's x the down key
+            grabs it from the platform at its top (`ROPE_GRAB_REACH`); no drop
+            takes off there.
         """
         terrain = Terrain(platforms, walls, ropes, physics)
         return cls(
@@ -297,6 +320,7 @@ class FootholdGraph:
             rise_share=rise_share,
             landing_margin=landing_margin,
             takeoff_step=takeoff_step,
+            grab_reach=grab_reach,
         )
 
     def _build_moves(self, portals: Sequence[tuple[Point, Point]]) -> None:
@@ -453,6 +477,9 @@ class FootholdGraph:
         surface, heights = self._terrain.nearest(
             xs, ys + JOIN_TOLERANCE, ys + self._drop_reach, exclude=i, highest=True
         )
+        # Within reach of a rope's top, the down key grabs the rope (#516).
+        for x in self._rope_tops.get(i, ()):
+            surface = np.where(np.abs(xs - x) <= self._grab_reach + _TOL, -1, surface)
         times = np.array(
             [
                 self._physics.fall_time(h - y) if s >= 0 else np.nan
@@ -618,6 +645,24 @@ class FootholdGraph:
                     (float(end), height),
                     abs(height - y) / self._vy_max,
                 )
+
+    def _find_rope_tops(self) -> dict[int, list[float]]:
+        """
+        Each platform's ropes that the down key boards at their top: the x of
+        every `usable_from_foothold` rope whose top the platform meets (within
+        `ROPE_TOP_SNAP`, as `_add_rope_ends` steps onto it).
+        """
+        tops: dict[int, list[float]] = defaultdict(list)
+        for rope in self._ropes:
+            if rope.usable_from_foothold is False:
+                continue
+            top = min(rope.y1, rope.y2)
+            heights, owner = self._terrain.column(np.array([float(rope.x)]))
+            for k in np.flatnonzero(np.isfinite(heights[0])):
+                h, i = float(heights[0][k]), int(owner[k])
+                if top - ROPE_TOP_SNAP <= h <= top + ROPE_TOP_SNAP:
+                    tops[i].append(float(rope.x))
+        return tops
 
     def _add_rope_ends(self, j: int) -> None:
         """Rope `j`'s attachments, its bottom's fall, and jumps up to grab it."""

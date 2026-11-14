@@ -122,7 +122,8 @@ from maple.screen.position import (
     PositionSource,
     YoloCharacterFinder,
 )
-from maple.screen.position.fusion import CameraSource
+from maple.screen.position.characters import Covered
+from maple.screen.position.fusion import CameraSource, front_art_of
 from maple.screen.sprites import FRAME_CHECK, Profile, load_reader_sprites
 from toolkit.capture_frames import MANIFEST, save_frame
 
@@ -210,6 +211,11 @@ class FinderTap:
     def learn_own(self, frame: Frame, near: tuple[float, float]) -> bool:
         return self.finder.learn_own(frame, near)
 
+    def find_own_hidden(
+        self, frame: Frame, near: tuple[float, float], covered: Covered
+    ) -> CharacterSighting | None:
+        return self.finder.find_own_hidden(frame, near, covered)
+
 
 @dataclass(frozen=True)
 class FrameRead:
@@ -258,7 +264,13 @@ class MapReaders:
         self.minimap = minimap
         self.camera = CameraTap(camera)
         self.finder = finder
-        self.fusion = PositionFusion(transform, lambda: self.camera, finder)
+        self.fusion = PositionFusion(
+            transform,
+            lambda: self.camera,
+            finder,
+            world_map=world_map,
+            front_art=None if world_map is None else front_art_of(world_map),
+        )
         self.frame_check = frame_check
         self.world_map = world_map
         self.render: Pixels | None = None

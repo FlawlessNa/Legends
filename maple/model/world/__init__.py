@@ -9,10 +9,13 @@ The map model in virtual px, built from `game_data` (#302, Part 2).
   and which links count (`platforms`).
 - `StaticRender`: the map's static layers, drawn once and cached under the
   gitignored `data/map_render/<build>/` (`static_render`).
+- `FrontArt`: which of the map's pixels are drawn over a character on a given
+  layer, from its tiles and objects (`front_art`).
 
 This package imports `game_data`; `game_data` never imports it.
 """
 
+from .front_art import FrontArt
 from .platforms import Platform, chain_platforms, is_wall
 from .static_render import MAP_RENDERS, StaticRender, draw_static
 from .world_map import SURFACE_TOLERANCE, MinimapTransform, WorldMap
@@ -20,6 +23,7 @@ from .world_map import SURFACE_TOLERANCE, MinimapTransform, WorldMap
 __all__ = [
     "MAP_RENDERS",
     "SURFACE_TOLERANCE",
+    "FrontArt",
     "MinimapTransform",
     "Platform",
     "StaticRender",

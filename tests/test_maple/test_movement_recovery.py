@@ -536,6 +536,72 @@ def test_a_coarse_position_stepping_one_canvas_pixel_is_jitter() -> None:
     assert any(r is not None and r.symptom is Symptom.STALL for r in reactions)
 
 
+#: The coarse reads `ladder-mid-1` decided from at the top of Ellinia, cycles 10
+#: to 33 (#516): x only, y -763 throughout, the target at (627, -759).
+LADDER_TOP_READS = (
+    634,
+    634,
+    618,
+    618,
+    618,
+    634,
+    634,
+    618,
+    618,
+    618,
+    634,
+    634,
+    634,
+    618,
+    618,
+    618,
+    618,
+    634,
+    634,
+    634,
+    618,
+    618,
+    634,
+    634,
+)
+
+
+def test_the_ladder_tops_walk_either_side_is_caught_by_the_production_defaults() -> (
+    None
+):
+    """
+    #516: a walk-only Plan turning back and forth at the top of a ladder, one
+    walk of 7 or 9 px a cycle, never closer. Production's own thresholds catch
+    it: the same Plan from the same canvas pixel a fourth time, with the Path
+    not shrinking (Plan Churn, `churn_repeats` 4 within `churn_cycles` 12),
+    before the 4 s Stall. The live loop now plans no walk inside a coarse read
+    (`MovementHandler.compute_path`), so a 7 px walk is not sent at all.
+    """
+    orbit = _Monitor(RecoveryThresholds())
+    orbit.target = (627.0, -759.0)
+    reaction = None
+    cycles = 0
+    for x in LADDER_TOP_READS:
+        cycles += 1
+        way = MovementTypes.WALK_LEFT if x > 627 else MovementTypes.WALK_RIGHT
+        length = abs(x - 627.0)
+        plan = (
+            _MovementComponent(way, length, start=(x, -759.0), end=(627.0, -759.0)),
+            _MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),
+        )
+        # The record's cycles were 0.24 s apart.
+        reaction = orbit.tick(
+            (float(x), -763.0), dt=0.24, remaining=length / 148.75, plan=plan
+        )
+        if reaction is not None:
+            break
+
+    assert reaction is not None
+    assert reaction.symptom is Symptom.PLAN_CHURN
+    assert reaction.rung is Rung.REFLEX
+    assert cycles <= 12
+
+
 def test_a_target_no_path_reaches_stagnates() -> None:
     """No Path is no progress, however long it goes on."""
     pathless = _Monitor(_thresholds(stagnation_window=1.0))

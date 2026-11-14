@@ -474,6 +474,14 @@ is looking. Read by matching the play area against the map's static render;
 adding it to the feet found on screen gives their Virtual position.
 _Avoid_: Viewport, scroll — the client scrolls the minimap too.
 
+**Front art**:
+The tiles and objects a map draws over a character: those of every layer above
+the layer it is drawn on (its foothold's, or its rope's `page`). They hide its
+name tag too, as the ladder's top does at the top of Ellinia; the Virtual
+position then matches what of the tag they leave seen (`FrontArt`, #517).
+_Avoid_: Foreground — a background marked `front` is something else, drawn over
+everything.
+
 **Platform**:
 A maximal chain of non-vertical footholds joined by their `prev`/`next`, from
 the map's game files, in virtual px. What the character stands and walks on;

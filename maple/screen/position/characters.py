@@ -7,7 +7,9 @@ decision N3): a `CharacterFinder` interface, with two implementations.
   (`toolkit/poc_tracking/hybrid_tracker.py`). It lists every tag it finds, and
   tells ours apart once it has learned it (`learn_own`): our tag's width and
   appearance, from 3 sightings where the minimap puts our character. No text is
-  read.
+  read. Where the map's art drawn in front of our character hides part of our
+  tag, it finds ours on what is seen, when asked where to look and what is
+  hidden (`find_own_hidden`, #517).
 - `YoloCharacterFinder` wraps a YOLO detection model's `Character` boxes. Its
   weights are trained elsewhere, and nothing here waits on them.
 
@@ -17,14 +19,15 @@ size and adding the camera is `PositionFusion`'s job (#392).
 No value here is read from the client. The tag's thresholds come from the POCs;
 `TAG_TO_FEET` and the match scores were measured on frame set v3
 (`tests/frames/README.md`), and the sizes the play area is upscaled at are
-`camera.PLAY_AREAS`, measured there too.
+`camera.PLAY_AREAS`, measured there too. `HIDDEN_PART` was read off a
+Session's screen recording, not a labelled frame set.
 """
 
 from __future__ import annotations
 
 import collections
 import math
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -39,6 +42,10 @@ from .camera import play_area_size
 
 Box = tuple[int, int, int, int]
 """`(x0, y0, x1, y1)` in client px, the right and bottom edges exclusive."""
+
+type Covered = Callable[[Box], NDArray[np.bool_]]
+"""For a box of the client, `(x0, y0, x1, y1)`, True on each pixel the map's
+art drawn in front of our character covers (`maple.model.world.FrontArt`)."""
 
 # --------------------------------------------------------------------- the interface
 
@@ -84,6 +91,17 @@ class CharacterFinder(Protocol):
         px) on `frame`, as the minimap puts them. True once the finder can tell
         our character apart on frames of this size; a finder that can't learn
         always answers False.
+        """
+        ...
+
+    def find_own_hidden(
+        self, frame: Frame, near: tuple[float, float], covered: Covered
+    ) -> CharacterSighting | None:
+        """
+        Our character about at `near` (client px), where `find` didn't find
+        it because something drawn in front of it hides part of it: matched
+        on what `covered` doesn't say is hidden. `None` when it isn't found
+        so, or the finder can't tell ours apart.
         """
         ...
 
@@ -150,6 +168,21 @@ the learned tag, the end still on screen (`tests/frames/README.md`)."""
 EDGE_SCORE_OK = 0.7
 """The score that end needs. Measured on frame set v3: 0.74 to 0.93 where our
 tag is cut, 0.53 at most anywhere else."""
+
+HIDDEN_PART = 0.2
+"""Where the map's art drawn in front of our character hides part of our tag
+(#517), the share of the tag's text pixels that must still be seen for the
+rest to be matched. The rest must score `OWN_SCORE_OK` and beat any other
+place by `OWN_MARGIN`, as the whole tag must, and is only looked for within
+`OWN_NEAR` of where the minimap puts our character.
+
+Read off one Session's screen recording at 1920x1080 (MPEG-4, so lossy), not
+a labelled frame set, which has no hidden tag: at the top of Ellinia the
+ladder's top hides our tag on 437 reads, and leaves 16 to 48 % of its text
+seen (5th to 90th percentile, median 29 %). There the rest scores 0.83 and up
+on 90 % of reads, at the feet's height on the foothold, and beats any other
+place by 0.43 and up on 95 %. At 0.2, 349 of the 437 are found (412 at 0.15,
+275 at 0.25, 9 at `EDGE_PART`). To be confirmed on the live client."""
 
 
 def _white(scale: float) -> int:
@@ -283,6 +316,44 @@ class NameTagFinder:
         self._resized.clear()
         return True
 
+    def find_own_hidden(
+        self, frame: Frame, near: tuple[float, float], covered: Covered
+    ) -> CharacterSighting | None:
+        """
+        Our tag, where the map's art drawn in front of our character hides
+        part of it: our learned tag matched on the pixels `covered` leaves
+        seen, by a normalised correlation over those pixels only, at the
+        places that put the feet within `OWN_NEAR` of `near`. Found when
+        `HIDDEN_PART` of its text is seen there, and it scores `OWN_SCORE_OK`
+        and beats any other of those places by `OWN_MARGIN`.
+        """
+        scale = tag_upscale(frame.client_size)
+        if scale is None or not frame.ok:
+            return None
+        template = self._template(scale)
+        if template is None:
+            return None
+        pixels = _searched(frame.pixels)
+        th, tw = template.shape
+        rows, cols = pixels.shape[:2]
+        # The tag's top left for feet at `near`: `_feet`, inverted.
+        x = near[0] - (tw - 1) / 2 - TAG_X_TO_FEET * scale
+        y = near[1] + TAG_TO_FEET * scale
+        reach_x, reach_y = OWN_NEAR[0] * scale, OWN_NEAR[1] * scale
+        x0, y0 = max(0, math.ceil(x - reach_x)), max(0, math.ceil(y - reach_y))
+        x1 = min(cols, math.floor(x + reach_x) + tw)
+        y1 = min(rows, math.floor(y + reach_y) + th)
+        if x1 - x0 < tw or y1 - y0 < th:
+            return None
+        hay = _lightest(pixels[y0:y1, x0:x1])
+        seen = ~covered((x0, y0, x1, y1))
+        found = _match_seen(hay, seen, template, _white(scale))
+        if found is None:
+            return None
+        score, bx, by = found
+        box = (x0 + bx, y0 + by, x0 + bx + tw, y0 + by + th)
+        return CharacterSighting(_feet(box, scale), "name tag", score, True, box)
+
     def _template(self, scale: float) -> NDArray[np.float32] | None:
         """Our tag at this scale: learned at it, else resized from the nearest
         scale learned; None before any is."""
@@ -400,6 +471,60 @@ def _best(
     return float(best), int(x), int(y)
 
 
+def _match_seen(
+    hay: NDArray[np.float32],
+    seen: NDArray[np.bool_],
+    text: NDArray[np.float32],
+    white: int,
+) -> tuple[float, int, int] | None:
+    """
+    Our tag's match `(score, x, y)` in `hay` on the pixels `seen` marks: at
+    each place, `TM_CCOEFF_NORMED`'s score over the seen pixels only (the
+    same score where every pixel is seen). A place counts when `HIDDEN_PART`
+    of the tag's text pixels (`white` and up) are seen there; the best must
+    score `OWN_SCORE_OK` and beat every other place by `OWN_MARGIN`. None
+    otherwise.
+    """
+    th, tw = text.shape
+    w = seen.astype(np.float64)
+    h = hay.astype(np.float64)
+    t = text.astype(np.float64)
+    letters = (t >= white).astype(np.float64)
+    if letters.sum() == 0:
+        return None
+    ones = np.ones_like(t)
+    n = _correlate(w, ones)
+    sh, shh = _correlate(w * h, ones), _correlate(w * h * h, ones)
+    st, stt, sht = _correlate(w, t), _correlate(w, t * t), _correlate(w * h, t)
+    shown = _correlate(w, letters) / letters.sum()
+    with np.errstate(divide="ignore", invalid="ignore"):
+        covariance = sht - sh * st / n
+        spread = (shh - sh * sh / n) * (stt - st * st / n)
+        score = covariance / np.sqrt(spread)
+    score[~np.isfinite(score) | (spread <= 0) | (shown < HIDDEN_PART)] = -1.0
+    y, x = np.unravel_index(int(np.argmax(score)), score.shape)
+    best = float(score[y, x])
+    if best < OWN_SCORE_OK:
+        return None
+    score[max(0, y - th) : y + th, max(0, x - tw) : x + tw] = -1.0
+    if best - float(score.max()) < OWN_MARGIN:
+        return None
+    return best, int(x), int(y)
+
+
+def _correlate(
+    image: NDArray[np.float64], kernel: NDArray[np.float64]
+) -> NDArray[np.float64]:
+    """`sum(kernel * image[y:y + kh, x:x + kw])` at every place where the
+    kernel lies inside `image`, in float64: sums of squared pixels outgrow
+    float32's precision."""
+    kh, kw = kernel.shape
+    out = cv2.filter2D(image, cv2.CV_64F, kernel, anchor=(0, 0))
+    return np.asarray(
+        out[: image.shape[0] - kh + 1, : image.shape[1] - kw + 1], np.float64
+    )
+
+
 # ----------------------------------------------------------------------------- YOLO
 
 CHARACTER_CLASS = "Character"
@@ -476,3 +601,8 @@ class YoloCharacterFinder:
 
     def learn_own(self, frame: Frame, near: tuple[float, float]) -> bool:
         return False
+
+    def find_own_hidden(
+        self, frame: Frame, near: tuple[float, float], covered: Covered
+    ) -> CharacterSighting | None:
+        return None
