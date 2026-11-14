@@ -25,6 +25,7 @@ from maple.model.mechanics.physics import VRPhysics
 from maple.model.navigation import (
     LANDING_MARGIN,
     PORTAL_TIME,
+    ROPE_GRAB_REACH,
     TELEPORT_TIME,
     Direction,
     FootholdGraph,
@@ -275,12 +276,13 @@ def test_a_rope_is_grabbed_climbed_and_left_by_the_expected_moves() -> None:
 
     names: dict[Platform | Rope, str] = {ground: "G", top: "T", r: "R"}
     # From G, a sideways jump crosses x = 0 inside the rope's height between
-    # 0.117 s and 0.683 s after take-off, so from |x| in [11.8, 69.0].
+    # 0.117 s and 0.683 s after take-off, so from |x| in [11.8, 69.0]. From T,
+    # a drop within `ROPE_GRAB_REACH` (11.6) of the rope's top grabs the rope.
     assert summary(graph, names) == {
         (J, L, "G", 12, 68, "R"),
         (J, R, "G", -68, -12, "R"),
         (J, U, "G", 0, 0, "R"),
-        (D, DN, "T", -300, 0, "G"),
+        (D, DN, "T", -300, -12, "G"),
         (F, L, "T", -300, -300, "G"),
         (F, R, "T", 0, 0, "G"),
         (J, L, "T", -300, -220, "G"),
@@ -322,6 +324,45 @@ def test_a_rope_whose_top_is_not_usable_has_no_step_at_the_top() -> None:
     graph = FootholdGraph.from_surfaces([ground, top], [], [r], PHYSICS)
 
     assert not [m for m in graph.moves if m.kind is C]
+
+
+def test_no_drop_takes_off_within_grab_reach_of_a_ropes_top() -> None:
+    # The down key grabs a rope from the platform at its top (#516): a drop
+    # planned there climbs down the rope instead. Both sides of the rope.
+    ground = platform(1, -500, 500, 0)
+    top = platform(2, -300, 300, -202)
+    r = rope(1, 0, -200, -40)
+    graph = FootholdGraph.from_surfaces([ground, top], [], [r], PHYSICS)
+
+    drops = sorted((round(m.low), round(m.high)) for m in graph.moves if m.kind is D)
+    assert ROPE_GRAB_REACH == pytest.approx(11.6)
+    assert drops == [(-300, -12), (12, 300)]
+
+
+def test_a_drop_beside_a_rope_whose_top_is_not_usable_is_kept() -> None:
+    ground = platform(1, -500, 500, 0)
+    top = platform(2, -300, 300, -202)
+    r = rope(1, 0, -200, -40, uf=False)
+    graph = FootholdGraph.from_surfaces([ground, top], [], [r], PHYSICS)
+
+    drops = [(round(m.low), round(m.high)) for m in graph.moves if m.kind is D]
+    assert drops == [(-300, 300)]
+
+
+def test_a_path_down_from_a_ropes_top_climbs_down_or_leaves_the_reach_first() -> None:
+    # From 9 px off the rope's x, as the live record's coarse read was: the
+    # Path to the ground starts no drop within reach of the rope.
+    ground = platform(1, -500, 500, 0)
+    top = platform(2, -300, 300, -202)
+    r = rope(1, 0, -200, -40)
+    graph = FootholdGraph.from_surfaces([ground, top], [], [r], PHYSICS)
+
+    path = graph.path((-9, -202), (-9, 0))
+
+    assert path is not None
+    assert contiguous(path)
+    drops = [m for m in path.moves if m.kind is D]
+    assert all(abs(m.start[0]) > ROPE_GRAB_REACH for m in drops)
 
 
 def test_a_platform_crossing_a_rope_is_stepped_on_and_off_mid_rope() -> None:

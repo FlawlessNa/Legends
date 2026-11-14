@@ -23,6 +23,15 @@ whose key is already down is shortened by how far the character has walked
 since the frame its position was read on (`read_at`), up to the moment of
 compiling.
 
+**No walk inside the read** (#516). A Path that is only a walk no longer than
+the start's own uncertainty (half a canvas px on a coarse read) is planned as
+no move (`compute_path`'s `resolution`).
+
+**Onto a rope from above.** A walk whose next move climbs down onto a rope
+holds `down` from its first Step, and its direction stays down through the
+climb: the down key grabs the rope as soon as the character is within reach
+of it (`ROPE_GRAB_REACH`), wherever the read put the walk's end.
+
 **Which graph moves become which component.**
 
 - `WALK` left or right: `WALK_LEFT`/`WALK_RIGHT`, its length along x. A walk
@@ -816,15 +825,25 @@ class MovementHandler:
         physics: VRPhysics,
         *,
         graph: FootholdGraph | None = None,
+        resolution: float = 0.0,
     ) -> Path | None:
         """
         The quickest Path from `start` to `goal`, in virtual px, on the graph of
         `physics`.
 
+        **No walk inside the read** (#516). A Path that is nothing but a walk
+        no longer than `resolution` is planned as no move (`Path(())`): the
+        start is known only to that, so the read cannot tell the character
+        from the goal, and the walk carries it to the read's other side. The
+        live record walked 7 and 9 px either side of a ladder's x for minutes,
+        each walk flipping a coarse read from one side to the other.
+
         :param graph: That graph, as `ready_graph` returned it: the live
             planner passes it, so the Path is planned on it even if it has
             since been dropped from the kept graphs. `None` blocks until the
             graph of `physics` is built (offline callers).
+        :param resolution: How far off `start`'s x may be, virtual px: half a
+            canvas px for a coarse read, 0 for an exact one.
         :return: `None` when no path joins them, or when either lies on no
             platform or rope (the character in the air, say): the caller plans
             again from its next position.
@@ -834,6 +853,7 @@ class MovementHandler:
             (float(goal[0]), float(goal[1])),
             physics,
             graph,
+            float(resolution),
         )
 
     def _compute_path_uncached(
@@ -842,16 +862,21 @@ class MovementHandler:
         goal: Point,
         physics: VRPhysics,
         graph: FootholdGraph | None,
+        resolution: float,
     ) -> Path | None:
         # Per-cycle pathing traces, so DEBUG is the honest level.
         logger.debug("Computing path from %s to %s", start, goal)
         if graph is None:
             graph = self.graph(physics)
         try:
-            return graph.path(start, goal)
+            path = graph.path(start, goal)
         except ValueError as error:
             logger.debug("No path: %s", error)
             return None
+        if path is not None and _walk_within(path, resolution):
+            logger.debug("No move: the walk is within the read (%s px).", resolution)
+            return Path(())
+        return path
 
     def _path_into_movements_uncached(
         self, path: Path | None
@@ -978,6 +1003,13 @@ class MovementHandler:
             teleport=self.teleport,
             total_duration=total_duration,
         )
+
+
+def _walk_within(path: Path, resolution: float) -> bool:
+    """Whether `path` is one or more walks, `resolution` virtual px long at most."""
+    if not path.moves or any(m.kind is not MoveKind.WALK for m in path.moves):
+        return False
+    return abs(path.moves[-1].end[0] - path.moves[0].start[0]) <= resolution
 
 
 def _merge(components: list[_MovementComponent]) -> list[_MovementComponent]:

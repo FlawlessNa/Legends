@@ -13,6 +13,7 @@ import pytest
 from game_data.catalogue import Rope
 from maple.model.mechanics.physics import Calibration, VRPhysics
 from maple.model.navigation import (
+    ROPE_GRAB_REACH,
     Direction,
     FootholdGraph,
     MoveKind,
@@ -267,3 +268,19 @@ def test_ellinias_paths_jump_only_where_a_landing_was_seen_live(
                 move.end[0] - move.end_on.left, move.end_on.right - move.end[0]
             )
             assert inside >= NARROWEST_MARGIN_SEEN, move
+
+
+def test_ellinia_down_from_the_ladders_top_drops_nowhere_within_its_reach(
+    physics: VRPhysics,
+) -> None:
+    # #516: from the coarse read the live record planned from, 9 px off the
+    # ladder at x 627, the Path down it was a drop the down key turned into a
+    # grab of the ladder. No drop now takes off within reach of its top.
+    graph = FootholdGraph.build(WorldMap.load("Victoria Road: Ellinia"), physics)
+
+    path = graph.path((618.0, -763.0), (627.0, -500.0))
+
+    assert path is not None
+    for move in path.moves:
+        if move.kind is MoveKind.DROP:
+            assert abs(move.start[0] - 627) > ROPE_GRAB_REACH
