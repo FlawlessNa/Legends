@@ -4,21 +4,34 @@ and a minimap reading made up for each case, so each rule of the fusion is
 tried alone. The frame set's frames are `test_position_fusion_frames.py`'s.
 """
 
+from collections.abc import Callable
+
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from botting.screen import Frame, Reading, Status
 from botting.utilities import Box
-from game_data.catalogue import Bounds, Minimap
-from maple.model.world import MinimapTransform, WorldMap
+from game_data.catalogue import Bounds, Foothold, LayerFrame, MapLayer, Minimap
+from maple.model.world import FrontArt, MinimapTransform, Platform, WorldMap
 from maple.screen.minimap import MinimapState, MinimapView, virtual_feet
 from maple.screen.position import (
     WINDOW,
     Camera,
+    CharacterFinder,
     CharacterSighting,
+    NameTagFinder,
     PositionFusion,
     PositionSource,
     VirtualPosition,
+)
+from tests.test_maple.test_screen_characters import (
+    OURS,
+    art_over,
+    blank,
+    draw_tag,
+    feet_over,
+    text_box,
 )
 
 TRANSFORM = MinimapTransform(centre=(1000, 2000), mag=4)
@@ -69,6 +82,9 @@ class Finder:
         self.reading = reading
         self.knows = knows
         self.taught: list[tuple[float, float]] = []
+        self.hidden: CharacterSighting | None = None
+        """What `find_own_hidden` answers."""
+        self.asked: list[tuple[tuple[float, float], Covered]] = []
 
     def find(self, frame: Frame) -> Reading[list[CharacterSighting]]:
         return self.reading
@@ -76,6 +92,15 @@ class Finder:
     def learn_own(self, frame: Frame, near: tuple[float, float]) -> bool:
         self.taught.append(near)
         return self.knows
+
+    def find_own_hidden(
+        self, frame: Frame, near: tuple[float, float], covered: Covered
+    ) -> CharacterSighting | None:
+        self.asked.append((near, covered))
+        return self.hidden
+
+
+type Covered = Callable[[tuple[int, int, int, int]], NDArray[np.bool_]]
 
 
 def seen(*feet: tuple[float, float], own: int | None = None) -> Finder:
@@ -342,3 +367,212 @@ def test_a_camera_places_client_px_scaled_to_the_play_area() -> None:
     x, y = camera.to_virtual((960.0, 540.0), (1920, 1080))
 
     assert (x, y) == pytest.approx((200 + 683, 50 + 384))
+
+
+# --- our tag behind the map's art (#517) -------------------------------------
+
+
+def ground(layer: int = 1, y: int = 344) -> WorldMap:
+    """A flat platform under `FEET`, on `layer`."""
+    platform = Platform(layer, (Foothold("map", layer, 0, 1, 500, y, 700, y, 0, 0),))
+    return WorldMap(
+        1, None, None, Bounds(0, 0, 2000, 2000), TRANSFORM, (platform,), (), (), ()
+    )
+
+
+def art(*pieces: tuple[int, int, int, int, int]) -> FrontArt:
+    """Solid art `(layer, left, top, right, bottom)`, in virtual px."""
+    images = {
+        f"{n}": np.full((bottom - top, right - left, 4), 255, np.uint8)
+        for n, (_, left, top, right, bottom) in enumerate(pieces)
+    }
+    items = [
+        MapLayer(
+            "object",
+            layer,
+            0,
+            0,
+            left,
+            top,
+            False,
+            "a",
+            (LayerFrame(0, f"{n}", 0, 0, None),),
+            None,
+        )
+        for n, (layer, left, top, _, _) in enumerate(pieces)
+    ]
+    return FrontArt.from_layers(items, images.__getitem__)
+
+
+def shot(image: NDArray[np.uint8]) -> Frame:
+    return Frame(image, (1366, 768), AT, True, True)
+
+
+def behind(
+    finder: CharacterFinder,
+    world: WorldMap | None = None,
+    front: FrontArt | None = None,
+) -> PositionFusion:
+    drawn = art() if front is None else front
+    return PositionFusion(
+        TRANSFORM,
+        lambda: Cameras(Reading.read(CAMERA, AT)),
+        finder,
+        world_map=ground() if world is None else world,
+        front_art=lambda: drawn,
+    )
+
+
+def test_ours_partly_behind_the_maps_art_is_ours_by_what_is_seen() -> None:
+    """Something else beside us, untagged, and our tag found only where the
+    art doesn't hide it: fused there."""
+    finder = seen((598, 340))
+    finder.knows = True
+    finder.hidden = CharacterSighting((406.5, 291), "name tag", 0.9, True)
+
+    result = behind(finder).read(screen(), minimap())
+
+    assert placed(result.position) == (606.5, 341, PositionSource.FUSED)
+    assert result.position.detail == "ours by its tag, part of it behind the map's art"
+    assert result.by_tag
+    assert result.near == 2
+    ((near, _),) = finder.asked
+    assert near == (FEET[0] - CAMERA.x, FEET[1] - CAMERA.y)
+
+
+def test_the_art_is_looked_up_on_the_layer_under_us_in_client_px() -> None:
+    """Art on layer 2 is in front of a character on the layer-1 platform;
+    art on layer 1 isn't. At 1:1 a client pixel is a virtual one, moved by
+    the camera."""
+    finder = seen()
+    finder.knows = True
+    front = art((2, 600, 340, 610, 345), (1, 620, 340, 630, 345))
+
+    behind(finder, ground(layer=1), front).read(screen(), minimap())
+
+    ((_, covered),) = finder.asked
+    mask = covered((390, 285, 440, 300))  # virtual (590, 335) to (640, 350)
+    assert np.argwhere(mask).tolist() == [
+        [y, x] for y in range(5, 10) for x in range(10, 20)
+    ]
+
+
+def test_above_1_to_1_the_art_is_scaled_and_grown_by_a_client_pixel() -> None:
+    camera = Camera(200, 50, 0.6, 2.0, (1366, 768))
+    finder = seen()
+    finder.knows = True
+    fusion = PositionFusion(
+        TRANSFORM,
+        lambda: Cameras(Reading.read(camera, AT)),
+        finder,
+        world_map=ground(),
+        front_art=lambda: art((2, 600, 340, 601, 341)),
+    )
+
+    fusion.read(screen((1920, 1080)), minimap())
+
+    ((_, covered),) = finder.asked
+    ys, xs = np.nonzero(covered((0, 0, 1920, 1000)))
+    # The client pixels whose middles fall in virtual (600, 340), and one
+    # more on every side.
+    middles_x = [c for c in range(1920) if (c + 0.5) * 1366 // 1920 + 200 == 600]
+    middles_y = [c for c in range(1000) if (c + 0.5) * 768 // 1080 + 50 == 340]
+    assert (xs.min(), xs.max()) == (min(middles_x) - 1, max(middles_x) + 1)
+    assert (ys.min(), ys.max()) == (min(middles_y) - 1, max(middles_y) + 1)
+
+
+def test_a_hidden_tag_is_not_looked_for_where_our_tag_was_found() -> None:
+    finder = seen((605, 340), (900, 340), own=1)
+
+    result = behind(finder).read(screen(), minimap())
+
+    assert finder.asked == []
+    assert placed(result.position)[2] is PositionSource.COARSE
+    assert result.own_elsewhere
+
+
+def test_a_hidden_tag_is_not_looked_for_before_ours_can_be_told_apart() -> None:
+    finder = seen((605, 340))
+
+    behind(finder).read(screen(), minimap())
+
+    assert finder.asked == []
+
+
+@pytest.mark.parametrize("world", [None, "far"])
+def test_without_the_map_or_away_from_its_surfaces_nothing_is_looked_for(
+    world: str | None,
+) -> None:
+    finder = seen((605, 340))
+    finder.knows = True
+    finder.hidden = CharacterSighting((406.5, 291), "name tag", 0.9, True)
+    if world is None:
+        fusion = PositionFusion(
+            TRANSFORM, lambda: Cameras(Reading.read(CAMERA, AT)), finder
+        )
+    else:
+        fusion = behind(finder, ground(y=600))
+
+    result = fusion.read(screen(), minimap())
+
+    assert finder.asked == []
+    assert placed(result.position)[2] is PositionSource.COARSE
+
+
+def test_a_hidden_tag_still_has_to_agree_with_the_minimap() -> None:
+    finder = seen()
+    finder.knows = True
+    finder.hidden = CharacterSighting((420, 300), "name tag", 0.9, True)  # (620, 350)
+    fusion = behind(finder)
+
+    result = fusion.read(screen(), minimap())
+
+    assert placed(result.position) == (620, 350, PositionSource.FUSED)
+    finder.hidden = CharacterSighting((300, 290), "name tag", 0.9, True)  # outside
+    assert placed(fusion.read(screen(), minimap()).position)[2] is PositionSource.COARSE
+
+
+def test_with_the_real_finder_ours_under_a_ladder_is_fused() -> None:
+    """#517, from the readers' own geometry: our tag learned where the
+    minimap puts us, then the top of a ladder (layer 2) drawn over its right
+    part while we stand on the layer-1 platform. The whole tag no longer
+    scores as ours; what the ladder leaves seen does, at the feet over it."""
+    probe = blank()
+    draw_tag(probe, OURS, 100, 100)
+    offset = feet_over(text_box(probe, 90, 200))
+    left, baseline = round(408 - (offset[0] - 100)), round(294 - (offset[1] - 100))
+    picture = blank()
+    draw_tag(picture, OURS, left, baseline)
+    box = text_box(picture, left - 10, left + 110)
+    feet = feet_over(box)
+    ladder = (
+        box[2] - round(0.7 * (box[2] - box[0])),
+        box[1] - 5,
+        box[2] + 5,
+        box[3] + 6,
+    )
+    covered = picture.copy()
+    art_over(covered, ladder)
+    front = art(
+        (
+            2,
+            ladder[0] + CAMERA.x,
+            ladder[1] + CAMERA.y,
+            ladder[2] + CAMERA.x,
+            ladder[3] + CAMERA.y,
+        )
+    )
+    finder = NameTagFinder()
+    fusion = behind(finder, ground(layer=1), front)
+    for _ in range(3):
+        assert fusion.read(shot(picture), minimap()).position.status is Status.READ
+    assert not any(s.own for s in finder.find(shot(covered)).value or [])
+
+    result = fusion.read(shot(covered), minimap())
+
+    assert placed(result.position) == (
+        feet[0] + CAMERA.x,
+        feet[1] + CAMERA.y,
+        PositionSource.FUSED,
+    )
+    assert "behind the map's art" in result.position.detail

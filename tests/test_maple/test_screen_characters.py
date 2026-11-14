@@ -311,6 +311,109 @@ def test_a_resize_keeps_what_was_learned_at_each_scale() -> None:
     assert any(s.own for s in finder.find(frame(small)).value or [])
 
 
+# ------------------------------------------- our tag behind the map's art (#517)
+
+
+def art_over(
+    image: NDArray[np.uint8], box: tuple[int, int, int, int]
+) -> Callable[[tuple[int, int, int, int]], NDArray[np.bool_]]:
+    """Paints striped map art over `box` of `image`, as a ladder drawn in
+    front of our character would be, and says where it is, as fusion does
+    from the map's `FrontArt`."""
+    x0, y0, x1, y1 = box
+    stripes = np.array([(60, 90, 40), (100, 90, 40), (140, 120, 60)], np.uint8)
+    image[y0:y1, x0:x1] = stripes[np.arange(x0, x1) % 3]
+    art = np.zeros(image.shape[:2], np.bool_)
+    art[y0:y1, x0:x1] = True
+
+    def covered(region: tuple[int, int, int, int]) -> NDArray[np.bool_]:
+        rx0, ry0, rx1, ry1 = region
+        return art[ry0:ry1, rx0:rx1]
+
+    return covered
+
+
+def learned_finder() -> NameTagFinder:
+    image = blank()
+    draw_tag(image, OURS, 300, 400)
+    finder = NameTagFinder()
+    taught(finder, image, feet_over(text_box(image, 290, 400)))
+    return finder
+
+
+def hidden_tag(share: float) -> tuple[NDArray[np.uint8], tuple[float, float], Any]:
+    """Our tag at (600, 300), its right `share` under the map's art: the
+    picture, the feet over the whole tag, and where the art is."""
+    image = blank()
+    draw_tag(image, OURS, 600, 300)
+    box = text_box(image, 590, 720)
+    width = box[2] - box[0]
+    left = box[2] - round(share * width)
+    covered = art_over(image, (left, box[1] - 5, box[2] + 5, box[3] + 6))
+    return image, feet_over(box), covered
+
+
+def test_ours_partly_behind_the_maps_art_is_found_on_what_is_seen() -> None:
+    finder = learned_finder()
+    image, feet, covered = hidden_tag(0.7)
+    assert not any(s.own for s in finder.find(frame(image)).value or [])
+
+    found = finder.find_own_hidden(frame(image), (feet[0] + 6, feet[1] + 12), covered)
+
+    assert found is not None
+    assert found.feet == feet
+    assert found.own
+    assert found.source == "name tag"
+    assert found.confidence > 0.99
+
+
+def test_too_little_of_our_tag_seen_is_not_ours() -> None:
+    finder = learned_finder()
+    image, feet, covered = hidden_tag(0.9)
+
+    assert finder.find_own_hidden(frame(image), feet, covered) is None
+
+
+def test_our_hidden_tag_is_looked_for_only_near_the_minimaps_position() -> None:
+    finder = learned_finder()
+    image, feet, covered = hidden_tag(0.7)
+
+    assert (
+        finder.find_own_hidden(frame(image), (feet[0] + 20, feet[1]), covered) is None
+    )
+    assert (
+        finder.find_own_hidden(frame(image), (feet[0], feet[1] - 40), covered) is None
+    )
+
+
+def test_with_nothing_covered_it_scores_as_the_whole_tag_does() -> None:
+    finder = learned_finder()
+    image = blank()
+    draw_tag(image, OURS, 600, 300)
+    feet = feet_over(text_box(image, 590, 720))
+    (own,) = [s for s in finder.find(frame(image)).value or [] if s.own]
+
+    found = finder.find_own_hidden(
+        frame(image),
+        feet,
+        lambda box: np.zeros((box[3] - box[1], box[2] - box[0]), bool),
+    )
+
+    assert found is not None
+    assert found.feet == own.feet == feet
+    assert found.confidence == pytest.approx(own.confidence, abs=1e-6)
+
+
+def test_a_hidden_tag_is_not_ours_before_ours_is_learned() -> None:
+    image, feet, covered = hidden_tag(0.7)
+
+    assert NameTagFinder().find_own_hidden(frame(image), feet, covered) is None
+    assert (
+        YoloCharacterFinder(StubModel([])).find_own_hidden(frame(image), feet, covered)
+        is None
+    )
+
+
 # ----------------------------------------------------------------------------- YOLO
 
 

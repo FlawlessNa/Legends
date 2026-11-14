@@ -214,3 +214,36 @@ class WorldMap:
             if distance <= tolerance and (best is None or distance < best[0]):
                 best = (distance, rope)
         return None if best is None else best[1]
+
+    def layer_near(self, point: tuple[float, float], reach: float) -> int | None:
+        """
+        The lowest layer a character within `reach` of `point` could be drawn
+        on: of the platforms passing within `reach` (in x and in y), their
+        foothold layer, and of the ropes and ladders, their `page`. `None`
+        when none is that close, or none says its layer.
+
+        The lowest, because the art of every layer above a character's is
+        drawn over it (`FrontArt`): taking a layer too low counts too much as
+        hiding it, never too little.
+        """
+        x, y = point
+        layers: list[int] = []
+        for platform in self.platforms:
+            nearest = min(max(x, platform.left), platform.right)
+            height = platform.y_at(nearest)
+            if (
+                platform.layer is not None
+                and height is not None
+                and abs(nearest - x) <= reach
+                and abs(height - y) <= reach
+            ):
+                layers.append(platform.layer)
+        for rope in self.ropes:
+            top, bottom = min(rope.y1, rope.y2), max(rope.y1, rope.y2)
+            if (
+                rope.page is not None
+                and abs(rope.x - x) <= reach
+                and top - reach <= y <= bottom + reach
+            ):
+                layers.append(rope.page)
+        return min(layers, default=None)
