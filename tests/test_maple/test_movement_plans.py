@@ -342,8 +342,11 @@ def _planner(
     *,
     status_read: bool = True,
     wait: bool = True,
+    source: PositionSource = PositionSource.FUSED,
 ) -> _Planner:
-    data = _planning_data(name, position, target, status_read=status_read)
+    data = _planning_data(
+        name, position, target, status_read=status_read, source=source
+    )
     planner = _Planner(data)
     planner._create_pathing_attributes(1.0)
     if wait:
@@ -362,6 +365,7 @@ def _planning_data(
     *,
     status_read: bool = True,
     character: object | None = None,
+    source: PositionSource = PositionSource.FUSED,
 ) -> BotData:
     """What a DecisionMaker plans from: the map, the physics, a position, a target."""
     data = BotData("T")
@@ -372,7 +376,7 @@ def _planning_data(
     data.set_static("speed_multiplier", 1.0)
     data.set_static("jump_multiplier", 1.0)
     reading = (
-        Reading.read(VirtualPosition(*position, PositionSource.FUSED), 0.0)
+        Reading.read(VirtualPosition(*position, source), 0.0)
         if status_read
         else Reading.unsure(0.0, "two characters in the window")
     )
@@ -397,6 +401,42 @@ def test_an_unsure_position_plans_nothing_and_sends_nothing() -> None:
     assert planner.data.path is None
     assert planner.data.movements == ()
     assert planner._has_movements() is False
+
+
+def test_a_coarse_read_plans_no_walk_inside_its_own_canvas_pixel() -> None:
+    # #516: a coarse read is the middle of a 16 px canvas pixel, so a walk of
+    # 8 px or less may already be where the read cannot tell it from: the live
+    # record walked 7 and 9 px either side of a ladder for minutes.
+    coarse = _planner(
+        "ladder_climb", (304.0, -496.0), (300.0, -500.0), source=PositionSource.COARSE
+    )
+    fused = _planner("ladder_climb", (304.0, -500.0), (300.0, -500.0))
+
+    assert coarse.data.path == Path(())
+    assert coarse._has_movements() is False
+    assert _kinds(fused.data.movements) == [
+        MovementTypes.WALK_LEFT,
+        MovementTypes.END_OF_MOVEMENT,
+    ]
+
+
+def test_a_coarse_read_still_walks_further_than_its_pixel_and_onto_a_rope() -> None:
+    walk = _planner(
+        "ladder_climb", (288.0, -496.0), (300.0, -500.0), source=PositionSource.COARSE
+    )
+    # The same 4 px off the ladder, heading down it: a climb is no walk.
+    down = _planner(
+        "ladder_climb", (304.0, -496.0), (300.0, -300.0), source=PositionSource.COARSE
+    )
+
+    assert _kinds(walk.data.movements) == [
+        MovementTypes.WALK_RIGHT,
+        MovementTypes.END_OF_MOVEMENT,
+    ]
+    assert _kinds(down.data.movements)[:2] == [
+        MovementTypes.WALK_LEFT,
+        MovementTypes.CLIMB_DOWN,
+    ]
 
 
 def test_a_map_with_no_minimap_plans_nothing() -> None:

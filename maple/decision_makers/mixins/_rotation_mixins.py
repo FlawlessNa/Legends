@@ -19,7 +19,12 @@ from maple.model.mechanics.movement_mechanics_v2 import _MovementComponent
 from maple.model.mechanics.physics import VRPhysics
 from maple.model.navigation import FootholdGraphs, Path, Point
 from maple.model.world import Platform, WorldMap
-from maple.screen.position import PositionFusion, VirtualPosition, marker_of_feet
+from maple.screen.position import (
+    PositionFusion,
+    PositionSource,
+    VirtualPosition,
+    marker_of_feet,
+)
 from maple.telemetry_events import MOVEMENT_TARGET_REACHED, target_reached_payload
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -330,6 +335,18 @@ def read_position(data: BotData) -> Reading[VirtualPosition]:
     return data.current_position
 
 
+def read_resolution(position: VirtualPosition, world_map: WorldMap) -> float:
+    """
+    How far off a read's x may be, in virtual px: half a canvas px for a
+    coarse read (the middle of the canvas pixel the feet are in), 0 for a
+    fused one. A walk no longer than that is no move (#516,
+    `MovementHandler.compute_path`).
+    """
+    if position.source is not PositionSource.COARSE or world_map.minimap is None:
+        return 0.0
+    return world_map.minimap.scale / 2
+
+
 def _world_map_of(data: BotData) -> WorldMap:
     """
     The bot's map.
@@ -572,7 +589,11 @@ class MovementsMixin:
         # the character has walked since (`_movement_compiler`).
         self._path_read_at: float | None = reading.frame_time
         return handler.compute_path(
-            position, self._virtual_target(), physics, graph=graph
+            position,
+            self._virtual_target(),
+            physics,
+            graph=graph,
+            resolution=read_resolution(reading.value, self._world_map()),
         )
 
     def _plan_movements(self) -> tuple[_MovementComponent, ...]:
