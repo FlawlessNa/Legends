@@ -343,9 +343,12 @@ def session_for(
     directory: Path,
     keys: Sequence[dict[str, object]] = (),
     zone: timezone = ZONE,
+    read_time: float = 0.0,
 ) -> Path:
     """A Session for `overshoot`: its reads, two Actions and two Path lines,
-    with a player name in every place a Session carries one, and `keys`."""
+    with a player name in every place a Session carries one, and `keys`. Each
+    ``position.read`` is written `read_time` after its frame's capture, as a
+    live read is once done."""
     directory.mkdir()
     events: list[dict[str, object]] = [*keys]
     for line in record.read_text(encoding="utf-8").splitlines():
@@ -354,7 +357,9 @@ def session_for(
             x, y = row["position"]
             events.append(
                 {
-                    "timestamp": wall(row["frame_time"] - T0, zone).isoformat(),
+                    "timestamp": wall(
+                        row["frame_time"] - T0 + read_time, zone
+                    ).isoformat(),
                     "correlation_id": None,
                     "event_type": "position.read",
                     "payload": {
@@ -552,6 +557,26 @@ def test_the_schedule_to_first_key_latency_is_timed(
     assert first.timing.to_keys == pytest.approx(0.018, abs=1e-4)
     assert second.timing is not None
     assert second.timing.to_keys is None
+
+
+def test_key_records_set_the_session_clock_whatever_the_reads_lag(
+    record: Path, tmp_path: Path
+) -> None:
+    """A read's event is written once the read is done (119 ms after its frame
+    on run 28): set from it, every Session time sat that much early (#540). The
+    key records' own two clocks set it exactly, and give the read's time."""
+    keys = [key("overshoot-1", "key.down", "right", 0.05 + 0.018, 0)]
+    run = trial_report.analyze(
+        record, session_for(record, tmp_path / "session", keys, read_time=0.12)
+    )
+    first, second = run.judged["overshoot"][:2]
+
+    assert first.dispatched_at == pytest.approx(T0 + 0.05, abs=1e-3)
+    assert second.timing is not None
+    assert second.timing.wait == pytest.approx(0.15, abs=2e-3)
+    assert run.session is not None
+    assert run.session.keyed_offset == 1
+    assert run.session.read_time == pytest.approx(0.12, abs=1e-3)
 
 
 def test_a_walk_released_short_of_its_slide_is_short_at_the_key(
