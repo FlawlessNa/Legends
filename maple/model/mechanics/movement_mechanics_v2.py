@@ -64,6 +64,20 @@ other way covers that distance from rest, as a walk against a held key into
 such a take-off does (`_reversal`, which a drop now joins). Live (runs 28 and
 29), all 12 such take-offs went down 28 to 55 px off their spot.
 
+**A portal is entered on an `up` keydown** (#533). The client takes a portal
+on an `up` keydown, a press or a typematic repeat, made within its reach; `up`
+merely held enters nothing (runs 28 to 32: walks of 35 to 70 px through or
+toward the portal with `up` down and no keydown in reach never entered, and
+every `up` held across Actions that owned typematic entered on the next
+Action's first repeats). So the walk into a portal presses `up` again when it
+is down already but would not own typematic, as when the walk's own key goes
+down after it (`_press_up_again`), and so does a portal the plan opens on.
+A walk into a portal against a held direction key is a reversal
+(`_reversal`), as one into a jump is. A walk into a portal, its key down, that
+the character has walked past since the read turns back (`_turn_back`): the
+key comes up, the slide is waited out, and the walk the other way, from rest,
+covers what the read's age and the slide carried it past.
+
 **No walk inside the read** (#516). A Path that is only a walk no longer than
 the start's own uncertainty (half a canvas px on a coarse read) is planned as
 no move (`compute_path`'s `resolution`).
@@ -111,6 +125,7 @@ from botting.controller import (
     KeyboardInputWrapper,
     get_held_movement_keys,
     key_binds,
+    random_delay,
 )
 from game_data.catalogue import Rope
 from maple.actions import movements_v2
@@ -358,11 +373,20 @@ def compile_movements(
         back = None if since_read is None else _walk_back(movements, held_keys)
         if back is not None:
             movements, shift = (back, *movements), 1
+        turned = (
+            None
+            if since_read is None
+            else _turn_back(movements, held_keys, speed * since_read)
+        )
+        if turned is not None:
+            movements = turned
         against = _reversal(movements, held_keys)
         movements = _time_walks(
             movements,
             held_keys,
-            since_read=since_read,
+            # A walk turned back is measured from where the character is now,
+            # not from the read: the read's age is in its length already.
+            since_read=0.0 if turned is not None else since_read,
             speed=speed,
             acceleration=walk_acceleration,
             deceleration=walk_deceleration,
@@ -426,6 +450,10 @@ def compile_movements(
                     release_keys = "up"
                 else:
                     release_keys = ["up", "down"]
+                if upcoming_move.movement_type is MovementTypes.ENTER_PORTAL:
+                    structure = _press_up_again(
+                        handle, structure, initial_state, direction
+                    )
                 duration, walk_end = _piece_duration(
                     movements, origin, structure, walk_end, speed
                 )
@@ -524,6 +552,7 @@ def compile_movements(
                 structure = _narrow_stop(structure, move)
 
             case MovementTypes.ENTER_PORTAL:
+                structure = _press_up_again(handle, structure, initial_state)
                 structure = movements_v2.move(
                     handle,
                     "up",
@@ -721,13 +750,55 @@ def _held_keys(handle: int, initial_state: InputState | None) -> set[str]:
     return set(get_held_movement_keys(handle))
 
 
+def _press_up_again(
+    handle: int,
+    structure: KeyboardInputWrapper | None,
+    initial_state: InputState | None,
+    direction: Direction | None = None,
+) -> KeyboardInputWrapper | None:
+    """
+    Release `up` ahead of a portal's press when it is down already but would
+    not own typematic, so the builder after this presses it anew (#533):
+    the walk into the portal (its key `direction`) or the portal itself.
+
+    The client enters a portal on an `up` keydown, a press or a repeat, in
+    its reach. A key down that does not own typematic repeats nothing
+    (`KeyboardInputWrapper.fill`, A7), so an `up` held from an earlier
+    Action, with a direction key pressed after it (or any key released
+    since), sends no keydown at the portal: five tries of runs 28 to 32
+    walked through the portal so, `up` down all along, and none entered.
+
+    `up` that owns typematic, its walk's key down already, is left alone:
+    the walk's fill repeats it, which is how every such held `up` of those
+    runs entered. Returns `structure` with the release appended, or a new
+    one holding it when there was none yet; `structure` unchanged when `up`
+    is up, or down and repeating.
+    """
+    if structure is None:
+        held = _held_keys(handle, initial_state)
+        owner = initial_state.typematic_owner if initial_state is not None else None
+    else:
+        held, owner = structure.keys_held, structure.typematic_owner
+    if "up" not in held:
+        return structure
+    if owner == "up" and (direction is None or direction in held):
+        return structure
+    if structure is None:
+        return KeyboardInputWrapper(
+            handle, ["up"], ["keyup"], [next(random_delay)], initial_state=initial_state
+        )
+    structure.append("up", "keyup", next(random_delay))
+    return structure
+
+
 def _reversal(
     movements: Sequence[_MovementComponent], held_keys: set[str]
 ) -> str | None:
     """
     The direction key to release before the plan's first walk, which goes
-    against it and runs straight into a sideways jump its own way (#521) or
-    into a jump straight up (#530); `None` when the plan does not start so.
+    against it and runs straight into a sideways jump its own way (#521),
+    into a jump straight up (#530), a drop (#540) or a portal (#533); `None`
+    when the plan does not start so.
 
     A Continuation the other way leaves the character walking the wrong way
     at the walk speed. With the walk's key pressed at once, how fast it turns
@@ -747,14 +818,63 @@ def _reversal(
     # A jump straight up after the walk wants the character at rest on its
     # take-off, as much as a sideways one wants it walking into it (#530); a
     # drop wants it on its take-off, which the turn left untimed missed by 52
-    # to 90 px on run 29 (#540).
+    # to 90 px on run 29 (#540). A portal wants its `up` keydowns in its reach:
+    # with the turn untimed they went 29 to 66 px short of it, three times in
+    # runs 28 and 31 (#533).
     return (
         against
         if _walks_into(upcoming, way)
         or _standing(upcoming)
-        or upcoming.movement_type is MovementTypes.JUMP_DOWN
+        or upcoming.movement_type
+        in (MovementTypes.JUMP_DOWN, MovementTypes.ENTER_PORTAL)
         else None
     )
+
+
+def _turn_back(
+    movements: Sequence[_MovementComponent], held_keys: set[str], lead: float
+) -> tuple[_MovementComponent, ...] | None:
+    """
+    The plan, its first walk turned around, when that walk runs into a portal
+    with its key down and the character has walked further since the read
+    than the walk is long (`lead`, the walk speed times the read's age): it
+    is past the portal already (#533). `None` when the plan does not start so.
+
+    Each piece of the walk becomes one the other way, together as long as
+    the character is past the portal now. The walk then goes against the
+    held key, a reversal (`_reversal`): the key comes up, the slide is
+    waited out, and the walk back, from rest, is timed from where the
+    character is at the compile (`_time_walks`, with no read age left).
+
+    Kept on, the walk ends at once and the portal's `up` keydowns come
+    where the character already is, past the portal: on run 32 (C1 and C2's
+    first tries, read 0.34 and 0.38 s before the keys), 22 to 41 px past, out
+    of its reach both times.
+    """
+    if not movements or movements[0].movement_type not in _WALKS:
+        return None
+    run = _walk_run(movements, 0, 1)
+    if run.stop >= len(movements):
+        return None
+    if movements[run.stop].movement_type is not MovementTypes.ENTER_PORTAL:
+        return None
+    way = _direction_of(movements[0])
+    if way not in held_keys or OPPOSITES[way] in held_keys:
+        return None
+    length = sum(movements[i].length for i in run)
+    if lead <= length or length <= 0:
+        return None
+    back = MovementTypes.WALK_LEFT if way == "right" else MovementTypes.WALK_RIGHT
+    past = lead - length
+    turned = tuple(
+        movements[i]._replace(
+            movement_type=back,
+            length=past * movements[i].length / length,
+            duration=None,
+        )
+        for i in run
+    )
+    return (*turned, *movements[run.stop :])
 
 
 def _walk_back(
@@ -843,7 +963,10 @@ def _time_walks(
       the read until now, then slides `walk_stop_slide` further, so the walk,
       from rest, is that much longer. A jump or a drop follows that walk, so
       it is never also the last. The walk may have no length of its own: the
-      walk back to a vertical take-off the plan opens on (`_walk_back`).
+      walk back to a vertical take-off the plan opens on (`_walk_back`). A
+      walk turned back to a portal the character has passed (`_turn_back`)
+      is measured from where it is at the compile: it comes with no
+      `since_read`, so only the slide is added.
 
     - **A walk into a jump straight up** (#530) holds its key, as the last
       walk does, only until the slide carries the character to the take-off:
