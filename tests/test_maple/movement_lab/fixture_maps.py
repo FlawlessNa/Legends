@@ -233,6 +233,20 @@ def ledge_below() -> MapData:
     )
 
 
+def step_up() -> MapData:
+    """
+    A floor rising to the left, under a platform whose left end is open and
+    whose right part rises out of a jump's reach: the record's last climb
+    (#530, `bottom-to-real-top-1`, Ellinia's two highest platforms, simplified).
+    From the right, the Path walks left to the one stretch a jump straight up
+    reaches the platform from, jumps up at its right end, and walks right up
+    the platform. Not in the Corpus.
+    """
+    lower = _chain(1, (-300, -20), (-100, 0), (200, 60))
+    upper = _chain(10, (-160, -60), (-100, -66), (-60, -100), (150, -110))
+    return _map(900_000_530, "step_up", lower + upper)
+
+
 FIXTURES = {
     builder.__name__: builder
     for builder in (
