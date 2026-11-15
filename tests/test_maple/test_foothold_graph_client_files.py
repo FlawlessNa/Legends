@@ -332,3 +332,44 @@ def test_ellinias_chain_to_the_gap_trials_takes_off_inside_every_open_end(
             assert move.start[0] - move.start_on.left >= margin - 1e-6, move
         elif move.direction is Direction.RIGHT:
             assert move.start_on.right - move.start[0] >= margin - 1e-6, move
+
+
+# --- the retry hotspots of the climb (#542) ----------------------------------------
+
+#: The physics of runs 28 to 30 (2026-11-15): speed 100%, their Calibration
+#: constants.
+CLIMB_RUNS = Calibration(walk=1.19, jump=0.96, climb=0.95)
+
+
+@pytest.mark.parametrize(
+    "start",
+    [
+        # Hotspot 2: from the portal's exit side, and from the far side after
+        # a jump that passed the rope.
+        (-843.0, -2480.0),
+        (-700.0, -2484.0),
+    ],
+)
+def test_ellinias_hop_onto_the_rope_after_the_portal_grabs_it_past_the_top(
+    start: Point,
+) -> None:
+    """
+    Hotspot 2: the Path took off 7 px from the rope at x -772 and passed it
+    (24 of 24 jumps keyed within 21.8 px of a rope did, runs 28 to 30). It now
+    takes off where a jump up to `TAKEOFF_LEAD` late still meets the rope
+    within reach past the top of its arc.
+    """
+    world = WorldMap.load("Victoria Road: Ellinia")
+    physics = VRPhysics.load(calibration=CLIMB_RUNS)
+    graph = FootholdGraph.build(world, physics)
+
+    path = graph.path(start, (-248.0, -2943.0))
+
+    assert path is not None
+    grab = next(m for m in path.moves if isinstance(m.end_on, Rope))
+    assert isinstance(grab.end_on, Rope)
+    walk = physics.walk_speed
+    apex = physics.jump_speed / physics.gravity
+    nearest = walk * apex + walk * TAKEOFF_LEAD - ROPE_GRAB_REACH
+    assert grab.end_on.x == -772
+    assert abs(grab.end[0] - grab.start[0]) >= nearest - 1e-6, grab

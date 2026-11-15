@@ -13,8 +13,9 @@ along a platform, a climb along a rope), each a `MoveRange`:
 - `JUMP` left, right and up from every x of a platform, and left and right
   from every y of a rope (from the top of the arc, as the retired minimap grid
   did); each traced along `VRPhysics`' arc (`terrain`). A jump that lands back on
-  its own platform is no move. A sideways jump may instead grab the first
-  rope it crosses, and a jump up from right under a rope's bottom grabs it.
+  its own platform is no move. A sideways jump off a platform may instead
+  grab the first rope it crosses once past the arc's top (`grab_after`,
+  #542), and a jump up from right under a rope's bottom grabs it.
   A landing the character makes only with an exact take-off is no move
   either (#509): one on a platform higher than `JUMP_RISE_SHARE` of the arc,
   or a sideways jump's within `LANDING_MARGIN` of its platform's open end.
@@ -460,7 +461,14 @@ class FootholdGraph:
     def _jump_side(self, vx: float, *, grab: bool) -> _Trace:
         def trace(i: int, xs: Floats) -> tuple[Ints, Floats, Floats, Floats]:
             ys = self._terrain.platform_y(i, xs)
-            hits = self._terrain.sweep(xs, ys, vx, -self._physics.jump_speed, grab=grab)
+            hits = self._terrain.sweep(
+                xs,
+                ys,
+                vx,
+                -self._physics.jump_speed,
+                grab=grab,
+                grab_after=self._grab_after(vx),
+            )
             surface = hits.surface.copy()
             platform = self._platforms[i]
             end = platform.right if vx > 0 else platform.left
@@ -556,6 +564,26 @@ class FootholdGraph:
             np.where(found, heights, np.nan),
             np.where(found, TELEPORT_TIME, np.nan),
         )
+
+    def _grab_after(self, vx: float) -> float:
+        """
+        Seconds into a sideways jump off a platform before which a rope it
+        crosses is passed, not grabbed (#542): the arc's top, plus the time a
+        take-off as late as `TAKEOFF_LEAD` allows brings the rope nearer by
+        more than the grab's reach (`ROPE_GRAB_REACH`).
+
+        The client catches a rope only once the jump has stopped rising. On
+        runs 28 to 30 (Ellinia, 2026-11-15), every sideways jump whose key
+        went down 21.8 px or less before the rope passed it (24 of 24), and
+        the 4 at 23.8 to 24.8 px moving at the walk speed; every one 28.5 to
+        78 px before it grabbed it (38 of 38). Within reach of the rope at
+        the top of the arc, at the walk speed, is 28 px; the three grabs
+        from 23 to 25 px flew slower (68 to 117 px/s). A take-off up to
+        `TAKEOFF_LEAD` late must still find the rope within reach after the
+        top: 42.6 px at the walk speed of those runs.
+        """
+        apex = self._physics.jump_speed / self._physics.gravity
+        return max(0.0, apex + (self._takeoff_margin - self._grab_reach) / abs(vx))
 
     def _rope_jump(self, vx: float, *, grab: bool) -> _Trace:
         def trace(i: int, ys: Floats) -> tuple[Ints, Floats, Floats, Floats]:

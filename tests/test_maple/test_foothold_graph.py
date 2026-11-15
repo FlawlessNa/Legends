@@ -290,11 +290,12 @@ def test_a_rope_is_grabbed_climbed_and_left_by_the_expected_moves() -> None:
 
     names: dict[Platform | Rope, str] = {ground: "G", top: "T", r: "R"}
     # From G, a sideways jump crosses x = 0 inside the rope's height between
-    # 0.117 s and 0.683 s after take-off, so from |x| in [11.8, 69.0]. From T,
+    # 0.117 s and 0.683 s after take-off, so from |x| in [11.8, 69.0]; it
+    # grabs it only past the arc's top (`_grab_after`, #542), from |x| 39. From T,
     # a drop within `ROPE_GRAB_REACH` (11.6) of the rope's top grabs the rope.
     assert summary(graph, names) == {
-        (J, L, "G", 12, 68, "R"),
-        (J, R, "G", -68, -12, "R"),
+        (J, L, "G", 39, 68, "R"),
+        (J, R, "G", -68, -39, "R"),
         (J, U, "G", 0, 0, "R"),
         (D, DN, "T", -300, -12, "G"),
         (F, L, "T", -300, -300, "G"),
@@ -319,15 +320,18 @@ def test_a_path_up_a_rope_jumps_to_it_climbs_it_and_steps_off_at_the_top() -> No
 
     path = graph.path((0, 0), (-100, -202))
 
+    # A sideways jump grabs the rope past its top, 80 px up it (#542): less
+    # to climb than from its bottom, after a jump straight up.
     assert path is not None
     assert [(m.kind, m.direction) for m in path.moves] == [
-        (J, U),
+        (W, L),
+        (J, R),
         (C, U),
         (C, U),
         (W, L),
     ]
     assert contiguous(path)
-    assert path.moves[0].end_on == r
+    assert path.moves[1].end_on == r
     assert path.moves[-1].end == (-100, -202)
 
 
@@ -597,3 +601,32 @@ def test_the_take_off_margin_is_a_lead_of_the_characters_own_walk() -> None:
 
     right = [m for m in graph.moves if (m.kind, m.direction, m.source) == (J, R, a)]
     assert [(round(m.low), round(m.high)) for m in right] == [(0, 80)]
+
+
+# --- when a sideways jump grabs a rope (#542) ----------------------------------
+
+
+def test_a_sideways_jump_grabs_a_rope_only_past_the_top_of_its_arc() -> None:
+    """
+    Live, every sideways jump whose key went down 21.8 px or less before the
+    rope passed it (24 of 24), every one 28.5 to 78 px before grabbed it (38
+    of 38): the client catches a rope once the jump stops rising. A take-off
+    `TAKEOFF_LEAD` late must still find it within reach past the top.
+    """
+    ground = platform(1, -500, 500, 0)
+    r = rope(1, 0, -200, -40)
+    graph = FootholdGraph.from_surfaces([ground], [], [r], PHYSICS)
+
+    apex = PHYSICS.jump_speed / PHYSICS.gravity
+    walk = PHYSICS.walk_speed
+    nearest = walk * apex + walk * TAKEOFF_LEAD - ROPE_GRAB_REACH
+    grabs = [
+        m
+        for m in graph.moves
+        if m.kind is J and m.target == r and m.direction in (L, R)
+    ]
+    assert {m.direction for m in grabs} == {L, R}
+    for move in grabs:
+        closest = min(abs(move.low), abs(move.high))
+        assert closest >= nearest - 1.0, move
+        assert min(move.duration_low, move.duration_high) >= nearest / walk - 1e-9
