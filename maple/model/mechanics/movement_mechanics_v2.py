@@ -55,6 +55,15 @@ the walk speed (149 px/s) and flew 40 to 50 px sideways: off the open end
 of the platform it was to land on, or under a part of it too high to reach.
 A jump up into a rope's bottom releases its keys already (`jump_up_on_rope`).
 
+**A vertical take-off the plan opens on, a key still down** (#540). A plan
+that opens on a jump straight up or a drop starts where its frame was read;
+with a direction key down, the character walked on from there until the
+compile and slides on after the release. So the compile walks it back first
+(`_walk_back`): the key comes up, the slide is waited out, and a walk the
+other way covers that distance from rest, as a walk against a held key into
+such a take-off does (`_reversal`, which a drop now joins). Live (runs 28 and
+29), all 12 such take-offs went down 28 to 55 px off their spot.
+
 **No walk inside the read** (#516). A Path that is only a walk no longer than
 the start's own uncertainty (half a canvas px on a coarse read) is planned as
 no move (`compute_path`'s `resolution`).
@@ -339,10 +348,16 @@ def compile_movements(
     climb = speed if climb_speed is None else climb_speed
     since_read = None if read_at is None else max(0.0, clock() - read_at)
     structure = None
+    # Components compiled ahead of the plan's own (`_walk_back`): every Step
+    # keeps the index of the plan's component it serves, its Provenance.
+    shift = 0
     if since_read is not None or not (
         math.isinf(walk_acceleration) and math.isinf(walk_deceleration)
     ):
         held_keys = _held_keys(handle, initial_state)
+        back = None if since_read is None else _walk_back(movements, held_keys)
+        if back is not None:
+            movements, shift = (back, *movements), 1
         against = _reversal(movements, held_keys)
         movements = _time_walks(
             movements,
@@ -392,7 +407,7 @@ def compile_movements(
         # returns, and its Steps are stamped `NO_COMPONENT` by default. `attribute`
         # below claims them.
         if structure is not None:
-            structure.current_origin = origin
+            structure.current_origin = max(0, origin - shift)
         move_type = move.movement_type
         match move_type:
             case MovementTypes.WALK_LEFT | MovementTypes.WALK_RIGHT:
@@ -556,7 +571,7 @@ def compile_movements(
             case _:
                 raise NotImplementedError(f"Unhandled movement type {move_type!r}")
 
-        structure.attribute(origin)
+        structure.attribute(max(0, origin - shift))
 
         if finishing is not None and origin >= finishing:
             # The jump compiled past the cap has taken off: the cut moves to
@@ -730,8 +745,56 @@ def _reversal(
         return None
     upcoming = movements[run.stop]
     # A jump straight up after the walk wants the character at rest on its
-    # take-off, as much as a sideways one wants it walking into it (#530).
-    return against if _walks_into(upcoming, way) or _standing(upcoming) else None
+    # take-off, as much as a sideways one wants it walking into it (#530); a
+    # drop wants it on its take-off, which the turn left untimed missed by 52
+    # to 90 px on run 29 (#540).
+    return (
+        against
+        if _walks_into(upcoming, way)
+        or _standing(upcoming)
+        or upcoming.movement_type is MovementTypes.JUMP_DOWN
+        else None
+    )
+
+
+def _walk_back(
+    movements: Sequence[_MovementComponent], held_keys: set[str]
+) -> _MovementComponent | None:
+    """
+    The walk back to a vertical take-off the plan opens on, while a direction
+    key is down (a Continuation): a walk of no length the other way, which
+    `_reversal` and `_time_walks` then time from the read (#540). `None` when
+    the plan does not open so.
+
+    The plan starts where the frame was read. With a direction key down, the
+    character has walked on from there at `speed` until the compile, the
+    read's age, and slides on once the key comes up: a jump straight up
+    (#530) or a drop then goes down that far from its take-off. On runs 28
+    and 29, all 12 such take-offs were 28 to 55 px off their spot, more with
+    an older read; walked to (a walk from rest, or with its key down), 16 of
+    17 vertical take-offs were within 15 px. Walked back, the key comes
+    up, the slide is waited out, and the walk covers the read-to-stop
+    distance from rest (`_time_walks`'s reversal), as a walk against a held
+    key into such a take-off already does.
+
+    A sideways jump is not walked back: one the character walks into is
+    already past its take-off (only a new plan from where it is could
+    help), and one the other way would become such a reversal, whose
+    take-off ran 26 to 41 px short on run 29, as far as pressing it at once
+    did (#540's report). Nor is a take-off with a climb key down: on a rope,
+    a direction key moves nothing.
+    """
+    if not movements:
+        return None
+    first = movements[0]
+    if not (_standing(first) or first.movement_type is MovementTypes.JUMP_DOWN):
+        return None
+    sideways = held_keys & {"left", "right"}
+    if len(sideways) != 1 or held_keys & {"up", "down"}:
+        return None
+    way = OPPOSITES[next(iter(sideways))]
+    walk = MovementTypes.WALK_LEFT if way == "left" else MovementTypes.WALK_RIGHT
+    return _MovementComponent(walk, 0.0, start=first.start, end=first.start)
 
 
 def _walk_run(movements: Sequence[_MovementComponent], start: int, step: int) -> range:
@@ -778,8 +841,9 @@ def _time_walks(
       releases that key and waits out the slide before the walk's key goes
       down (`_reversal`). The character walked the wrong way at `speed` from
       the read until now, then slides `walk_stop_slide` further, so the walk,
-      from rest, is that much longer. A jump follows that walk, so it is
-      never also the last.
+      from rest, is that much longer. A jump or a drop follows that walk, so
+      it is never also the last. The walk may have no length of its own: the
+      walk back to a vertical take-off the plan opens on (`_walk_back`).
 
     - **A walk into a jump straight up** (#530) holds its key, as the last
       walk does, only until the slide carries the character to the take-off:

@@ -24,10 +24,19 @@ cycle's read and Movement Plan (every component's planned ``start`` and
 cycle by Correlation ID), ``key.down`` and ``key.up`` (#538: each key's
 transition, by the Correlation ID of the Action that sent it, its ``t`` on
 ``time.monotonic()``, the record's own clock, so it needs no offset) and
-``position.read`` (to put the Session's clock on the record's: each read's
-event is matched to the record line with the same position, and the clock
-offset is their median difference; on run 27 the spread was about 1 ms), and
-``session.log``'s ``Computing path`` and ``Movements`` lines (planning).
+``position.read``, and ``session.log``'s ``Computing path`` and ``Movements``
+lines (planning).
+
+**The Session's clock on the record's.** A key record carries both clocks of
+one send, ``wall`` (epoch) and ``t`` (``time.monotonic()``, the record's): the
+offset is their median difference, exact to the microsecond (#540). A Session
+from before #538 has none, and each ``position.read`` event is matched to the
+record line with the same position instead, the offset their median
+difference. That event is written once the read is done, not when its frame
+was captured, so that offset is late by the read's own time: on run 28, 119
+ms, by which every Session time (schedule, finish, planning) sat early on the
+record's clock, the read ages short and the loop's wait long. With key records,
+the report gives that read time (``position.read`` after its frame's capture).
 Nothing from either is copied into the report but positions, times, key names
 and move types: no player name, no window title, no machine name.
 
@@ -459,6 +468,12 @@ class SessionTimes:
     plannings: list[Planning] = field(default_factory=list)
     matched_reads: int = 0
     spread: float = 0.0
+    #: The key records the offset was set from (their own ``wall`` and ``t``);
+    #: 0 when it was set from matched reads (a Session from before #538).
+    keyed_offset: int = 0
+    #: With key records: how long after its frame's capture a ``position.read``
+    #: event is written, median seconds (the read's own time). `None` without.
+    read_time: float | None = None
     #: Each Action's key records, by Correlation ID, in time order. Empty for a
     #: Session from before #538.
     keys: dict[str, list[KeyEvent]] = field(default_factory=dict)
@@ -513,10 +528,27 @@ def load_session(session: Path, records: Sequence[Record]) -> SessionTimes | Non
         for r in records
         if isinstance(r, CycleRecord | SampleRecord) and r.position.position is not None
     ]
-    offset, matched, spread = _clock_offset(reads, rows)
+    read_offset, matched, spread = _clock_offset(reads, rows)
+    # A key record's own two clocks, where the Session has them: a read's event
+    # is written after the read, so the reads' offset is late by its time.
+    key_offsets = [
+        w - k.t
+        for events in keys.values()
+        for w, k in events
+        if not (math.isnan(w) or math.isnan(k.t))
+    ]
+    offset = statistics.median(key_offsets) if key_offsets else read_offset
     if offset is None:
         return None
-    times = SessionTimes(offset, matched_reads=matched, spread=spread)
+    times = SessionTimes(
+        offset,
+        matched_reads=matched,
+        spread=spread,
+        keyed_offset=len(key_offsets),
+        read_time=(
+            read_offset - offset if key_offsets and read_offset is not None else None
+        ),
+    )
     for cid, events in keys.items():
         # By `t`, not by file order: records are written after the send.
         events.sort(key=lambda pair: pair[1].t)
@@ -1457,10 +1489,28 @@ def render(
             "times and no loop timing."
         )
     else:
-        lines.append(
-            f"Session clock matched on {run.session.matched_reads} reads "
-            f"(median deviation {run.session.spread * 1000:.1f} ms)."
-        )
+        session = run.session
+        if session.keyed_offset:
+            read_time = (
+                ""
+                if session.read_time is None
+                else (
+                    f"; a `position.read` is written a median "
+                    f"{session.read_time * 1000:.0f} ms after its frame's capture "
+                    f"(the read's own time)"
+                )
+            )
+            lines.append(
+                f"Session clock set from {session.keyed_offset} key records' own "
+                f"wall and monotonic times{read_time}."
+            )
+        else:
+            lines.append(
+                f"Session clock matched on {session.matched_reads} reads "
+                f"(median deviation {session.spread * 1000:.1f} ms; late by the "
+                f"read's own time, which a Session without key records cannot "
+                f"give)."
+            )
         keyed = sum(
             1 for a in run.session.actions.values() if a.to_first_key is not None
         )
@@ -1866,7 +1916,7 @@ def rank_options(timings: Sequence[Timing]) -> list[tuple[float, str]]:
     gaps = [t for t in timings if t.gap is not None]
     n = len(gaps)
     waits = [t.wait for t in gaps if t.wait is not None]
-    flights = [t.in_flight or 0.0 for t in gaps]
+    reads = [t.read_and_plan for t in gaps if t.read_and_plan is not None]
     handoffs = [t.handoff for t in timings if t.handoff is not None]
     cuts = sum(1 for t in timings if t.ended in ("cut", "past cut"))
     stale = sum(1 for t in timings if t.stale)
@@ -1875,30 +1925,33 @@ def rank_options(timings: Sequence[Timing]) -> list[tuple[float, str]]:
         [t.read_and_plan for t in timings if t.read_and_plan is not None] or [0.0]
     )
     options: list[tuple[float, str]] = []
-    saving = sum(max(0.0, w) for w in waits)
+    saving = sum(reads)
     options.append(
         (
             saving,
             (
                 f"**Plan the next piece before the current one ends** (a pipelined "
                 f"Continuation: read and plan during the Action's last read interval, "
-                f"schedule at the finish). Would save about {saving:.1f} s here (the loop "
-                f"waits, {n} boundaries). Risk: the plan starts from where the character "
-                f"is predicted to be, not where it was read; it touches compile-at-dispatch "
-                f"(ADR 0002) and the one-Action lock. Code and a spec, not configuration."
+                f"schedule at the finish). Would save about {saving:.1f} s here (the "
+                f"read and the planning, {n} boundaries). Risk: the plan starts from "
+                f"where the character is predicted to be at the cut, not where it was "
+                f"read, which no record shows for a plan yet; it touches "
+                f"compile-at-dispatch (ADR 0002) and the one-Action lock. Code and a "
+                f"spec, not configuration."
             ),
         )
     )
-    saving = sum(flights)
+    saving = sum(max(0.0, w) for w in waits)
     options.append(
         (
             saving,
             (
-                f"**Release the loop at once when an Action finishes** (the cycle starts "
-                f"on the finish, not on the next period after a sample read): samples were "
-                f"still taken after a finish for {saving:.1f} s in all. Code "
-                f"(`TrialRunner._decide`, the lock's release callback); risk: low, but it "
-                f"changes when the next keys go."
+                f"**Done (#540): release the loop at once when an Action finishes.** "
+                f"A cycle whose sample read would outlast the Action's due end (its "
+                f"dispatch plus the cap) waits on the lock instead, and decides when "
+                f"it is released (`TrialRunner._finish_near`). The loop wait left "
+                f"here: {saving:.1f} s over {n} boundaries, near none after a cut in "
+                f"a Session from after #540; the Action's last sample is its cost."
             ),
         )
     )

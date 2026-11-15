@@ -29,12 +29,24 @@ the position and hands it to the driver as a sample: what the physics are measur
 from (`maple/calibration/analysis.py`). A sample read that fails is recorded as
 unsure; it never calls the minimap's error handler, which sends input, in the
 middle of the Action.
+
+**The cycle starts on the finish** (#540). A read takes 115 to 340 ms, longer
+than the loop's period, so samples run back to back, and the Action used to
+end in the middle of one: the next cycle waited for that read to end before
+its own began, a median 70 ms of every boundary (4.2 s of run 28's 54 s, 41 s
+of run 29's 655 s). Now a cycle whose sample read would still be running when
+the Action in flight is due to end (its dispatch plus the Action duration
+cap) waits on the lock instead, at most as long as that read would have taken
+(`_finish_near`, `_await_finish`), and decides the moment the lock is
+released. The Action's last sample is the cost.
 """
 
+import asyncio
 import dataclasses
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
+import statistics
 import time
 from pathlib import Path
 
@@ -82,6 +94,18 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
 
     #: The default Action duration cap, and the `action_duration` Knob's default.
     DEFAULT_ACTION_DURATION = 1.0
+
+    #: How many of the latest position reads time one (`_read_time`).
+    READS_TIMED = 15
+
+    #: When the Action in flight is due to end at the latest, on
+    #: `time.monotonic()`: its dispatch plus the Action duration cap. `None`
+    #: with none in flight, or no cap (`_await_finish`).
+    _finish_due: float | None = None
+    #: Whether a cycle already waited on the Action in flight.
+    _waited: bool = False
+    #: Seconds the latest position reads took, newest last (`READS_TIMED`).
+    _read_times: tuple[float, ...] = ()
 
     def __init__(
         self,
@@ -164,13 +188,18 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         # decision cycle, and recording it would pad the count with nothing. Its
         # position read is a sample instead, which judges nothing.
         if not self.lock.acquire(blocking=False):
-            self._driver.sample(self._sample_position(), time.monotonic())
-            return
+            if not self._finish_near():
+                self._driver.sample(self._sample_position(), time.monotonic())
+                return
+            if not await self._await_finish():
+                return  # The Action outlived its cap: the next cycle samples.
 
         dispatched = False
         try:
             self._apply_knobs()
+            began = time.monotonic()
             self.data.update_attribute("current_position")
+            self._timed(began)
             position: Reading[VirtualPosition] = self.data.current_position
             self.data.update_attribute("path")
             self.data.update_attribute("movements")
@@ -193,6 +222,9 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             if verdict.dispatch and self._has_movements():
                 self.send(self._request())
                 dispatched = True
+                cap = self.data.action_duration
+                self._finish_due = None if cap is None else time.monotonic() + cap
+                self._waited = False
         finally:
             if not dispatched:
                 self.lock.release()
@@ -347,10 +379,68 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         and left at that: the minimap's error handler, which `current_position`
         calls, sends input, and an Action is in flight.
         """
+        began = time.monotonic()
         try:
             return self._get_position()
         except ValueError as error:
             return Reading.unsure(time.monotonic(), f"sample: {error}")
+        finally:
+            self._timed(began)
+
+    # --- The finish ---------------------------------------------------------------
+
+    def _finish_near(self) -> bool:
+        """
+        Whether a sample read now would still be running when the Action in
+        flight is due to end (`_finish_due`), timed as the latest reads were
+        (`_read_time`), and no cycle has waited on that Action yet.
+
+        The loop cannot cut a read short, and a cycle that starts after one
+        that outlived the Action lost the rest of that read (the module
+        docstring). Once per Action: an Action that runs past its cap (a walk
+        or a jump compiled to its end, #503, #515) gets its samples again
+        after one wait. The Action's real end is not known here: one that
+        ends short of the cap (its plan done) ends before any wait, as before.
+        """
+        due, read = self._finish_due, self._read_time()
+        if due is None or read is None or self._waited:
+            return False
+        return time.monotonic() + read >= due
+
+    async def _await_finish(self) -> bool:
+        """
+        Wait on the lock in a worker thread, for at most a read's time (no
+        longer than the sample it replaces would have run), and take it the
+        moment the Action's callback releases it; whether it was taken.
+
+        A cycle cancelled while it waits (the DecisionMaker disabled) leaves
+        the worker thread blocked on the lock; should it take it after all, it
+        releases it, or no later cycle could ever take it.
+        """
+        read = self._read_time() or 0.0
+        self._waited = True
+        waiting = asyncio.ensure_future(
+            asyncio.to_thread(self.lock.acquire, True, read)
+        )
+        try:
+            return await asyncio.shield(waiting)
+        except asyncio.CancelledError:
+            waiting.add_done_callback(self._release_if_taken)
+            raise
+
+    def _release_if_taken(self, waiting: asyncio.Future[bool]) -> None:
+        """Release the lock a wait abandoned by its cycle took after all."""
+        if not waiting.cancelled() and waiting.exception() is None and waiting.result():
+            self.lock.release()
+
+    def _read_time(self) -> float | None:
+        """The median of the latest position reads' times; `None` before any."""
+        return statistics.median(self._read_times) if self._read_times else None
+
+    def _timed(self, began: float) -> None:
+        """Keep how long a position read begun at `began` took."""
+        took = time.monotonic() - began
+        self._read_times = (*self._read_times, took)[-self.READS_TIMED :]
 
     def _assert_schedule_matches_map(self) -> None:
         """

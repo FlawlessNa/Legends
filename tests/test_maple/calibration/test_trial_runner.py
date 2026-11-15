@@ -21,6 +21,7 @@ DecisionMaker starts up against a real client. It cannot; nothing offline can.
 
 import asyncio
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar, Self, cast
@@ -410,6 +411,94 @@ def test_a_cycle_while_an_action_is_in_flight_records_a_sample(
     (sample,) = [r for r in harness.writer if isinstance(r, SampleRecord)]
     assert sample.correlation_id == "cid-0"
     assert sample.position.status == "unsure"
+
+
+def _dispatched(harness: _Harness) -> None:
+    """Positioning done, one Action dispatched and in flight (the lock held)."""
+    harness.positions.extend([START, START, START])
+    asyncio.run(harness.runner._decide())  # positioning completes
+    asyncio.run(harness.runner._decide())  # dispatches, and keeps the lock
+    assert harness.runner.lock.locked()
+
+
+def _samples(harness: _Harness) -> list[SampleRecord]:
+    return [r for r in harness.writer if isinstance(r, SampleRecord)]
+
+
+def test_a_cycle_due_at_the_finish_decides_the_moment_the_action_ends(
+    harness: _Harness,
+) -> None:
+    """
+    #540: a read outlasting the Action's due end used to be read anyway, and
+    the next cycle began only once it was done (a median 70 ms per boundary
+    live). Now the cycle waits on the lock and decides when it is released.
+    """
+    _dispatched(harness)
+    runner: Any = harness.runner
+    # Reads take as long as the cap: one now would run past the Action's end.
+    runner._read_times = (runner.data.action_duration,)
+    finish = threading.Timer(0.05, harness.runner.lock.release)  # the callback
+    finish.start()
+
+    asyncio.run(harness.runner._decide())
+    finish.join()
+
+    assert len(harness.pipe.sent) == 2
+    assert _samples(harness) == []
+
+
+def test_a_cycle_far_from_the_finish_still_samples(harness: _Harness) -> None:
+    _dispatched(harness)
+    runner: Any = harness.runner
+    runner._read_times = (0.01,)
+
+    asyncio.run(harness.runner._decide())
+
+    assert len(harness.pipe.sent) == 1
+    assert len(_samples(harness)) == 1
+
+
+def test_an_action_that_outlives_the_wait_gets_its_samples_back(
+    harness: _Harness,
+) -> None:
+    # Past its cap (a jump compiled to its end): the one wait runs out, and
+    # the next cycle samples as before.
+    _dispatched(harness)
+    runner: Any = harness.runner
+    runner._read_times = (0.05,)
+    runner._finish_due = time.monotonic()
+
+    asyncio.run(harness.runner._decide())  # waits 0.05 s, in vain
+    assert _samples(harness) == []
+    asyncio.run(harness.runner._decide())
+
+    assert len(harness.pipe.sent) == 1
+    assert len(_samples(harness)) == 1
+
+
+def test_a_wait_cancelled_with_its_cycle_leaves_the_lock_free(
+    harness: _Harness,
+) -> None:
+    _dispatched(harness)
+    runner: Any = harness.runner
+    runner._read_times = (runner.data.action_duration,)
+
+    async def cancelled_mid_wait() -> None:
+        cycle = asyncio.create_task(harness.runner._decide())
+        await asyncio.sleep(0.02)
+        cycle.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await cycle
+        harness.runner.lock.release()  # the Action ends: the thread takes it
+        for _ in range(100):
+            await asyncio.sleep(0.01)
+            if not harness.runner.lock.locked():
+                return
+
+    asyncio.run(cancelled_mid_wait())
+
+    assert not harness.runner.lock.locked()
+    assert len(harness.pipe.sent) == 1
 
 
 def test_the_path_is_planned_to_the_driver_s_target_in_virtual_px(
