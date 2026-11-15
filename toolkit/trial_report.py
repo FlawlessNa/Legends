@@ -1916,7 +1916,7 @@ def rank_options(timings: Sequence[Timing]) -> list[tuple[float, str]]:
     gaps = [t for t in timings if t.gap is not None]
     n = len(gaps)
     waits = [t.wait for t in gaps if t.wait is not None]
-    flights = [t.in_flight or 0.0 for t in gaps]
+    reads = [t.read_and_plan for t in gaps if t.read_and_plan is not None]
     handoffs = [t.handoff for t in timings if t.handoff is not None]
     cuts = sum(1 for t in timings if t.ended in ("cut", "past cut"))
     stale = sum(1 for t in timings if t.stale)
@@ -1925,30 +1925,33 @@ def rank_options(timings: Sequence[Timing]) -> list[tuple[float, str]]:
         [t.read_and_plan for t in timings if t.read_and_plan is not None] or [0.0]
     )
     options: list[tuple[float, str]] = []
-    saving = sum(max(0.0, w) for w in waits)
+    saving = sum(reads)
     options.append(
         (
             saving,
             (
                 f"**Plan the next piece before the current one ends** (a pipelined "
                 f"Continuation: read and plan during the Action's last read interval, "
-                f"schedule at the finish). Would save about {saving:.1f} s here (the loop "
-                f"waits, {n} boundaries). Risk: the plan starts from where the character "
-                f"is predicted to be, not where it was read; it touches compile-at-dispatch "
-                f"(ADR 0002) and the one-Action lock. Code and a spec, not configuration."
+                f"schedule at the finish). Would save about {saving:.1f} s here (the "
+                f"read and the planning, {n} boundaries). Risk: the plan starts from "
+                f"where the character is predicted to be at the cut, not where it was "
+                f"read, which no record shows for a plan yet; it touches "
+                f"compile-at-dispatch (ADR 0002) and the one-Action lock. Code and a "
+                f"spec, not configuration."
             ),
         )
     )
-    saving = sum(flights)
+    saving = sum(max(0.0, w) for w in waits)
     options.append(
         (
             saving,
             (
-                f"**Release the loop at once when an Action finishes** (the cycle starts "
-                f"on the finish, not on the next period after a sample read): samples were "
-                f"still taken after a finish for {saving:.1f} s in all. Code "
-                f"(`TrialRunner._decide`, the lock's release callback); risk: low, but it "
-                f"changes when the next keys go."
+                f"**Done (#540): release the loop at once when an Action finishes.** "
+                f"A cycle whose sample read would outlast the Action's due end (its "
+                f"dispatch plus the cap) waits on the lock instead, and decides when "
+                f"it is released (`TrialRunner._finish_near`). The loop wait left "
+                f"here: {saving:.1f} s over {n} boundaries, near none after a cut in "
+                f"a Session from after #540; the Action's last sample is its cost."
             ),
         )
     )
