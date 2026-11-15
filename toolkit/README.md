@@ -5,7 +5,6 @@ to test them). Each script's docstring says what it needs and whether it can sen
 input; the line here is that docstring's first line. `poc_tracking/*.md` describe
 the proof-of-concept trackers.
 
-- `toolkit/bot_tester.py`: Run one MapleBot with the Decision Makers you list, to test them live.
 - `toolkit/capture_frames.py`: Save frames of the running client for the frame set.
 - `toolkit/extract_model_classes.py`: Copy a YOLO model's class names into the `data.yaml` of its datasets.
 - `toolkit/generate_movement_lab_pairs.py`: Regenerate the movement lab's frozen reachability samples.
