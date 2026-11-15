@@ -18,7 +18,8 @@ along a platform, a climb along a rope), each a `MoveRange`:
   #542), and a jump up from right under a rope's bottom grabs it.
   A landing the character makes only with an exact take-off is no move
   either (#509): one on a platform higher than `JUMP_RISE_SHARE` of the arc,
-  or a sideways jump's within `LANDING_MARGIN` of its platform's open end.
+  or a sideways jump's within `LANDING_MARGIN` of its platform's open end
+  (`OVERSHOOT_MARGIN` of the one it heads for, #542).
   Nor is a sideways jump off a platform that takes off within `TAKEOFF_LEAD`
   of walking of the open end it heads for: one input Step (#515) and the
   latency from the jump key to the take-off (#521).
@@ -148,6 +149,22 @@ JUMP_RISE_SHARE = 0.95
 #: and a margin rounded down would plan landings no run has shown.
 LANDING_MARGIN = 15.5
 
+#: How far inside its landing platform a sideways jump must land from the
+#: open end it heads for, in virtual px: past it, the character falls off
+#: the far side. Wider than `LANDING_MARGIN`, which keeps for the end it
+#: comes from (a jump across a gap lands near that one). A jump lands past
+#: its traced landing when it takes off late, as it does by up to
+#: `TAKEOFF_LEAD` (its key a Step late, the client acting on it a latency
+#: later). Measured live (#542, Ellinia, Swordsman, speed 100%, runs 28 to
+#: 30, 2026-11-15, key times from #538): the jump landing 16.4 px inside the
+#: open end it heads for went past that end 14 times in 14, its take-off at
+#: the key -2.5 to +14.5 px from its point; the next nearest, 31.9 px
+#: inside, landed 13 times in 16 and went past no end. So the narrowest
+#: margin measured to land, not rounded: none between 16.4 and 31.9 was seen.
+#: A platform whose open ends are nearer together than both margins keeps
+#: `LANDING_MARGIN` at both: no landing it had is taken away.
+OVERSHOOT_MARGIN = 31.9
+
 #: Seconds by which the compile can place a walked-into jump's key past the
 #: walk's time: one Step of the walk (#515). A walk's repeats are
 #: `TYPEMATIC_REPEAT` apart, and the last one can run that far past the walk's
@@ -218,6 +235,7 @@ class FootholdGraph:
         landing_margin: float = LANDING_MARGIN,
         takeoff_lead: float = TAKEOFF_LEAD,
         grab_reach: float = ROPE_GRAB_REACH,
+        overshoot_margin: float = OVERSHOOT_MARGIN,
     ) -> None:
         self._terrain = terrain
         self._physics = terrain.physics
@@ -227,6 +245,7 @@ class FootholdGraph:
         self._drop_reach = drop_reach
         self._max_rise = rise_share * terrain.physics.jump_height
         self._landing_margin = landing_margin
+        self._overshoot_margin = overshoot_margin
         self._takeoff_margin = takeoff_lead * terrain.physics.walk_speed
         self._grab_reach = grab_reach
         self._surfaces: tuple[Surface, ...] = (*self._platforms, *self._ropes)
@@ -312,6 +331,7 @@ class FootholdGraph:
         landing_margin: float = LANDING_MARGIN,
         takeoff_lead: float = TAKEOFF_LEAD,
         grab_reach: float = ROPE_GRAB_REACH,
+        overshoot_margin: float = OVERSHOOT_MARGIN,
     ) -> FootholdGraph:
         """
         The graph of the surfaces given, from any source.
@@ -328,6 +348,8 @@ class FootholdGraph:
         :param landing_margin: How far inside an open end of its landing
             platform a sideways jump must land (`LANDING_MARGIN`); 0 takes
             the arc as traced.
+        :param overshoot_margin: The same, from the open end the jump heads
+            for (`OVERSHOOT_MARGIN`); never less than `landing_margin`.
         :param takeoff_lead: Seconds of walking a sideways jump off a platform
             must take off before the open end it heads for (`TAKEOFF_LEAD`);
             0 takes every take-off as traced.
@@ -345,6 +367,7 @@ class FootholdGraph:
             landing_margin=landing_margin,
             takeoff_lead=takeoff_lead,
             grab_reach=grab_reach,
+            overshoot_margin=overshoot_margin,
         )
 
     def _build_moves(self, portals: Sequence[tuple[Point, Point]]) -> None:
@@ -482,7 +505,7 @@ class FootholdGraph:
             ahead = self._open_right[i] if vx > 0 else self._open_left[i]
             if not np.isnan(ahead):
                 surface[np.abs(xs - ahead) < self._takeoff_margin - _TOL] = -1
-            surface = self._sure_landings(surface, ys, hits.x, hits.y)
+            surface = self._sure_landings(surface, ys, hits.x, hits.y, vx)
             return surface, hits.x, hits.y, hits.t
 
         return trace
@@ -590,28 +613,40 @@ class FootholdGraph:
             rope = self._ropes[i - len(self._platforms)]
             xs = np.full(len(ys), float(rope.x))
             hits = self._terrain.sweep(xs, ys, vx, -ROPE_JUMP_SPEED, grab=grab)
-            surface = self._sure_landings(hits.surface, ys, hits.x, hits.y)
+            surface = self._sure_landings(hits.surface, ys, hits.x, hits.y, vx)
             return surface, hits.x, hits.y, hits.t
 
         return trace
 
-    def _sure_landings(self, surface: Ints, ys: Floats, x: Floats, y: Floats) -> Ints:
+    def _sure_landings(
+        self, surface: Ints, ys: Floats, x: Floats, y: Floats, vx: float
+    ) -> Ints:
         """
         `surface`, with -1 for each sideways jump's landing on a platform that
         rises past `JUMP_RISE_SHARE` of the arc, or lies within
-        `LANDING_MARGIN` of the platform's open end. A rope it grabs is kept.
+        `LANDING_MARGIN` of the platform's open end it comes from, or within
+        `OVERSHOOT_MARGIN` of the one it heads for (at `vx`), where the
+        platform has room for both. A rope it grabs is kept.
         """
         if not self._platforms:
             return surface
         on_platform = (surface >= 0) & (surface < len(self._platforms))
         index = np.where(on_platform, surface, 0)
-        margin = self._landing_margin - _TOL
+        near = self._landing_margin
+        far = max(self._overshoot_margin, near)
+        # A platform with no room for both keeps `LANDING_MARGIN` at both
+        # ends, as before #542: the wider margin never takes a platform's
+        # last landings away (a perch narrower than both together).
+        with np.errstate(invalid="ignore"):
+            room = self._open_right[index] - self._open_left[index]
+            far = np.where(room < near + far, near, far)
+        left, right = (near - _TOL, far - _TOL) if vx > 0 else (far - _TOL, near - _TOL)
         # NaN (a closed end) compares false: no margin is kept from it.
         with np.errstate(invalid="ignore"):
             unsure = (
                 (ys - y > self._max_rise + _TOL)
-                | (x - self._open_left[index] < margin)
-                | (self._open_right[index] - x < margin)
+                | (x - self._open_left[index] < left)
+                | (self._open_right[index] - x < right)
             )
         return np.where(on_platform & unsure, -1, surface)
 
