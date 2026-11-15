@@ -4,9 +4,8 @@ acceptance criterion 8): nothing imports them, and no production code reads
 `configs/maps/`.
 
 The map comes from the game files through `game_data` (`WorldMap`), and paths
-are planned on its `FootholdGraph` (ADR 0004). `configs/maps/Line1Area1.json`
-may still sit in the repo until the maintainer's profile no longer names it,
-but nothing loads it.
+are planned on its `FootholdGraph` (ADR 0004). `configs/maps/` was
+deleted (#546), and the guard below keeps code from reading it again.
 """
 
 import ast

@@ -73,7 +73,7 @@ def test_no_map_is_a_profile_error_naming_map() -> None:
 
 def test_game_map_is_retired_naming_map_and_mobs() -> None:
     with pytest.raises(ProfileError, match=r"`map`.*`mobs`"):
-        refuse_game_map("Line1Area1")
+        refuse_game_map("SomeMapName")
 
 
 def test_no_game_map_is_nothing_to_refuse() -> None:

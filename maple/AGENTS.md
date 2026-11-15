@@ -54,7 +54,7 @@ The map comes from the client's files: the profile's `map` (a game name, an
 id, or `auto`) is resolved through `game_data`'s Catalogue, and `MapleBot`
 publishes `data.world_map`, the map's `WorldMap` (platforms, walls, ropes,
 portals, NPCs, the minimap transform and the static render). Navigation is in
-virtual px (ADR 0004). The hand-made map files, `MapleMinimap`, `MinimapGrid`,
+virtual px (ADR 0004). The hand-made map files (deleted, #546), `MapleMinimap`, `MinimapGrid`,
 `MinimapPhysics` and the GUI map editor are retired (#399): don't bring them
 back. A profile that sets `game_map` refuses to start. `data.current_map`,
 `current_minimap` and `current_grid` are gone. `data.current_mobs`, the mobs

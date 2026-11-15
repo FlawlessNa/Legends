@@ -68,8 +68,8 @@ Rejected:
   names, and a profile that names none looks for none. They are not derived
   from the map's spawns in `game_data`: that would change which detection
   classes run, and is a separate decision.
-- `configs/maps/Line1Area1.json` stays in the repo, unread, until the
-  maintainer's profile no longer names it. Nothing loads it.
+- `configs/maps/Line1Area1.json` was deleted (#546), with the directory. A
+  profile that still sets `game_map` refuses to start.
 - Custom rotation patterns (the map files' feature cycles) are gone. Rotation
   draws its targets on Platforms. A later epic may bring an editor back on top
   of `WorldMap`.
