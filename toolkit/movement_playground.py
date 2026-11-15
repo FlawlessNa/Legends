@@ -83,15 +83,20 @@ unlike the other toolkit scripts.
   keys, the profile's `jump` key, and the `Teleport` skill's key when the
   class has it. Before an Action's first key, when the client isn't in front
   (you clicked this window), the bot brings it to the front as every Session
-  does (`activate`: an Alt tap, then `SetForegroundWindow` on the client).
+  does. That is `activate`: under the focus lock, `release_all` on the window
+  in front, an Alt tap there, then `SetForegroundWindow` on the client.
   The minimap's error handler (which moves the mouse and toggles the minimap)
   is never called: a position that can't be read is `UNSURE`, and the target
   holds until one is.
 - **Whenever a target ends** (arrived, timed out, cancelled, replaced), and on
   every way out: `release_every_key`, at `FAILSAFE` priority, cancelling the
-  Movement Action in flight. It **brings the client to the front first**, with
-  the same `activate` an Action starts with (under the focus lock: an Alt tap
-  to the window in front, then `SetForegroundWindow` on the client), because
+  Movement Action in flight (it shares their name). It **brings the client to
+  the front first**, so **every target end, arrivals and timeouts included,
+  switches the focus to the client**. It uses the same `activate` an Action
+  starts with: with another window in front, it waits for the focus lock,
+  runs `release_all` on that window, taps Alt there, then calls
+  `SetForegroundWindow` on the client. With the client already in front, it
+  takes the lock if it's free, else goes on without it. It does this because
   `SendInput` delivers key-ups to the window in front, and when you press Esc
   or q, click a new target, or bring this window forward, that window is this
   one. It then sends key-ups for every key the Held-Keys Ledger holds and for
