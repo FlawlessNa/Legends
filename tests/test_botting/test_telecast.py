@@ -28,6 +28,7 @@ from botting.controller.inputs.focused_inputs import EVENTS, KeyboardInputWrappe
 from botting.controller.inputs.held_keys_ledger import InputState
 from botting.controller.inputs.inputs_helpers import DELAY, OVERHEAD
 from maple.actions.movements_v2 import telecast, telecast_compiler
+from maple.actions.skills_related_v2 import cast_skill_compiler
 from maple.model.characters.maple_skills import MapleSkill
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
@@ -514,6 +515,22 @@ def test_the_compiler_partial_is_picklable() -> None:
     )
 
     assert pickle.loads(pickle.dumps(compiler)) is not None
+
+
+def test_both_outcomes_carry_the_correlation_id_for_key_records() -> None:
+    """#538: the fused sequence and the fallback cast are both stamped with the
+    id baked into the partial, so their key records join to the decision."""
+    inner, _ = _compiler_for(_movement_compiler(_TELEPORT_PLAN)(InputState()))
+    fused = _telecast(inner, correlation_id="cid-538")
+    nothing, _ = _compiler_for(None)
+    fallback = _telecast(nothing, correlation_id="cid-538")
+
+    assert fused.correlation_id == "cid-538"
+    assert fallback.correlation_id == "cid-538"
+    cast = cast_skill_compiler(
+        InputState(), handle=HANDLE, ign=IGN, skill=ULTIMATE, correlation_id="cid-538"
+    )
+    assert cast.correlation_id == "cid-538"
 
 
 # --- Over a real Movement Plan -------------------------------------------------

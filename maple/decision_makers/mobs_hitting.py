@@ -71,6 +71,8 @@ class MobsHitting(
             ign=self.data.ign,
             skill=self.training_skill,
             direction=direction,
+            # The key records of the cast carry this decision's id (#538).
+            correlation_id=self.correlation_id,
         )
         return self._cast_request(compiler)
 

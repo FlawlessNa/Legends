@@ -22,6 +22,6 @@ the proof-of-concept trackers.
 - `toolkit/poc_tracking/minimap_tracker.py`: Proof of concept: track the character on the map's full minimap canvas, on any map.
 - `toolkit/poc_tracking/world_tracker.py`: Proof of concept: read the character's position in virtual (world) coordinates from the play area.
 - `toolkit/position_check.py`: Watch and record how the position readers behave, live or over saved frames.
-- `toolkit/trial_report.py`: Per-move accuracy report for a Trial: planned against actual, retries, loop timing.
+- `toolkit/trial_report.py`: Per-move accuracy report for a Trial: planned against actual, key times, retries, loop timing.
 - `toolkit/synthetic_scene.py`: Compose one synthetic client screen of a map and save it with its labels.
 - `toolkit/verify_dataset_structure.py`: Check that every dataset under `data/datasets/` has a consistent layout.

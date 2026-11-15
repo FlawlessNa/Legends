@@ -1,13 +1,14 @@
 """
 `toolkit.trial_report` (#536): per-move verdicts, clusters and loop timing, on a
-small synthetic Trial record and Session built here. Nothing reads a client.
+small synthetic Trial record and Session built here; and the verdicts at the key
+times a Session records since #538. Nothing reads a client.
 """
 
 from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -29,6 +30,15 @@ T0 = 1000.0
 #: The Session's local wall clock at record-clock T0.
 ZONE = timezone(timedelta(hours=-5))
 WALL0 = datetime(2026, 11, 15, 8, 0, 0, tzinfo=ZONE)
+
+#: Zones a Session may have been written in. The machine running the report is in
+#: none of them in particular: the inputs carry their offsets, so these hold on a
+#: UTC machine (CI) and a -05:00 one alike.
+ZONES = (
+    UTC,
+    timezone(timedelta(hours=-5)),
+    timezone(timedelta(hours=9, minutes=30)),
+)
 
 Point = tuple[float, float]
 
@@ -113,10 +123,20 @@ class Trial:
         )
 
 
-def write(path: Path, *trials: tuple[Trial, float]) -> Path:
+def write(
+    path: Path,
+    *trials: tuple[Trial, float],
+    physics: dict[str, float] | None = None,
+) -> Path:
     with JsonlRecordWriter(path) as sink:
         sink.write(
-            ScheduleHeader("s", "Some Map", "2026-11-15T13:00:00+00:00", "SECRETBOX")
+            ScheduleHeader(
+                "s",
+                "Some Map",
+                "2026-11-15T13:00:00+00:00",
+                "SECRETBOX",
+                physics=physics,
+            )
         )
         for trial, duration in trials:
             for line in trial.lines:
@@ -285,22 +305,56 @@ def test_consecutive_tries_of_one_move_are_a_cluster_with_a_hypothesis(
 # --- the Session ------------------------------------------------------------------
 
 
-def wall(t: float) -> datetime:
-    return WALL0 + timedelta(seconds=t)
+def wall(t: float, zone: timezone = ZONE) -> datetime:
+    """Trial time `t` on the Session's wall clock, written in `zone`."""
+    return (WALL0 + timedelta(seconds=t)).astimezone(zone)
 
 
-def session_for(record: Path, directory: Path) -> Path:
+def key(
+    cid: str,
+    kind: str,
+    name: str,
+    t: float,
+    origin: int | None = None,
+    zone: timezone = ZONE,
+) -> dict[str, object]:
+    """A ``key.down``/``key.up`` record at Trial time `t` (#538): ``t`` on the
+    record's clock, ``wall`` on the Session's, and the envelope written later."""
+    payload: dict[str, object] = {
+        "key": name,
+        "handle": 1,
+        "t": T0 + t,
+        "wall": wall(t, zone).timestamp(),
+        "cause": "step",
+        "origin": origin,
+    }
+    if kind == "key.up":
+        payload["held"] = True
+    return {
+        "timestamp": wall(t + 0.003, zone).isoformat(),
+        "correlation_id": cid,
+        "event_type": kind,
+        "payload": payload,
+    }
+
+
+def session_for(
+    record: Path,
+    directory: Path,
+    keys: Sequence[dict[str, object]] = (),
+    zone: timezone = ZONE,
+) -> Path:
     """A Session for `overshoot`: its reads, two Actions and two Path lines,
-    with a player name in every place a Session carries one."""
+    with a player name in every place a Session carries one, and `keys`."""
     directory.mkdir()
-    events: list[dict[str, object]] = []
+    events: list[dict[str, object]] = [*keys]
     for line in record.read_text(encoding="utf-8").splitlines():
         row = json.loads(line)
         if row["kind"] in ("cycle", "sample") and row["position"]:
             x, y = row["position"]
             events.append(
                 {
-                    "timestamp": wall(row["frame_time"] - T0).isoformat(),
+                    "timestamp": wall(row["frame_time"] - T0, zone).isoformat(),
                     "correlation_id": None,
                     "event_type": "position.read",
                     "payload": {
@@ -325,7 +379,7 @@ def session_for(record: Path, directory: Path) -> Path:
         ):
             events.append(
                 {
-                    "timestamp": wall(t).isoformat(),
+                    "timestamp": wall(t, zone).isoformat(),
                     "correlation_id": cid,
                     "event_type": kind,
                     "payload": payload,
@@ -337,9 +391,10 @@ def session_for(record: Path, directory: Path) -> Path:
     )
 
     def log(t: float, text: str) -> str:
+        # The Session's local time, with no offset, as `session.log` writes it.
         stamp = (
-            wall(t).strftime("%Y-%m-%d %H:%M:%S,")
-            + f"{wall(t).microsecond // 1000:03d}"
+            wall(t, zone).strftime("%Y-%m-%d %H:%M:%S,")
+            + f"{wall(t, zone).microsecond // 1000:03d}"
         )
         return (
             "DEBUG -- PROCESS Engine(SecretName) -- TASK TrialRunner(SecretName) "
@@ -356,10 +411,13 @@ def session_for(record: Path, directory: Path) -> Path:
     return directory
 
 
+@pytest.mark.parametrize("zone", ZONES, ids=["utc", "minus5", "plus0930"])
 def test_the_session_is_put_on_the_records_clock_and_timed(
-    record: Path, tmp_path: Path
+    record: Path, tmp_path: Path, zone: timezone
 ) -> None:
-    run = trial_report.analyze(record, session_for(record, tmp_path / "session"))
+    run = trial_report.analyze(
+        record, session_for(record, tmp_path / "session", zone=zone)
+    )
     first, second = run.judged["overshoot"][:2]
 
     assert run.session is not None
@@ -431,3 +489,195 @@ def test_the_settings_the_report_names_are_the_codes() -> None:
     cache = re.search(r'"current_frame",.*?threshold=([\d.]+)', source, re.DOTALL)
     assert cache is not None
     assert trial_report.FRAME_CACHE == float(cache.group(1))
+
+
+# --- at the key (#538) --------------------------------------------------------------
+
+
+def test_a_session_without_key_times_keeps_the_reads_verdicts(
+    record: Path, tmp_path: Path
+) -> None:
+    run = trial_report.analyze(record, session_for(record, tmp_path / "session"))
+    first, second = run.judged["overshoot"][:2]
+
+    assert run.session is not None
+    assert run.session.keys == {}
+    assert first.takeoff_key is None
+    assert first.takeoff == "on time"
+    assert second.stop_key is None
+    assert second.verdict == "ok"
+    assert first.timing is not None
+    assert first.timing.to_keys is None
+
+
+@pytest.mark.parametrize("zone", ZONES, ids=["utc", "minus5", "plus0930"])
+def test_a_take_off_key_past_the_planned_x_is_late_though_the_reads_bracket_it(
+    record: Path, tmp_path: Path, zone: timezone
+) -> None:
+    keys = [
+        key("overshoot-1", "key.down", "right", 0.06, 0, zone),
+        # A non-direction key from the walk's component is not the take-off.
+        key("overshoot-1", "key.down", "ctrl", 0.10, 0, zone),
+        # Between the reads at 0.36 (x -5) and 0.48 (x 10): x 7.5, 7.5 px late.
+        key("overshoot-1", "key.down", "space", 0.46, 1, zone),
+        key("overshoot-1", "key.up", "space", 0.50, 1, zone),
+    ]
+    run = trial_report.analyze(
+        record, session_for(record, tmp_path / "session", keys, zone)
+    )
+    first = run.judged["overshoot"][0]
+
+    assert first.takeoff_key is not None
+    assert first.takeoff_key.key == "space"
+    assert first.takeoff_key.x == pytest.approx(7.5)
+    assert first.takeoff_key.px == pytest.approx(7.5)
+    # At the default walk speed, 125 px/s.
+    assert first.takeoff_key.ms == pytest.approx(60.0)
+    assert first.takeoff == "late"
+    assert first.verdict == "long, late take-off"
+    assert first.takeoff_bracket is not None  # still shown beside it
+
+
+@pytest.mark.parametrize("zone", ZONES, ids=["utc", "minus5", "plus0930"])
+def test_the_schedule_to_first_key_latency_is_timed(
+    record: Path, tmp_path: Path, zone: timezone
+) -> None:
+    keys = [key("overshoot-1", "key.down", "right", 0.05 + 0.018, 0, zone)]
+    run = trial_report.analyze(
+        record, session_for(record, tmp_path / "session", keys, zone)
+    )
+    first, second = run.judged["overshoot"][:2]
+
+    assert first.timing is not None
+    assert first.timing.to_keys == pytest.approx(0.018, abs=1e-4)
+    assert second.timing is not None
+    assert second.timing.to_keys is None
+
+
+def test_a_walk_released_short_of_its_slide_is_short_at_the_key(
+    tmp_path: Path,
+) -> None:
+    trial = Trial("walk")
+    cid = trial.cycle_at(0.0, (0, 0), [move("WALK_RIGHT", (0, 0), (100, 0))])
+    trial.reads(
+        (0.12, 15, 0),
+        (0.24, 30, 0),
+        (0.36, 45, 0),
+        (0.48, 60, 0),
+        (0.60, 75, 0),
+        (0.72, 90, 0),
+        (0.84, 100, 0),
+        (0.96, 100, 0),
+    )
+    trial.cycle_at(1.08, (100, 0))
+    record = write(
+        tmp_path / "walk.jsonl",
+        (trial, 1.08),
+        physics={"walkSpeed": 125.0, "walkDrag": 80000.0},
+    )
+    directory = tmp_path / "session"
+    directory.mkdir()
+    events = [
+        {
+            "timestamp": wall(r.position.frame_time - T0).isoformat(),
+            "correlation_id": None,
+            "event_type": "position.read",
+            "payload": {"x": r.position.position[0], "y": r.position.position[1]},
+        }
+        for r in trial.lines
+        if r.position.position is not None
+    ]
+    events += [
+        {
+            "timestamp": wall(0.01).isoformat(),
+            "correlation_id": cid,
+            "event_type": "action.scheduled",
+            "payload": {},
+        },
+        key(cid, "key.down", "right", 0.02, origin=0),
+        # x 62.5 at 125 px/s: rests 9.8 px on (125² / 2 x 800), at 72.3.
+        key(cid, "key.up", "right", 0.50),
+    ]
+    (directory / "telemetry.jsonl").write_text(
+        "".join(json.dumps(e) + "\n" for e in events), encoding="utf-8"
+    )
+    run = trial_report.analyze(record, directory)
+    first = run.judged["walk"][0]
+
+    assert first.stop_key is not None
+    assert first.stop_key.x == pytest.approx(62.5)
+    assert first.stop_key.px == pytest.approx(62.5 + 125**2 / 1600 - 100)
+    assert first.stop_key.ms == pytest.approx(first.stop_key.px / 125 * 1000)
+    # The key came up early; the last read says it stopped on the mark anyway.
+    assert first.verdict == "short, stopped ok"
+
+
+def test_a_key_from_outside_the_move_is_not_its_take_off() -> None:
+    walk = trial_report.Move("WALK_RIGHT", (0, 0), (10, 0), 10, components=(0,))
+    jump = trial_report.Move("JUMP_RIGHT", (10, 0), (60, 0), 50, 0.5, components=(1,))
+    keys = [
+        trial_report.KeyEvent(1.0, "right", True, 0),
+        trial_report.KeyEvent(1.1, "ctrl", True, 0),
+        trial_report.KeyEvent(1.2, "space", True, 1),
+    ]
+
+    assert trial_report.takeoff_key(keys, jump) == keys[2]
+    assert trial_report.takeoff_key(keys[:2], jump) is None
+    # Records without Provenance: the first non-direction key.
+    bare = [trial_report.KeyEvent(k.t, k.key, k.down) for k in keys]
+    assert trial_report.takeoff_key(bare, jump) == bare[1]
+    assert trial_report.stop_key(
+        [*keys, trial_report.KeyEvent(1.5, "right", False)], walk
+    ) == trial_report.KeyEvent(1.5, "right", False)
+
+
+def test_merged_walks_keep_their_plan_components() -> None:
+    moves = trial_report.merge_plan(
+        [
+            move("WALK_RIGHT", (0, 0), (10, 0)),
+            move("WALK_RIGHT", (10, 0), (20, 0)),
+            move("JUMP_RIGHT", (20, 0), (60, 0), 40),
+            MovementSummary("END_OF_MOVEMENT", 1, False, False),
+        ]
+    )
+
+    assert [m.components for m in moves] == [(0, 1), (2,)]
+
+
+def test_key_records_are_ordered_by_their_time_not_by_file_order(
+    record: Path, tmp_path: Path
+) -> None:
+    """Main Process writes a key record after the send, so the file can hold a
+    later key before an earlier one: every reader orders by `t`."""
+    in_file_order = [
+        key("overshoot-1", "key.up", "space", 0.50, 1),
+        key("overshoot-1", "key.down", "space", 0.47, 1),
+        key("overshoot-1", "key.down", "space", 0.46, 1),
+        key("overshoot-1", "key.down", "right", 0.06, 0),
+    ]
+    directory = session_for(record, tmp_path / "session")
+    telemetry = directory / "telemetry.jsonl"
+    # Appended after every other record, in this order: file order is not time.
+    with telemetry.open("a", encoding="utf-8") as handle:
+        for event in in_file_order:
+            handle.write(json.dumps(event) + "\n")
+    run = trial_report.analyze(record, directory)
+    first = run.judged["overshoot"][0]
+
+    assert run.session is not None
+    times = [k.t for k in run.session.keys["overshoot-1"]]
+    assert times == sorted(times)
+    assert first.takeoff_key is not None
+    assert first.takeoff_key.t == pytest.approx(T0 + 0.46)
+    assert first.timing is not None
+    assert first.timing.to_keys == pytest.approx(0.01, abs=1e-4)
+    shuffled = [
+        trial_report.KeyEvent(1.5, "right", False),
+        trial_report.KeyEvent(1.2, "space", True),
+        trial_report.KeyEvent(1.1, "space", True),
+        trial_report.KeyEvent(1.3, "right", False),
+    ]
+    walk = trial_report.Move("WALK_RIGHT", (0, 0), (10, 0), 10)
+    jump = trial_report.Move("JUMP_RIGHT", (10, 0), (60, 0), 50)
+    assert trial_report.takeoff_key(shuffled, jump) == shuffled[2]
+    assert trial_report.stop_key(shuffled, walk) == shuffled[3]
