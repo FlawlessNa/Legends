@@ -80,7 +80,9 @@ is the same move: the same kind, a planned end within ``KEY_X`` and ``KEY_Y``
 (``KEY_ROPE_Y`` in y for a rope grab, whose height may move along the rope). A
 cluster is reported when it holds two **tries** or more, a try being a cycle
 judged on that move that took off (or, for a portal or climb, was in reach).
-Seconds lost: from the first try to the last, what the repeats cost. The tries' landing offsets along the travel direction
+Seconds lost: from the first try to the last try's start, what the repeats
+cost. It leaves out the last try's own time, so when the last try missed too,
+the real loss is larger. The tries' landing offsets along the travel direction
 give the hypothesis: the same side every time, growing, early or late take-offs.
 
 **Loop timing** (with a Session). Per cycle: the read's age when planning began
@@ -162,6 +164,14 @@ CUT_TOL: Final = 0.04
 #: `TrialRunner.DEFAULT_ACTION_DURATION`: the cap when the batch sets no
 #: ``action_duration`` Knob. A test pins the two together.
 DEFAULT_CUT: Final = 1.0
+#: The settings "Where the time goes" names, with their values in the code; a
+#: test pins each to its source. `TrialRunner._throttle`, the decision loop's
+#: period (the ``decision_interval`` Knob's default):
+LOOP_PERIOD: Final = 0.1
+#: `AsyncTaskManager._throttle`, Main Process's sleep before each queue read:
+HANDOFF_THROTTLE: Final = 0.1
+#: The ``current_frame`` refresh threshold in `maple/bots/maple_bot.py`:
+FRAME_CACHE: Final = 0.1
 #: `Physics.img` walkSpeed, when the header carries no physics.
 DEFAULT_WALK_SPEED: Final = 125.0
 #: Fewer than this in a group, and a comparison says the sample is too small.
@@ -682,11 +692,10 @@ def judge_cycle(
                 judged.move, judged.kind = key, "climb"
                 _judge_climb(judged, window, key, grab=index > 0)
                 return
-        elif key.kind == "portal":
-            if judged.lead <= reach:
-                judged.move, judged.kind = key, "portal"
-                _judge_portal(judged, window, key)
-                return
+        elif key.kind == "portal" and judged.lead <= reach:
+            judged.move, judged.kind = key, "portal"
+            _judge_portal(judged, window, key)
+            return
     walk = moves[0]
     judged.move, judged.kind = walk, walk.kind
     if walk.kind != "walk":
@@ -906,7 +915,9 @@ class Cluster:
 
     @property
     def lost(self) -> float:
-        """From the first try to the last: what the repeats cost."""
+        """From the first try to the last try's start: what the repeats cost.
+        The last try's own time is left out, so a cluster whose last try also
+        missed lost more than this."""
         return self.tries[-1].t - self.tries[0].t
 
 
@@ -1239,7 +1250,16 @@ def _dispatch(j: Judged, t0: float) -> str:
 
 
 def _render_clusters(run: Run) -> list[str]:
-    out = ["", "## Clusters of retries", ""]
+    out = [
+        "",
+        "## Clusters of retries",
+        "",
+        (
+            "Seconds lost run from the first try to the last try's start: the last "
+            "try's own time is left out, so when it missed too, the loss is larger."
+        ),
+        "",
+    ]
     if not run.clusters:
         out.append("None: no key move was tried twice in a row.")
         return out
@@ -1441,29 +1461,29 @@ def _render_where(run: Run) -> list[str]:
     )
     out.append("")
     out.append(
-        f"- **The 1 s cut**: `TrialRunner.DEFAULT_ACTION_DURATION = 1.0` "
+        f"- **The {DEFAULT_CUT:g} s cut**: `TrialRunner.DEFAULT_ACTION_DURATION = {DEFAULT_CUT}` "
         f"(`maple/decision_makers/trial_runner.py`), handed to `compile_movements` "
         f"as `total_duration` (`data.action_duration`, "
         f"`maple/decision_makers/mixins/_rotation_mixins.py`). **Pure configuration**: "
         f"the `action_duration` Knob of a schedule batch (`configs/trials/*.json`, "
-        f"unset in the Ellinia schedules, so 1.0). Actions here: "
+        f"unset in the Ellinia schedules, so {DEFAULT_CUT}). Actions here: "
         f"{', '.join(f'{k} {v}' for k, v in ended.most_common()) or '-'}."
     )
     out.append(
-        f"- **The decision loop's period**: `TrialRunner._throttle = 0.1` "
+        f"- **The decision loop's period**: `TrialRunner._throttle = {LOOP_PERIOD}` "
         f"(`DecisionMaker._decision_loop`, `botting/core/decision_maker.py`, #508). "
         f"**Pure configuration**: the `decision_interval` Knob. The loop wait "
         f"(finish to next capture) median: {med(wait):.0f} ms."
     )
     out.append(
-        f"- **Main Process's hand-off throttle**: `AsyncTaskManager._throttle = 0.1` "
+        f"- **Main Process's hand-off throttle**: `AsyncTaskManager._throttle = {HANDOFF_THROTTLE}` "
         f"(`botting/core/async_task_manager.py`), a sleep before every queue read: "
-        f"a request waits only when it comes within 0.1 s of the previous one. "
+        f"a request waits only when it comes within {HANDOFF_THROTTLE} s of the previous one. "
         f"Code, not configuration. Hand-off median: {med(handoff):.0f} ms."
     )
     out.append(
-        "- **The frame cache**: `current_frame` is re-grabbed only when older than "
-        "0.1 s (`maple/bots/maple_bot.py`), so a cycle can plan on a sample's frame "
+        f"- **The frame cache**: `current_frame` is re-grabbed only when older than "
+        f"{FRAME_CACHE} s (`maple/bots/maple_bot.py`), so a cycle can plan on a sample's frame "
         "from before the Action finished (the stale-frame count above)."
     )
     out.append(
@@ -1534,12 +1554,12 @@ def rank_options(timings: Sequence[Timing]) -> list[tuple[float, str]]:
             ),
         )
     )
-    saving = n * 0.025
+    saving = n * LOOP_PERIOD / 4
     options.append(
         (
             saving,
             (
-                f"**A shorter `decision_interval`** (0.1 s to 0.05 s; a schedule Knob, pure "
+                f"**A shorter `decision_interval`** ({LOOP_PERIOD} s to {LOOP_PERIOD / 2:g} s; a schedule Knob, pure "
                 f"configuration). At most half the period cut off each boundary's wait, "
                 f"about {saving:.1f} s here; costs twice the sample reads (CPU), and does "
                 f"nothing for the part of the wait that is a read."
@@ -1551,7 +1571,7 @@ def rank_options(timings: Sequence[Timing]) -> list[tuple[float, str]]:
         (
             saving,
             (
-                f"**A longer cut** (`action_duration` 1.0 to 1.5 s; a schedule Knob, pure "
+                f"**A longer cut** (`action_duration` {DEFAULT_CUT} to {DEFAULT_CUT * 1.5:g} s; a schedule Knob, pure "
                 f"configuration). A third fewer boundaries on the {cuts} Actions that ended "
                 f"on the cut, about {saving:.1f} s; but each piece runs longer on one read, "
                 f"so a walk's stop and a take-off rest more on the compiled timing (#503, "
@@ -1564,7 +1584,7 @@ def rank_options(timings: Sequence[Timing]) -> list[tuple[float, str]]:
         (
             saving,
             (
-                f"**Lower `AsyncTaskManager._throttle`** (0.1 s). Hand-off is only "
+                f"**Lower `AsyncTaskManager._throttle`** ({HANDOFF_THROTTLE} s). Hand-off is only "
                 f"{saving:.1f} s in all here: the queue is idle when a request comes, so "
                 f"the sleep is already over. Generic engine code; nothing to gain."
             ),
@@ -1575,7 +1595,7 @@ def rank_options(timings: Sequence[Timing]) -> list[tuple[float, str]]:
         (
             saving,
             (
-                f"**Force a fresh frame for each decision** (the 0.1 s frame cache). "
+                f"**Force a fresh frame for each decision** (the {FRAME_CACHE} s frame cache). "
                 f"{stale} cycle(s) planned on a frame from before the finish; it adds a "
                 f"read to every boundary, about {-saving:.1f} s here if nothing else changes."
                 if saving < 0

@@ -414,3 +414,20 @@ def test_the_default_cut_is_the_trial_runners() -> None:
     from maple.decision_makers.trial_runner import TrialRunner
 
     assert trial_report.DEFAULT_CUT == TrialRunner.DEFAULT_ACTION_DURATION
+
+
+def test_the_settings_the_report_names_are_the_codes() -> None:
+    """ "Where the time goes" quotes each setting's value; a change in the code
+    must fail here rather than leave the report quoting the old one."""
+    import re
+
+    from botting.core.async_task_manager import AsyncTaskManager
+    from maple.bots import maple_bot
+    from maple.decision_makers.trial_runner import TrialRunner
+
+    assert trial_report.LOOP_PERIOD == TrialRunner._throttle  # pyright: ignore[reportPrivateUsage]
+    assert trial_report.HANDOFF_THROTTLE == AsyncTaskManager._throttle  # pyright: ignore[reportPrivateUsage]
+    source = Path(maple_bot.__file__).read_text(encoding="utf-8")
+    cache = re.search(r'"current_frame",.*?threshold=([\d.]+)', source, re.DOTALL)
+    assert cache is not None
+    assert trial_report.FRAME_CACHE == float(cache.group(1))
