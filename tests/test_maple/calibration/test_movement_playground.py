@@ -473,7 +473,7 @@ def test_cancel_releases_every_key_and_cancels_the_action_in_flight(
     (release,) = harness.releases
     assert release.cancel_tasks == [f"{harness.runner}"]
     assert release.priority == priorities.FAILSAFE
-    assert release.args == (corpus.LAB_HANDLE,)
+    assert release.args == (corpus.LAB_HANDLE, "Lab")
     assert [r.result for r in harness.sink if isinstance(r, TrialOutcome)] == [
         "abandoned"
     ]
@@ -541,16 +541,196 @@ def test_a_cancelled_task_releases_every_key(harness: _Runner) -> None:
     assert len(harness.releases) == 1
 
 
-def test_the_release_procedure_is_release_all_on_the_client(
+# --- the release, in Main Process: the client in front first --------------------------
+
+BINDS = {"jump": "alt_right", "Teleport": "c", "Heal": "space"}
+
+
+@dataclass
+class _Sender:
+    """Stands in for the focus switch and the input sender: what was called,
+    in order, and with what."""
+
+    calls: list[tuple[str, object]]
+
+    def names(self) -> list[str]:
+        return [name for name, _ in self.calls]
+
+
+def _fake_sender(
+    mocker: MockerFixture,
+    *,
+    held: frozenset[str] = frozenset(),
+    swept: frozenset[str] = frozenset({"left", "right", "up", "down"}),
+    takes_lock: bool = False,
+) -> _Sender:
+    sender = _Sender([])
+
+    async def activate(handle: int) -> bool:
+        sender.calls.append(("activate", handle))
+        if takes_lock:
+            await mp.SharedResources.focus_lock.acquire()
+        return takes_lock
+
+    def release_keys(keys: list[str], handle: int) -> None:
+        sender.calls.append(("release_keys", keys))
+
+    def release_all(handle: int) -> None:
+        sender.calls.append(("release_all", handle))
+
+    def clear(handle: int) -> None:
+        sender.calls.append(("clear", handle))
+
+    mocker.patch.object(mp, "activate", activate)
+    mocker.patch.object(controller, "key_binds", return_value=BINDS)
+    mocker.patch.object(mp.HeldKeysLedger, "keys_held", return_value=held)
+    mocker.patch.object(mp.HeldKeysLedger, "sweep_candidates", return_value=swept)
+    mocker.patch.object(mp.HeldKeysLedger, "clear", side_effect=clear)
+    mocker.patch.object(controller, "release_keys", side_effect=release_keys)
+    mocker.patch.object(controller, "release_all", side_effect=release_all)
+    return sender
+
+
+def test_the_release_brings_the_client_to_the_front_before_any_key_up(
     mocker: MockerFixture,
 ) -> None:
-    """In Main Process, the release request runs `controller.release_all` on
-    the client's handle: the fake stands in for the input sender."""
-    release_all = mocker.patch.object(controller, "release_all")
+    """Key-ups go to the window in front, which is the playground's when a
+    command typed there ended the target: the client is activated first."""
+    sender = _fake_sender(mocker, held=frozenset({"left"}))
 
-    asyncio.run(mp.release_every_key(4242))
+    asyncio.run(mp.release_every_key(4242, "Lab"))
 
-    release_all.assert_called_once_with(4242)
+    assert sender.names() == ["activate", "release_keys", "release_all"]
+    assert sender.calls[0] == ("activate", 4242)
+    assert sender.calls[2] == ("release_all", 4242)
+
+
+def test_the_release_sends_every_movement_key_up_whatever_the_ledger_says(
+    mocker: MockerFixture,
+) -> None:
+    """A cancelled Action released its keys to the window that was in front,
+    and the ledger counts them released: every key a plan presses goes up."""
+    sender = _fake_sender(mocker, held=frozenset({"x"}))
+
+    asyncio.run(mp.release_every_key(4242, "Lab"))
+
+    released = dict(sender.calls)["release_keys"]
+    assert released == sorted({"left", "right", "up", "down", "alt_right", "c", "x"})
+
+
+def test_the_sweep_is_skipped_when_it_could_read_the_playground_keys(
+    mocker: MockerFixture,
+) -> None:
+    """Were Escape among the keys the sweep reads, the maintainer's own Esc
+    would be taken for a key the bot holds: the ledger is cleared instead."""
+    sender = _fake_sender(mocker, swept=frozenset({"left", "escape"}))
+
+    asyncio.run(mp.release_every_key(4242, "Lab"))
+
+    assert sender.names() == ["activate", "release_keys", "clear"]
+
+
+def test_the_release_gives_back_the_focus_lock_activate_took(
+    mocker: MockerFixture,
+) -> None:
+    sender = _fake_sender(mocker, takes_lock=True)
+    mocker.patch.object(controller, "release_keys", side_effect=OSError("gone"))
+
+    with pytest.raises(OSError, match="gone"):
+        asyncio.run(mp.release_every_key(4242, "Lab"))
+
+    assert sender.names() == ["activate"]
+    assert not mp.SharedResources.focus_lock.locked()
+
+
+def _end_by(h: _Runner, how: str) -> None:
+    """Drive the runner to one way a target, or the playground, ends."""
+    if how == "arrival":
+        h.decide()
+        h.command(mp.CLICK, TARGET)
+        h.positions.extend([START, TARGET])
+        h.decide(2)
+        return
+    _start_target(h)
+    if how in (mp.CANCEL, mp.QUIT):
+        h.command(how)
+        h.decide()
+    elif how == "replace":
+        h.command(mp.CLICK, (100.0, 0.0))
+        h.decide()
+    elif how == "exception":
+
+        def broken() -> Reading[VirtualPosition]:
+            raise RuntimeError("a reader broke")
+
+        h.runner.data.reconfigure_attribute("current_position", broken)
+        with pytest.raises(RuntimeError):
+            asyncio.run(h.runner.task())
+    elif how == "cancelled task":
+
+        async def run() -> None:
+            task = asyncio.create_task(h.runner.task())
+            await asyncio.sleep(0.05)
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+        asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "how",
+    ["arrival", mp.CANCEL, "replace", mp.QUIT, "exception", "cancelled task"],
+)
+def test_every_way_out_activates_the_client_before_releasing(
+    harness: _Runner, mocker: MockerFixture, how: str
+) -> None:
+    """Each release request the runner sends, run as Main Process runs it,
+    with the focus switch and the input sender faked."""
+    _end_by(harness, how)
+    requests = harness.releases
+    assert requests
+
+    for request in requests:
+        sender = _fake_sender(mocker)
+        asyncio.run(request.procedure(*request.args))
+        assert sender.names()[:2] == ["activate", "release_keys"]
+        assert sender.calls[0] == ("activate", corpus.LAB_HANDLE)
+
+
+# --- the minimap check at start: nothing pressed ---------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("expanded", "banner", "shown", "starts"),
+    [
+        (True, False, False, True),
+        (True, True, True, True),
+        (True, True, False, True),  # map: auto falls back to the canvas
+        (False, False, False, False),
+        (False, True, False, False),
+    ],
+)
+def test_the_minimap_is_checked_never_pressed(
+    mocker: MockerFixture, expanded: bool, banner: bool, shown: bool, starts: bool
+) -> None:
+    """As `MapleBot._show_minimap`, banner first for `map: auto`, then any
+    expanded look; a minimap that isn't expanded refuses the start. Nothing
+    here can press a key: only the two reads are stood in for."""
+    read = mp.MinimapState.EXPANDED if expanded else mp.MinimapState.ABSENT
+    states = mocker.patch.object(mp, "minimap_state", return_value=read)
+    banners = mocker.patch.object(mp, "minimap_banner_shown", return_value=shown)
+    mocker.patch.object(mp.map_check, "WINDOW", 0.0)
+    bot: Any = type("Bot", (), {"data": type("Data", (), {"handle": 7})()})()
+    minimap: Any = object()
+
+    if starts:
+        mp.PlaygroundBot._show_minimap(bot, minimap, banner=banner)
+    else:
+        with pytest.raises(mp.StartupRefused):
+            mp.PlaygroundBot._show_minimap(bot, minimap, banner=banner)
+
+    assert states.called
+    assert banners.called == (banner and expanded)
 
 
 # --- the window and Main Process ----------------------------------------------------------

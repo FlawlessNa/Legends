@@ -1,6 +1,8 @@
 """
-Movement playground (#524): send the character to targets you pick on the map,
-and watch how the bot's own movement stack gets it there.
+Movement playground (#524): send the character to picked targets; it sends input.
+
+You pick targets on the map and watch how the bot's own movement stack gets the
+character there.
 
     python -m toolkit.movement_playground --map "Victoria Road: Ellinia"
     python -m toolkit.movement_playground --profile nass --map auto --budget 90
@@ -11,6 +13,10 @@ position read live, and the target. Pick a target; the bot plans a Path to it
 on the foothold graph, compiles it into Movement Plans, and sends the keys, as
 a Session does. When the target ends (arrived, timed out, stuck, cancelled),
 pick the next one. It replaces the old `movements_calibration.py`.
+
+**The window may take the focus when it opens**, as any new window does.
+Nothing is sent before a target, and the first Action of the first target
+brings the client back to the front (`activate`, below).
 
 **In the window:**
 
@@ -60,7 +66,10 @@ press the minimap key); the game data store (`python -m game_data extract`);
 `configs/recordings.ini` and the profile's `configs/keybindings.ini` section;
 and a profile under `profiles/` (`--profile`, or the only one there besides the
 example). The profile's `bot:` is ignored. Its `map` is replaced by `--map`
-when given.
+when given. With `--map auto` the map is identified as `MapleBot` does it, from
+the minimap's banner when it is shown (it waits up to `map_check.WINDOW` for
+it), else from the expanded minimap alone, which the canvas match can still
+tell. It never presses the minimap key to show the banner.
 
 **Which keys reach the game, and when (C-KEYS).** This script sends keys,
 unlike the other toolkit scripts.
@@ -78,17 +87,31 @@ unlike the other toolkit scripts.
   The minimap's error handler (which moves the mouse and toggles the minimap)
   is never called: a position that can't be read is `UNSURE`, and the target
   holds until one is.
-- **Whenever a target ends** (arrived, timed out, cancelled, replaced) and on
-  quit: `release_all` on the client (key-ups for every key the Held-Keys Ledger
-  holds, and any found physically down), at `FAILSAFE` priority, cancelling the
-  Movement Action in flight.
+- **Whenever a target ends** (arrived, timed out, cancelled, replaced), and on
+  every way out: `release_every_key`, at `FAILSAFE` priority, cancelling the
+  Movement Action in flight. It **brings the client to the front first**, with
+  the same `activate` an Action starts with (under the focus lock: an Alt tap
+  to the window in front, then `SetForegroundWindow` on the client), because
+  `SendInput` delivers key-ups to the window in front, and when you press Esc
+  or q, click a new target, or bring this window forward, that window is this
+  one. It then sends key-ups for every key the Held-Keys Ledger holds and for
+  every key a Movement Plan presses (the arrows, `jump`, `Teleport`). That
+  covers a cancelled Action whose own key-ups went to this window while the
+  ledger marked them released. Last comes `release_all`'s sweep for keys found
+  physically down. The sweep runs only while the playground's own keys (q, r,
+  n, Escape) can't be among the keys it reads, so your Esc or q is never taken
+  for a key the bot holds. This focus switch on release is the playground's
+  own; the shared `release_all` is unchanged.
 - **Every exit ends with every key released:** `q` and closing the window
   quit (the window sends `quit`, the DecisionMaker releases and asks the
   Session to stop); an exception in the window or a killed window process is
   seen by Main Process within `WATCH_INTERVAL`, which sends `quit` and asks the
   Session to stop; an exception in the DecisionMaker releases on its way out
-  and takes the Engine down; and however the Session ends, `SessionManager`
-  releases every key of the client on exit (ADR 0002).
+  and takes the Engine down. However the Session ends, `SessionManager` also
+  runs `release_all` for the client's handle on exit (ADR 0002). That last one
+  is the shared path: it doesn't bring the client forward, so its key-ups
+  reach whichever window is in front. The playground's own release, above,
+  has already run by then on every path but a killed Engine.
 
 Keys pressed in this window are read by the window only. The playground's own
 keys must not be the game's `jump` or `Teleport` key (the bot's keys could land
@@ -96,8 +119,11 @@ here for an instant before a cancel): it refuses to start if one is.
 
 **What can't be verified offline:** that the window draws and the clicks land
 where they point against the live client, that the character reaches the
-targets, and how the focus switch behaves when this window is clicked mid-run.
-The orchestrator runs it live, then the maintainer.
+targets, how the focus switch behaves when this window is clicked mid-run,
+whether `activate` brings the client to the front before a release (a
+minimised client, or one Windows won't foreground, would leave the key-ups in
+this window), and whether `--map auto` tells the map without the banner. The
+orchestrator runs it live, then the maintainer.
 """
 
 from __future__ import annotations
@@ -126,12 +152,15 @@ import win32gui
 
 import maple.parsers
 from botting import PARENT_LOG, controller
+from botting.controller import HeldKeysLedger
+from botting.controller.inputs import SharedResources
+from botting.controller.inputs.focused_inputs import activate
 from botting.core import ActionRequest, BotData, DecisionMaker
 from botting.core.session_manager import SessionManager
 from botting.screen import Reading
 from botting.stop_file import request_stop
 from maple.actions import priorities
-from maple.actions.menus import minimap_state
+from maple.actions.menus import minimap_banner_shown, minimap_state
 from maple.bots import map_check
 from maple.bots.maple_bot import MapleBot
 from maple.calibration import (
@@ -571,9 +600,49 @@ class PlaygroundLink:
     view: Any
 
 
-async def release_every_key(handle: int) -> None:
-    """In Main Process: the `release_all` path, on the client."""
-    controller.release_all(handle)
+def movement_keys(binds: Mapping[str, str]) -> frozenset[str]:
+    """Every key a Movement Plan presses: the arrows, `jump`, and `Teleport`."""
+    keys = set(controller.OPPOSITES)
+    keys.update(str(binds[b]) for b in MOVEMENT_BINDINGS if b in binds)
+    return frozenset(keys)
+
+
+async def release_every_key(handle: int, ign: str) -> None:
+    """
+    In Main Process: release every key **in the client**, whichever window is
+    in front.
+
+    1. `activate(handle)`, as an Action starts: it takes the focus lock (so it
+       waits for a cancelled Movement Action to let go) and, with another
+       window in front, taps Alt there and brings the client to the front.
+       Key-ups go to the window in front, so this is what makes them reach the
+       client when a command typed in the playground's window ended the target.
+    2. Key-ups for the keys the Held-Keys Ledger holds and for every key a
+       Movement Plan presses (`movement_keys`): a cancelled Action released
+       its keys to the window that was in front, and the ledger counts them
+       released.
+    3. `release_all`'s sweep for keys physically down, only while the keys it
+       reads can't include the playground's own (`KEY_NAMES`): the
+       maintainer's Esc or q must not be taken for a key the bot holds.
+       Otherwise the ledger's entry is cleared without a sweep.
+    """
+    acquired = await activate(handle)
+    try:
+        try:
+            binds = controller.key_binds(ign)
+        except AssertionError:
+            # No keybindings section: the arrows and the ledger's keys still go.
+            logger.exception("No key bindings for %s: releasing the arrows only.", ign)
+            binds = {}
+        held = set(HeldKeysLedger.keys_held(handle))
+        controller.release_keys(sorted(held | movement_keys(binds)), handle)
+        if HeldKeysLedger.sweep_candidates().isdisjoint(KEY_NAMES):
+            controller.release_all(handle)
+        else:
+            HeldKeysLedger.clear(handle)
+    finally:
+        if acquired:
+            SharedResources.focus_lock.release()
 
 
 class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
@@ -790,8 +859,9 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         )
 
     def _release_request(self) -> ActionRequest:
-        """`release_every_key` on the client, cancelling the Movement Action in
-        flight (its callback releases the lock)."""
+        """`release_every_key` (the client brought to the front, then every key
+        released), cancelling the Movement Action in flight (its callback
+        releases the lock)."""
         return ActionRequest(
             f"{self} - Releasing every key",
             release_every_key,
@@ -800,7 +870,7 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             cancels_itself=True,
             cancel_tasks=[f"{self}"],
             requeue_if_not_scheduled=True,
-            args=(self.data.handle,),
+            args=(self.data.handle, self.data.ign),
         )
 
     def _release(self, why: str) -> None:
@@ -956,18 +1026,28 @@ class PlaygroundBot(MapleBot):
     def _show_minimap(self, minimap: MinimapReader, *, banner: bool) -> None:
         """
         That the minimap is expanded, read for `map_check.WINDOW` seconds; never
-        pressed (the playground sends nothing before a target).
+        pressed (the playground sends nothing before a target). With `banner`
+        (`map: auto`), as `MapleBot._show_minimap`: the banner first, for the
+        whole window, then any expanded look, which the canvas match can still
+        tell the map from.
 
-        :raises StartupRefused: It isn't.
+        :raises StartupRefused: It isn't expanded.
         """
         assert self.data is not None
         handle = self.data.handle
         start = time.monotonic()
         while True:
             state = minimap_state(minimap, handle)
-            if state is MinimapState.EXPANDED:
+            expanded = state is MinimapState.EXPANDED
+            if expanded and (not banner or minimap_banner_shown(minimap, handle)):
                 return
             if time.monotonic() - start >= map_check.WINDOW:
+                if expanded:
+                    logger.warning(
+                        "The minimap's banner isn't shown: map: auto tells the map "
+                        "from the expanded minimap alone."
+                    )
+                    return
                 raise StartupRefused(
                     f"The minimap isn't expanded (read {state}). The playground "
                     "presses no key before a target: expand the minimap in the "
