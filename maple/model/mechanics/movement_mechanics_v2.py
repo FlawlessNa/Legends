@@ -29,7 +29,20 @@ release goes before it (`_walks_into`), nor before a walk on from a narrow
 landing (`_walks_on`), since the next press would undo it one Step later. And
 a cut at the Action duration cap that the character would follow into an
 edge-departure jump sooner than the next plan can press it is moved past that
-jump (`_jump_to_finish`).
+jump (`_jump_to_finish`). The pieces of a walk cut at `_MAX_TRAVEL_LENGTH`
+each hold to their end on the plan's clock (`_piece_duration`, #521), so the
+jump key after them goes down at most one Step past the walk's time, however
+many pieces it was cut into.
+
+**A jump walked into against a held key** (#521). When the plan's first walk
+goes against a direction key still down (a Continuation the other way) and
+runs straight into a jump its way, the character is moving the wrong way at
+the walk speed, and how fast it turns with the new key down is not modelled.
+So the compile releases that key, waits out the slide (`walk_stop_slide`'s
+time, `speed ÷ deceleration`), and walks from rest the read-to-stop distance
+further (`_reversal`, `_time_walks`): the take-off is then timed as from rest,
+which errs short, by the acceleration's cost, rather than past the edge. Live,
+pressing the new key at once took off 46 to 69 px short, in the air once.
 
 **No walk inside the read** (#516). A Path that is only a walk no longer than
 the start's own uncertainty (half a canvas px on a coarse read) is planned as
@@ -73,6 +86,7 @@ from botting import PARENT_LOG
 from botting.controller import (
     EVENTS,
     NO_COMPONENT,
+    OPPOSITES,
     InputState,
     KeyboardInputWrapper,
     get_held_movement_keys,
@@ -309,22 +323,37 @@ def compile_movements(
     """
     climb = speed if climb_speed is None else climb_speed
     since_read = None if read_at is None else max(0.0, clock() - read_at)
+    structure = None
     if since_read is not None or not (
         math.isinf(walk_acceleration) and math.isinf(walk_deceleration)
     ):
+        held_keys = _held_keys(handle, initial_state)
+        against = _reversal(movements, held_keys)
         movements = _time_walks(
             movements,
-            _held_keys(handle, initial_state),
+            held_keys,
             since_read=since_read,
             speed=speed,
             acceleration=walk_acceleration,
             deceleration=walk_deceleration,
+            reversal=against is not None,
         )
-    structure = None
+        if against is not None:
+            # The key the first walk goes against comes up first, and the walk
+            # waits out the slide: its builder appends to this (#521).
+            structure = KeyboardInputWrapper(
+                handle,
+                [against],
+                ["keyup"],
+                [speed / walk_deceleration],
+                initial_state=initial_state,
+            )
     # Where the sequence is cut: the Action duration cap, moved to the end of a
     # jump compiled past it (`_jump_to_finish`).
     cut_at = total_duration
     finishing: int | None = None
+    # Where the walk being compiled ends on the plan's clock (`_piece_duration`).
+    walk_end: float | None = None
     for origin, (move, upcoming_move) in enumerate(pairwise(movements)):
         # Provenance: every Step the builders below emit belongs to component `origin`.
         # The cursor moves here, ahead of the build, because a builder appends and
@@ -354,13 +383,14 @@ def compile_movements(
                     release_keys = "up"
                 else:
                     release_keys = ["up", "down"]
+                duration, walk_end = _piece_duration(
+                    movements, origin, structure, walk_end, speed
+                )
                 structure = movements_v2.move(
                     handle,
                     direction,
                     secondary,
-                    duration=(
-                        move.length / speed if move.duration is None else move.duration
-                    ),
+                    duration=duration,
                     structure=structure,
                     release_keys=release_keys,
                     initial_state=initial_state,
@@ -605,11 +635,68 @@ def compile_movements(
     return structure
 
 
+def _piece_duration(
+    movements: tuple[_MovementComponent, ...],
+    origin: int,
+    structure: KeyboardInputWrapper | None,
+    walk_end: float | None,
+    speed: float,
+) -> tuple[float, float]:
+    """
+    How long walk `movements[origin]`'s builder holds its key, and where the
+    walk ends on the plan's clock (#521).
+
+    A walk the planner cut into pieces (`_cut`) is one walk: each piece holds
+    until its end on the plan's clock, not for its own time from where the
+    piece before it ended. A builder's last repeat runs up to one Step past
+    its limit, so pieces timed from the sequence's own end would add that up,
+    one Step per piece: the jump key of a two-piece walk into an edge jump
+    went down up to two Steps late, against the one `TAKEOFF_STEP` allows.
+    """
+    move = movements[origin]
+    duration = move.length / speed if move.duration is None else move.duration
+    now = 0.0 if structure is None else structure.duration
+    previous = movements[origin - 1] if origin > 0 else None
+    if (
+        walk_end is not None
+        and previous is not None
+        and previous.movement_type is move.movement_type
+    ):
+        end = walk_end + duration
+        return max(0.0, end - now), end
+    return duration, now + duration
+
+
 def _held_keys(handle: int, initial_state: InputState | None) -> set[str]:
     """The movement keys down as the sequence starts, as `movements_v2` reads them."""
     if initial_state is not None:
         return set(initial_state.held_keys)
     return set(get_held_movement_keys(handle))
+
+
+def _reversal(
+    movements: Sequence[_MovementComponent], held_keys: set[str]
+) -> str | None:
+    """
+    The direction key to release before the plan's first walk, which goes
+    against it and runs straight into a sideways jump its own way (#521);
+    `None` when the plan does not start so.
+
+    A Continuation the other way leaves the character walking the wrong way
+    at the walk speed. With the walk's key pressed at once, how fast it turns
+    is not modelled, and the take-off it walks into lands wherever the turn
+    put it: live, 46 to 69 px short of its point, once in the air off a
+    slope's end. Released instead, it slides to rest at the walk's
+    deceleration, and the walk after it is timed from rest (`_time_walks`).
+    """
+    run = _walk_run(movements, 0, 1)
+    if not run or run.stop >= len(movements):
+        return None
+    way = _direction_of(movements[0])
+    against = OPPOSITES[way]
+    if way in held_keys or against not in held_keys:
+        return None
+    return against if _walks_into(movements[run.stop], way) else None
 
 
 def _walk_run(movements: Sequence[_MovementComponent], start: int, step: int) -> range:
@@ -638,6 +725,7 @@ def _time_walks(
     speed: float,
     acceleration: float,
     deceleration: float,
+    reversal: bool = False,
 ) -> tuple[_MovementComponent, ...]:
     """
     The plan, with its first and last walks timed by where the character
@@ -651,6 +739,12 @@ def _time_walks(
       `since_read` seconds, so that much less is left to walk. Without it, a
       plan compiled from a read 0.2 to 0.4 s old walks 30 to 60 px past its
       end (the live record of #503).
+    - **The first walk, against a held key** (`reversal`, #521): the compile
+      releases that key and waits out the slide before the walk's key goes
+      down (`_reversal`). The character walked the wrong way at `speed` from
+      the read until now, then slides `walk_stop_slide` further, so the walk,
+      from rest, is that much longer. A jump follows that walk, so it is
+      never also the last.
 
     When the first walk is also the last, both apply. The last walk starts
     from rest only when it is the plan's first move and its key is up; after
@@ -666,6 +760,12 @@ def _time_walks(
     first = _walk_run(movements, 0, 1)
     held = bool(first) and _direction_of(movements[0]) in held_keys
     lead = speed * since_read if held and since_read is not None else 0.0
+    # How far behind the read, the wrong way, a walk after a reversal starts.
+    back = (
+        speed * (since_read or 0.0) + walk_stop_slide(speed, deceleration)
+        if first and reversal
+        else 0.0
+    )
     # The END_OF_MOVEMENT sentinel closes every plan: the last move is before it.
     last = _walk_run(movements, len(movements) - 2, -1)
 
@@ -692,6 +792,8 @@ def _time_walks(
         return tuple(timed)
     if first and held:
         spread(first, max(0.0, length(first) - lead) / speed)
+    elif first and reversal:
+        spread(first, (length(first) + back) / speed)
     if last:
         spread(last, press(length(last), moving=last.start > 0 or held))
     return tuple(timed)

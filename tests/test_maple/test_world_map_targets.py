@@ -19,7 +19,7 @@ from tests.test_maple.movement_lab.fixture_maps import (
     walk_corridor,
 )
 
-#: Three platforms in a row, each 200 px wide: 0-200, 250-450 and 500-700.
+#: Three platforms in a row, each 200 px wide: 0-200, 235-435 and 470-670.
 GAP = WorldMap.from_map_data(jump_gap())
 #: A floor 0-600 at y 0, and a shelf 200-400 at y -50.
 LEDGE = WorldMap.from_map_data(jump_ledge())
@@ -52,7 +52,7 @@ def test_a_point_is_drawn_among_the_platforms_given_only() -> None:
 
     points = [GAP.random_point((right,), rng) for _ in range(50)]
 
-    assert all(490 <= x <= 690 and y == 0 for x, y in points)
+    assert all(470 <= x <= 670 and y == 0 for x, y in points)
 
 
 def test_no_platform_with_a_width_is_refused() -> None:
