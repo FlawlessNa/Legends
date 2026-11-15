@@ -23,7 +23,7 @@ kept, and ours is chosen among them:
   someone else's, or not characters at all: on frame set v3 the name tag
   finder also reads a white sword, a pet's name tag and a chat balloon, each
   next to our character while our own tag is hidden.
-- Before then, one kept is ours, and several are `UNSURE`.
+- Before then, one kept is ours; of several, none is chosen.
 
 **Our tag behind the map's art** (#517). The client draws a character, its
 name tag too, with its foothold's layer, and the tiles and objects of every
@@ -40,17 +40,25 @@ never forgets one) can't move the position away from the minimap's, and one
 found outside the window is only reported (`Fusion.own_elsewhere`).
 
 **The cross-check.** The character chosen must put the marker within
-`AGREE_CELLS` canvas pixel of where the minimap reads it, on each axis; when
-it doesn't, the reads disagree and the position is `UNSURE`. Otherwise it is
-the position, `fused`.
+`AGREE_CELLS` canvas pixel of where the minimap reads it, on each axis: only
+then is it the position, `fused`. When it doesn't, the reads disagree, and
+the character is not taken for ours: a wrong character never gives a fused
+position.
 
-**The fallback.** When the play area doesn't place our character (the camera
-or the finder `UNSURE`, under a dialog say; no character in the window; or
-none of ours there, our name tag hidden other than by the map's art), the
-minimap's feet position is the position, `coarse`.
+**The fallback.** When the play area doesn't place our character, the
+minimap's feet position is the position, `coarse` (#529): the camera or the
+finder `UNSURE` (under a dialog, say); no character in the window; none of
+ours there (our name tag hidden other than by the map's art); several there
+and no telling which is ours; or the one chosen disagreeing with the minimap
+(at the top of Ellinia's ladder, our tag hidden and another player's 31 px
+off). Why it isn't fused is the reading's detail, so the `position.read`
+telemetry says it. A coarse position is a labelled, less precise reading,
+good to the minimap's canvas pixel: whatever must not act on one branches on
+`VirtualPosition.source`.
 
 Every read returns a `Reading` that is `READ` or `UNSURE`, never a plausible
-number (C-NOGUESS); what each read said is kept beside it, in `Fusion`.
+number (C-NOGUESS): `UNSURE` only where the minimap gives no position. What
+each read said is kept beside it, in `Fusion`.
 """
 
 from __future__ import annotations
@@ -330,8 +338,9 @@ class PositionFusion:
             whose = "with our tag " if knows_ours else ""
             return coarse(f"no character {whose}{where}")
         if len(candidates) > 1:
-            why = f"{len(candidates)} characters {where}, and no telling which is ours"
-            return replace(seen, position=Reading.unsure(at, why))
+            return coarse(
+                f"{len(candidates)} characters {where}, and no telling which is ours"
+            )
         chosen = candidates[0]
         canvas = self._transform.to_canvas(chosen)
         off = (math.floor(canvas[0]) - cell[0], math.floor(canvas[1]) - cell[1])
@@ -340,7 +349,7 @@ class PositionFusion:
                 f"the reads disagree: ({chosen[0]:.1f}, {chosen[1]:.1f}) puts the "
                 f"marker {off} canvas px from where it is read"
             )
-            return replace(seen, position=Reading.unsure(at, why))
+            return coarse(why)
         position = VirtualPosition(chosen[0], chosen[1], PositionSource.FUSED)
         detail = "ours by its tag" if knows_ours else "the one character there"
         if hidden is not None:

@@ -396,6 +396,19 @@ def _minimap_position(
     return marker.status.value, marker.detail, marker
 
 
+def _owns(read: FrameRead) -> list[bool]:
+    """
+    Whether each of the fusion's sightings is marked ours, in its order: the
+    finder's marks, then ours for each sighting fusion added past what `find`
+    returned (our tag found behind the map's art, `PositionFusion._hidden`).
+    """
+    if read.fusion is None:
+        return []
+    found = read.characters.value if read.characters is not None else None
+    owns = [s.own for s in found or ()]
+    return owns + [True] * (len(read.fusion.sightings) - len(owns))
+
+
 def play_area_read(read: FrameRead) -> tuple[float, float] | None:
     """
     The play area's position: the fused position when it is `fused`; else the
@@ -410,11 +423,9 @@ def play_area_read(read: FrameRead) -> tuple[float, float] | None:
         return value.x, value.y
     if fusion.minimap is None or not fusion.sightings:
         return None
-    found = read.characters.value if read.characters is not None else None
-    owns = [s.own for s in found] if found else [False] * len(fusion.sightings)
     places = [
         p
-        for p, own in zip(fusion.sightings, owns, strict=True)
+        for p, own in zip(fusion.sightings, _owns(read), strict=True)
         if own or not fusion.by_tag
     ]
     if not places:
@@ -447,8 +458,8 @@ def row(read: FrameRead, start: float = 0.0) -> dict[str, str]:
         ""
         if fusion is None
         else ";".join(
-            f"{x:.1f}:{y:.1f}" + (":own" if found and found[i].own else "")
-            for i, (x, y) in enumerate(fusion.sightings)
+            f"{x:.1f}:{y:.1f}" + (":own" if own else "")
+            for (x, y), own in zip(fusion.sightings, _owns(read), strict=True)
         )
     )
 

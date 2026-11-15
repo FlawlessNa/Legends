@@ -214,11 +214,12 @@ def test_a_character_away_from_the_minimaps_is_never_ours() -> None:
 @pytest.mark.parametrize("dx", [-WINDOW, WINDOW])
 def test_the_window_is_inclusive_but_the_cross_check_still_applies(dx: int) -> None:
     """A character at the window's edge is a candidate, and it puts the
-    marker 2 canvas px off to the right (or 2 left): the reads disagree."""
+    marker 2 canvas px off to the right (or 2 left): the reads disagree, so
+    it isn't ours, and the minimap's position is used, coarse (#529)."""
     result = fusion(seen((FEET[0] + dx, 336)))[0].read(screen(), minimap())
 
     assert result.near == 1
-    assert result.position.status is Status.UNSURE
+    assert placed(result.position) == (*FEET, PositionSource.COARSE)
     assert "disagree" in result.position.detail
 
 
@@ -244,7 +245,10 @@ def test_the_reads_agree_within_one_canvas_pixel(
 ) -> None:
     result = fusion(seen(feet))[0].read(screen(), minimap())
 
-    assert (result.position.status is Status.READ) is fused, result.position.detail
+    expected = (
+        (*feet, PositionSource.FUSED) if fused else (*FEET, PositionSource.COARSE)
+    )
+    assert placed(result.position) == expected, result.position.detail
 
 
 def test_of_several_by_the_minimaps_our_tag_chooses() -> None:
@@ -255,12 +259,30 @@ def test_of_several_by_the_minimaps_our_tag_chooses() -> None:
     assert result.near == 2
 
 
-def test_of_several_by_the_minimaps_with_no_telling_the_position_is_unsure() -> None:
+def test_of_several_by_the_minimaps_with_no_telling_the_minimaps_is_used() -> None:
+    """Neither is taken for ours: the minimap's position, coarse, and why it
+    isn't fused in the detail (#529)."""
     result = fusion(seen((598, 336), (612, 336)))[0].read(screen(), minimap())
 
-    assert result.position.status is Status.UNSURE
+    assert placed(result.position) == (*FEET, PositionSource.COARSE)
     assert "2 characters" in result.position.detail
+    assert "no telling which is ours" in result.position.detail
     assert result.minimap == FEET
+    assert result.near == 2
+
+
+def test_our_tag_never_seen_and_another_player_31_px_off_the_minimaps_is_used() -> None:
+    """The top of Ellinia's ladder (#529, run 23): our tag hidden under the
+    ladder since the Session began, so the finder never learned it, and the one
+    character in the window is another player 31 virtual px off. It is the only
+    candidate, but it puts the marker two canvas px from where the minimap reads
+    it: not ours. The minimap's position, coarse, never the other player's."""
+    other = (FEET[0] - 31, FEET[1] - 4)
+    result = fusion(seen(other))[0].read(screen(), minimap())
+
+    assert placed(result.position) == (*FEET, PositionSource.COARSE)
+    assert "the reads disagree" in result.position.detail
+    assert (result.near, result.by_tag) == (1, False)
 
 
 def test_once_ours_can_be_told_apart_one_not_ours_by_the_minimaps_is_not_ours() -> None:

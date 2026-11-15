@@ -70,6 +70,10 @@ read only when asked, and it is the only position in `BotData`
 (`current_minimap_position` is gone, #398). Every DecisionMaker works in
 virtual px on `data.world_map`:
 
+- It is `fused` when a character on screen is ours and agrees with the
+  minimap, `coarse` (the minimap alone) otherwise, and `UNSURE` only when the
+  minimap gives no position (C-NOGUESS, as amended by #529). A consumer that
+  must not act on a coarse read branches on `VirtualPosition.source`.
 - Movement Plans are planned from it on the map's `FootholdGraph`
   (`MovementsMixin`, #396): an `UNSURE` read plans nothing.
 - The rotation's targets are random points on the platforms a Path reaches

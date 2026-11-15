@@ -396,9 +396,10 @@ def test_the_position_is_fusions_and_each_read_is_recorded() -> None:
 
 def test_an_unsure_fusion_with_the_minimap_read_is_returned_for_its_consumer() -> None:
     """
-    The reads disagree, or two characters stand where the minimap puts ours: the
-    minimap's error handler can't fix that, so the `UNSURE` reading is the answer,
-    and a consumer holds (#396: `MovementsMixin` plans no Path).
+    A fusion `UNSURE` though the minimap placed the character (`PositionFusion`
+    gives none since #529, which makes disagreeing reads and a crowd `coarse`):
+    the minimap's error handler can't fix that, so the `UNSURE` reading is the
+    answer, and a consumer holds (#396: `MovementsMixin` plans no Path).
     """
     unsure = Reading.unsure(3.0, "the reads disagree")
     located, emitted = _located(_Fusion(unsure))
