@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -30,6 +30,15 @@ T0 = 1000.0
 #: The Session's local wall clock at record-clock T0.
 ZONE = timezone(timedelta(hours=-5))
 WALL0 = datetime(2026, 11, 15, 8, 0, 0, tzinfo=ZONE)
+
+#: Zones a Session may have been written in. The machine running the report is in
+#: none of them in particular: the inputs carry their offsets, so these hold on a
+#: UTC machine (CI) and a -05:00 one alike.
+ZONES = (
+    UTC,
+    timezone(timedelta(hours=-5)),
+    timezone(timedelta(hours=9, minutes=30)),
+)
 
 Point = tuple[float, float]
 
@@ -296,12 +305,18 @@ def test_consecutive_tries_of_one_move_are_a_cluster_with_a_hypothesis(
 # --- the Session ------------------------------------------------------------------
 
 
-def wall(t: float) -> datetime:
-    return WALL0 + timedelta(seconds=t)
+def wall(t: float, zone: timezone = ZONE) -> datetime:
+    """Trial time `t` on the Session's wall clock, written in `zone`."""
+    return (WALL0 + timedelta(seconds=t)).astimezone(zone)
 
 
 def key(
-    cid: str, kind: str, name: str, t: float, origin: int | None = None
+    cid: str,
+    kind: str,
+    name: str,
+    t: float,
+    origin: int | None = None,
+    zone: timezone = ZONE,
 ) -> dict[str, object]:
     """A ``key.down``/``key.up`` record at Trial time `t` (#538): ``t`` on the
     record's clock, ``wall`` on the Session's, and the envelope written later."""
@@ -309,14 +324,14 @@ def key(
         "key": name,
         "handle": 1,
         "t": T0 + t,
-        "wall": wall(t).timestamp(),
+        "wall": wall(t, zone).timestamp(),
         "cause": "step",
         "origin": origin,
     }
     if kind == "key.up":
         payload["held"] = True
     return {
-        "timestamp": wall(t + 0.003).isoformat(),
+        "timestamp": wall(t + 0.003, zone).isoformat(),
         "correlation_id": cid,
         "event_type": kind,
         "payload": payload,
@@ -324,7 +339,10 @@ def key(
 
 
 def session_for(
-    record: Path, directory: Path, keys: Sequence[dict[str, object]] = ()
+    record: Path,
+    directory: Path,
+    keys: Sequence[dict[str, object]] = (),
+    zone: timezone = ZONE,
 ) -> Path:
     """A Session for `overshoot`: its reads, two Actions and two Path lines,
     with a player name in every place a Session carries one, and `keys`."""
@@ -336,7 +354,7 @@ def session_for(
             x, y = row["position"]
             events.append(
                 {
-                    "timestamp": wall(row["frame_time"] - T0).isoformat(),
+                    "timestamp": wall(row["frame_time"] - T0, zone).isoformat(),
                     "correlation_id": None,
                     "event_type": "position.read",
                     "payload": {
@@ -361,7 +379,7 @@ def session_for(
         ):
             events.append(
                 {
-                    "timestamp": wall(t).isoformat(),
+                    "timestamp": wall(t, zone).isoformat(),
                     "correlation_id": cid,
                     "event_type": kind,
                     "payload": payload,
@@ -373,9 +391,10 @@ def session_for(
     )
 
     def log(t: float, text: str) -> str:
+        # The Session's local time, with no offset, as `session.log` writes it.
         stamp = (
-            wall(t).strftime("%Y-%m-%d %H:%M:%S,")
-            + f"{wall(t).microsecond // 1000:03d}"
+            wall(t, zone).strftime("%Y-%m-%d %H:%M:%S,")
+            + f"{wall(t, zone).microsecond // 1000:03d}"
         )
         return (
             "DEBUG -- PROCESS Engine(SecretName) -- TASK TrialRunner(SecretName) "
@@ -392,10 +411,13 @@ def session_for(
     return directory
 
 
+@pytest.mark.parametrize("zone", ZONES, ids=["utc", "minus5", "plus0930"])
 def test_the_session_is_put_on_the_records_clock_and_timed(
-    record: Path, tmp_path: Path
+    record: Path, tmp_path: Path, zone: timezone
 ) -> None:
-    run = trial_report.analyze(record, session_for(record, tmp_path / "session"))
+    run = trial_report.analyze(
+        record, session_for(record, tmp_path / "session", zone=zone)
+    )
     first, second = run.judged["overshoot"][:2]
 
     assert run.session is not None
@@ -488,18 +510,21 @@ def test_a_session_without_key_times_keeps_the_reads_verdicts(
     assert first.timing.to_keys is None
 
 
+@pytest.mark.parametrize("zone", ZONES, ids=["utc", "minus5", "plus0930"])
 def test_a_take_off_key_past_the_planned_x_is_late_though_the_reads_bracket_it(
-    record: Path, tmp_path: Path
+    record: Path, tmp_path: Path, zone: timezone
 ) -> None:
     keys = [
-        key("overshoot-1", "key.down", "right", 0.06, origin=0),
+        key("overshoot-1", "key.down", "right", 0.06, 0, zone),
         # A non-direction key from the walk's component is not the take-off.
-        key("overshoot-1", "key.down", "ctrl", 0.10, origin=0),
+        key("overshoot-1", "key.down", "ctrl", 0.10, 0, zone),
         # Between the reads at 0.36 (x -5) and 0.48 (x 10): x 7.5, 7.5 px late.
-        key("overshoot-1", "key.down", "space", 0.46, origin=1),
-        key("overshoot-1", "key.up", "space", 0.50, origin=1),
+        key("overshoot-1", "key.down", "space", 0.46, 1, zone),
+        key("overshoot-1", "key.up", "space", 0.50, 1, zone),
     ]
-    run = trial_report.analyze(record, session_for(record, tmp_path / "session", keys))
+    run = trial_report.analyze(
+        record, session_for(record, tmp_path / "session", keys, zone)
+    )
     first = run.judged["overshoot"][0]
 
     assert first.takeoff_key is not None
@@ -513,11 +538,14 @@ def test_a_take_off_key_past_the_planned_x_is_late_though_the_reads_bracket_it(
     assert first.takeoff_bracket is not None  # still shown beside it
 
 
+@pytest.mark.parametrize("zone", ZONES, ids=["utc", "minus5", "plus0930"])
 def test_the_schedule_to_first_key_latency_is_timed(
-    record: Path, tmp_path: Path
+    record: Path, tmp_path: Path, zone: timezone
 ) -> None:
-    keys = [key("overshoot-1", "key.down", "right", 0.05 + 0.018, origin=0)]
-    run = trial_report.analyze(record, session_for(record, tmp_path / "session", keys))
+    keys = [key("overshoot-1", "key.down", "right", 0.05 + 0.018, 0, zone)]
+    run = trial_report.analyze(
+        record, session_for(record, tmp_path / "session", keys, zone)
+    )
     first, second = run.judged["overshoot"][:2]
 
     assert first.timing is not None

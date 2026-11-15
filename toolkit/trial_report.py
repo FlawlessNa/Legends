@@ -142,7 +142,7 @@ import statistics
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field, replace
-from datetime import datetime
+from datetime import UTC, datetime, tzinfo
 from itertools import pairwise
 from pathlib import Path
 from typing import Final
@@ -397,7 +397,15 @@ _COMPUTING: Final = re.compile(
 
 
 def _local_seconds(when: datetime) -> float:
-    """Seconds on the Session's local wall clock (the timezone dropped)."""
+    """
+    Seconds on the Session's local wall clock (the timezone dropped).
+
+    Every Session time is put on this one clock, and none depends on the zone
+    of the machine running the report: an envelope timestamp is read in its own
+    offset, the one the Session wrote it in; ``session.log``'s lines carry no
+    offset and are already the Session's local time; a key record's epoch
+    ``wall`` is converted with its own envelope's offset (`_key_event`).
+    """
     return (when.replace(tzinfo=None) - _EPOCH).total_seconds()
 
 
@@ -467,6 +475,9 @@ def load_session(session: Path, records: Sequence[Record]) -> SessionTimes | Non
     scheduled: dict[str, float] = {}
     finished: dict[str, tuple[float, float | None, str | None]] = {}
     keys: dict[str, list[tuple[float, KeyEvent]]] = {}
+    # The Session's zone, from the latest envelope that states one: what a key
+    # record's epoch `wall` is read in. UTC only until the first one is seen.
+    zone: tzinfo = UTC
     with telemetry.open(encoding="utf-8") as handle:
         for line in handle:
             if not line.strip():
@@ -477,11 +488,14 @@ def load_session(session: Path, records: Sequence[Record]) -> SessionTimes | Non
                 continue
             payload = event.get("payload") or {}
             cid = event.get("correlation_id")
+            stamp = datetime.fromisoformat(event["timestamp"])
+            if stamp.tzinfo is not None:
+                zone = stamp.tzinfo
             if kind in ("key.down", "key.up"):
                 if cid and payload.get("t") is not None:
-                    keys.setdefault(cid, []).append(_key_event(kind, payload))
+                    keys.setdefault(cid, []).append(_key_event(kind, payload, zone))
                 continue
-            when = _local_seconds(datetime.fromisoformat(event["timestamp"]))
+            when = _local_seconds(stamp)
             if kind == "position.read":
                 if payload.get("x") is not None and payload.get("y") is not None:
                     reads.append((when, float(payload["x"]), float(payload["y"])))
@@ -529,15 +543,18 @@ _SESSION_EVENTS: Final = frozenset(
 )
 
 
-def _key_event(kind: str, payload: dict[str, object]) -> tuple[float, KeyEvent]:
-    """A key record as (its local wall-clock seconds, the event on the record's
-    clock)."""
+def _key_event(
+    kind: str, payload: dict[str, object], zone: tzinfo
+) -> tuple[float, KeyEvent]:
+    """A key record as (its Session-local wall-clock seconds, the event on the
+    record's clock). `zone` is the Session's, from its envelope: never the zone
+    of the machine running the report."""
     origin = payload.get("origin")
     t = payload.get("t")
     wall = payload.get("wall")
     cause = payload.get("cause")
     return (
-        _local_seconds(datetime.fromtimestamp(float(wall)))
+        _local_seconds(datetime.fromtimestamp(float(wall), tz=zone))
         if isinstance(wall, int | float)
         else math.nan,
         KeyEvent(
