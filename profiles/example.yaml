@@ -43,19 +43,22 @@ settings:
   # there is no map file: find the name with `python -m game_data search
   # <part of it> --kind map`. `game_map`, the retired map file's name, refuses
   # to start (#399).
+  #
+  # The mobs the bot looks for are the map's, from its spawns in the game
+  # files: there is no `mobs` setting, and one refuses to start (#548). The
+  # bot refuses to start when no model in `models_path` below detects a mob
+  # the map has, and names the mobs it misses. Ellinia is a town, with no
+  # mobs: the bot would never cast there. Of the shipped models' mobs, the
+  # MSCW client has only Bubbling: "Kerning City Subway: Line 1 <Area 1>"
+  # spawns it, and nothing else.
   map: "Victoria Road: Ellinia"
-
-  # -- Mobs -----------------------------------------------------------------
-  # The mobs to attack, by the detection model's class names (see
-  # models.manifest.json). What a map file's `mobs` list was. Left out, the
-  # bot detects no mobs, so it never casts its training skill.
-  # mobs:
-  #   - Bubbling
 
   # -- Detection model ------------------------------------------------------
   # Maps a mob class to the directory holding its weights. "All" means one
-  # model handles every class. Paths are relative to the repo root and must
-  # contain weights/best.pt -- run `python scripts/fetch_models.py` to get them.
+  # model handles every class no other key names. A mob's class is its game
+  # name without spaces and dots (`Selkie Jr.` is `SelkieJr`). Paths are
+  # relative to the repo root and must contain weights/best.pt -- run
+  # `python scripts/fetch_models.py` to get them.
   # See models.manifest.json for what each model detects. A model trained
   # from a recipe (`synth`) has it there too, and fetching writes it back to
   # recipe.json beside the weights.

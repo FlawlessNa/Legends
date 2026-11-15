@@ -24,7 +24,7 @@ def refuse_game_map(game_map: object) -> None:
     """
     `game_map` named a hand-made map file under `configs/maps/`. The map files
     are retired (#399): the map comes from the game files, named by `map`, and
-    the mobs to look for from `mobs`.
+    the mobs to look for from that map's spawns (#548).
 
     :raises ProfileError: `game_map` is set.
     """
@@ -33,8 +33,25 @@ def refuse_game_map(game_map: object) -> None:
     raise ProfileError(
         f"`game_map: {game_map}` is retired with the map files (#399). Name the "
         "map by `map`: its game name such as 'Victoria Road: Ellinia', its id, or "
-        "`auto`. The map file's `mobs` list moves to the profile's `mobs` "
-        "setting, for example `mobs: [Bubbling]`."
+        "`auto`. The map file's `mobs` list is gone too: the mobs come from the "
+        "map's spawns in the game files."
+    )
+
+
+def refuse_mobs(mobs: object) -> None:
+    """
+    `mobs` listed the detection classes to look for. They come from the map's
+    spawns in the game files now (#548, `maple/bots/map_mobs.py`).
+
+    :raises ProfileError: `mobs` is set.
+    """
+    if mobs is None:
+        return
+    raise ProfileError(
+        f"`mobs: {mobs}` is retired (#548): the mobs to look for come from the "
+        "map's spawns in the game files, so the profile names only its `map`. "
+        "Delete `mobs`. A start is refused when no model in `models_path` "
+        "detects a mob the map has."
     )
 
 

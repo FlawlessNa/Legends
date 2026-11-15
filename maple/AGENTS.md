@@ -58,8 +58,10 @@ virtual px (ADR 0004). The hand-made map files (deleted, #546), `MapleMinimap`, 
 `MinimapPhysics` and the GUI map editor are retired (#399): don't bring them
 back. A profile that sets `game_map` refuses to start. `data.current_map`,
 `current_minimap` and `current_grid` are gone. `data.current_mobs`, the mobs
-detection looks for, stays: it is built from the profile's `mobs`, by detection
-class name (none when the profile names none).
+detection looks for, stays: it is built from the map's mob spawns in the game
+data, by detection class name (`maple/bots/map_mobs.py`, #548). The profile has
+no `mobs`: one that sets it refuses to start, and so does a bot that detects
+mobs on a map with a mob no model in `models_path` detects.
 
 `current_position` is the character's position in virtual px,
 `Reading[VirtualPosition]`: the minimap, the camera and the characters on

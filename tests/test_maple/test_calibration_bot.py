@@ -38,7 +38,7 @@ def test_a_bot_that_hits_mobs_still_needs_a_models_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(client, "find_window", lambda *_: 4242)
-    bot = TrainingBot("Someone", {}, **_settings(mobs=["Bubbling"]))  # pyright: ignore[reportArgumentType] - metadata is never read here
+    bot = TrainingBot("Someone", {}, **_settings())  # pyright: ignore[reportArgumentType] - metadata is never read here
 
     with pytest.raises(ValueError, match="models_path"):
         bot.child_init(None, None)  # pyright: ignore[reportArgumentType] - nothing else is read before the refusal
