@@ -176,6 +176,18 @@ the maintainer at the client, who walks while it reads. Read its
 `readings.csv` and `summary.txt` (under `data/position_check/<time>/`), and
 paste the summary into the PR.
 
+## Movement playground
+
+`python -m toolkit.movement_playground --map "Victoria Road: Ellinia"`
+(`toolkit/movement_playground.py`, its docstring has the details) runs a
+Session with one DecisionMaker. The maintainer picks targets on the map, or
+random reachable ones, and the bot walks, jumps, climbs and drops to each. It
+plans and sends with the bot's own stack and judges each target with the
+`TrialDriver`. **It sends keys.** Only the maintainer, or an orchestrator told
+to, runs it. An agent reads the JSONL it leaves under `trial_records/`
+(`<time>-playground.jsonl`, one Trial per target) and the Session's
+`telemetry.jsonl`.
+
 ## Live Session
 
 The probe looks at a client with no bot running. This section is for the other
