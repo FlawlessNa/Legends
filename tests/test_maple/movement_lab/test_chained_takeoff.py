@@ -116,6 +116,8 @@ class _Press:
     on: Platform | None
     #: The platform the plan's jump takes off from.
     planned: Platform | None
+    #: The character's sideways speed then, virtual px/s.
+    vx: float = 0.0
 
 
 @dataclass
@@ -188,7 +190,7 @@ class _Character:
             self.held.discard(key)
             return
         if key == JUMP_KEY and key not in self.held:
-            self.presses.append(_Press(self.on, planned))
+            self.presses.append(_Press(self.on, planned, self.vx))
             if self.on is not None:
                 way = ("right" in self.held) - ("left" in self.held)
                 self.vx = way * self.physics.walk_speed if way else self.vx

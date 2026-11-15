@@ -44,6 +44,17 @@ further (`_reversal`, `_time_walks`): the take-off is then timed as from rest,
 which errs short, by the acceleration's cost, rather than past the edge. Live,
 pressing the new key at once took off 46 to 69 px short, in the air once.
 
+**A jump straight up stands still first** (#530). The graph traces a `JUMP`
+up with no sideways speed, but the client carries the walk's speed into the
+air. A jump straight up off a platform therefore goes down with no direction
+key held, once the character has stopped: the walk into it is timed to come
+to rest at the take-off (`walk_press_time`, from rest after a reversal), its
+key comes up, and the jump key waits out the slide (`_stand_still`). Live,
+with the walk's key still down, every such jump of the records took off at
+the walk speed (149 px/s) and flew 40 to 50 px sideways: off the open end
+of the platform it was to land on, or under a part of it too high to reach.
+A jump up into a rope's bottom releases its keys already (`jump_up_on_rope`).
+
 **No walk inside the read** (#516). A Path that is only a walk no longer than
 the start's own uncertainty (half a canvas px on a coarse read) is planned as
 no move (`compute_path`'s `resolution`).
@@ -348,6 +359,19 @@ def compile_movements(
                 [speed / walk_deceleration],
                 initial_state=initial_state,
             )
+    if (
+        structure is None
+        and movements
+        and _standing(movements[0])
+        and {"left", "right"} & _held_keys(handle, initial_state)
+    ):
+        # The plan opens on a jump straight up with a direction key still down
+        # (a Continuation): the character stops before it takes off (#530).
+        structure = _stand_still(
+            KeyboardInputWrapper(handle, [], [], [], initial_state=initial_state),
+            speed,
+            walk_deceleration,
+        )
     # Where the sequence is cut: the Action duration cap, moved to the end of a
     # jump compiled past it (`_jump_to_finish`).
     cut_at = total_duration
@@ -607,6 +631,8 @@ def compile_movements(
             )
             if held_dir and not _walks_into(upcoming_move, held_dir):
                 structure.append(held_dir, "keyup", 0)
+        elif _standing(upcoming_move):
+            structure = _stand_still(structure, speed, walk_deceleration)
     else:
         # Loop ran to completion (no truncation): release any keys still held
         # so the last Step satisfies the Terminal Release invariant. `move`
@@ -679,8 +705,8 @@ def _reversal(
 ) -> str | None:
     """
     The direction key to release before the plan's first walk, which goes
-    against it and runs straight into a sideways jump its own way (#521);
-    `None` when the plan does not start so.
+    against it and runs straight into a sideways jump its own way (#521) or
+    into a jump straight up (#530); `None` when the plan does not start so.
 
     A Continuation the other way leaves the character walking the wrong way
     at the walk speed. With the walk's key pressed at once, how fast it turns
@@ -696,7 +722,10 @@ def _reversal(
     against = OPPOSITES[way]
     if way in held_keys or against not in held_keys:
         return None
-    return against if _walks_into(movements[run.stop], way) else None
+    upcoming = movements[run.stop]
+    # A jump straight up after the walk wants the character at rest on its
+    # take-off, as much as a sideways one wants it walking into it (#530).
+    return against if _walks_into(upcoming, way) or _standing(upcoming) else None
 
 
 def _walk_run(movements: Sequence[_MovementComponent], start: int, step: int) -> range:
@@ -746,10 +775,18 @@ def _time_walks(
       from rest, is that much longer. A jump follows that walk, so it is
       never also the last.
 
+    - **A walk into a jump straight up** (#530) holds its key, as the last
+      walk does, only until the slide carries the character to the take-off:
+      the jump goes down once it stands there (`_stand_still`). As the plan's
+      first walk, it is shortened by the walk since the read when its key is
+      down already, and timed from rest, the read-to-stop distance longer,
+      after a reversal.
+
     When the first walk is also the last, both apply. The last walk starts
     from rest only when it is the plan's first move and its key is up; after
     any other move it counts as moving, which errs short, by at most the
-    acceleration's cost (`speed² ÷ 2 acceleration`), rather than long.
+    acceleration's cost (`speed² ÷ 2 acceleration`), rather than long. A
+    walk into a jump straight up counts the same way.
 
     Every other component is left as it was: a walk lasting its length at
     `speed`.
@@ -796,7 +833,50 @@ def _time_walks(
         spread(first, (length(first) + back) / speed)
     if last:
         spread(last, press(length(last), moving=last.start > 0 or held))
+    for index, move in enumerate(movements):
+        if not _standing(move) or index == 0:
+            continue
+        run = _walk_run(movements, index - 1, -1)
+        if not run:
+            continue
+        if run == first and reversal:
+            spread(run, press(length(run) + back, moving=False))
+        elif run == first:
+            spread(run, press(length(run) - lead, moving=held))
+        else:
+            spread(run, press(length(run), moving=True))
     return tuple(timed)
+
+
+def _standing(move: _MovementComponent) -> bool:
+    """
+    Whether `move` is a jump straight up off a platform, which the character
+    must make standing still (#530). One into a rope's bottom is not:
+    `jump_up_on_rope` releases its keys itself.
+    """
+    return move.movement_type is MovementTypes.JUMP and not move.grabs_rope
+
+
+def _stand_still(
+    structure: KeyboardInputWrapper, speed: float, deceleration: float
+) -> KeyboardInputWrapper:
+    """
+    Release the direction key still down before a jump straight up, and wait
+    out the slide before the jump key: `speed ÷ deceleration`, the time to
+    stop from the walk speed (#530). The client carries the speed the
+    character has at take-off through the jump, which the graph's straight-up
+    arc does not.
+    """
+    held: list[str] = sorted(k for k in structure.keys_held if k in ("left", "right"))
+    if held:
+        events: list[EVENTS] = ["keyup"] * len(held)
+        structure.append(held, events, _stop_time(speed, deceleration))
+    return structure
+
+
+def _stop_time(speed: float, deceleration: float) -> float:
+    """Seconds to slide to a stop from `speed`; none with no deceleration given."""
+    return 0.0 if math.isinf(deceleration) else speed / deceleration
 
 
 def _finish_instead_of_cut(
