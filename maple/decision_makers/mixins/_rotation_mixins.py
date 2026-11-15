@@ -428,13 +428,14 @@ class MovementsMixin:
     driver owns it) overrides it.
 
     **An unsure position holds.** When `current_position` is `UNSURE` (the
-    reads disagree, or two characters stand where the minimap puts ours), no
-    Path is planned this cycle: the plan is empty, nothing is sent, and the next
-    cycle plans from the next read. A position off every platform and rope (in
-    the air) holds the same way. The minimap's own failures still go to its
-    error handler (`MinimapAttributesMixin._get_position`). On a map with no
-    minimap, or none known, no position is read and nothing is planned: that is
-    logged once, when the attributes are made.
+    minimap placed no character: its marker unplaced, say), no Path is planned
+    this cycle: the plan is empty, nothing is sent, and the next cycle plans
+    from the next read. A coarse position plans like a fused one, with no walk
+    inside its read (`read_resolution`, #516). A position off every platform
+    and rope (in the air) holds the same way. The minimap's own failures still
+    go to its error handler (`MinimapAttributesMixin._get_position`). On a map
+    with no minimap, or none known, no position is read and nothing is
+    planned: that is logged once, when the attributes are made.
 
     **The physics follow the stats.** Each Path is planned on the graph of
     `_physics()`: `VRPhysics` from the game's `Physics.img` (`game_physics`),

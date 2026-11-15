@@ -83,12 +83,13 @@ class MinimapAttributesMixin:
 
         **Who handles an unsure position** (#396). When the minimap gave no
         position, this raises, and `_minimap_pos_error_handler` makes the
-        minimap readable again. When the minimap read is fine but fusion is
-        `UNSURE` (the reads disagree, or two characters stand where the minimap
-        puts ours), the `UNSURE` reading is returned: the minimap handler can't
-        fix that, and a consumer holds until a read places the character
-        (`MovementsMixin` plans no Path, the rotation keeps its target). A long
-        streak of them is reported by movement recovery (#398).
+        minimap readable again. When the minimap places the character, fusion
+        places it too: `coarse` where the play area doesn't (the reads
+        disagree, or two characters stand where the minimap puts ours: #529),
+        with why in the detail. A consumer that gets an `UNSURE` reading holds
+        until a read places the character (`MovementsMixin` plans no Path, the
+        rotation keeps its target). A long streak of them is reported by
+        movement recovery (#398).
 
         **A shown minimap that doesn't place the marker holds too** (#502). Its
         position is `COVERED` (too little of the marker drawn): re-showing the

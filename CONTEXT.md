@@ -395,10 +395,9 @@ observable symptom whatever the cause.
 
 **Unsure position**:
 A rotation loop that has held for a whole window because it can't place the
-character: its position read `UNSURE` (two characters where the minimap puts
-ours, or the play area and the minimap disagreeing) or not read at all. Not a
-Stuck symptom: holding is the loop doing its job, and every Stuck clock is
-frozen while it holds. Reported once per episode, with an alert, and never
+character: its position read `UNSURE` (the minimap gives no position) or not
+read at all. Not a Stuck symptom: holding is the loop doing its job, and every
+Stuck clock is frozen while it holds. Reported once per episode, with an alert, and never
 reacted to in-game, since moving a character nobody placed would be a guess.
 _Avoid_: Blind — the bot can see; it can't tell where it is.
 
@@ -464,8 +463,10 @@ Where our character's feet are, in virtual coordinates, read every cycle as a
 `Reading[VirtualPosition]` (`data.current_position`). Fused from two reads: the
 play area for precision (the Camera plus the feet found on screen) and the
 minimap as the check and the fallback. A position from the minimap alone is
-flagged coarse; one that can't be placed, or whose reads disagree, is `UNSURE`,
-never a plausible number.
+flagged coarse: that is the position whenever the play area doesn't place our
+character, its reads disagreeing with the minimap's included, with why in the
+reading's detail (#529). One the minimap can't place is `UNSURE`, never a
+plausible number.
 _Avoid_: Minimap position (that is one of its two reads), world position.
 
 **Camera**:

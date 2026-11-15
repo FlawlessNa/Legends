@@ -58,7 +58,8 @@ DISAGREE = {
     ),
 }
 """Frames where the reads disagree by more than one canvas pixel, so the
-position is `UNSURE` though our character is visible: looked at on a crop."""
+position is the minimap's, `coarse` (#529), though our character is visible:
+looked at on a crop."""
 
 
 @dataclass(frozen=True)
@@ -128,8 +129,8 @@ def test_our_feet_are_fused_within_2_px_wherever_they_can_be(
     fused: list[Fused],
 ) -> None:
     """Every frame whose feet are labelled is fused to them, or is a frame the
-    minimap gives no position on (`UNSURE`), one of `TAG_HIDDEN` (`coarse`)
-    or one of `DISAGREE` (`UNSURE`)."""
+    minimap gives no position on (`UNSURE`), or one of `TAG_HIDDEN` or
+    `DISAGREE` (`coarse`, #529)."""
     wrong: list[str] = []
     fused_count = 0
     for f in fused:
@@ -137,9 +138,9 @@ def test_our_feet_are_fused_within_2_px_wherever_they_can_be(
         if feet is None:
             continue
         name, position = f.entry.file, f.fusion.position
-        if not _minimap_places(f.entry) or name in DISAGREE:
+        if not _minimap_places(f.entry):
             expected: PositionSource | None = None
-        elif name in TAG_HIDDEN:
+        elif name in TAG_HIDDEN or name in DISAGREE:
             expected = PositionSource.COARSE
         else:
             expected = PositionSource.FUSED
@@ -159,13 +160,25 @@ def test_our_feet_are_fused_within_2_px_wherever_they_can_be(
 def test_nothing_is_fused_where_our_tag_cant_be_read(fused: list[Fused]) -> None:
     """Our tag under a window, a chat balloon or an object: on frame set v3
     the name tag finder reads a sword, a pet's tag and a balloon there, inside
-    the window, and none of them is taken for ours."""
+    the window, and none of them is taken for ours. Since #529 such a frame
+    is `coarse` where the minimap places us, never `fused`."""
     placed = [
         f"{f.entry.file}: {f.fusion.position.detail}"
         for f in fused
         if _labelled(f) is None and _source(f) is PositionSource.FUSED
     ]
     assert placed == []
+
+
+def test_where_the_minimap_places_us_the_position_is_read(fused: list[Fused]) -> None:
+    """#529: `UNSURE` only where the minimap gives no position. Every frame
+    it places our character on is read, `fused` or `coarse`."""
+    unread = [
+        f"{f.entry.file}: {f.fusion.position.detail}"
+        for f in fused
+        if f.fusion.minimap is not None and f.fusion.position.value is None
+    ]
+    assert unread == []
 
 
 def test_in_the_crowd_our_tag_chooses_among_several_by_the_minimaps(

@@ -159,10 +159,12 @@ class RecoveryThresholds:
     #: ``W_unsure`` - wall seconds of a position that isn't placed (``UNSURE``, or
     #: no read within the staleness bound) before it is reported, once per
     #: episode. Wall-clock, like Starvation: the loop holds while unsure, so a
-    #: gated clock would never reach it. 30 s is three Starvation windows: a
-    #: player walking past our character takes a few seconds, and one standing on
-    #: it, or a play area that keeps disagreeing with the minimap, is what this
-    #: reports. #393's per-map ``UNSURE`` rates and #120 fit it.
+    #: gated clock would never reach it. 30 s is three Starvation windows. Since
+    #: #529 a position is ``UNSURE`` only when the minimap gives none (a crowd or
+    #: a disagreeing play area gives a coarse one, which the Stuck clocks judge
+    #: like any other), so this reports the minimap's marker unplaced, or no
+    #: read at all, for that long. #393's per-map ``UNSURE`` rates and #120 fit
+    #: it.
     unsure_window: float = 30.0
 
 
