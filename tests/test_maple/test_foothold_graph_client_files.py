@@ -13,6 +13,7 @@ import pytest
 from game_data.catalogue import Rope
 from maple.model.mechanics.physics import Calibration, VRPhysics
 from maple.model.navigation import (
+    OVERSHOOT_MARGIN,
     ROPE_GRAB_REACH,
     TAKEOFF_LEAD,
     Direction,
@@ -332,3 +333,76 @@ def test_ellinias_chain_to_the_gap_trials_takes_off_inside_every_open_end(
             assert move.start[0] - move.start_on.left >= margin - 1e-6, move
         elif move.direction is Direction.RIGHT:
             assert move.start_on.right - move.start[0] >= margin - 1e-6, move
+
+
+# --- the retry hotspots of the climb (#542) ----------------------------------------
+
+#: The physics of runs 28 to 30 (2026-11-15): speed 100%, their Calibration
+#: constants.
+CLIMB_RUNS = Calibration(walk=1.19, jump=0.96, climb=0.95)
+
+#: Virtual px inside the slope's open end that hotspot 1's landing was
+#: planned at, and went past every time (14 of 14).
+PASSED_EVERY_TIME = 16.4
+
+
+def test_ellinias_hop_onto_the_portal_slope_lands_clear_of_its_end() -> None:
+    """
+    Hotspot 1: from the floor, the jump onto the slope below the portal
+    landed 16.4 px inside its open right end, which it heads for, and went
+    past it 14 times in 14 (runs 28 to 30). It now lands at least
+    `OVERSHOOT_MARGIN` inside.
+    """
+    world = WorldMap.load("Victoria Road: Ellinia")
+    graph = FootholdGraph.build(world, VRPhysics.load(calibration=CLIMB_RUNS))
+
+    path = graph.path((246.0, 294.0), (478.0, 180.0))
+
+    assert path is not None
+    onto = [
+        m
+        for m in path.moves
+        if m.kind is MoveKind.JUMP
+        and isinstance(m.end_on, Platform)
+        and m.end_on.right == 359
+    ]
+    assert onto
+    for move in onto:
+        assert isinstance(move.end_on, Platform)
+        inside = move.end_on.right - move.end[0]
+        assert inside > PASSED_EVERY_TIME, move
+        assert inside >= OVERSHOOT_MARGIN - 1e-6, move
+
+
+@pytest.mark.parametrize(
+    "start",
+    [
+        # Hotspot 2: from the portal's exit side, and from the far side after
+        # a jump that passed the rope.
+        (-843.0, -2480.0),
+        (-700.0, -2484.0),
+    ],
+)
+def test_ellinias_hop_onto_the_rope_after_the_portal_grabs_it_past_the_top(
+    start: Point,
+) -> None:
+    """
+    Hotspot 2: the Path took off 7 px from the rope at x -772 and passed it
+    (24 of 24 jumps keyed within 21.8 px of a rope did, runs 28 to 30). It now
+    takes off where a jump up to `TAKEOFF_LEAD` late still meets the rope
+    within reach past the top of its arc.
+    """
+    world = WorldMap.load("Victoria Road: Ellinia")
+    physics = VRPhysics.load(calibration=CLIMB_RUNS)
+    graph = FootholdGraph.build(world, physics)
+
+    path = graph.path(start, (-248.0, -2943.0))
+
+    assert path is not None
+    grab = next(m for m in path.moves if isinstance(m.end_on, Rope))
+    assert isinstance(grab.end_on, Rope)
+    walk = physics.walk_speed
+    apex = physics.jump_speed / physics.gravity
+    nearest = walk * apex + walk * TAKEOFF_LEAD - ROPE_GRAB_REACH
+    assert grab.end_on.x == -772
+    assert abs(grab.end[0] - grab.start[0]) >= nearest - 1e-6, grab

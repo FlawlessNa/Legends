@@ -26,6 +26,7 @@ from game_data.catalogue import Foothold, Rope
 from maple.model.mechanics.physics import VRPhysics
 from maple.model.navigation import (
     LANDING_MARGIN,
+    OVERSHOOT_MARGIN,
     PORTAL_TIME,
     ROPE_GRAB_REACH,
     TAKEOFF_LEAD,
@@ -199,7 +200,8 @@ def test_a_drop_onto_a_platform_within_a_jump_can_be_jumped_back_up() -> None:
 
     # From B, a jump up (top at -20) lands on A above it; a jump sideways
     # passes A on the way up and lands on it on the way down, 0.6 s and
-    # 60.6 px later, from B's x in [-60.6, 39.4] going right.
+    # 60.6 px later, from B's x in [-60.6, 39.4] going right: up to 7.5,
+    # `OVERSHOOT_MARGIN` (31.9) inside the open end it heads for (#542).
     assert summary(graph, {a: "A", b: "B"}) == {
         (D, DN, "A", 0, 100, "B"),
         (F, L, "A", 0, 0, "B"),
@@ -207,8 +209,8 @@ def test_a_drop_onto_a_platform_within_a_jump_can_be_jumped_back_up() -> None:
         (J, L, "A", 0, 80, "B"),
         (J, R, "A", 20, 100, "B"),
         (J, U, "B", 0, 100, "A"),
-        (J, R, "B", -60, 39, "A"),
-        (J, L, "B", 61, 160, "A"),
+        (J, R, "B", -60, 7, "A"),
+        (J, L, "B", 93, 160, "A"),
     }
     by = {(m.kind, m.direction, m.low): m for m in graph.moves}
     assert by[D, DN, 0].duration_low == pytest.approx(fall_time(60))
@@ -290,11 +292,12 @@ def test_a_rope_is_grabbed_climbed_and_left_by_the_expected_moves() -> None:
 
     names: dict[Platform | Rope, str] = {ground: "G", top: "T", r: "R"}
     # From G, a sideways jump crosses x = 0 inside the rope's height between
-    # 0.117 s and 0.683 s after take-off, so from |x| in [11.8, 69.0]. From T,
+    # 0.117 s and 0.683 s after take-off, so from |x| in [11.8, 69.0]; it
+    # grabs it only past the arc's top (`_grab_after`, #542), from |x| 39. From T,
     # a drop within `ROPE_GRAB_REACH` (11.6) of the rope's top grabs the rope.
     assert summary(graph, names) == {
-        (J, L, "G", 12, 68, "R"),
-        (J, R, "G", -68, -12, "R"),
+        (J, L, "G", 39, 68, "R"),
+        (J, R, "G", -68, -39, "R"),
         (J, U, "G", 0, 0, "R"),
         (D, DN, "T", -300, -12, "G"),
         (F, L, "T", -300, -300, "G"),
@@ -319,15 +322,18 @@ def test_a_path_up_a_rope_jumps_to_it_climbs_it_and_steps_off_at_the_top() -> No
 
     path = graph.path((0, 0), (-100, -202))
 
+    # A sideways jump grabs the rope past its top, 80 px up it (#542): less
+    # to climb than from its bottom, after a jump straight up.
     assert path is not None
     assert [(m.kind, m.direction) for m in path.moves] == [
-        (J, U),
+        (W, L),
+        (J, R),
         (C, U),
         (C, U),
         (W, L),
     ]
     assert contiguous(path)
-    assert path.moves[0].end_on == r
+    assert path.moves[1].end_on == r
     assert path.moves[-1].end == (-100, -202)
 
 
@@ -540,9 +546,10 @@ def test_an_end_another_platform_continues_needs_no_margin() -> None:
     graph = FootholdGraph.from_surfaces([a, b, c], [], [], PHYSICS)
 
     from_c = [m for m in graph.moves if (m.kind, m.direction, m.source) == (J, L, c)]
-    # C's x - 80.8 lands on B from x 236.8; 15.5 inside B's open left end
-    # needs x >= 252.3. Up to C's x 280 it lands 0.8 px short of the join.
-    assert [(round(m.low), round(m.high), m.target) for m in from_c] == [(253, 280, b)]
+    # C's x - 80.8 lands on B from x 236.8; `OVERSHOOT_MARGIN` (31.9) inside
+    # B's open left end, which it heads for, needs x >= 268.7 (#542). Up to
+    # C's x 280 it lands 0.8 px short of the join.
+    assert [(round(m.low), round(m.high), m.target) for m in from_c] == [(269, 280, b)]
 
 
 # --- take-offs only an exact walk makes (#515) ------------------------------------
@@ -597,3 +604,53 @@ def test_the_take_off_margin_is_a_lead_of_the_characters_own_walk() -> None:
 
     right = [m for m in graph.moves if (m.kind, m.direction, m.source) == (J, R, a)]
     assert [(round(m.low), round(m.high)) for m in right] == [(0, 80)]
+
+
+# --- where a jump lands near an end it heads for, and when it grabs a rope (#542) --
+
+
+def test_a_jump_lands_wider_inside_the_open_end_it_heads_for() -> None:
+    """
+    Live (runs 28 to 30), the jump landing 16.4 px inside the open end it
+    headed for went past it 14 times in 14; one landing 31.9 px inside landed
+    13 times in 16. The end it comes from keeps `LANDING_MARGIN`.
+    """
+    a, b = platform(1, 0, 100, 0), platform(2, -1000, 1000, 60)
+    graph = traced([a, b])
+
+    jumps = [m for m in graph.moves if m.kind is J and m.source == b and m.target == a]
+    right = next(m for m in jumps if m.direction is R)
+    left = next(m for m in jumps if m.direction is L)
+    tol = 1.0  # the take-offs are sampled
+    assert right.landing_high[0] <= 100 - OVERSHOOT_MARGIN + 1e-6
+    assert right.landing_high[0] >= 100 - OVERSHOOT_MARGIN - tol
+    assert left.landing_low[0] >= OVERSHOOT_MARGIN - 1e-6
+    # The end each comes from: `LANDING_MARGIN` only.
+    assert right.landing_low[0] <= LANDING_MARGIN + tol
+    assert left.landing_high[0] >= 100 - LANDING_MARGIN - tol
+
+
+def test_a_sideways_jump_grabs_a_rope_only_past_the_top_of_its_arc() -> None:
+    """
+    Live, every sideways jump whose key went down 21.8 px or less before the
+    rope passed it (24 of 24), every one 28.5 to 78 px before grabbed it (38
+    of 38): the client catches a rope once the jump stops rising. A take-off
+    `TAKEOFF_LEAD` late must still find it within reach past the top.
+    """
+    ground = platform(1, -500, 500, 0)
+    r = rope(1, 0, -200, -40)
+    graph = FootholdGraph.from_surfaces([ground], [], [r], PHYSICS)
+
+    apex = PHYSICS.jump_speed / PHYSICS.gravity
+    walk = PHYSICS.walk_speed
+    nearest = walk * apex + walk * TAKEOFF_LEAD - ROPE_GRAB_REACH
+    grabs = [
+        m
+        for m in graph.moves
+        if m.kind is J and m.target == r and m.direction in (L, R)
+    ]
+    assert {m.direction for m in grabs} == {L, R}
+    for move in grabs:
+        closest = min(abs(move.low), abs(move.high))
+        assert closest >= nearest - 1.0, move
+        assert min(move.duration_low, move.duration_high) >= nearest / walk - 1e-9
