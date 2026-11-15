@@ -6,6 +6,7 @@ input; the line here is that docstring's first line. `poc_tracking/*.md` describ
 the proof-of-concept trackers.
 
 - `toolkit/capture_frames.py`: Save frames of the running client for the frame set.
+- `toolkit/chat_mirror.py`: Mirror the in-game chat to the console, to see where the chat reader is right.
 - `toolkit/extract_model_classes.py`: Copy a YOLO model's class names into the `data.yaml` of its datasets.
 - `toolkit/generate_movement_lab_pairs.py`: Regenerate the movement lab's frozen reachability samples.
 - `toolkit/graph_build_blocking.py`: Measure how long the decision loop is blocked while a foothold graph builds (#430).
