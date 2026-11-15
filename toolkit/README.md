@@ -15,6 +15,7 @@ the proof-of-concept trackers.
 - `toolkit/live_detector.py`: Live object detection viewer: run a YOLO model on the client's window.
 - `toolkit/movement_attempts.py`: Count how many Attempts each Precision movement took, from a Session's telemetry.
 - `toolkit/movement_lab_sweep.py`: Run the movement lab's Invariants over the whole Corpus, and regenerate its goldens.
+- `toolkit/movement_playground.py`: Movement playground (#524): send the character to picked targets; it sends input.
 - `toolkit/movement_timeline.py`: Visualize a KeyboardInputWrapper as a Gantt-style key-hold timeline.
 - `toolkit/poc_tracking/hybrid_tracker.py`: Proof of concept: read the character's position from the minimap and the play area at once.
 - `toolkit/poc_tracking/label_frames.py`: Label a folder of frames with the POC trackers' readings, offline.
