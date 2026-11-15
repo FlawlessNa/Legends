@@ -109,7 +109,7 @@ def test_exit_releases_every_bots_keys(
     sink: TelemetryHandler,
     released: MockType,
 ) -> None:
-    """Debug mode used to skip it, so a stopped `bot_tester` Session could leave a key held."""
+    """Debug mode used to skip it, so a stopped debug-mode Session could leave a key held."""
     manager = _manager(mocker, tmp_path, sink, debug=debug)
     manager.bots = [_bot(mocker), _bot(mocker)]
     manager.discord_listener = mocker.Mock()

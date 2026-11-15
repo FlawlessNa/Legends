@@ -1,5 +1,5 @@
 """
-Exhaustive sweep and golden regeneration for the movement lab.
+Run the movement lab's Invariants over the whole Corpus, and regenerate its goldens.
 
     python toolkit/movement_lab_sweep.py                    # sweep: every Invariant
                                                               # over the whole Corpus,
@@ -14,6 +14,9 @@ not re-implement them; `test_invariants.py` stays the one source of truth for wh
 holds. Golden regeneration writes what `test_goldens.py` then reads back - run it only
 once a change to the compiled shape is known to be deliberate, never to chase a
 failing check into passing.
+
+Real maps read the game data store (`data/game_data`). No client; it sends no
+input. Run it from the repo root.
 """
 
 from __future__ import annotations

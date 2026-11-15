@@ -1,4 +1,6 @@
 """
+Watch and record how the position readers behave, live or over saved frames.
+
 Position check (#393, epic #302 Part 2, item 11 and decision C1): how the
 position readers behave, live beside the client or replayed over a folder of
 frames, so they can be calibrated and trusted.

@@ -1,5 +1,5 @@
 """
-How long the decision loop is blocked while a foothold graph builds (#430).
+Measure how long the decision loop is blocked while a foothold graph builds (#430).
 
 A graph takes seconds to build, and the character's stats change it. This
 script runs what an Engine runs, an asyncio loop, with a heartbeat that wakes

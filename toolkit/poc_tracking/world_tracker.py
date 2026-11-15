@@ -1,5 +1,7 @@
 """
-POC: the character's position in virtual (world) coordinates, read from the
+Proof of concept: read the character's position in virtual (world) coordinates from the play area.
+
+The character's position in virtual (world) coordinates, read from the
 play area.
 
 **Capture only. This script never sends a key, a click or any other input to
