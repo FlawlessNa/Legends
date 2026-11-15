@@ -1,4 +1,15 @@
-"""Verify all datasets have consistent structure."""
+"""Check that every dataset under `data/datasets/` has a consistent layout.
+
+Run it before training on a dataset. For each one it checks for `images/` and
+`labels/` (with `train`/`val`/`test` subfolders), that images and labels exist,
+and that `data.yaml` declares every class id the labels use. It prints one
+line per dataset and exits 1 if any has a problem.
+
+    python toolkit/verify_dataset_structure.py
+
+Run it from the repo root. Needs the datasets on disk; no client. Read-only,
+and it sends no input.
+"""
 
 import sys
 from pathlib import Path

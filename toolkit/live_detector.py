@@ -1,11 +1,15 @@
 """
-Live object detection viewer.
+Live object detection viewer: run a YOLO model on the client's window.
 
-Continuously captures the game window and runs YOLO inference on each frame.
-Adjust confidence and IOU thresholds live using the sliders.
+Run it to see what a trained model detects on the running game. It captures
+the client continuously and draws the detections; confidence and IOU are
+adjusted live with sliders. Set `MODEL_PATH` and `CLASSES` at the top.
 
-Usage:
-  python toolkit/live_detector.py
+    python toolkit/live_detector.py
+
+Needs the MapleStory client open, `ultralytics`, and the model file
+(`data/models/production/global/weights/best.pt` by default). It copies the
+client's pixels and sends no input.
 """
 
 import os

@@ -1,3 +1,19 @@
+"""
+Run one MapleBot with the Decision Makers you list, to test them live.
+
+Run it when you want a Session with a hand-picked set of Decision Makers
+(`TestBot._decision_makers`, now just `Rotation`) instead of the full
+launcher (`maple/launchers/run.py`). Edit `IGN`, `MAP` and `CHARACTER_CLASS`
+at the top first.
+
+    python -m toolkit.bot_tester
+
+Needs the MapleStory client open on that character, with Discord set up as the
+launcher needs it (`configs/discord.ini`). **It sends input to the game**: the
+Decision Makers drive the character, in debug mode. Stop it with the Session's
+stop file.
+"""
+
 import asyncio
 import logging
 
