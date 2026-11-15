@@ -1,4 +1,6 @@
 """
+Count how many Attempts each Precision movement took, from a Session's telemetry.
+
 Attempts from telemetry (#12, epic #302 T32): how many Attempts each Precision
 movement took, and whether that is within its Attempt budget. Offline, and it
 sends nothing.
