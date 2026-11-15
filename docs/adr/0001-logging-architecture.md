@@ -95,6 +95,16 @@ outcomes.
   joining a decision made in an Engine to what Main Process did with it. A
   Producer needing to emit from *inside* its procedure bakes the id into its
   `partial`, which is already built inside `_decide()`.
+- Amended by #538, for the `key.down`/`key.up` records: they are emitted from
+  the input layer, below every procedure, and a key can be sent by any of them
+  (a movement, a release, a recovery), so no `partial` can carry the id there.
+  `AsyncTaskManager` hands the id over instead: when it creates a request's
+  task, it binds that task to the request's id
+  (`botting/controller/inputs/key_times.py`, `bind`), and the input layer
+  looks up the task it is running in. Procedures still take no
+  `correlation_id` parameter, and nothing propagates on its own: the one
+  binding is written explicitly, at the one place that already reads the id
+  off the request. A key sent outside a scheduled task carries none.
 
 ### Event Types and payloads: convention, not validation
 

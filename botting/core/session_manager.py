@@ -9,6 +9,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, Self
 
 from botting.controller import HeldKeysLedger, release_all
+from botting.controller.inputs import key_times
 from botting.logging_config import PARENT_LOG, full_config, new_session_dir
 from botting.screen import MultipleWindows, WindowNotFound
 from botting.stop_file import watch_stop_file
@@ -316,6 +317,10 @@ class SessionManager:
             logger.debug("Stopping Log listener.")
             logger.info("SessionManager exited.")
             _attempt("stop the log listener", self.log_receiver.stop)
+
+            # Key times still buffered (`key_times`): written before
+            # session.ended, which must be the last record.
+            _attempt("write the buffered key times", key_times.flush)
 
             # After stop(), so the child processes' records are all in, and this
             # is the last one; before the sink closes, so it is written at all.

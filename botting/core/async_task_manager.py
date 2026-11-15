@@ -4,6 +4,7 @@ import multiprocessing.connection
 import time
 from collections.abc import Callable
 
+from botting.controller.inputs import key_times
 from botting.telemetry import emit_event
 from botting.telemetry_events import (
     ACTION_BLOCKED,
@@ -154,6 +155,10 @@ class AsyncTaskManager:
         request.task = asyncio.create_task(
             request.procedure(*request.args, **request.kwargs), name=request.identifier
         )
+        # Before the task first runs: every key it sends is recorded with the
+        # request's Correlation ID (`key_times`, #538). The procedure itself still
+        # takes no `correlation_id` parameter (ADR 0001).
+        key_times.bind(request.task, request.correlation_id)
         self.started[request.task] = (request, time.monotonic())
         request.task.add_done_callback(self._cleanup_handler)
         if request.callbacks:

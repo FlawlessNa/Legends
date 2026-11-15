@@ -1,5 +1,5 @@
 """
-Per-move accuracy report for a Trial: planned against actual, retries, loop timing.
+Per-move accuracy report for a Trial: planned against actual, key times, retries, loop timing.
 
 Offline. It reads a Trial record and, optionally, the Session that ran it,
 writes a Markdown report and a PNG route plot, and sends nothing and reads
@@ -21,12 +21,15 @@ lists the moves around it and says whether it flagged one.
 cycle's read and Movement Plan (every component's planned ``start`` and
 ``end``, virtual px) and every sample read. From the Session, when given:
 ``telemetry.jsonl``'s ``action.scheduled`` and ``action.finished`` (joined to a
-cycle by Correlation ID) and ``position.read`` (to put the Session's clock on
-the record's: each read's event is matched to the record line with the same
-position, and the clock offset is their median difference; on run 27 the spread
-was about 1 ms), and ``session.log``'s ``Computing path`` and ``Movements``
-lines (planning). Nothing from either is copied into the report but positions,
-times and move types: no player name, no window title, no machine name.
+cycle by Correlation ID), ``key.down`` and ``key.up`` (#538: each key's
+transition, by the Correlation ID of the Action that sent it, its ``t`` on
+``time.monotonic()``, the record's own clock, so it needs no offset) and
+``position.read`` (to put the Session's clock on the record's: each read's
+event is matched to the record line with the same position, and the clock
+offset is their median difference; on run 27 the spread was about 1 ms), and
+``session.log``'s ``Computing path`` and ``Movements`` lines (planning).
+Nothing from either is copied into the report but positions, times, key names
+and move types: no player name, no window title, no machine name.
 
 **The judged move.** Each cycle runs at most one Action, cut at the Action
 duration cap (1 s by default), so it reaches only the start of its Plan. Its
@@ -68,12 +71,37 @@ below, read off no client):
   steps ``PORTAL_STEP`` or more.
 - **retried**: the move belongs to a cluster.
 
+**At the key** (a Session with ``key.down``/``key.up``; older Sessions keep the
+verdicts above). The key's time is placed on the reads: the x then is
+interpolated between the two reads around it, so a key time is judged to the
+read's precision in x, not to the sample spacing.
+
+- *Take-off* (a jump or drop the reads saw leave the ground): the take-off key
+  is the Action's first ``key.down`` that is not a direction key, from one of
+  the move's Plan components when the records carry their Provenance
+  (``origin``). Its x against the planned take-off x: **early** more than
+  ``TAKEOFF_SLACK`` short, **late** more than that past, in px and in ms at the
+  walk speed; a vertical move is **on spot** within ``LAND_X``, else **off
+  spot**. This replaces the bracket's take-off, which is still shown.
+- *Walk stop* (a walk judged on its stop): the walk's direction key's first
+  ``key.up`` in the Action. Where the character comes to rest from there (the x
+  at the key, plus the slide from the speed the reads give then,
+  ``v² / 2 deceleration``, ``walkDrag`` over the mass) against the planned end:
+  **ok** within ``LAND_X``, else **long** or **short**, in px and in ms at the
+  walk speed. When the last read says otherwise, both are given
+  (``ok, stopped long``). A walk whose key stays down across the cut (a
+  Continuation) has no ``key.up`` in its Action and keeps the read's verdict.
+
 **The limit** is the sample spacing (median about 0.25 s on run 27, 0.12 s on
 reads alone): a take-off is bracketed between two reads up to one spacing
 apart, so early or late is only said beyond the bracket, and a landing read can
 be one spacing after the touch-down. A jump's apex can pass for a landing when
 two reads straddle it at the same height. A coarse read (the minimap alone) is
-16 px wide and is judged like a fused one.
+16 px wide and is judged like a fused one. At the key, the limit is the
+interpolation: a read every 0.12 to 0.25 s at walk speed is 15 to 37 px apart,
+and a speed change between the two reads (the walk accelerating, the slide)
+bends the line the x is read off. The key time itself is ``SendInput``'s
+return; the client acts on it at its next frame.
 
 **Clusters.** Consecutive cycles (skipping cycles with no Plan) whose key move
 is the same move: the same kind, a planned end within ``KEY_X`` and ``KEY_Y``
@@ -94,8 +122,10 @@ compile finished a walk or a jump beyond it (#503, #515), ``plan end`` short of
 it); and the gap from the previous Action's finish to this one's schedule,
 split into the loop's wait (finish to the first capture after it; negative
 when the cycle planned on a frame captured before the finish, a stale frame),
-cycles with no Plan, read and planning, and hand-off. Schedule to keys down is
-not in a Session (no input log carries it) and is said so.
+cycles with no Plan, read and planning, and hand-off. Schedule to first key:
+``action.scheduled`` to the Action's first ``key.down`` or ``key.up``, both on
+Main Process's wall clock (the focus lock, the dispatch-time compile and the
+first ``SendInput``), in a Session that has them.
 
 **Where the time goes** names the settings from the code, with their values, and
 ranks the options for the maintainer; this tool changes none of them.
@@ -111,7 +141,7 @@ import re
 import statistics
 from collections import Counter
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from itertools import pairwise
 from pathlib import Path
@@ -127,6 +157,7 @@ from maple.calibration.records import (
     TrialOutcome,
     read_records,
 )
+from maple.model.mechanics.physics import CHARACTER_MASS
 
 # --- Expectations (read off no client; named so a live check can say which) ------
 
@@ -227,6 +258,9 @@ class Move:
     length: float
     duration: float | None = None
     grabs_rope: bool = False
+    #: The indices, in the cycle's Plan, of the components merged into this move:
+    #: what a key record's ``origin`` (its Provenance) is matched against.
+    components: tuple[int, ...] = ()
 
     @property
     def kind(self) -> str:
@@ -243,14 +277,17 @@ def merge_plan(plan: Sequence[MovementSummary]) -> list[Move]:
     rope grabs are marked (a jump the next move climbs from), and components
     with no planned start or end (the end-of-movement release) are dropped."""
     moves: list[Move] = []
-    for component in plan:
+    for index, component in enumerate(plan):
         if component.start is None or component.end is None:
             continue
         kind_type = component.movement_type
         if moves and moves[-1].type == kind_type and kind_type in _WALKS | _CLIMBS:
             last = moves[-1]
-            moves[-1] = Move(
-                kind_type, last.start, component.end, last.length + component.length
+            moves[-1] = replace(
+                last,
+                end=component.end,
+                length=last.length + component.length,
+                components=(*last.components, index),
             )
             continue
         moves.append(
@@ -261,13 +298,12 @@ def merge_plan(plan: Sequence[MovementSummary]) -> list[Move]:
                 component.length,
                 component.duration,
                 component.grabs_rope,
+                (index,),
             )
         )
     for i, move in enumerate(moves[:-1]):
         if move.kind in ("jump", "drop") and moves[i + 1].type in _CLIMBS:
-            moves[i] = Move(
-                move.type, move.start, move.end, move.length, move.duration, True
-            )
+            moves[i] = replace(move, grabs_rope=True)
     return moves
 
 
@@ -336,6 +372,14 @@ def walk_speed(header: ScheduleHeader | None) -> float:
     )
 
 
+def walk_deceleration(header: ScheduleHeader | None) -> float:
+    """Virtual px/s² a walk slides to rest at once its key is up: `Physics.img`'s
+    walkDrag over the character's mass (`maple.model.mechanics.physics`);
+    infinite (no slide) when the header carries no physics."""
+    drag = None if header is None else (header.physics or {}).get("walkDrag")
+    return math.inf if not drag else float(drag) / CHARACTER_MASS
+
+
 def action_cap(trial: TrialData) -> float:
     """The Action duration cap the Trial's batch compiled against."""
     knobs = trial.outcome.knobs if trial.outcome is not None else None
@@ -358,6 +402,22 @@ def _local_seconds(when: datetime) -> float:
 
 
 @dataclass(frozen=True)
+class KeyEvent:
+    """
+    One ``key.down`` or ``key.up`` record (#538). ``t`` is its payload's
+    ``time.monotonic()``, which is the record's clock already: no offset.
+    """
+
+    t: float
+    key: str
+    down: bool
+    origin: int | None = None
+    cause: str | None = None
+    #: A ``key.up`` for a key the Held-Keys Ledger did not hold.
+    straggler: bool = False
+
+
+@dataclass(frozen=True)
 class Action:
     """One Action as the Session saw it, on the record's clock."""
 
@@ -365,6 +425,9 @@ class Action:
     finished: float | None = None
     elapsed: float | None = None
     outcome: str | None = None
+    #: Seconds from ``action.scheduled`` to the Action's first key record, both
+    #: on the Session's wall clock; `None` when it recorded no key.
+    to_first_key: float | None = None
 
 
 @dataclass(frozen=True)
@@ -388,6 +451,9 @@ class SessionTimes:
     plannings: list[Planning] = field(default_factory=list)
     matched_reads: int = 0
     spread: float = 0.0
+    #: Each Action's key records, by Correlation ID, in time order. Empty for a
+    #: Session from before #538.
+    keys: dict[str, list[KeyEvent]] = field(default_factory=dict)
 
 
 def load_session(session: Path, records: Sequence[Record]) -> SessionTimes | None:
@@ -400,17 +466,22 @@ def load_session(session: Path, records: Sequence[Record]) -> SessionTimes | Non
     reads: list[tuple[float, float, float]] = []
     scheduled: dict[str, float] = {}
     finished: dict[str, tuple[float, float | None, str | None]] = {}
+    keys: dict[str, list[tuple[float, KeyEvent]]] = {}
     with telemetry.open(encoding="utf-8") as handle:
         for line in handle:
             if not line.strip():
                 continue
             event = json.loads(line)
             kind = event.get("event_type")
-            if kind not in ("position.read", "action.scheduled", "action.finished"):
+            if kind not in _SESSION_EVENTS:
                 continue
-            when = _local_seconds(datetime.fromisoformat(event["timestamp"]))
             payload = event.get("payload") or {}
             cid = event.get("correlation_id")
+            if kind in ("key.down", "key.up"):
+                if cid and payload.get("t") is not None:
+                    keys.setdefault(cid, []).append(_key_event(kind, payload))
+                continue
+            when = _local_seconds(datetime.fromisoformat(event["timestamp"]))
             if kind == "position.read":
                 if payload.get("x") is not None and payload.get("y") is not None:
                     reads.append((when, float(payload["x"]), float(payload["y"])))
@@ -432,13 +503,18 @@ def load_session(session: Path, records: Sequence[Record]) -> SessionTimes | Non
     if offset is None:
         return None
     times = SessionTimes(offset, matched_reads=matched, spread=spread)
+    for cid, events in keys.items():
+        events.sort(key=lambda pair: pair[1].t)
+        times.keys[cid] = [key for _, key in events]
     for cid, when in scheduled.items():
         done = finished.get(cid)
+        walls = [w for w, _ in keys.get(cid, ()) if not math.isnan(w)]
         times.actions[cid] = Action(
             when - offset,
             None if done is None else done[0] - offset,
             None if done is None else done[1],
             None if done is None else done[2],
+            min(walls) - when if walls else None,
         )
     log = directory / "session.log"
     if not log.exists():
@@ -446,6 +522,33 @@ def load_session(session: Path, records: Sequence[Record]) -> SessionTimes | Non
     if log.exists():
         times.plannings = _plannings(log, offset)
     return times
+
+
+_SESSION_EVENTS: Final = frozenset(
+    {"position.read", "action.scheduled", "action.finished", "key.down", "key.up"}
+)
+
+
+def _key_event(kind: str, payload: dict[str, object]) -> tuple[float, KeyEvent]:
+    """A key record as (its local wall-clock seconds, the event on the record's
+    clock)."""
+    origin = payload.get("origin")
+    t = payload.get("t")
+    wall = payload.get("wall")
+    cause = payload.get("cause")
+    return (
+        _local_seconds(datetime.fromtimestamp(float(wall)))
+        if isinstance(wall, int | float)
+        else math.nan,
+        KeyEvent(
+            float(t) if isinstance(t, int | float) else math.nan,
+            str(payload.get("key")),
+            kind == "key.down",
+            origin if isinstance(origin, int) else None,
+            None if cause is None else str(cause),
+            kind == "key.up" and payload.get("held") is False,
+        ),
+    )
 
 
 def _clock_offset(
@@ -540,6 +643,24 @@ class Timing:
     in_flight: float | None = None
     read_and_plan: float | None = None
     stale: bool = False
+    #: ``action.scheduled`` to the Action's first key record (#538).
+    to_keys: float | None = None
+
+
+@dataclass(frozen=True)
+class KeyTiming:
+    """
+    A move judged at a key time (#538): where the character was when the key
+    went (``x``, interpolated from the reads around ``t``), and how far that is
+    from the plan along the travel direction (``px``, positive: late or long),
+    also as time at the walk speed (``ms``; `None` for a vertical move).
+    """
+
+    t: float
+    key: str
+    x: float
+    px: float
+    ms: float | None
 
 
 @dataclass
@@ -569,6 +690,10 @@ class Judged:
     cluster: int | None = None
     try_index: int | None = None
     tried: bool = False
+    #: The take-off judged at the jump key's ``key.down``, when the Session has it.
+    takeoff_key: KeyTiming | None = None
+    #: A walk's stop judged at its key's ``key.up``, when the Session has it.
+    stop_key: KeyTiming | None = None
 
     @property
     def missed(self) -> bool:
@@ -786,9 +911,14 @@ def _judge_portal(judged: Judged, window: Sequence[Read], key: Move) -> None:
 
 
 def judge_trial(
-    trial: TrialData, speed: float, session: SessionTimes | None
+    trial: TrialData,
+    speed: float,
+    session: SessionTimes | None,
+    deceleration: float = math.inf,
 ) -> list[Judged]:
-    """Every measured cycle of a Trial, judged, with its loop timing."""
+    """Every measured cycle of a Trial, judged, with its loop timing; judged
+    again at the key times where the Session has them (`judge_keys`).
+    `deceleration`: the walk's, virtual px/s² (``walkDrag`` over the mass)."""
     cap = action_cap(trial)
     reach = speed * cap
     out: list[Judged] = []
@@ -810,6 +940,13 @@ def judge_trial(
             if not window or window[0].t != t:
                 window.insert(0, Read(t, *position.position, position.source))
             judge_cycle(judged, window, merge_plan(cycle.plan), reach)
+            keys = (
+                ()
+                if session is None
+                else session.keys.get(cycle.correlation_id or "", ())
+            )
+            if keys:
+                judge_keys(judged, trial.reads, keys, speed, deceleration)
         elif position.position is None:
             judged.kind = "unsure"
             judged.verdict = "unsure read"
@@ -817,6 +954,128 @@ def judge_trial(
     if session is not None:
         _timings(out, cycles, session, cap, [r.t for r in trial.reads])
     return out
+
+
+#: The direction keys, by the names the input layer sends them under.
+_DIRECTION_KEYS: Final = frozenset({"left", "right", "up", "down"})
+
+
+def x_at(reads: Sequence[Read], t: float) -> tuple[float, float] | None:
+    """
+    The character's x at record-clock `t` and its speed along x then, px/s:
+    linear between the two reads around `t`. `None` outside the reads.
+    """
+    times = [r.t for r in reads]
+    i = bisect.bisect_left(times, t)
+    if i < len(reads) and reads[i].t == t:
+        before = reads[i - 1] if i > 0 else reads[i]
+        after = reads[i + 1] if i + 1 < len(reads) else reads[i]
+        span = after.t - before.t
+        return reads[i].x, (after.x - before.x) / span if span > 0 else 0.0
+    if i == 0 or i >= len(reads):
+        return None
+    before, after = reads[i - 1], reads[i]
+    span = after.t - before.t
+    if span <= 0:
+        return None
+    velocity = (after.x - before.x) / span
+    return before.x + velocity * (t - before.t), velocity
+
+
+def takeoff_key(keys: Sequence[KeyEvent], move: Move) -> KeyEvent | None:
+    """
+    The key that took `move` off: the Action's first ``key.down`` that is not a
+    direction key. When the Action's records carry Provenance, it must come from
+    one of the move's components, so a jump the Action never reached has none.
+    """
+    downs = [k for k in keys if k.down and k.key not in _DIRECTION_KEYS]
+    if any(k.origin is not None for k in keys):
+        downs = [k for k in downs if k.origin in move.components]
+    return downs[0] if downs else None
+
+
+def stop_key(keys: Sequence[KeyEvent], walk: Move) -> KeyEvent | None:
+    """The ``key.up`` that ended `walk`: its direction key's first in the Action."""
+    if not walk.direction:
+        return None
+    name = "right" if walk.direction > 0 else "left"
+    return next((k for k in keys if not k.down and k.key == name), None)
+
+
+def judge_keys(
+    judged: Judged,
+    reads: Sequence[Read],
+    keys: Sequence[KeyEvent],
+    speed: float,
+    deceleration: float = math.inf,
+) -> None:
+    """
+    Judge a cycle's move again at its key times (#538), where it has them.
+
+    - A take-off (a jump or a drop that left the ground): the x at the jump
+      key's ``key.down`` against the planned take-off x. Sideways: **early** more
+      than ``TAKEOFF_SLACK`` short of it, **late** more than that past it, in px
+      and in ms at the walk speed. Straight up or down: **on spot** within
+      ``LAND_X``, else **off spot**. It replaces the bracket's take-off.
+    - A walk judged on its stop: where the character comes to rest from its
+      key's ``key.up`` (the x then, plus the slide from the speed it had,
+      ``v² / 2 deceleration``) against the planned end: **ok** within
+      ``LAND_X``, else **long** or **short**, in px and in ms at the walk speed.
+      It replaces the verdict from the last read, which is added when the two
+      disagree (``ok, stopped long``).
+    """
+    move = judged.move
+    if move is None:
+        return
+    if (
+        judged.kind in ("jump", "drop")
+        and judged.takeoff_times is not None
+        and judged.takeoff != "climbed"
+    ):
+        key = takeoff_key(keys, move)
+        at = None if key is None else x_at(reads, key.t)
+        if key is None or at is None:
+            return
+        x = at[0]
+        if move.direction:
+            px = (x - move.start[0]) * move.direction
+            ms = px / speed * 1000.0 if speed > 0 else None
+            takeoff = (
+                "early"
+                if px < -TAKEOFF_SLACK
+                else ("late" if px > TAKEOFF_SLACK else "on time")
+            )
+        else:
+            px = x - move.start[0]
+            ms = None
+            takeoff = "on spot" if abs(px) <= LAND_X else "off spot"
+        judged.takeoff_key = KeyTiming(key.t, key.key, x, px, ms)
+        judged.takeoff = takeoff
+        base = judged.verdict.split(",")[0]
+        judged.verdict = (
+            f"{base}, {takeoff} take-off"
+            if base != "ok" and takeoff in ("early", "late", "off spot")
+            else base
+        )
+        return
+    if judged.kind == "walk" and judged.verdict in ("ok", "long", "short"):
+        key = stop_key(keys, move)
+        at = None if key is None else x_at(reads, key.t)
+        if key is None or at is None:
+            return
+        x, velocity = at
+        moving = min(abs(velocity), speed) if velocity * move.direction > 0 else 0.0
+        slide = 0.0 if math.isinf(deceleration) else moving**2 / (2 * deceleration)
+        px = (x + slide * move.direction - move.end[0]) * move.direction
+        judged.stop_key = KeyTiming(
+            key.t, key.key, x, px, px / speed * 1000.0 if speed > 0 else None
+        )
+        by_key = "ok" if abs(px) <= LAND_X else ("long" if px > 0 else "short")
+        judged.verdict = (
+            by_key
+            if by_key == judged.verdict
+            else f"{by_key}, stopped {judged.verdict}"
+        )
 
 
 def _timings(
@@ -844,6 +1103,7 @@ def _timings(
                 timing.handoff = action.scheduled - planning.ended
                 timing.read_and_plan = planning.ended - t
         timing.age_at_schedule = action.scheduled - t
+        timing.to_keys = action.to_first_key
         timing.action = action.elapsed
         if action.elapsed is not None:
             if action.elapsed < cap - CUT_TOL:
@@ -1059,6 +1319,12 @@ class Summary:
     ages: list[float]
     actions: list[float]
     cuts: tuple[int, int]
+    #: Take-offs judged at the jump key: px from the planned take-off (+ late).
+    takeoff_key_px: list[float] = field(default_factory=list[float])
+    #: Walk stops judged at the key: px from the planned end (+ long).
+    stop_key_px: list[float] = field(default_factory=list[float])
+    #: Schedule to first key, seconds.
+    to_keys: list[float] = field(default_factory=list[float])
 
 
 def summarize(
@@ -1094,6 +1360,9 @@ def summarize(
             sum(1 for t in timings if t.ended in ("cut", "past cut")),
             sum(1 for t in timings if t.ended),
         ),
+        [j.takeoff_key.px for j in judged if j.takeoff_key is not None],
+        [j.stop_key.px for j in judged if j.stop_key is not None],
+        [t.to_keys for t in timings if t.to_keys is not None],
     )
 
 
@@ -1120,12 +1389,13 @@ def analyze(record: Path, session_dir: Path | None, label: str | None = None) ->
     header, trials = split_trials(records)
     session = load_session(session_dir, records) if session_dir is not None else None
     speed = walk_speed(header)
+    deceleration = walk_deceleration(header)
     judged: dict[str, list[Judged]] = {}
     clusters: list[Cluster] = []
     summaries: list[Summary] = []
     name = label or record.stem
     for trial in trials:
-        items = judge_trial(trial, speed, session)
+        items = judge_trial(trial, speed, session, deceleration)
         found = find_clusters(items, start_number=len(clusters) + 1)
         for cluster in found:
             for i, item in enumerate(cluster.tries, start=1):
@@ -1165,6 +1435,20 @@ def render(
             f"Session clock matched on {run.session.matched_reads} reads "
             f"(median deviation {run.session.spread * 1000:.1f} ms)."
         )
+        keyed = sum(
+            1 for a in run.session.actions.values() if a.to_first_key is not None
+        )
+        if run.session.keys:
+            lines.append(
+                f"Key times: {keyed} of {len(run.session.actions)} Actions recorded "
+                f"their keys (`key.down`/`key.up`), on the record's clock: take-offs "
+                f"and walk stops are judged at the key where the Action has one."
+            )
+        else:
+            lines.append(
+                "Key times: none in this Session (it predates `key.down`/`key.up`, "
+                "#538): take-offs and stops are judged from the reads alone."
+            )
     if plot is not None:
         lines.append(f"\n![route]({plot.name})")
     lines.append("")
@@ -1213,13 +1497,28 @@ def _render_trial(run: Run, trial: TrialData) -> list[str]:
             continue
         move = j.move
         takeoff = j.takeoff
+        details: list[str] = []
+        if j.takeoff_key is not None:
+            details.append(
+                f"key {_key_offset(j.takeoff_key)} at {j.takeoff_key.t - t0:.2f} s"
+            )
         if j.takeoff_bracket is not None:
-            takeoff += f" ({j.takeoff_bracket[0]:+.0f}..{j.takeoff_bracket[1]:+.0f} px"
+            bracket = (
+                f"reads {j.takeoff_bracket[0]:+.0f}..{j.takeoff_bracket[1]:+.0f} px"
+            )
             if j.takeoff_times is not None:
-                takeoff += (
+                bracket += (
                     f", {j.takeoff_times[0] - t0:.2f}..{j.takeoff_times[1] - t0:.2f} s"
                 )
-            takeoff += ")"
+            details.append(bracket)
+        if details:
+            takeoff += f" ({'; '.join(details)})"
+        stop = _xy(j.landing)
+        if j.stop_key is not None:
+            stop += (
+                f" (key up at x {j.stop_key.x:.0f}, {j.stop_key.t - t0:.2f} s: "
+                f"{_key_offset(j.stop_key)})"
+            )
         verdict = j.verdict
         if j.cluster is not None:
             verdict += f", retried (C{j.cluster} try {j.try_index})"
@@ -1227,7 +1526,7 @@ def _render_trial(run: Run, trial: TrialData) -> list[str]:
         out.append(
             f"| {j.cycle} | {j.t - t0:.1f} | {_xy(j.position)} | {move.type} "
             f"{move.length:.0f} | {_xy(move.start)} -> {_xy(move.end)} | {j.lead:.0f} | "
-            f"{_dispatch(j, t0)} | {takeoff} | {_xy(j.landing)} | {error} | {verdict} |"
+            f"{_dispatch(j, t0)} | {takeoff} | {stop} | {error} | {verdict} |"
         )
     misses = [j for j in items if j.missed]
     if misses:
@@ -1240,6 +1539,14 @@ def _render_trial(run: Run, trial: TrialData) -> list[str]:
             )
             out.append(f"- cycle {j.cycle} ({j.verdict}): {reads}")
     return out
+
+
+def _key_offset(timing: KeyTiming) -> str:
+    """A key timing's offset from the plan, px and (sideways) ms."""
+    text = f"{timing.px:+.0f} px"
+    if timing.ms is not None:
+        text += f", {timing.ms:+.0f} ms"
+    return text
 
 
 def _dispatch(j: Judged, t0: float) -> str:
@@ -1333,6 +1640,12 @@ def _render_totals(run: Run) -> list[str]:
         out.append(
             f"- Jump and drop landing error, px: {stats(s.jump_errors)}; ok {s.jump_ok[0]} of {s.jump_ok[1]}."
         )
+        if s.takeoff_key_px or s.stop_key_px:
+            out.append(
+                f"- At the key: take-off px from the planned take-off (+ late) "
+                f"{stats(s.takeoff_key_px)}; walk stop px from the planned end "
+                f"(+ long) {stats(s.stop_key_px)}."
+            )
         out.append(f"- Verdicts: {verdicts}.")
         out.append("")
     return out
@@ -1340,9 +1653,17 @@ def _render_totals(run: Run) -> list[str]:
 
 def _render_timing(run: Run) -> list[str]:
     out = ["", "## Loop timing", ""]
+    keyed = run.session is not None and bool(run.session.keys)
     out.append(
-        "Per dispatched cycle, ms as median / p90 / max (n). Schedule to keys down "
-        "is not measurable: no Session file logs when keys go down."
+        "Per dispatched cycle, ms as median / p90 / max (n). "
+        + (
+            "Schedule to first key: `action.scheduled` to the Action's first "
+            "`key.down` or `key.up`, both on Main Process's wall clock (the focus "
+            "lock, the compile and the first `SendInput`)."
+            if keyed
+            else "Schedule to first key is not in this Session (no `key.down` "
+            "records, #538)."
+        )
     )
     out.append("")
     all_judged = [
@@ -1353,16 +1674,17 @@ def _render_timing(run: Run) -> list[str]:
         groups.setdefault(j.kind, []).append(j)
     out.append(
         "| moves | read age at planning | planning | hand-off | read age at schedule | "
-        "Action | gap finish -> next schedule | of which loop wait | (samples after "
-        "finish) | no-Plan cycles | read + planning |"
+        "schedule -> first key | Action | gap finish -> next schedule | of which loop "
+        "wait | (samples after finish) | no-Plan cycles | read + planning |"
     )
-    out.append("|---|---|---|---|---|---|---|---|---|---|---|")
+    out.append("|---|---|---|---|---|---|---|---|---|---|---|---|")
     for name, items in groups.items():
         timings = [j.timing for j in items if j.timing is not None]
         out.append(
             f"| {name} | {_ms(t.age_at_plan for t in timings)} | "
             f"{_ms(t.planning for t in timings)} | {_ms(t.handoff for t in timings)} | "
-            f"{_ms(t.age_at_schedule for t in timings)} | {_ms(t.action for t in timings)} | "
+            f"{_ms(t.age_at_schedule for t in timings)} | {_ms(t.to_keys for t in timings)} | "
+            f"{_ms(t.action for t in timings)} | "
             f"{_ms(t.gap for t in timings)} | {_ms(t.wait for t in timings)} | "
             f"{_ms(t.in_flight for t in timings)} | {_ms(t.no_plan for t in timings)} | {_ms(t.read_and_plan for t in timings)} |"
         )
@@ -1662,6 +1984,9 @@ def _render_comparison(runs: Sequence[Run]) -> list[str]:
         row("hand-off ms", (_ms(s.handoffs) for s in rows))
         row("read age at schedule ms", (_ms(s.ages) for s in rows))
         row("Action ms", (_ms(s.actions) for s in rows))
+        row("schedule -> first key ms", (_ms(s.to_keys) for s in rows))
+        row("take-off at key px (+ late)", (stats(s.takeoff_key_px) for s in rows))
+        row("walk stop at key px (+ long)", (stats(s.stop_key_px) for s in rows))
         row("ended on the cut", (f"{s.cuts[0]} of {s.cuts[1]}" for s in rows))
         out.append("")
     if len(out) == 3:
@@ -1743,13 +2068,12 @@ def _render_record_note() -> list[str]:
         (
             "For the planned move, no: each cycle row already carries its whole "
             "Movement Plan with every component's planned start and end, which is "
-            "all the per-move half of this report reads. For key times, yes: they "
-            "are compiled in Main Process at dispatch (ADR 0002), out of the Engine "
-            "that writes the record, and no Session file logs keys going down. This "
-            "report takes what the Session has (the Action's schedule and finish, by "
-            "Correlation ID). Writing the compiled take-off time into the record "
-            "would need Main Process to report it back from inside the focus-lock "
-            "section: left for the maintainer to decide, not done here."
+            "all the per-move half of this report reads. Key times are compiled in "
+            "Main Process at dispatch (ADR 0002), out of the Engine that writes the "
+            "record, so the record has none; since #538 the Session has them "
+            "(`key.down`/`key.up`, by Correlation ID, on the record's clock), and "
+            "this report reads them from there. A Session from before #538 has "
+            "none, and its moves are judged from the reads alone."
         ),
     ]
 

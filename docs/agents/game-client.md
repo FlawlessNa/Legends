@@ -256,6 +256,16 @@ you do to it. The maintainer starts it.
 
 ### Traps
 
+- **Key records (`key.down`, `key.up`) are written after the key, not with
+  it.** Main Process buffers them off the send loop (#538), so in the file a
+  key record can come after records emitted later, and its envelope
+  `timestamp` trails the send. Read the payload: `t` is `time.monotonic()` when
+  `SendInput` returned (the frames' clock, the same as a Reading's
+  `frame_time` and a Trial record's `frame_time`), and `wall` the wall clock
+  then. Only transitions are recorded: a typematic repeat is not, and a
+  `key.up` with `held: false` released a key the Held-Keys Ledger did not hold.
+  The cid is the Action whose task sent the key; a focus switch's `release_all`
+  carries the incoming Action's, and the Session-start sweep carries none.
 - **Always pass `--timeout` to `watch`.** Without it, `watch` waits until
   `session.ended`, and a Session killed hard never writes one, so the command
   hangs for ever. Exit codes: 0 met, 1 timeout, 2 the Session ended first.
