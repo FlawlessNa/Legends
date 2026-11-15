@@ -113,7 +113,7 @@ def test_game_map_is_refused_naming_map_and_mobs() -> None:
             "Someone",
             {},  # pyright: ignore[reportArgumentType] - metadata is never read here
             map="auto",
-            game_map="Line1Area1",
+            game_map="SomeMapName",
             character_class="Bishop",
         )
 

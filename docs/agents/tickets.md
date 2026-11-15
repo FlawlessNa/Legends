@@ -129,8 +129,7 @@ config parsing, logging.
 - the input send path, focus handling, and the Held-Keys Ledger (ADR 0002);
 - the telemetry envelope and transport (ADR 0001);
 - anything an ADR decides;
-- what is left of `configs/maps/` (retired by #399, ADR 0004), and pinned
-  dependency versions;
+- pinned dependency versions;
 - `maple/decision_makers/inventory_manager.py`, which is parked (see
   `maple/AGENTS.md`).
 
