@@ -3,7 +3,7 @@ import multiprocessing.connection
 import multiprocessing.managers
 import threading
 from abc import ABC
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from typing import Any
 
 from botting import PARENT_LOG
@@ -12,10 +12,15 @@ from botting.screen import Frame, frame_source
 from botting.visuals import InGameDetectionVisuals
 from maple.actions import ensure_minimap_displayed
 from maple.bots.map_check import check_named_map, identify_map
-from maple.bots.map_setting import is_auto, refuse_game_map, resolve_map_id
+from maple.bots.map_mobs import MapMob, check_detection, map_mobs
+from maple.bots.map_setting import (
+    is_auto,
+    refuse_game_map,
+    refuse_mobs,
+    resolve_map_id,
+)
 from maple.decision_makers.mobs_hitting import MobsHitting
 from maple.decision_makers.rebuffs import solo_buffs
-from maple.launchers.profile import ProfileError
 from maple.model.characters import MAPPING as CHARACTER_MAPPING
 from maple.model.mechanics.maple_mob import MapleMob
 from maple.model.mechanics.physics import Calibration, game_physics
@@ -52,8 +57,11 @@ class MapleBot(Bot, ABC):
     map or on one it can't tell. Showing the minimap for that check may press
     the minimap key.
 
-    The mobs its detection looks for are the profile's `mobs`, by detection
-    class name (`current_mobs`); none when the profile names none.
+    The mobs its detection looks for are the map's, from its spawns in the
+    game data (`map_mobs`), by detection class name (`current_mobs`). A bot
+    that detects mobs refuses to start when no model in `models_path` detects
+    one of them: a named map's before anything is pressed, `map: auto`'s once
+    the map is identified.
     """
 
     MINIMAP_TIME_LIMIT = 7.5
@@ -65,7 +73,6 @@ class MapleBot(Bot, ABC):
         ign: str,
         metadata: multiprocessing.managers.DictProxy,
         map: str | int | None = None,
-        mobs: Sequence[str] | None = None,
         detection_configs: str | None = None,
         client_size: str = "medium",
         models_path: dict[str, str] | None = None,
@@ -76,6 +83,7 @@ class MapleBot(Bot, ABC):
         # A retired setting refuses the start rather than landing in `kwargs`
         # unread.
         refuse_game_map(kwargs.pop("game_map", None))
+        refuse_mobs(kwargs.pop("mobs", None))
         super().__init__(ign, metadata, **kwargs)
         if not character_class:
             raise ValueError(
@@ -89,20 +97,11 @@ class MapleBot(Bot, ABC):
         self.models_path = models_path
         self.map_id = resolve_map_id(map)
         self.map_auto = is_auto(map)
-        if isinstance(mobs, str):
-            raise ProfileError(
-                f"`mobs: {mobs}` must be a list of mob names, such as `[{mobs}]`."
-            )
-        self.mobs = tuple(mobs or ())
-        if not self.mobs and MobsHitting in self._decision_makers():
-            # `MobsHitting` counts 0 mobs every cycle and the bot never casts.
-            # An empty list stays valid for a bot that does not train.
-            logger.warning(
-                "Profile %r has no `mobs`: this bot hits mobs, but its detection "
-                "looks for none, so it will never cast. Add `mobs: [...]` to "
-                "the profile's settings.",
-                ign,
-            )
+        # The map's mobs, once it is known: a named map's here, so a map no
+        # model covers is refused before the minimap key is pressed.
+        self.mobs: tuple[MapMob, ...] = ()
+        if self.map_id is not None and self._detects_mobs():
+            self.mobs = self._map_mobs(self.map_id)
         # Parsed here so a misspelt constant refuses the start; Movement Plans
         # read it through `data.calibration`.
         self.calibration = Calibration.from_mapping(calibration)
@@ -111,6 +110,32 @@ class MapleBot(Bot, ABC):
 
     def find_handle(self) -> int:
         return find_client()
+
+    def _detects_mobs(self) -> bool:
+        """Whether a Decision Maker of this bot detects mobs, and so needs a
+        model for the map's."""
+        return MobsHitting in self._decision_makers()
+
+    def _map_mobs(self, map_id: int) -> tuple[MapMob, ...]:
+        """
+        The mobs map `map_id` has (`map_mobs`), once checked against the
+        profile's models.
+
+        :raises ProfileError: No model in `models_path` detects one of them
+            (`check_detection`).
+        """
+        world_map = WorldMap.load(map_id)
+        mobs = map_mobs(world_map.mobs)
+        label = f"map {map_id}" + (f" ({world_map.name})" if world_map.name else "")
+        check_detection(mobs, self.models_path, label)
+        if not mobs:
+            logger.warning(
+                "%s has no mobs: %s for %r detects none, so it never casts.",
+                label,
+                type(self).__name__,
+                self.ign,
+            )
+        return mobs
 
     def child_init(
         self,
@@ -127,7 +152,7 @@ class MapleBot(Bot, ABC):
         # `Bot.child_init` is what builds `self.data`; everything below reads it,
         # including the lambdas, which a narrowing assert alone would not reach.
         assert self.data is not None
-        if self.models_path is None and MobsHitting in self._decision_makers():
+        if self.models_path is None and self._detects_mobs():
             # Mob and character detection are what read a model; a bot that
             # detects neither (a calibration sitting) needs no `models_path`.
             raise ValueError(
@@ -157,6 +182,8 @@ class MapleBot(Bot, ABC):
         )
         reader_sprites = load_reader_sprites(readers, profile)
         map_id, reader_sprites = self._check_map_at_start(reader_sprites)
+        if self.map_auto and self._detects_mobs():
+            self.mobs = self._map_mobs(map_id)
         data.set_static("map_id", map_id)
         data.set_static("reader_sprites", reader_sprites)
         data.set_static("buff_names", profile.buffs)
@@ -196,7 +223,12 @@ class MapleBot(Bot, ABC):
             ),
         )
         data.create_attribute(
-            "current_mobs", lambda: tuple(MapleMob(name) for name in self.mobs)
+            "current_mobs",
+            lambda: tuple(
+                MapleMob(mob.detection_class)
+                for mob in self.mobs
+                if mob.detection_class is not None
+            ),
         )
         # The bot's one capture: the readers take the `Frame`, mob and
         # character detection its pixels. `update_attribute("current_frame")`

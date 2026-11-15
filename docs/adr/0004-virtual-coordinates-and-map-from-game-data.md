@@ -45,7 +45,8 @@ pixel against the map's static render.
   `MapleMinimap`, `MapleMap`, `MinimapEditsManager`, `MinimapGrid`,
   `MinimapPhysics`, the GUI map editor (`maple/model/mechanics/minimap_creation/`),
   `toolkit/create_map.py` and the profile's `game_map`. A profile that still
-  sets `game_map` refuses to start, naming `map` and `mobs`.
+  sets `game_map` refuses to start, naming `map`, and saying the mobs now
+  come from the map.
 
 Rejected:
 
@@ -64,10 +65,21 @@ Rejected:
   Catalogue knows. A Build without an extraction can't start a bot that names
   a map.
 - The mobs a bot's detection looks for came from the map file's `mobs` list.
-  They move to the profile's `mobs` setting. It is a list of detection class
-  names, and a profile that names none looks for none. They are not derived
-  from the map's spawns in `game_data`: that would change which detection
-  classes run, and is a separate decision.
+  They moved to the profile's `mobs` setting for a while, not derived from
+  the map's spawns, since that would change which detection classes run and
+  was a separate decision. **Amended by #548 (the maintainer's decision,
+  2026-11-15):** that decision is taken. The profile names only its `map`,
+  and the mobs are the map's mob spawns in `game_data` (`WorldMap.mobs`),
+  hidden spawns aside, each by its detection class: its name in the client's
+  strings without spaces and dots, as `synth` names a model's classes
+  (`game_data.scenes.class_name`, used by `maple/bots/map_mobs.py`). A
+  profile that still sets `mobs` refuses to start. A bot that detects mobs
+  refuses to start when a mob the map has is detected by no model in its
+  `models_path` (`models.manifest.json`'s `classes`, or a model's
+  `recipe.json`): a named map's when the bot is built, `map: auto`'s once the
+  map is identified. A map with no mobs starts, and a bot that detects none
+  (the calibration bot) isn't checked. A bot now looks for every mob its map
+  has, not a subset the profile listed.
 - The one shipped map file was deleted by #546, with its directory. A
   profile that still sets `game_map` refuses to start.
 - Custom rotation patterns (the map files' feature cycles) are gone. Rotation

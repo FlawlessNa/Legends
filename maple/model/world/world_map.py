@@ -94,6 +94,8 @@ class WorldMap:
         `None` for a map not loaded from a store.
     :ivar npcs: Its NPCs, where the map places them (`x`, and `cy`, the y of
         the foothold each stands on).
+    :ivar mobs: Its mob spawns, as the map places them, hidden ones included;
+        `maple.bots.map_mobs` derives the mobs detection looks for from them.
     """
 
     id: int
@@ -107,6 +109,7 @@ class WorldMap:
     portals: tuple[Portal, ...]
     static_render: StaticRender | None = None
     npcs: tuple[Spawn, ...] = ()
+    mobs: tuple[Spawn, ...] = ()
 
     @classmethod
     def load(
@@ -151,6 +154,7 @@ class WorldMap:
             portals=data.portals,
             static_render=static_render,
             npcs=tuple(s for s in data.spawns if s.kind == "npc"),
+            mobs=tuple(s for s in data.spawns if s.kind == "mob"),
         )
 
     def random_point(

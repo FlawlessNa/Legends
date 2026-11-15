@@ -100,9 +100,6 @@ Open it and set, at minimum:
 - `map` — the game's name for your map from step 3
   (`"Victoria Road: Ellinia"`), its id, or `auto` to have the bot read it off
   the minimap at start
-- `mobs` — the mobs to attack, by the detection model's class names (see
-  [models.manifest.json](../models.manifest.json)), e.g. `[Bubbling]`. With
-  none, the bot detects no mobs and never casts its training skill
 - `training_skill` — your attack, which must be in your `Skill Keys`
 - `included_buffs` — buffs to keep up, each also in `Skill Keys`
 - `client_size` — `large` or `medium`, matching the client
@@ -111,6 +108,13 @@ The template documents every option inline, including the ones commented out.
 `models_path` already points at the `global` model, which detects the character
 plus five mobs; see [models.manifest.json](../models.manifest.json) if you need
 a different one.
+
+The profile doesn't list the mobs: the bot looks for every mob the map spawns,
+from the game files (a mob's detection class is its game name without spaces
+and dots, so `Selkie Jr.` is `SelkieJr`). It refuses to start when no
+model in `models_path` detects one of them, and names those it misses. Of the
+MSCW client's mobs, the shipped models detect only Bubbling, the one mob of
+Kerning City Subway's `Line 1 <Area 1>`.
 
 Profiles are gitignored apart from the template, so yours is yours.
 
@@ -178,7 +182,8 @@ in `configs/character_detection.ini`, each describing a different visual cue
 (a cape colour, a podium effect). Pick the one matching your character's look,
 or add a section for it.
 
-**Detection is poor on your mobs** — the shipped models cover a fixed set. To
-train your own, see [ml_training/README.md](../ml_training/README.md), then
+**Detection is poor on your mobs, or it refuses your map** — the shipped models
+cover a fixed set, and a map with a mob none of them detects refuses to start.
+To train your own, see [ml_training/README.md](../ml_training/README.md), then
 publish the result with `python scripts/publish_models.py` so everyone else
 gets it too.

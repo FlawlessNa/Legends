@@ -1,8 +1,9 @@
-"""How a MapleBot finds its client, and what it needs from the profile: its job,
-its map and the mobs it looks for."""
+"""How a MapleBot finds its client, and what it needs from the profile: its job
+and its map, whose mobs are the ones it looks for."""
 
 import logging
 from collections.abc import Sequence
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
 
@@ -10,8 +11,9 @@ import pytest
 
 from botting.core import Bot, DecisionMaker
 from botting.screen import Frame
-from game_data.catalogue import Bounds
-from maple.bots import maple_bot
+from game_data.catalogue import Bounds, Spawn
+from maple.bots import map_mobs, maple_bot
+from maple.bots.map_setting import is_auto
 from maple.bots.maple_bot import MapleBot
 from maple.decision_makers.mobs_hitting import MobsHitting
 from maple.launchers.profile import ProfileError
@@ -123,14 +125,17 @@ def test_a_profile_without_map_is_refused() -> None:
         _Bot("Someone", {}, character_class="Bishop")  # pyright: ignore[reportArgumentType] - metadata is never read here
 
 
-def test_mobs_must_be_a_list() -> None:
-    with pytest.raises(ProfileError, match=r"\[Bubbling\]"):
+@pytest.mark.parametrize("mobs", [["Bubbling"], "Bubbling", []])
+def test_a_profile_with_mobs_is_refused_naming_the_maps_spawns(mobs: object) -> None:
+    """The mobs come from the map's spawns (#548): a profile still listing
+    them refuses the start, as `game_map` does."""
+    with pytest.raises(ProfileError, match=r"`mobs: .*retired.*map's spawns"):
         _Bot(
             "Someone",
             {},  # pyright: ignore[reportArgumentType] - metadata is never read here
             map="auto",
             character_class="Bishop",
-            mobs="Bubbling",
+            mobs=mobs,
         )
 
 
@@ -143,45 +148,93 @@ def _warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
 
 
-@pytest.mark.parametrize("mobs", [None, []])
-def test_a_training_bot_without_mobs_warns_once(
-    caplog: pytest.LogCaptureFixture, mobs: list[str] | None
-) -> None:
-    with caplog.at_level(logging.WARNING, logger=maple_bot.logger.name):
-        _TrainingBot(
-            "Someone",
-            {},  # pyright: ignore[reportArgumentType] - metadata is never read here
-            map="auto",
-            character_class="Bishop",
-            mobs=mobs,
-        )
+def _mob(name: str, id_: int, *, hidden: bool = False) -> Spawn:
+    return Spawn("mob", id_, name, 0, 0, 1, -50, 50, None, False, hidden)
 
+
+#: What the stand-in models detect, by folder.
+_MODELS = {
+    "models/global": frozenset({"Character", "Bubbling", "Slimy"}),
+    "models/bubbling": frozenset({"Character", "Bubbling"}),
+}
+
+
+def _map_with(monkeypatch: pytest.MonkeyPatch, *mobs: Spawn) -> list[int]:
+    """Map 10002000 in the store, spawning `mobs`, which a named map names and
+    `auto` identifies; the ids loaded."""
+    loaded: list[int] = []
+
+    def load(map_id: int) -> WorldMap:
+        loaded.append(map_id)
+        return replace(_world_map(map_id, None), mobs=mobs)
+
+    monkeypatch.setattr(maple_bot.WorldMap, "load", load)
+    monkeypatch.setattr(
+        maple_bot, "resolve_map_id", lambda map_: None if is_auto(map_) else 10002000
+    )
+    monkeypatch.setattr(map_mobs, "model_classes", _MODELS.get)
+    return loaded
+
+
+def _training(**settings: Any) -> _TrainingBot:  # noqa: ANN401 - profile settings
+    return _TrainingBot(
+        "Someone",
+        {},  # pyright: ignore[reportArgumentType] - metadata is never read here
+        **{"map": "Victoria Road: Ellinia", "character_class": "Bishop", **settings},
+    )
+
+
+def test_a_training_bot_looks_for_the_named_maps_mobs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loaded = _map_with(monkeypatch, _mob("Bubbling", 14), _mob("Slimy", 7))
+
+    bot = _training(models_path={"All": "models/global"})
+
+    assert loaded == [10002000]
+    assert [m.detection_class for m in bot.mobs] == ["Bubbling", "Slimy"]
+
+
+def test_a_named_map_no_model_covers_is_refused_at_construction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Before `child_init`, so before the minimap key is pressed."""
+    _map_with(monkeypatch, _mob("Bubbling", 14), _mob("Slimy", 7))
+
+    with pytest.raises(ProfileError, match=r"map 10002000.*detects: Slimy"):
+        _training(models_path={"All": "models/bubbling"})
+
+
+def test_a_named_map_without_mobs_starts_and_warns(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    _map_with(monkeypatch)
+
+    with caplog.at_level(logging.WARNING, logger=maple_bot.logger.name):
+        bot = _training(models_path={"All": "models/bubbling"})
+
+    assert bot.mobs == ()
     (message,) = _warnings(caplog)
+    assert "map 10002000 has no mobs" in message
     assert "Someone" in message
-    assert "`mobs`" in message
 
 
-def test_a_training_bot_with_mobs_does_not_warn(
-    caplog: pytest.LogCaptureFixture,
+def test_a_bot_that_does_not_detect_mobs_is_not_checked(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
+    """The calibration bot has no `models_path`, on a map with mobs."""
+    loaded = _map_with(monkeypatch, _mob("Bubbling", 14))
+
     with caplog.at_level(logging.WARNING, logger=maple_bot.logger.name):
-        _TrainingBot(
+        bot = _Bot(
             "Someone",
             {},  # pyright: ignore[reportArgumentType] - metadata is never read here
-            map="auto",
+            map="Victoria Road: Ellinia",
             character_class="Bishop",
-            mobs=["Bubbling"],
         )
 
-    assert _warnings(caplog) == []
-
-
-def test_a_bot_that_does_not_train_may_have_no_mobs(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    with caplog.at_level(logging.WARNING, logger=maple_bot.logger.name):
-        _bot(map="auto")
-
+    assert loaded == []
+    assert bot.mobs == ()
     assert _warnings(caplog) == []
 
 
@@ -267,28 +320,61 @@ def test_auto_loads_the_titles_glyphs_and_publishes_the_map_identified(
     assert bot.data.map_id == 10002000
 
 
-@pytest.mark.parametrize(
-    ("settings", "names"),
-    [({"mobs": ["Bubbling", "PacPinky"]}, ["Bubbling", "PacPinky"]), ({}, [])],
-)
-def test_current_mobs_are_the_profiles_mobs_and_none_without_them(
-    monkeypatch: pytest.MonkeyPatch, settings: dict[str, Any], names: list[str]
-) -> None:
-    """What a map file's `mobs` list was: the detection classes to look for. A
-    profile naming none looks for none, as a map file with an empty list did."""
-    _Start(monkeypatch)
+def _until_current_mobs(monkeypatch: pytest.MonkeyPatch) -> _Start:
+    start = _Start(monkeypatch)
     monkeypatch.setattr(
         maple_bot.InGameDetectionVisuals, "register_models", lambda *_: None
     )
     monkeypatch.setattr(
         maple_bot.InGameDetectionVisuals, "register_cache_id", lambda *_: None
     )
-    bot = _bot(map="auto", **settings)
+    return start
+
+
+def test_current_mobs_are_the_maps_mobs_by_detection_class(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """What a map file's `mobs` list was: the detection classes to look for,
+    now from the map's spawns. A mob placed twice is looked for once."""
+    _until_current_mobs(monkeypatch)
+    _map_with(monkeypatch, _mob("Bubbling", 14), _mob("Bubbling", 14), _mob("Slimy", 7))
+    bot = _training(models_path={"All": "models/global"})
 
     bot.child_init(None, None)  # pyright: ignore[reportArgumentType]
 
     assert bot.data is not None
-    assert [type(mob).__name__ for mob in bot.data.current_mobs] == names
+    assert [type(mob).__name__ for mob in bot.data.current_mobs] == [
+        "Bubbling",
+        "Slimy",
+    ]
+
+
+def test_auto_checks_the_mobs_of_the_map_it_identified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`map: auto` knows its map once identified: that map's mobs are checked
+    then, and looked for."""
+    _until_current_mobs(monkeypatch)
+    loaded = _map_with(monkeypatch, _mob("Bubbling", 14))
+    bot = _training(map="auto", models_path={"All": "models/bubbling"})
+    assert loaded == []
+
+    bot.child_init(None, None)  # pyright: ignore[reportArgumentType]
+
+    assert loaded[0] == 10002000
+    assert bot.data is not None
+    assert [type(mob).__name__ for mob in bot.data.current_mobs] == ["Bubbling"]
+
+
+def test_auto_refuses_an_identified_map_no_model_covers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _until_current_mobs(monkeypatch)
+    _map_with(monkeypatch, _mob("Slimy", 7))
+    bot = _training(map="auto", models_path={"All": "models/bubbling"})
+
+    with pytest.raises(ProfileError, match="detects: Slimy"):
+        bot.child_init(None, None)  # pyright: ignore[reportArgumentType]
 
 
 def _world_map(map_id: int, minimap: MinimapTransform | None) -> WorldMap:
