@@ -154,7 +154,7 @@ teleport region into paired down/up taps and never contributed to A4 anyway.
 | Id | Statement | Tier | Status |
 |---|---|---|---|
 | **B1 Truncation Integrity** | If `S` is truncated at Step `k`, `k` falls on a Movement Plan component boundary; the cut never lands inside a `JUMP*`, `TELEPORT*`, or `ENTER_PORTAL` component | Invariant | **checkable, and does not hold** — Provenance landed by [#102](https://github.com/FlawlessNa/Legends/issues/102); a cut mid-jump is now demonstrable, see below |
-| **B2 Fill Bound** | For a walk component of length `L` (virtual px), the elapsed compile budget spent on it is at least `L/walk_speed` and less than `L/walk_speed + max_delay + OVERHEAD` | Invariant | **does not hold everywhere** — `max_delay` moves with [#99](https://github.com/FlawlessNa/Legends/issues/99); [#104](https://github.com/FlawlessNa/Legends/issues/104) found the gap below is real, tied to [#132](https://github.com/FlawlessNa/Legends/issues/132) |
+| **B2 Fill Bound** | For a walk of length `L` (virtual px), the pieces `_cut` made of it taken together ([#521](https://github.com/FlawlessNa/Legends/issues/521)), the elapsed compile budget spent on it is at least `L/walk_speed` and less than `L/walk_speed + max_delay + OVERHEAD` | Invariant | **does not hold everywhere** — `max_delay` moves with [#99](https://github.com/FlawlessNa/Legends/issues/99); [#104](https://github.com/FlawlessNa/Legends/issues/104) found the gap below is real, tied to [#132](https://github.com/FlawlessNa/Legends/issues/132) |
 | **B3 Distance Fidelity** | The character's actual displacement matches the component's intent within tolerance | Expectation | needs a live run of [#397](https://github.com/FlawlessNa/Legends/issues/397)'s physics schedule (`configs/trials/physics.json`) |
 | **B4 Component Non-empty** | Every component up to the cut produced at least one Step, unless its direction was already held at component start | Expectation | holds |
 | **B5 Cast Window** | For a `cast_skill` component, the skill key is pressed at least once, and its keyup is *sent* strictly before the first skill keydown plus `animation_time` | Invariant | holds — fixed by [#98](https://github.com/FlawlessNa/Legends/issues/98) |
@@ -235,6 +235,20 @@ one Step later, a release the game never sees, and only delayed the take-off by 
 input delay (five ahead of a jump onto a rope). Pinned by
 `tests/test_maple/movement_lab/test_chained_takeoff.py`.
 
+**An edge take-off keeps a lead, not a Step, from the open end** (#521). After #515
+the graph still planned take-offs one Step (4.9 px) from an open end, and others 8 px
+from it where the landing's margin set the stretch; live, four take-offs planned 8 px
+inside walked off the end. The record put the take-off 24 to 63 ms after the jump key
+as the compile times it, unmodelled latency from the frame's age and the client's tick,
+so the graph now keeps `TAKEOFF_LEAD` (one Step and `TAKEOFF_LATENCY`, 14.6 px at
+149 px/s) of walking from the open end. The compile changed twice with it: the pieces
+of a walk cut at 80 px each fill to their end on the plan's clock (`_piece_duration`),
+since `fill` overshoots its limit by up to one Step and the pieces added that up; and
+a first walk that goes against a held direction key into a jump releases that key and
+waits out the slide before walking (`_reversal`), since the turn with the new key down
+is not modelled and took off 46 to 69 px short live, once in the air. Pinned by the
+same replay test, now with a key latency of 0 to 60 ms.
+
 That leaves B1 as the remaining half of the truncation problem. It is now
 expressible — [#102](https://github.com/FlawlessNa/Legends/issues/102) gave Steps
 their Provenance — and expressing it showed it failing.
@@ -281,6 +295,17 @@ shortened by the distance walked since the read (`_time_walks` in
 `movement_mechanics_v2.py`): their `L` is then the duration `_time_walks` sets
 times `walk_speed`, not their length. The movement lab compiles without
 either, so B2 is checked there as before.
+
+**B2 bounds a walk, not each of its pieces** (#521). A walk longer than
+`_MAX_TRAVEL_LENGTH` is cut into pieces, and `fill` overshoots its limit by up to
+one Step. Each piece used to hold for its own time from where the last one ended,
+so every piece kept inside the bound while the walk drifted one Step per piece:
+judged per walk, `walk_corridor` broke it in 114 of its 200 routes. Each piece now
+holds to its end on the plan's clock (`_piece_duration`), so a piece after the
+first absorbs its predecessor's overshoot and falls under its own `L/walk_speed`,
+and the walk as a whole stays inside the bound (`walk_corridor` 0). The lab
+judges B2 per walk. Live, two-piece walks into an edge jump pressed its key up to
+two Steps late, against the one `TAKEOFF_STEP` allows.
 
 **B2 bounds the elapsed budget, not the Hold.** Release Steps inserted ahead of
 a component consume budget without extending the direction's Hold, so the two
@@ -419,6 +444,11 @@ and 49; `narrow_perch` 37/200 and 2; `rope_grab` 11/300 and 14; Ellinia 42/300 a
 `OVERHEAD`. A plain jump is never cut mid-gesture any more: its flight is the
 wait after its last Step, which a cut keeps whole. The cuts B1 counts land in
 rope grabs (the flight is waited after the press), teleports and portals.
+After [#521](https://github.com/FlawlessNa/Legends/issues/521), with B2 judged per
+walk and `jump_gap` and `narrow_perch` closed to 35 px gaps: `walk_corridor` 0/200
+and 0; `ladder_climb` 2/300 and 26; `jump_gap` 7/200 and 8; `jump_ledge` 3/200 and
+6; `portal_pair` 3/151 and 20; `teleport_shaft` 24/300 and 50; `narrow_perch` 9/200
+and 1; `rope_grab` 11/300 and 13; Ellinia 43/300 and 201; Damp Forest 5/127 and 13.
 
 ## Deliberately excluded
 

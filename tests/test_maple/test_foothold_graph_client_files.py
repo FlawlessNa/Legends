@@ -14,7 +14,7 @@ from game_data.catalogue import Rope
 from maple.model.mechanics.physics import Calibration, VRPhysics
 from maple.model.navigation import (
     ROPE_GRAB_REACH,
-    TAKEOFF_STEP,
+    TAKEOFF_LEAD,
     Direction,
     FootholdGraph,
     MoveKind,
@@ -34,13 +34,23 @@ MAPS = ("Dungeon: Damp Forest", "Victoria Road: Ellinia")
 #: hanging ropes, whose tops are no platform (`uf` 0); the graph, like
 #: the retired minimap grid, starts a jump off a rope at the top of its arc
 #: (`ROPE_JUMP_SPEED` 0), so a jump from rope to rope always loses height.
+#: Down, the middle ledge 70 reached 76 only by a jump left onto the rope at
+#: x 81, which took off from 70's x 242 to 243 alone, 5 px inside its open
+#: end: at these physics' walk (125 px/s, no Calibration constant) that is
+#: inside `TAKEOFF_LEAD` (12.3 px), so it is no move, and neither 70 nor the
+#: top reaches 76 (#521). At the live run's walk (149 px/s) it stays a move.
 NO_PATH = {
     "Victoria Road: Ellinia": {},
     "Dungeon: Damp Forest": {
         23: [36, 44, 45, 46, 47, 70, 76],
+        36: [76],
+        44: [76],
+        45: [76],
+        46: [76],
+        47: [76],
         49: [36, 44, 45, 46, 47, 70, 76],
         61: [36, 44, 45, 46, 47, 70, 76],
-        70: [36, 44, 45, 46, 47],
+        70: [36, 44, 45, 46, 47, 76],
         76: [36, 44, 45, 46, 47, 70],
         79: [36, 44, 45, 46, 47, 70, 76],
     },
@@ -312,7 +322,7 @@ def test_ellinias_chain_to_the_gap_trials_takes_off_inside_every_open_end(
     path = graph.path(start, (-620.0, -52.0))
 
     assert path is not None
-    margin = physics.walk_speed * TAKEOFF_STEP
+    margin = physics.walk_speed * TAKEOFF_LEAD
     jumps = [m for m in path.moves if m.kind is MoveKind.JUMP]
     assert jumps
     for move in jumps:

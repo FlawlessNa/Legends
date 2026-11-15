@@ -8,9 +8,10 @@ pointed at one. Coordinates are virtual px, y growing downwards; the lab's
 physics (`corpus.LAB_PHYSICS`, the client's own `Physics.img` values) jump
 77 px high and 69 px far, so:
 
-- a gap of 40 to 45 px is jumped, never walked or fallen across: a jump has
-  to land `LANDING_MARGIN` inside the far side and take off `TAKEOFF_STEP` of
-  walking (4.1 px) inside the near one;
+- a gap of 35 px is jumped, never walked or fallen across: a jump has to
+  land `LANDING_MARGIN` inside the far side and take off `TAKEOFF_LEAD` of
+  walking (12.3 px) inside the near one, which leaves it a stretch of 6 px
+  to take off from (#521);
 - a platform 50 px above another is reached by jumping up through it, and
   left by dropping down;
 - a rope whose bottom hangs 40 px above the ground is reached by a jump only;
@@ -115,11 +116,11 @@ def ladder_climb() -> MapData:
 
 
 def jump_gap() -> MapData:
-    """Three platforms in a row, 45 px apart: each gap a jump, either way."""
+    """Three platforms in a row, 35 px apart: each gap a jump, either way."""
     return _map(
         900_000_003,
         "jump_gap",
-        _footholds((0, 0, 200, 0), (245, 0, 445, 0), (490, 0, 690, 0)),
+        _footholds((0, 0, 200, 0), (235, 0, 435, 0), (470, 0, 670, 0)),
     )
 
 
@@ -168,14 +169,14 @@ def teleport_shaft() -> MapData:
 
 def narrow_perch() -> MapData:
     """
-    Two floors with a 40 px perch between them, 45 px from each: narrow, and
+    Two floors with a 40 px perch between them, 35 px from each: narrow, and
     still wide enough for a jump to land `LANDING_MARGIN` inside both its ends,
-    from a take-off `TAKEOFF_STEP` of walking inside the open end it leaves.
+    from a take-off `TAKEOFF_LEAD` of walking inside the open end it leaves.
     """
     return _map(
         900_000_007,
         "narrow_perch",
-        _footholds((0, 0, 200, 0), (245, 0, 285, 0), (330, 0, 530, 0)),
+        _footholds((0, 0, 200, 0), (235, 0, 275, 0), (310, 0, 510, 0)),
     )
 
 
@@ -214,6 +215,21 @@ def ledge_chain() -> MapData:
         900_000_515,
         "ledge_chain",
         _footholds((0, 0, 260, 0), (300, -20, 365, -20), (385, -52, 700, -52)),
+    )
+
+
+def ledge_below() -> MapData:
+    """
+    A platform, a narrow ledge 25 px below its open left end and past it, and
+    a platform 35 px above the ledge that overhangs its far end: `gap-left-3`'s
+    first jump (#521, `test_chained_takeoff.py`). Leftwards, the character
+    walks off the platform's end onto the ledge, along it, and jumps up off its
+    open left end. Not in the Corpus.
+    """
+    return _map(
+        900_000_521,
+        "ledge_below",
+        _footholds((0, -45, 300, -45), (-85, -20, -5, -20), (-300, -55, -75, -55)),
     )
 
 

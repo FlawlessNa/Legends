@@ -58,7 +58,10 @@ not only when truncation happens to land there, except ahead of a sideways jump 
 walk runs into the same way (#515): that release came straight back up one Step
 later, when the jump pressed its direction again, so it stopped nothing and only
 made the take-off one input delay late, past a platform's open end in the live
-record. Grid-baked flags were rejected —
+record. Since #521 the graph plans no such take-off within `TAKEOFF_LEAD` of walking
+(14.6 px at 149 px/s) of the open end it heads for, the latency from the key to the
+take-off included, and a walk into it that starts against the other direction key
+first stops. Grid-baked flags were rejected —
 every map would need re-authoring and nothing could be swept.
 
 ## Tiers and budgets
