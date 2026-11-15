@@ -264,8 +264,10 @@ you do to it. The maintainer starts it.
   `frame_time` and a Trial record's `frame_time`), and `wall` the wall clock
   then. Only transitions are recorded: a typematic repeat is not, and a
   `key.up` with `held: false` released a key the Held-Keys Ledger did not hold.
-  The cid is the Action whose task sent the key; a focus switch's `release_all`
-  carries the incoming Action's, and the Session-start sweep carries none.
+  The cid is the decision whose compiler built the Input Sequence (baked into
+  its partial, ADR 0001): its Steps and the forced or cancellation releases at
+  its end carry it. Any other send carries none: `release_all` (focus switch,
+  Session start), a pause, a sequence sent already compiled.
 - **Always pass `--timeout` to `watch`.** Without it, `watch` waits until
   `session.ended`, and a Session killed hard never writes one, so the command
   hangs for ever. Exit codes: 0 met, 1 timeout, 2 the Session ended first.

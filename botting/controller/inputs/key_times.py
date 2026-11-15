@@ -32,13 +32,14 @@ A record that cannot be built or written is logged, never dropped silently,
 and never raises into the send loop: telemetry may not raise inside what it
 observes (ADR 0001).
 
-**Correlation ID.** A key belongs to the Action whose task sent it.
-`AsyncTaskManager` binds each task it creates to its request's Correlation ID
-(`bind`), and `record` looks up the running task. Procedures still take no
-``correlation_id`` parameter (ADR 0001). A key sent outside any scheduled task
-(the Session-start sweep, the release at the Session's end) carries ``None``;
-a ``release_all`` on a focus switch carries the incoming Action's id, since
-that Action's task sends it.
+**Correlation ID.** Passed explicitly, the ADR 0001 way: the compiler partial
+a DecisionMaker builds inside ``_decide()`` bakes in its ``correlation_id``, the
+compiled Input Sequence carries it (`KeyboardInputWrapper.correlation_id`), and
+the send loop hands it to `record` for the sequence's Steps and for the forced
+and cancellation releases at its end. Everything else carries ``None``: a
+release outside an Action (``release_all`` on a focus switch or at Session
+start, a pause), and a sequence sent already compiled, which no partial
+stamped. Nothing is looked up.
 
 Main Process only, like everything that sends input; the module itself sends
 nothing.
@@ -49,10 +50,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-import weakref
 from collections import deque
 from collections.abc import Sequence
-from typing import Any, cast
+from typing import cast
 
 from botting.telemetry import emit_event
 from botting.telemetry_events import (
@@ -69,21 +69,6 @@ logger = logging.getLogger(__name__)
 #: Type, payload). A deque, so appending on the send path and draining in
 #: `flush` need no lock between them.
 _pending: deque[tuple[str | None, str, KeyPayload | KeyUpPayload]] = deque()
-
-#: Each scheduled task's Correlation ID. Weak, so a finished task leaves no entry.
-_bound: weakref.WeakKeyDictionary[asyncio.Task[Any], str | None] = (
-    weakref.WeakKeyDictionary()
-)
-
-
-def bind(task: asyncio.Task[Any], correlation_id: str | None) -> None:
-    """
-    Name the Correlation ID every key `task` sends is recorded with. Called by
-    `AsyncTaskManager` on the line after it creates the task, before it runs.
-    :param task: The task running an `ActionRequest`'s procedure.
-    :param correlation_id: The request's Correlation ID, possibly ``None``.
-    """
-    _bound[task] = correlation_id
 
 
 def stamp() -> tuple[float, float]:
@@ -102,6 +87,7 @@ def record(
     cause: KeyCause,
     sent_at: tuple[float, float],
     origin: int | None = None,
+    correlation_id: str | None = None,
 ) -> None:
     """
     Buffer one record per key transition in a delivered Step. Never raises.
@@ -118,12 +104,13 @@ def record(
     :param sent_at: `stamp`, taken when ``SendInput`` returned.
     :param origin: The Movement Plan component that produced the Step (its
         Provenance), ``None`` when the Step has none to give.
+    :param correlation_id: The Correlation ID the sequence carries, baked into
+        its compiler inside ``_decide()``; ``None`` outside an Action.
     """
     try:
         pairs = _pairs(keys, events)
         if not pairs:
             return
-        correlation_id = _current_correlation_id()
         mono, wall = sent_at
         held = set(held_before)
         for key, event in pairs:
@@ -187,14 +174,6 @@ def _schedule_flush() -> None:
         flush()
         return
     loop.call_soon(flush)
-
-
-def _current_correlation_id() -> str | None:
-    try:
-        task = asyncio.current_task()
-    except RuntimeError:  # no running loop
-        return None
-    return None if task is None else _bound.get(task)
 
 
 def _pairs(keys: object, events: object) -> list[tuple[str, str]]:

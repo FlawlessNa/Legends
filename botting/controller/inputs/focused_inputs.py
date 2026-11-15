@@ -169,6 +169,11 @@ class KeyboardInputWrapper:
     initial_state: InputState | None = None
     origins: list[int] = field(default_factory=list[int])
     current_origin: int = NO_COMPONENT
+    #: The Correlation ID of the `_decide()` call whose compiler built this sequence:
+    #: baked into the compiler's partial (ADR 0001), stamped by the compiler, and
+    #: handed by the send loop to the key records of its Steps (#538). None when
+    #: no decision's compiler built it.
+    correlation_id: str | None = None
 
     def __post_init__(self) -> None:
         """
@@ -553,6 +558,7 @@ class KeyboardInputWrapper:
             self.handle,
             forced_key_releases=self.forced_key_releases,
             initial_state=self.initial_state,
+            correlation_id=self.correlation_id,
         )
         generator = zip(self.keys, self.events, self.delays, self.origins)
         while True:
@@ -864,6 +870,9 @@ async def focused_inputs(
     res = 0
     acquired = False
     cancelled = False
+    # The sequence's Correlation ID, once a `compiler` has produced it: the key
+    # records of its Steps and of the releases below carry it.
+    correlation_id: str | None = None
     try:
         acquired = await activate(hwnd)
 
@@ -878,6 +887,7 @@ async def focused_inputs(
             events = structure.events
             forced_key_releases = structure.forced_key_releases
             origins = structure.origins
+            correlation_id = structure.correlation_id
 
         # Either a `compiler` produced them just above, or the caller handed them in.
         assert inputs is not None, "focused_inputs needs inputs or a compiler"
@@ -893,6 +903,7 @@ async def focused_inputs(
                     events[i],
                     "step",
                     None if origins is None else _origin(origins[i]),
+                    correlation_id,
                 )
             await asyncio.sleep(delays[i])
         return res
@@ -910,7 +921,7 @@ async def focused_inputs(
         if cancelled:
             keys_to_release.update(k for k in OPPOSITES if k in held)
         if keys_to_release:
-            release_keys(sorted(keys_to_release), hwnd)
+            release_keys(sorted(keys_to_release), hwnd, correlation_id=correlation_id)
         if acquired:
             SharedResources.focus_lock.release()
 
@@ -1108,11 +1119,15 @@ def _remove_num_lock() -> None:
 _remove_num_lock()
 
 
-def release_keys(keys: list[str], handle: int | None = None) -> None:
+def release_keys(
+    keys: list[str], handle: int | None = None, *, correlation_id: str | None = None
+) -> None:
     """
     Releases the given keys.
     :param keys: Keys to release.
     :param handle: Handle to the window to release the keys.
+    :param correlation_id: The Correlation ID of the sequence these releases close,
+        for their key records (#538). None for a release outside an Action.
     :return: Input structure to release the given keys.
     """
     require_main_process("release_keys")
@@ -1127,7 +1142,9 @@ def release_keys(keys: list[str], handle: int | None = None) -> None:
         )
         if inputs:
             _send_input(inputs[0])
-            _record_delivered(handle, list(keys), events, "release")
+            _record_delivered(
+                handle, list(keys), events, "release", correlation_id=correlation_id
+            )
 
 
 def _record_delivered(
@@ -1136,6 +1153,7 @@ def _record_delivered(
     events: EVENTS | list[EVENTS] | list[Literal["keyup"]],
     cause: KeyCause,
     origin: int | None = None,
+    correlation_id: str | None = None,
 ) -> None:
     """
     A Step that `_send_input` just delivered: recorded to the Held-Keys Ledger, as it
@@ -1150,11 +1168,14 @@ def _record_delivered(
     :param events: The matching event or events.
     :param cause: ``step`` from the send loop, ``release`` from `release_keys`.
     :param origin: The Step's Provenance, when it has one.
+    :param correlation_id: The sequence's Correlation ID, None outside an Action.
     """
     sent_at = key_times.stamp()
     held_before = HeldKeysLedger.keys_held(hwnd)
     HeldKeysLedger.record_step(hwnd, keys, events)
-    key_times.record(hwnd, keys, events, held_before, cause, sent_at, origin)
+    key_times.record(
+        hwnd, keys, events, held_before, cause, sent_at, origin, correlation_id
+    )
 
 
 def _origin(origin: int) -> int | None:

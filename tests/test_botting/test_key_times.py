@@ -31,8 +31,6 @@ from botting.controller.inputs.focused_inputs import (
 )
 from botting.controller.inputs.held_keys_ledger import HeldKeysLedger, InputState
 from botting.controller.inputs.shared_resources import SharedResources
-from botting.core.action_data import ActionRequest
-from botting.core.async_task_manager import AsyncTaskManager
 from botting.telemetry import TELEMETRY_ATTR
 from botting.telemetry_events import KEY_DOWN, KEY_UP
 from maple.model.mechanics import movement_mechanics_v2
@@ -161,7 +159,12 @@ def _send_plan(
 
 
 def _ledger_only(
-    hwnd: int, keys: object, events: object, cause: str, origin: int | None = None
+    hwnd: int,
+    keys: object,
+    events: object,
+    cause: str,
+    origin: int | None = None,
+    correlation_id: str | None = None,
 ) -> None:
     """The send path as it was before #538: the ledger, and nothing else."""
     HeldKeysLedger.record_step(hwnd, keys, events)  # type: ignore[arg-type]
@@ -272,39 +275,73 @@ def test_a_straggler_release_is_recorded_as_not_held(
     assert by_key["ctrl"]["correlation_id"] is None
 
 
-def test_records_carry_the_correlation_id_of_the_action_that_sent_them(
+def test_records_carry_the_correlation_id_baked_into_the_compiler(
     mocker: MockerFixture, sink: _Sink
 ) -> None:
+    """ADR 0001's way: the id rides in the partial `_decide()` builds, the compiled
+    sequence carries it, and every record of that sequence (its Steps and its
+    forced release) has it. A release outside any sequence has none."""
     wire = _Wire()
-
-    def _sequence(state: InputState | None) -> KeyboardInputWrapper:
-        return KeyboardInputWrapper(
-            HANDLE,
-            ["left", "left"],
-            ["keydown", "keydown"],
-            [0.0, 0.0],
-            forced_key_releases=["left"],
-            initial_state=InputState(),
-        )
+    compiler = functools.partial(
+        compile_movements,
+        # A long walk cut at 0.1 s: `right` is still down, so `always_release`
+        # releases it at the end of the send, outside the Steps.
+        movements=(
+            _MovementComponent(MovementTypes.WALK_RIGHT, 300),
+            _MovementComponent(MovementTypes.END_OF_MOVEMENT, 1),
+        ),
+        handle=HANDLE,
+        ign=IGN,
+        speed=100.0,
+        total_duration=0.1,
+        teleport=None,
+        always_release=True,
+        correlation_id="cid-538",
+    )
 
     async def _run() -> None:
         _patch_focus(mocker, wire)
-        manager = AsyncTaskManager(mocker.Mock())
-        request = ActionRequest(
-            "walk", compile_and_send, ign=IGN, args=(HANDLE, _sequence)
-        )
-        request.correlation_id = "cid-538"
-        await manager._schedule_task(request)
-        assert request.task is not None
-        await request.task
+        await compile_and_send(HANDLE, compiler)
 
+    random.seed(3)
     asyncio.run(_run())
-    keys = [r for r in sink.records if r["event_type"] in (KEY_DOWN, KEY_UP)]
-    assert [(r["event_type"], r["payload"]["cause"]) for r in keys] == [
-        (KEY_DOWN, "step"),
-        (KEY_UP, "release"),
-    ]
-    assert {r["correlation_id"] for r in keys} == {"cid-538"}
+    in_sequence = [r for r in sink.records if r["event_type"] in (KEY_DOWN, KEY_UP)]
+    assert {r["payload"]["cause"] for r in in_sequence} == {"step", "release"}
+    assert {r["correlation_id"] for r in in_sequence} == {"cid-538"}
+
+    sink.records.clear()
+    HeldKeysLedger.record_step(HANDLE, "left", "keydown")
+    focused_inputs_module.release_keys(["left"], HANDLE)
+    (outside,) = sink.records
+    assert outside["correlation_id"] is None
+
+
+def test_a_compiler_stamps_the_id_its_partial_carries_and_no_step_changes() -> None:
+    def _compile(correlation_id: str | None) -> KeyboardInputWrapper:
+        random.seed(4)
+        structure = compile_movements(
+            InputState(),
+            movements=PLAN,
+            handle=HANDLE,
+            ign=IGN,
+            speed=100.0,
+            total_duration=0.45,
+            teleport=None,
+            correlation_id=correlation_id,
+        )
+        assert structure is not None
+        return structure
+
+    stamped, bare = _compile("cid-538"), _compile(None)
+    assert stamped.correlation_id == "cid-538"
+    assert bare.correlation_id is None
+    assert (stamped.keys, stamped.events, stamped.delays, stamped.origins) == (
+        bare.keys,
+        bare.events,
+        bare.delays,
+        bare.origins,
+    )
+    assert stamped.truncate(0.1).correlation_id == "cid-538"
 
 
 # --- off the send path -------------------------------------------------------------

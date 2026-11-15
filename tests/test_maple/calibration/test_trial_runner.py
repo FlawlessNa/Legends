@@ -356,6 +356,16 @@ def test_the_action_duration_knob_reaches_the_compiler(harness: _Harness) -> Non
     assert harness.runner._movement_compiler().keywords["total_duration"] == 0.25
 
 
+def test_the_compiler_carries_the_decisions_correlation_id(
+    harness: _Harness,
+) -> None:
+    """Key records (#538) are joined to their cycle by this id, baked into the
+    partial inside `_decide()` the ADR 0001 way."""
+    harness.runner.correlation_id = "cid-538"
+    harness.runner.data.update_attribute("movements")
+    assert harness.runner._movement_compiler().keywords["correlation_id"] == "cid-538"
+
+
 def _advance_to_batch(harness: _Harness, name: str) -> None:
     """Close Trials until the named batch is in flight, then apply its Knobs."""
     start, target = START, TARGET

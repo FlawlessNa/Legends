@@ -637,8 +637,13 @@ def telecast_compiler(
             dict(unavailable),
             logger_name=logger.name,
         )
-        return cast_skill(handle, ign, ultimate_skill, initial_state=initial_state)
-    return telecast(structure, ign, teleport_skill, ultimate_skill)
+        fallback = cast_skill(handle, ign, ultimate_skill, initial_state=initial_state)
+        fallback.correlation_id = correlation_id
+        return fallback
+    fused = telecast(structure, ign, teleport_skill, ultimate_skill)
+    # Stamped here as well: `telecast` rebuilds the sequence (#538's key records).
+    fused.correlation_id = correlation_id
+    return fused
 
 
 def random_jump(

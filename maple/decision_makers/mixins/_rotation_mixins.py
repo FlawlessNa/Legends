@@ -644,4 +644,8 @@ class MovementsMixin:
             walk_acceleration=physics.walk_acceleration,
             walk_deceleration=physics.walk_deceleration,
             read_at=getattr(self, "_path_read_at", None),
+            # Baked in here, inside `_decide()`: the compile runs in Main Process,
+            # where only this partial knows which decision it belongs to (ADR 0001).
+            # The sequence's key records carry it (#538).
+            correlation_id=getattr(self, "correlation_id", None),
         )

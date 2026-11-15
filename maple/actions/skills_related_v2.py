@@ -85,14 +85,18 @@ def cast_skill_compiler(
     ign: str,
     skill: Skill,
     direction: str | None = None,
+    correlation_id: str | None = None,
 ) -> controller.KeyboardInputWrapper:
     """
     `cast_skill` in the shape `controller.compile_and_send` expects: the dispatch-time
     `InputState` first and positional, everything else frozen into a partial when the
     ActionRequest is composed. Lets a skill cast be compiled at dispatch, against the
-    ledger, the same way a movement is.
+    ledger, the same way a movement is. `correlation_id` is the `_decide()` call's,
+    baked into the partial and stamped on the sequence for its key records (#538).
     """
-    return cast_skill(handle, ign, skill, direction, initial_state=initial_state)
+    structure = cast_skill(handle, ign, skill, direction, initial_state=initial_state)
+    structure.correlation_id = correlation_id
+    return structure
 
 
 async def cast_skill_single_press(handle: int, ign: str, skill: Skill) -> None:

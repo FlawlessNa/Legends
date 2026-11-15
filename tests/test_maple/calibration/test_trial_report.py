@@ -642,3 +642,42 @@ def test_merged_walks_keep_their_plan_components() -> None:
     )
 
     assert [m.components for m in moves] == [(0, 1), (2,)]
+
+
+def test_key_records_are_ordered_by_their_time_not_by_file_order(
+    record: Path, tmp_path: Path
+) -> None:
+    """Main Process writes a key record after the send, so the file can hold a
+    later key before an earlier one: every reader orders by `t`."""
+    in_file_order = [
+        key("overshoot-1", "key.up", "space", 0.50, 1),
+        key("overshoot-1", "key.down", "space", 0.47, 1),
+        key("overshoot-1", "key.down", "space", 0.46, 1),
+        key("overshoot-1", "key.down", "right", 0.06, 0),
+    ]
+    directory = session_for(record, tmp_path / "session")
+    telemetry = directory / "telemetry.jsonl"
+    # Appended after every other record, in this order: file order is not time.
+    with telemetry.open("a", encoding="utf-8") as handle:
+        for event in in_file_order:
+            handle.write(json.dumps(event) + "\n")
+    run = trial_report.analyze(record, directory)
+    first = run.judged["overshoot"][0]
+
+    assert run.session is not None
+    times = [k.t for k in run.session.keys["overshoot-1"]]
+    assert times == sorted(times)
+    assert first.takeoff_key is not None
+    assert first.takeoff_key.t == pytest.approx(T0 + 0.46)
+    assert first.timing is not None
+    assert first.timing.to_keys == pytest.approx(0.01, abs=1e-4)
+    shuffled = [
+        trial_report.KeyEvent(1.5, "right", False),
+        trial_report.KeyEvent(1.2, "space", True),
+        trial_report.KeyEvent(1.1, "space", True),
+        trial_report.KeyEvent(1.3, "right", False),
+    ]
+    walk = trial_report.Move("WALK_RIGHT", (0, 0), (10, 0), 10)
+    jump = trial_report.Move("JUMP_RIGHT", (10, 0), (60, 0), 50)
+    assert trial_report.takeoff_key(shuffled, jump) == shuffled[2]
+    assert trial_report.stop_key(shuffled, walk) == shuffled[3]

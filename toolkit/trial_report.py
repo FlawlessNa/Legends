@@ -518,6 +518,7 @@ def load_session(session: Path, records: Sequence[Record]) -> SessionTimes | Non
         return None
     times = SessionTimes(offset, matched_reads=matched, spread=spread)
     for cid, events in keys.items():
+        # By `t`, not by file order: records are written after the send.
         events.sort(key=lambda pair: pair[1].t)
         times.keys[cid] = [key for _, key in events]
     for cid, when in scheduled.items():
@@ -1004,19 +1005,27 @@ def takeoff_key(keys: Sequence[KeyEvent], move: Move) -> KeyEvent | None:
     The key that took `move` off: the Action's first ``key.down`` that is not a
     direction key. When the Action's records carry Provenance, it must come from
     one of the move's components, so a jump the Action never reached has none.
+    "First" is by ``t``, never by file order: records are written after the send.
     """
-    downs = [k for k in keys if k.down and k.key not in _DIRECTION_KEYS]
+    downs = [k for k in _by_time(keys) if k.down and k.key not in _DIRECTION_KEYS]
     if any(k.origin is not None for k in keys):
         downs = [k for k in downs if k.origin in move.components]
     return downs[0] if downs else None
 
 
 def stop_key(keys: Sequence[KeyEvent], walk: Move) -> KeyEvent | None:
-    """The ``key.up`` that ended `walk`: its direction key's first in the Action."""
+    """The ``key.up`` that ended `walk`: its direction key's first in the Action,
+    by ``t``."""
     if not walk.direction:
         return None
     name = "right" if walk.direction > 0 else "left"
-    return next((k for k in keys if not k.down and k.key == name), None)
+    return next((k for k in _by_time(keys) if not k.down and k.key == name), None)
+
+
+def _by_time(keys: Sequence[KeyEvent]) -> list[KeyEvent]:
+    """Key records in the order the keys went, by ``t``: the file's order is when
+    each was written, which trails the send (`botting/telemetry_events.py`)."""
+    return sorted(keys, key=lambda k: k.t)
 
 
 def judge_keys(

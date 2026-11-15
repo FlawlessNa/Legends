@@ -294,6 +294,7 @@ def compile_movements(
     walk_deceleration: float = math.inf,
     read_at: float | None = None,
     clock: Callable[[], float] = time.monotonic,
+    correlation_id: str | None = None,
 ) -> KeyboardInputWrapper | None:
     """
     Compiles a Movement Plan into an Input Sequence.
@@ -328,6 +329,9 @@ def compile_movements(
         on `clock`. The character has walked since, when the first walk's key
         is already down. `None`: no lead.
     :param clock: The frames' clock, `time.monotonic`; a test passes its own.
+    :param correlation_id: The `_decide()` call's Correlation ID, baked into the
+        partial (ADR 0001) and stamped on the Input Sequence, whose key records
+        carry it (#538). It changes no Step.
     :return: The Input Sequence, or None when the plan compiles to nothing.
     :raises ValueError: A jump carries no `duration`, a drop grabs a rope, or a
         teleport is planned with no teleport skill.
@@ -658,6 +662,8 @@ def compile_movements(
         for key in structure.keys_held:
             if key not in structure.forced_key_releases:
                 structure.forced_key_releases.append(key)
+    if structure is not None:
+        structure.correlation_id = correlation_id
     return structure
 
 
