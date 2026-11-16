@@ -127,7 +127,7 @@ from maple.screen.position import (
 from maple.screen.position.characters import Covered
 from maple.screen.position.fusion import CameraSource, front_art_of
 from maple.screen.sprites import FRAME_CHECK, Profile, load_reader_sprites
-from toolkit.capture_frames import MANIFEST, save_frame
+from toolkit.capture_frames import MANIFEST, Check, save_frame
 
 REPO = Path(__file__).resolve().parents[1]
 OUT_ROOT = REPO / "data" / "position_check"
@@ -725,10 +725,6 @@ class Output:
         text = summary(self.rows, self.names)
         (self.folder / "summary.txt").write_text(text + "\n", encoding="utf-8")
         return text
-
-
-class Check(Protocol):
-    def frame_usable(self, frame: Frame) -> Reading[None] | None: ...
 
 
 def save(read: FrameRead, folder: Path, check: Check, start: float = 0.0) -> str | None:

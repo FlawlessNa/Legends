@@ -71,6 +71,7 @@ from maple.calibration.records import (
     ScheduleHeader,
     TrialOutcome,
     TrialResult,
+    one_per_frame,
     read_records,
 )
 from maple.calibration.specs import Measure
@@ -185,13 +186,7 @@ def trial_reads(records: Iterable[Record]) -> list[TrialReads]:
             continue
         entry.reads.append(Read(position.frame_time, *position.position))
     for entry in trials.values():
-        entry.reads.sort(key=lambda read: read.t)
-        # One frame read twice (a cycle and a sample) is one read.
-        entry.reads = [
-            read
-            for i, read in enumerate(entry.reads)
-            if i == 0 or read.t != entry.reads[i - 1].t
-        ]
+        entry.reads = one_per_frame(entry.reads)
     return list(trials.values())
 
 
