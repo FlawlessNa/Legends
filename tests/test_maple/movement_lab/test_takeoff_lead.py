@@ -247,3 +247,76 @@ def test_no_walk_back_where_the_rule_does_not_reach(
         if t < jump and e == "keydown" and k in {"left", "right"} - held
     ]
     assert walked == []
+
+
+#: #560's 5 tries (runs 30, 31 and 36): a plan that opens on a walk its key down,
+#: shorter than the read's lead, into a jump straight up. The walk's length and
+#: the read's age at the compile, as the records have them. Each was keyed 34 to
+#: 56 px past its spot, and missed.
+_SHORT_WALKS = [
+    pytest.param(2.1, 0.115, id="run 36 c40"),
+    pytest.param(0.5, 0.114, id="run 36 c43"),
+    pytest.param(0.1, 0.119, id="run 36 c46"),
+    pytest.param(4.3, 0.134, id="run 30 c13"),
+    pytest.param(22.8, 0.345, id="run 31 c106"),
+]
+
+
+@pytest.mark.parametrize("latency", LATENCIES)
+@pytest.mark.parametrize("key", ["left", "right"])
+@pytest.mark.parametrize(("length", "age"), _SHORT_WALKS)
+def test_a_walk_shorter_than_the_lead_into_a_jump_up_turns_back_to_its_spot(
+    floor: Platform, length: float, age: float, key: str, latency: float
+) -> None:
+    """
+    #560: the walk was shortened to nothing (`_time_walks`), its key came up,
+    the slide was waited out and the jump went down: past the spot by what the
+    character walked since the read plus the slide. It turns back instead, as a
+    walk into a portal the character has passed does (`_turn_back`): timed from
+    rest, from where the character is at the compile.
+    """
+    way = 1 if key == "right" else -1
+    spot = X0 + way * length
+    walk = MovementTypes.WALK_RIGHT if key == "right" else MovementTypes.WALK_LEFT
+    plan = (
+        _MovementComponent(walk, length),
+        _takeoff(MovementTypes.JUMP, floor, x=spot),
+        _END,
+    )
+
+    x, vx = _run(floor, plan, key, age=age, latency=latency)
+
+    # Px past the spot the way the character was walking: as for the jump up
+    # the plan opens on, the latency's walk before the release acts is unled.
+    past = (x - spot) * way
+    assert -SLACK <= past <= PHYSICS.walk_speed * latency + SLACK
+    assert abs(vx) < 1.0
+
+
+@pytest.mark.parametrize("key", ["left", "right"])
+@pytest.mark.parametrize(
+    "length",
+    [
+        pytest.param(21.0, id="past the lead by less than the slide"),
+        pytest.param(60.0, id="past the lead and the slide"),
+    ],
+)
+def test_a_walk_longer_than_the_lead_into_a_jump_up_does_not_turn_back(
+    floor: Platform, key: str, length: float
+) -> None:
+    """
+    Read 0.13 s before the compile: 19 px walked, and 14 more to slide. A walk
+    of 21 px still stops past its spot, by up to the slide, as before: no record
+    has that shape, so it is not turned back until a live run shows it (#560).
+    """
+    walk = MovementTypes.WALK_RIGHT if key == "right" else MovementTypes.WALK_LEFT
+    way = 1 if key == "right" else -1
+    plan = (
+        _MovementComponent(walk, length),
+        _takeoff(MovementTypes.JUMP, floor, x=X0 + way * length),
+        _END,
+    )
+    sequence = _compile(plan, frozenset({key}), 0.13)
+
+    other = "left" if key == "right" else "right"
+    assert not any(k == other for _, k, _ in _steps(sequence))

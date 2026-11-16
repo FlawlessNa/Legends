@@ -62,7 +62,11 @@ compile and slides on after the release. So the compile walks it back first
 (`_walk_back`): the key comes up, the slide is waited out, and a walk the
 other way covers that distance from rest, as a walk against a held key into
 such a take-off does (`_reversal`, which a drop now joins). Live (runs 28 and
-29), all 12 such take-offs went down 28 to 55 px off their spot.
+29), all 12 such take-offs went down 28 to 55 px off their spot. A plan that
+opens on a walk, its key down, shorter than the character walked since the
+read, into a jump straight up turns back the same way (`_turn_back`, #560):
+shortened to nothing instead, its 5 tries on runs 30 to 36 went down 34 to
+56 px past their spot, and all missed.
 
 **A sideways jump off a rope releases its climb key first** (#561). A climb
 cut at the Action cap leaves `down` (or `up`) down, and a plan may open on a
@@ -844,27 +848,40 @@ def _turn_back(
 ) -> tuple[_MovementComponent, ...] | None:
     """
     The plan, its first walk turned around, when that walk runs into a portal
-    with its key down and the character has walked further since the read
-    than the walk is long (`lead`, the walk speed times the read's age): it
-    is past the portal already (#533). `None` when the plan does not start so.
+    (#533) or a jump straight up (#560) with its key down and the character
+    has walked further since the read than the walk is long (`lead`, the walk
+    speed times the read's age): it is past the take-off already. `None` when
+    the plan does not start so.
+
+    A walk into a jump straight up longer than the lead by less than the
+    slide still stops past its take-off, by what is left of the slide (up to
+    14 px at the records' physics): its key comes up at once, and the jump
+    waits the slide out (`_stand_still`). It is not turned back: no record
+    has that shape, so it is left as it was until a live run shows it.
 
     Each piece of the walk becomes one the other way, together as long as
-    the character is past the portal now. The walk then goes against the
+    the character is past the take-off now. The walk then goes against the
     held key, a reversal (`_reversal`): the key comes up, the slide is
     waited out, and the walk back, from rest, is timed from where the
     character is at the compile (`_time_walks`, with no read age left).
 
-    Kept on, the walk ends at once and the portal's `up` keydowns come
-    where the character already is, past the portal: on run 32 (C1 and C2's
-    first tries, read 0.34 and 0.38 s before the keys), 22 to 41 px past, out
-    of its reach both times.
+    Kept on, the walk ends at once and the take-off comes where the
+    character already is, past it. A portal's `up` keydowns: on run 32 (C1
+    and C2's first tries, read 0.34 and 0.38 s before the keys), 22 to 41 px
+    past, out of its reach both times. A jump straight up, once the slide is
+    waited out (`_stand_still`): on runs 30, 31 and 36, walks of 0.1 to 22.8
+    px read 0.11 to 0.35 s before the compile, 34 to 56 px past, and all 5
+    missed the platform above.
     """
     if not movements or movements[0].movement_type not in _WALKS:
         return None
     run = _walk_run(movements, 0, 1)
     if run.stop >= len(movements):
         return None
-    if movements[run.stop].movement_type is not MovementTypes.ENTER_PORTAL:
+    upcoming = movements[run.stop]
+    if not (
+        upcoming.movement_type is MovementTypes.ENTER_PORTAL or _standing(upcoming)
+    ):
         return None
     way = _direction_of(movements[0])
     if way not in held_keys or OPPOSITES[way] in held_keys:
