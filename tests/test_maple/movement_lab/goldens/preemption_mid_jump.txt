@@ -1,14 +1,11 @@
 Holds (key, t_down, t_up):
-  left     0.293 1.000
-  right    0.000 0.129
-  space    0.461 1.000
-  up       0.461 1.000
+  right    0.000 1.000
+  space    0.601 0.635
 
-right keydown for 0.128s
-right keyup for 0.164s
-left keydown for 0.167s
-['space', 'up'] ['keydown', 'keydown'] for 0.538s
+right keydown for 0.600s
+space keydown for 0.033s
+space keyup for 0.364s
 Total Duration: 1.000s
 Forced Key Releases: ['space']
 
-Preemption at this cancel point additionally releases: ['left', 'up']
+Preemption at this cancel point additionally releases: ['right']

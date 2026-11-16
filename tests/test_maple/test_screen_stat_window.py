@@ -29,7 +29,7 @@ from maple.screen.stat_window import (
     _up_button,
 )
 
-PROFILE = Profile(job="Hero", game_map="Anywhere")
+PROFILE = Profile(job="Hero")
 RNG = np.random.default_rng(314)
 PAPER = (225, 223, 213)
 """The colour the numbers are drawn on, in RGB, as the client's value boxes."""

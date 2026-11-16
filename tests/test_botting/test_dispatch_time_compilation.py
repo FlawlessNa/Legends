@@ -106,7 +106,7 @@ class _DispatchScenario:
             if self.delivered == self.cancel_after:
                 reached.set()
 
-        def _fake_release(keys: list[str], hwnd: int) -> None:
+        def _fake_release(keys: list[str], hwnd: int, **_: object) -> None:
             self.released.extend(keys)
 
         # A lock created inside this test's own event loop: the class-level one is

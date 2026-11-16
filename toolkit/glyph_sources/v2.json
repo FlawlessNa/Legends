@@ -1,5 +1,37 @@
 {
- "_about": "Where toolkit/harvest_glyphs.py cuts glyphs from frame set v2. No pixels: frame names, boxes [x, y, width, height] in client pixels, and the characters a person read in each. The stat window's boxes hold one number each, cut short of any '/', '(' or '-' beside it (#314).",
+ "_about": "Where toolkit/harvest_glyphs.py cuts glyphs from frame set v2, which keeps v1's frames unchanged: v1's sources, plus the minimap banner's title lines and the stat window's numbers. No pixels: frame names, boxes in client pixels, and the text a person read (countdown digits, map names, stat window numbers). A chat line is [x, top of its 16-row band, width]; its text is labelled by an Arial render (see the tool). A title line is [x, top of its capitals, width]; splits are columns from x where touching letters are cut. The stat window's boxes hold one number each, cut short of any '/', '(' or '-' beside it (#314).",
+ "chat-general": [
+  {"frame": "f001_1366x768.png", "line": [288, 650, 548]},
+  {"frame": "f001_1366x768.png", "line": [288, 666, 548]},
+  {"frame": "f003_1366x768.png", "line": [288, 634, 548]},
+  {"frame": "f003_1366x768.png", "line": [288, 650, 548]},
+  {"frame": "f004_1366x768.png", "line": [288, 634, 548]},
+  {"frame": "f004_1366x768.png", "line": [288, 650, 548]},
+  {"frame": "f005_1366x768.png", "line": [288, 634, 548]}
+ ],
+ "countdown": [
+  {"frame": "f007_1366x768.png", "box": [1331, 13, 32, 13], "text": "27"},
+  {"frame": "f008_1366x768.png", "box": [1331, 13, 32, 13], "text": "24"},
+  {"frame": "f008_1366x768.png", "box": [1299, 13, 32, 13], "text": "27"},
+  {"frame": "f009_1366x768.png", "box": [1331, 13, 32, 13], "text": "19"},
+  {"frame": "f009_1366x768.png", "box": [1299, 13, 32, 13], "text": "21"},
+  {"frame": "f010_1366x768.png", "box": [1331, 13, 32, 13], "text": "16"},
+  {"frame": "f010_1366x768.png", "box": [1299, 13, 32, 13], "text": "19"},
+  {"frame": "f011_1366x768.png", "box": [1331, 13, 32, 13], "text": "13"},
+  {"frame": "f011_1366x768.png", "box": [1299, 13, 32, 13], "text": "16"},
+  {"frame": "f012_1366x768.png", "box": [1331, 13, 32, 13], "text": "10"},
+  {"frame": "f012_1366x768.png", "box": [1299, 13, 32, 13], "text": "13"},
+  {"frame": "f013_1366x768.png", "box": [1331, 13, 32, 13], "text": "8"},
+  {"frame": "f013_1366x768.png", "box": [1299, 13, 32, 13], "text": "10"},
+  {"frame": "f014_1366x768.png", "box": [1331, 13, 32, 13], "text": "5"},
+  {"frame": "f014_1366x768.png", "box": [1299, 13, 32, 13], "text": "7"}
+ ],
+ "minimap-title": [
+  {"frame": "f001_1366x768.png", "line": [54, 39, 91], "text": "Dungeon"},
+  {"frame": "f001_1366x768.png", "line": [54, 53, 91], "text": "Damp Forest"},
+  {"frame": "g001_800x600_quickslots_unshaded.png", "line": [48, 31, 132], "text": "Victoria Road", "splits": [15]},
+  {"frame": "g001_800x600_quickslots_unshaded.png", "line": [48, 45, 132], "text": "Ellinia"}
+ ],
  "stat-window": [
   {"frame": "m_ability_open_1920x1080.png", "box": [232, 258, 29, 15], "text": "0"},
   {"frame": "m_ability_main_only_1920x1080.png", "box": [232, 258, 29, 15], "text": "0"},

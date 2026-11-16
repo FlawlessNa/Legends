@@ -285,6 +285,9 @@ async def mouse_move(
         rng = np.linspace(0, 1, num_steps)
         trajectory = [pytweening.getPointOnLine(x0, y0, x1, y1, tween(t)) for t in rng]
         points = [to_absolute(x, y, size) for x, y in trajectory]
+        if points:
+            # Some tweens end a fraction short of 1: land on the target exactly.
+            points[-1] = to_absolute(x1, y1, size)
         delays = [float(step_duration)] * len(points)
 
     inputs = input_constructor(handle, list(points), [None] * len(points))

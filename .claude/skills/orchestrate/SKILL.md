@@ -17,4 +17,6 @@ Worktrees are plain `git worktree`. The old `herdr` terminal CLI is gone.
    maintainer to start this session inside the Herdr app, and stop.
 2. Read the epic named in the argument, then follow `orchestrating.md` from
    "Before the first ticket".
-3. You read no code and write none. Every change comes from a ticket agent.
+3. You write no code: every change comes from a ticket agent. You do read
+   code to settle a review dispute ("Disputes" in `orchestrating.md`), and
+   you only bring the maintainer what agents and you cannot resolve.

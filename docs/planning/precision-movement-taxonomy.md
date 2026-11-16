@@ -13,7 +13,10 @@ target.
 
 A precision movement is a property of a **Movement Plan transition** — the
 component, its upcoming component, and landing/departure flags — never of a
-movement type alone or of the grid. The same `JUMP_RIGHT` is precision onto a
+movement type alone or of the map. Since
+[#396](https://github.com/FlawlessNa/Legends/issues/396) each component comes
+from a `FootholdGraph` move (`maple/model/navigation/`), and the flags from the
+move's own platforms and take-off, in virtual px. The same `JUMP_RIGHT` is precision onto a
 4 px perch and not across open ground. `ENTER_PORTAL` is the one near-exception
 (precision wherever it occurs), carried as a transition row like the others.
 
@@ -21,11 +24,11 @@ movement type alone or of the grid. The same `JUMP_RIGHT` is precision onto a
 
 | Id  | Precision movement | Plan signature | Tier | Classifiable from the Plan today? |
 |-----|--------------------|----------------|------|-----------------------------------|
-| PM1 | Jump onto rope/ladder | `JUMP_*` → `CLIMB_UP` | Tight | Yes — transition pair |
-| PM2 | Landing on a narrow platform | `JUMP_*` or `TELEPORT_*` with `narrow` flag | Tight | Yes — jumps and teleports both |
-| PM3 | Edge departure — jump/teleport from a platform's edge, where overshooting the approach is a fall | `JUMP_*` / `TELEPORT_*` with `edge_departure` flag | Tight | Yes — transition pair |
-| PM4 | Portal entry | `ENTER_PORTAL` | Routine (*provisional*) | Yes |
-| PM5 | Ladder grab from walk | `WALK_*` → `CLIMB_UP` / `CLIMB_DOWN` | Routine (*provisional*) | Yes |
+| PM1 | Jump onto rope/ladder | A graph `JUMP` move that ends on a rope: `JUMP_LEFT`/`JUMP_RIGHT`/`JUMP` with `grabs_rope` | Tight | Yes — the flag |
+| PM2 | Landing on a narrow platform | A graph `JUMP`, `DROP` or `TELEPORT` move landing on a platform at most `narrow_platform_threshold` wide: `JUMP*` or `TELEPORT_*` with `narrow` | Tight | Yes — jumps, drops and teleports |
+| PM3 | Edge departure — jump/teleport from a platform's edge, where overshooting the approach is a fall | A sideways graph `JUMP` or `TELEPORT` move taking off within `edge_departure_threshold` of its platform's end: `JUMP_*` / `TELEPORT_*` with `edge_departure` | Tight | Yes — the flag |
+| PM4 | Portal entry | A graph `PORTAL` move: `ENTER_PORTAL` | Routine (*provisional*) | Yes |
+| PM5 | Ladder grab from walk | A graph `WALK` then `CLIMB` move: `WALK_*` → `CLIMB_UP` / `CLIMB_DOWN` | Routine (*provisional*) | Yes |
 
 Priority order for building attribution: PM3 and PM2 first (owner-ranked most
 important — a PM3 miss is a fall, the costliest and most bot-visible failure),
@@ -36,11 +39,29 @@ build tooling for provisional rows before the definite ones.
 The model gaps (PM2's teleport half, PM3 entirely) were closed by
 [#129](https://github.com/FlawlessNa/Legends/issues/129): `narrow` now applies to
 `TELEPORT_*` connections as well as `JUMP_*`, and a new `edge_departure` flag on
-`_MovementComponent` marks a start node within `edge_departure_threshold` minimap
-px (default 5, a **Knob** on `MovementHandler`, mirroring `narrow_platform_threshold`'s
-shape) of its platform's end in the travel direction. The precision pre-stop
+`_MovementComponent` marks a take-off within `edge_departure_threshold`
+(default 5 minimap px, 80 virtual px since #396; a **Knob** on `MovementHandler`,
+mirroring `narrow_platform_threshold`'s shape) of its platform's end in the
+travel direction. [#397](https://github.com/FlawlessNa/Legends/issues/397)
+converted the Knob values in `configs/trials` to virtual px (×16).
+
+**Reading `movement.plan_started` across #396.** `components` keeps its meaning
+in old and new Sessions alike: `[movement_type, length]`, where a walk's or a
+climb's length is minimap (canvas) px and a gesture's (`JUMP*`, `TELEPORT_*`,
+`ENTER_PORTAL`) is a count — 1 per jump or portal, the casts for a teleport. Since
+#396 each jump is its own component (before, one `JUMP_RIGHT, 2` was two jumps),
+and the new `components_v` gives every component's measured length in virtual
+px, gestures included. An analyzer counting jumps sums the gesture counts in
+either kind of Session. The precision pre-stop
 (direction-key release ahead of the gesture) now fires on that flag unconditionally,
-not only when truncation happens to land there. Grid-baked flags were rejected —
+not only when truncation happens to land there, except ahead of a sideways jump the
+walk runs into the same way (#515): that release came straight back up one Step
+later, when the jump pressed its direction again, so it stopped nothing and only
+made the take-off one input delay late, past a platform's open end in the live
+record. Since #521 the graph plans no such take-off within `TAKEOFF_LEAD` of walking
+(14.6 px at 149 px/s) of the open end it heads for, the latency from the key to the
+take-off included, and a walk into it that starts against the other direction key
+first stops. Grid-baked flags were rejected —
 every map would need re-authoring and nothing could be swept.
 
 ## Tiers and budgets
@@ -98,7 +119,38 @@ detection rules themselves are #12's to define.
 - **PM4**: the discontinuous position change to the portal's destination.
 - **PM5**: vertical movement begins on the ladder column.
 
+## Counting Attempts: the analyzer (#12)
+
+`toolkit/movement_attempts.py` reads a Session's `telemetry.jsonl` (optionally
+joined with Trial records by Correlation ID) and reports, per instance: the row,
+the Attempts, the outcome (*fell* separately for PM3) and the budget verdict.
+Its module docstring is the full rule set; in short:
+
+- **Input.** `movement.plan_started`'s `transitions` (one entry per component:
+  `narrow`, `edge_departure`, `grabs_rope`, and the virtual take-off and landing)
+  and the `read` ones of `position.read`. A cycle recorded before #12 has no
+  `transitions` and is skipped and counted: the flags are never re-derived.
+- **Instance.** The same transition across cycles, ended by its first success.
+- **Attempt.** PM1 to PM3: a departure from the take-off found in the position
+  history, so a re-plan is not an Attempt and the climb back after a fall is
+  nobody's. PM4 and PM5: a cycle that starts at the take-off, once the previous
+  Attempt resolved.
+- **Success** per row, from the virtual position: PM1 on the rope's column; PM2
+  and PM3 within the landing and still there at the window's end; PM3's miss is
+  *fell* when the window ends below both take-off and landing; PM4 a
+  discontinuity or the landing; PM5 vertical movement on the ladder's column.
+- **Verdict.** `pass` within the budget, `fail` beyond it, `inconclusive` for no
+  success yet within budget, `no_gesture` for an instance that saw no Attempt.
+- Every tolerance in it is an **Expectation**, unmeasured: #400's Session is the
+  first check of whether its instances match what a person watching counts.
+
+**Trial records do not carry the Delivered Prefix.** Counting Attempts needs where
+the character was, and the position history gives it. The compiled half is reached
+through the Correlation ID, as `maple/calibration/records.py` already says.
+
 ## Handoff to #12 (attempt detection)
+
+*Historical: the requirements #12 was given; the section above is what it built.*
 
 Requirements this taxonomy imposes on the delimitation rules:
 

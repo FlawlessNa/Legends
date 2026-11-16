@@ -2,7 +2,8 @@
 
     python toolkit/synthetic_scene.py "Damp Forest" --seed 42 --out scene.png
 
-Needs an extraction (`python -m game_data extract`).
+Run it to look at what the scene generator draws for a map. Needs an
+extraction (`python -m game_data extract`); no client, and it sends no input.
 """
 
 import argparse

@@ -7,9 +7,10 @@ Agents are run with `hc` (herdr-core's CLI); `hc --skill` prints its manual.
 `herdr-app` only changes what the maintainer sees, so the orchestrator rarely
 needs it.
 
-**The orchestrator reads no code and writes none.** Ticket agents build, the
-review workflow judges, and the orchestrator moves tickets along. Keeping it
-out of diffs is what keeps it cheap enough to run for hours.
+**The orchestrator writes no code.** Ticket agents build, the review workflow
+judges, and the orchestrator moves tickets along. It does not read diffs as a
+matter of course, which keeps it cheap enough to run for hours. It reads the
+code, narrowly, when that is the only way to settle a dispute (below).
 
 ## Before the first ticket
 
@@ -21,7 +22,9 @@ out of diffs is what keeps it cheap enough to run for hours.
    the old terminal version and no longer exist.)
 3. Make sure `epic/<slug>` exists (`topics.md`, "Publishing and splitting"):
    `git push origin origin/dev:refs/heads/epic/<slug>`.
-4. Tell the maintainer the plan in a few lines: which tickets start now,
+4. Find the epic's verification epic, or create it if the epic has none
+   (see "The verification epic" below).
+5. Tell the maintainer the plan in a few lines: which tickets start now,
    which wait for what, and which carry checks only a human can do.
 
 ## Starting a ticket
@@ -102,10 +105,11 @@ may still have a background shell running, so don't treat idle alone as done.
 | ---------------------------------------- | ------------------------------------------------------- |
 | PR open, review running                  | `gh pr checks <pr> --watch` in the background           |
 | Review requested changes                 | Prompt the agent: read the review comment, follow "The epic flow" in `tickets.md` |
-| PR merged into the epic                  | Close the ticket, tick it on the epic, clean up, start what it unblocked |
+| PR merged into the epic                  | Close the ticket, tick it on the epic, add its live checks to the verification epic, clean up, start what it unblocked |
 | Agent stopped and asks a question        | Answer from the ticket or epic if they answer it; otherwise ask the maintainer |
 | Agent `blocked` (`hc get tk<n>`) on an approval dialog    | Ask the maintainer. Never approve it yourself           |
-| Agent disagrees with the review          | Ask the maintainer: they decide                         |
+| Agent disagrees with the review          | Settle it yourself: see "Disputes" below                |
+| `review` failed with no verdict          | Infrastructure, not a verdict: `gh run rerun <run> --failed` (see "Disputes") |
 | Agent stopped on a human-only check      | Ask the maintainer, quoting what it needs               |
 | Second attempt failed                    | Stop that ticket and ask the maintainer                 |
 
@@ -115,6 +119,55 @@ abandoned: `hc kill tk<n>` then `hc rm tk<n>` ends the agent,
 `git worktree remove ../Legends-worktrees/t<n>` removes the checkout, and
 `git branch -D ticket/<n>-<slug>` drops the local branch. The workflow already
 deleted the remote one.
+
+## The verification epic
+
+Every epic has one standalone issue that collects the checks only the maintainer can do live.
+The maintainer runs them later, in batches, and the ticket PRs scatter them; this issue is where none of them gets lost.
+**Keeping it current is the orchestrator's job**, not the ticket agents'.
+
+- **Shape.** Title it `Epic: verify <topic> live`, label it `epic` and `ready-for-human`, and give it no child tickets.
+  Its first line is `Follow-up to #<epic>`.
+  Follow #300 and #379: checkbox sections grouped by where a check runs (for example a live Test Session, by eye, on the bot's path), and a last section, "Notes from the run (not investigated)".
+- **Create it** before the first ticket starts, or as soon as the first merged ticket leaves a live check.
+  Link it from a comment on the epic.
+- **On every merge,** copy each live item from the PR's "Could not verify" and "Handoff" sections into it, as a checkbox that names the ticket and the PR it came from and says what to look for.
+  Leave out what a later ticket or the cleanup pass will settle offline; note those on the epic instead.
+- **Also add** the live checks of any PR into `dev` the run needed (a workflow fix, a flaky test on the input path), and oddities seen along the way that nobody investigated.
+- **Don't tick items yourself.** The maintainer ticks them once checked live.
+  If a later ticket makes an item moot, say so in the item rather than deleting it.
+- **It outlives the epic.** It stays open after the PR into `dev` merges, until the maintainer has run every check.
+
+## Disputes
+
+An agent that disputes a review finding, or a finding you doubt, is yours to
+settle, not the maintainer's:
+
+1. Read the finding, the agent's evidence, and **the cited code** (the file and
+   lines on the ticket branch, in its worktree). Check the claim yourself.
+2. If the agent is right, say so on the PR (a comment naming what you checked)
+   and have the agent push a change that makes the code or its comment
+   unambiguous, then let the review run again.
+3. If the reviewer is right, send the agent back with the finding.
+4. Ask the maintainer only when you read the code and the disagreement
+   remains a design choice (two defensible behaviours), or the PR touches a
+   "not without asking" area (`tickets.md`) that the ticket does not cover.
+
+A `review` check that fails with no verdict comment (for example the job log
+says `error_max_turns`, or the comment is missing) did not judge anything:
+re-run it with `gh run rerun <run-id> --failed` before acting. If it fails the
+same way twice on a large PR, ask the agent to shrink or split the PR.
+
+The review retries once by itself on a fallback Claude account when the main
+one returns no verdict (`CLAUDE_CODE_OAUTH_TOKEN_FALLBACK`, see the header of
+`.github/workflows/claude-review.yml`). The gate log says which account
+judged. A run that still has no verdict means both accounts failed, or the
+fallback secret is not set: tell the maintainer rather than re-running in a
+loop.
+
+The epic branch is protected, so nothing but a ticket PR reaches it. A change
+to `docs/` or the skills that the tickets need goes through its own PR into
+`dev`; tickets branch off the epic as it is.
 
 ## Coming back to the maintainer
 
@@ -142,7 +195,32 @@ finishes, in two or three lines.
 
 ## Finishing
 
-When every ticket is merged, open one PR from `epic/<slug>` into `dev`. Its
+### The cleanup pass
+
+When every ticket is merged, and before the PR into `dev`, run one more
+ticket: a cleanup pass over what the epic touched. Tickets are each small and
+correct, and together they leave duplicated helpers, shallow wrappers and
+interfaces that grew one parameter per ticket; nobody else looks at the whole.
+
+- File it as a ticket of the epic ("Cleanup pass for #<epic>"), and run it like
+  any other: a fresh agent, a PR into `epic/<slug>`, the review workflow.
+- The brief: `git diff origin/dev...origin/epic/<slug>` is the scope. Review it
+  with the `simplify` skill (reuse, simplification, efficiency) and the
+  `codebase-design` skill (deep modules, where the seams go), and apply what
+  is clearly better. The ticket's constraints: no behaviour change (it is a
+  refactor: no new test, every existing test passes untouched), nothing under
+  "not without asking" in `tickets.md`, and the epic's own constraints still
+  hold.
+- What is worth doing but too big or too risky for the pass goes in its PR
+  body as proposals, not into the diff.
+- A pass that finds nothing is a valid outcome: the agent says so on the
+  ticket, and you close it without a PR.
+
+### The PR into dev
+
+When the cleanup pass is merged or closed, open one PR from `epic/<slug>` into
+`dev`. Its
 body lists each ticket with its PR, then gathers every "could not verify" item
-from the ticket PRs: that list is what the maintainer checks. Then tell them
+from the ticket PRs: that list is what the maintainer checks. Bring the
+verification epic up to date first, and link it from the body. Then tell them
 it is ready. You never merge it.

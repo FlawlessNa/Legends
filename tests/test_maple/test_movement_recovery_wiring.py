@@ -14,51 +14,49 @@ presents.
 
 import queue
 from collections.abc import Callable, Mapping
+from types import SimpleNamespace
 
 import pytest
 from pytest_mock import MockerFixture
 
 from botting.core import ActionRequest, BotData, ProxyFactory
+from botting.screen import Reading
 from maple.decision_makers.mixins import MovementRecoveryMixin, NextTargetMixin
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
     _MovementComponent,
 )
-from maple.movement_recovery import Reaction, Rung, Symptom
+from maple.model.navigation import Direction, Move, MoveKind, Path
+from maple.model.world import WorldMap
+from maple.movement_recovery import Reaction, RecoveryThresholds, Rung, Symptom
+from maple.screen.position import PositionSource, VirtualPosition
+from maple.telemetry_events import RECOVERY_STUCK_DETECTED
+from tests.test_maple.movement_lab.corpus import LAB_PHYSICS
+from tests.test_maple.movement_lab.fixture_maps import walk_corridor
 
-WALK = (_MovementComponent(MovementTypes.WALK_RIGHT, 5),)
-SENTINEL_ONLY = (_MovementComponent(MovementTypes.END_OF_MOVEMENT, 1),)
+WALK = (_MovementComponent(MovementTypes.WALK_RIGHT, 80),)
+SENTINEL_ONLY = (_MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),)
 
+#: A map whose minimap transform is centre (1000, 1000), `mag` 4.
+WORLD = WorldMap.from_map_data(walk_corridor())
 
-class _Node:
-    def __init__(self, x: int, y: int) -> None:
-        self.x, self.y = x, y
+#: A Path of one walk along the corridor's floor, lasting 0.4 s.
+PATH = Path(
+    (
+        Move(
+            MoveKind.WALK,
+            Direction.RIGHT,
+            (50.0, 0.0),
+            (100.0, 0.0),
+            WORLD.platforms[0],
+            WORLD.platforms[0],
+            0.4,
+        ),
+    )
+)
 
-
-class _Feature:
-    left, right, top = 0, 100, 5
-    avoid_edges = False
-    edge_threshold = 0
-
-    def __init__(self, point: tuple[int, int]) -> None:
-        self._point = point
-
-    def random(self) -> tuple[int, int]:
-        return self._point
-
-
-class _Minimap:
-    """The bare minimum the rotation and recovery mixins read off a minimap."""
-
-    def __init__(self, *, cycle: bool = False) -> None:
-        self.feature_cycle = [_Feature((10, 10)), _Feature((20, 20))] if cycle else None
-        self.points = iter([(31, 31), (32, 32), (33, 33), (34, 34)])
-
-    def random_point(self) -> tuple[int, int]:
-        return next(self.points)
-
-    def get_feature_containing(self, target: tuple[int, int]) -> _Feature:
-        return _Feature(target)
+#: Where the character stands: on the corridor's floor.
+HERE = Reading.read(VirtualPosition(50.0, 0.0, PositionSource.FUSED), 0.0)
 
 
 class _Proxies(ProxyFactory):
@@ -99,6 +97,7 @@ class _Loop(MovementRecoveryMixin, NextTargetMixin):
             self.disabled.extend(names)
         )
         self._has_movements = lambda: len(self.plan) > 1
+        self._physics = lambda: LAB_PHYSICS
         # What `Rotation._request` reads besides the recovery wiring.
         self.lock: object = None
         self._movement_compiler: Callable[[], object] = lambda: None
@@ -112,10 +111,10 @@ class _Loop(MovementRecoveryMixin, NextTargetMixin):
 def data() -> BotData:
     data = BotData("TestBot")
     data.set_static("handle", 1234)
-    data.set_static("current_minimap", _Minimap())
-    data.set_static("current_client_img", None)
-    data.create_attribute("current_minimap_position", lambda: (50, 50))
-    data.create_attribute("path", lambda: (_Node(1, 1), _Node(2, 2)))
+    data.set_static("current_frame", SimpleNamespace(pixels=None))
+    data.create_attribute("current_position", lambda: HERE)
+    data.set_static("world_map", WORLD)
+    data.create_attribute("path", lambda: PATH)
     data.create_attribute("minimap_currently_displayed", lambda: True)
     return data
 
@@ -186,16 +185,67 @@ def test_the_movement_action_reports_its_delivered_prefix(
 # --- what the monitor is actually fed ----------------------------------------
 
 
-def test_the_path_is_handed_over_as_plain_coordinates(
+def test_the_position_target_and_remaining_path_time_are_handed_over_in_virtual_px(
     loop: _Loop, mocker: MockerFixture
 ) -> None:
+    """#398: no canvas px on the way in, and the graph Path's time, not its nodes."""
     observe = mocker.patch.object(loop._monitor, "observe", return_value=None)
-    loop._restart_recovery_grace_period()
     loop._recovery_starts_at = 0.0
 
     loop._recovery_check(now=100.0)
 
-    assert observe.call_args.kwargs["path"] == ((1, 1), (2, 2))
+    assert observe.call_args.args[0] == (50.0, 0.0)
+    assert observe.call_args.kwargs["target"] == loop.data.next_target
+    assert observe.call_args.kwargs["remaining"] == pytest.approx(0.4)
+
+
+def test_an_unsure_position_is_handed_over_as_no_position(
+    loop: _Loop, mocker: MockerFixture
+) -> None:
+    observe = mocker.patch.object(loop._monitor, "observe", return_value=None)
+    loop._recovery_starts_at = 0.0
+    loop.data.reconfigure_attribute(
+        "current_position", update_function=lambda: Reading.unsure(0.0, "two there")
+    )
+    loop.data.update_attribute("current_position")
+
+    loop._recovery_check(now=100.0)
+
+    assert observe.call_args.args[0] is None
+
+
+def test_no_path_is_handed_over_as_no_remaining_time(
+    loop: _Loop, mocker: MockerFixture
+) -> None:
+    observe = mocker.patch.object(loop._monitor, "observe", return_value=None)
+    loop._recovery_starts_at = 0.0
+    loop.data.reconfigure_attribute("path", update_function=lambda: None)
+    loop.data.update_attribute("path")
+
+    loop._recovery_check(now=100.0)
+
+    assert observe.call_args.kwargs["remaining"] is None
+
+
+def test_the_monitor_records_the_target_in_canvas_px_beside_virtual_px(
+    loop: _Loop,
+) -> None:
+    """The map's minimap transform is handed to the monitor for the old fields."""
+    loop._monitor.thresholds = RecoveryThresholds(stall_window=0.5)
+    for now in (0.0, 1.0):
+        loop._monitor.observe(
+            (50.0, 0.0),
+            now,
+            target=(-976.0, -880.0),
+            remaining=1.0,
+            plan=WALK,
+            delivered_steps=1,
+        )
+
+    (stuck,) = [p for e, p in loop.emitted if e == RECOVERY_STUCK_DETECTED]
+    # `canvas * 16 - 1000 + 8`, the marker 6 rows up: canvas (1, 1).
+    assert (stuck["target_x"], stuck["target_y"]) == (1, 1)
+    assert (stuck["target_vx"], stuck["target_vy"]) == (-976.0, -880.0)
 
 
 def test_a_sentinel_only_plan_is_handed_over_as_no_plan(
@@ -289,6 +339,14 @@ def test_reflex_preempts_the_rotation_action_it_is_unsticking(loop: _Loop) -> No
     assert request.block_lower_priority
 
 
+def test_the_reflex_jump_lasts_the_flight_of_the_current_jump(loop: _Loop) -> None:
+    """No fixed hold (#396): a level jump's flight, from the current physics."""
+    _react(loop, Rung.REFLEX, reflex_attempt=1)
+
+    request = loop.sent.pop()
+    assert request.args[2] == LAB_PHYSICS.jump_duration == 2 * 555 / 2000
+
+
 def test_reflex_releases_through_the_ledger_rather_than_blind(
     loop: _Loop, mocker: MockerFixture
 ) -> None:
@@ -310,10 +368,10 @@ def test_reflex_releases_through_the_ledger_rather_than_blind(
     )
     import asyncio
 
-    asyncio.run(loop._wait_and_random_jump(1234, "space"))
+    asyncio.run(loop._wait_and_random_jump(1234, "space", 0.555))
 
     release.assert_called_once_with(1234)
-    jump.assert_called_once_with(1234, "space")
+    jump.assert_called_once_with(1234, "space", 0.555)
 
 
 # --- Abandon --------------------------------------------------------------------
@@ -327,26 +385,18 @@ def test_abandon_actually_changes_where_the_loop_is_heading(loop: _Loop) -> None
     assert loop.data.next_target != before
 
 
-def test_abandon_advances_the_feature_cycle_where_there_is_one(
-    data: BotData, mocker: MockerFixture
-) -> None:
+def test_abandon_heads_for_a_point_on_a_platform(loop: _Loop) -> None:
     """
-    Both target update functions return the *current* target until the character
-    is within threshold of it, which is exactly what keeps a Stuck loop stuck:
-    re-deciding cannot change where it is going.
+    The target update returns the *current* target until the character is within
+    threshold of it, which is exactly what keeps a Stuck loop stuck: re-deciding
+    cannot change where it is going. Abandon draws a new one on the platforms.
     """
-    mocker.patch(
-        "maple.decision_makers.mixins._recovery_mixins.controller.key_binds",
-        return_value={"jump": "space"},
-    )
-    data.set_static("current_minimap", _Minimap(cycle=True))
-    loop = _Loop(data)
-    loop._create_rotation_attributes()
-
     first = loop._abandon_current_target()
     second = loop._abandon_current_target()
 
     assert first != second
+    assert WORLD.platform_at(first) is not None
+    assert WORLD.platform_at(second) is not None
 
 
 def test_abandon_alerts_every_time(loop: _Loop) -> None:
@@ -421,3 +471,46 @@ def test_starvation_alerts_without_touching_the_game(loop: _Loop) -> None:
     assert request.discord_request is not None
     assert request.procedure is loop._noop
     assert loop.disabled == []
+
+
+# --- the Unsure position (#398) ---------------------------------------------------
+
+
+def test_a_long_unsure_position_alerts_and_sends_no_key(loop: _Loop) -> None:
+    """
+    The rotation holds on purpose (C-NOGUESS), so the alert is all there is: a
+    Reflex would move a character the bot can't place.
+    """
+    loop.data.reconfigure_attribute(
+        "current_position",
+        update_function=lambda: Reading.unsure(0.0, "2 characters within 32 px"),
+    )
+    loop.data.update_attribute("current_position")
+
+    loop._react_to(Reaction(Symptom.UNSURE_POSITION, None, (99, 99)))
+
+    (request,) = loop.sent
+    assert request.procedure is loop._noop
+    assert request.discord_request is not None
+    assert "2 characters within 32 px" in request.discord_request.msg
+    assert "30 s" in request.discord_request.msg
+    assert loop.disabled == []
+
+
+def test_a_long_unsure_streak_reaches_the_alert_through_the_cycle(
+    loop: _Loop,
+) -> None:
+    """End to end: unsure reads, cycle after cycle, past the window, alert once."""
+    loop.data.reconfigure_attribute(
+        "current_position",
+        update_function=lambda: Reading.unsure(0.0, "reads disagree"),
+    )
+    loop.data.update_attribute("current_position")
+    loop._recovery_starts_at = 0.0
+
+    for second in range(40):
+        loop._recovery_check(now=100.0 + second)
+
+    alerts = [r.discord_request for r in loop.sent if r.discord_request is not None]
+    assert len(alerts) == 1
+    assert "reads disagree" in alerts[0].msg

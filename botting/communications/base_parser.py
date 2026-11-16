@@ -6,7 +6,7 @@ from enum import Enum
 from functools import cached_property
 from typing import ClassVar
 
-from botting.core import ActionRequest, DiscordRequest
+from botting.core.action_data import ActionRequest, DiscordRequest
 
 logger = logging.getLogger(__name__)
 

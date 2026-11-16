@@ -9,6 +9,11 @@
 3. **No epic?** A standalone `ready-for-agent` ticket carries its own intent:
    say in a line what you will change, and go. A request with no ticket and no
    agreed intent is a topic: see `topics.md`.
+4. **List the ticket's `## Constraints`.** Each one must still hold when you
+   are done, even where the acceptance criteria would be easier to meet by
+   breaking it. Your PR ticks them one by one, and the reviewer checks each
+   (`code-review.md`). If meeting the ticket seems to need breaking one, stop
+   and ask.
 
 **Stop and ask instead of guessing** when the work shows the intent is wrong,
 ambiguous or silent on something that matters, or when the ticket crosses the
@@ -29,8 +34,12 @@ A PR into `epic/**` is reviewed and merged without the maintainer
 (`.github/workflows/claude-review.yml`):
 
 1. Claude reviews it against the ticket, the epic's intent, and this file,
-   then posts one comment that starts with its verdict.
-2. **On approve,** the workflow squash-merges exactly the reviewed commit.
+   then posts one comment that starts with its verdict. If the main Claude
+   account returns no verdict (for example it is out of usage), the review
+   runs once more on a fallback account, when one is configured.
+2. **On approve,** the workflow merges exactly the reviewed commit. It
+   squash-merges, unless a commit in the PR has more than one parent (it brings
+   `dev` in): then it merge-commits, so the epic keeps `dev`'s history.
 3. **On request-changes,** the `review` check fails. Read the comment, fix
    every blocking finding, and push. The push triggers a fresh review.
    If you disagree with a finding, say so in the PR and stop: the maintainer
@@ -66,7 +75,31 @@ deselected test accounted for by an opt-in marker (`live`, `system`, `lab`,
 - **Green means the Invariants hold, not that the bot works.** Nothing in the
   default suite drives a game client.
 
-`testing.md` has the procedures; `typing.md` covers the pre-commit gates.
+CI (`.github/workflows/ci.yml`, the `gates` check) runs ruff and pyright on the
+Python files your PR changes, and the whole default `pytest`, on every PR into
+`dev` or an `epic/**` branch. A red `gates` is yours, as a red local run is.
+
+`testing.md` has the procedures; `typing.md` covers the pre-commit gates. The
+import direction in `AGENTS.md` ("The repo") is a test,
+`tests/test_layering.py`: fix a violation by moving the code, never by adding
+an exception.
+
+### Against the live game
+
+**A change that could alter which keys reach the game, or when, says in its PR
+how it was verified against the live game, or why it was not.** That covers the
+input send path, Movement compilation, timing, focus, and any DecisionMaker
+whose Actions change. `game-client.md` has the two tools: the probe, for what
+is on screen with no Session running, and a Test Session that the maintainer
+starts and you read with the Session reader.
+
+- **Verified:** write the expectation in the PR before the run, then the
+  verdict with counts and the Session directory (`game-client.md`, "Live
+  Session").
+- **Not verified:** say why (no client open, the maintainer was not available
+  to start a Session, the change needs a Trial run at the client), and put what a human
+  must watch in the PR's handoff. That is a legitimate outcome, not a failure;
+  "Nothing to verify" is not one when keys or timing can change.
 
 ## When to stop and hand back
 
@@ -74,9 +107,11 @@ Stop rather than finish whenever the work needs:
 
 - a **measured constant**: anything timed, tuned or read off a running client.
   These are Expectations (`CONTEXT.md`);
-- a **running game client**, to reproduce, confirm or record;
-- a **minimap trail**, recorded through the GUI editor in
-  `maple/model/mechanics/minimap_creation/`;
+- a **running game client**, to reproduce, confirm or record, beyond the
+  probe and a Test Session the maintainer starts for you ("Against the live
+  game" above);
+- a **Trial run**: a Trial schedule (`configs/trials/`) driven at the client,
+  which the maintainer starts;
 - a judgment that reduces to **watching the character**.
 
 Stopping is compliance, not failure. Report what you finished, what you did
@@ -94,7 +129,7 @@ config parsing, logging.
 - the input send path, focus handling, and the Held-Keys Ledger (ADR 0002);
 - the telemetry envelope and transport (ADR 0001);
 - anything an ADR decides;
-- map JSON under `configs/maps/`, and pinned dependency versions;
+- pinned dependency versions;
 - `maple/decision_makers/inventory_manager.py`, which is parked (see
   `maple/AGENTS.md`).
 
@@ -105,6 +140,9 @@ covers:
 
 - what changed;
 - the test that was red without the change;
+- each of the ticket's constraints, ticked, with how it holds;
+- how the change was verified against the live game, or why not, when it could
+  alter which keys reach the game or when (above);
 - **what you could not verify**;
 - the ADRs and invariant ids the change bears on;
 - what a human still has to do.

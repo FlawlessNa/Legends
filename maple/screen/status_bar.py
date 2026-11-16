@@ -20,6 +20,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from botting.screen import Frame, GlyphHit, Reading, find_glyphs
+from botting.utilities import Box
 from game_data.sprites import Sprite
 from maple.screen.locator import FrameCheck, Located, Locator, Part, unreadable
 from maple.screen.sprites import GAUGE_LABEL, Declaration, ReaderSprites
@@ -192,6 +193,33 @@ class StatusBarReader:
             ),
             frame.captured_at,
         )
+
+    def boxes(self, located: Located) -> dict[str, Box]:
+        """
+        Where the bar is, for the bar at `located`, in client pixels: `bar`, the
+        label and background sprites together, and `level`, `hp`, `mp` and
+        `exp`, the strips each number is read from.
+        """
+        sprites = [
+            (match, part.sprite)
+            for match, part in zip(
+                (located.anchor, *located.parts),
+                (self.locator.anchor, *self.locator.parts),
+                strict=True,
+            )
+        ]
+        boxes = {
+            "bar": Box(
+                left=min(m.x for m, _ in sprites),
+                top=min(m.y for m, _ in sprites),
+                right=max(m.x + s.rgba.shape[1] for m, s in sprites),
+                bottom=max(m.y + s.rgba.shape[0] for m, s in sprites),
+            )
+        }
+        for name, (x, y, w, h) in self._strips.items():
+            px, py = located.position((x, y))
+            boxes[name] = Box(left=px, top=py, right=px + w, bottom=py + h)
+        return boxes
 
     def _hits(
         self,

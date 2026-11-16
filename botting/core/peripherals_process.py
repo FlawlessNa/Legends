@@ -7,7 +7,11 @@ from typing import TYPE_CHECKING, Any
 
 from botting.communications import DiscordIO
 from botting.screen_recorder import Recorder
-from botting.utilities import install_loop_diagnostics, setup_child_proc_logging
+from botting.utilities import (
+    exit_with_parent,
+    install_loop_diagnostics,
+    setup_child_proc_logging,
+)
 
 from .action_data import ActionRequest
 
@@ -15,6 +19,25 @@ if TYPE_CHECKING:
     from botting.communications import BaseParser
 
 logger = logging.getLogger(__name__)
+
+
+async def drain_pipe(pipe: multiprocessing.connection.Connection) -> None:
+    """
+    Child Process task standing in for the Discord relay when Discord is off.
+
+    Reads what Main Process sends for Discord, and drops it: a full pipe would
+    block the sender, and nothing here may reach Discord. Ends on the ``None``
+    that means the Session is shutting down.
+    :param pipe: The Peripherals end of the pipe to Main Process.
+    """
+    dropped = 0
+    while True:
+        if await asyncio.to_thread(pipe.poll, 0.1):
+            if pipe.recv() is None:
+                break
+            dropped += 1
+            if dropped == 1:
+                logger.info("Discord is off: messages for it are dropped.")
 
 
 class PeripheralsProcess:
@@ -28,11 +51,27 @@ class PeripheralsProcess:
         relays to MainProcess)
     """
 
-    def __init__(self, queue: multiprocessing.Queue, parser: type[BaseParser]) -> None:
+    def __init__(
+        self,
+        queue: multiprocessing.Queue,
+        parser: type[BaseParser],
+        recording_section: str = "DEFAULT",
+        discord: bool = True,
+    ) -> None:
+        """
+        :param recording_section: The ``recordings.ini`` section the Recorder reads.
+        :param discord: Whether to connect to Discord. ``False`` runs the Session
+            without it: no client is built, no token is read, and every message
+            meant for Discord is dropped, so the Session can post nowhere.
+        """
+        self.discord = discord
         self.log_queue = queue
-        self.process = None
+        self.recording_section = recording_section
+        self.process: multiprocessing.Process | None = None
         self.pipe_main_proc, self.pipe_spawned_proc = multiprocessing.Pipe()
-        self.discord_parser = parser(self.pipe_main_proc)
+        # PipeConnection vs Connection: typeshed types Windows' Pipe() ends as
+        # PipeConnection; the parser annotates Connection.
+        self.discord_parser = parser(self.pipe_main_proc)  # pyright: ignore[reportArgumentType]
         self.engine_pipes: list[multiprocessing.connection.Connection] = []
 
     def start(self) -> None:
@@ -59,6 +98,7 @@ class PeripheralsProcess:
             self.pipe_main_proc.close()
             logger.debug("Sent stop signal to Peripherals process.")
 
+        assert self.process is not None, "start() runs before kill()"
         self.process.join()
         logger.info("Peripherals process exited.")
 
@@ -87,7 +127,7 @@ class PeripheralsProcess:
                 self.pipe_main_proc.close()
             async_queue.put_nowait(None)
 
-    def _dispatch_to_engines(self, action: Any) -> None:
+    def _dispatch_to_engines(self, action: object) -> None:
         """
         Main Process task.
         Dispatches the action to all engines.
@@ -104,51 +144,60 @@ class PeripheralsProcess:
         :return:
         """
         setup_child_proc_logging(self.log_queue)
+        exit_with_parent()
 
-        async def _launch_tasks():
-            """
-            Runs all tasks until the first one completes/cancels.
-            Then cancels all other tasks.
-            :return:
-            """
-            install_loop_diagnostics()
-            recorder = Recorder()
-            discord_io = DiscordIO(self.pipe_spawned_proc)
+        asyncio.run(self._launch_tasks())
 
-            task_recorder = asyncio.create_task(
-                recorder.start(), name="Screen Recorder"
-            )
-            task_discord_relay = asyncio.create_task(
-                discord_io.relay_main_to_disc(), name="Discord Relay"
-            )
-            task_discord_io = asyncio.create_task(
-                discord_io.start(discord_io.config["DEFAULT"]["DISCORD_TOKEN"]),
-                name="Discord I/O",
-            )
-
-            task_done, task_pending = await asyncio.wait(
-                [task_recorder, task_discord_relay, task_discord_io],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-
-            for task in task_done:
-                logger.info("Task %s has exited.", task.get_name())
-            for task in task_pending:
-                logger.info("Cancelling task %s.", task.get_name())
-                task.cancel()
-
-            # Same reasoning as the Engine and SessionManager wait sites: retrieve
-            # every done task's exception, not just the first one popped.
-            failures = [
-                task
-                for task in task_done
-                if not task.cancelled() and task.exception() is not None
-            ]
-            for task in failures:
-                logger.error(
-                    "Task %s raised.", task.get_name(), exc_info=task.exception()
+    async def _launch_tasks(self) -> None:
+        """
+        Child Process. Runs all tasks until the first one completes/cancels.
+        Then cancels all other tasks.
+        :return:
+        """
+        install_loop_diagnostics()
+        recorder = Recorder(section=self.recording_section)
+        tasks = [asyncio.create_task(recorder.start(), name="Screen Recorder")]
+        if self.discord:
+            discord_io = DiscordIO(self.pipe_spawned_proc)  # pyright: ignore[reportArgumentType]
+            tasks.append(
+                asyncio.create_task(
+                    discord_io.relay_main_to_disc(), name="Discord Relay"
                 )
-            if failures:
-                raise failures[0].exception()
+            )
+            tasks.append(
+                asyncio.create_task(
+                    discord_io.start(discord_io.config["DEFAULT"]["DISCORD_TOKEN"]),
+                    name="Discord I/O",
+                )
+            )
+        else:
+            tasks.append(
+                asyncio.create_task(
+                    drain_pipe(self.pipe_spawned_proc),  # pyright: ignore[reportArgumentType]
+                    name="Discord Off",
+                )
+            )
 
-        asyncio.run(_launch_tasks())
+        task_done, task_pending = await asyncio.wait(
+            tasks, return_when=asyncio.FIRST_COMPLETED
+        )
+
+        for task in task_done:
+            logger.info("Task %s has exited.", task.get_name())
+        for task in task_pending:
+            logger.info("Cancelling task %s.", task.get_name())
+            task.cancel()
+
+        # Same reasoning as the Engine and SessionManager wait sites: retrieve
+        # every done task's exception, not just the first one popped.
+        failures = [
+            task
+            for task in task_done
+            if not task.cancelled() and task.exception() is not None
+        ]
+        for task in failures:
+            logger.error("Task %s raised.", task.get_name(), exc_info=task.exception())
+        if failures:
+            first = failures[0].exception()
+            assert first is not None, "failures holds only tasks that raised"
+            raise first

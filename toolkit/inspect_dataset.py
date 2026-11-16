@@ -1,11 +1,15 @@
 """
-Dataset annotation viewer.
+Dataset annotation viewer: browse training images with their YOLO boxes.
 
-Browse training images and visualize their YOLO format annotations.
-Helps spot labeling errors and class imbalances.
+Run it to spot labelling errors and class imbalances in a dataset under
+`data/datasets/<name>/` (`images/` and `labels/`, nested by split or flat,
+with an optional `data.yaml` for the class names). A PyQt window; pick the
+dataset from its drop-down.
 
-Usage:
-  python toolkit/inspect_dataset.py
+    python toolkit/inspect_dataset.py
+
+Run it from the repo root. Needs PyQt6 and a dataset on disk; no client. It
+only reads files and sends no input.
 """
 
 import os

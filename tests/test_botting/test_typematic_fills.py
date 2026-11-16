@@ -176,7 +176,7 @@ def test_single_jump_repeat_key_still_presses_when_the_key_is_not_held() -> None
     every Step after it is a legal repeat. Silencing this would stop catching ropes.
     """
     wrapper = mv.single_jump(
-        HANDLE, "right", JUMP_KEY, repeat_key="up", initial_state=NOBODY
+        HANDLE, "right", JUMP_KEY, repeat_key="up", initial_state=NOBODY, duration=0.5
     )
 
     assert _keydowns_of(wrapper, "up") > 1
@@ -191,6 +191,7 @@ def test_single_jump_repeat_key_stays_silent_when_the_key_is_already_held() -> N
         JUMP_KEY,
         repeat_key="up",
         initial_state=InputState(frozenset({"right", "up"}), None, 0.0),
+        duration=0.5,
     )
 
     assert _keydowns_of(wrapper, "up") == 0
@@ -230,6 +231,20 @@ def test_truncate_lands_exactly_on_the_limit_for_a_multi_step_walk() -> None:
     wrapper = mv.move(HANDLE, "right", duration=3.0, initial_state=NOBODY)
 
     assert wrapper.truncate(1.0).duration == pytest.approx(1.0, abs=1e-9)
+
+
+def test_truncate_lands_exactly_when_less_than_one_step_overhead_is_left() -> None:
+    """
+    Issue #229: the next Step cannot fit in a remainder smaller than `OVERHEAD`, and the
+    cut used to stop that much short. Which walks hit it depended on the random delays,
+    so the multi-step test above failed about 7% of runs.
+    """
+    wrapper = KeyboardInputWrapper(
+        HANDLE, ["right", "right"], ["keydown"] * 2, [0.5, 0.5], initial_state=NOBODY
+    )
+    limit = 0.5 + OVERHEAD + OVERHEAD / 2
+
+    assert wrapper.truncate(limit).duration == pytest.approx(limit, abs=1e-9)
 
 
 def test_truncate_keeps_the_step_whose_delay_it_trims() -> None:

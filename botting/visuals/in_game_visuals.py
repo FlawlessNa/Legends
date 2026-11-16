@@ -3,15 +3,16 @@ Base classes for in-game visuals.
 Contains methods for reading text, detecting colors or images in the game window.
 """
 
+import functools
 import logging
 import os
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from types import ModuleType
 from typing import Any, ClassVar
 
 import cv2
 import numpy as np
-import pytesseract
 import torch.cuda
 from cv2.typing import MatLike
 from numpy import dtype, generic, ndarray
@@ -22,6 +23,21 @@ from botting.utilities import Box, find_image, group_rectangles, take_screenshot
 from paths import ROOT
 
 logger = logging.getLogger(__name__)
+
+
+@functools.cache
+def _tesseract() -> ModuleType:
+    """
+    `pytesseract`, pointed at the configured executable: imported, and set, on
+    first use. Nothing else imports it, so a bot whose readers don't OCR never
+    loads it.
+    """
+    import pytesseract
+
+    from paths import TESSERACT
+
+    pytesseract.pytesseract.tesseract_cmd = TESSERACT
+    return pytesseract
 
 
 class InGameBaseVisuals(ABC):
@@ -76,6 +92,7 @@ class InGameBaseVisuals(ABC):
         :return:
         """
         img = self._preprocess_img(image)
+        pytesseract = _tesseract()
         result = pytesseract.image_to_data(
             img, lang="eng", config=config or "", output_type=pytesseract.Output.DICT
         )
@@ -275,14 +292,15 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         """
         Register a cache_id for the prediction cache.
         """
-        InGameDetectionVisuals._prediction_cache[cache_id] = None  # type: ignore
-        InGameDetectionVisuals._arg_cache[cache_id] = None  # type: ignore
+        InGameDetectionVisuals._prediction_cache[cache_id] = None  # pyright: ignore[reportArgumentType]
+        InGameDetectionVisuals._arg_cache[cache_id] = None  # pyright: ignore[reportArgumentType]
 
     @staticmethod
-    def register_models(models_path: dict[str, str]) -> None:
+    def register_models(models_path: dict[str, str] | None) -> None:
         """
         Register models based on their path specifications, if not already registered.
         All models are registered to the base class InGameDetectionVisuals.
+        ``None`` registers none: a bot that detects nothing needs no model.
         """
         if models_path is None:
             return
@@ -328,7 +346,7 @@ class InGameDetectionVisuals(InGameBaseVisuals, ABC):
         """
         if model is None:
             return False
-        detectable_classes = model.names.values()  # type: ignore
+        detectable_classes = model.names.values()
         if cls.__name__.replace(" ", "").replace(".", "") in detectable_classes:
             cls._model_cls_name = cls.__name__
             return True

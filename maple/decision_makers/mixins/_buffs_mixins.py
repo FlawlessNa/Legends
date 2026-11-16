@@ -167,11 +167,27 @@ class RebuffMixin:
             if skill.type == buff_type and skill.use_by_default
         ]
 
-    def _read_buffs(self, buffs: Sequence[str]) -> BuffsReading:
-        """The buffs in a frame captured now. The DecisionMaker must name
-        `BUFFS` in its `screen_readers`, so the reader exists."""
-        self.data.update_attribute("current_frame")
-        return self.data.buffs_reader.read(self.data.current_frame, buffs)
+    def _create_buffs_attributes(self) -> None:
+        """
+        `buffs`, a `Reading[dict[str, BuffState]]` of the profile's buffs
+        (`buff_names`), from the bot's one `buffs_reader` and its
+        `current_frame`. It is never refreshed on its own: a consumer updates
+        `current_frame`, then `buffs`.
+
+        The DecisionMaker must name `BUFFS` in its `screen_readers`, so the
+        reader exists when the bot starts.
+        """
+        reader = self.data.buffs_reader
+        names = tuple(self.data.buff_names)
+        self.data.create_or_reconfigure_attribute(
+            "buffs", lambda: reader.read(self.data.current_frame, names)
+        )
+        self.data.set_feature("has_buffs_attributes")
+
+    def _read_buffs(self) -> BuffsReading:
+        """The profile's buffs in a frame captured now (`buffs`)."""
+        self.data.update_attributes("current_frame", "buffs")
+        return self.data.buffs
 
     def _buff_confirmation(
         self, before: BuffsReading, after: BuffsReading, buff: str
@@ -193,7 +209,7 @@ class RebuffMixin:
         names = [buff.name for buff in buffs]
         if predicate is None:
             predicate = CastCheck(
-                lambda: self._read_buffs(names),
+                self._read_buffs,
                 names,
                 self._buff_confirmation,
                 owner=self,

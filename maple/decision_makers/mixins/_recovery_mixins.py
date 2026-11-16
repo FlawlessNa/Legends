@@ -3,7 +3,7 @@ The thin half of movement recovery: the plumbing a `StuckMonitor` refuses to kno
 about.
 
 Every judgement - which symptom fired, which rung the Reaction Ladder is on, what
-the suspected grid connection is - belongs to `maple.movement_recovery.StuckMonitor`,
+the suspected move is - belongs to `maple.movement_recovery.StuckMonitor`,
 which runs offline and is checked offline. What lives here is reading the loop's
 state out of `BotData`, measuring the Delivery Gate across the process boundary, and
 turning a `Reaction` into an `ActionRequest`. This mirrors the
@@ -19,16 +19,19 @@ reading the gate wants: preemption stops the clocks.
 """
 
 import asyncio
+import functools
 import logging
 import queue
 import time
 from collections.abc import Callable, Mapping, Sequence
-from typing import Protocol
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DiscordRequest, ProxyFactory
 from maple.actions import priorities
 from maple.actions.movements_v2 import random_jump
+from maple.model.mechanics.physics import VRPhysics
+from maple.model.navigation import Path, Point
+from maple.model.world import WorldMap
 from maple.movement_recovery import (
     Reaction,
     RecoveryThresholds,
@@ -36,6 +39,9 @@ from maple.movement_recovery import (
     StuckMonitor,
     Symptom,
 )
+from maple.screen.position import marker_of_feet
+
+from ._rotation_mixins import read_position
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -49,13 +55,6 @@ DEFAULT_ESCALATION_TARGETS = (
     "MobsHitting",
     "TelecastMobsHitting",
 )
-
-
-class _Node(Protocol):
-    """The two fields this mixin needs off a Path node."""
-
-    x: int
-    y: int
 
 
 class MovementRecoveryMixin:
@@ -74,8 +73,11 @@ class MovementRecoveryMixin:
     emit: Callable[[str, Mapping[str, object]], None]
     _proxies: ProxyFactory
     _disable_decision_makers: Callable[..., None]
-    _abandon_current_target: Callable[[], tuple[int, int]]
+    _abandon_current_target: Callable[[], Point]
     _has_movements: Callable[[], bool]
+    # Supplied by `MovementsMixin`, which `Rotation` co-inherits: the Reflex's jump
+    # lasts the flight of the character's current jump.
+    _physics: Callable[[], VRPhysics]
 
     #: How long after the loop starts the detectors begin judging. A Session's
     #: first seconds are spent finding the character and the minimap, and a Stall
@@ -99,7 +101,18 @@ class MovementRecoveryMixin:
             provisional defaults, which issue #120's Trials are what actually fit.
         :param escalation_targets: The DecisionMakers an Escalate suspends.
         """
-        self._monitor = StuckMonitor(thresholds, emit=self.emit)
+        # Telemetry keeps the target's canvas px beside its virtual px (R-D2).
+        world_map: WorldMap | None = getattr(self.data, "world_map", None)
+        transform = None if world_map is None else world_map.minimap
+        self._monitor = StuckMonitor(
+            thresholds,
+            emit=self.emit,
+            to_canvas=(
+                None
+                if transform is None
+                else functools.partial(marker_of_feet, transform)
+            ),
+        )
         self._recovery_starts_at = time.perf_counter() + self.RECOVERY_GRACE_PERIOD
         self._escalation_targets = tuple(escalation_targets)
         self._escalated = False
@@ -135,11 +148,16 @@ class MovementRecoveryMixin:
         if now < self._recovery_starts_at:
             return
 
+        # Virtual px throughout (#398): the position fusion read, the target on
+        # the map's platforms, and the graph Path's remaining time.
+        reading = read_position(self.data)
+        position = None if reading.value is None else (reading.value.x, reading.value.y)
+        path: Path | None = self.data.path
         reaction = self._monitor.observe(
-            self.data.current_minimap_position,
+            position,
             now,
             target=self.data.next_target,
-            path=_as_points(self.data.path),
+            remaining=None if path is None else path.duration,
             # The *actionable* plan, which is what both the Delivery Gate and
             # Starvation ask about. A plan holding nothing but the END_OF_MOVEMENT
             # sentinel compiles to no Input Sequence and is never dispatched, so
@@ -176,12 +194,13 @@ class MovementRecoveryMixin:
 
     def _position_is_valid(self) -> bool:
         """
-        Whether the position the detectors are about to judge was actually detected
+        Whether the position the detectors are about to judge was actually read
         recently. Reacting to a detection outage is `_minimap_pos_error_handler`'s;
         this only stops the Stuck clocks from charging the outage to the rotation,
-        which is how a blind bot used to look exactly like a stuck one.
+        which is how a blind bot used to look exactly like a stuck one. An
+        `UNSURE` read is handed over as no position, which freezes them too.
         """
-        age = self.data.get_time_since_last_valid_update("current_minimap_position")
+        age = self.data.get_time_since_last_valid_update("current_position")
         return age <= self.STALE_POSITION_AFTER
 
     def _on_expected_minimap(self) -> bool:
@@ -223,6 +242,8 @@ class MovementRecoveryMixin:
             self.send(self._alert_request(self._abandon_message(reaction, replacement)))
         elif reaction.rung is Rung.ESCALATE:
             self._escalate(reaction)
+        elif reaction.symptom is Symptom.UNSURE_POSITION:
+            self._report_unsure_position()
         else:
             # Starvation: reported, never reacted to in-game. Nothing about the map
             # is wrong, so a Reflex would be noise and an Abandon would be a lie.
@@ -237,6 +258,26 @@ class MovementRecoveryMixin:
                     f"reaching the client."
                 )
             )
+
+    def _report_unsure_position(self) -> None:
+        """
+        The Unsure position: an alert, and nothing in-game. Moving a character the
+        bot can't place would be a guess (C-NOGUESS), so the rotation keeps
+        holding and a human looks.
+        """
+        reading = read_position(self.data)
+        window = self._monitor.thresholds.unsure_window
+        detail = reading.detail or "no detail"
+        logger.error(
+            "%s could not place itself for %.0f s: %s", self.data.ign, window, detail
+        )
+        self.send(
+            self._alert_request(
+                f"{self.data.ign} has not been able to place itself for "
+                f"{window:.0f} s ({detail}), so the rotation is holding. Another "
+                f"player standing on it is the usual cause."
+            )
+        )
 
     def _reflex_request(self, reaction: Reaction) -> ActionRequest:
         """
@@ -255,7 +296,11 @@ class MovementRecoveryMixin:
             block_lower_priority=True,
             cancels_itself=True,
             cancel_tasks=[f"{self}"],
-            args=(self.data.handle, controller.key_binds(self.data.ign)["jump"]),
+            args=(
+                self.data.handle,
+                controller.key_binds(self.data.ign)["jump"],
+                self._physics().jump_duration,
+            ),
         )
 
     def _alert_request(self, message: str) -> ActionRequest:
@@ -271,7 +316,7 @@ class MovementRecoveryMixin:
             priority=priorities.FAILSAFE,
             requeue_if_not_scheduled=False,
             cancels_itself=True,
-            discord_request=DiscordRequest(message, self.data.current_client_img),
+            discord_request=DiscordRequest(message, self.data.current_frame.pixels),
         )
 
     def _escalate(self, reaction: Reaction) -> None:
@@ -307,7 +352,7 @@ class MovementRecoveryMixin:
                 cancels_itself=True,
                 cancel_tasks=[f"{self}"],
                 discord_request=DiscordRequest(
-                    self._escalate_message(reaction), self.data.current_client_img
+                    self._escalate_message(reaction), self.data.current_frame.pixels
                 ),
                 args=(self.data.handle,),
             )
@@ -316,22 +361,19 @@ class MovementRecoveryMixin:
 
     # --- messages ----------------------------------------------------------------------
 
-    def _abandon_message(self, reaction: Reaction, replacement: tuple[int, int]) -> str:
+    def _abandon_message(self, reaction: Reaction, replacement: Point) -> str:
         return (
-            f"{self.data.ign} gave up on {reaction.target} after "
-            f"{reaction.symptom.value} and is heading for {replacement} instead. "
-            f"{self._suspect_clause(reaction)}"
+            f"{self.data.ign} gave up on {_px(reaction.target)} after "
+            f"{reaction.symptom.value} and is heading for {_px(replacement)} "
+            f"instead. {self._suspect_clause(reaction)}"
         )
 
     def _escalate_message(self, reaction: Reaction) -> str:
+        target = _px(reaction.target)
         if reaction.abandon_count:
-            cause = (
-                f"has now abandoned {reaction.target} {reaction.abandon_count} times"
-            )
+            cause = f"has now abandoned {target} {reaction.abandon_count} times"
         else:
-            cause = (
-                f"could not recover from {reaction.symptom.value} at {reaction.target}"
-            )
+            cause = f"could not recover from {reaction.symptom.value} at {target}"
         return (
             f"{self.data.ign} {cause} and is paused with its keys released. "
             f"{self._suspect_clause(reaction)} Send RESUME when it is unstuck."
@@ -350,7 +392,7 @@ class MovementRecoveryMixin:
     # --- Main Process procedures ---------------------------------------------------------
 
     @staticmethod
-    async def _wait_and_random_jump(handle: int, jump_key: str) -> None:
+    async def _wait_and_random_jump(handle: int, jump_key: str, flight: float) -> None:
         """
         The Reflex itself, run in Main Process.
 
@@ -362,7 +404,7 @@ class MovementRecoveryMixin:
         """
         controller.release_directions(handle)
         await asyncio.sleep(3.0)
-        await random_jump(handle, jump_key).send()
+        await random_jump(handle, jump_key, flight).send()
 
     @staticmethod
     async def _release_movement_keys(handle: int) -> None:
@@ -373,16 +415,9 @@ class MovementRecoveryMixin:
         """An Action whose whole purpose is the Discord alert riding on it."""
 
 
-def _as_points(path: Sequence[_Node] | None) -> tuple[tuple[int, int], ...]:
-    """
-    The Path as plain coordinates. The monitor measures the remaining Path's
-    *length* and locates the suspected connection on it; neither needs a
-    `MinimapNode`, and taking one would put the pathfinder's types in front of
-    every offline check.
-    """
-    if not path:
-        return ()
-    return tuple((int(node.x), int(node.y)) for node in path)
+def _px(point: Point) -> str:
+    """A virtual position, rounded to the px, for a human to read."""
+    return f"({round(point[0])}, {round(point[1])}) virtual px"
 
 
 #: Re-exported so a caller configuring the mixin does not also have to import from

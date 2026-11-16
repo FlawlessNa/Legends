@@ -28,6 +28,7 @@ from botting.controller.inputs.focused_inputs import EVENTS, KeyboardInputWrappe
 from botting.controller.inputs.held_keys_ledger import InputState
 from botting.controller.inputs.inputs_helpers import DELAY, OVERHEAD
 from maple.actions.movements_v2 import telecast, telecast_compiler
+from maple.actions.skills_related_v2 import cast_skill_compiler
 from maple.model.characters.maple_skills import MapleSkill
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
@@ -69,7 +70,7 @@ UNTRUNCATED_ULTIMATE = _StubSkill(
 
 
 _TELEPORT_PLAN = (
-    _MovementComponent(MovementTypes.TELEPORT_RIGHT, 3),
+    _MovementComponent(MovementTypes.TELEPORT_RIGHT, 450, casts=3),
     _MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),
 )
 
@@ -80,7 +81,7 @@ _WALK_PLAN = (
 
 _WALK_THEN_TELEPORT_PLAN = (
     _MovementComponent(MovementTypes.WALK_RIGHT, 5),
-    _MovementComponent(MovementTypes.TELEPORT_RIGHT, 3),
+    _MovementComponent(MovementTypes.TELEPORT_RIGHT, 450, casts=3),
     _MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),
 )
 
@@ -378,12 +379,15 @@ def test_the_rebuild_spends_the_regions_own_duration() -> None:
     length, which is what keeps the plan's distance intent intact.
 
     "Keeps its length" is bounded, not exact: `_append_telecast_taps` stops once less
-    than one `DELAY` of budget remains, because there is no room left to hold another
-    press. So the rebuild may fall a press short of the region and must never overrun
-    it. This was pinned at `abs=1e-6` while the teleport fill and that exit threshold
-    both ran off `DELAY` and the remainder happened to land on zero; issue #99 moved the
-    fill to the measured typematic interval and the slack became visible at ~16ms. The
-    bound is what the loop guarantees - the exact equality never was.
+    than a whole tap (`2 * DELAY + 2 * OVERHEAD`) of budget remains, because there is
+    no room left to press, release and wait. So the rebuild may fall a tap short of the
+    region and must never overrun it. This was pinned at `abs=1e-6` while the teleport
+    fill and that exit threshold both ran off `DELAY` and the remainder happened to land
+    on zero; issue #99 moved the fill to the measured typematic interval and the slack
+    became visible at ~16ms. The bound was one `DELAY` until issue #498: the slack
+    reaches ~35ms, and past one `DELAY` the loop used to start a tap with no room for
+    it, overrunning the region on about one compile in 250. The bound is what the loop
+    guarantees - the exact equality never was.
     """
     sequence = _movement_compiler(_TELEPORT_PLAN)(InputState())
     before = sequence.duration
@@ -391,7 +395,36 @@ def test_the_rebuild_spends_the_regions_own_duration() -> None:
     fused = telecast(sequence, IGN, TELEPORT_SKILL, UNTRUNCATED_ULTIMATE)
 
     assert fused.duration <= before + 1e-6
-    assert before - fused.duration < DELAY
+    assert before - fused.duration < 2 * DELAY + 2 * OVERHEAD
+
+
+def test_slack_too_short_for_a_whole_tap_adds_no_tap() -> None:
+    """
+    Issue #498. `teleport`'s fill stops on the first Step at or past its limit and then
+    releases the key, so a compiled region runs a little longer than
+    `animation_time * num_times`: up to one typematic Step plus the spread between two
+    random delays, ~35ms. That slack could pass the old `DELAY` exit threshold, and
+    the rebuild then started a tap with no room for its release and the wait after
+    it: one teleport too many, and a sequence ~33ms longer than its region. The
+    random draws made that happen in about one compile in 250.
+
+    Pinned here without the draws: a region whose budget is three cadences plus
+    `1.5 * DELAY`, which is more than one `DELAY` and less than a whole tap.
+    """
+    slack = 1.5 * DELAY
+    region = 3 * TELEPORT_SKILL.animation_time + slack
+    sequence = KeyboardInputWrapper(
+        HANDLE,
+        ["right", TELEPORT_KEY],
+        ["keydown", "keydown"],
+        [0.1, region - OVERHEAD],
+        initial_state=InputState(),
+    )
+
+    fused = telecast(sequence, IGN, TELEPORT_SKILL, UNTRUNCATED_ULTIMATE)
+
+    assert len(_tap_indices(fused)) == 3
+    assert fused.duration <= sequence.duration + 1e-9
 
 
 # --- The compiler wrapper ------------------------------------------------------
@@ -514,6 +547,22 @@ def test_the_compiler_partial_is_picklable() -> None:
     )
 
     assert pickle.loads(pickle.dumps(compiler)) is not None
+
+
+def test_both_outcomes_carry_the_correlation_id_for_key_records() -> None:
+    """#538: the fused sequence and the fallback cast are both stamped with the
+    id baked into the partial, so their key records join to the decision."""
+    inner, _ = _compiler_for(_movement_compiler(_TELEPORT_PLAN)(InputState()))
+    fused = _telecast(inner, correlation_id="cid-538")
+    nothing, _ = _compiler_for(None)
+    fallback = _telecast(nothing, correlation_id="cid-538")
+
+    assert fused.correlation_id == "cid-538"
+    assert fallback.correlation_id == "cid-538"
+    cast = cast_skill_compiler(
+        InputState(), handle=HANDLE, ign=IGN, skill=ULTIMATE, correlation_id="cid-538"
+    )
+    assert cast.correlation_id == "cid-538"
 
 
 # --- Over a real Movement Plan -------------------------------------------------

@@ -6,6 +6,7 @@ import time
 
 from botting import PARENT_LOG
 from botting.core import ActionRequest, BotData, DecisionMaker
+from botting.screen import Status
 from maple.actions import priorities, toggle_menu
 from maple.screen.chat import CHAT
 from maple.telemetry_events import (
@@ -47,7 +48,7 @@ class CheckMobsStillSpawn(
 
     async def _decide(self) -> None:
         mob_count = self.mob_count_in_img(
-            self.data.current_client_img, self.data.current_mobs, debug=True
+            self.data.current_frame.pixels, self.data.current_mobs, debug=True
         )
 
         # Enough mobs, reset timer
@@ -87,17 +88,14 @@ class CheckMobsStillSpawn(
             lambda: self._chat_shown() is False,
             timeout=5.0,
         )
+        # Wander the map's platforms until mobs show up: a new random target
+        # each time the current one is reached (#398). A `game_data` map has no
+        # feature cycle to walk instead.
         self.data.snapshot_attribute("next_target")
-        if self.data.current_minimap.feature_cycle:
-            self.data.reconfigure_attribute(
-                "next_target",
-                update_function=self._update_next_target_from_cycle,
-            )
-        else:
-            self.data.reconfigure_attribute(
-                "next_target",
-                update_function=self.data.current_minimap.random_point,
-            )
+        self.data.reconfigure_attribute(
+            "next_target",
+            update_function=self._update_next_random_target,
+        )
 
     async def _clear_failsafe_procedure(self) -> None:
         await self._validate_request_async(
@@ -127,7 +125,7 @@ class CheckMobsStillSpawn(
     async def _rotate_until_mobs_detected(self) -> None:
         while True:
             mob_count = self.mob_count_in_img(
-                self.data.current_client_img, self.data.current_mobs, debug=False
+                self.data.current_frame.pixels, self.data.current_mobs, debug=False
             )
             logger.debug("%s sees %s mob(s).", self.data.ign, mob_count)
             if mob_count >= self._alert_threshold:
@@ -141,7 +139,16 @@ class CheckMobsStillSpawn(
         frame), which neither validation accepts.
         """
         self.data.update_attribute("current_frame")
-        return self.data.chat_reader.shown(self.data.current_frame).value
+        reading = self.data.chat_reader.shown(self.data.current_frame)
+        if reading.status is not Status.READ:
+            logger.debug(
+                "%s can't tell whether the chat is shown: %s (%s)",
+                self,
+                reading.status.value,
+                reading.detail,
+            )
+            return None
+        return reading.value
 
     def _toggle_chat_request(self) -> ActionRequest:
         return ActionRequest(

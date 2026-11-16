@@ -3,6 +3,7 @@ import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import threading
+import time
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable, Mapping
@@ -193,6 +194,12 @@ class DecisionMaker(ABC):
         """
         Decide, throttle, repeat, until cancelled.
 
+        The throttle is the loop's **period**: the next decision starts
+        `_throttle` s after the last one started, or at once when that decision
+        took longer. It used to be a pause after each decision, which added a
+        position read's time (0.1 to 0.2 s) to the 0.1 s interval, so decisions
+        came every 0.34 s (#508).
+
         Taken off `task` so a DecisionMaker that owns more than one loop can run
         them all on the same machinery rather than reimplementing it - each loop
         mints its own Correlation IDs and reports under its own name.
@@ -203,9 +210,12 @@ class DecisionMaker(ABC):
         try:
             while True:
                 self.correlation_id = str(uuid.uuid4())
+                started = time.monotonic()
                 await decide()
                 if self._throttle:
-                    await asyncio.sleep(self._throttle)
+                    await asyncio.sleep(
+                        max(0.0, self._throttle - (time.monotonic() - started))
+                    )
         except asyncio.CancelledError:
             logger.info("%s has been disabled.", name)
             # TODO - see if cleanup is required

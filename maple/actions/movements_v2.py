@@ -193,9 +193,34 @@ def single_jump(
     structure: controller.KeyboardInputWrapper | None = None,
     repeat_key: str | None = None,
     initial_state: controller.InputState | None = None,
+    *,
+    duration: float,
+    off_rope: bool = False,
 ) -> controller.KeyboardInputWrapper:
-    # TODO - Adjust the hard-coded 0.75 delay appropriately
+    """
+    One jump: the direction pressed (unless already held), the jump key tapped,
+    then the direction held through the flight.
+
+    :param duration: The jump's flight, seconds from take-off (the jump key's
+        press) to landing, as the `FootholdGraph` traced it from `VRPhysics`. The
+        jump key's tap counts towards it.
+    :param off_rope: The jump takes off sideways from a rope or a ladder. A climb
+        key still down (`up` or `down`, a climb cut at the Action cap or the
+        climb just before) comes up first, with the gap `jump_on_rope` leaves
+        after its own releases: with `down` held, the client climbs on down the
+        rope and never takes the jump (#561: 56 of 64 jumps keyed so on the
+        descent stayed on it, and 7 of the 8 others left it at its bottom).
+    """
     keys_held = _resolve_held_keys(structure, handle, initial_state)
+    if off_rope and direction in ("left", "right"):
+        for key in sorted(keys_held & {"up", "down"}):
+            gap = next(controller.random_delay) * 5
+            if structure is None:
+                structure = controller.KeyboardInputWrapper(
+                    handle, [key], ["keyup"], [gap], initial_state=initial_state
+                )
+            else:
+                structure.append(key, "keyup", gap)
     first_keys = [direction, jump_key] if direction not in keys_held else [jump_key]
     if structure is None:
         first_steps: list[str | list[str]] = list(first_keys)
@@ -212,32 +237,18 @@ def single_jump(
     else:
         for key in first_keys:
             structure.append(key, "keydown", next(controller.random_delay))
+    # The take-off is the jump key's press: its tap is already part of the flight.
+    flight = max(duration - structure.delays[-1], 0.0)
     if repeat_key is not None:
         structure.fill(
             repeat_key,
             "keydown",
             controller.typematic_delay,
-            limit=0.75 + structure.duration,
+            limit=flight + structure.duration,
         )
         if repeat_key not in structure.forced_key_releases:
             structure.forced_key_releases.append(repeat_key)
-    structure.append(jump_key, "keyup", 0.75)
-    #
-    # elif direction == "down":
-    #     # Special case where we voluntarily trigger the automatic repeat feature
-    #     # to avoid static position.
-    #     initial_duration = structure.duration
-    #     structure.append(direction, "keydown", next(controller.random_delay) * 2)
-    #     structure.append(jump_key, "keydown", next(controller.random_delay) * 2)
-    #     structure.append(jump_key, "keyup", next(controller.random_delay) * 2)
-    #     while structure.duration - initial_duration < 0.75:
-    #         structure.append(jump_key, "keydown", next(controller.random_delay) * 2)
-    #         structure.append(jump_key, "keyup", next(controller.random_delay) * 2)
-    # else:
-    #     structure.append(direction, "keydown", next(controller.random_delay) * 2)
-    #     structure.append(jump_key, "keydown", next(controller.random_delay) * 2)
-    #     structure.append(jump_key, "keyup", 0.75)
-
+    structure.append(jump_key, "keyup", flight)
     structure.forced_key_releases.append(jump_key)
     return structure
 
@@ -248,6 +259,8 @@ def jump_on_rope(
     jump_key: str,
     structure: controller.KeyboardInputWrapper | None = None,
     initial_state: controller.InputState | None = None,
+    *,
+    duration: float,
 ) -> controller.KeyboardInputWrapper:
     """
     Jump on a rope. The secondary direction is maintained after the jump.
@@ -258,6 +271,8 @@ def jump_on_rope(
     :param initial_state: The keyboard state to assume when `structure` is None -
         held movement keys, typematic owner and how long it has owned - instead of
         querying the live Win32 state.
+    :param duration: Seconds from take-off to the grab, as the `FootholdGraph`
+        traced the arc from `VRPhysics`: the jump key and `up` are held that long.
     :return:
     """
     if structure is None:
@@ -278,7 +293,7 @@ def jump_on_rope(
     if direction not in structure.keys_held:
         structure.append(direction, "keydown", next(controller.random_delay) * 5)
 
-    structure.append([jump_key, "up"], ["keydown", "keydown"], 0.75)
+    structure.append([jump_key, "up"], ["keydown", "keydown"], duration)
 
     # The press above can itself release `direction`: `_clear_opposites` drops the
     # opposite of any key about to go down, and "up"'s opposite is "down" - the
@@ -293,6 +308,41 @@ def jump_on_rope(
         release_events.append("keyup")
     structure.append(release_keys, release_events, next(controller.random_delay) * 2)
 
+    structure.forced_key_releases.append(jump_key)
+    return structure
+
+
+def jump_up_on_rope(
+    handle: int,
+    jump_key: str,
+    structure: controller.KeyboardInputWrapper | None = None,
+    initial_state: controller.InputState | None = None,
+    *,
+    duration: float,
+) -> controller.KeyboardInputWrapper:
+    """
+    Jump straight up into a rope's bottom, from right under it (#111): every
+    other held key released first, as `jump_on_rope` does, then the jump key
+    and `up` pressed together and held for the flight to the rope, then the
+    jump key released. `up` stays held, into the climb.
+
+    :param duration: Seconds from take-off to the grab, as the `FootholdGraph`
+        traced it from `VRPhysics`.
+    """
+    if structure is None:
+        structure = controller.KeyboardInputWrapper(
+            handle, [], [], [], initial_state=initial_state
+        )
+    for key in sorted(structure.keys_held):
+        if key == "up":
+            continue
+        # Longer delay to try preventing "static" jumps, as `jump_on_rope`.
+        structure.append(key, "keyup", next(controller.random_delay) * 5)
+    if "up" in structure.keys_held:
+        structure.append(jump_key, "keydown", duration)
+    else:
+        structure.append([jump_key, "up"], ["keydown", "keydown"], duration)
+    structure.append(jump_key, "keyup", next(controller.random_delay) * 2)
     structure.forced_key_releases.append(jump_key)
     return structure
 
@@ -440,7 +490,16 @@ def _append_telecast_taps(
 
     At least one tap is always emitted, and the last one is shortened to whatever
     budget is left rather than overrunning the region.
+
+    A tap after the first needs room for a whole tap: a press, its release and at
+    least one `DELAY` of wait after it, `2 * DELAY + 2 * OVERHEAD`. Less than that is
+    the slack `teleport`'s fill leaves past `animation_time * num_times` (its last Step
+    overshoots the limit, and its release follows), up to ~35ms. The exit used to be
+    one `DELAY`, which that slack could pass: the rebuild then started a tap it had no
+    room for, pressing one teleport too many and running ~33ms past the region
+    (issue #498).
     """
+    whole_tap = 2 * controller.DELAY + 2 * controller.OVERHEAD
     remaining = budget
     while True:
         press = next(controller.random_delay)
@@ -451,8 +510,8 @@ def _append_telecast_taps(
         structure.append([teleport_key, ultimate_key], ["keydown", "keydown"], press)
         structure.append([teleport_key, ultimate_key], ["keyup", "keyup"], gap)
         remaining -= press + gap + 2 * controller.OVERHEAD
-        if remaining < controller.DELAY:
-            # Too little left to hold another press - and below the float noise the
+        if remaining < whole_tap:
+            # Too little left for another whole tap - and below the float noise the
             # subtraction above leaves behind.
             return
 
@@ -603,19 +662,29 @@ def telecast_compiler(
             dict(unavailable),
             logger_name=logger.name,
         )
-        return cast_skill(handle, ign, ultimate_skill, initial_state=initial_state)
-    return telecast(structure, ign, teleport_skill, ultimate_skill)
+        fallback = cast_skill(handle, ign, ultimate_skill, initial_state=initial_state)
+        fallback.correlation_id = correlation_id
+        return fallback
+    fused = telecast(structure, ign, teleport_skill, ultimate_skill)
+    # Stamped here as well: `telecast` rebuilds the sequence (#538's key records).
+    fused.correlation_id = correlation_id
+    return fused
 
 
-def random_jump(handle: int, jump_key: str) -> controller.KeyboardInputWrapper:
+def random_jump(
+    handle: int, jump_key: str, duration: float
+) -> controller.KeyboardInputWrapper:
     """
     Builds a jump in a random direction, releasing whatever is currently held first.
     That release is sent immediately, so this must be called from Main Process - build
     it inside the ActionRequest procedure rather than when composing the request.
+
+    :param duration: The jump's flight: a jump that lands back at its take-off's
+        height, `VRPhysics.jump_duration` with the character's current stats.
     """
     directions: tuple[Literal["left"], Literal["right"]] = ("left", "right")
     direction = random.choice(directions)
     controller.release_all(handle)
-    structure = single_jump(handle, direction, jump_key)
+    structure = single_jump(handle, direction, jump_key, duration=duration)
     structure.forced_key_releases.append(direction)
     return structure

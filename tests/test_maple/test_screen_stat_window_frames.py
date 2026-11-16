@@ -22,7 +22,7 @@ pytestmark = [pytest.mark.frames, pytest.mark.client_files]
 def reader() -> StatWindowReader:
     sprites = load_reader_sprites(
         [FRAME_CHECK, STAT_WINDOW],
-        Profile(job="Swordsman", game_map="x"),
+        Profile(job="Swordsman"),
         STORE,
         config=CONFIG,
     )

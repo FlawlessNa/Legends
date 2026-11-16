@@ -104,7 +104,11 @@ those fields. In `v1`:
   node name (a scan code, such as `42` for Shift), and `count` is `null` where no
   item count is drawn. A skill on cooldown is still listed; its seconds left are
   not a count.
-- `minimap`: `{state}`.
+- `minimap`: `{state}`. In `v2`, an expanded minimap also has `map`, the name
+  its banner shows as `street: map name`, and `self_position`, where the yellow
+  player marker's centre is in minimap coordinates: pixels on the map's own
+  `miniMap` canvas, which the map area shows a scrolled window of. A test
+  allows 1 pixel.
 - `buffs`: buff name to `{shown}`, with `seconds_left` when its countdown is
   drawn over the icon.
 - `chat`: the kind of each visible row of the log, top to bottom. A message
@@ -119,15 +123,27 @@ Pup and Pdn on cooldown, and with the Recovery or Nimble Feet buff icon drawn.
 Its new frames have no `chat` entry: the log shows row kinds `v1`'s kinds don't
 tell apart.
 
+`v3` is `v2`'s frames and readings unchanged plus 196 more: Henesys at every
+client size the client lists (1920x1200 and 2560x1440 too), Henesys walking
+left, Henesys Market (the minimap scrolls sideways), Henesys crowded with
+other players, and Ellinia climbing (the minimap scrolls vertically). Its new
+frames read `minimap` (Henesys Market's banner is `Victoria Road: Henesys
+Market`; where the marker is clipped at the canvas's edge, `self_position` is
+where the whole marker would be, as the reader places it since #502) and none
+of `v1`'s other readers. `v2` and `v3` give every
+frame three position readings in virtual px: `camera` (`{x, y}`, the play
+area's top-left), `feet` (`{x, y}`, our character's, or `covered`) and
+`map_id`. `tests/frames/README.md` says how each was made and checked.
+
 A frame has no entry for a reader whose answer depends on a choice its ticket
 hasn't made yet: `notes` says why.
 
 Readers of font-drawn text (the buff countdown, chat, the stat window) read with
 glyphs harvested from the frames into the gitignored `data/glyphs/`: run
 `python -m toolkit.harvest_glyphs` after fetching the frames, before
-`pytest -m frames`. It harvests every tag `toolkit/glyph_sources/` has a file
-for (`v1` and `v2`), so fetch both. What it cuts, and where, is
-`toolkit/glyph_sources/<tag>.json`: frame names, boxes and the characters read
+`pytest -m frames`. It harvests the current tag, whose
+`toolkit/glyph_sources/<tag>.json` holds every earlier tag's sources too. What
+it cuts, and where, is that file: frame names, boxes and the characters read
 there, never pixels or chat text.
 
 Modules that touch the Held-Keys Ledger directly reset it through an `autouse`

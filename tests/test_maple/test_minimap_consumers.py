@@ -6,22 +6,28 @@ the position attribute, and the state `ensure_minimap_displayed` waits for.
 import random
 from collections.abc import Callable
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 import pytest
 from pytest_mock import MockerFixture
 
-from botting.screen import Frame
+from botting.core import BotData
+from botting.screen import Frame, Reading, Status
 from game_data.sprites import Sprite
 from maple.actions import menus
-from maple.decision_makers.ensure_still_in_map import CheckStillInMap
+from maple.decision_makers.ensure_still_in_map import CheckStillInMap, map_title
 from maple.decision_makers.mixins import MinimapAttributesMixin
-from maple.screen.minimap import MINIMAP, MinimapReader, MinimapState
+from maple.decision_makers.mixins._map_mixins import UNPLACED_LIMIT
+from maple.screen.minimap import MINIMAP, MinimapReader, MinimapState, MinimapView
+from maple.screen.position import Fusion, PositionSource, VirtualPosition
+from maple.telemetry_events import POSITION_READ
 from tests.test_maple.test_screen_minimap import (
     CANVAS,
     MAP_ID,
     OTHER_CANVAS,
     draw_minimap,
+    draw_minimised,
     frame,
     occlude,
     reader,
@@ -40,13 +46,13 @@ def _check(shown: Frame, map_id: int | None) -> CheckStillInMap:
         ign="Tester",
         current_frame=shown,
         minimap_reader=reader(),
-        current_minimap=SimpleNamespace(map_id=map_id),
+        world_map=None if map_id is None else SimpleNamespace(id=map_id),
     )
     return check
 
 
 def _minimap(
-    canvas: Sprite | None = None, user_at: tuple[int, int] | None = (30, 30)
+    canvas: Sprite | None = CANVAS, user_at: tuple[int, int] | None = (30, 30)
 ) -> Frame:
     pixels = screen()
     draw_minimap(pixels, 250, 20, canvas=canvas, user_at=user_at)
@@ -67,6 +73,26 @@ def test_with_a_map_id_the_check_fails_on_another_maps_minimap() -> None:
 def test_without_a_map_id_the_check_only_asks_that_the_minimap_is_shown() -> None:
     assert _check(_minimap(OTHER_CANVAS), None)._perform_check()
     assert not _check(frame(screen()), None)._perform_check()
+
+
+def _minimised() -> Frame:
+    pixels = screen()
+    draw_minimised(pixels, 30, 10)
+    return frame(pixels)
+
+
+@pytest.mark.parametrize("map_id", [MAP_ID, None])
+def test_a_minimised_minimap_fails_the_check(map_id: int | None) -> None:
+    assert not _check(_minimised(), map_id)._perform_check()
+
+
+def test_the_check_names_the_map_as_the_client_does() -> None:
+    """The map comes from `WorldMap` (#398), so its name does too."""
+    world = SimpleNamespace(id=10002000, name="Ellinia", street="Victoria Road")
+
+    assert map_title(world) == "Victoria Road: Ellinia"  # pyright: ignore[reportArgumentType]
+    assert map_title(SimpleNamespace(id=7, name=None, street=None)) == "7"  # pyright: ignore[reportArgumentType]
+    assert map_title(None) == "an unknown map"
 
 
 def test_a_covered_minimap_fails_the_check() -> None:
@@ -91,6 +117,52 @@ def test_every_minimap_consumer_declares_the_minimap_reader() -> None:
     assert MINIMAP in CheckStillInMap.screen_readers
 
 
+def test_without_a_map_id_the_position_raises_for_the_error_handler() -> None:
+    positioned = object.__new__(_Positioned)
+    positioned.data = _Data(minimap_reading=reader(map_id=None).read(_minimap()))  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
+
+    with pytest.raises(ValueError, match="position unsure: no map_id"):
+        positioned._get_minimap_pos()
+
+
+@pytest.mark.parametrize(
+    ("shown", "displayed"),
+    [
+        (_minimap(), True),
+        (_minimised(), False),
+        (frame(screen()), False),
+    ],
+)
+def test_the_minimap_counts_as_displayed_only_when_expanded(
+    shown: Frame, displayed: bool
+) -> None:
+    """The Stuck detector's guard (`_on_expected_minimap`) reads this: a
+    minimised minimap shows no map."""
+    assert _Positioned(shown)._minimap_displayed() is displayed
+
+
+def test_a_covered_minimap_keeps_the_last_answers_and_absent_says_not_shown() -> None:
+    """No policy for a covered minimap yet: whether it is shown, and where,
+    keep their last values (`HeldReading`). Not on screen is an answer."""
+    shown = _minimap()
+    covered = _minimap()
+    occlude(covered.pixels, 250, 20, 6, 72)
+    positioned = _Positioned(shown)
+    bounds = positioned._entire_minimap_box()
+    assert positioned._minimap_displayed() is True
+    assert bounds is not None
+
+    positioned.data.minimap_reading = reader().read(covered)  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
+    assert positioned.data.minimap_reading.status is Status.COVERED
+    assert positioned._minimap_displayed() is True
+    assert positioned._entire_minimap_box() == bounds
+
+    positioned.data.minimap_reading = reader().read(frame(screen()))  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
+    assert positioned.data.minimap_reading.status is Status.ABSENT
+    assert positioned._minimap_displayed() is False
+    assert positioned._entire_minimap_box() == bounds
+
+
 def test_the_position_is_the_markers() -> None:
     assert _Positioned(_minimap(user_at=(12, 34)))._get_minimap_pos() == (12, 34)
 
@@ -100,6 +172,7 @@ def test_the_position_is_the_markers() -> None:
     [
         (frame(screen()), "minimap absent"),
         (_minimap(user_at=None), "marker isn't found"),
+        (_minimised(), "minimised"),
     ],
 )
 def test_no_position_raises_for_the_error_handler(shown: Frame, says: str) -> None:
@@ -114,6 +187,7 @@ def test_no_position_raises_for_the_error_handler(shown: Frame, says: str) -> No
     ("pixels", "state"),
     [
         (lambda: _minimap().pixels, MinimapState.EXPANDED),
+        (lambda: _minimised().pixels, MinimapState.MINIMISED),
         (screen, MinimapState.ABSENT),
         (lambda: np.zeros((300, 400, 3), np.uint8), None),
     ],
@@ -129,6 +203,50 @@ def test_the_minimap_state_is_read_off_a_fresh_capture(
 
     assert menus.minimap_state(minimap, 1) is state
     source.grab.assert_called_once_with(1)
+
+
+def _without_banner() -> Frame:
+    pixels = screen()
+    draw_minimap(pixels, 250, 20, banner=False)
+    return frame(pixels)
+
+
+@pytest.mark.parametrize(
+    ("shown", "banner"),
+    [
+        (_minimap, True),
+        (_without_banner, False),
+        (_minimised, False),
+        (lambda: frame(screen()), False),
+    ],
+)
+def test_the_banner_is_asked_of_a_fresh_capture(
+    mocker: MockerFixture, shown: Callable[[], Frame], banner: bool
+) -> None:
+    source = mocker.Mock()
+    source.grab.return_value = shown()
+    mocker.patch.object(menus, "frame_source", return_value=source)
+
+    assert menus.minimap_banner_shown(reader(), 1) is banner
+
+
+@pytest.mark.parametrize("banner", [True, False])
+def test_ensure_minimap_displayed_waits_for_the_banner_only_when_asked(
+    mocker: MockerFixture, banner: bool
+) -> None:
+    """On the look without the banner, the toggle is pressed again only when
+    the banner is asked for."""
+    source = mocker.Mock()
+    source.grab.return_value = _without_banner()
+    mocker.patch.object(menus, "frame_source", return_value=source)
+    action = mocker.patch.object(menus, "ActionWithValidation")
+
+    menus.ensure_minimap_displayed(
+        "test", 1, "Tester", mocker.Mock(), reader(), mocker.Mock(), 1.0, banner=banner
+    )
+
+    validator = action.call_args.args[1]
+    assert validator() is not banner
 
 
 # --- Keeping the cursor off the minimap ----------------------------------------
@@ -214,3 +332,260 @@ def test_the_error_handler_moves_the_cursor_before_it_toggles_the_minimap(
     handler._minimap_pos_error_handler()
 
     assert order == ["mouse", "toggle"]
+
+
+# --- The virtual position attribute (#392) -------------------------------------
+
+
+class _Fusion:
+    """
+    Answers `position`, and counts its reads. `minimap_read` says whether the
+    minimap gave a position, as `Fusion.minimap` does.
+    """
+
+    def __init__(
+        self, position: Reading[VirtualPosition], *, minimap_read: bool = True
+    ) -> None:
+        self.position = position
+        self.minimap_read = minimap_read
+        self.reads = 0
+
+    def read(self, frame: Frame, minimap: Reading[MinimapView]) -> Fusion:
+        self.reads += 1
+        return Fusion(self.position, (600, 336) if self.minimap_read else None, near=1)
+
+
+def _located(
+    fusion: _Fusion | None, shown: Frame | None = None
+) -> tuple[_Positioned, list[tuple[str, Any]]]:
+    shown = shown or _minimap()
+    located = _Positioned(shown)
+    located.data.current_frame = shown  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
+    located.data.position_fusion = fusion  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
+    emitted: list[tuple[str, Any]] = []
+    located.emit = lambda event, payload: emitted.append((event, payload))  # pyright: ignore[reportAttributeAccessIssue]
+    return located, emitted
+
+
+def test_the_position_is_fusions_and_each_read_is_recorded() -> None:
+    fused = Reading.read(VirtualPosition(605.5, 340.0, PositionSource.FUSED), 3.0)
+    located, emitted = _located(_Fusion(fused))
+
+    assert located._get_position() == fused
+    assert emitted == [
+        (
+            POSITION_READ,
+            {
+                "status": "read",
+                "source": "fused",
+                "x": 605.5,
+                "y": 340.0,
+                "minimap_x": 600,
+                "minimap_y": 336,
+                "camera_x": None,
+                "camera_y": None,
+                "found": 0,
+                "near": 1,
+                "by_tag": False,
+                "own_elsewhere": False,
+                "detail": "",
+            },
+        )
+    ]
+
+
+def test_an_unsure_fusion_with_the_minimap_read_is_returned_for_its_consumer() -> None:
+    """
+    A fusion `UNSURE` though the minimap placed the character (`PositionFusion`
+    gives none since #529, which makes disagreeing reads and a crowd `coarse`):
+    the minimap's error handler can't fix that, so the `UNSURE` reading is the
+    answer, and a consumer holds (#396: `MovementsMixin` plans no Path).
+    """
+    unsure = Reading.unsure(3.0, "the reads disagree")
+    located, emitted = _located(_Fusion(unsure))
+
+    assert located._get_position() == unsure
+    assert [(e, p["status"], p["source"]) for e, p in emitted] == [
+        (POSITION_READ, "unsure", None)
+    ]
+
+
+def test_an_unsure_position_with_no_minimap_read_raises_for_the_error_handler() -> None:
+    """With no minimap position, the minimap's handler is the one to make it readable."""
+    located, emitted = _located(
+        _Fusion(Reading.unsure(3.0, "minimap unsure: covered"), minimap_read=False)
+    )
+
+    with pytest.raises(ValueError, match="position unsure: minimap unsure: covered"):
+        located._get_position()
+    assert [(e, p["status"], p["source"]) for e, p in emitted] == [
+        (POSITION_READ, "unsure", None)
+    ]
+
+
+class _Clock:
+    """`time.monotonic` for `_map_mixins`, moved by hand."""
+
+    def __init__(self, mocker: MockerFixture) -> None:
+        from maple.decision_makers.mixins import _map_mixins
+
+        self.now = 1000.0
+        mocker.patch.object(_map_mixins.time, "monotonic", side_effect=self.read)
+
+    def read(self) -> float:
+        return self.now
+
+
+def _unplaced() -> tuple[_Positioned, _Fusion]:
+    """The minimap shown, its map found, and no marker on it: the position
+    `COVERED`, which fusion turns into an `UNSURE` read with no minimap."""
+    unplaced = _Fusion(
+        Reading.unsure(3.0, "minimap position covered: marker isn't found"),
+        minimap_read=False,
+    )
+    located, _ = _located(unplaced, _minimap(user_at=None))
+    view = located.data.minimap_reading.value
+    assert view is not None
+    assert view.self_position.status is Status.COVERED
+    return located, unplaced
+
+
+def test_an_unplaced_marker_holds_instead_of_raising(
+    mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+) -> None:
+    """#502: re-showing the minimap can't place a marker it doesn't draw, so
+    the bot holds (`UNSURE`, no Path planned) and says why once."""
+    clock = _Clock(mocker)
+    located, unplaced = _unplaced()
+
+    with caplog.at_level("WARNING"):
+        for _ in range(3):
+            assert located._get_position() == unplaced.position
+            clock.now += 50.0
+
+    holds = [r for r in caplog.records if "holds" in r.getMessage()]
+    assert len(holds) == 1
+    assert "marker isn't found" in holds[0].getMessage()
+
+
+def test_an_unplaced_marker_raises_for_the_error_handler_after_the_limit(
+    mocker: MockerFixture,
+) -> None:
+    clock = _Clock(mocker)
+    located, _ = _unplaced()
+    located._get_position()
+
+    clock.now += UNPLACED_LIMIT - 0.1
+    located._get_position()
+    clock.now += 0.1
+    with pytest.raises(ValueError, match=f"for {UNPLACED_LIMIT:.0f} s"):
+        located._get_position()
+
+
+def test_a_placed_read_starts_the_wait_over(mocker: MockerFixture) -> None:
+    clock = _Clock(mocker)
+    located, unplaced = _unplaced()
+    located._get_position()
+    clock.now += UNPLACED_LIMIT - 1
+
+    placed = Reading.read(VirtualPosition(605.5, 340.0, PositionSource.COARSE), 3.0)
+    located.data.position_fusion = _Fusion(placed)  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
+    assert located._get_position() == placed
+    located.data.position_fusion = unplaced  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
+    for _ in range(2):
+        clock.now += UNPLACED_LIMIT - 1
+        assert located._get_position() == unplaced.position
+        located.data.position_fusion = _Fusion(placed)  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
+        located._get_position()
+        located.data.position_fusion = unplaced  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
+
+
+def test_an_unplaced_marker_neither_calls_the_error_handler_nor_fails_the_read(
+    mocker: MockerFixture,
+) -> None:
+    """Through `BotData`, as the rotation reads it: the hold is the value, so
+    the handler (5 attempts, then the Engine fails) isn't reached."""
+    clock = _Clock(mocker)
+    unplaced = _Fusion(Reading.unsure(3.0, "covered"), minimap_read=False)
+    shown = _minimap(user_at=None)
+    data = BotData("Tester")
+    data.set_static("current_frame", shown)
+    data.set_static("position_fusion", unplaced)
+    located = object.__new__(_Positioned)
+    located.data = data
+    located.emit = mocker.Mock()  # pyright: ignore[reportAttributeAccessIssue]
+    data.create_or_reconfigure_attribute(
+        "minimap_reading", lambda: reader().read(shown)
+    )
+    handler = mocker.Mock()
+    data.create_or_reconfigure_attribute(
+        "current_position", located._get_position, error_handler=handler
+    )
+
+    for _ in range(4):
+        data.update_attribute("current_position")
+        assert data.current_position == unplaced.position
+        clock.now += 30.0
+    handler.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("shown", "says"),
+    [
+        (lambda: frame(screen()), "minimap absent"),
+        (_minimised, "minimised"),
+    ],
+)
+def test_a_minimap_not_shown_still_raises_at_once(
+    shown: Callable[[], Frame], says: str
+) -> None:
+    """The handler can fix these: it shows the minimap."""
+    located, _ = _located(
+        _Fusion(Reading.unsure(3.0, says), minimap_read=False), shown()
+    )
+
+    with pytest.raises(ValueError, match=says):
+        located._get_position()
+
+
+def test_without_a_fusion_the_position_raises_for_the_error_handler() -> None:
+    located, emitted = _located(None)
+
+    with pytest.raises(ValueError, match="no position fusion"):
+        located._get_position()
+    assert emitted == []
+
+
+def test_the_position_attribute_has_the_minimaps_error_handler_and_waits_to_be_read(
+    mocker: MockerFixture,
+) -> None:
+    """Creating it reads nothing, so it sends nothing: the first consumer to
+    ask reads it, and a read the minimap can't place goes to the minimap's
+    error handler. `current_minimap_position` is gone from `BotData` (#398)."""
+    from maple.decision_makers.mixins import _map_mixins
+
+    mocker.patch.object(_map_mixins, "ensure_minimap_displayed")
+    fused = Reading.read(VirtualPosition(605.5, 340.0, PositionSource.FUSED), 3.0)
+    fusion = _Fusion(fused)
+    data = BotData("Tester")
+    shown = _minimap()
+    data.set_static("handle", 1)
+    data.set_static("current_frame", shown)
+    data.set_static("minimap_reader", reader())
+    data.set_static("position_fusion", fusion)
+    located = object.__new__(_Positioned)
+    located.data = data
+    located.pipe = mocker.Mock()  # pyright: ignore[reportAttributeAccessIssue]
+    located._proxies = mocker.Mock()  # pyright: ignore[reportAttributeAccessIssue]
+    located.emit = mocker.Mock()  # pyright: ignore[reportAttributeAccessIssue]
+
+    located._create_minimap_attributes()
+
+    managed = data._managed  # pyright: ignore[reportPrivateUsage] - the attribute's configuration
+    assert fusion.reads == 0
+    assert managed["current_position"].error_handler == (
+        located._minimap_pos_error_handler
+    )
+    assert "current_minimap_position" not in managed
+    assert data.current_position == fused
+    assert fusion.reads == 1

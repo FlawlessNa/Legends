@@ -19,13 +19,17 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import importlib
 import multiprocessing.managers
+import os
 import sys
 
 import maple.parsers
 from botting.core import Bot
 from botting.core.session_manager import SessionManager
 from maple import bots
+from maple.bots.maple_bot import MapleBot
+from paths import ROOT
 
 from .profile import BotSpec, Profile, ProfileError, available, check_models, load
 
@@ -50,7 +54,35 @@ def _bot_registry() -> dict[str, type]:
     return registry
 
 
+def _import_bot(spec: BotSpec) -> type:
+    """
+    Resolve a `module.path:ClassName` bot, for a throwaway Bot that is not
+    exported from `maple.bots`. The class name is case-sensitive.
+    """
+    path = spec.bot
+    module_name, _, class_name = path.partition(":")
+    try:
+        module = importlib.import_module(module_name)
+    except Exception as exc:  # a scratch module may raise anything on import
+        raise ProfileError(
+            f"Could not import '{module_name}' for bot '{path}' ({spec.ign}): "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+    try:
+        cls = getattr(module, class_name)
+    except AttributeError as exc:
+        raise ProfileError(
+            f"Module '{module_name}' has no attribute '{class_name}' "
+            f"(bot '{path}' for {spec.ign})."
+        ) from exc
+    if not (isinstance(cls, type) and issubclass(cls, MapleBot)):
+        raise ProfileError(f"'{path}' for {spec.ign} is not a MapleBot subclass.")
+    return cls
+
+
 def _resolve(spec: BotSpec) -> type:
+    if ":" in spec.bot:
+        return _import_bot(spec)
     registry = _bot_registry()
     cls = registry.get(spec.bot.lower())
     if cls is None:
@@ -70,11 +102,49 @@ def _build(spec: BotSpec, metadata: multiprocessing.managers.DictProxy) -> Bot:
     return cls(spec.ign, metadata, **spec.settings)
 
 
-async def _run(profile: Profile) -> None:
+def _config_path(name: str) -> str:
+    return os.path.join(ROOT, "configs", f"{name}.ini")
+
+
+def check_configs() -> bool:
+    """
+    Look for the two config files a Session's peripherals read, before anything
+    starts.
+
+    `recordings.ini` is needed: without it the recorder's process dies on a
+    traceback, so a missing one refuses the start and names the file to copy.
+    `discord.ini` is not: without it the Session runs with Discord off (nothing
+    connects, nothing can be posted), and the one line saying so is written here.
+
+    :return: Whether Discord is on, i.e. `discord.ini` exists.
+    :raises ProfileError: `recordings.ini` is missing.
+    """
+    if not os.path.exists(_config_path("recordings")):
+        raise ProfileError(
+            "configs/recordings.ini is missing: the screen recorder reads it. "
+            "Copy configs/recordings.example.ini to configs/recordings.ini and "
+            "edit the folder in it."
+        )
+    if os.path.exists(_config_path("discord")):
+        return True
+    sys.stderr.write(
+        "note: configs/discord.ini is missing, so this Session runs without "
+        "Discord: nothing connects and nothing is posted. To use Discord, copy "
+        "configs/discord.example.ini to configs/discord.ini and fill it in.\n"
+    )
+    return False
+
+
+async def _run(profile: Profile, *, test: bool = False, discord: bool = True) -> None:
     """
     Launch the profile's bot in a single Engine group.
+    :param test: Record with the `[TEST]` section of `recordings.ini`.
+    :param discord: `False` runs without Discord (`check_configs`).
     """
-    with SessionManager(maple.parsers.MapleParser) as session:
+    section = "TEST" if test else "DEFAULT"
+    with SessionManager(
+        maple.parsers.MapleParser, recording_section=section, discord=discord
+    ) as session:
         await session.launch([_build(profile.main, session.metadata)])
 
 
@@ -91,6 +161,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--debug", action="store_true", help="Run the asyncio loop in debug mode."
+    )
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help="A test Session: record with the [TEST] section of recordings.ini.",
     )
     args = parser.parse_args(argv)
 
@@ -110,7 +185,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        asyncio.run(_run(profile), debug=args.debug)
+        discord = check_configs()
+        asyncio.run(_run(profile, test=args.test, discord=discord), debug=args.debug)
     except ProfileError as exc:
         sys.stderr.write(f"error: {exc}\n")
         return 2

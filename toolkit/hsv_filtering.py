@@ -1,7 +1,22 @@
+"""
+Tune HSV and BGR colour filters live on the client's pixels.
+
+Run it to find the colour range that isolates something on screen. It opens
+trackbar windows and shows the filtered frame, its contours and the grouped
+rectangles (set `USE_HSV` and `USE_COLORS` at the bottom).
+
+    python -m toolkit.hsv_filtering
+
+Needs the MapleStory client open (found through `maple.screen.client`). It
+copies the client's pixels and shows them in its own OpenCV windows; it sends
+no input.
+"""
+
 import cv2
 import numpy as np
 
-from botting.utilities import group_rectangles, take_screenshot
+from botting.screen import frame_source
+from botting.utilities import group_rectangles
 
 
 def init_control_gui_hsv():
@@ -283,7 +298,7 @@ if __name__ == "__main__":
     fy = 1
 
     while True:
-        img_hsv = take_screenshot(HANDLE)
+        img_hsv = frame_source().grab(HANDLE).pixels
         img_color = img_hsv.copy()
 
         if USE_HSV:

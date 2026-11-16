@@ -29,7 +29,7 @@ pytestmark = [pytest.mark.frames, pytest.mark.client_files]
 def reader() -> ChatReader:
     sprites = load_reader_sprites(
         [FRAME_CHECK, CHAT],
-        Profile(job="Swordsman", game_map="x"),
+        Profile(job="Swordsman"),
         STORE,
         config=CONFIG,
     )

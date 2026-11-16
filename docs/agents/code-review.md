@@ -14,8 +14,8 @@ Read, in this order:
 
 1. **The PR body**, before the diff — specifically its *Could not verify* section.
 2. **The ticket**, and its map's *Answer records* if it has one. That is the
-   acceptance criteria the change is actually accountable to. `gh issue view <n>
-   --comments`.
+   acceptance criteria the change is actually accountable to, and its
+   `## Constraints` list, which check 2 ticks. `gh issue view <n> --comments`.
 3. **`docs/adr/`** — every ADR touching the area, whether or not the PR mentions
    one.
 4. **`docs/planning/movement-invariant-catalogue.md`** for anything touching
@@ -24,7 +24,7 @@ Read, in this order:
 
 Read the diff last. By then you know what it was supposed to do.
 
-## The five checks
+## The six checks
 
 ### 1. Does the "Could not verify" list match the risk of the diff?
 
@@ -39,7 +39,28 @@ watch" — not an approval that pretends the gap isn't there.
 Conversely, an over-long unverified list on a pure-logic change is a signal the
 author didn't understand their own diff.
 
-### 2. Did the test actually fail without the change?
+A diff that could alter which keys reach the game, or when, must say how it was
+verified against the live game (the probe or a Test Session, `game-client.md`)
+or why it was not (`tickets.md`, "Against the live game"). A PR that says
+neither is a blocking finding. A verdict that reports a Session must give the
+expectation, the counts and the Session directory; one without them is a claim,
+not a verification.
+
+### 2. Does every constraint of the ticket still hold?
+
+List the ticket's `## Constraints` (and any constraint its spec sections state
+for it), and tick each one against the diff: **holds**, or **broken** with the
+file and line. Do this even when every acceptance criterion is met: the
+expensive failures here meet the ticket's goal by quietly breaking one of its
+constraints, as when a change to pathfinding changed the unit Position is kept
+in, against a ticket that said it must not. Tests rarely catch that, because the
+author updates them along with the code.
+
+A broken constraint is a blocking finding on its own, whatever the tests say.
+If the ticket has no `## Constraints` section, say so in the review and check
+the "not without asking" list in `tickets.md` instead.
+
+### 3. Did the test actually fail without the change?
 
 The author is asked to demonstrate this (`docs/agents/testing.md`). You can check
 it: stash the source paths, keep the test, run it. A test that passes on the base
@@ -50,7 +71,7 @@ assertion sits outside its loop (`test_read_text`), and tests written as
 `pytest.fail()` placeholders that were never filled in (`test_controller.py`).
 Both looked like coverage in the tree.
 
-### 3. Which invariants does the diff bear on?
+### 4. Which invariants does the diff bear on?
 
 Name them by id. Then check the catalogue's **Status** column before reporting
 anything:
@@ -65,7 +86,7 @@ Reporting a known-broken invariant as a new finding wastes everyone's time. So
 does an author claiming to have fixed one as a side effect — if A2 or D1 is now
 satisfied, that is a ticket closing, with its own evidence.
 
-### 4. Does it contradict a decision?
+### 5. Does it contradict a decision?
 
 ADRs record what was chosen *and what was rejected and why*. A change that
 quietly reintroduces a rejected alternative is the most expensive thing to catch
@@ -76,9 +97,12 @@ perfectly reasonable in isolation.
 Contradicting an ADR is allowed. Doing it without saying so is not. If the change
 supersedes a decision, the ADR needs updating in the same PR.
 
-Also check the layering: `maple` imports `botting`, never the reverse.
+The import direction (`maple` imports `botting`, never the reverse, and the rest
+of `AGENTS.md`, "The repo") is a test, `tests/test_layering.py`. A diff that adds
+an entry to its `KNOWN_EXCEPTIONS` is a finding: the rule is that a violation
+is fixed by moving code.
 
-### 5. Is it speaking the project's language?
+### 6. Is it speaking the project's language?
 
 New names go through `CONTEXT.md`. If the diff introduces a domain concept the
 glossary doesn't have, either the glossary is missing an entry or the author
@@ -98,6 +122,7 @@ synonyms they reject, so this is checkable rather than a matter of taste.
 
 ## What a review outputs
 
+- The ticket's constraints, each ticked **holds** or **broken** (check 2).
 - Findings, most severe first, each anchored to a file and line.
 - An explicit verdict on the *Could not verify* section: **accurate**,
   **understated** (and what is missing), or **overstated**.

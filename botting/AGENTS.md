@@ -9,7 +9,8 @@ exploring. This file is the complement: the rules a change can **violate**.
 
 It knows nothing about MapleStory, and nothing here may import from `maple/`.
 There are no exceptions: the last such import
-(`botting/visuals/object_detection.py` → `maple_ign_finder`) was removed by #85.
+(`botting/visuals/object_detection.py` → `maple_ign_finder`) was removed by #85,
+and `tests/test_layering.py` fails on a new one.
 
 ## Orientation
 
@@ -47,8 +48,3 @@ ADR 0001:
   propagation.
 - The engine's own Event Types live in `botting/telemetry_events.py`; it and
   `maple/telemetry_events.py` never import each other.
-
-## Dead code
-
-`botting/core/_old/` is the pre-rewrite engine, kept for reference only. Nothing
-live imports it. Don't extend it, and don't import from it in new code.

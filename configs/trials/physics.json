@@ -1,0 +1,732 @@
+{
+  "name": "physics",
+  "map": "Victoria Road: Ellinia",
+  "description": "The physics schedule (#397): measures the movement physics on Ellinia, from the bottom of the map. Walk speed on the ground's long walk; climb speed on a rope (x -316) and a ladder (x 627); the jump arc and flight time on two gap jumps, three times each way; whether a jump off a rope rises; drops of 91, 258, 424 and 480 virtual px (480 is DROP_REACH); and the teleport reach sideways and up. Teleport down is never planned, so no Trial can cast it. Every batch but 'teleport' plans without the teleport skill, so a teleporting class measures walks and jumps too; the 'teleport' batch needs a character with Teleport. Each Trial's 'measures' says what the analyzer reads it for: python -m maple.calibration.analysis <record>. Coordinates are the feet, in virtual px; tolerances are virtual px.",
+  "batches": [
+    {
+      "name": "walk",
+      "teleport": false,
+      "trials": [
+        {
+          "name": "walk-right-1",
+          "start": [
+            -900,
+            300
+          ],
+          "target": [
+            1300,
+            321
+          ],
+          "tolerance": 16.0,
+          "time_budget": 40.0,
+          "setup_budget": 60.0,
+          "measures": "walk"
+        },
+        {
+          "name": "walk-left-1",
+          "start": [
+            1300,
+            321
+          ],
+          "target": [
+            -400,
+            234
+          ],
+          "tolerance": 16.0,
+          "time_budget": 40.0,
+          "setup_budget": 60.0,
+          "measures": "walk"
+        },
+        {
+          "name": "walk-right-2",
+          "start": [
+            -900,
+            300
+          ],
+          "target": [
+            1300,
+            321
+          ],
+          "tolerance": 16.0,
+          "time_budget": 40.0,
+          "setup_budget": 60.0,
+          "measures": "walk"
+        },
+        {
+          "name": "walk-left-2",
+          "start": [
+            1300,
+            321
+          ],
+          "target": [
+            -400,
+            234
+          ],
+          "tolerance": 16.0,
+          "time_budget": 40.0,
+          "setup_budget": 60.0,
+          "measures": "walk"
+        }
+      ]
+    },
+    {
+      "name": "rope",
+      "teleport": false,
+      "trials": [
+        {
+          "name": "rope-up-1",
+          "start": [
+            -316,
+            229
+          ],
+          "target": [
+            -316,
+            -2
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "climb"
+        },
+        {
+          "name": "rope-mid-1",
+          "start": [
+            -316,
+            -2
+          ],
+          "target": [
+            -316,
+            150
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "climb"
+        },
+        {
+          "name": "rope-up-2",
+          "start": [
+            -316,
+            229
+          ],
+          "target": [
+            -316,
+            -2
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "climb"
+        },
+        {
+          "name": "rope-mid-2",
+          "start": [
+            -316,
+            -2
+          ],
+          "target": [
+            -316,
+            150
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "climb"
+        },
+        {
+          "name": "rope-left-1",
+          "start": [
+            -316,
+            100
+          ],
+          "target": [
+            -420,
+            236
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "rope_jump"
+        },
+        {
+          "name": "rope-left-2",
+          "start": [
+            -316,
+            100
+          ],
+          "target": [
+            -420,
+            236
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "rope_jump"
+        },
+        {
+          "name": "rope-left-3",
+          "start": [
+            -316,
+            100
+          ],
+          "target": [
+            -420,
+            236
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "rope_jump"
+        }
+      ]
+    },
+    {
+      "name": "jump",
+      "teleport": false,
+      "trials": [
+        {
+          "name": "gap-right-1",
+          "start": [
+            -620,
+            -52
+          ],
+          "target": [
+            -420,
+            -56
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "jump"
+        },
+        {
+          "name": "gap-left-1",
+          "start": [
+            -420,
+            -56
+          ],
+          "target": [
+            -620,
+            -52
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "jump"
+        },
+        {
+          "name": "gap-right-2",
+          "start": [
+            -620,
+            -52
+          ],
+          "target": [
+            -420,
+            -56
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "jump"
+        },
+        {
+          "name": "gap-left-2",
+          "start": [
+            -420,
+            -56
+          ],
+          "target": [
+            -620,
+            -52
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "jump"
+        },
+        {
+          "name": "gap-right-3",
+          "start": [
+            -620,
+            -52
+          ],
+          "target": [
+            -420,
+            -56
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "jump"
+        },
+        {
+          "name": "gap-left-3",
+          "start": [
+            -420,
+            -56
+          ],
+          "target": [
+            -620,
+            -52
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "jump"
+        },
+        {
+          "name": "branch-right-1",
+          "start": [
+            180,
+            -40
+          ],
+          "target": [
+            360,
+            -49
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "jump"
+        },
+        {
+          "name": "branch-left-1",
+          "start": [
+            360,
+            -49
+          ],
+          "target": [
+            180,
+            -40
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "jump"
+        },
+        {
+          "name": "branch-right-2",
+          "start": [
+            180,
+            -40
+          ],
+          "target": [
+            360,
+            -49
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "jump"
+        },
+        {
+          "name": "branch-left-2",
+          "start": [
+            360,
+            -49
+          ],
+          "target": [
+            180,
+            -40
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "jump"
+        },
+        {
+          "name": "branch-right-3",
+          "start": [
+            180,
+            -40
+          ],
+          "target": [
+            360,
+            -49
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "jump"
+        },
+        {
+          "name": "branch-left-3",
+          "start": [
+            360,
+            -49
+          ],
+          "target": [
+            180,
+            -40
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "jump"
+        }
+      ]
+    },
+    {
+      "name": "ladder",
+      "teleport": false,
+      "trials": [
+        {
+          "name": "ladder-up-1",
+          "start": [
+            627,
+            -415
+          ],
+          "target": [
+            627,
+            -759
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "climb"
+        },
+        {
+          "name": "ladder-mid-1",
+          "start": [
+            627,
+            -759
+          ],
+          "target": [
+            627,
+            -500
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "climb"
+        },
+        {
+          "name": "ladder-up-2",
+          "start": [
+            627,
+            -415
+          ],
+          "target": [
+            627,
+            -759
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "climb"
+        },
+        {
+          "name": "ladder-mid-2",
+          "start": [
+            627,
+            -759
+          ],
+          "target": [
+            627,
+            -500
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "climb"
+        },
+        {
+          "name": "rope-right-1",
+          "start": [
+            635,
+            -150
+          ],
+          "target": [
+            760,
+            71
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "rope_jump"
+        },
+        {
+          "name": "rope-right-2",
+          "start": [
+            635,
+            -150
+          ],
+          "target": [
+            760,
+            71
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "rope_jump"
+        },
+        {
+          "name": "rope-right-3",
+          "start": [
+            635,
+            -150
+          ],
+          "target": [
+            760,
+            71
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "rope_jump"
+        }
+      ]
+    },
+    {
+      "name": "drop",
+      "teleport": false,
+      "trials": [
+        {
+          "name": "drop-91",
+          "start": [
+            600,
+            133
+          ],
+          "target": [
+            600,
+            342
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "drop"
+        },
+        {
+          "name": "drop-258",
+          "start": [
+            450,
+            -343
+          ],
+          "target": [
+            450,
+            -46
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "drop"
+        },
+        {
+          "name": "drop-424-1",
+          "start": [
+            1020,
+            -296
+          ],
+          "target": [
+            1020,
+            161
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "drop"
+        },
+        {
+          "name": "drop-480-1",
+          "start": [
+            960,
+            -364
+          ],
+          "target": [
+            960,
+            115
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "drop"
+        },
+        {
+          "name": "drop-424-2",
+          "start": [
+            1020,
+            -296
+          ],
+          "target": [
+            1020,
+            161
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "drop"
+        },
+        {
+          "name": "drop-480-2",
+          "start": [
+            960,
+            -364
+          ],
+          "target": [
+            960,
+            115
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "drop"
+        }
+      ]
+    },
+    {
+      "name": "teleport",
+      "trials": [
+        {
+          "name": "side-right-1",
+          "start": [
+            -900,
+            300
+          ],
+          "target": [
+            1300,
+            321
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "teleport"
+        },
+        {
+          "name": "side-left-1",
+          "start": [
+            1300,
+            321
+          ],
+          "target": [
+            -400,
+            234
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "teleport"
+        },
+        {
+          "name": "side-right-2",
+          "start": [
+            -900,
+            300
+          ],
+          "target": [
+            1300,
+            321
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "teleport"
+        },
+        {
+          "name": "side-left-2",
+          "start": [
+            1300,
+            321
+          ],
+          "target": [
+            -400,
+            234
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "teleport"
+        },
+        {
+          "name": "up-ground-1",
+          "start": [
+            200,
+            294
+          ],
+          "target": [
+            200,
+            204
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "teleport"
+        },
+        {
+          "name": "up-ground-2",
+          "start": [
+            200,
+            294
+          ],
+          "target": [
+            200,
+            204
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "teleport"
+        },
+        {
+          "name": "up-ground-3",
+          "start": [
+            200,
+            294
+          ],
+          "target": [
+            200,
+            204
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "teleport"
+        },
+        {
+          "name": "up-branch-1",
+          "start": [
+            800,
+            -295
+          ],
+          "target": [
+            800,
+            -410
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "teleport"
+        },
+        {
+          "name": "up-branch-2",
+          "start": [
+            800,
+            -295
+          ],
+          "target": [
+            800,
+            -410
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "teleport"
+        },
+        {
+          "name": "up-branch-3",
+          "start": [
+            800,
+            -295
+          ],
+          "target": [
+            800,
+            -410
+          ],
+          "tolerance": 16.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0,
+          "measures": "teleport"
+        }
+      ]
+    }
+  ]
+}

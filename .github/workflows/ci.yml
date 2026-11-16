@@ -1,0 +1,79 @@
+# The gates, on every PR into dev and into an epic branch (#385): ruff,
+# pyright and the default pytest. Nothing else in .github/workflows runs a
+# test, and the epic reviewer (claude-review.yml) cannot run one, so this is
+# the only place a skipped `pytest` is caught.
+#
+# Windows, because the suite imports pywin32 and `keyboard`, and requirements.txt
+# says "Requires Python 3.14 on Windows".
+#
+# Ruff and Pyright run on the Python files the PR changes, as the pre-commit
+# hooks do (docs/agents/typing.md, "The boy-scout rule"): the tree carries
+# existing violations that are paid down as files are touched, so a
+# whole-tree run would be red on every PR. pytest runs in full, with no flags:
+# the opt-in markers stay deselected through pytest.ini, as they are locally.
+#
+# The check to require is named `gates`; branch protection is the
+# maintainer's to set.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, "epic/**"]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    name: gates
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # the merge commit and its first parent, the base
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Python files this PR changes
+        id: changed
+        run: |
+          # HEAD is the PR merged into its base; HEAD^1 is the base.
+          git diff --name-only --diff-filter=d HEAD^1 HEAD -- '*.py' > changed.txt
+          echo "changed $(wc -l < changed.txt) Python file(s)"
+          cat changed.txt
+
+      - name: ruff check
+        run: |
+          [ -s changed.txt ] || { echo "no Python files changed"; exit 0; }
+          xargs python -m ruff check < changed.txt
+
+      - name: ruff format
+        run: |
+          [ -s changed.txt ] || { echo "no Python files changed"; exit 0; }
+          xargs python -m ruff format --check < changed.txt
+
+      - name: pyright
+        run: |
+          [ -s changed.txt ] || { echo "no Python files changed"; exit 0; }
+          xargs python -m pyright --pythonpath "$(python -c 'import sys; print(sys.executable)')" < changed.txt
+
+      - name: pytest
+        run: python -m pytest

@@ -68,18 +68,10 @@ class MenusMixin:
                 self.data.speed_multiplier,
                 self.data.jump_multiplier,
             )
-        # Refresh minimap grid with new speed and jump multipliers
-        if self.data.has_minimap_attributes:
-            self.data.current_minimap.generate_grid_template(
-                self.data.character.skills.get("Teleport") is not None,
-                self.data.speed_multiplier,
-                self.data.jump_multiplier,
-            )
-
         if self.data.has_pathing_attributes:
-            # Refresh the Movement Plan against the regenerated grid. This used to
-            # refresh the compiled `action`; nothing is compiled before dispatch any
-            # more, so `movements` is the live path's downstream attribute.
+            # Refresh the Movement Plan with the new speed and jump multipliers.
+            # Nothing is compiled before dispatch, so `movements` is the live
+            # path's downstream attribute.
             self.data.update_attribute("movements")
 
         ensure_ability_menu_displayed(
@@ -101,12 +93,12 @@ class MenusMixin:
         self.data.set_static("inventory_menu", menu)
         self.data.create_or_reconfigure_attribute(
             "inventory_menu_displayed",
-            lambda: menu.is_displayed(self.data.handle, self.data.current_client_img),
+            lambda: menu.is_displayed(self.data.handle, self.data.current_frame.pixels),
             initial_value=False,
         )
         self.data.create_or_reconfigure_attribute(
             "inventory_menu_extended",
-            lambda: menu.is_extended(self.data.handle, self.data.current_client_img),
+            lambda: menu.is_extended(self.data.handle, self.data.current_frame.pixels),
             initial_value=False,
         )
         self.data.create_or_reconfigure_attribute(
@@ -116,12 +108,16 @@ class MenusMixin:
         )
         self.data.create_or_reconfigure_attribute(
             "inventory_menu_active_tab",
-            lambda: menu.get_active_tab(self.data.handle, self.data.current_client_img),
+            lambda: menu.get_active_tab(
+                self.data.handle, self.data.current_frame.pixels
+            ),
             initial_value=None,
         )
         self.data.create_or_reconfigure_attribute(
             "inventory_space_left",
-            lambda: menu.get_space_left(self.data.handle, self.data.current_client_img),
+            lambda: menu.get_space_left(
+                self.data.handle, self.data.current_frame.pixels
+            ),
             initial_value=menu.total_slots,
         )
         self.data.set_feature("has_inventory_menu_attributes")
@@ -164,6 +160,21 @@ class UIMixin:
             "status_bar", lambda: reader.read(self.data.current_frame)
         )
         self.data.set_feature("has_status_bar_attributes")
+
+    def _create_quick_slots_attributes(self) -> None:
+        """
+        `quick_slots`, a `Reading[QuickSlots]` from the bot's one
+        `quick_slots_reader` and its `current_frame`. Like `status_bar`, a
+        consumer updates `current_frame` and then `quick_slots`.
+
+        The DecisionMaker must name `QUICK_SLOTS` in its `screen_readers`, so
+        the reader exists when the bot starts.
+        """
+        reader = self.data.quick_slots_reader
+        self.data.create_or_reconfigure_attribute(
+            "quick_slots", lambda: reader.read(self.data.current_frame)
+        )
+        self.data.set_feature("has_quick_slots_attributes")
 
     def _create_chat_attributes(self) -> None:
         """
