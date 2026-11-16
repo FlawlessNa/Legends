@@ -698,3 +698,100 @@ def test_a_rope_is_what_a_grab_ends_on() -> None:
     assert jump.movement_type is MovementTypes.JUMP_LEFT
     assert jump.end is not None
     assert any(isinstance(rope, Rope) and rope.x == jump.end[0] for rope in world.ropes)
+
+
+# --- a sideways jump off a rope, a climb key still down (#561) -----------------
+
+
+def test_a_sideways_jump_off_a_rope_is_planned_as_leaving_it() -> None:
+    """`leaves_rope` is read off the move's take-off surface, as `grabs_rope` is off
+    its landing."""
+    plan = _plan("rope_grab", (300.0, -150.0), (150.0, 0.0))
+
+    (jump,) = [c for c in plan if c.movement_type is MovementTypes.JUMP_LEFT]
+    assert jump.leaves_rope is True
+    assert jump.grabs_rope is False
+    (floor_jump,) = [
+        c
+        for c in _plan("jump_gap", (180.0, 0.0), (270.0, 0.0))
+        if c.movement_type is MovementTypes.JUMP_RIGHT
+    ]
+    assert floor_jump.leaves_rope is False
+
+
+def _off_rope(
+    held: frozenset[str], *, leaves_rope: bool = True
+) -> KeyboardInputWrapper:
+    plan = (
+        _MovementComponent(
+            MovementTypes.JUMP_LEFT, 80.0, duration=0.6, leaves_rope=leaves_rope
+        ),
+        _MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),
+    )
+    random.seed(0)
+    wrapper = compile_movements(
+        InputState(held),
+        movements=plan,
+        handle=0,
+        ign="T",
+        speed=PHYSICS.walk_speed,
+        climb_speed=PHYSICS.climb_speed,
+    )
+    assert wrapper is not None
+    return wrapper
+
+
+@pytest.mark.parametrize(
+    "held",
+    [
+        frozenset({"down", "left"}),
+        frozenset({"down", "right"}),
+        frozenset({"down"}),
+        frozenset({"up", "left"}),
+    ],
+)
+def test_a_climb_key_comes_up_before_a_sideways_jump_off_a_rope(
+    held: frozenset[str],
+) -> None:
+    """
+    #561: on the descent, 56 of 64 jumps off a rope keyed with `down` still down
+    (a climb cut at the Action cap) never left it, and 7 of the 8 others left it at
+    its bottom, not by the jump. The climb key comes up first, and the jump key waits
+    the gap `jump_on_rope` leaves after its own releases.
+    """
+    wrapper = _off_rope(held)
+
+    ((take_off, _),) = wrapper.holds[JUMP_KEY]
+    (climb,) = held & {"up", "down"}
+    ((_, released),) = wrapper.holds[climb]
+    assert released < take_off
+    # `random_delay * 5`: 5 × 0.95 × DELAY at the least.
+    assert take_off - released >= 5 * 0.95 * 0.03
+    assert wrapper.holds["left"][-1][0] <= take_off
+
+
+def test_a_sideways_jump_off_a_platform_keeps_its_climb_key_and_its_timing() -> None:
+    """Off a platform (straight off a climb up, `up` still down), the jump key goes
+    down first, as before: a release there would only delay a take-off the
+    character is walking into."""
+    wrapper = _off_rope(frozenset({"up", "left"}), leaves_rope=False)
+
+    assert wrapper.keys[0] == JUMP_KEY
+    assert wrapper.events[0] == "keydown"
+
+
+def test_a_climb_down_into_a_sideways_jump_off_the_rope_releases_down_first() -> None:
+    """The same jump inside a plan, straight after a climb down the rope."""
+    plan = (
+        _MovementComponent(MovementTypes.CLIMB_DOWN, 30.0),
+        _MovementComponent(
+            MovementTypes.JUMP_LEFT, 80.0, duration=0.6, leaves_rope=True
+        ),
+        _MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),
+    )
+
+    wrapper = _compile(plan)
+
+    ((take_off, _),) = wrapper.holds[JUMP_KEY]
+    ((_, released),) = wrapper.holds["down"]
+    assert released < take_off

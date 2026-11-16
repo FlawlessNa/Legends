@@ -64,6 +64,16 @@ other way covers that distance from rest, as a walk against a held key into
 such a take-off does (`_reversal`, which a drop now joins). Live (runs 28 and
 29), all 12 such take-offs went down 28 to 55 px off their spot.
 
+**A sideways jump off a rope releases its climb key first** (#561). A climb
+cut at the Action cap leaves `down` (or `up`) down, and a plan may open on a
+jump off the rope, or climb into one. With `down` held the client climbs on
+down the rope and takes no jump: on the descents of runs 29 to 36, 56 of 64
+such jumps never left the rope, and 7 of the 8 others left it at its bottom,
+not by the jump. So the climb key comes up first, and the jump key waits the gap
+`jump_on_rope` leaves after its releases (`single_jump`'s `off_rope`). Off a
+platform nothing changes: a jump that grabs a rope has its own shape, and a
+release there would only delay a take-off the character walks into.
+
 **A portal is entered on an `up` keydown** (#533). The client takes a portal
 on an `up` keydown, a press or a typematic repeat, made within its reach; `up`
 merely held enters nothing (runs 28 to 32: walks of 35 to 70 px through or
@@ -98,7 +108,7 @@ of it (`ROPE_GRAB_REACH`), wherever the read put the walk's end.
   fall's time.
 - `CLIMB` up or down: `CLIMB_UP`/`CLIMB_DOWN`, its length along y.
 - `JUMP` left, right or up: `JUMP_LEFT`/`JUMP_RIGHT`/`JUMP`, lasting its flight;
-  `grabs_rope` when it ends on a rope.
+  `grabs_rope` when it ends on a rope, `leaves_rope` when it starts on one.
 - `DROP`: `JUMP_DOWN`, lasting its fall.
 - `TELEPORT`: `TELEPORT_*`; consecutive teleports the same way are one
   component of that many `casts`, as the teleport builder casts them.
@@ -275,6 +285,7 @@ class _MovementComponent(NamedTuple):
     :ivar start: Where it takes off, virtual px; `None` for a plan built by
         hand.
     :ivar end: Where it ends, likewise.
+    :ivar leaves_rope: This jump takes off from a rope or a ladder (#561).
     """
 
     movement_type: MovementTypes
@@ -286,6 +297,7 @@ class _MovementComponent(NamedTuple):
     casts: int = 1
     start: Point | None = None
     end: Point | None = None
+    leaves_rope: bool = False
 
 
 def _flight(move: _MovementComponent) -> float:
@@ -527,6 +539,7 @@ def compile_movements(
                         structure=structure,
                         initial_state=initial_state,
                         duration=flight,
+                        off_rope=move.leaves_rope,
                     )
                     if not _walks_on(move, upcoming_move):
                         structure = _narrow_stop(structure, move)
@@ -1472,6 +1485,7 @@ class MovementHandler:
             grabs_rope=grabs_rope,
             start=move.start,
             end=move.end,
+            leaves_rope=isinstance(move.start_on, Rope),
         )
 
     def movements_into_action(
