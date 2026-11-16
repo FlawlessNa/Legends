@@ -474,7 +474,16 @@ def _append_telecast_taps(
 
     At least one tap is always emitted, and the last one is shortened to whatever
     budget is left rather than overrunning the region.
+
+    A tap after the first needs room for a whole tap: a press, its release and at
+    least one `DELAY` of wait after it, `2 * DELAY + 2 * OVERHEAD`. Less than that is
+    the slack `teleport`'s fill leaves past `animation_time * num_times` (its last Step
+    overshoots the limit, and its release follows), up to ~35ms. The exit used to be
+    one `DELAY`, which that slack could pass: the rebuild then started a tap it had no
+    room for, pressing one teleport too many and running ~33ms past the region
+    (issue #498).
     """
+    whole_tap = 2 * controller.DELAY + 2 * controller.OVERHEAD
     remaining = budget
     while True:
         press = next(controller.random_delay)
@@ -485,8 +494,8 @@ def _append_telecast_taps(
         structure.append([teleport_key, ultimate_key], ["keydown", "keydown"], press)
         structure.append([teleport_key, ultimate_key], ["keyup", "keyup"], gap)
         remaining -= press + gap + 2 * controller.OVERHEAD
-        if remaining < controller.DELAY:
-            # Too little left to hold another press - and below the float noise the
+        if remaining < whole_tap:
+            # Too little left for another whole tap - and below the float noise the
             # subtraction above leaves behind.
             return
 
