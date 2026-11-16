@@ -2257,6 +2257,14 @@
             "megaphone"
           ]
         },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
+        },
         "camera": {
           "status": "read",
           "value": {
@@ -2402,6 +2410,14 @@
             "megaphone"
           ]
         },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
+        },
         "camera": {
           "status": "read",
           "value": {
@@ -2425,7 +2441,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The stat window runs off the frame's left edge, under a translucent overlay on its labels.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -2546,6 +2562,10 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "stat_window": {
+          "status": "covered",
+          "value": null
         },
         "camera": {
           "status": "read",
@@ -2692,6 +2712,14 @@
             "megaphone"
           ]
         },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
+        },
         "camera": {
           "status": "read",
           "value": {
@@ -2836,6 +2864,14 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
         },
         "camera": {
           "status": "read",
@@ -2985,6 +3021,14 @@
             "megaphone"
           ]
         },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
+        },
         "camera": {
           "status": "read",
           "value": {
@@ -3132,6 +3176,14 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
         },
         "camera": {
           "status": "read",
@@ -3281,6 +3333,14 @@
             "megaphone"
           ]
         },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
+        },
         "camera": {
           "status": "read",
           "value": {
@@ -3428,6 +3488,14 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
         },
         "camera": {
           "status": "read",
@@ -3577,6 +3645,14 @@
             "megaphone"
           ]
         },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
+        },
         "camera": {
           "status": "read",
           "value": {
@@ -3724,6 +3800,14 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
         },
         "camera": {
           "status": "read",
@@ -3873,6 +3957,14 @@
             "megaphone"
           ]
         },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
+        },
         "camera": {
           "status": "read",
           "value": {
@@ -4020,6 +4112,14 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
         },
         "camera": {
           "status": "read",
@@ -4169,6 +4269,14 @@
             "megaphone"
           ]
         },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
+        },
         "camera": {
           "status": "read",
           "value": {
@@ -4317,6 +4425,14 @@
             "megaphone"
           ]
         },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
+        },
         "camera": {
           "status": "read",
           "value": {
@@ -4459,6 +4575,14 @@
         "chat": {
           "status": "covered",
           "value": null
+        },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
         },
         "camera": {
           "status": "read",
@@ -4603,6 +4727,14 @@
           "status": "covered",
           "value": null
         },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
+        },
         "camera": {
           "status": "read",
           "value": {
@@ -4745,6 +4877,14 @@
         "chat": {
           "status": "covered",
           "value": null
+        },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
         },
         "camera": {
           "status": "read",
@@ -4920,7 +5060,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The cursor's tip is on the stat window's bottom border, under its AP label.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -5041,6 +5181,10 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "stat_window": {
+          "status": "covered",
+          "value": null
         },
         "camera": {
           "status": "read",
@@ -5068,7 +5212,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The cursor is on the stat window's title bar.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -5189,6 +5333,10 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "stat_window": {
+          "status": "covered",
+          "value": null
         },
         "camera": {
           "status": "read",
@@ -5332,6 +5480,14 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
         },
         "camera": {
           "status": "read",
@@ -5481,6 +5637,14 @@
             "megaphone"
           ]
         },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
+        },
         "camera": {
           "status": "read",
           "value": {
@@ -5628,6 +5792,14 @@
             "megaphone",
             "megaphone"
           ]
+        },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
         },
         "camera": {
           "status": "read",
@@ -6356,7 +6528,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The stat window's Detail panel runs off the frame's right edge, with the cursor over its values.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -6478,6 +6650,10 @@
             "megaphone"
           ]
         },
+        "stat_window": {
+          "status": "covered",
+          "value": null
+        },
         "camera": {
           "status": "read",
           "value": {
@@ -6501,7 +6677,7 @@
         800,
         600
       ],
-      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The chat is covered: the stat window overlaps the chat log.",
+      "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The chat is covered: the stat window overlaps the chat log. The cursor is on the stat window's title bar.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -6615,6 +6791,10 @@
           }
         },
         "chat": {
+          "status": "covered",
+          "value": null
+        },
+        "stat_window": {
           "status": "covered",
           "value": null
         },
@@ -6757,6 +6937,14 @@
         "chat": {
           "status": "covered",
           "value": null
+        },
+        "stat_window": {
+          "status": "read",
+          "value": {
+            "available_ap": 0,
+            "speed": 100,
+            "jump": 100
+          }
         },
         "camera": {
           "status": "read",
@@ -15063,7 +15251,8 @@
           "status": "read",
           "value": {
             "available_ap": 0,
-            "detail_shown": false
+            "speed": null,
+            "jump": null
           }
         },
         "camera": {
@@ -15202,7 +15391,6 @@
           "status": "read",
           "value": {
             "available_ap": 0,
-            "detail_shown": true,
             "speed": 100,
             "jump": 100
           }

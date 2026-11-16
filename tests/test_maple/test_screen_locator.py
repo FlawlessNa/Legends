@@ -99,6 +99,26 @@ def test_a_moved_element_is_searched_again() -> None:
     assert located.point == (90, 50)
 
 
+def test_a_search_given_a_region_looks_only_there() -> None:
+    pixels = element((60, 40))
+
+    assert locator().locate(frame(pixels), region=(100, 0, 100, 150)) is None
+    located = locator().locate(frame(pixels), region=(30, 20, 70, 60))
+    assert located is not None
+    assert located.point == (60, 40)
+
+
+def test_a_covered_anchor_is_found_through_a_part_in_the_region() -> None:
+    pixels = element((60, 40))
+    pixels[37:45, 58:70] = 40  # the anchor, painted over
+
+    located = locator().locate(frame(pixels), region=(30, 20, 70, 60))
+
+    assert located is not None
+    assert located.point == (60, 40)
+    assert not located.anchor.matched
+
+
 def test_one_search_after_a_size_change_then_rechecks() -> None:
     finder = locator()
     finder.locate(frame(element((60, 40))))

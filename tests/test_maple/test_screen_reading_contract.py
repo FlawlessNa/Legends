@@ -26,6 +26,7 @@ from maple.screen.minimap_title import MinimapTitleReader
 from maple.screen.position import CameraReader
 from maple.screen.quick_slots import SEARCH_EVERY, QuickSlotsReader
 from maple.screen.sprites import GAUGE_LABEL
+from maple.screen.stat_window import StatWindowReader
 from maple.screen.status_bar import StatusBarReader
 from tests.test_maple import test_screen_buffs as buffs
 from tests.test_maple import test_screen_camera as camera
@@ -33,6 +34,7 @@ from tests.test_maple import test_screen_chat as chat
 from tests.test_maple import test_screen_minimap as minimap
 from tests.test_maple import test_screen_minimap_title as minimap_title
 from tests.test_maple import test_screen_quick_slots as quick_slots
+from tests.test_maple import test_screen_stat_window as stat_window
 from tests.test_maple import test_screen_status_bar as status_bar
 
 REJECTED = "frame rejected by the check"
@@ -105,6 +107,12 @@ def _camera(check: FrameCheck) -> Callable[[], Reading[Any]]:
     return lambda: reader.read(frame)
 
 
+def _stat_window(check: FrameCheck) -> Callable[[], Reading[Any]]:
+    reader = StatWindowReader(stat_window.SPRITES, check)
+    frame = stat_window.frame(stat_window.window())
+    return lambda: reader.read(frame)
+
+
 READERS = {
     StatusBarReader: _status_bar,
     MinimapReader: _minimap,
@@ -113,6 +121,7 @@ READERS = {
     ChatReader: _chat,
     MinimapTitleReader: _minimap_title,
     CameraReader: _camera,
+    StatWindowReader: _stat_window,
 }
 
 ASKS = {QuickSlotsReader: 2}
@@ -158,6 +167,7 @@ CHECK_SPRITES = {
     ChatReader: chat.sprites(),
     MinimapTitleReader: minimap_title.title_sprites(),
     CameraReader: minimap.sprites(),
+    StatWindowReader: stat_window.SPRITES,
 }
 
 

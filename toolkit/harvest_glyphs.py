@@ -4,7 +4,9 @@
 
 The glyphs are client pixels: they go to the gitignored `data/glyphs/`, which
 `maple/screen/font.py` loads, and never into git. What to cut, and where, is in
-`toolkit/glyph_sources/<tag>.json`, which holds no pixels:
+`toolkit/glyph_sources/<tag>.json`, one file per frame set, which holds no
+pixels. A tag's file holds every source of the tags before it, so the current
+tag (`tests/frames/CURRENT`) cuts every set:
 
 - `chat-general`: general chat lines, each `[x, top of its 16-row band, width]`.
   They are **labelled by a render of Arial** at 14 px, unantialiased, which
@@ -12,9 +14,10 @@ The glyphs are client pixels: they go to the gitignored `data/glyphs/`, which
   frame's own pixels, and nothing reads Arial afterwards. A line the render
   doesn't explain to the last pixel is refused. Arial draws `I` and `l` alike,
   so they are kept as one glyph, `I`, and the manifest says so.
-- `countdown`: a buff slot's countdown rows, `[x, y, width, height]`, with the
-  digits a person read there. Each digit is one blob of yellow ink; a box whose
-  blobs don't number its digits is refused.
+- `countdown` and `stat-window`: boxes `[x, y, width, height]` with the
+  characters a person read there: a buff slot's countdown rows (#313), and the
+  stat window's numbers (#314). Each character is one blob of ink; a box whose
+  blobs don't number its characters is refused.
 - `minimap-title`: a line of the minimap banner's title, `[x, top of its
   capitals, width]`, with the text a person read there. Each letter is a run of
   columns holding ink; where two letters touch, `splits` gives the columns
@@ -22,9 +25,10 @@ The glyphs are client pixels: they go to the gitignored `data/glyphs/`, which
   letters is refused.
 
 Every source is read back with the harvested set; any misread fails the run, and
-nothing is written. The tool prints each source's labels for a person to check.
-Needs the frames on disk (`python scripts/fetch_frames.py`); sends nothing to
-the game.
+nothing is written. A set with no source in the tag is left as it is on disk.
+The tool prints each source's labels for a person to check. Needs the tag's
+frames on disk (`python scripts/fetch_frames.py <tag>`); sends nothing to the
+game.
 """
 
 import argparse
@@ -44,6 +48,7 @@ from maple.screen.font import (
     COUNTDOWN,
     GLYPHS,
     MINIMAP_TITLE,
+    STAT_WINDOW_GLYPHS,
     GlyphSet,
     GlyphSetSpec,
     save_glyph_set,
@@ -60,6 +65,8 @@ CELL_OFFSET = 3
 (`font.CHAT_GENERAL`)."""
 MIN_BLOB = 3
 """Ink blobs smaller than this, in pixels, are specks, not digits."""
+BOXED_SETS = (COUNTDOWN, STAT_WINDOW_GLYPHS)
+"""The glyph sets cut from boxes a person labelled (`harvest_digits`)."""
 
 type Mask = NDArray[np.bool_]
 
@@ -159,7 +166,7 @@ def harvest_lines(
     return harvest
 
 
-# Countdown: labelled by a person.
+# Countdown and stat window: labelled by a person.
 
 
 def blobs(ink: Mask) -> list[Mask]:
@@ -268,7 +275,8 @@ def _load(directory: Path, frame: str) -> NDArray[np.uint8]:
     pixels = cv2.imread(str(directory / frame), cv2.IMREAD_COLOR)
     if pixels is None:
         sys.exit(
-            f"{directory / frame} can't be read: run `python scripts/fetch_frames.py`"
+            f"{directory / frame} can't be read: run "
+            f"`python scripts/fetch_frames.py {directory.name}`"
         )
     return pixels.astype(np.uint8, copy=False)
 
@@ -311,16 +319,19 @@ def main(argv: list[str] | None = None) -> int:
         [(w, s, labelled[w]) for w, s in line_strips if w in labelled],
     )
 
-    boxes: list[tuple[str, Mask, str]] = []
-    digit_strips: list[tuple[str, NDArray[np.uint8], str]] = []
-    for source in sources.get(COUNTDOWN.name, []):
-        x, y, w, h = source["box"]
-        where = f"{source['frame']} box {x},{y}"
-        strip = _load(directory, source["frame"])[y : y + h, x : x + w]
-        boxes.append((where, COUNTDOWN.ink(strip), source["text"]))
-        digit_strips.append((where, strip, source["text"]))
-    digits = harvest_digits(boxes)
-    digits.problems += misreads(COUNTDOWN, digits, digit_strips)
+    boxed: list[tuple[GlyphSetSpec, Harvest]] = []
+    for spec in BOXED_SETS:
+        boxes: list[tuple[str, Mask, str]] = []
+        strips: list[tuple[str, NDArray[np.uint8], str]] = []
+        for source in sources.get(spec.name, []):
+            x, y, w, h = source["box"]
+            where = f"{source['frame']} box {x},{y}"
+            strip = _load(directory, source["frame"])[y : y + h, x : x + w]
+            boxes.append((where, spec.ink(strip), source["text"]))
+            strips.append((where, strip, source["text"]))
+        harvest = harvest_digits(boxes)
+        harvest.problems += misreads(spec, harvest, strips)
+        boxed.append((spec, harvest))
 
     title_lines: list[tuple[str, Mask, str, Sequence[int]]] = []
     title_strips: list[tuple[str, NDArray[np.uint8], str]] = []
@@ -335,14 +346,14 @@ def main(argv: list[str] | None = None) -> int:
     title = harvest_cut_lines(title_lines)
     title.problems += misreads(MINIMAP_TITLE, title, title_strips)
 
-    harvests = ((CHAT_GENERAL, chat), (COUNTDOWN, digits), (MINIMAP_TITLE, title))
+    harvests = ((CHAT_GENERAL, chat), *boxed, (MINIMAP_TITLE, title))
     for spec, harvest in harvests:
         print(
             f"{spec.name}: {len(harvest.glyphs)} glyph(s): {''.join(sorted(harvest.glyphs))}"
         )
         for where, text in harvest.labels:
             print(f"  {where}: {text}")
-    problems = chat.problems + digits.problems + title.problems
+    problems = [p for _, harvest in harvests for p in harvest.problems]
     if problems:
         print("\nNothing written:", *problems, sep="\n  ", file=sys.stderr)
         return 1
@@ -352,7 +363,7 @@ def main(argv: list[str] | None = None) -> int:
             chat,
             {k: v for k, v in alike(labeller).items() if k in chat.glyphs},
         ),
-        (COUNTDOWN, digits, {}),
+        *((spec, harvest, {}) for spec, harvest in boxed),
         (MINIMAP_TITLE, title, {}),
     ):
         if not harvest.glyphs:

@@ -2271,6 +2271,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -2416,6 +2424,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -2425,7 +2441,7 @@
     1366,
     768
    ],
-   "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+   "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The stat window runs off the frame's left edge, under a translucent overlay on its labels.",
    "expect": {
     "status_bar": {
      "status": "read",
@@ -2561,6 +2577,10 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "covered",
+     "value": null
     }
    }
   },
@@ -2706,6 +2726,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -2854,6 +2882,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -3002,6 +3038,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -3150,6 +3194,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -3298,6 +3350,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -3446,6 +3506,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -3594,6 +3662,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -3742,6 +3818,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -3890,6 +3974,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -4038,6 +4130,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -4186,6 +4286,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -4334,6 +4442,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -4477,6 +4593,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -4620,6 +4744,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -4763,6 +4895,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -4920,7 +5060,7 @@
     1366,
     768
    ],
-   "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+   "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The cursor's tip is on the stat window's bottom border, under its AP label.",
    "expect": {
     "status_bar": {
      "status": "read",
@@ -5059,6 +5199,10 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "covered",
+     "value": null
     }
    }
   },
@@ -5068,7 +5212,7 @@
     1366,
     768
    ],
-   "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+   "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. The cursor is on the stat window's title bar.",
    "expect": {
     "status_bar": {
      "status": "read",
@@ -5207,6 +5351,10 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "covered",
+     "value": null
     }
    }
   },
@@ -5350,6 +5498,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -5498,6 +5654,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -5646,6 +5810,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -6356,7 +6528,7 @@
     800,
     600
    ],
-   "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon.",
+   "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The stat window's Detail panel runs off the frame's right edge, with the cursor over its values.",
    "expect": {
     "status_bar": {
      "status": "read",
@@ -6492,6 +6664,10 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "covered",
+     "value": null
     }
    }
   },
@@ -6501,7 +6677,7 @@
     800,
     600
    ],
-   "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The chat is covered: the stat window overlaps the chat log.",
+   "notes": "Pup is on cooldown: shaded, with the seconds left drawn over the skill icon. The chat is covered: the stat window overlaps the chat log. The cursor is on the stat window's title bar.",
    "expect": {
     "status_bar": {
      "status": "read",
@@ -6632,6 +6808,10 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "covered",
+     "value": null
     }
    }
   },
@@ -6775,6 +6955,14 @@
     "map_id": {
      "status": "read",
      "value": 10005031
+    },
+    "stat_window": {
+     "status": "read",
+     "value": {
+      "available_ap": 0,
+      "speed": 100,
+      "jump": 100
+     }
     }
    }
   },
@@ -15063,7 +15251,8 @@
      "status": "read",
      "value": {
       "available_ap": 0,
-      "detail_shown": false
+      "speed": null,
+      "jump": null
      }
     },
     "camera": {
@@ -15202,7 +15391,6 @@
      "status": "read",
      "value": {
       "available_ap": 0,
-      "detail_shown": true,
       "speed": 100,
       "jump": 100
      }

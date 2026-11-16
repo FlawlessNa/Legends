@@ -10,6 +10,8 @@ the gitignored `data/glyphs/` (spec R4).
 - the buff countdown's digits match no font at all, Noto or any font Windows
   ships, at any size: the best is a third of their pixels wrong.
 
+The stat window's digits (#314) are harvested the same way, from frame set `v2`.
+
 So the glyphs come from the frames, cut by `toolkit/harvest_glyphs.py`. They are
 client pixels, so they are never committed.
 
@@ -124,8 +126,18 @@ columns apart and words 4 (#387). Not the client's font: a render of
 as "Dungeon" but gets 73 of its 179 ink pixels wrong, so the glyphs are
 harvested (R4)."""
 
+STAT_WINDOW_GLYPHS = GlyphSetSpec(
+    "stat-window",
+    low=(0, 0, 0),
+    high=(0, 0, 0),
+    max_error=0.0,
+)
+"""The stat window's numbers: pure black, unantialiased, 9 rows tall, so read
+exactly. Seen on frame set `v2` (`m_ability_*`) in the Main and Detail panels'
+values and in the AP box, which draw the digits alike."""
+
 GLYPH_SETS: dict[str, GlyphSetSpec] = {
-    s.name: s for s in (CHAT_GENERAL, COUNTDOWN, MINIMAP_TITLE)
+    s.name: s for s in (CHAT_GENERAL, COUNTDOWN, MINIMAP_TITLE, STAT_WINDOW_GLYPHS)
 }
 
 
@@ -221,7 +233,8 @@ def load_glyph_set(name: str, root: Path = GLYPHS) -> GlyphSet:
     spec = GLYPH_SETS[name]
     folder = root / name
     hint = (
-        f"fetch the frame set (`python scripts/fetch_frames.py`), then run "
+        "fetch every frame set toolkit/glyph_sources/ names "
+        "(`python scripts/fetch_frames.py <tag>`), then run "
         f"`python -m toolkit.harvest_glyphs` to cut them into {root}"
     )
     try:

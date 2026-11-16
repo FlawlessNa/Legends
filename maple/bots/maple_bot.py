@@ -41,6 +41,7 @@ from maple.screen.sprites import (
     load_reader_sprites,
     with_readers,
 )
+from maple.screen.stat_window import MAIN_BACKGROUND, StatWindowReader
 from maple.screen.status_bar import BACKGROUND as STATUS_BAR_BACKGROUND
 from maple.screen.status_bar import StatusBarReader
 
@@ -214,6 +215,10 @@ class MapleBot(Bot, ABC):
                 )
             if TARGET_SELECT in reader_sprites.canvases:
                 data.set_static("chat_reader", ChatReader(reader_sprites, frame_check))
+            if MAIN_BACKGROUND in reader_sprites.canvases:
+                data.set_static(
+                    "stat_window_reader", StatWindowReader(reader_sprites, frame_check)
+                )
         InGameDetectionVisuals.register_models(self.models_path)
         InGameDetectionVisuals.register_cache_id(data.handle)
         data.create_attribute(
