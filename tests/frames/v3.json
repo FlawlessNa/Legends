@@ -16180,14 +16180,17 @@
     1024,
     768
    ],
-   "notes": "Henesys at 1024x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1024x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -16227,14 +16230,17 @@
     1024,
     768
    ],
-   "notes": "Henesys at 1024x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1024x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -16274,14 +16280,17 @@
     1024,
     768
    ],
-   "notes": "Henesys at 1024x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1024x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -16568,14 +16577,17 @@
     1280,
     720
    ],
-   "notes": "Henesys at 1280x720: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1280x720: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -16615,14 +16627,17 @@
     1280,
     720
    ],
-   "notes": "Henesys at 1280x720: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1280x720: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -16662,14 +16677,17 @@
     1280,
     720
    ],
-   "notes": "Henesys at 1280x720: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1280x720: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -16709,14 +16727,17 @@
     1280,
     720
    ],
-   "notes": "Henesys at 1280x720: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1280x720: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -16756,14 +16777,17 @@
     1280,
     720
    ],
-   "notes": "Henesys at 1280x720: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1280x720: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -16803,14 +16827,17 @@
     1280,
     720
    ],
-   "notes": "Henesys at 1280x720: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1280x720: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -17097,14 +17124,17 @@
     1366,
     768
    ],
-   "notes": "Henesys at 1366x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1366x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -17144,14 +17174,17 @@
     1366,
     768
    ],
-   "notes": "Henesys at 1366x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1366x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -17191,14 +17224,17 @@
     1366,
     768
    ],
-   "notes": "Henesys at 1366x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1366x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -17238,14 +17274,17 @@
     1366,
     768
    ],
-   "notes": "Henesys at 1366x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1366x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -17285,14 +17324,17 @@
     1366,
     768
    ],
-   "notes": "Henesys at 1366x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1366x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -17332,14 +17374,17 @@
     1366,
     768
    ],
-   "notes": "Henesys at 1366x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1366x768: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -17879,14 +17924,17 @@
     1920,
     1080
    ],
-   "notes": "Henesys at 1920x1080: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1920x1080: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -17926,14 +17974,17 @@
     1920,
     1080
    ],
-   "notes": "Henesys at 1920x1080: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1920x1080: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -17973,14 +18024,17 @@
     1920,
     1080
    ],
-   "notes": "Henesys at 1920x1080: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1920x1080: our character walks right in steps. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -18270,14 +18324,17 @@
     1920,
     1200
    ],
-   "notes": "Henesys at 1920x1200: our character walks right in steps. The play area is drawn at 1228x768 and upscaled; the UI is at 1:1. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1920x1200: our character walks right in steps. The play area is drawn at 1228x768 and upscaled; the UI is at 1:1. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -18317,14 +18374,17 @@
     1920,
     1200
    ],
-   "notes": "Henesys at 1920x1200: our character walks right in steps. The play area is drawn at 1228x768 and upscaled; the UI is at 1:1. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1920x1200: our character walks right in steps. The play area is drawn at 1228x768 and upscaled; the UI is at 1:1. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -18364,14 +18424,17 @@
     1920,
     1200
    ],
-   "notes": "Henesys at 1920x1200: our character walks right in steps. The play area is drawn at 1228x768 and upscaled; the UI is at 1:1. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1920x1200: our character walks right in steps. The play area is drawn at 1228x768 and upscaled; the UI is at 1:1. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -18411,14 +18474,17 @@
     1920,
     1200
    ],
-   "notes": "Henesys at 1920x1200: our character walks right in steps. The play area is drawn at 1228x768 and upscaled; the UI is at 1:1. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1920x1200: our character walks right in steps. The play area is drawn at 1228x768 and upscaled; the UI is at 1:1. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -18458,14 +18524,17 @@
     1920,
     1200
    ],
-   "notes": "Henesys at 1920x1200: our character walks right in steps. The play area is drawn at 1228x768 and upscaled; the UI is at 1:1. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1920x1200: our character walks right in steps. The play area is drawn at 1228x768 and upscaled; the UI is at 1:1. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -18505,14 +18574,17 @@
     1920,
     1200
    ],
-   "notes": "Henesys at 1920x1200: our character walks right in steps. The play area is drawn at 1228x768 and upscaled; the UI is at 1:1. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1920x1200: our character walks right in steps. The play area is drawn at 1228x768 and upscaled; the UI is at 1:1. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {
@@ -18948,14 +19020,17 @@
     1920,
     1080
    ],
-   "notes": "Henesys at 1920x1080: our character walks left in steps from the map's right end; the minimap scrolls sideways. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge: no position.",
+   "notes": "Henesys at 1920x1080: our character walks left in steps from the map's right end; the minimap scrolls sideways. Our character stands at the map's right end, its name tag cut by the client's edge. The minimap marker is clipped at the canvas's edge; 81% of it is drawn, enough to place it (#502).",
    "expect": {
     "minimap": {
      "status": "read",
      "value": {
       "state": "expanded",
       "map": "Victoria Road: Henesys",
-      "self_position": null
+      "self_position": [
+       429,
+       56
+      ]
      }
     },
     "chat": {

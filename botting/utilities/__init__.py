@@ -1,5 +1,5 @@
 from .box import Box
-from .child_process import setup_child_proc_logging
+from .child_process import exit_with_parent, setup_child_proc_logging
 from .config_reader import config_reader
 from .functions_helpers import cooldown, randomize_params
 from .images import read_detection_image
@@ -19,6 +19,7 @@ __all__ = [
     "Box",
     "config_reader",
     "cooldown",
+    "exit_with_parent",
     "find_image",
     "get_object_by_id",
     "group_rectangles",

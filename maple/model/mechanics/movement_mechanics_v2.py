@@ -15,6 +15,92 @@ graph says it takes (`_MovementComponent.duration`): a jump its flight, a drop
 its fall, a portal its planning time. No compile time is a fixed number of
 seconds of its own.
 
+**Where a walk stops** (#503). Given the walk's acceleration and deceleration,
+`compile_movements` times two walks by where the character comes to rest
+rather than by length alone (`_time_walks`): the plan's last walk, which ends
+in a key release, stops short by the slide after the release; and a first walk
+whose key is already down is shortened by how far the character has walked
+since the frame its position was read on (`read_at`), up to the moment of
+compiling.
+
+**Where a jump takes off** (#515). A sideways jump the character walks into,
+the same way, presses its jump key as the walk reaches the take-off: no
+release goes before it (`_walks_into`), nor before a walk on from a narrow
+landing (`_walks_on`), since the next press would undo it one Step later. And
+a cut at the Action duration cap that the character would follow into an
+edge-departure jump sooner than the next plan can press it is moved past that
+jump (`_jump_to_finish`). The pieces of a walk cut at `_MAX_TRAVEL_LENGTH`
+each hold to their end on the plan's clock (`_piece_duration`, #521), so the
+jump key after them goes down at most one Step past the walk's time, however
+many pieces it was cut into.
+
+**A jump walked into against a held key** (#521). When the plan's first walk
+goes against a direction key still down (a Continuation the other way) and
+runs straight into a jump its way, the character is moving the wrong way at
+the walk speed, and how fast it turns with the new key down is not modelled.
+So the compile releases that key, waits out the slide (`walk_stop_slide`'s
+time, `speed ÷ deceleration`), and walks from rest the read-to-stop distance
+further (`_reversal`, `_time_walks`): the take-off is then timed as from rest,
+which errs short, by the acceleration's cost, rather than past the edge. Live,
+pressing the new key at once took off 46 to 69 px short, in the air once.
+
+**A jump straight up stands still first** (#530). The graph traces a `JUMP`
+up with no sideways speed, but the client carries the walk's speed into the
+air. A jump straight up off a platform therefore goes down with no direction
+key held, once the character has stopped: the walk into it is timed to come
+to rest at the take-off (`walk_press_time`, from rest after a reversal), its
+key comes up, and the jump key waits out the slide (`_stand_still`). Live,
+with the walk's key still down, every such jump of the records took off at
+the walk speed (149 px/s) and flew 40 to 50 px sideways: off the open end
+of the platform it was to land on, or under a part of it too high to reach.
+A jump up into a rope's bottom releases its keys already (`jump_up_on_rope`).
+
+**A vertical take-off the plan opens on, a key still down** (#540). A plan
+that opens on a jump straight up or a drop starts where its frame was read;
+with a direction key down, the character walked on from there until the
+compile and slides on after the release. So the compile walks it back first
+(`_walk_back`): the key comes up, the slide is waited out, and a walk the
+other way covers that distance from rest, as a walk against a held key into
+such a take-off does (`_reversal`, which a drop now joins). Live (runs 28 and
+29), all 12 such take-offs went down 28 to 55 px off their spot. A plan that
+opens on a walk, its key down, shorter than the character walked since the
+read, into a jump straight up turns back the same way (`_turn_back`, #560):
+shortened to nothing instead, its 5 tries on runs 30 to 36 went down 34 to
+56 px past their spot, and all missed.
+
+**A sideways jump off a rope releases its climb key first** (#561). A climb
+cut at the Action cap leaves `down` (or `up`) down, and a plan may open on a
+jump off the rope, or climb into one. With `down` held the client climbs on
+down the rope and takes no jump: on the descents of runs 29 to 36, 56 of 64
+such jumps never left the rope, and 7 of the 8 others left it at its bottom,
+not by the jump. So the climb key comes up first, and the jump key waits the gap
+`jump_on_rope` leaves after its releases (`single_jump`'s `off_rope`). Off a
+platform nothing changes: a jump that grabs a rope has its own shape, and a
+release there would only delay a take-off the character walks into.
+
+**A portal is entered on an `up` keydown** (#533). The client takes a portal
+on an `up` keydown, a press or a typematic repeat, made within its reach; `up`
+merely held enters nothing (runs 28 to 32: walks of 35 to 70 px through or
+toward the portal with `up` down and no keydown in reach never entered, and
+every `up` held across Actions that owned typematic entered on the next
+Action's first repeats). So the walk into a portal presses `up` again when it
+is down already but would not own typematic, as when the walk's own key goes
+down after it (`_press_up_again`), and so does a portal the plan opens on.
+A walk into a portal against a held direction key is a reversal
+(`_reversal`), as one into a jump is. A walk into a portal, its key down, that
+the character has walked past since the read turns back (`_turn_back`): the
+key comes up, the slide is waited out, and the walk the other way, from rest,
+covers what the read's age and the slide carried it past.
+
+**No walk inside the read** (#516). A Path that is only a walk no longer than
+the start's own uncertainty (half a canvas px on a coarse read) is planned as
+no move (`compute_path`'s `resolution`).
+
+**Onto a rope from above.** A walk whose next move climbs down onto a rope
+holds `down` from its first Step, and its direction stays down through the
+climb: the down key grabs the rope as soon as the character is within reach
+of it (`ROPE_GRAB_REACH`), wherever the read put the walk's end.
+
 **Which graph moves become which component.**
 
 - `WALK` left or right: `WALK_LEFT`/`WALK_RIGHT`, its length along x. A walk
@@ -26,7 +112,7 @@ seconds of its own.
   fall's time.
 - `CLIMB` up or down: `CLIMB_UP`/`CLIMB_DOWN`, its length along y.
 - `JUMP` left, right or up: `JUMP_LEFT`/`JUMP_RIGHT`/`JUMP`, lasting its flight;
-  `grabs_rope` when it ends on a rope.
+  `grabs_rope` when it ends on a rope, `leaves_rope` when it starts on one.
 - `DROP`: `JUMP_DOWN`, lasting its fall.
 - `TELEPORT`: `TELEPORT_*`; consecutive teleports the same way are one
   component of that many `casts`, as the teleport builder casts them.
@@ -37,6 +123,8 @@ from __future__ import annotations
 
 import logging
 import math
+import time
+from collections.abc import Callable, Sequence
 from enum import IntEnum
 from functools import lru_cache
 from itertools import pairwise
@@ -46,9 +134,12 @@ from botting import PARENT_LOG
 from botting.controller import (
     EVENTS,
     NO_COMPONENT,
+    OPPOSITES,
     InputState,
     KeyboardInputWrapper,
+    get_held_movement_keys,
     key_binds,
+    random_delay,
 )
 from game_data.catalogue import Rope
 from maple.actions import movements_v2
@@ -57,8 +148,11 @@ from maple.model.navigation.moves import Direction as MoveDirection
 from maple.model.navigation.moves import Move, MoveKind, Path, Point
 from maple.model.world import Platform
 
+from .physics import walk_press_time, walk_stop_slide
+
 if TYPE_CHECKING:
     from maple.model.navigation.foothold_graph import FootholdGraph
+    from maple.model.navigation.foothold_graphs import FootholdGraphs
     from maple.model.world import WorldMap
 
     from .physics import VRPhysics
@@ -151,8 +245,11 @@ _TELEPORTS = frozenset(
     }
 )
 
+#: Walks: the moves the walk's acceleration and slide apply to.
+_WALKS = frozenset({MovementTypes.WALK_LEFT, MovementTypes.WALK_RIGHT})
+
 #: Components that are travel along a surface: merged and cut by length.
-_TRAVEL = frozenset({MovementTypes.WALK_LEFT, MovementTypes.WALK_RIGHT}) | _CLIMBS
+_TRAVEL = _WALKS | _CLIMBS
 
 # Landing width (PM2) applies to any jump, drop or teleport that lands on a platform.
 _NARROW_KINDS = frozenset({MoveKind.JUMP, MoveKind.DROP, MoveKind.TELEPORT})
@@ -192,6 +289,7 @@ class _MovementComponent(NamedTuple):
     :ivar start: Where it takes off, virtual px; `None` for a plan built by
         hand.
     :ivar end: Where it ends, likewise.
+    :ivar leaves_rope: This jump takes off from a rope or a ladder (#561).
     """
 
     movement_type: MovementTypes
@@ -203,6 +301,7 @@ class _MovementComponent(NamedTuple):
     casts: int = 1
     start: Point | None = None
     end: Point | None = None
+    leaves_rope: bool = False
 
 
 def _flight(move: _MovementComponent) -> float:
@@ -231,6 +330,11 @@ def compile_movements(
     teleport: MapleSkill | None = None,
     total_duration: float | None = None,
     always_release: bool = False,
+    walk_acceleration: float = math.inf,
+    walk_deceleration: float = math.inf,
+    read_at: float | None = None,
+    clock: Callable[[], float] = time.monotonic,
+    correlation_id: str | None = None,
 ) -> KeyboardInputWrapper | None:
     """
     Compiles a Movement Plan into an Input Sequence.
@@ -256,12 +360,83 @@ def compile_movements(
     :param always_release: Force-release every key still held at the end of the
         sequence. This is the flag form of what `_always_release_keys_on_actions`
         used to do by post-processing a compiled Action in the Engine process.
+    :param walk_acceleration: Virtual px/s² from rest (`VRPhysics`). With
+        `walk_deceleration`, it times the first and last walks by where the
+        character stops (`_time_walks`); both infinite (the default), a walk
+        lasts its length at `speed`.
+    :param walk_deceleration: Virtual px/s² sliding to a stop (`VRPhysics`).
+    :param read_at: When the frame the plan's start was read on was captured,
+        on `clock`. The character has walked since, when the first walk's key
+        is already down. `None`: no lead.
+    :param clock: The frames' clock, `time.monotonic`; a test passes its own.
+    :param correlation_id: The `_decide()` call's Correlation ID, baked into the
+        partial (ADR 0001) and stamped on the Input Sequence, whose key records
+        carry it (#538). It changes no Step.
     :return: The Input Sequence, or None when the plan compiles to nothing.
     :raises ValueError: A jump carries no `duration`, a drop grabs a rope, or a
         teleport is planned with no teleport skill.
     """
     climb = speed if climb_speed is None else climb_speed
+    since_read = None if read_at is None else max(0.0, clock() - read_at)
     structure = None
+    # Components compiled ahead of the plan's own (`_walk_back`): every Step
+    # keeps the index of the plan's component it serves, its Provenance.
+    shift = 0
+    if since_read is not None or not (
+        math.isinf(walk_acceleration) and math.isinf(walk_deceleration)
+    ):
+        held_keys = _held_keys(handle, initial_state)
+        back = None if since_read is None else _walk_back(movements, held_keys)
+        if back is not None:
+            movements, shift = (back, *movements), 1
+        turned = (
+            None
+            if since_read is None
+            else _turn_back(movements, held_keys, speed * since_read)
+        )
+        if turned is not None:
+            movements = turned
+        against = _reversal(movements, held_keys)
+        movements = _time_walks(
+            movements,
+            held_keys,
+            # A walk turned back is measured from where the character is now,
+            # not from the read: the read's age is in its length already.
+            since_read=0.0 if turned is not None else since_read,
+            speed=speed,
+            acceleration=walk_acceleration,
+            deceleration=walk_deceleration,
+            reversal=against is not None,
+        )
+        if against is not None:
+            # The key the first walk goes against comes up first, and the walk
+            # waits out the slide: its builder appends to this (#521).
+            structure = KeyboardInputWrapper(
+                handle,
+                [against],
+                ["keyup"],
+                [_stop_time(speed, walk_deceleration)],
+                initial_state=initial_state,
+            )
+    if (
+        structure is None
+        and movements
+        and _standing(movements[0])
+        and {"left", "right"} & _held_keys(handle, initial_state)
+    ):
+        # The plan opens on a jump straight up with a direction key still down
+        # (a Continuation): the character stops before it takes off (#530).
+        structure = _stand_still(
+            KeyboardInputWrapper(handle, [], [], [], initial_state=initial_state),
+            speed,
+            walk_deceleration,
+        )
+    # Where the sequence is cut: the Action duration cap, moved to the end of a
+    # jump compiled past it (`_jump_to_finish`).
+    cut_at = total_duration
+    finishing: int | None = None
+    # Where the walk being compiled ends on the plan's clock (`_piece_duration`).
+    walk_end: float | None = None
     for origin, (move, upcoming_move) in enumerate(pairwise(movements)):
         # Provenance: every Step the builders below emit belongs to component `origin`.
         # The cursor moves here, ahead of the build, because a builder appends and
@@ -272,11 +447,11 @@ def compile_movements(
         # returns, and its Steps are stamped `NO_COMPONENT` by default. `attribute`
         # below claims them.
         if structure is not None:
-            structure.current_origin = origin
+            structure.current_origin = max(0, origin - shift)
         move_type = move.movement_type
         match move_type:
             case MovementTypes.WALK_LEFT | MovementTypes.WALK_RIGHT:
-                direction = _DIRECTIONS[move_type.name.split("_")[-1].lower()]
+                direction = _direction_of(move)
                 secondary: Direction | None = None
                 if upcoming_move.movement_type in (
                     MovementTypes.ENTER_PORTAL,
@@ -291,20 +466,25 @@ def compile_movements(
                     release_keys = "up"
                 else:
                     release_keys = ["up", "down"]
+                if upcoming_move.movement_type is MovementTypes.ENTER_PORTAL:
+                    structure = _press_up_again(
+                        handle, structure, initial_state, direction
+                    )
+                duration, walk_end = _piece_duration(
+                    movements, origin, structure, walk_end, speed
+                )
                 structure = movements_v2.move(
                     handle,
                     direction,
                     secondary,
-                    duration=(
-                        move.length / speed if move.duration is None else move.duration
-                    ),
+                    duration=duration,
                     structure=structure,
                     release_keys=release_keys,
                     initial_state=initial_state,
                 )
 
             case MovementTypes.CLIMB_UP | MovementTypes.CLIMB_DOWN:
-                direction = _DIRECTIONS[move_type.name.split("_")[-1].lower()]
+                direction = _direction_of(move)
                 secondary = None
                 # A climb carries the next walk's direction, so the character steps
                 # off the rope's end straight into it. A fall off a rope's bottom
@@ -320,9 +500,7 @@ def compile_movements(
                     handle,
                     direction,
                     secondary,
-                    duration=(
-                        move.length / climb if move.duration is None else move.duration
-                    ),
+                    duration=_seconds(move, climb),
                     structure=structure,
                     initial_state=initial_state,
                 )
@@ -356,9 +534,7 @@ def compile_movements(
                     )
                 else:
                     direction = (
-                        "up"
-                        if move_type is MovementTypes.JUMP
-                        else _DIRECTIONS[move_type.name.split("_")[-1].lower()]
+                        "up" if move_type is MovementTypes.JUMP else _direction_of(move)
                     )
                     structure = movements_v2.single_jump(
                         handle,
@@ -367,8 +543,10 @@ def compile_movements(
                         structure=structure,
                         initial_state=initial_state,
                         duration=flight,
+                        off_rope=move.leaves_rope,
                     )
-                    structure = _narrow_stop(structure, move)
+                    if not _walks_on(move, upcoming_move):
+                        structure = _narrow_stop(structure, move)
 
             case MovementTypes.JUMP_DOWN:
                 if move.grabs_rope:
@@ -387,12 +565,11 @@ def compile_movements(
                 structure = _narrow_stop(structure, move)
 
             case MovementTypes.ENTER_PORTAL:
+                structure = _press_up_again(handle, structure, initial_state)
                 structure = movements_v2.move(
                     handle,
                     "up",
-                    duration=(
-                        move.length / speed if move.duration is None else move.duration
-                    ),
+                    duration=_seconds(move, speed),
                     structure=structure,
                     initial_state=initial_state,
                 )
@@ -408,7 +585,7 @@ def compile_movements(
                         f"{move_type.name} is in the Movement Plan, but no teleport "
                         f"skill was supplied to compile it with."
                     )
-                direction = _DIRECTIONS[move_type.name.split("_")[-1].lower()]
+                direction = _direction_of(move)
                 repeat_key = None
                 if upcoming_move.movement_type in (
                     MovementTypes.ENTER_PORTAL,
@@ -434,11 +611,42 @@ def compile_movements(
             case _:
                 raise NotImplementedError(f"Unhandled movement type {move_type!r}")
 
-        structure.attribute(origin)
+        structure.attribute(max(0, origin - shift))
 
+        if finishing is not None and origin >= finishing:
+            # The jump compiled past the cap has taken off: the cut moves to
+            # the end of its flight, and another jump may follow it too near.
+            # When nothing follows, the plan ends there: no cut, so its keys
+            # come up as any plan's do.
+            finishing = None
+            cut_at = (
+                None
+                if upcoming_move.movement_type is MovementTypes.END_OF_MOVEMENT
+                else structure.duration
+            )
+        if finishing is None and cut_at is not None and structure.duration >= cut_at:
+            finishing = _jump_to_finish(
+                movements,
+                origin,
+                structure.duration - cut_at,
+                since_read,
+                speed,
+                structure.keys_held,
+            )
         # Else just consider current move and disregard previous.
-        if total_duration is not None and structure.duration >= total_duration:
-            structure = structure.truncate(total_duration)
+        if (
+            finishing is None
+            and cut_at is not None
+            and structure.duration >= cut_at
+            and not _finish_instead_of_cut(
+                movements,
+                origin,
+                structure.duration - cut_at,
+                since_read,
+                walk_stop_slide(speed, walk_deceleration) / speed,
+            )
+        ):
+            structure = structure.truncate(cut_at)
             # The cut lands mid-walk with the horizontal key still down, and the
             # next chunk opens on a jump or a portal - a move that misses unless
             # the character is standing still. Release the direction so the next
@@ -464,9 +672,7 @@ def compile_movements(
                 upcoming_move.movement_type in _PRECISION_PRE_STOP
                 or upcoming_move.edge_departure
             ):
-                held_dir = next(
-                    (k for k in structure.keys_held if k in ("left", "right")), None
-                )
+                held_dir = _held_direction(structure)
                 if held_dir:
                     structure.append(held_dir, "keyup", 0)
             break
@@ -477,11 +683,11 @@ def compile_movements(
             # truncated copy): this branch is only reached when no truncation
             # happened this iteration, so the append issue #100 guards against
             # does not apply here.
-            held_dir = next(
-                (k for k in structure.keys_held if k in ("left", "right")), None
-            )
-            if held_dir:
+            held_dir = _held_direction(structure)
+            if held_dir and not _walks_into(upcoming_move, held_dir):
                 structure.append(held_dir, "keyup", 0)
+        elif _standing(upcoming_move):
+            structure = _stand_still(structure, speed, walk_deceleration)
     else:
         # Loop ran to completion (no truncation): release any keys still held
         # so the last Step satisfies the Terminal Release invariant. `move`
@@ -507,7 +713,518 @@ def compile_movements(
         for key in structure.keys_held:
             if key not in structure.forced_key_releases:
                 structure.forced_key_releases.append(key)
+    if structure is not None:
+        structure.correlation_id = correlation_id
     return structure
+
+
+def _piece_duration(
+    movements: tuple[_MovementComponent, ...],
+    origin: int,
+    structure: KeyboardInputWrapper | None,
+    walk_end: float | None,
+    speed: float,
+) -> tuple[float, float]:
+    """
+    How long walk `movements[origin]`'s builder holds its key, and where the
+    walk ends on the plan's clock (#521).
+
+    A walk the planner cut into pieces (`_cut`) is one walk: each piece holds
+    until its end on the plan's clock, not for its own time from where the
+    piece before it ended. A builder's last repeat runs up to one Step past
+    its limit, so pieces timed from the sequence's own end would add that up,
+    one Step per piece: the jump key of a two-piece walk into an edge jump
+    went down up to two Steps late, against the one `TAKEOFF_STEP` allows.
+    """
+    move = movements[origin]
+    duration = _seconds(move, speed)
+    now = 0.0 if structure is None else structure.duration
+    previous = movements[origin - 1] if origin > 0 else None
+    if (
+        walk_end is not None
+        and previous is not None
+        and previous.movement_type is move.movement_type
+    ):
+        end = walk_end + duration
+        return max(0.0, end - now), end
+    return duration, now + duration
+
+
+def _seconds(move: _MovementComponent, speed: float) -> float:
+    """How long `move` lasts: its `duration`, or else its length at `speed`."""
+    return move.length / speed if move.duration is None else move.duration
+
+
+def _held_keys(handle: int, initial_state: InputState | None) -> set[str]:
+    """The movement keys down as the sequence starts, as `movements_v2` reads them."""
+    if initial_state is not None:
+        return set(initial_state.held_keys)
+    return set(get_held_movement_keys(handle))
+
+
+def _press_up_again(
+    handle: int,
+    structure: KeyboardInputWrapper | None,
+    initial_state: InputState | None,
+    direction: Direction | None = None,
+) -> KeyboardInputWrapper | None:
+    """
+    Release `up` ahead of a portal's press when it is down already but would
+    not own typematic, so the builder after this presses it anew (#533):
+    the walk into the portal (its key `direction`) or the portal itself.
+
+    The client enters a portal on an `up` keydown, a press or a repeat, in
+    its reach. A key down that does not own typematic repeats nothing
+    (`KeyboardInputWrapper.fill`, A7), so an `up` held from an earlier
+    Action, with a direction key pressed after it (or any key released
+    since), sends no keydown at the portal: five tries of runs 28 to 32
+    walked through the portal so, `up` down all along, and none entered.
+
+    `up` that owns typematic, its walk's key down already, is left alone:
+    the walk's fill repeats it, which is how every such held `up` of those
+    runs entered. Returns `structure` with the release appended, or a new
+    one holding it when there was none yet; `structure` unchanged when `up`
+    is up, or down and repeating.
+    """
+    if structure is None:
+        held = _held_keys(handle, initial_state)
+        owner = initial_state.typematic_owner if initial_state is not None else None
+    else:
+        held, owner = structure.keys_held, structure.typematic_owner
+    if "up" not in held:
+        return structure
+    if owner == "up" and (direction is None or direction in held):
+        return structure
+    if structure is None:
+        return KeyboardInputWrapper(
+            handle, ["up"], ["keyup"], [next(random_delay)], initial_state=initial_state
+        )
+    structure.append("up", "keyup", next(random_delay))
+    return structure
+
+
+def _reversal(
+    movements: Sequence[_MovementComponent], held_keys: set[str]
+) -> str | None:
+    """
+    The direction key to release before the plan's first walk, which goes
+    against it and runs straight into a sideways jump its own way (#521),
+    into a jump straight up (#530), a drop (#540) or a portal (#533); `None`
+    when the plan does not start so.
+
+    A Continuation the other way leaves the character walking the wrong way
+    at the walk speed. With the walk's key pressed at once, how fast it turns
+    is not modelled, and the take-off it walks into lands wherever the turn
+    put it: live, 46 to 69 px short of its point, once in the air off a
+    slope's end. Released instead, it slides to rest at the walk's
+    deceleration, and the walk after it is timed from rest (`_time_walks`).
+    """
+    run = _walk_run(movements, 0, 1)
+    if not run or run.stop >= len(movements):
+        return None
+    way = _direction_of(movements[0])
+    against = OPPOSITES[way]
+    if way in held_keys or against not in held_keys:
+        return None
+    upcoming = movements[run.stop]
+    # A jump straight up after the walk wants the character at rest on its
+    # take-off, as much as a sideways one wants it walking into it (#530); a
+    # drop wants it on its take-off, which the turn left untimed missed by 52
+    # to 90 px on run 29 (#540). A portal wants its `up` keydowns in its reach:
+    # with the turn untimed they went 29 to 66 px short of it, three times in
+    # runs 28 and 31 (#533).
+    return (
+        against
+        if _walks_into(upcoming, way)
+        or _standing(upcoming)
+        or upcoming.movement_type
+        in (MovementTypes.JUMP_DOWN, MovementTypes.ENTER_PORTAL)
+        else None
+    )
+
+
+def _turn_back(
+    movements: Sequence[_MovementComponent], held_keys: set[str], lead: float
+) -> tuple[_MovementComponent, ...] | None:
+    """
+    The plan, its first walk turned around, when that walk runs into a portal
+    (#533) or a jump straight up (#560) with its key down and the character
+    has walked further since the read than the walk is long (`lead`, the walk
+    speed times the read's age): it is past the take-off already. `None` when
+    the plan does not start so.
+
+    A walk into a jump straight up longer than the lead by less than the
+    slide still stops past its take-off, by what is left of the slide (up to
+    14 px at the records' physics): its key comes up at once, and the jump
+    waits the slide out (`_stand_still`). It is not turned back: no record
+    has that shape, so it is left as it was until a live run shows it.
+
+    Each piece of the walk becomes one the other way, together as long as
+    the character is past the take-off now. The walk then goes against the
+    held key, a reversal (`_reversal`): the key comes up, the slide is
+    waited out, and the walk back, from rest, is timed from where the
+    character is at the compile (`_time_walks`, with no read age left).
+
+    Kept on, the walk ends at once and the take-off comes where the
+    character already is, past it. A portal's `up` keydowns: on run 32 (C1
+    and C2's first tries, read 0.34 and 0.38 s before the keys), 22 to 41 px
+    past, out of its reach both times. A jump straight up, once the slide is
+    waited out (`_stand_still`): on runs 30, 31 and 36, walks of 0.1 to 22.8
+    px read 0.11 to 0.35 s before the compile, 34 to 56 px past, and all 5
+    missed the platform above.
+    """
+    if not movements or movements[0].movement_type not in _WALKS:
+        return None
+    run = _walk_run(movements, 0, 1)
+    if run.stop >= len(movements):
+        return None
+    upcoming = movements[run.stop]
+    if not (
+        upcoming.movement_type is MovementTypes.ENTER_PORTAL or _standing(upcoming)
+    ):
+        return None
+    way = _direction_of(movements[0])
+    if way not in held_keys or OPPOSITES[way] in held_keys:
+        return None
+    length = sum(movements[i].length for i in run)
+    if lead <= length or length <= 0:
+        return None
+    back = MovementTypes.WALK_LEFT if way == "right" else MovementTypes.WALK_RIGHT
+    past = lead - length
+    turned = tuple(
+        movements[i]._replace(
+            movement_type=back,
+            length=past * movements[i].length / length,
+            duration=None,
+        )
+        for i in run
+    )
+    return (*turned, *movements[run.stop :])
+
+
+def _walk_back(
+    movements: Sequence[_MovementComponent], held_keys: set[str]
+) -> _MovementComponent | None:
+    """
+    The walk back to a vertical take-off the plan opens on, while a direction
+    key is down (a Continuation): a walk of no length the other way, which
+    `_reversal` and `_time_walks` then time from the read (#540). `None` when
+    the plan does not open so.
+
+    The plan starts where the frame was read. With a direction key down, the
+    character has walked on from there at `speed` until the compile, the
+    read's age, and slides on once the key comes up: a jump straight up
+    (#530) or a drop then goes down that far from its take-off. On runs 28
+    and 29, all 12 such take-offs were 28 to 55 px off their spot, more with
+    an older read; walked to (a walk from rest, or with its key down), 16 of
+    17 vertical take-offs were within 15 px. Walked back, the key comes
+    up, the slide is waited out, and the walk covers the read-to-stop
+    distance from rest (`_time_walks`'s reversal), as a walk against a held
+    key into such a take-off already does.
+
+    A sideways jump is not walked back: one the character walks into is
+    already past its take-off (only a new plan from where it is could
+    help), and one the other way would become such a reversal, whose
+    take-off ran 26 to 41 px short on run 29, as far as pressing it at once
+    did (#540's report). Nor is a take-off with a climb key down: on a rope,
+    a direction key moves nothing.
+    """
+    if not movements:
+        return None
+    first = movements[0]
+    if not (_standing(first) or first.movement_type is MovementTypes.JUMP_DOWN):
+        return None
+    sideways = held_keys & {"left", "right"}
+    if len(sideways) != 1 or held_keys & {"up", "down"}:
+        return None
+    way = OPPOSITES[next(iter(sideways))]
+    walk = MovementTypes.WALK_LEFT if way == "left" else MovementTypes.WALK_RIGHT
+    return _MovementComponent(walk, 0.0, start=first.start, end=first.start)
+
+
+def _walk_run(movements: Sequence[_MovementComponent], start: int, step: int) -> range:
+    """
+    The indices of the walks the same way as `movements[start]`, from `start`
+    on, forwards (`step` 1) or backwards (-1): one walk the planner cut into
+    pieces. Empty when `movements[start]` is no walk.
+    """
+    first = movements[start]
+    if first.movement_type not in _WALKS:
+        return range(start, start)
+    end = start
+    while (
+        0 <= end + step < len(movements)
+        and movements[end + step].movement_type is first.movement_type
+    ):
+        end += step
+    return range(min(start, end), max(start, end) + 1)
+
+
+def _time_walks(
+    movements: tuple[_MovementComponent, ...],
+    held_keys: set[str],
+    *,
+    since_read: float | None,
+    speed: float,
+    acceleration: float,
+    deceleration: float,
+    reversal: bool = False,
+) -> tuple[_MovementComponent, ...]:
+    """
+    The plan, with its first and last walks timed by where the character
+    comes to rest (#503), as a `duration` on each of their pieces.
+
+    - **The last walk**, which the sequence's final release ends, holds its
+      key only until the slide after the release carries the character the
+      rest of the way (`walk_press_time`).
+    - **The first walk, its key already down** (a Continuation): the character
+      has walked at `speed` from the frame its position was read on until now,
+      `since_read` seconds, so that much less is left to walk. Without it, a
+      plan compiled from a read 0.2 to 0.4 s old walks 30 to 60 px past its
+      end (the live record of #503).
+    - **The first walk, against a held key** (`reversal`, #521): the compile
+      releases that key and waits out the slide before the walk's key goes
+      down (`_reversal`). The character walked the wrong way at `speed` from
+      the read until now, then slides `walk_stop_slide` further, so the walk,
+      from rest, is that much longer. A jump or a drop follows that walk, so
+      it is never also the last. The walk may have no length of its own: the
+      walk back to a vertical take-off the plan opens on (`_walk_back`). A
+      walk turned back to a portal the character has passed (`_turn_back`)
+      is measured from where it is at the compile: it comes with no
+      `since_read`, so only the slide is added.
+
+    - **A walk into a jump straight up** (#530) holds its key, as the last
+      walk does, only until the slide carries the character to the take-off:
+      the jump goes down once it stands there (`_stand_still`). As the plan's
+      first walk, it is shortened by the walk since the read when its key is
+      down already, and timed from rest, the read-to-stop distance longer,
+      after a reversal.
+
+    When the first walk is also the last, both apply. The last walk starts
+    from rest only when it is the plan's first move and its key is up; after
+    any other move it counts as moving, which errs short, by at most the
+    acceleration's cost (`speed² ÷ 2 acceleration`), rather than long. A
+    walk into a jump straight up counts the same way.
+
+    Every other component is left as it was: a walk lasting its length at
+    `speed`.
+    """
+    if len(movements) < 2:
+        return movements
+    timed = list(movements)
+    first = _walk_run(movements, 0, 1)
+    held = bool(first) and _direction_of(movements[0]) in held_keys
+    lead = speed * since_read if held and since_read is not None else 0.0
+    # How far behind the read, the wrong way, a walk after a reversal starts.
+    back = (
+        speed * (since_read or 0.0) + walk_stop_slide(speed, deceleration)
+        if first and reversal
+        else 0.0
+    )
+    # The END_OF_MOVEMENT sentinel closes every plan: the last move is before it.
+    last = _walk_run(movements, len(movements) - 2, -1)
+
+    def length(run: range) -> float:
+        return sum(movements[i].length for i in run)
+
+    def spread(run: range, seconds: float) -> None:
+        total = length(run)
+        for i in run:
+            share = movements[i].length / total if total > 0 else 1 / len(run)
+            timed[i] = movements[i]._replace(duration=seconds * share)
+
+    def press(distance: float, *, moving: bool) -> float:
+        return walk_press_time(
+            distance,
+            speed=speed,
+            acceleration=acceleration,
+            deceleration=deceleration,
+            moving=moving,
+        )
+
+    if first and first == last:
+        spread(first, press(length(first) - lead, moving=held))
+        return tuple(timed)
+    if first and held:
+        spread(first, max(0.0, length(first) - lead) / speed)
+    elif first and reversal:
+        spread(first, (length(first) + back) / speed)
+    if last:
+        spread(last, press(length(last), moving=last.start > 0 or held))
+    for index, move in enumerate(movements):
+        if not _standing(move) or index == 0:
+            continue
+        run = _walk_run(movements, index - 1, -1)
+        if not run:
+            continue
+        if run == first and reversal:
+            spread(run, press(length(run) + back, moving=False))
+        elif run == first:
+            spread(run, press(length(run) - lead, moving=held))
+        else:
+            spread(run, press(length(run), moving=True))
+    return tuple(timed)
+
+
+def _standing(move: _MovementComponent) -> bool:
+    """
+    Whether `move` is a jump straight up off a platform, which the character
+    must make standing still (#530). One into a rope's bottom is not:
+    `jump_up_on_rope` releases its keys itself.
+    """
+    return move.movement_type is MovementTypes.JUMP and not move.grabs_rope
+
+
+def _stand_still(
+    structure: KeyboardInputWrapper, speed: float, deceleration: float
+) -> KeyboardInputWrapper:
+    """
+    Release the direction key still down before a jump straight up, and wait
+    out the slide before the jump key: `speed ÷ deceleration`, the time to
+    stop from the walk speed (#530). The client carries the speed the
+    character has at take-off through the jump, which the graph's straight-up
+    arc does not.
+    """
+    held: list[str] = sorted(k for k in structure.keys_held if k in ("left", "right"))
+    if held:
+        events: list[EVENTS] = ["keyup"] * len(held)
+        structure.append(held, events, _stop_time(speed, deceleration))
+    return structure
+
+
+def _stop_time(speed: float, deceleration: float) -> float:
+    """Seconds to slide to a stop from `speed`; none with no deceleration given."""
+    return 0.0 if math.isinf(deceleration) else speed / deceleration
+
+
+def _finish_instead_of_cut(
+    movements: tuple[_MovementComponent, ...],
+    origin: int,
+    overrun: float,
+    since_read: float | None,
+    slide_time: float,
+) -> bool:
+    """
+    Whether to compile the plan to its end rather than cut it at the Action
+    duration cap, because the cut lands in its last walk too near the stop for
+    the next plan to make it (#503).
+
+    A cut leaves the direction key down (a Continuation), and the next plan
+    can release it only once the next position is read and compiled: about
+    `since_read` seconds, what this plan's own read took. If less of the last
+    walk is left after the cut than that, plus the slide's worth of walk
+    (`slide_time`), the character walks past the target before anything can
+    stop it: the live record walked 60 to 70 px past it that way. Finishing
+    the walk here instead stops it where `_time_walks` timed it to.
+
+    :param origin: The component being compiled when the cap was reached.
+    :param overrun: Seconds the sequence runs past the cap so far.
+    """
+    if since_read is None:
+        return False
+    last = _walk_run(movements, len(movements) - 2, -1)
+    if origin not in last:
+        return False
+    left = overrun + sum(movements[i].duration or 0.0 for i in last if i > origin)
+    return left < since_read + slide_time
+
+
+def _jump_to_finish(
+    movements: tuple[_MovementComponent, ...],
+    origin: int,
+    overrun: float,
+    since_read: float | None,
+    speed: float,
+    held: set[str],
+) -> int | None:
+    """
+    The edge-departure jump to compile past the Action duration cap rather
+    than cut before, because the character walks into it and the next plan
+    could not press its jump key in time (#515); `None` to cut as usual.
+
+    A cut leaves the direction key down (a Continuation), and the character
+    walks on. The next plan presses keys only once a frame captured after the
+    cut is read and compiled: up to one read after the cut until that frame,
+    then one read more, each about `since_read`. A frame captured in the air
+    plans nothing, so when the cut lands in a jump's flight, only the walk
+    after its landing counts. If the character reaches the jump's take-off
+    sooner than that, it walks past it, off the platform's end when the
+    take-off lies near it (live: cut to next keys 0.25 s at a `since_read` of
+    0.13, and the next plan's jump went down in the air). Finishing the jump
+    here takes off where the plan times it.
+
+    :param origin: The component being compiled when the cap was reached.
+    :param overrun: Seconds the sequence runs past the cap so far.
+    :param held: The keys down at the end of component `origin`.
+    :return: The index of that jump in `movements`.
+    """
+    if since_read is None:
+        return None
+    left = overrun if movements[origin].movement_type in _WALKS else 0.0
+    for index in range(origin + 1, len(movements)):
+        move = movements[index]
+        if move.movement_type in _WALKS:
+            if _direction_of(move) not in held:
+                return None
+            left += _seconds(move, speed)
+            continue
+        if (
+            move.edge_departure
+            and any(_walks_into(move, key) for key in held)
+            and left < 2 * since_read
+        ):
+            return index
+        return None
+    return None
+
+
+def _walks_into(move: _MovementComponent, held_dir: str) -> bool:
+    """
+    Whether `move` is a sideways jump the character walks straight into: its
+    direction is `held_dir`, the key already down (#515).
+
+    Such a jump takes off where its jump key goes down, so the key goes down
+    as the walk reaches the take-off, with no stop before it. The edge
+    departure's release (PM3) would come straight back up as the jump presses
+    its direction again, one Step later: a release the game never sees, which
+    only delays the take-off by one input delay (five for a jump onto a rope,
+    `jump_on_rope`). At the walk speed, the take-off then lands past its
+    point; at a platform's open end, past the end, and the jump never happens.
+    """
+    match move.movement_type:
+        case MovementTypes.JUMP_LEFT:
+            return held_dir == "left"
+        case MovementTypes.JUMP_RIGHT:
+            return held_dir == "right"
+        case _:
+            return False
+
+
+def _walks_on(jump: _MovementComponent, upcoming: _MovementComponent) -> bool:
+    """
+    Whether the plan walks on from `jump`'s landing the way it jumped (#515).
+
+    The narrow landing's stop is then left out: the walk presses the
+    direction again one Step after its release, a release the game never
+    sees. Left in, it only makes the walk a fresh press, whose last repeat
+    can run one Step past its time and so carry a jump after it past its
+    take-off; and it hides that the character walks into that jump
+    (`_jump_to_finish`).
+    """
+    return upcoming.movement_type in _WALKS and _walks_into(
+        jump, _direction_of(upcoming)
+    )
+
+
+def _direction_of(move: _MovementComponent) -> Direction:
+    """The direction key `move`'s type ends in: a walk's, a climb's, a sideways
+    jump's or a teleport's."""
+    return _DIRECTIONS[move.movement_type.name.split("_")[-1].lower()]
+
+
+def _held_direction(structure: KeyboardInputWrapper) -> str | None:
+    """A horizontal direction key `structure` leaves down, if any."""
+    return next((k for k in structure.keys_held if k in ("left", "right")), None)
 
 
 def _narrow_stop(
@@ -518,10 +1235,7 @@ def _narrow_stop(
     doesn't walk off the edge after touching down.
     """
     if move.narrow:
-        held_dir = next(
-            (k for k in structure.keys_held if k in ("left", "right")),
-            None,
-        )
+        held_dir = _held_direction(structure)
         if held_dir:
             structure.append(held_dir, "keyup", 0)
     return structure
@@ -533,14 +1247,16 @@ class MovementHandler:
 
     **The graph follows the character's stats.** Its jump ranges and times
     depend on the jump arc, so the graph is built per `VRPhysics`: a path is
-    planned on the graph of the physics it is asked with, built the first time
-    those physics are seen and kept while they stay current (`_GRAPHS` are
-    kept, so a stat that flips back costs nothing). A change of speed or jump
-    stat is a new `VRPhysics`, and the next Path is planned on its graph.
+    planned on the graph of the physics it is asked with. A change of speed or
+    jump stat is a new `VRPhysics`, and the next Path is planned on its graph.
+
+    **The graphs are built off the decision loop** (`FootholdGraphs`, #430).
+    `ready_graph` never blocks: while the graph of the current physics builds,
+    it returns `None` and the live planner holds. `graph` and `compute_path`
+    block until the graph is built, for offline callers.
     """
 
     _CACHE_MAXSIZE = 256  # bounded: plans for stale positions age out
-    _GRAPHS = 2
 
     def __init__(
         self,
@@ -551,6 +1267,7 @@ class MovementHandler:
         *,
         narrow_platform_threshold: float | None = None,
         edge_departure_threshold: float | None = None,
+        graphs: FootholdGraphs | None = None,
     ) -> None:
         """
         :param world_map: The map the paths are planned on.
@@ -570,7 +1287,25 @@ class MovementHandler:
             pre-departure stop. Same shape as `narrow_platform_threshold`: `None`
             is the module default, per-instance because it is a Knob, and read by
             `compile_movements` only through the component's `edge_departure` flag.
+        :param graphs: The map's graphs, shared with the other handlers of the
+            Bot so a graph is built once however many DecisionMakers plan
+            (`BotData.foothold_graphs`). `None` keeps graphs of its own.
+        :raises ValueError: `graphs` are another map's, or disagree with
+            `teleport`.
         """
+        # Imported here: `maple.model.navigation` imports this package's
+        # `physics`, so a module-level import would be circular.
+        from maple.model.navigation.foothold_graphs import FootholdGraphs
+
+        if graphs is None:
+            graphs = FootholdGraphs(world_map, teleport=teleport is not None)
+        elif graphs.world_map is not world_map or graphs.teleport != (
+            teleport is not None
+        ):
+            raise ValueError(
+                "the graphs given are another map's, or disagree on teleport"
+            )
+        self.graphs = graphs
         self.handle = handle
         self.world_map = world_map
         self.ign = ign
@@ -589,7 +1324,6 @@ class MovementHandler:
         # on `self`, pinning every handler ever created in memory for the process
         # lifetime. Binding the cache here scopes it to this instance, so it's freed
         # when the handler is.
-        self.graph = lru_cache(maxsize=self._GRAPHS)(self._build_graph)
         self._compute_path = lru_cache(maxsize=self._CACHE_MAXSIZE)(
             self._compute_path_uncached
         )
@@ -597,23 +1331,43 @@ class MovementHandler:
             self._path_into_movements_uncached
         )
 
-    def _build_graph(self, physics: VRPhysics) -> FootholdGraph:
-        # Imported here: `maple.model.navigation` imports this package's
-        # `physics`, so a module-level import would be circular.
-        from maple.model.navigation.foothold_graph import FootholdGraph
+    def graph(self, physics: VRPhysics) -> FootholdGraph:
+        """The graph of `physics`; blocks until it is built (offline callers)."""
+        return self.graphs.graph(physics)
 
-        logger.info("Building the foothold graph of map %d.", self.world_map.id)
-        return FootholdGraph.build(
-            self.world_map, physics, teleport=self.teleport is not None
-        )
+    def ready_graph(self, physics: VRPhysics) -> FootholdGraph | None:
+        """
+        The graph of `physics` if it is built; otherwise `None`, and it is
+        built off the caller's thread. Never blocks on a build.
+        """
+        return self.graphs.ready(physics)
 
     def compute_path(
-        self, start: Point, goal: Point, physics: VRPhysics
+        self,
+        start: Point,
+        goal: Point,
+        physics: VRPhysics,
+        *,
+        graph: FootholdGraph | None = None,
+        resolution: float = 0.0,
     ) -> Path | None:
         """
         The quickest Path from `start` to `goal`, in virtual px, on the graph of
         `physics`.
 
+        **No walk inside the read** (#516). A Path that is nothing but a walk
+        no longer than `resolution` is planned as no move (`Path(())`): the
+        start is known only to that, so the read cannot tell the character
+        from the goal, and the walk carries it to the read's other side. The
+        live record walked 7 and 9 px either side of a ladder's x for minutes,
+        each walk flipping a coarse read from one side to the other.
+
+        :param graph: That graph, as `ready_graph` returned it: the live
+            planner passes it, so the Path is planned on it even if it has
+            since been dropped from the kept graphs. `None` blocks until the
+            graph of `physics` is built (offline callers).
+        :param resolution: How far off `start`'s x may be, virtual px: half a
+            canvas px for a coarse read, 0 for an exact one.
         :return: `None` when no path joins them, or when either lies on no
             platform or rope (the character in the air, say): the caller plans
             again from its next position.
@@ -622,18 +1376,31 @@ class MovementHandler:
             (float(start[0]), float(start[1])),
             (float(goal[0]), float(goal[1])),
             physics,
+            graph,
+            float(resolution),
         )
 
     def _compute_path_uncached(
-        self, start: Point, goal: Point, physics: VRPhysics
+        self,
+        start: Point,
+        goal: Point,
+        physics: VRPhysics,
+        graph: FootholdGraph | None,
+        resolution: float,
     ) -> Path | None:
         # Per-cycle pathing traces, so DEBUG is the honest level.
         logger.debug("Computing path from %s to %s", start, goal)
+        if graph is None:
+            graph = self.graph(physics)
         try:
-            return self.graph(physics).path(start, goal)
+            path = graph.path(start, goal)
         except ValueError as error:
             logger.debug("No path: %s", error)
             return None
+        if path is not None and _walk_within(path, resolution):
+            logger.debug("No move: the walk is within the read (%s px).", resolution)
+            return Path(())
+        return path
 
     def _path_into_movements_uncached(
         self, path: Path | None
@@ -735,6 +1502,7 @@ class MovementHandler:
             grabs_rope=grabs_rope,
             start=move.start,
             end=move.end,
+            leaves_rope=isinstance(move.start_on, Rope),
         )
 
     def movements_into_action(
@@ -760,6 +1528,13 @@ class MovementHandler:
             teleport=self.teleport,
             total_duration=total_duration,
         )
+
+
+def _walk_within(path: Path, resolution: float) -> bool:
+    """Whether `path` is one or more walks, `resolution` virtual px long at most."""
+    if not path.moves or any(m.kind is not MoveKind.WALK for m in path.moves):
+        return False
+    return abs(path.moves[-1].end[0] - path.moves[0].start[0]) <= resolution
 
 
 def _merge(components: list[_MovementComponent]) -> list[_MovementComponent]:

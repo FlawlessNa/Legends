@@ -1,5 +1,7 @@
 import logging.handlers
 import multiprocessing
+import os
+import threading
 
 from botting import PARENT_LOG
 
@@ -32,3 +34,25 @@ def setup_child_proc_logging(log_queue: multiprocessing.Queue) -> None:
     queue_handler = logging.handlers.QueueHandler(log_queue)
     queue_handler.setLevel(logging.DEBUG)
     parent.addHandler(queue_handler)
+
+
+def exit_with_parent() -> None:
+    """
+    End this process when its parent does, however the parent ends.
+
+    A child process outlives a parent that is killed from outside (a terminal
+    closed, the task manager): nothing tells it, and it would idle on. A thread
+    waits for the parent's exit and then ends the process at once. That is safe
+    for an Engine and the Peripherals process: neither sends input, so no key is
+    left held by their going (Main Process releases keys on the way out, and the
+    Held-Keys Ledger belongs to it). A no-op in the main process.
+    """
+    parent = multiprocessing.parent_process()
+    if parent is None:
+        return
+
+    def _watch() -> None:
+        parent.join()
+        os._exit(1)
+
+    threading.Thread(target=_watch, name="Parent Watch", daemon=True).start()

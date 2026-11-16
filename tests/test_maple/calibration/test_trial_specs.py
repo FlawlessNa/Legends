@@ -15,7 +15,9 @@ import pytest
 
 from maple.calibration.specs import (
     KNOB_NAMES,
+    TRIALS_DIR,
     Knobs,
+    Measure,
     TrialBatch,
     TrialSchedule,
     TrialSpec,
@@ -23,6 +25,7 @@ from maple.calibration.specs import (
     available,
     load_schedule,
     render_schedule,
+    schedule_map_id,
 )
 
 MINIMAL: dict = {
@@ -61,15 +64,42 @@ def test_the_example_schedule_on_disk_loads() -> None:
     it has to survive its own loader.
     """
     schedule = load_schedule("example")
-    assert schedule.map_name == "GhostShip1"
+    assert schedule.map == "Victoria Road: Ellinia"
     assert schedule.batches
     assert "example" in available()
 
 
-def test_the_example_schedule_round_trips_through_its_renderer() -> None:
-    schedule = load_schedule("example")
+@pytest.mark.parametrize("name", ["example", "physics"])
+def test_a_checked_in_schedule_is_exactly_its_rendered_text(name: str) -> None:
+    """
+    The file on disk is what the renderer writes, so a schedule regenerated from
+    its objects diffs only where it changed.
+    """
+    schedule = load_schedule(name)
     reloaded = TrialSchedule.from_json(json.loads(render_schedule(schedule)))
     assert reloaded == schedule
+    text = (TRIALS_DIR / f"{name}.json").read_text(encoding="utf-8")
+    assert text == render_schedule(schedule)  # read_text folds CRLF
+
+
+def test_the_example_s_precision_knob_is_in_virtual_px() -> None:
+    """The old 8 minimap px, at 16 virtual px each (#397)."""
+    knobs = {b.name: b.knobs for b in load_schedule("example").batches}
+    assert knobs["short-actions"].precision_threshold == 128
+
+
+def test_the_physics_schedule_measures_every_physics_value() -> None:
+    """
+    #397: walk, climb, jump arc, a jump off a rope, drops and teleports, each
+    tagged for the analyzer, on Ellinia by its game name. Every batch but the
+    teleport one plans without teleport, so a teleporting class still walks.
+    """
+    schedule = load_schedule("physics")
+    assert schedule.map == "Victoria Road: Ellinia"
+    measured = {trial.measures for _, trial in schedule.trials}
+    assert measured == set(Measure)
+    for batch, trial in schedule.trials:
+        assert batch.teleport == (trial.measures is Measure.TELEPORT)
 
 
 def test_a_missing_schedule_names_the_ones_that_exist(tmp_path: Path) -> None:
@@ -241,3 +271,136 @@ def _trial(name: str) -> dict:
         "tolerance": 2.0,
         "time_budget": 20.0,
     }
+
+
+# --- The map, by game name or id (#397) ------------------------------------------
+
+
+@pytest.mark.parametrize("value", ["Victoria Road: Ellinia", 10002000])
+def test_the_map_is_a_game_name_or_an_id(value: object) -> None:
+    payload = json.loads(json.dumps(MINIMAL))
+    payload["map"] = value
+    schedule = TrialSchedule.from_json(payload)
+    assert schedule.map == value
+    assert TrialSchedule.from_json(schedule.to_json()) == schedule
+
+
+@pytest.mark.parametrize("value", ["", "  ", True, -1, 1.5, None, ["a"]])
+def test_a_map_that_is_neither_is_rejected(value: object) -> None:
+    payload = json.loads(json.dumps(MINIMAL))
+    payload["map"] = value
+    with pytest.raises(TrialSpecError, match="game name"):
+        TrialSchedule.from_json(payload)
+
+
+def test_a_schedule_without_a_map_is_rejected() -> None:
+    payload = json.loads(json.dumps(MINIMAL))
+    del payload["map"]
+    with pytest.raises(TrialSpecError, match="'map'"):
+        TrialSchedule.from_json(payload)
+
+
+class _Catalogue:
+    def map(self, name_or_id: object) -> object:
+        if name_or_id == "Mushroom Town":
+            raise LookupError("'Mushroom Town' matches several maps: 200, 201")
+        return type("MapData", (), {"id": 10002000})()
+
+
+def test_the_catalogue_resolves_the_schedule_s_map() -> None:
+    schedule = TrialSchedule.from_json({**MINIMAL, "map": "Victoria Road: Ellinia"})
+    assert schedule_map_id(schedule, _Catalogue()) == 10002000  # type: ignore[arg-type]
+
+
+def test_an_ambiguous_map_name_is_a_spec_error_listing_the_ids() -> None:
+    schedule = TrialSchedule.from_json({**MINIMAL, "map": "Mushroom Town"})
+    with pytest.raises(TrialSpecError, match="200, 201"):
+        schedule_map_id(schedule, _Catalogue())  # type: ignore[arg-type]
+
+
+# --- What a Trial measures, and batches without teleport -------------------------
+
+
+def test_a_trial_may_say_what_it_measures() -> None:
+    schedule = TrialSchedule.from_json(_with_trial(measures="rope_jump"))
+    assert schedule.trials[0][1].measures is Measure.ROPE_JUMP
+    assert TrialSchedule.from_json(schedule.to_json()) == schedule
+
+
+def test_an_unknown_measure_is_rejected() -> None:
+    with pytest.raises(TrialSpecError, match="walk, climb"):
+        TrialSchedule.from_json(_with_trial(measures="swim"))
+
+
+def test_a_batch_plans_with_teleport_unless_it_says_not() -> None:
+    assert TrialSchedule.from_json(MINIMAL).batches[0].teleport is True
+    payload = json.loads(json.dumps(MINIMAL))
+    payload["batches"][0]["teleport"] = False
+    schedule = TrialSchedule.from_json(payload)
+    assert schedule.batches[0].teleport is False
+    assert TrialSchedule.from_json(schedule.to_json()) == schedule
+
+
+def test_a_batch_s_teleport_must_be_true_or_false() -> None:
+    payload = json.loads(json.dumps(MINIMAL))
+    payload["batches"][0]["teleport"] = "no"
+    with pytest.raises(TrialSpecError, match="true or false"):
+        TrialSchedule.from_json(payload)
+
+
+# --- No Trial code reads the map files (#397) -------------------------------------
+
+
+def test_no_trial_code_reads_the_map_files() -> None:
+    """
+    #302 acceptance criterion 11: the Trial framework names maps by game name and
+    judges in virtual px, so it keeps working once `configs/maps` is retired (#399).
+    Checked on the code itself: no import of the map-file modules, no read of the
+    map-file attributes, and no path into `configs/maps`.
+    """
+    import ast
+
+    from paths import ROOT
+
+    root = Path(ROOT)
+    files = [
+        *sorted((root / "maple" / "calibration").glob("*.py")),
+        root / "maple" / "decision_makers" / "trial_runner.py",
+        root / "maple" / "bots" / "calibration.py",
+    ]
+    banned_modules = ("minimap_creation", "maple_map", "minimap_edits_model")
+    banned_attributes = {
+        "current_map",
+        "current_minimap",
+        "current_minimap_position",
+        "current_grid",
+        "game_map",
+        "MapleMinimap",
+        "MinimapEditsManager",
+        "MinimapGrid",
+        "MinimapPhysics",
+    }
+    for path in files:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        documented = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+        docstrings = {
+            id(node.body[0].value)
+            for node in ast.walk(tree)
+            if isinstance(node, documented)
+            and node.body
+            and isinstance(node.body[0], ast.Expr)
+        }
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom | ast.Import):
+                names = [node.module or ""] if isinstance(node, ast.ImportFrom) else []
+                names += [alias.name for alias in node.names]
+                assert not any(b in n for n in names for b in banned_modules), path
+                assert not banned_attributes & set(names), path
+            if isinstance(node, ast.Attribute):
+                assert node.attr not in banned_attributes, (path, node.attr)
+            if (
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and id(node) not in docstrings
+            ):
+                assert "configs/maps" not in node.value.replace("\\", "/"), path

@@ -40,7 +40,7 @@ pytestmark = pytest.mark.frames
 def sprites() -> ReaderSprites:
     try:
         return load_reader_sprites(
-            [FRAME_CHECK, QUICK_SLOTS], Profile("Hero", "map"), STORE, config=CONFIG
+            [FRAME_CHECK, QUICK_SLOTS], Profile(job="Swordsman"), STORE, config=CONFIG
         )
     except StartupRefused as exc:
         pytest.skip(str(exc))

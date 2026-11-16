@@ -117,6 +117,7 @@ def test_test_flag_points_the_recorder_at_the_test_section(
     monkeypatch.setattr(profile, "PROFILES_DIR", str(tmp_path))
     manager = mocker.patch.object(run, "SessionManager")
     mocker.patch.object(run, "_build")
+    mocker.patch.object(run, "check_configs", return_value=True)  # the machine's files
     manager.return_value.__enter__.return_value.launch = mocker.AsyncMock()
 
     assert run.main(["p", *flags]) == 0

@@ -8,6 +8,8 @@
     "ACTION_SELF_CANCELLED": "action.self_cancelled",
     "DECISION_DISABLED": "decision.disabled",
     "DECISION_ENABLED": "decision.enabled",
+    "KEY_DOWN": "key.down",
+    "KEY_UP": "key.up",
     "LLM_REQUEST": "llm.request",
     "RECORDING_CHECKPOINT": "recording.checkpoint",
     "RECORDING_STARTED": "recording.started",
@@ -45,6 +47,7 @@
     "RECOVERY_MAP_CHECK_FAILED": "recovery.map_check_failed",
     "RECOVERY_MAP_CHECK_RECOVERED": "recovery.map_check_recovered",
     "RECOVERY_MOB_SPAWN_RESTORED": "recovery.mob_spawn_restored",
+    "RECOVERY_POSITION_UNSURE": "recovery.position_unsure",
     "RECOVERY_REFLEX": "recovery.reflex",
     "RECOVERY_STUCK_DETECTED": "recovery.stuck_detected",
     "STATE_SNAPSHOT": "state.snapshot"

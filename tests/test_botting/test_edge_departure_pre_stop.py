@@ -9,6 +9,12 @@ the *upcoming* component (`_MovementComponent.edge_departure`), so the stop it w
 must fire every time that component is about to be built - truncated or not, and for
 `TELEPORT_*` as much as `JUMP_*`, neither of which the pre-existing mechanism reaches.
 
+#515 narrowed it, with no cut: a sideways jump the walk runs straight into, the same
+way, gets no stop. Its release came back up one Step later, when the jump pressed its
+direction again: the game never saw it, and the take-off came one input delay late,
+past a platform's open end in the live record. A jump the other way, and a teleport,
+still stop the walk first; a cut still stops it before any jump.
+
 Nothing here sends real input: every wrapper is built with an explicit `initial_state`,
 and `key_binds` is stubbed (as `test_movement_provenance.py` does) because
 `configs/keybindings.ini` is a personal config no checkout is guaranteed to have -
@@ -65,6 +71,10 @@ _WALK_RIGHT = _MovementComponent(MovementTypes.WALK_RIGHT, 20)
 _FLIGHT = 0.6
 _EDGE_JUMP_RIGHT = _MovementComponent(
     MovementTypes.JUMP_RIGHT, 70, edge_departure=True, duration=_FLIGHT
+)
+# The other way from the walk: the walk is stopped before it.
+_EDGE_JUMP_LEFT = _MovementComponent(
+    MovementTypes.JUMP_LEFT, 70, edge_departure=True, duration=_FLIGHT
 )
 _PLAIN_JUMP_RIGHT = _MovementComponent(MovementTypes.JUMP_RIGHT, 70, duration=_FLIGHT)
 _EDGE_TELEPORT_RIGHT = _MovementComponent(
@@ -132,21 +142,19 @@ def test_edge_departure_pre_stop_fires_with_no_truncation() -> None:
     """
     No `total_duration` cap, so `compile_movements` never enters the truncation
     branch at all - `_PRECISION_PRE_STOP` could never fire here. The edge-departure
-    flag must still stop the walk before the jump.
+    flag must still stop the walk before a jump the other way.
     """
-    wrapper = _compile(_plan(_WALK_RIGHT, _EDGE_JUMP_RIGHT), total_duration=None)
+    wrapper = _compile(_plan(_WALK_RIGHT, _EDGE_JUMP_LEFT), total_duration=None)
 
-    assert ("right", "keyup") in list(_steps(wrapper))
+    assert ("right", "keyup", _WALK_ORIGIN) in list(_steps_with_origin(wrapper))
 
 
 def test_edge_departure_pre_stop_release_precedes_the_flagged_component() -> None:
     """
     The release belongs to the walk, not the jump: it is attributed to the walk's
-    own origin, and lands before any Step the jump component produced - including
-    the jump's own fresh `right` keydown, which `single_jump` presses again because
-    the pre-stop left nothing held to travel on.
+    own origin, and lands before any Step the jump component produced.
     """
-    wrapper = _compile(_plan(_WALK_RIGHT, _EDGE_JUMP_RIGHT), total_duration=None)
+    wrapper = _compile(_plan(_WALK_RIGHT, _EDGE_JUMP_LEFT), total_duration=None)
 
     steps = list(_steps_with_origin(wrapper))
     release_index = next(
@@ -158,6 +166,19 @@ def test_edge_departure_pre_stop_release_precedes_the_flagged_component() -> Non
         i for i, (_, _, origin) in enumerate(steps) if origin == _UPCOMING_ORIGIN
     )
     assert release_index < first_jump_step
+
+
+def test_no_pre_stop_before_an_edge_jump_the_walk_runs_into() -> None:
+    """
+    #515: the walk right runs straight into the jump right, its key down. The jump
+    key goes down as the walk ends, with `right` down throughout: no release on the
+    walk's origin, and no fresh `right` press from the jump.
+    """
+    wrapper = _compile(_plan(_WALK_RIGHT, _EDGE_JUMP_RIGHT), total_duration=None)
+
+    steps = list(_steps_with_origin(wrapper))
+    assert ("right", "keyup", _WALK_ORIGIN) not in steps
+    assert ("right", "keydown", _UPCOMING_ORIGIN) not in steps
 
 
 def test_no_pre_stop_without_the_edge_departure_flag() -> None:

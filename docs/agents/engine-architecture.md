@@ -140,6 +140,7 @@ registered in `ignored_keys`, or `_monitor_proxy` will try to service it as one.
 | Recorder + both Discord directions | `botting/core/peripherals_process.py`, `botting/communications/` |
 | Buckets, thresholds, dictConfig | `botting/logging_config.py` |
 | `emit_event`, the JSONL sink | `botting/telemetry.py`, `telemetry_events.py` |
+| `key.down`/`key.up` records, buffered off the send loop | `botting/controller/inputs/key_times.py` |
 | Reading a Session's `telemetry.jsonl` back (`python -m botting.session`) | `botting/session/` |
 
 ## Traps

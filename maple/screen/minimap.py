@@ -45,9 +45,20 @@ from the map's `MapData.minimap`; nothing consumes it yet.
 
 **Markers.** `Map/MapHelper.img/minimap/user` is drawn with its origin on the
 character, so `self_position` is where that origin lands. The other markers
-are given by their sprite's centre: several have their origin at `(0, 0)`. A
-marker drawn partly outside the map area, or partly under another marker,
-isn't found. Seen on frame set v2: an NPC's marker is drawn about 14 px above
+are given by their sprite's centre: several have their origin at `(0, 0)`. One
+of them drawn partly outside the map area, or partly under another marker,
+isn't found.
+
+**The character's marker, partly hidden** (#502). The client clips every marker
+to the map area, so with the character at the map's end, its marker is cut by
+the edge; it can also touch or sit under another marker (characters spawn next
+to portals). When it isn't drawn whole, it is placed where most of its opaque
+pixels are drawn exactly (`_find_partly`), at least `MARKER_DRAWN_SHARE` of
+them. That places the whole sprite, so its origin is where it would be if it
+were drawn whole: the read is as exact as an unclipped one, to the canvas pixel
+(16 virtual px at `mag` 4). Below that share, the position is `COVERED`.
+
+Seen on frame set v2: an NPC's marker is drawn about 14 px above
 the NPC's own point in the map data, so a marker's position isn't where the
 thing stands. Each kind costs a match of the map area on every read (about
 2 ms), so only a reader made with `read_markers` reads them.
@@ -63,6 +74,7 @@ import enum
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 
+import cv2
 import numpy as np
 
 from botting.screen import Frame, Reading, match, match_best
@@ -132,6 +144,13 @@ reads as the expected map. On frame set v2, a map's own canvas is drawn at 74%
 to 98% (markers cover the rest), and the other map's at 1% at most."""
 DIFFERENT_SHARE = 0.3
 """At most this share reads as another map; in between is `UNSURE`."""
+
+MARKER_DRAWN_SHARE = 0.5
+"""The character's marker, not drawn whole, is placed when at least this share
+of its opaque pixels is drawn exactly where it fits best. On the first live run
+(Ellinia's left end, next to a portal), 92% was. Of its 52 opaque pixels, the
+other markers share only the 20 of its dark outline (`333333`); its yellows are
+its own. So no other marker, however drawn, reaches half."""
 
 FEET_ROWS = 6
 """How many canvas rows the character's feet are below where its marker's
@@ -209,8 +228,10 @@ class MinimapView:
         (pixels on the map's canvas). `READ` only when the reader knows the
         map's `map_id` and finds its canvas in the map area; `UNSURE` without a
         `map_id`, when the canvas isn't found there, or when minimised;
-        `COVERED` when the character's marker isn't found (under another marker
-        or the cursor).
+        `COVERED` when less than `MARKER_DRAWN_SHARE` of the character's marker
+        is drawn (under another marker or the cursor). A marker clipped by the
+        map area's edge, or partly under another marker, is `READ`, its detail
+        saying how much of it is drawn.
     :ivar markers: The other markers found, by kind (`MARKER_KINDS`), in
         minimap coordinates; empty whenever `self_position` is `UNSURE`. `None`
         when the reader doesn't read markers (`read_markers`).
@@ -362,12 +383,7 @@ class MinimapReader:
                 MinimapState.EXPANDED, area, placed.bounds, offset, none, placed.banner
             )
         ox, oy = offset
-        user = _find(pixels, self._user, area, self._tolerance)
-        position: Reading[tuple[int, int]] = (
-            Reading.read((user[0][0] - ox, user[0][1] - oy), at)
-            if user
-            else Reading.covered(at, "the character's marker isn't found")
-        )
+        position = self._self_position(pixels, area, (ox, oy), at)
         markers = (
             {
                 kind: tuple((x - ox, y - oy) for x, y in found)
@@ -379,6 +395,26 @@ class MinimapReader:
         )
         return MinimapView(
             MinimapState.EXPANDED, area, placed.bounds, position, markers, placed.banner
+        )
+
+    def _self_position(
+        self, pixels: np.ndarray, area: Box, offset: tuple[int, int], at: float
+    ) -> Reading[tuple[int, int]]:
+        """The character's marker, drawn whole, or else partly hidden
+        (`_find_partly`); `COVERED` when too little of it is drawn."""
+        ox, oy = offset
+        user = _find(pixels, self._user, area, self._tolerance)
+        if user:
+            return Reading.read((user[0][0] - ox, user[0][1] - oy), at)
+        partly = _find_partly(pixels, self._user, area)
+        if partly is None or partly[1] < MARKER_DRAWN_SHARE:
+            share = 0.0 if partly is None else partly[1]
+            return Reading.covered(
+                at, f"the character's marker isn't found ({share:.0%} of it drawn)"
+            )
+        (x, y), share = partly
+        return Reading.read(
+            (x - ox, y - oy), at, f"the character's marker {share:.0%} drawn"
         )
 
     def _canvas_offset(
@@ -568,6 +604,45 @@ def _find(
             kept.append((hit.x, hit.y))
     ox, oy = (w // 2, h // 2) if every else sprite.origin
     return tuple(sorted((x + ox - area.left, y + oy - area.top) for x, y in kept))
+
+
+def _find_partly(
+    pixels: np.ndarray, sprite: Sprite, area: Box
+) -> tuple[tuple[int, int], float] | None:
+    """
+    Where `sprite`, not drawn whole, fits best in `area`, and the share of its
+    opaque pixels drawn exactly there: placed by its origin, in minimap pixels
+    from the area's top-left, like `_find`. `None` when it has no opaque pixel.
+
+    Every placement that leaves at least one pixel of it inside the area is
+    counted, so a marker clipped by any edge is placed. Only the area's pixels
+    count, since the client clips markers to it: the frame around it never
+    matches. A pixel counts when its colour is exactly the sprite's there, so
+    whatever is drawn over part of it (another marker, the cursor) only lowers
+    the share. Placements are ranked by that count: a squared error would be
+    outweighed by the pixels drawn over it.
+    """
+    h, w = sprite.rgba.shape[:2]
+    opaque = sprite.rgba[:, :, 3] == 255
+    total = int(opaque.sum())
+    if total == 0:
+        return None
+    # The area's colours, with a margin as wide as the sprite of a colour no
+    # pixel has (-1), so placements reaching past the edge count only the
+    # pixels inside.
+    drawn = np.full((area.height + 2 * (h - 1), area.width + 2 * (w - 1)), -1)
+    inside = pixels[area.top : area.bottom, area.left : area.right]
+    drawn[h - 1 : h - 1 + area.height, w - 1 : w - 1 + area.width] = _packed(inside)
+    colours = _packed(sprite.rgba[:, :, 2::-1])
+    counts = np.zeros((drawn.shape[0] - h + 1, drawn.shape[1] - w + 1), np.float32)
+    for colour in np.unique(colours[opaque]):
+        kernel = (opaque & (colours == colour)).astype(np.float32)
+        same = (drawn == colour).astype(np.float32)
+        counts += cv2.matchTemplate(same, kernel, cv2.TM_CCORR)
+    i, j = np.unravel_index(int(np.argmax(counts)), counts.shape)
+    share = round(float(counts[i, j])) / total
+    ox, oy = sprite.origin
+    return (int(j) - (w - 1) + ox, int(i) - (h - 1) + oy), share
 
 
 def _size(sprite: Sprite) -> tuple[int, int]:

@@ -1,4 +1,6 @@
 """
+Label a folder of frames with the POC trackers' readings, offline.
+
 Label a folder of frames with the camera, our character's feet and the
 minimap's reading, in virtual px, by running the POC trackers once, offline.
 A labelling step for the frame sets (`tests/frames/README.md`), not a reader:

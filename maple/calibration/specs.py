@@ -16,6 +16,10 @@ Parsing is strict. An unknown key, an unknown Knob, or a non-positive tolerance 
 `TrialSpecError` and not a silently-ignored line: a typo that quietly disables the
 Knob being swept produces a batch that measures the default twice and looks like a
 result.
+
+**Units.** Positions and tolerances are virtual px (`CONTEXT.md` -> Virtual
+coordinates), and the map is named by its game name or id, as the profile's `map`
+is (#397). Nothing here reads `configs/maps`.
 """
 
 from __future__ import annotations
@@ -23,13 +27,14 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, replace
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Final
 
+from game_data.catalogue import Catalogue
 from paths import ROOT
 
-#: Where checked-in schedules live. Beside the map JSON, because a schedule names a
-#: map and is the same kind of thing: shared project data, not per-user config.
+#: Where checked-in schedules live: shared project data, not per-user config.
 TRIALS_DIR: Final = Path(ROOT) / "configs" / "trials"
 
 #: Every Knob's field name, in declaration order. The one list a new Knob is added to.
@@ -43,6 +48,29 @@ KNOB_NAMES: Final[tuple[str, ...]] = (
 
 class TrialSpecError(ValueError):
     """A schedule file is missing, malformed, or asks for something that isn't."""
+
+
+class Measure(StrEnum):
+    """
+    What a Trial of the physics schedule is there to measure: the analyzer
+    (`maple/calibration/analysis.py`) reads each Trial's records for that one
+    thing. A Trial without one is a convergence Trial, judged on its outcome only.
+
+    * ``walk`` - the walk speed, along a long flat platform.
+    * ``climb`` - the climb speed, along a rope or a ladder.
+    * ``jump`` - the jump arc and flight time, between two known platforms.
+    * ``rope_jump`` - whether a jump off a rope rises (`ROPE_JUMP_SPEED`).
+    * ``teleport`` - the teleport reach, in whichever direction the Path casts it.
+    * ``drop`` - a drop down through a platform, and how far below it landed
+      (`DROP_REACH`).
+    """
+
+    WALK = "walk"
+    CLIMB = "climb"
+    JUMP = "jump"
+    ROPE_JUMP = "rope_jump"
+    TELEPORT = "teleport"
+    DROP = "drop"
 
 
 # --- Knobs ------------------------------------------------------------------------
@@ -62,14 +90,15 @@ class Knobs:
       i.e. `DecisionMaker._throttle`.
     * ``action_duration`` - the Action duration cap a Movement Plan is compiled
       against, i.e. `data.action_duration`.
-    * ``precision_threshold`` - the platform width (virtual px since #396; the
-      values in ``configs/trials`` are still minimap px, 16x off, until #397
-      converts them) at or below which
-      a jump or teleport gets the landing direction-stop, i.e. `MovementHandler`'s
-      ``narrow_platform_threshold``.
-    * ``edge_departure_threshold`` - the distance (virtual px, likewise) from a platform's
-      end, in the travel direction, within which a jump or teleport gets the
-      pre-departure stop, i.e. `MovementHandler`'s ``edge_departure_threshold``.
+    * ``precision_threshold`` - the platform width, in virtual px, at or below
+      which a jump or teleport gets the landing direction-stop, i.e.
+      `MovementHandler`'s ``narrow_platform_threshold``. It was minimap px until
+      #396; #397 converted the schedules' values at 16 virtual px per minimap px
+      (the MSCW minimap's scale, `mag` 4), so 5 minimap px is 80 virtual px.
+    * ``edge_departure_threshold`` - the distance, in virtual px, from a
+      platform's end, in the travel direction, within which a jump or teleport
+      gets the pre-departure stop, i.e. `MovementHandler`'s
+      ``edge_departure_threshold``. Converted like ``precision_threshold``.
 
     Extending this is one field here plus one line in `KNOB_NAMES`; every consumer
     reads Knobs through this object, so nothing else has to learn the new name.
@@ -122,6 +151,10 @@ class TrialSpec:
     ``start`` first (the positioning phase, budgeted by ``setup_budget``) and only
     then starts the clock on ``time_budget``. Both phases share ``tolerance``: what
     counts as "at the target" is what counts as "at the start".
+
+    ``start`` and ``target`` are the character's feet, in whole virtual px;
+    ``tolerance`` is virtual px too. ``measures`` names what the analyzer reads
+    this Trial for, when it is one of the physics schedule's (`Measure`).
     """
 
     name: str
@@ -130,6 +163,7 @@ class TrialSpec:
     tolerance: float
     time_budget: float
     setup_budget: float | None = None
+    measures: Measure | None = None
 
     @property
     def positioning_budget(self) -> float:
@@ -146,6 +180,8 @@ class TrialSpec:
         }
         if self.setup_budget is not None:
             payload["setup_budget"] = self.setup_budget
+        if self.measures is not None:
+            payload["measures"] = str(self.measures)
         return payload
 
     @classmethod
@@ -167,22 +203,33 @@ class TrialSpec:
                 if payload.get("setup_budget") is not None
                 else None
             ),
+            measures=_measure(payload.get("measures"), f"{where}.measures"),
         )
 
 
 @dataclass(frozen=True)
 class TrialBatch:
-    """A run of Trials sharing one set of Knob overrides. The unit a sweep varies."""
+    """
+    A run of Trials sharing one set of Knob overrides. The unit a sweep varies.
+
+    ``teleport`` false plans this batch's Paths without the teleport skill, for a
+    character that has it: a teleporting class would otherwise cast along every
+    long platform, and a batch measuring the walk speed would measure teleports.
+    It is not a Knob (nothing is swept): it says which moves a batch measures.
+    """
 
     name: str
     trials: tuple[TrialSpec, ...]
     knobs: Knobs = Knobs()
+    teleport: bool = True
 
     def to_json(self) -> dict[str, Any]:
         payload: dict[str, Any] = {"name": self.name}
         knobs = self.knobs.to_json()
         if knobs:
             payload["knobs"] = knobs
+        if not self.teleport:
+            payload["teleport"] = False
         payload["trials"] = [trial.to_json() for trial in self.trials]
         return payload
 
@@ -203,10 +250,14 @@ class TrialBatch:
         _reject_duplicates(
             [trial.name for trial in trials], f"{where}.trials", "trial name"
         )
+        teleport = payload.get("teleport", True)
+        if not isinstance(teleport, bool):
+            raise TrialSpecError(f"{where}.teleport must be true or false.")
         return cls(
             name=str(payload["name"]),
             trials=trials,
             knobs=Knobs.from_json(payload.get("knobs"), where),
+            teleport=teleport,
         )
 
 
@@ -215,13 +266,15 @@ class TrialSchedule:
     """
     A whole checked-in experiment: which map, and the batches to walk in order.
 
-    One map per schedule. A Trial's coordinates are minimap coordinates and mean
-    nothing off their own map, so a schedule spanning two maps would be two
-    experiments sharing a filename.
+    One map per schedule. A Trial's coordinates are virtual px and mean nothing off
+    their own map, so a schedule spanning two maps would be two experiments sharing
+    a filename. ``map`` is the map's game name (``street: name`` where several maps
+    share a name) or its id, as the profile's ``map`` setting takes it; the
+    catalogue resolves it (`schedule_map_id`).
     """
 
     name: str
-    map_name: str
+    map: str | int
     batches: tuple[TrialBatch, ...]
     description: str = ""
 
@@ -231,7 +284,7 @@ class TrialSchedule:
         return tuple((batch, trial) for batch in self.batches for trial in batch.trials)
 
     def to_json(self) -> dict[str, Any]:
-        payload: dict[str, Any] = {"name": self.name, "map": self.map_name}
+        payload: dict[str, Any] = {"name": self.name, "map": self.map}
         if self.description:
             payload["description"] = self.description
         payload["batches"] = [batch.to_json() for batch in self.batches]
@@ -242,9 +295,10 @@ class TrialSchedule:
         if not isinstance(payload, dict):
             raise TrialSpecError(f"{where} must be a top-level mapping.")
         _reject_unknown(payload, _SCHEDULE_KEYS, where)
-        for required in ("name", "map"):
-            if not payload.get(required):
-                raise TrialSpecError(f"{where} is missing required key '{required}'.")
+        if not payload.get("name"):
+            raise TrialSpecError(f"{where} is missing required key 'name'.")
+        if "map" not in payload:
+            raise TrialSpecError(f"{where} is missing required key 'map'.")
         raw_batches = payload.get("batches")
         if not isinstance(raw_batches, list) or not raw_batches:
             raise TrialSpecError(f"{where}.batches must be a non-empty list.")
@@ -257,10 +311,26 @@ class TrialSchedule:
         )
         return cls(
             name=str(payload["name"]),
-            map_name=str(payload["map"]),
+            map=_map(payload["map"], f"{where}.map"),
             batches=batches,
             description=str(payload.get("description", "")),
         )
+
+
+def schedule_map_id(schedule: TrialSchedule, catalogue: Catalogue) -> int:
+    """
+    The id of the map ``schedule`` is written against, through the catalogue that
+    resolves the profile's ``map`` (`Catalogue.map`, which owns the matching rules).
+
+    :raises TrialSpecError: The name matches no map, or several (the message lists
+        their ids), or the id is no map.
+    """
+    try:
+        return catalogue.map(schedule.map).id
+    except LookupError as error:
+        raise TrialSpecError(
+            f"Schedule {schedule.name!r} names map {schedule.map!r}: {error}"
+        ) from error
 
 
 # --- Loading ----------------------------------------------------------------------
@@ -311,9 +381,9 @@ def render_schedule(schedule: TrialSchedule) -> str:
 # --- Parsing helpers --------------------------------------------------------------
 
 _TRIAL_KEYS: Final = frozenset(
-    {"name", "start", "target", "tolerance", "time_budget", "setup_budget"}
+    {"name", "start", "target", "tolerance", "time_budget", "setup_budget", "measures"}
 )
-_BATCH_KEYS: Final = frozenset({"name", "knobs", "trials"})
+_BATCH_KEYS: Final = frozenset({"name", "knobs", "teleport", "trials"})
 _SCHEDULE_KEYS: Final = frozenset({"name", "map", "description", "batches"})
 
 
@@ -331,6 +401,29 @@ def _reject_duplicates(names: list[str], where: str, what: str) -> None:
         if name in seen:
             raise TrialSpecError(f"{where} repeats the {what} '{name}'.")
         seen.add(name)
+
+
+def _map(value: object, where: str) -> str | int:
+    """A game map name, or a map id: what `Catalogue.map` takes."""
+    if isinstance(value, str) and value.strip():
+        return value
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    raise TrialSpecError(
+        f"{where} must name the map by its game name (e.g. "
+        "'Victoria Road: Ellinia') or its id (e.g. 101000000)."
+    )
+
+
+def _measure(value: object, where: str) -> Measure | None:
+    if value is None:
+        return None
+    try:
+        return Measure(str(value))
+    except ValueError:
+        raise TrialSpecError(
+            f"{where} must be one of: {', '.join(m.value for m in Measure)}."
+        ) from None
 
 
 def _point(value: object, where: str) -> tuple[int, int]:

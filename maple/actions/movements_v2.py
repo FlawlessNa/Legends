@@ -195,6 +195,7 @@ def single_jump(
     initial_state: controller.InputState | None = None,
     *,
     duration: float,
+    off_rope: bool = False,
 ) -> controller.KeyboardInputWrapper:
     """
     One jump: the direction pressed (unless already held), the jump key tapped,
@@ -203,8 +204,23 @@ def single_jump(
     :param duration: The jump's flight, seconds from take-off (the jump key's
         press) to landing, as the `FootholdGraph` traced it from `VRPhysics`. The
         jump key's tap counts towards it.
+    :param off_rope: The jump takes off sideways from a rope or a ladder. A climb
+        key still down (`up` or `down`, a climb cut at the Action cap or the
+        climb just before) comes up first, with the gap `jump_on_rope` leaves
+        after its own releases: with `down` held, the client climbs on down the
+        rope and never takes the jump (#561: 56 of 64 jumps keyed so on the
+        descent stayed on it, and 7 of the 8 others left it at its bottom).
     """
     keys_held = _resolve_held_keys(structure, handle, initial_state)
+    if off_rope and direction in ("left", "right"):
+        for key in sorted(keys_held & {"up", "down"}):
+            gap = next(controller.random_delay) * 5
+            if structure is None:
+                structure = controller.KeyboardInputWrapper(
+                    handle, [key], ["keyup"], [gap], initial_state=initial_state
+                )
+            else:
+                structure.append(key, "keyup", gap)
     first_keys = [direction, jump_key] if direction not in keys_held else [jump_key]
     if structure is None:
         first_steps: list[str | list[str]] = list(first_keys)
@@ -474,7 +490,16 @@ def _append_telecast_taps(
 
     At least one tap is always emitted, and the last one is shortened to whatever
     budget is left rather than overrunning the region.
+
+    A tap after the first needs room for a whole tap: a press, its release and at
+    least one `DELAY` of wait after it, `2 * DELAY + 2 * OVERHEAD`. Less than that is
+    the slack `teleport`'s fill leaves past `animation_time * num_times` (its last Step
+    overshoots the limit, and its release follows), up to ~35ms. The exit used to be
+    one `DELAY`, which that slack could pass: the rebuild then started a tap it had no
+    room for, pressing one teleport too many and running ~33ms past the region
+    (issue #498).
     """
+    whole_tap = 2 * controller.DELAY + 2 * controller.OVERHEAD
     remaining = budget
     while True:
         press = next(controller.random_delay)
@@ -485,8 +510,8 @@ def _append_telecast_taps(
         structure.append([teleport_key, ultimate_key], ["keydown", "keydown"], press)
         structure.append([teleport_key, ultimate_key], ["keyup", "keyup"], gap)
         remaining -= press + gap + 2 * controller.OVERHEAD
-        if remaining < controller.DELAY:
-            # Too little left to hold another press - and below the float noise the
+        if remaining < whole_tap:
+            # Too little left for another whole tap - and below the float noise the
             # subtraction above leaves behind.
             return
 
@@ -637,8 +662,13 @@ def telecast_compiler(
             dict(unavailable),
             logger_name=logger.name,
         )
-        return cast_skill(handle, ign, ultimate_skill, initial_state=initial_state)
-    return telecast(structure, ign, teleport_skill, ultimate_skill)
+        fallback = cast_skill(handle, ign, ultimate_skill, initial_state=initial_state)
+        fallback.correlation_id = correlation_id
+        return fallback
+    fused = telecast(structure, ign, teleport_skill, ultimate_skill)
+    # Stamped here as well: `telecast` rebuilds the sequence (#538's key records).
+    fused.correlation_id = correlation_id
+    return fused
 
 
 def random_jump(

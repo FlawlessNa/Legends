@@ -46,14 +46,12 @@ class Profile:
     What profile-dependent sprites depend on.
 
     :ivar job: The character's job, as the profile's `character_class` names it.
-    :ivar game_map: The map the bot runs on, as the profile names it.
-    :ivar map_id: The client's id for that map, when the map file has one.
+    :ivar map_id: The client's id for the map the bot runs on, once known.
     :ivar buffs: The buffs the bot keeps up, by skill name: the buffs reader
         compares the screen with their icons.
     """
 
     job: str
-    game_map: str
     map_id: int | None = None
     buffs: tuple[str, ...] = ()
 

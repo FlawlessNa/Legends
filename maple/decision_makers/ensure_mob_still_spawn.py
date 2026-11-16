@@ -88,17 +88,14 @@ class CheckMobsStillSpawn(
             lambda: self._chat_shown() is False,
             timeout=5.0,
         )
+        # Wander the map's platforms until mobs show up: a new random target
+        # each time the current one is reached (#398). A `game_data` map has no
+        # feature cycle to walk instead.
         self.data.snapshot_attribute("next_target")
-        if self.data.current_minimap.feature_cycle:
-            self.data.reconfigure_attribute(
-                "next_target",
-                update_function=self._update_next_target_from_cycle,
-            )
-        else:
-            self.data.reconfigure_attribute(
-                "next_target",
-                update_function=self.data.current_minimap.random_point,
-            )
+        self.data.reconfigure_attribute(
+            "next_target",
+            update_function=self._update_next_random_target,
+        )
 
     async def _clear_failsafe_procedure(self) -> None:
         await self._validate_request_async(

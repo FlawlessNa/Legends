@@ -2,22 +2,20 @@
 `FootholdGraph` on the real client's maps, from the latest extraction in the
 store (`python -m game_data extract`). Marked `client_files`; run with
 `pytest -m client_files`. The benchmark is also `lab`: run it with
-`pytest -m lab`; it records its numbers as
-`grid_ms` and `graph_longest_ms` (`--junitxml`).
+`pytest -m lab`; it records its number as `graph_longest_ms` (`--junitxml`).
 """
 
 import time
-from collections import deque
 from collections.abc import Callable, Iterator
 
-import numpy as np
 import pytest
-from pathfinding.finder.dijkstra import DijkstraFinder
 
 from game_data.catalogue import Rope
-from maple.model.mechanics.minimap_creation.minimap_grid import MinimapGrid
-from maple.model.mechanics.physics import VRPhysics
+from maple.model.mechanics.physics import Calibration, VRPhysics
 from maple.model.navigation import (
+    OVERSHOOT_MARGIN,
+    ROPE_GRAB_REACH,
+    TAKEOFF_LEAD,
     Direction,
     FootholdGraph,
     MoveKind,
@@ -35,15 +33,25 @@ MAPS = ("Dungeon: Damp Forest", "Victoria Road: Ellinia")
 #: floor (23, 79), the low ledge (61) and the rope-top ledge (49) to the
 #: middle ledges (70, 76) and the top (36, 44 to 47) is jumping between the
 #: hanging ropes, whose tops are no platform (`uf` 0); the graph, like
-#: today's grid, starts a jump off a rope at the top of its arc
+#: the retired minimap grid, starts a jump off a rope at the top of its arc
 #: (`ROPE_JUMP_SPEED` 0), so a jump from rope to rope always loses height.
+#: Down, the middle ledge 70 reached 76 only by a jump left onto the rope at
+#: x 81, which took off from 70's x 242 to 243 alone, 5 px inside its open
+#: end: at these physics' walk (125 px/s, no Calibration constant) that is
+#: inside `TAKEOFF_LEAD` (12.3 px), so it is no move, and neither 70 nor the
+#: top reaches 76 (#521). At the live run's walk (149 px/s) it stays a move.
 NO_PATH = {
     "Victoria Road: Ellinia": {},
     "Dungeon: Damp Forest": {
         23: [36, 44, 45, 46, 47, 70, 76],
+        36: [76],
+        44: [76],
+        45: [76],
+        46: [76],
+        47: [76],
         49: [36, 44, 45, 46, 47, 70, 76],
         61: [36, 44, 45, 46, 47, 70, 76],
-        70: [36, 44, 45, 46, 47],
+        70: [36, 44, 45, 46, 47, 76],
         76: [36, 44, 45, 46, 47, 70],
         79: [36, 44, 45, 46, 47, 70, 76],
     },
@@ -167,62 +175,11 @@ def test_ellinia_bottom_to_top_takes_the_portal_and_ropes() -> None:
     assert {"portal", "climb", "jump"} <= kinds
 
 
-# --- the benchmark against today's grid -------------------------------------
+# --- the benchmark ---------------------------------------------------------------
 
-#: Virtual px per grid cell: today's minimap scale.
-CELL = 16
-
-
-def rasterise(world: WorldMap) -> np.ndarray:
-    """The map's platforms and ropes drawn into cells of `CELL` virtual px."""
-    b = world.bounds
-    left = min(b.left, *(p.left for p in world.platforms))
-    top = min(b.top, *(min(f.y1, f.y2) for p in world.platforms for f in p.footholds))
-    right = max(b.right, *(p.right for p in world.platforms))
-    bottom = max(
-        b.bottom, *(max(f.y1, f.y2) for p in world.platforms for f in p.footholds)
-    )
-    canvas = np.zeros(
-        ((bottom - top) // CELL + 2, (right - left) // CELL + 2), np.uint8
-    )
-    for p in world.platforms:
-        for f in p.footholds:
-            for x in np.arange(min(f.x1, f.x2), max(f.x1, f.x2) + 1):
-                y = f.y1 + (f.y2 - f.y1) * (x - f.x1) / (f.x2 - f.x1)
-                canvas[int(y - top) // CELL, int(x - left) // CELL] = 1
-    for r in world.ropes:
-        for y in range(min(r.y1, r.y2), max(r.y1, r.y2) + 1):
-            canvas[(y - top) // CELL, (r.x - left) // CELL] = 1
-    return canvas
-
-
-def farthest_pair(canvas: np.ndarray) -> tuple[tuple[int, int], tuple[int, int]]:
-    """The largest connected set of cells, and two cells of it far apart."""
-    seen = np.zeros_like(canvas, dtype=bool)
-    best: list[tuple[int, int]] = []
-    for y, x in zip(*np.nonzero(canvas), strict=True):
-        if seen[y, x]:
-            continue
-        group = [(int(x), int(y))]
-        seen[y, x] = True
-        todo = deque(group)
-        while todo:
-            cx, cy = todo.popleft()
-            for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
-                if (
-                    0 <= ny < canvas.shape[0]
-                    and 0 <= nx < canvas.shape[1]
-                    and canvas[ny, nx]
-                    and not seen[ny, nx]
-                ):
-                    seen[ny, nx] = True
-                    group.append((nx, ny))
-                    todo.append((nx, ny))
-        if len(group) > len(best):
-            best = group
-    start = max(best, key=lambda c: c[1])
-    goal = max(best, key=lambda c: abs(c[0] - start[0]) + abs(c[1] - start[1]))
-    return start, goal
+#: #302's acceptance criterion 6: a path on Ellinia in under 20 ms. It replaced
+#: the comparison with the minimap grid, which #399 retired with the map files.
+LONGEST_QUERY_S = 0.020
 
 
 def best_of(runs: int, query: object) -> float:
@@ -236,21 +193,10 @@ def best_of(runs: int, query: object) -> float:
 
 
 @pytest.mark.lab
-def test_the_graphs_longest_query_on_ellinia_is_no_slower_than_todays_grid(
+def test_the_graphs_longest_query_on_ellinia_takes_under_20_ms(
     physics: VRPhysics, record_property: Callable[[str, object], None]
 ) -> None:
     world = WorldMap.load("Victoria Road: Ellinia")
-    canvas = rasterise(world)
-    grid = MinimapGrid(canvas, speed=physics.walk_speed / CELL)
-    (sx, sy), (gx, gy) = farthest_pair(canvas)
-
-    def grid_query() -> None:
-        path, _ = DijkstraFinder().find_path(grid.node(sx, sy), grid.node(gx, gy), grid)
-        grid.cleanup()
-        assert path
-
-    baseline = best_of(3, grid_query)
-
     graph = FootholdGraph.build(world, physics)
     lowest = max(world.platforms, key=lambda p: middle(p)[1])
     highest = min(world.platforms, key=lambda p: middle(p)[1])
@@ -259,11 +205,9 @@ def test_the_graphs_longest_query_on_ellinia_is_no_slower_than_todays_grid(
         for start, goal in ((middle(lowest), middle(p)), (middle(p), middle(highest))):
             longest = max(longest, best_of(3, lambda s=start, g=goal: graph.path(s, g)))
 
-    record_property("grid_ms", round(1000 * baseline, 1))
     record_property("graph_longest_ms", round(1000 * longest, 1))
-    assert longest <= baseline, (
-        f"grid ({canvas.shape[1]}x{canvas.shape[0]} cells of {CELL} px) "
-        f"{1000 * baseline:.1f} ms; FootholdGraph's longest query {1000 * longest:.1f} ms"
+    assert longest < LONGEST_QUERY_S, (
+        f"FootholdGraph's longest query {1000 * longest:.1f} ms"
     )
 
 
@@ -290,3 +234,175 @@ def test_no_path_between_joined_platforms_holds_a_jump_that_saves_no_time(
         assert MoveKind.JUMP not in {m.kind for m in path.moves}, (join, path)
     # Damp Forest has no joins; Ellinia's are flat and plentiful.
     assert trips or not any(m.kind is MoveKind.WALK for m in graph.moves)
+
+
+# --- the jumps the physics Trials could not land (#509) ---------------------------
+
+#: The physics of the `physics-jump-only` run of 2026-11-13: speed 100%, the
+#: walk Calibration constant 1.19.
+JUMP_RUN = Calibration(walk=1.19)
+
+#: What that run saw land: the highest rise onto a platform, and the landing
+#: nearest an open end that landed (`JUMP_RISE_SHARE`, `LANDING_MARGIN`).
+HIGHEST_RISE_SEEN = 73.6
+NARROWEST_MARGIN_SEEN = 15.5
+
+
+@pytest.mark.parametrize(
+    ("start", "goal"),
+    [
+        # From the bottom up the rope at x -316 to the `gap-` Trials' start: the
+        # Path jumped off the rope-top ledge at x -413 to land 1.1 px inside the
+        # left end of the platform above, and fell (1 landing in 6).
+        ((-420.0, 237.0), (-620.0, -52.0)),
+        # The `branch-` Trials' start, from the slope they fell back to: the
+        # Path jumped left at x 663 to land 77.0 px up, at the top of a 77.006
+        # px arc (no landing in 40).
+        ((565.0, 153.0), (180.0, -40.0)),
+    ],
+)
+def test_ellinias_paths_jump_only_where_a_landing_was_seen_live(
+    start: Point, goal: Point
+) -> None:
+    world = WorldMap.load("Victoria Road: Ellinia")
+    physics = VRPhysics.load(calibration=JUMP_RUN)
+    graph = FootholdGraph.build(world, physics)
+
+    path = graph.path(start, goal)
+
+    assert path is not None
+    for move in path.moves:
+        if move.kind is not MoveKind.JUMP or not isinstance(move.end_on, Platform):
+            continue
+        assert move.start[1] - move.end[1] <= HIGHEST_RISE_SEEN, move
+        if move.direction in (Direction.LEFT, Direction.RIGHT):
+            inside = min(
+                move.end[0] - move.end_on.left, move.end_on.right - move.end[0]
+            )
+            assert inside >= NARROWEST_MARGIN_SEEN, move
+
+
+def test_ellinia_down_from_the_ladders_top_drops_nowhere_within_its_reach(
+    physics: VRPhysics,
+) -> None:
+    # #516: from the coarse read the live record planned from, 9 px off the
+    # ladder at x 627, the Path down it was a drop the down key turned into a
+    # grab of the ladder. No drop now takes off within reach of its top.
+    graph = FootholdGraph.build(WorldMap.load("Victoria Road: Ellinia"), physics)
+
+    path = graph.path((618.0, -763.0), (627.0, -500.0))
+
+    assert path is not None
+    for move in path.moves:
+        if move.kind is MoveKind.DROP:
+            assert abs(move.start[0] - 627) > ROPE_GRAB_REACH
+
+
+# --- the chained jump that never took off (#515) ----------------------------------
+
+
+@pytest.mark.parametrize(
+    "start",
+    [
+        # `gap-right-1`'s cycle 9, on the rope-top ledge: the Path jumped onto
+        # the slope above, walked 16.5 px to its open left end at x -484, and
+        # jumped from that end exactly, the one point that jump lands from. The
+        # jump key went down after the character had walked off it.
+        (-379.4, -1.5),
+        # The same chain from the top of the rope at x -316.
+        (-316.0, -1.7),
+    ],
+)
+def test_ellinias_chain_to_the_gap_trials_takes_off_inside_every_open_end(
+    start: Point,
+) -> None:
+    world = WorldMap.load("Victoria Road: Ellinia")
+    physics = VRPhysics.load(calibration=JUMP_RUN)
+    graph = FootholdGraph.build(world, physics)
+
+    path = graph.path(start, (-620.0, -52.0))
+
+    assert path is not None
+    margin = physics.walk_speed * TAKEOFF_LEAD
+    jumps = [m for m in path.moves if m.kind is MoveKind.JUMP]
+    assert jumps
+    for move in jumps:
+        if not isinstance(move.start_on, Platform):
+            continue
+        if move.direction is Direction.LEFT:
+            assert move.start[0] - move.start_on.left >= margin - 1e-6, move
+        elif move.direction is Direction.RIGHT:
+            assert move.start_on.right - move.start[0] >= margin - 1e-6, move
+
+
+# --- the retry hotspots of the climb (#542) ----------------------------------------
+
+#: The physics of runs 28 to 30 (2026-11-15): speed 100%, their Calibration
+#: constants.
+CLIMB_RUNS = Calibration(walk=1.19, jump=0.96, climb=0.95)
+
+#: Virtual px inside the slope's open end that hotspot 1's landing was
+#: planned at, and went past every time (14 of 14).
+PASSED_EVERY_TIME = 16.4
+
+
+def test_ellinias_hop_onto_the_portal_slope_lands_clear_of_its_end() -> None:
+    """
+    Hotspot 1: from the floor, the jump onto the slope below the portal
+    landed 16.4 px inside its open right end, which it heads for, and went
+    past it 14 times in 14 (runs 28 to 30). It now lands at least
+    `OVERSHOOT_MARGIN` inside.
+    """
+    world = WorldMap.load("Victoria Road: Ellinia")
+    graph = FootholdGraph.build(world, VRPhysics.load(calibration=CLIMB_RUNS))
+
+    path = graph.path((246.0, 294.0), (478.0, 180.0))
+
+    assert path is not None
+    onto = [
+        m
+        for m in path.moves
+        if m.kind is MoveKind.JUMP
+        and isinstance(m.end_on, Platform)
+        and m.end_on.right == 359
+    ]
+    assert onto
+    for move in onto:
+        assert isinstance(move.end_on, Platform)
+        inside = move.end_on.right - move.end[0]
+        assert inside > PASSED_EVERY_TIME, move
+        assert inside >= OVERSHOOT_MARGIN - 1e-6, move
+
+
+@pytest.mark.parametrize(
+    "start",
+    [
+        # Hotspot 2: from the portal's exit side, and from the far side after
+        # a jump that passed the rope.
+        (-843.0, -2480.0),
+        (-700.0, -2484.0),
+    ],
+)
+def test_ellinias_hop_onto_the_rope_after_the_portal_grabs_it_past_the_top(
+    start: Point,
+) -> None:
+    """
+    Hotspot 2: the Path took off 7 px from the rope at x -772 and passed it
+    (24 of 24 jumps keyed within 21.8 px of a rope did, runs 28 to 30). It now
+    takes off where a jump up to `TAKEOFF_LEAD` late still meets the rope
+    within reach past the top of its arc.
+    """
+    world = WorldMap.load("Victoria Road: Ellinia")
+    physics = VRPhysics.load(calibration=CLIMB_RUNS)
+    graph = FootholdGraph.build(world, physics)
+
+    path = graph.path(start, (-248.0, -2943.0))
+
+    assert path is not None
+    grab = next(m for m in path.moves if isinstance(m.end_on, Rope))
+    assert isinstance(grab.end_on, Rope)
+    walk = physics.walk_speed
+    apex = physics.jump_speed / physics.gravity
+    nearest = walk * apex + walk * TAKEOFF_LEAD - ROPE_GRAB_REACH
+    assert grab.end_on.x == -772
+    assert abs(grab.end[0] - grab.start[0]) >= nearest - 1e-6, grab

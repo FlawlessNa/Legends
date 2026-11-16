@@ -155,7 +155,7 @@ def test_the_frame_check_makes_the_untrusted_frames_unsure(frames: FrameSet) -> 
     check given. The desktop frame shows Damp Forest's art at a camera the
     match finds, so without the check it reads: the check is what refuses it."""
     sprites = load_reader_sprites(
-        [FRAME_CHECK], Profile(job="Swordsman", game_map="x"), STORE, config=CONFIG
+        [FRAME_CHECK], Profile(job="Swordsman"), STORE, config=CONFIG
     )
     world_map = WorldMap.load(DAMP_FOREST, root=STORE)
     checked = CameraReader(world_map, frame_check=FrameCheck(sprites))

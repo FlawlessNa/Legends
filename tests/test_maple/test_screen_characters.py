@@ -5,7 +5,8 @@ the feet over it and learns ours from where the minimap puts it, and
 `test_screen_characters_frames.py`.
 """
 
-from collections.abc import Mapping, Sequence
+import time
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 import cv2
@@ -21,7 +22,13 @@ from maple.screen.position import (
     YoloCharacterFinder,
     tag_upscale,
 )
-from maple.screen.position.characters import TAG_TO_FEET, TAG_X_TO_FEET
+from maple.screen.position.characters import (
+    TAG_TO_FEET,
+    TAG_X_TO_FEET,
+    _channel_max,
+    _channel_min,
+    _lightest,
+)
 
 OURS = "Mangoose"
 THEIRS = "Rower"
@@ -304,6 +311,109 @@ def test_a_resize_keeps_what_was_learned_at_each_scale() -> None:
     assert any(s.own for s in finder.find(frame(small)).value or [])
 
 
+# ------------------------------------------- our tag behind the map's art (#517)
+
+
+def art_over(
+    image: NDArray[np.uint8], box: tuple[int, int, int, int]
+) -> Callable[[tuple[int, int, int, int]], NDArray[np.bool_]]:
+    """Paints striped map art over `box` of `image`, as a ladder drawn in
+    front of our character would be, and says where it is, as fusion does
+    from the map's `FrontArt`."""
+    x0, y0, x1, y1 = box
+    stripes = np.array([(60, 90, 40), (100, 90, 40), (140, 120, 60)], np.uint8)
+    image[y0:y1, x0:x1] = stripes[np.arange(x0, x1) % 3]
+    art = np.zeros(image.shape[:2], np.bool_)
+    art[y0:y1, x0:x1] = True
+
+    def covered(region: tuple[int, int, int, int]) -> NDArray[np.bool_]:
+        rx0, ry0, rx1, ry1 = region
+        return art[ry0:ry1, rx0:rx1]
+
+    return covered
+
+
+def learned_finder() -> NameTagFinder:
+    image = blank()
+    draw_tag(image, OURS, 300, 400)
+    finder = NameTagFinder()
+    taught(finder, image, feet_over(text_box(image, 290, 400)))
+    return finder
+
+
+def hidden_tag(share: float) -> tuple[NDArray[np.uint8], tuple[float, float], Any]:
+    """Our tag at (600, 300), its right `share` under the map's art: the
+    picture, the feet over the whole tag, and where the art is."""
+    image = blank()
+    draw_tag(image, OURS, 600, 300)
+    box = text_box(image, 590, 720)
+    width = box[2] - box[0]
+    left = box[2] - round(share * width)
+    covered = art_over(image, (left, box[1] - 5, box[2] + 5, box[3] + 6))
+    return image, feet_over(box), covered
+
+
+def test_ours_partly_behind_the_maps_art_is_found_on_what_is_seen() -> None:
+    finder = learned_finder()
+    image, feet, covered = hidden_tag(0.7)
+    assert not any(s.own for s in finder.find(frame(image)).value or [])
+
+    found = finder.find_own_hidden(frame(image), (feet[0] + 6, feet[1] + 12), covered)
+
+    assert found is not None
+    assert found.feet == feet
+    assert found.own
+    assert found.source == "name tag"
+    assert found.confidence > 0.99
+
+
+def test_too_little_of_our_tag_seen_is_not_ours() -> None:
+    finder = learned_finder()
+    image, feet, covered = hidden_tag(0.9)
+
+    assert finder.find_own_hidden(frame(image), feet, covered) is None
+
+
+def test_our_hidden_tag_is_looked_for_only_near_the_minimaps_position() -> None:
+    finder = learned_finder()
+    image, feet, covered = hidden_tag(0.7)
+
+    assert (
+        finder.find_own_hidden(frame(image), (feet[0] + 20, feet[1]), covered) is None
+    )
+    assert (
+        finder.find_own_hidden(frame(image), (feet[0], feet[1] - 40), covered) is None
+    )
+
+
+def test_with_nothing_covered_it_scores_as_the_whole_tag_does() -> None:
+    finder = learned_finder()
+    image = blank()
+    draw_tag(image, OURS, 600, 300)
+    feet = feet_over(text_box(image, 590, 720))
+    (own,) = [s for s in finder.find(frame(image)).value or [] if s.own]
+
+    found = finder.find_own_hidden(
+        frame(image),
+        feet,
+        lambda box: np.zeros((box[3] - box[1], box[2] - box[0]), bool),
+    )
+
+    assert found is not None
+    assert found.feet == own.feet == feet
+    assert found.confidence == pytest.approx(own.confidence, abs=1e-6)
+
+
+def test_a_hidden_tag_is_not_ours_before_ours_is_learned() -> None:
+    image, feet, covered = hidden_tag(0.7)
+
+    assert NameTagFinder().find_own_hidden(frame(image), feet, covered) is None
+    assert (
+        YoloCharacterFinder(StubModel([])).find_own_hidden(frame(image), feet, covered)
+        is None
+    )
+
+
 # ----------------------------------------------------------------------------- YOLO
 
 
@@ -385,3 +495,42 @@ def test_yolo_cannot_tell_ours_apart() -> None:
     finder = YoloCharacterFinder(StubModel([detection("Character", (1, 2, 3, 4), 0.9)]))
     assert finder.learn_own(frame(blank()), (2, 4)) is False
     assert not any(s.own for s in finder.find(frame(blank())).value or [])
+
+
+# ------------------------------------------------------------------------- speed
+
+
+def test_the_channel_reductions_are_numpys() -> None:
+    rng = np.random.default_rng(508)
+    image = rng.integers(0, 256, (40, 60, 3), dtype=np.uint8)
+    assert np.array_equal(_channel_min(image), image.min(axis=2))
+    assert np.array_equal(_channel_max(image), image.max(axis=2))
+
+
+def test_a_learned_finder_reads_a_full_frame_in_budget() -> None:
+    """
+    #508: the finder took 165 to 220 ms on a 1920x1080 frame, most of it numpy
+    reducing the channels slowly, and a position waited on it. Now about 50 ms
+    here: the best of five reads must come in under 150 ms, which a machine
+    twice as slow as this one still does, and a stage that got 3x slower does
+    not. It can't see the camera's read, the frame grab, or a machine short
+    on memory; `toolkit.position_check replay` and `live` time those.
+    """
+    image = blank((1920, 1080))
+    draw_tag(image, OURS, 900, 600)
+    draw_tag(image, THEIRS, 1300, 400)
+    x0, y0, x1, y1 = text_box(image, 890, 1000)
+    scale = tag_upscale((1920, 1080))
+    assert scale is not None
+    finder = NameTagFinder()
+    finder._learned[scale] = _lightest(image[y0:y1, x0:x1])  # pyright: ignore[reportPrivateUsage]
+    shown = frame(image)
+    assert finder.find(shown).value is not None
+    best = min(_seconds(lambda: finder.find(shown)) for _ in range(5))
+    assert best < 0.150, f"{best * 1000:.0f} ms"
+
+
+def _seconds(call: Callable[[], object]) -> float:
+    start = time.perf_counter()
+    call()
+    return time.perf_counter() - start

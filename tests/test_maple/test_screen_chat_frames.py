@@ -50,7 +50,7 @@ NOBODY = "Qx0q"
 def sprites() -> ReaderSprites:
     return load_reader_sprites(
         [FRAME_CHECK, CHAT],
-        Profile(job="Swordsman", game_map="x"),
+        Profile(job="Swordsman"),
         STORE,
         config=CONFIG,
     )

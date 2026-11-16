@@ -1,3 +1,17 @@
+"""
+Tune HSV and BGR colour filters live on the client's pixels.
+
+Run it to find the colour range that isolates something on screen. It opens
+trackbar windows and shows the filtered frame, its contours and the grouped
+rectangles (set `USE_HSV` and `USE_COLORS` at the bottom).
+
+    python -m toolkit.hsv_filtering
+
+Needs the MapleStory client open (found through `maple.screen.client`). It
+copies the client's pixels and shows them in its own OpenCV windows; it sends
+no input.
+"""
+
 import cv2
 import numpy as np
 

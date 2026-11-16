@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from botting.session.reading import Record
-from maple.calibration.records import CycleRecord, ScheduleHeader
+from maple.calibration.records import CycleRecord, PositionRecord, ScheduleHeader
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
     _MovementComponent,
@@ -324,7 +324,7 @@ def test_trial_records_are_joined_by_correlation_id(tmp_path: Path) -> None:
         1,
         0.0,
         "now",
-        (0, 0),
+        PositionRecord("read", (0.0, 0.0), "fused", 0.0),
         (1, 1),
         0.0,
         True,
