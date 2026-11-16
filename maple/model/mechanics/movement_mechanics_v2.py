@@ -78,6 +78,16 @@ not by the jump. So the climb key comes up first, and the jump key waits the gap
 platform nothing changes: a jump that grabs a rope has its own shape, and a
 release there would only delay a take-off the character walks into.
 
+**A sideways jump off a rope releases its climb key first** (#561). A climb
+cut at the Action cap leaves `down` (or `up`) down, and a plan may open on a
+jump off the rope, or climb into one. With `down` held the client climbs on
+down the rope and takes no jump: on the descents of runs 29 to 36, 56 of 64
+such jumps never left the rope, and 7 of the 8 others left it at its bottom,
+not by the jump. So the climb key comes up first, and the jump key waits the gap
+`jump_on_rope` leaves after its releases (`single_jump`'s `off_rope`). Off a
+platform nothing changes: a jump that grabs a rope has its own shape, and a
+release there would only delay a take-off the character walks into.
+
 **A portal is entered on an `up` keydown** (#533). The client takes a portal
 on an `up` keydown, a press or a typematic repeat, made within its reach; `up`
 merely held enters nothing (runs 28 to 32: walks of 35 to 70 px through or
