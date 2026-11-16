@@ -164,6 +164,7 @@ from maple.calibration.records import (
     SampleRecord,
     ScheduleHeader,
     TrialOutcome,
+    one_per_frame,
     read_records,
 )
 from maple.model.mechanics.physics import CHARACTER_MASS
@@ -359,12 +360,7 @@ def split_trials(
                 Read(position.frame_time, *position.position, position.source)
             )
     for entry in trials.values():
-        entry.reads.sort(key=lambda read: read.t)
-        entry.reads = [
-            read
-            for i, read in enumerate(entry.reads)
-            if i == 0 or read.t != entry.reads[i - 1].t
-        ]
+        entry.reads = one_per_frame(entry.reads)
     return header, [t for t in trials.values() if t.cycles]
 
 

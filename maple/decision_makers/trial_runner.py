@@ -150,7 +150,7 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             self.schedule,
             self._writer,
             header=self._header(),
-            coarse_slack=self._coarse_slack(),
+            coarse_slack=coarse_slack(self.data),
         )
         self._applied_batch: TrialBatch | None = None
         self._finished = False
@@ -466,25 +466,29 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
                 f"{wanted} has no minimap to read one on."
             )
 
-    def _coarse_slack(self) -> float:
-        """How far a minimap-only position may be off the feet, on this map."""
-        world_map: WorldMap | None = getattr(self.data, "world_map", None)
-        if world_map is None or world_map.minimap is None:
-            return COARSE_SLACK
-        return COARSE_SLACK * world_map.minimap.scale / MINIMAP_PX
-
     def _header(self) -> ScheduleHeader:
-        """The record's first line: the map, and the physics the sitting plans with."""
-        calibration = getattr(self.data, "calibration", None)
-        physics = getattr(self.data, "game_physics", None)
-        return ScheduleHeader.now(
-            self.schedule.name,
-            self.schedule.map,
-            map_id=getattr(self.data, "map_id", None),
-            physics=None if physics is None else dict(physics),
-            speed_multiplier=float(self.data.speed_multiplier),
-            jump_multiplier=float(self.data.jump_multiplier),
-            calibration=(
-                None if calibration is None else dataclasses.asdict(calibration)
-            ),
-        )
+        """The record's first line (`schedule_header`)."""
+        return schedule_header(self.schedule, self.data)
+
+
+def coarse_slack(data: BotData) -> float:
+    """How far a minimap-only position may be off the feet, on `data`'s map."""
+    world_map: WorldMap | None = getattr(data, "world_map", None)
+    if world_map is None or world_map.minimap is None:
+        return COARSE_SLACK
+    return COARSE_SLACK * world_map.minimap.scale / MINIMAP_PX
+
+
+def schedule_header(schedule: TrialSchedule, data: BotData) -> ScheduleHeader:
+    """A record's first line: the map, and the physics the sitting plans with."""
+    calibration = getattr(data, "calibration", None)
+    physics = getattr(data, "game_physics", None)
+    return ScheduleHeader.now(
+        schedule.name,
+        schedule.map,
+        map_id=getattr(data, "map_id", None),
+        physics=None if physics is None else dict(physics),
+        speed_multiplier=float(data.speed_multiplier),
+        jump_multiplier=float(data.jump_multiplier),
+        calibration=(None if calibration is None else dataclasses.asdict(calibration)),
+    )

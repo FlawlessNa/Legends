@@ -135,7 +135,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import dataclasses
 import logging
 import math
 import multiprocessing
@@ -172,7 +171,6 @@ from maple.calibration import (
     JsonlRecordWriter,
     MovementSummary,
     RecordSink,
-    ScheduleHeader,
     TrialBatch,
     TrialDriver,
     TrialOutcome,
@@ -181,10 +179,14 @@ from maple.calibration import (
     default_record_path,
     summarize_plan,
 )
-from maple.calibration.driver import COARSE_SLACK, MINIMAP_PX
+from maple.calibration.driver import COARSE_SLACK
 from maple.calibration.records import CycleRecord, TrialResult
 from maple.decision_makers.mixins import MinimapAttributesMixin, MovementsMixin
-from maple.decision_makers.trial_runner import TrialRunner
+from maple.decision_makers.trial_runner import (
+    TrialRunner,
+    coarse_slack,
+    schedule_header,
+)
 from maple.launchers.profile import ProfileError, available, load
 from maple.launchers.run import check_configs
 from maple.model.mechanics import MovementHandler
@@ -893,33 +895,8 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         return TrialDriver(
             schedule,
             self._writer,
-            header=self._header(schedule),
-            coarse_slack=self._coarse_slack(),
-        )
-
-    def _coarse_slack(self) -> float:
-        """How far a minimap-only position may be off the feet, on this map
-        (`TrialRunner._coarse_slack`)."""
-        world_map: WorldMap | None = getattr(self.data, "world_map", None)
-        if world_map is None or world_map.minimap is None:
-            return COARSE_SLACK
-        return COARSE_SLACK * world_map.minimap.scale / MINIMAP_PX
-
-    def _header(self, schedule: TrialSchedule) -> ScheduleHeader:
-        """A target's first line: the map, and the physics it plans with
-        (`TrialRunner._header`)."""
-        calibration = getattr(self.data, "calibration", None)
-        physics = getattr(self.data, "game_physics", None)
-        return ScheduleHeader.now(
-            schedule.name,
-            schedule.map,
-            map_id=getattr(self.data, "map_id", None),
-            physics=None if physics is None else dict(physics),
-            speed_multiplier=float(self.data.speed_multiplier),
-            jump_multiplier=float(self.data.jump_multiplier),
-            calibration=(
-                None if calibration is None else dataclasses.asdict(calibration)
-            ),
+            header=schedule_header(schedule, self.data),
+            coarse_slack=coarse_slack(self.data),
         )
 
     # --- ending ----------------------------------------------------------------------

@@ -399,7 +399,7 @@ def compile_movements(
                 handle,
                 [against],
                 ["keyup"],
-                [speed / walk_deceleration],
+                [_stop_time(speed, walk_deceleration)],
                 initial_state=initial_state,
             )
     if (
@@ -435,7 +435,7 @@ def compile_movements(
         move_type = move.movement_type
         match move_type:
             case MovementTypes.WALK_LEFT | MovementTypes.WALK_RIGHT:
-                direction = _DIRECTIONS[move_type.name.split("_")[-1].lower()]
+                direction = _direction_of(move)
                 secondary: Direction | None = None
                 if upcoming_move.movement_type in (
                     MovementTypes.ENTER_PORTAL,
@@ -468,7 +468,7 @@ def compile_movements(
                 )
 
             case MovementTypes.CLIMB_UP | MovementTypes.CLIMB_DOWN:
-                direction = _DIRECTIONS[move_type.name.split("_")[-1].lower()]
+                direction = _direction_of(move)
                 secondary = None
                 # A climb carries the next walk's direction, so the character steps
                 # off the rope's end straight into it. A fall off a rope's bottom
@@ -484,9 +484,7 @@ def compile_movements(
                     handle,
                     direction,
                     secondary,
-                    duration=(
-                        move.length / climb if move.duration is None else move.duration
-                    ),
+                    duration=_seconds(move, climb),
                     structure=structure,
                     initial_state=initial_state,
                 )
@@ -520,9 +518,7 @@ def compile_movements(
                     )
                 else:
                     direction = (
-                        "up"
-                        if move_type is MovementTypes.JUMP
-                        else _DIRECTIONS[move_type.name.split("_")[-1].lower()]
+                        "up" if move_type is MovementTypes.JUMP else _direction_of(move)
                     )
                     structure = movements_v2.single_jump(
                         handle,
@@ -556,9 +552,7 @@ def compile_movements(
                 structure = movements_v2.move(
                     handle,
                     "up",
-                    duration=(
-                        move.length / speed if move.duration is None else move.duration
-                    ),
+                    duration=_seconds(move, speed),
                     structure=structure,
                     initial_state=initial_state,
                 )
@@ -574,7 +568,7 @@ def compile_movements(
                         f"{move_type.name} is in the Movement Plan, but no teleport "
                         f"skill was supplied to compile it with."
                     )
-                direction = _DIRECTIONS[move_type.name.split("_")[-1].lower()]
+                direction = _direction_of(move)
                 repeat_key = None
                 if upcoming_move.movement_type in (
                     MovementTypes.ENTER_PORTAL,
@@ -661,9 +655,7 @@ def compile_movements(
                 upcoming_move.movement_type in _PRECISION_PRE_STOP
                 or upcoming_move.edge_departure
             ):
-                held_dir = next(
-                    (k for k in structure.keys_held if k in ("left", "right")), None
-                )
+                held_dir = _held_direction(structure)
                 if held_dir:
                     structure.append(held_dir, "keyup", 0)
             break
@@ -674,9 +666,7 @@ def compile_movements(
             # truncated copy): this branch is only reached when no truncation
             # happened this iteration, so the append issue #100 guards against
             # does not apply here.
-            held_dir = next(
-                (k for k in structure.keys_held if k in ("left", "right")), None
-            )
+            held_dir = _held_direction(structure)
             if held_dir and not _walks_into(upcoming_move, held_dir):
                 structure.append(held_dir, "keyup", 0)
         elif _standing(upcoming_move):
@@ -730,7 +720,7 @@ def _piece_duration(
     went down up to two Steps late, against the one `TAKEOFF_STEP` allows.
     """
     move = movements[origin]
-    duration = move.length / speed if move.duration is None else move.duration
+    duration = _seconds(move, speed)
     now = 0.0 if structure is None else structure.duration
     previous = movements[origin - 1] if origin > 0 else None
     if (
@@ -741,6 +731,11 @@ def _piece_duration(
         end = walk_end + duration
         return max(0.0, end - now), end
     return duration, now + duration
+
+
+def _seconds(move: _MovementComponent, speed: float) -> float:
+    """How long `move` lasts: its `duration`, or else its length at `speed`."""
+    return move.length / speed if move.duration is None else move.duration
 
 
 def _held_keys(handle: int, initial_state: InputState | None) -> set[str]:
@@ -1141,7 +1136,7 @@ def _jump_to_finish(
         if move.movement_type in _WALKS:
             if _direction_of(move) not in held:
                 return None
-            left += move.length / speed if move.duration is None else move.duration
+            left += _seconds(move, speed)
             continue
         if (
             move.edge_departure
@@ -1191,9 +1186,15 @@ def _walks_on(jump: _MovementComponent, upcoming: _MovementComponent) -> bool:
     )
 
 
-def _direction_of(move: _MovementComponent) -> str:
-    """The direction key a walk holds."""
+def _direction_of(move: _MovementComponent) -> Direction:
+    """The direction key `move`'s type ends in: a walk's, a climb's, a sideways
+    jump's or a teleport's."""
     return _DIRECTIONS[move.movement_type.name.split("_")[-1].lower()]
+
+
+def _held_direction(structure: KeyboardInputWrapper) -> str | None:
+    """A horizontal direction key `structure` leaves down, if any."""
+    return next((k for k in structure.keys_held if k in ("left", "right")), None)
 
 
 def _narrow_stop(
@@ -1204,10 +1205,7 @@ def _narrow_stop(
     doesn't walk off the edge after touching down.
     """
     if move.narrow:
-        held_dir = next(
-            (k for k in structure.keys_held if k in ("left", "right")),
-            None,
-        )
+        held_dir = _held_direction(structure)
         if held_dir:
             structure.append(held_dir, "keyup", 0)
     return structure

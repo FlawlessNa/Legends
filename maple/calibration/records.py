@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import json
 import platform
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -687,6 +687,22 @@ def iter_records(path: Path) -> Iterator[Record]:
                     f"Known kinds: {', '.join(sorted(_RECORD_KINDS))}."
                 )
             yield record_cls.from_json(payload)
+
+
+class _Timed(Protocol):
+    @property
+    def t(self) -> float: ...
+
+
+def one_per_frame[T: _Timed](reads: Iterable[T]) -> list[T]:
+    """
+    `reads` in frame order (their ``t``, a frame's capture time), each frame
+    once: a frame read twice, by a cycle and by a sample, is one read.
+    """
+    ordered = sorted(reads, key=lambda read: read.t)
+    return [
+        read for i, read in enumerate(ordered) if i == 0 or read.t != ordered[i - 1].t
+    ]
 
 
 # --- Helpers ----------------------------------------------------------------------
