@@ -26,7 +26,7 @@ from maple.screen.status_bar import (
     StatusBarReader,
 )
 
-PROFILE = Profile(job="Hero", game_map="Anywhere")
+PROFILE = Profile(job="Hero")
 RNG = np.random.default_rng(309)
 
 # Widths as the client's gauge glyphs: 7 tall, with a few narrower marks.

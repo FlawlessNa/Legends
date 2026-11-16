@@ -32,8 +32,10 @@ Transport facts that constrain code:
   `send()`.
 - Pipe reads block. Both ends poll via `asyncio.to_thread(pipe.poll)`. Don't
   add a blocking read to an event loop.
-- Engines **read** the game clients (screenshots, OCR). Main Process **writes**
-  to them. An Engine that tries to send input raises.
+- Engines **read** the game clients: each Bot's `current_frame`, one Desktop
+  Duplication capture (`botting.screen`), which the readers and detection
+  share. Main Process **writes** to them. An Engine that tries to send input
+  raises.
 
 ## The action path
 
@@ -126,6 +128,7 @@ registered in `ignored_keys`, or `_monitor_proxy` will try to service it as one.
 | Recorder + both Discord directions | `botting/core/peripherals_process.py`, `botting/communications/` |
 | Buckets, thresholds, dictConfig | `botting/logging_config.py` |
 | `emit_event`, the JSONL sink | `botting/telemetry.py`, `telemetry_events.py` |
+| `key.down`/`key.up` records, buffered off the send loop | `botting/controller/inputs/key_times.py` |
 | Reading a Session's `telemetry.jsonl` back (`python -m botting.session`) | `botting/session/` |
 
 ## Traps

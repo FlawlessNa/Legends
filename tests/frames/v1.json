@@ -661,7 +661,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. Buff countdowns (seconds left) labelled by eye for #313.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -765,7 +765,8 @@
               "shown": false
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 27
             }
           }
         },
@@ -786,7 +787,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. Buff countdowns (seconds left) labelled by eye for #313.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -887,10 +888,12 @@
           "status": "read",
           "value": {
             "Recovery": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 27
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 24
             }
           }
         },
@@ -911,7 +914,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. Buff countdowns (seconds left) labelled by eye for #313.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1012,10 +1015,12 @@
           "status": "read",
           "value": {
             "Recovery": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 21
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 19
             }
           }
         },
@@ -1036,7 +1041,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. Buff countdowns (seconds left) labelled by eye for #313.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1137,10 +1142,12 @@
           "status": "read",
           "value": {
             "Recovery": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 19
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 16
             }
           }
         },
@@ -1161,7 +1168,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. Buff countdowns (seconds left) labelled by eye for #313.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1262,10 +1269,12 @@
           "status": "read",
           "value": {
             "Recovery": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 16
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 13
             }
           }
         },
@@ -1286,7 +1295,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. Buff countdowns (seconds left) labelled by eye for #313.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1387,10 +1396,12 @@
           "status": "read",
           "value": {
             "Recovery": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 13
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 10
             }
           }
         },
@@ -1411,7 +1422,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. Buff countdowns (seconds left) labelled by eye for #313.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1512,10 +1523,12 @@
           "status": "read",
           "value": {
             "Recovery": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 10
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 8
             }
           }
         },
@@ -1536,7 +1549,7 @@
         1366,
         768
       ],
-      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon.",
+      "notes": "Pup and Pdn are on cooldown: shaded, with the seconds left drawn over the skill icon. Buff countdowns (seconds left) labelled by eye for #313.",
       "expect": {
         "status_bar": {
           "status": "read",
@@ -1637,10 +1650,12 @@
           "status": "read",
           "value": {
             "Recovery": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 7
             },
             "Nimble Feet": {
-              "shown": true
+              "shown": true,
+              "seconds_left": 5
             }
           }
         },

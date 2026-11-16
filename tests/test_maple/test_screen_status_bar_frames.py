@@ -20,7 +20,7 @@ pytestmark = [pytest.mark.frames, pytest.mark.client_files]
 @pytest.fixture(scope="module")
 def reader() -> StatusBarReader:
     sprites = load_reader_sprites(
-        [STATUS_BAR], Profile(job="Swordsman", game_map="x"), STORE, config=CONFIG
+        [STATUS_BAR], Profile(job="Swordsman"), STORE, config=CONFIG
     )
     return StatusBarReader(sprites, FrameCheck(sprites))
 

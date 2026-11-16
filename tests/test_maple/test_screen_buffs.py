@@ -15,6 +15,7 @@ from maple.screen.buffs import (
     BuffsReader,
     BuffState,
 )
+from maple.screen.font import COUNTDOWN, GlyphSet
 from maple.screen.locator import UI_NOT_FOUND, FrameCheck
 from maple.screen.sprites import GAUGE_LABEL, Profile, ReaderSprites
 
@@ -222,6 +223,55 @@ def test_a_slot_on_the_row_drawn_only_in_part_is_covered(
     assert "drawn only in part" in reading.detail
 
 
+def translucent_window(pixels: np.ndarray, top: int) -> np.ndarray:
+    """A translucent window from `top` down, over the right half of the frame,
+    as the Quest Helper is drawn: the pixels under it show through, lightened."""
+    under = pixels[top:, WIDTH // 2 :].astype(np.float64)
+    pixels[top:, WIDTH // 2 :] = (0.6 * under + 0.4 * 230).astype(np.uint8)
+    return pixels
+
+
+def test_a_window_over_a_slots_edge_is_covered_on_a_row_never_seen(
+    reader: BuffsReader,
+) -> None:
+    """No whole slot and none remembered: the slot drawn in part is the row's
+    line (frame set v2, the Quest Helper at 800x600 and 1280x720)."""
+    pixels = translucent_window(screen("Haste"), 3 + SIZE - 8)
+
+    reading = reader.read(frame(pixels), ASKED)
+
+    assert reading.status is Status.COVERED, reading.detail
+    assert reading.value is None
+    assert "drawn only in part" in reading.detail
+
+
+def test_a_slot_drawn_in_part_away_from_the_rows_start_needs_the_row_known(
+    reader: BuffsReader,
+) -> None:
+    """Three sides of an outline at the client's left, as the minimap's frame
+    shows (frame set v2, f001), isn't where the row starts."""
+    pixels = screen()
+    draw(pixels, BASE, 20, 3)
+    under = pixels[3 + SIZE - 8 : 3 + SIZE, 0:80].astype(np.float64)
+    pixels[3 + SIZE - 8 : 3 + SIZE, 0:80] = (0.6 * under + 0.4 * 230).astype(np.uint8)
+
+    assert shown(reader, pixels) == {"Haste": False, "Bless": False}
+
+
+def test_the_same_window_with_no_slot_under_it_reads_not_shown(
+    reader: BuffsReader,
+) -> None:
+    pixels = translucent_window(screen(), 3 + SIZE - 8)
+
+    assert shown(reader, pixels) == {"Haste": False, "Bless": False}
+
+
+def test_the_same_window_below_the_slot_reads_it_shown(reader: BuffsReader) -> None:
+    pixels = translucent_window(screen("Haste"), 3 + SIZE + 2)
+
+    assert shown(reader, pixels) == {"Haste": True, "Bless": False}
+
+
 def test_a_black_corner_off_the_row_isnt_a_slot_drawn_in_part(
     reader: BuffsReader,
 ) -> None:
@@ -294,7 +344,55 @@ def test_a_buff_whose_icon_wasnt_loaded_is_a_programming_error(
 
 
 def test_the_declaration_names_the_base_and_the_profiles_buffs() -> None:
-    profile = Profile(job="Cleric", game_map="x", buffs=("Bless", "Invincible"))
+    profile = Profile(job="Cleric", buffs=("Bless", "Invincible"))
 
     assert BUFFS.canvas_paths(profile) == (ICON_BASE,)
     assert BUFFS.skill_names(profile) == ("Bless", "Invincible")
+
+
+# Seconds left: the countdown's digits, read with harvested glyphs.
+
+DIGITS = {
+    "1": np.array([[c == "#" for c in r] for r in [".#.", "##.", ".#.", ".#.", "###"]]),
+    "4": np.array([[c == "#" for c in r] for r in ["#.#", "#.#", "###", "..#", "..#"]]),
+}
+
+
+def countdown_reader() -> BuffsReader:
+    sprites = build_sprites()
+    sprites.glyph_sets[COUNTDOWN.name] = GlyphSet(COUNTDOWN, DIGITS)
+    return BuffsReader(sprites, FrameCheck(sprites))
+
+
+def with_countdown(pixels: np.ndarray, slot: int, text: str) -> np.ndarray:
+    """`text`'s digits over a slot's middle, yellow in a dark outline."""
+    x, y = slot_x(slot) + 9, 3 + 13
+    area = pixels[y - 1 : y + 6, x - 1 : x + 4 * len(text)]
+    area[:] = 10
+    for i, char in enumerate(text):
+        pixels[y : y + 5, x + 4 * i : x + 4 * i + 3][DIGITS[char]] = (14, 236, 252)
+    return pixels
+
+
+def test_a_shown_buffs_countdown_is_read() -> None:
+    pixels = with_countdown(screen("Haste", "Bless"), 1, "14")
+
+    reading = countdown_reader().read(frame(pixels), ASKED)
+
+    assert reading.value == {
+        "Haste": BuffState(True),
+        "Bless": BuffState(True, seconds_left=14),
+    }
+
+
+def test_no_countdown_glyphs_reads_no_seconds_left(reader: BuffsReader) -> None:
+    pixels = with_countdown(screen("Haste"), 0, "41")
+
+    assert reader.read(frame(pixels), ASKED).value == {
+        "Haste": BuffState(True),
+        "Bless": BuffState(False),
+    }
+
+
+def test_the_declaration_needs_the_countdown_glyphs() -> None:
+    assert BUFFS.glyph_sets == (COUNTDOWN.name,)

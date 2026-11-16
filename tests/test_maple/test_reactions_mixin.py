@@ -22,7 +22,7 @@ from maple.decision_makers.mixins import ReactionsMixin
 class _Reactor(ReactionsMixin):
     def __init__(self) -> None:
         self.data = SimpleNamespace(  # type: ignore[assignment]
-            ign="tester", handle=1234, current_client_img=None
+            ign="tester", handle=1234, current_frame=SimpleNamespace(pixels=None)
         )
         self.sent: list[ActionRequest] = []
         self.send = self.sent.append

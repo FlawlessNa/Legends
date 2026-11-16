@@ -176,7 +176,7 @@ def test_single_jump_repeat_key_still_presses_when_the_key_is_not_held() -> None
     every Step after it is a legal repeat. Silencing this would stop catching ropes.
     """
     wrapper = mv.single_jump(
-        HANDLE, "right", JUMP_KEY, repeat_key="up", initial_state=NOBODY
+        HANDLE, "right", JUMP_KEY, repeat_key="up", initial_state=NOBODY, duration=0.5
     )
 
     assert _keydowns_of(wrapper, "up") > 1
@@ -191,6 +191,7 @@ def test_single_jump_repeat_key_stays_silent_when_the_key_is_already_held() -> N
         JUMP_KEY,
         repeat_key="up",
         initial_state=InputState(frozenset({"right", "up"}), None, 0.0),
+        duration=0.5,
     )
 
     assert _keydowns_of(wrapper, "up") == 0

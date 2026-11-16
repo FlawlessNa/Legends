@@ -1,6 +1,6 @@
 from botting.communications import BaseParser
 from botting.core.action_data import ActionRequest
-from botting.utilities import take_screenshot
+from botting.screen import frame_source
 from maple.actions import priorities, write_in_chat
 from maple.screen.client import find_client
 
@@ -42,5 +42,8 @@ class MapleParser(BaseParser):
         )
 
     def _confirmation_with_image(self, handle: int) -> None:
-        img = take_screenshot(handle)
-        self.pipe.send(img)
+        frame = frame_source().grab(handle)
+        if not frame.ok:
+            self.pipe.send(f"Could not capture the client: {frame.reason}")
+            return
+        self.pipe.send(frame.pixels)

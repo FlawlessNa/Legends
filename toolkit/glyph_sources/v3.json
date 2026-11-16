@@ -1,0 +1,37 @@
+{
+ "_about": "Where toolkit/harvest_glyphs.py cuts glyphs from frame set v3, which keeps v2's frames unchanged: v2's sources, plus the title lines of Henesys and Henesys Market from v3's new frames. No pixels: frame names, boxes in client pixels, and the text a person read (countdown digits, map names). A chat line is [x, top of its 16-row band, width]; its text is labelled by an Arial render (see the tool). A title line is [x, top of its capitals, width]; splits are columns from x where touching letters are cut.",
+ "chat-general": [
+  {"frame": "f001_1366x768.png", "line": [288, 650, 548]},
+  {"frame": "f001_1366x768.png", "line": [288, 666, 548]},
+  {"frame": "f003_1366x768.png", "line": [288, 634, 548]},
+  {"frame": "f003_1366x768.png", "line": [288, 650, 548]},
+  {"frame": "f004_1366x768.png", "line": [288, 634, 548]},
+  {"frame": "f004_1366x768.png", "line": [288, 650, 548]},
+  {"frame": "f005_1366x768.png", "line": [288, 634, 548]}
+ ],
+ "countdown": [
+  {"frame": "f007_1366x768.png", "box": [1331, 13, 32, 13], "text": "27"},
+  {"frame": "f008_1366x768.png", "box": [1331, 13, 32, 13], "text": "24"},
+  {"frame": "f008_1366x768.png", "box": [1299, 13, 32, 13], "text": "27"},
+  {"frame": "f009_1366x768.png", "box": [1331, 13, 32, 13], "text": "19"},
+  {"frame": "f009_1366x768.png", "box": [1299, 13, 32, 13], "text": "21"},
+  {"frame": "f010_1366x768.png", "box": [1331, 13, 32, 13], "text": "16"},
+  {"frame": "f010_1366x768.png", "box": [1299, 13, 32, 13], "text": "19"},
+  {"frame": "f011_1366x768.png", "box": [1331, 13, 32, 13], "text": "13"},
+  {"frame": "f011_1366x768.png", "box": [1299, 13, 32, 13], "text": "16"},
+  {"frame": "f012_1366x768.png", "box": [1331, 13, 32, 13], "text": "10"},
+  {"frame": "f012_1366x768.png", "box": [1299, 13, 32, 13], "text": "13"},
+  {"frame": "f013_1366x768.png", "box": [1331, 13, 32, 13], "text": "8"},
+  {"frame": "f013_1366x768.png", "box": [1299, 13, 32, 13], "text": "10"},
+  {"frame": "f014_1366x768.png", "box": [1331, 13, 32, 13], "text": "5"},
+  {"frame": "f014_1366x768.png", "box": [1299, 13, 32, 13], "text": "7"}
+ ],
+ "minimap-title": [
+  {"frame": "f001_1366x768.png", "line": [54, 39, 91], "text": "Dungeon"},
+  {"frame": "f001_1366x768.png", "line": [54, 53, 91], "text": "Damp Forest"},
+  {"frame": "g001_800x600_quickslots_unshaded.png", "line": [48, 31, 132], "text": "Victoria Road", "splits": [15]},
+  {"frame": "g001_800x600_quickslots_unshaded.png", "line": [48, 45, 132], "text": "Ellinia"},
+  {"frame": "henesys_1366x768_00.png", "line": [56, 44, 49], "text": "Henesys", "splits": [43]},
+  {"frame": "henesysmarket_1920x1080_010.png", "line": [58, 44, 93], "text": "Henesys Market", "splits": [43]}
+ ]
+}

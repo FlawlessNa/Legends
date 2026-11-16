@@ -28,7 +28,7 @@ def test_one_read_with_the_anchor_remembered(
     frames: FrameSet, capsys: pytest.CaptureFixture[str]
 ) -> None:
     sprites = load_reader_sprites(
-        [STATUS_BAR], Profile(job="Swordsman", game_map="x"), STORE, config=CONFIG
+        [STATUS_BAR], Profile(job="Swordsman"), STORE, config=CONFIG
     )
     entry = next(
         e

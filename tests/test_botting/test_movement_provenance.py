@@ -69,11 +69,14 @@ ATOMIC = frozenset(
 )
 
 # walk, jump, walk, then the sentinel `pairwise` needs in order to see the last real
-# component as an `upcoming_move`. The walk runs ~2.0s, the jump ~1.6s and the second
-# walk ~1.0s at `SPEED`, which is what makes the cut points below land where they say.
+# component as an `upcoming_move`. The walk runs ~2.0s, the jump its 1.6s flight and
+# the second walk ~1.0s at `SPEED`, which is what makes the cut points below land where
+# they say. The jump grabs a rope: `jump_on_rope` waits out its flight after the press
+# and releases after it, so a cut inside the flight splits it. A plain jump waits out
+# its flight after its last Step, which a cut always keeps, so it never splits (#396).
 PLAN = (
     _MovementComponent(MovementTypes.WALK_RIGHT, 20),
-    _MovementComponent(MovementTypes.JUMP_RIGHT, 2),
+    _MovementComponent(MovementTypes.JUMP_RIGHT, 2, duration=1.6, grabs_rope=True),
     _MovementComponent(MovementTypes.WALK_RIGHT, 10),
     _MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),
 )

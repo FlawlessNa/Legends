@@ -1,4 +1,16 @@
-"""Extract class names from a YOLO model and update data.yaml files."""
+"""Copy a YOLO model's class names into the `data.yaml` of its datasets.
+
+Run it when the production model's classes changed and the datasets' `names`
+must match. The model path and the dataset list are written in `main()`:
+edit them first.
+
+    python toolkit/extract_model_classes.py
+
+Run it from the repo root. Needs `ultralytics`, the model
+(`data/models/production/global/weights/best.pt`) and the listed datasets
+under `data/datasets/`. **It rewrites each dataset's `data.yaml`.** No client,
+no input.
+"""
 
 import sys
 from pathlib import Path

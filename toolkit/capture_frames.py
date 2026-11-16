@@ -1,5 +1,8 @@
 """Save frames of the running client for the frame set.
 
+Needs the MapleStory client open. It copies the client's pixels and sends no
+input.
+
     python toolkit/capture_frames.py OUT_DIR [--count 10] [--interval 2.0]
 
 Keeps only frames the frame check passes (`FrameCheck.frame_usable`: the copy is
@@ -97,7 +100,7 @@ if __name__ == "__main__":
     parser.add_argument("--interval", type=float, default=2.0)
     args = parser.parse_args()
 
-    sprites = load_reader_sprites([FRAME_CHECK], Profile(job="", game_map=""))
+    sprites = load_reader_sprites([FRAME_CHECK], Profile(job=""))
     kept = capture(
         frame_source(),
         find_client(),

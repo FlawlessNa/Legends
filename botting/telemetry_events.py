@@ -22,6 +22,12 @@ events inverts the dependency. Areas here:
   are the records that close the Correlation ID chain: the DecisionMaker end
   says what was decided, and these say what became of it.
 * ``decision`` - one ``DecisionMaker`` gating another.
+* ``key`` - a key going down or up at a client, from Main Process where it is
+  sent (`botting/controller/inputs/key_times.py`, #538). One record per
+  transition, typematic repeats left out; ``t`` is on the frames' clock
+  (``time.monotonic()``). Written just after the send, off the send loop, so
+  the envelope's timestamp trails the payload's ``wall`` and a record can land
+  after records emitted later: order key records by ``t``.
 * ``recording`` - the screen recorder, in the Peripherals process: where the
   video is, and a checkpoint about once a second that maps the telemetry clock
   to a frame index (``botting.session`` cuts frames with them). Like
@@ -68,6 +74,14 @@ DECISION_DISABLED: Final = "decision.disabled"
 #: A DecisionMaker resumed another one, across every Engine.
 DECISION_ENABLED: Final = "decision.enabled"
 
+# --- key ------------------------------------------------------------------
+#: A key went down at a client: a keydown for a key the Held-Keys Ledger did not
+#: hold. A keydown for a key already down (a typematic repeat) is not one.
+KEY_DOWN: Final = "key.down"
+#: A keyup was sent to a client. Every keyup is one, ``held`` saying whether the
+#: ledger had the key down (not held: a straggler `release_all` found down).
+KEY_UP: Final = "key.up"
+
 # --- recording ------------------------------------------------------------
 #: The recorder's writer is open; the video at ``path`` is being written.
 RECORDING_STARTED: Final = "recording.started"
@@ -89,6 +103,10 @@ ActionOutcome = Literal["completed", "cancelled", "raised"]
 #: Why a Session ended. A failing task counts as ``error`` even though
 #: ``SessionManager.launch`` returns normally after one.
 SessionEndCause = Literal["completed", "stop_file", "interrupted", "error"]
+#: What sent a key: ``step``, a Step of an Input Sequence in the send loop;
+#: ``release``, `release_keys` - a sequence's forced releases and the releases on
+#: its cancellation, `release_all` (focus switch, Session start and end), a pause.
+KeyCause = Literal["step", "release"]
 
 
 class ActionPayload(TypedDict):
@@ -147,6 +165,31 @@ class SessionEndedPayload(TypedDict):
     cause: SessionEndCause
     #: ``"<ExceptionType>: <message>"`` when ``cause`` is ``error``, else null.
     error: str | None
+
+
+class KeyPayload(TypedDict):
+    """``key.down``: which key, at which client, when, and why."""
+
+    key: str
+    #: The client window it was sent to.
+    handle: int
+    #: ``time.monotonic()`` when ``SendInput`` returned, seconds: the clock frames
+    #: are captured on, so it lines up with a Reading's ``frame_time``.
+    t: float
+    #: ``time.time()`` at the same moment, seconds since the epoch.
+    wall: float
+    cause: KeyCause
+    #: The Movement Plan component that produced the Step (its Provenance), or
+    #: null: a release, a Step no component produced, or a sequence handed in
+    #: already compiled.
+    origin: int | None
+
+
+class KeyUpPayload(KeyPayload):
+    """``key.up``: as ``key.down``, and whether the key was down."""
+
+    #: Whether the Held-Keys Ledger held the key before this keyup.
+    held: bool
 
 
 class RecordingStartedPayload(TypedDict):

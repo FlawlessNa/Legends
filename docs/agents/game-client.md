@@ -164,6 +164,30 @@ State what you checked: the exact command you ran, and the PNG path. Attach
 the PNG if it helps the maintainer, since `probe/` is not committed. Say what
 you did not check.
 
+## Position check
+
+`python -m toolkit.position_check` (`toolkit/position_check.py`, its docstring
+has the details) shows what the position readers say: the minimap, the camera,
+the characters found and the fused position, each with its status. It runs
+`live` beside the client or `replay`s a folder of frames. It writes one CSV row
+per frame, prints each map's rates at the end, and saves frames for the frame
+set. **It sends no keys**, so you may replay with it freely. The live mode needs
+the maintainer at the client, who walks while it reads. Read its
+`readings.csv` and `summary.txt` (under `data/position_check/<time>/`), and
+paste the summary into the PR.
+
+## Movement playground
+
+`python -m toolkit.movement_playground --map "Victoria Road: Ellinia"`
+(`toolkit/movement_playground.py`, its docstring has the details) runs a
+Session with one DecisionMaker. The maintainer picks targets on the map, or
+random reachable ones, and the bot walks, jumps, climbs and drops to each. It
+plans and sends with the bot's own stack and judges each target with the
+`TrialDriver`. **It sends keys.** Only the maintainer, or an orchestrator told
+to, runs it. An agent reads the JSONL it leaves under `trial_records/`
+(`<time>-playground.jsonl`, one Trial per target) and the Session's
+`telemetry.jsonl`.
+
 ## Live Session
 
 The probe looks at a client with no bot running. This section is for the other
@@ -178,7 +202,7 @@ you do to it. The maintainer starts it.
 ### The steps
 
 1. **State the expectation in the PR, before the run.** Say what the bot should
-   do and how you will count it, with numbers where you can: "on `Line1Area1`,
+   do and how you will count it, with numbers where you can: "on `Victoria Road: Ellinia`,
    `Rotation` should plan and reach about 10 targets in 3 minutes, and nearly
    every `action.finished` should be `completed`." Write it first, so the run
    can prove you wrong.
@@ -232,6 +256,18 @@ you do to it. The maintainer starts it.
 
 ### Traps
 
+- **Key records (`key.down`, `key.up`) are written after the key, not with
+  it.** Main Process buffers them off the send loop (#538), so in the file a
+  key record can come after records emitted later, and its envelope
+  `timestamp` trails the send. Read the payload: `t` is `time.monotonic()` when
+  `SendInput` returned (the frames' clock, the same as a Reading's
+  `frame_time` and a Trial record's `frame_time`), and `wall` the wall clock
+  then. Only transitions are recorded: a typematic repeat is not, and a
+  `key.up` with `held: false` released a key the Held-Keys Ledger did not hold.
+  The cid is the decision whose compiler built the Input Sequence (baked into
+  its partial, ADR 0001): its Steps and the forced or cancellation releases at
+  its end carry it. Any other send carries none: `release_all` (focus switch,
+  Session start), a pause, a sequence sent already compiled.
 - **Always pass `--timeout` to `watch`.** Without it, `watch` waits until
   `session.ended`, and a Session killed hard never writes one, so the command
   hangs for ever. Exit codes: 0 met, 1 timeout, 2 the Session ended first.
@@ -272,7 +308,7 @@ text log for the same purpose: it is narrative, not a contract.
 
 You changed how `Rotation` picks its next target. In the PR, before the run:
 
-> Expect on `Line1Area1`, in 3 minutes: about 10 `movement.plan_started`,
+> Expect on `Victoria Road: Ellinia`, in 3 minutes: about 10 `movement.plan_started`,
 > nearly all Rotation `action.finished` as `completed`, and a
 > `movement.target_reached` within 3 units of each Plan's target.
 

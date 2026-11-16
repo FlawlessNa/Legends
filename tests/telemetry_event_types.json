@@ -15,6 +15,7 @@
     "SESSION_STOP_REQUESTED": "session.stop_requested"
   },
   "maple.telemetry_events": {
+    "CHAT_GM_LINE": "chat.gm_line",
     "COMBAT_MOBS_HIT": "combat.mobs_hit",
     "COMBAT_TELECAST": "combat.telecast",
     "COMBAT_TELECAST_UNAVAILABLE": "combat.telecast_unavailable",
@@ -26,6 +27,7 @@
     "INVENTORY_TOWN_REACHED": "inventory.town_reached",
     "MOVEMENT_PLAN_STARTED": "movement.plan_started",
     "MOVEMENT_TARGET_REACHED": "movement.target_reached",
+    "POSITION_READ": "position.read",
     "REBUFF_MEMBERS_IN_POSITION": "rebuff.members_in_position",
     "REBUFF_PARTY_COMPLETE": "rebuff.party_complete",
     "REBUFF_SIGNALLED": "rebuff.signalled",
@@ -36,6 +38,7 @@
     "RECOVERY_MAP_CHECK_FAILED": "recovery.map_check_failed",
     "RECOVERY_MAP_CHECK_RECOVERED": "recovery.map_check_recovered",
     "RECOVERY_MOB_SPAWN_RESTORED": "recovery.mob_spawn_restored",
+    "RECOVERY_POSITION_UNSURE": "recovery.position_unsure",
     "RECOVERY_REFLEX": "recovery.reflex",
     "RECOVERY_STUCK_DETECTED": "recovery.stuck_detected",
     "STATE_SNAPSHOT": "state.snapshot"

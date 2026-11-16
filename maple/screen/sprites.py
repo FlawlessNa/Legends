@@ -12,14 +12,15 @@ once from the local `game_data` store when the bot starts.
   front whenever any reader is enabled, since every reader calls it first.
 - `load_reader_sprites(readers, profile)`: checks `configs/game_data.ini` and
   `game_data` `status`, then loads every declared path once into a
-  `ReaderSprites`. Anything missing raises `StartupRefused`, saying what to do.
+  `ReaderSprites`, with the glyph sets (`font`) any reader names. Anything
+  missing raises `StartupRefused`, saying what to do.
 
 Nothing reloads during a session: a reader asks the `ReaderSprites` it was
 given, which never touches the store again.
 """
 
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Protocol
 
@@ -28,6 +29,8 @@ from game_data.catalogue.model import Ref, SkillData
 from game_data.config import CONFIG, STORE, ClientPathNotSet, client_data_path
 from game_data.extraction.status import Freshness, status
 from game_data.sprites import Sprite, SpriteNotFound, Sprites
+
+from .font import GLYPHS, GlyphSet, GlyphsMissing, load_glyph_set
 
 GAUGE_LABEL = "UI/StatusBar.img/canvas:gaugeLabel"
 """The status bar's anchor, which the frame check looks for at 1:1."""
@@ -43,14 +46,12 @@ class Profile:
     What profile-dependent sprites depend on.
 
     :ivar job: The character's job, as the profile's `character_class` names it.
-    :ivar game_map: The map the bot runs on, as the profile names it.
-    :ivar map_id: The client's id for that map, when the map file has one.
+    :ivar map_id: The client's id for the map the bot runs on, once known.
     :ivar buffs: The buffs the bot keeps up, by skill name: the buffs reader
         compares the screen with their icons.
     """
 
     job: str
-    game_map: str
     map_id: int | None = None
     buffs: tuple[str, ...] = ()
 
@@ -69,12 +70,15 @@ class Declaration:
     :ivar skill_icons: Names of skills whose icons the reader needs, or a
         function of the profile giving them. Each is found in the catalogue for
         the profile's job (`skill_icon_path`).
+    :ivar glyph_sets: Names of harvested glyph sets the reader needs
+        (`font.GLYPH_SETS`). The bot refuses to start without them.
     """
 
     reader: str
     canvases: Paths = ()
     vectors: Paths = ()
     skill_icons: Paths = ()
+    glyph_sets: tuple[str, ...] = ()
 
     def canvas_paths(self, profile: Profile) -> tuple[str, ...]:
         return _paths(self.canvases, profile)
@@ -184,6 +188,15 @@ class ReaderSprites:
         default_factory=dict[str, tuple[int, int]]
     )
     skill_icons: dict[str, Sprite] = field(default_factory=dict[str, Sprite])
+    glyph_sets: dict[str, GlyphSet] = field(default_factory=dict[str, GlyphSet])
+
+    def with_canvas(self, canvas: Sprite) -> ReaderSprites:
+        """
+        These sprites and `canvas`, by its path: the identified map's minimap
+        canvas, which `map: auto` can't declare before the map is known. It
+        comes from the same extraction, already loaded, so nothing reloads.
+        """
+        return replace(self, canvases={**self.canvases, canvas.path: canvas})
 
     def canvas(self, path: str) -> Sprite:
         """
@@ -220,6 +233,19 @@ class ReaderSprites:
                 f"the {name!r} icon isn't in any enabled reader's declaration"
             ) from None
 
+    def glyph_set(self, name: str) -> GlyphSet:
+        """
+        A harvested glyph set, by its name.
+
+        :raises KeyError: No enabled reader declared it.
+        """
+        try:
+            return self.glyph_sets[name]
+        except KeyError:
+            raise KeyError(
+                f"the {name!r} glyphs aren't in any enabled reader's declaration"
+            ) from None
+
 
 def enabled_readers(decision_makers: Iterable[type]) -> list[Declaration]:
     """
@@ -235,12 +261,22 @@ def enabled_readers(decision_makers: Iterable[type]) -> list[Declaration]:
     return [FRAME_CHECK, *(d for d in found if d != FRAME_CHECK)]
 
 
+def with_readers(
+    readers: Sequence[Declaration], *needed: Declaration
+) -> list[Declaration]:
+    """`readers` and each of `needed` not among them, with `FRAME_CHECK` first,
+    as `enabled_readers` gives them."""
+    found = [d for d in (*readers, *needed) if d != FRAME_CHECK]
+    return [FRAME_CHECK, *dict.fromkeys(found)]
+
+
 def load_reader_sprites(
     readers: Sequence[Declaration],
     profile: Profile,
     root: Path = STORE,
     *,
     config: Path = CONFIG,
+    glyphs: Path = GLYPHS,
 ) -> ReaderSprites:
     """
     Load every sprite `readers` declare, once.
@@ -249,7 +285,8 @@ def load_reader_sprites(
 
     :raises StartupRefused: `config` is missing or sets no client, the store's
         `status` is `missing` or `stale`, a declared path names nothing, or a
-        declared skill isn't the job's.
+        declared skill isn't the job's, or a declared glyph set isn't
+        harvested into `glyphs`.
     """
     if not readers:
         return ReaderSprites(None)
@@ -301,7 +338,19 @@ def load_reader_sprites(
                 raise StartupRefused(
                     f"the {name!r} skill has no icon in build {found.latest}: {error}"
                 ) from error
-    return ReaderSprites(found.latest, canvases, vectors, skill_icons)
+    glyph_sets: dict[str, GlyphSet] = {}
+    for declaration in readers:
+        for name in declaration.glyph_sets:
+            if name in glyph_sets:
+                continue
+            try:
+                glyph_sets[name] = load_glyph_set(name, glyphs)
+            except GlyphsMissing as error:
+                raise StartupRefused(
+                    f"the {declaration.reader} reader needs glyphs harvested "
+                    f"from frames: {error}"
+                ) from error
+    return ReaderSprites(found.latest, canvases, vectors, skill_icons, glyph_sets)
 
 
 def _skill_icon_paths(

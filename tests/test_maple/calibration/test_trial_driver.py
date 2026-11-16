@@ -15,16 +15,46 @@ machine.
 
 import pytest
 
-from maple.calibration.driver import DefectPolicy, TrialDriver
+from botting.screen import Reading
+from maple.calibration.driver import (
+    COARSE_SLACK,
+    SETUP_MOVE_FAILURES,
+    DefectPolicy,
+    TrialDriver,
+)
 from maple.calibration.records import (
     CycleRecord,
     ListSink,
+    MovementSummary,
     Phase,
     ScheduleHeader,
     TrialOutcome,
     TrialResult,
 )
-from maple.calibration.specs import Knobs, TrialBatch, TrialSchedule, TrialSpec
+from maple.calibration.specs import (
+    Knobs,
+    Measure,
+    TrialBatch,
+    TrialSchedule,
+    TrialSpec,
+)
+from maple.screen.position import PositionSource, VirtualPosition
+
+#: The defect policy these checks run on: the virtual-px defaults are 16 and 8 px,
+#: and the position streams below move a few px at a time, so they get a policy at
+#: their own scale. The defaults have checks of their own (the end of the file).
+SMALL = DefectPolicy(progress_epsilon=1.0, level_band=0.5)
+
+
+def at(
+    x: float, y: float, source: PositionSource = PositionSource.FUSED
+) -> Reading[VirtualPosition]:
+    """A read virtual position."""
+    return Reading.read(VirtualPosition(x, y, source), 0.0)
+
+
+def unsure() -> Reading[VirtualPosition]:
+    return Reading.unsure(0.0, "two characters where the minimap puts ours")
 
 
 def spec(
@@ -34,8 +64,11 @@ def spec(
     tolerance: float = 1.0,
     time_budget: float = 10.0,
     setup_budget: float | None = None,
+    measures: Measure | None = None,
 ) -> TrialSpec:
-    return TrialSpec(name, start, target, tolerance, time_budget, setup_budget)
+    return TrialSpec(
+        name, start, target, tolerance, time_budget, setup_budget, measures
+    )
 
 
 def schedule(*batches: TrialBatch) -> TrialSchedule:
@@ -48,7 +81,7 @@ def driver(
     sched: TrialSchedule | None = None, policy: DefectPolicy | None = None
 ) -> tuple[TrialDriver, ListSink]:
     sink = ListSink()
-    return TrialDriver(sched or schedule(), sink, defects=policy), sink
+    return TrialDriver(sched or schedule(), sink, defects=policy or SMALL), sink
 
 
 def cycles(sink: ListSink) -> list[CycleRecord]:
@@ -67,7 +100,7 @@ def test_a_run_opens_with_a_header_naming_the_schedule_and_map() -> None:
     header = sink[0]
     assert isinstance(header, ScheduleHeader)
     assert header.schedule == "sched"
-    assert header.map_name == "fixture-map"
+    assert header.map == "fixture-map"
 
 
 # --- Positioning ------------------------------------------------------------------
@@ -82,10 +115,10 @@ def test_a_trial_aims_at_its_start_before_it_aims_at_its_target() -> None:
     assert d.phase is Phase.POSITIONING
     assert d.target == (0, 0)
 
-    d.advance((5, 0), 0.0)
+    d.advance(at(5, 0), 0.0)
     assert d.phase is Phase.POSITIONING
 
-    d.advance((0, 0), 1.0)
+    d.advance(at(0, 0), 1.0)
     assert d.phase is Phase.MEASURING
     assert d.target == (10, 0)
 
@@ -93,9 +126,9 @@ def test_a_trial_aims_at_its_start_before_it_aims_at_its_target() -> None:
 def test_the_measured_clock_starts_when_the_character_reaches_the_start() -> None:
     """Time spent walking to `start` is not time-to-arrival."""
     d, sink = driver()
-    d.advance((9, 0), 0.0)
-    d.advance((0, 0), 30.0)  # arrived at `start`, 30s in
-    d.advance((10, 0), 32.0)  # arrived at `target`, 2s later
+    d.advance(at(9, 0), 0.0)
+    d.advance(at(0, 0), 30.0)  # arrived at `start`, 30s in
+    d.advance(at(10, 0), 32.0)  # arrived at `target`, 2s later
     (outcome,) = outcomes(sink)
     assert outcome.result == TrialResult.ARRIVED
     assert outcome.time_to_arrival == 2.0
@@ -105,8 +138,8 @@ def test_the_positioning_phase_has_its_own_budget() -> None:
     d, sink = driver(
         schedule(TrialBatch("b", (spec(time_budget=10.0, setup_budget=3.0),)))
     )
-    d.advance((9, 0), 0.0)
-    d.advance((9, 0), 3.0)
+    d.advance(at(9, 0), 0.0)
+    d.advance(at(9, 0), 3.0)
     (outcome,) = outcomes(sink)
     assert outcome.result == TrialResult.SETUP_FAILED
 
@@ -117,11 +150,139 @@ def test_a_trial_that_never_reached_its_start_reports_no_measurement() -> None:
     start has no time-to-arrival, and reporting one would fabricate a measurement.
     """
     d, sink = driver(schedule(TrialBatch("b", (spec(setup_budget=1.0),))))
-    d.advance((9, 0), 0.0)
-    d.advance((9, 0), 1.0)
+    d.advance(at(9, 0), 0.0)
+    d.advance(at(9, 0), 1.0)
     (outcome,) = outcomes(sink)
     assert outcome.result == TrialResult.SETUP_FAILED
     assert outcome.time_to_arrival is None
+
+
+# --- A move the positioning Path keeps failing (#509) ------------------------------
+#
+# Live, `gap-right-1` planned the same jump off a ledge again after each fall,
+# for 61 s. The plans below are that shape: walk to the ledge's take-off, jump
+# up (J1), then jump on (J2); after a fall, a grab onto the rope back up first.
+
+
+def move(
+    kind: str, start: tuple[float, float], end: tuple[float, float]
+) -> MovementSummary:
+    return MovementSummary(
+        kind,
+        abs(end[0] - start[0]) + abs(end[1] - start[1]),
+        False,
+        False,
+        start=start,
+        end=end,
+    )
+
+
+J1 = move("JUMP_LEFT", (-413, -2), (-483, -42))
+J2 = move("JUMP_LEFT", (-484, -42), (-564, -53))
+GRAB = move("JUMP_RIGHT", (-327, 228), (-316, 193))
+
+
+def at_ledge(walk: float = 59.0) -> tuple[MovementSummary, ...]:
+    """On the ledge, `walk` px short of J1's take-off."""
+    return (
+        move("WALK_LEFT", (-413 + walk, -2), (-413, -2)),
+        J1,
+        move("WALK_LEFT", (-483, -42), (-484, -42)),
+        J2,
+        move("WALK_LEFT", (-564, -53), (-620, -52)),
+    )
+
+
+def fallen() -> tuple[MovementSummary, ...]:
+    """Back on the ground: to the rope, up it, and along the ledge to J1."""
+    return (
+        move("WALK_RIGHT", (-694, 284), (-327, 228)),
+        GRAB,
+        move("CLIMB_UP", (-316, 193), (-316, -2)),
+        *at_ledge(97.0),
+    )
+
+
+def positioning_driver() -> tuple[TrialDriver, ListSink]:
+    return driver(
+        schedule(TrialBatch("b", (spec(start=(-620, -52), setup_budget=60.0),)))
+    )
+
+
+def test_a_move_that_fails_three_times_closes_the_setup_early_naming_it() -> None:
+    d, sink = positioning_driver()
+    plans = [at_ledge(), fallen(), at_ledge(), fallen(), at_ledge(), fallen()]
+    verdicts = [
+        d.advance(at(0, 0), float(t), plan=plan) for t, plan in enumerate(plans)
+    ]
+
+    (outcome,) = outcomes(sink)
+    assert outcome.result == TrialResult.SETUP_FAILED
+    assert outcome.failed_move == J1
+    assert outcome.duration == 5.0
+    assert [v.dispatch for v in verdicts] == [True] * 5 + [False]
+    assert not cycles(sink)[-1].dispatched
+    assert SETUP_MOVE_FAILURES == 3
+
+
+def test_a_move_that_worked_is_no_failure() -> None:
+    d, sink = positioning_driver()
+    on_upper = (J2, move("WALK_LEFT", (-564, -53), (-620, -52)))
+    walking = (move("WALK_LEFT", (-600, -52), (-620, -52)),)
+    # The grab works (the next plan opens on J1), J1 works (on J2), J2 works
+    # (no move left), each time; a Path that keeps working never gives up.
+    for t in range(0, 30, 4):
+        for k, plan in enumerate((fallen(), at_ledge(), on_upper, walking)):
+            d.advance(at(0, 0), float(t + k), plan=plan)
+
+    assert outcomes(sink) == []
+
+
+def test_a_fall_back_short_of_the_same_move_is_a_failure() -> None:
+    """
+    Live, the `branch-` Trials fell back onto the platform they jumped from:
+    the next plan opened on the same jump, only further from it.
+    """
+    d, sink = positioning_driver()
+    for t, walk in enumerate([100, 20, 157, 30, 150, 10, 160]):
+        d.advance(at(0, 0), float(t), plan=at_ledge(walk))
+
+    (outcome,) = outcomes(sink)
+    assert outcome.failed_move == J1
+    assert outcome.duration == 6.0
+
+
+def test_walking_up_to_a_move_over_many_cycles_is_no_failure() -> None:
+    d, sink = positioning_driver()
+    for t, walk in enumerate([400, 330, 340, 260, 190, 120, 50, 5, 12]):
+        d.advance(at(0, 0), float(t), plan=at_ledge(walk))
+
+    assert outcomes(sink) == []
+
+
+def test_a_cycle_with_no_plan_judges_no_move() -> None:
+    d, sink = positioning_driver()
+    for t, plan in enumerate([at_ledge(), (), fallen(), (), at_ledge(), ()]):
+        d.advance(at(0, 0), float(t), plan=plan)
+    d.advance(unsure(), 6.0, plan=fallen())
+
+    assert outcomes(sink) == []
+
+
+def test_a_measured_move_that_fails_runs_to_its_budget() -> None:
+    """What the measured phase does is the measurement: it is never cut short."""
+    d, sink = driver(
+        schedule(TrialBatch("b", (spec(start=(0, 0), target=(-620, -52)),)))
+    )
+    d.advance(at(0, 0), 0.0)
+    for t in range(1, 9):
+        d.advance(at(-400, 0), float(t), plan=at_ledge() if t % 2 else fallen())
+
+    assert outcomes(sink) == []
+    d.advance(at(-400, 0), 11.0, plan=fallen())
+    (outcome,) = outcomes(sink)
+    assert outcome.result == TrialResult.TIMEOUT
+    assert outcome.failed_move is None
 
 
 def test_positioning_cycles_are_recorded_and_labelled() -> None:
@@ -131,18 +292,18 @@ def test_positioning_cycles_are_recorded_and_labelled() -> None:
     measurements.
     """
     d, sink = driver()
-    d.advance((9, 0), 0.0)
-    d.advance((0, 0), 1.0)
-    d.advance((10, 0), 2.0)
+    d.advance(at(9, 0), 0.0)
+    d.advance(at(0, 0), 1.0)
+    d.advance(at(10, 0), 2.0)
     phases = [c.phase for c in cycles(sink)]
     assert phases == [Phase.POSITIONING, Phase.POSITIONING, Phase.MEASURING]
 
 
 def test_a_character_already_at_the_start_measures_from_the_first_cycle() -> None:
     d, sink = driver()
-    d.advance((0, 0), 0.0)
+    d.advance(at(0, 0), 0.0)
     assert d.phase is Phase.MEASURING
-    d.advance((10, 0), 4.0)
+    d.advance(at(10, 0), 4.0)
     (outcome,) = outcomes(sink)
     assert outcome.time_to_arrival == 4.0
 
@@ -152,8 +313,8 @@ def test_a_character_already_at_the_start_measures_from_the_first_cycle() -> Non
 
 def test_arrival_is_inside_the_tolerance_not_exactly_on_the_target() -> None:
     d, sink = driver(schedule(TrialBatch("b", (spec(tolerance=2.0),))))
-    d.advance((0, 0), 0.0)
-    d.advance((9, 1), 1.0)  # distance sqrt(2) < 2.0
+    d.advance(at(0, 0), 0.0)
+    d.advance(at(9, 1), 1.0)  # distance sqrt(2) < 2.0
     (outcome,) = outcomes(sink)
     assert outcome.result == TrialResult.ARRIVED
     assert outcome.final_error == pytest.approx(2**0.5)
@@ -161,8 +322,8 @@ def test_arrival_is_inside_the_tolerance_not_exactly_on_the_target() -> None:
 
 def test_running_out_of_budget_ends_the_trial_and_records_how_far_off_it_was() -> None:
     d, sink = driver(schedule(TrialBatch("b", (spec(time_budget=5.0),))))
-    d.advance((0, 0), 0.0)
-    d.advance((7, 0), 5.0)
+    d.advance(at(0, 0), 0.0)
+    d.advance(at(7, 0), 5.0)
     (outcome,) = outcomes(sink)
     assert outcome.result == TrialResult.TIMEOUT
     assert outcome.final_error == 3.0
@@ -175,10 +336,10 @@ def test_the_arriving_cycle_is_recorded_before_the_trial_closes() -> None:
     character actually got - which is the number the whole experiment is about.
     """
     d, sink = driver()
-    d.advance((0, 0), 0.0)
-    d.advance((10, 0), 1.0)
+    d.advance(at(0, 0), 0.0)
+    d.advance(at(10, 0), 1.0)
     last = cycles(sink)[-1]
-    assert last.position == (10, 0)
+    assert last.position.position == (10.0, 0.0)
     assert last.error == 0.0
     assert last.dispatched is False
 
@@ -190,10 +351,10 @@ def test_the_cycle_count_covers_the_measured_phase_only() -> None:
     """
     d, sink = driver()
     for t in range(4):
-        d.advance((9, 0), float(t))  # four positioning cycles
-    d.advance((0, 0), 4.0)  # the fifth, which arrives at `start`
-    d.advance((5, 0), 5.0)
-    d.advance((10, 0), 6.0)
+        d.advance(at(9, 0), float(t))  # four positioning cycles
+    d.advance(at(0, 0), 4.0)  # the fifth, which arrives at `start`
+    d.advance(at(5, 0), 5.0)
+    d.advance(at(10, 0), 6.0)
     (outcome,) = outcomes(sink)
     assert outcome.cycles == 2
     assert len(cycles(sink)) == 7
@@ -204,8 +365,8 @@ def test_the_cycle_count_covers_the_measured_phase_only() -> None:
 
 def test_a_cycle_still_short_of_the_target_asks_for_a_dispatch() -> None:
     d, _ = driver()
-    d.advance((0, 0), 0.0)
-    verdict = d.advance((5, 0), 1.0)
+    d.advance(at(0, 0), 0.0)
+    verdict = d.advance(at(5, 0), 1.0)
     assert verdict.dispatch is True
     assert verdict.target == (10, 0)
     assert verdict.outcome is None
@@ -214,8 +375,8 @@ def test_a_cycle_still_short_of_the_target_asks_for_a_dispatch() -> None:
 def test_an_arriving_cycle_asks_for_no_dispatch() -> None:
     """Sending a plan built for a target already reached is how a loop oscillates."""
     d, _ = driver()
-    d.advance((0, 0), 0.0)
-    verdict = d.advance((10, 0), 1.0)
+    d.advance(at(0, 0), 0.0)
+    verdict = d.advance(at(10, 0), 1.0)
     assert verdict.dispatch is False
     assert verdict.outcome is not None
 
@@ -229,9 +390,9 @@ def test_the_movement_plan_and_correlation_id_reach_the_record() -> None:
     from maple.calibration.records import MovementSummary
 
     d, sink = driver()
-    d.advance((0, 0), 0.0)
+    d.advance(at(0, 0), 0.0)
     d.advance(
-        (5, 0),
+        at(5, 0),
         1.0,
         plan=(MovementSummary("WALK_RIGHT", 5, False, False),),
         correlation_id="abc",
@@ -251,8 +412,8 @@ def test_trials_are_walked_in_order_and_the_run_then_finishes() -> None:
     )
     d, sink = driver(sched)
     for _ in range(3):
-        d.advance((0, 0), 0.0)
-        d.advance((10, 0), 1.0)
+        d.advance(at(0, 0), 0.0)
+        d.advance(at(10, 0), 1.0)
     assert [o.trial for o in outcomes(sink)] == ["one", "two", "three"]
     assert [o.batch for o in outcomes(sink)] == ["first", "first", "second"]
     assert d.finished
@@ -261,10 +422,10 @@ def test_trials_are_walked_in_order_and_the_run_then_finishes() -> None:
 
 def test_advancing_a_finished_schedule_records_nothing() -> None:
     d, sink = driver()
-    d.advance((0, 0), 0.0)
-    d.advance((10, 0), 1.0)
+    d.advance(at(0, 0), 0.0)
+    d.advance(at(10, 0), 1.0)
     before = len(sink)
-    verdict = d.advance((10, 0), 2.0)
+    verdict = d.advance(at(10, 0), 2.0)
     assert verdict.finished is True
     assert verdict.dispatch is False
     assert len(sink) == before
@@ -282,8 +443,8 @@ def test_each_trial_restarts_its_own_positioning_phase() -> None:
         )
     )
     d, _ = driver(sched)
-    d.advance((0, 0), 0.0)
-    d.advance((10, 0), 1.0)
+    d.advance(at(0, 0), 0.0)
+    d.advance(at(10, 0), 1.0)
     assert d.phase is Phase.POSITIONING
     assert d.target == (50, 0)
 
@@ -298,8 +459,8 @@ def test_a_batch_boundary_hands_over_that_batch_s_knobs() -> None:
     d, sink = driver(sched)
     assert d.batch is not None
     assert d.batch.knobs == Knobs()
-    d.advance((0, 0), 0.0)
-    d.advance((10, 0), 1.0)
+    d.advance(at(0, 0), 0.0)
+    d.advance(at(10, 0), 1.0)
     assert d.batch is not None
     assert d.batch.knobs == knobs
     assert outcomes(sink)[0].knobs == Knobs()
@@ -312,8 +473,8 @@ def test_the_knobs_in_force_are_written_into_the_outcome() -> None:
     """
     knobs = Knobs(action_duration=0.5)
     d, sink = driver(schedule(TrialBatch("swept", (spec(),), knobs)))
-    d.advance((0, 0), 0.0)
-    d.advance((10, 0), 1.0)
+    d.advance(at(0, 0), 0.0)
+    d.advance(at(10, 0), 1.0)
     assert outcomes(sink)[0].knobs == knobs
 
 
@@ -327,8 +488,8 @@ def test_abandoning_closes_the_trial_in_flight_and_stops_the_run() -> None:
     """
     sched = schedule(TrialBatch("b", (spec("one"), spec("two"))))
     d, sink = driver(sched)
-    d.advance((0, 0), 0.0)
-    d.advance((5, 0), 1.0)
+    d.advance(at(0, 0), 0.0)
+    d.advance(at(5, 0), 1.0)
     outcome = d.abandon(2.0)
     assert outcome is not None
     assert outcome.result == TrialResult.ABANDONED
@@ -341,8 +502,8 @@ def test_abandoning_closes_the_trial_in_flight_and_stops_the_run() -> None:
 
 def test_abandoning_a_finished_run_is_a_no_op() -> None:
     d, sink = driver()
-    d.advance((0, 0), 0.0)
-    d.advance((10, 0), 1.0)
+    d.advance(at(0, 0), 0.0)
+    d.advance(at(10, 0), 1.0)
     before = len(sink)
     assert d.abandon(2.0) is None
     assert len(sink) == before
@@ -358,20 +519,20 @@ def test_an_overshoot_past_the_target_counts_as_an_oscillation() -> None:
     difference between that and a clean approach.
     """
     d, sink = driver(schedule(TrialBatch("b", (spec(time_budget=100.0),))))
-    d.advance((0, 0), 0.0)  # positioning done; measuring toward (10, 0)
+    d.advance(at(0, 0), 0.0)  # positioning done; measuring toward (10, 0)
     for position in [(5, 0), (14, 0), (6, 0), (13, 0)]:
-        d.advance(position, 1.0)
-    d.advance((10, 0), 2.0)
+        d.advance(at(*position), 1.0)
+    d.advance(at(10, 0), 2.0)
     (outcome,) = outcomes(sink)
     assert outcome.oscillations == 3
 
 
 def test_a_straight_approach_counts_no_oscillation() -> None:
     d, sink = driver(schedule(TrialBatch("b", (spec(time_budget=100.0),))))
-    d.advance((0, 0), 0.0)
+    d.advance(at(0, 0), 0.0)
     for x in (2, 4, 6, 8):
-        d.advance((x, 0), 1.0)
-    d.advance((10, 0), 2.0)
+        d.advance(at(x, 0), 1.0)
+    d.advance(at(10, 0), 2.0)
     assert outcomes(sink)[0].oscillations == 0
 
 
@@ -384,10 +545,10 @@ def test_drawing_level_on_one_axis_is_not_an_oscillation() -> None:
         TrialBatch("b", (spec(start=(0, 0), target=(10, 10), time_budget=100.0),))
     )
     d, sink = driver(sched)
-    d.advance((0, 0), 0.0)
+    d.advance(at(0, 0), 0.0)
     for position in [(5, 5), (10, 7), (10, 9)]:
-        d.advance(position, 1.0)
-    d.advance((10, 10), 2.0)
+        d.advance(at(*position), 1.0)
+    d.advance(at(10, 10), 2.0)
     assert outcomes(sink)[0].oscillations == 0
 
 
@@ -399,10 +560,10 @@ def test_cycles_without_progress_add_up_to_a_stuck_event() -> None:
     """
     policy = DefectPolicy(progress_epsilon=1.0, stall_cycles=3)
     d, sink = driver(schedule(TrialBatch("b", (spec(time_budget=100.0),))), policy)
-    d.advance((0, 0), 0.0)  # arrives at `start`; measuring begins
+    d.advance(at(0, 0), 0.0)  # arrives at `start`; measuring begins
     for _ in range(7):
-        d.advance((4, 0), 1.0)  # error pinned at 6.0: one baseline, then six stalls
-    d.advance((10, 0), 2.0)
+        d.advance(at(4, 0), 1.0)  # error pinned at 6.0: one baseline, then six stalls
+    d.advance(at(10, 0), 2.0)
     outcome = outcomes(sink)[0]
     assert outcome.stuck_events == 2
     assert outcome.longest_stall == 3
@@ -419,17 +580,17 @@ def test_progress_below_the_epsilon_is_not_progress() -> None:
     sched = schedule(TrialBatch("b", (spec(target=(100, 0), time_budget=100.0),)))
 
     d, sink = driver(sched, DefectPolicy(progress_epsilon=5.0, stall_cycles=3))
-    d.advance((0, 0), 0.0)
+    d.advance(at(0, 0), 0.0)
     for position in crawl:
-        d.advance(position, 1.0)
-    d.advance((100, 0), 2.0)
+        d.advance(at(*position), 1.0)
+    d.advance(at(100, 0), 2.0)
     assert outcomes(sink)[0].stuck_events == 1
 
     d, sink = driver(sched, DefectPolicy(progress_epsilon=0.5, stall_cycles=3))
-    d.advance((0, 0), 0.0)
+    d.advance(at(0, 0), 0.0)
     for position in crawl:
-        d.advance(position, 1.0)
-    d.advance((100, 0), 2.0)
+        d.advance(at(*position), 1.0)
+    d.advance(at(100, 0), 2.0)
     assert outcomes(sink)[0].stuck_events == 0
 
 
@@ -437,10 +598,10 @@ def test_steady_progress_counts_no_stuck_event() -> None:
     policy = DefectPolicy(progress_epsilon=1.0, stall_cycles=3)
     sched = schedule(TrialBatch("b", (spec(target=(100, 0), time_budget=100.0),)))
     d, sink = driver(sched, policy)
-    d.advance((0, 0), 0.0)
+    d.advance(at(0, 0), 0.0)
     for x in range(10, 100, 10):
-        d.advance((x, 0), 1.0)
-    d.advance((100, 0), 2.0)
+        d.advance(at(x, 0), 1.0)
+    d.advance(at(100, 0), 2.0)
     outcome = outcomes(sink)[0]
     assert outcome.stuck_events == 0
     assert outcome.longest_stall == 0
@@ -454,7 +615,134 @@ def test_defects_are_counted_over_the_measured_phase_only() -> None:
     sched = schedule(TrialBatch("b", (spec(setup_budget=100.0, time_budget=100.0),)))
     d, sink = driver(sched)
     for position in [(-5, 0), (5, 0), (-5, 0), (5, 0)]:
-        d.advance(position, 0.0)
-    d.advance((0, 0), 1.0)
-    d.advance((10, 0), 2.0)
+        d.advance(at(*position), 0.0)
+    d.advance(at(0, 0), 1.0)
+    d.advance(at(10, 0), 2.0)
     assert outcomes(sink)[0].oscillations == 0
+
+
+# --- Virtual positions (#397) -----------------------------------------------------
+
+
+def test_an_unsure_position_judges_nothing_and_dispatches_nothing() -> None:
+    """
+    C-NOGUESS: an unsure read is no position. It cannot arrive, make progress or
+    overshoot, and the runner holds rather than ship a plan from it.
+    """
+    d, sink = driver(schedule(TrialBatch("b", (spec(time_budget=10.0),))))
+    d.advance(at(0, 0), 0.0)
+    verdict = d.advance(unsure(), 1.0)
+    assert verdict.dispatch is False
+    assert verdict.outcome is None
+    record = cycles(sink)[-1]
+    assert record.error is None
+    assert record.position.position is None
+    assert record.position.status == "unsure"
+
+
+def test_an_unsure_trial_still_runs_out_of_budget_with_its_last_read_error() -> None:
+    d, sink = driver(schedule(TrialBatch("b", (spec(time_budget=5.0),))))
+    d.advance(at(0, 0), 0.0)
+    d.advance(at(7, 0), 1.0)
+    d.advance(unsure(), 3.0)
+    d.advance(unsure(), 5.0)
+    (outcome,) = outcomes(sink)
+    assert outcome.result == TrialResult.TIMEOUT
+    assert outcome.final_error == 3.0
+    assert outcome.unsure_cycles == 2
+
+
+def test_a_trial_never_read_has_no_final_error() -> None:
+    d, sink = driver(schedule(TrialBatch("b", (spec(setup_budget=1.0),))))
+    d.advance(unsure(), 0.0)
+    d.advance(unsure(), 1.0)
+    (outcome,) = outcomes(sink)
+    assert outcome.result == TrialResult.SETUP_FAILED
+    assert outcome.final_error is None
+
+
+def test_a_coarse_position_arrives_only_when_its_whole_pixel_is_inside() -> None:
+    """
+    A minimap-only position is the middle of a 16 px canvas pixel: on the target is
+    not inside an 8 px tolerance, because the feet may be anywhere in that pixel.
+    """
+    tight = schedule(
+        TrialBatch("b", (spec(target=(100, 0), tolerance=8.0, time_budget=10.0),))
+    )
+    d, _ = driver(tight)
+    d.advance(at(0, 0), 0.0)
+    assert d.advance(at(100, 0, PositionSource.COARSE), 1.0).outcome is None
+    assert d.advance(at(100, 0), 2.0).outcome is not None
+
+    loose = schedule(
+        TrialBatch("b", (spec(target=(100, 0), tolerance=16.0, time_budget=10.0),))
+    )
+    d, _ = driver(loose)
+    d.advance(at(0, 0), 0.0)
+    verdict = d.advance(at(103, 0, PositionSource.COARSE), 1.0)
+    assert 3 + COARSE_SLACK <= 16.0
+    assert verdict.outcome is not None
+    assert verdict.outcome.result == TrialResult.ARRIVED
+
+
+def test_a_sample_is_recorded_and_judges_nothing() -> None:
+    """
+    A sample is a read while an Action is in flight: on the target or not, only a
+    decision cycle closes a Trial. It names the Action in flight.
+    """
+    d, sink = driver()
+    d.advance(at(0, 0), 0.0)
+    d.advance(at(5, 0), 1.0, correlation_id="cid-7")
+    sample = d.sample(at(10, 0), 1.1)
+    assert sample is not None
+    assert sample.correlation_id == "cid-7"
+    assert sample.position.position == (10.0, 0.0)
+    assert sample.elapsed == pytest.approx(1.1)  # measuring began at 0.0
+    assert outcomes(sink) == []
+    assert d.trial is not None
+
+
+def test_a_finished_schedule_takes_no_sample() -> None:
+    d, sink = driver()
+    d.advance(at(0, 0), 0.0)
+    d.advance(at(10, 0), 1.0)
+    before = len(sink)
+    assert d.sample(at(10, 0), 2.0) is None
+    assert len(sink) == before
+
+
+def test_the_outcome_says_what_the_trial_measures() -> None:
+    sched = schedule(TrialBatch("b", (spec(), spec("w", measures=Measure.WALK))))
+    d, sink = driver(sched)
+    for _ in range(2):
+        d.advance(at(0, 0), 0.0)
+        d.advance(at(10, 0), 1.0)
+    assert [o.measures for o in outcomes(sink)] == [None, "walk"]
+
+
+def test_the_default_policy_is_the_minimap_one_converted_to_virtual_px() -> None:
+    """
+    1 minimap px of progress is 16 virtual px, and level meant the same minimap
+    pixel. Fused reads jittering a few px about a target level with the character
+    are not overshoots.
+    """
+    policy = DefectPolicy()
+    assert policy.progress_epsilon == 16.0
+    assert policy.level_band == 8.0
+    sched = schedule(
+        TrialBatch("b", (spec(target=(0, 100), tolerance=1.0, time_budget=100.0),))
+    )
+    sink = ListSink()
+    d = TrialDriver(sched, sink, defects=policy)
+    d.advance(at(0, 0), 0.0)
+    for x in (3, -4, 5, -3):
+        d.advance(at(x, 50), 1.0)
+    d.advance(at(0, 100), 2.0)
+    assert outcomes(sink)[0].oscillations == 0
+
+
+def test_a_given_header_opens_the_record() -> None:
+    header = ScheduleHeader.now("sched", "Victoria Road: Ellinia", map_id=10002000)
+    sink = ListSink()
+    TrialDriver(schedule(), sink, header=header)
+    assert sink[0] == header

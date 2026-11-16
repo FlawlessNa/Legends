@@ -433,7 +433,7 @@ def test_the_declared_sprites_and_list_colours_are_the_clients() -> None:
     from game_data.sprites import Sprites
     from maple.screen.sprites import Profile, load_reader_sprites
 
-    load_reader_sprites(list(menus.DECLARATIONS), Profile(job="", game_map=""))
+    load_reader_sprites(list(menus.DECLARATIONS), Profile(job=""))
 
     def bgr(argb: int) -> tuple[int, int, int]:
         argb &= 0xFFFFFFFF

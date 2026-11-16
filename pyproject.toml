@@ -38,11 +38,6 @@ extend-select = ["W", "E4", "E7", "E9", "TID", "PT", "ANN", "T20", "PGH003", "PG
     "T20", "ANN", "TID252", "BLE001", "S110", "B019", "B026", "PIE796",
     "DTZ", "E402",
 ]
-# The GUI map editor: an authoring tool run by hand, whose `print`s are its UI.
-"maple/model/mechanics/minimap_creation/**" = [
-    "T20", "ANN", "TID252", "BLE001", "S110", "B019", "B026", "PIE796",
-    "DTZ", "E402",
-]
 # `BotData` is a dynamically-typed attribute store: a managed attribute holds
 # whatever the DecisionMaker that registered it puts there, so `Any` at this
 # module's interface is the accurate type rather than a lazy one, and narrowing
@@ -86,7 +81,6 @@ ignore = [
   "ml_training",
   "toolkit",
   "scripts",
-  "maple/model/mechanics/minimap_creation",
   "maple/decision_makers/inventory_manager.py",
   "botting/visuals/deep_learning_framework",
 ]

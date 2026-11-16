@@ -32,7 +32,7 @@ where it stands, mirrored with it. It does so with or without the other
 overlays.
 """
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Final
 
@@ -95,6 +95,7 @@ def render_map(
     images: Images | None = None,
     overlays: bool = False,
     hitboxes: bool = False,
+    keep: Callable[[MapLayer], bool] | None = None,
 ) -> Pixels:
     """
     A map's full screen, as `(height, width, 4)` RGBA pixels.
@@ -113,6 +114,9 @@ def render_map(
         renders; by default, the catalogue's image store's, read for this one.
     :param overlays: Draw footholds, ropes, portals and spawns.
     :param hitboxes: Draw spawns with their body hitboxes.
+    :param keep: Draws only the tiles, objects and backgrounds it is true
+        for, such as the static ones; by default, all of them. Overlays and
+        spawns aren't items, and are drawn regardless.
     :raises LookupError: As `Catalogue.map` does.
     :raises RenderError: The image store lacks an image the catalogue names;
         or the map has a layer or a background type this doesn't know.
@@ -130,7 +134,10 @@ def render_map(
     if camera is None:
         camera = Camera.centred(bounds, viewport)
     try:
-        for item in draw_order(cat.map_layers(data.id)):
+        items = cat.map_layers(data.id)
+        if keep is not None:
+            items = tuple(item for item in items if keep(item))
+        for item in draw_order(items):
             _draw_item(screen, images, item, frame, camera, data)
     except ValueError as error:
         raise RenderError(f"map {data.id}: {error}") from error

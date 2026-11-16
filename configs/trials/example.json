@@ -1,34 +1,52 @@
 {
   "name": "example",
-  "map": "GhostShip1",
-  "description": "Template schedule. Three convergence Trials on GhostShip1 - a long horizontal run, a cross-map climb, and a short precision hop - swept over three decision-loop intervals. Copy it, keep the shape, and replace the coordinates with the ones your own map and campaign need. The first campaign to be run for real is issue #120.",
+  "map": "Victoria Road: Ellinia",
+  "description": "Template schedule. Three convergence Trials on Ellinia - a long run along the ground, a climb from the ground to the ladder's top at x 627, and a short hop onto a 65 px perch - swept over the decision-loop interval and the Action duration cap. Name the map by its game name or id; coordinates are the character's feet and tolerances are virtual px, as are the precision_threshold and edge_departure_threshold Knobs (16 virtual px per minimap px: the old 8 is 128). Copy it, keep the shape, and replace the coordinates with the ones your own map and campaign need. The first campaign to be run for real is issue #120.",
   "batches": [
     {
       "name": "baseline",
       "trials": [
         {
           "name": "long-run",
-          "start": [15, 42],
-          "target": [109, 42],
-          "tolerance": 2.0,
-          "time_budget": 20.0,
-          "setup_budget": 30.0
+          "start": [
+            -900,
+            300
+          ],
+          "target": [
+            1300,
+            321
+          ],
+          "tolerance": 32.0,
+          "time_budget": 40.0,
+          "setup_budget": 60.0
         },
         {
           "name": "cross-map-climb",
-          "start": [103, 32],
-          "target": [17, 42],
-          "tolerance": 2.0,
-          "time_budget": 25.0,
-          "setup_budget": 30.0
+          "start": [
+            200,
+            294
+          ],
+          "target": [
+            627,
+            -759
+          ],
+          "tolerance": 32.0,
+          "time_budget": 30.0,
+          "setup_budget": 60.0
         },
         {
           "name": "precision-hop",
-          "start": [96, 38],
-          "target": [97, 39],
-          "tolerance": 1.0,
+          "start": [
+            -300,
+            -93
+          ],
+          "target": [
+            -520,
+            -22
+          ],
+          "tolerance": 16.0,
           "time_budget": 10.0,
-          "setup_budget": 30.0
+          "setup_budget": 60.0
         }
       ]
     },
@@ -40,19 +58,31 @@
       "trials": [
         {
           "name": "long-run",
-          "start": [15, 42],
-          "target": [109, 42],
-          "tolerance": 2.0,
-          "time_budget": 20.0,
-          "setup_budget": 30.0
+          "start": [
+            -900,
+            300
+          ],
+          "target": [
+            1300,
+            321
+          ],
+          "tolerance": 32.0,
+          "time_budget": 40.0,
+          "setup_budget": 60.0
         },
         {
           "name": "precision-hop",
-          "start": [96, 38],
-          "target": [97, 39],
-          "tolerance": 1.0,
+          "start": [
+            -300,
+            -93
+          ],
+          "target": [
+            -520,
+            -22
+          ],
+          "tolerance": 16.0,
           "time_budget": 10.0,
-          "setup_budget": 30.0
+          "setup_budget": 60.0
         }
       ]
     },
@@ -60,24 +90,36 @@
       "name": "short-actions",
       "knobs": {
         "action_duration": 0.5,
-        "precision_threshold": 8
+        "precision_threshold": 128.0
       },
       "trials": [
         {
           "name": "long-run",
-          "start": [15, 42],
-          "target": [109, 42],
-          "tolerance": 2.0,
-          "time_budget": 20.0,
-          "setup_budget": 30.0
+          "start": [
+            -900,
+            300
+          ],
+          "target": [
+            1300,
+            321
+          ],
+          "tolerance": 32.0,
+          "time_budget": 40.0,
+          "setup_budget": 60.0
         },
         {
           "name": "precision-hop",
-          "start": [96, 38],
-          "target": [97, 39],
-          "tolerance": 1.0,
+          "start": [
+            -300,
+            -93
+          ],
+          "target": [
+            -520,
+            -22
+          ],
+          "tolerance": 16.0,
           "time_budget": 10.0,
-          "setup_budget": 30.0
+          "setup_budget": 60.0
         }
       ]
     }
