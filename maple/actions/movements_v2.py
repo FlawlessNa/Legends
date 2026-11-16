@@ -195,6 +195,7 @@ def single_jump(
     initial_state: controller.InputState | None = None,
     *,
     duration: float,
+    off_rope: bool = False,
 ) -> controller.KeyboardInputWrapper:
     """
     One jump: the direction pressed (unless already held), the jump key tapped,
@@ -203,8 +204,23 @@ def single_jump(
     :param duration: The jump's flight, seconds from take-off (the jump key's
         press) to landing, as the `FootholdGraph` traced it from `VRPhysics`. The
         jump key's tap counts towards it.
+    :param off_rope: The jump takes off sideways from a rope or a ladder. A climb
+        key still down (`up` or `down`, a climb cut at the Action cap or the
+        climb just before) comes up first, with the gap `jump_on_rope` leaves
+        after its own releases: with `down` held, the client climbs on down the
+        rope and never takes the jump (#561: 56 of 64 jumps keyed so on the
+        descent stayed on it, and 7 of the 8 others left it at its bottom).
     """
     keys_held = _resolve_held_keys(structure, handle, initial_state)
+    if off_rope and direction in ("left", "right"):
+        for key in sorted(keys_held & {"up", "down"}):
+            gap = next(controller.random_delay) * 5
+            if structure is None:
+                structure = controller.KeyboardInputWrapper(
+                    handle, [key], ["keyup"], [gap], initial_state=initial_state
+                )
+            else:
+                structure.append(key, "keyup", gap)
     first_keys = [direction, jump_key] if direction not in keys_held else [jump_key]
     if structure is None:
         first_steps: list[str | list[str]] = list(first_keys)
