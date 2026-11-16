@@ -37,6 +37,7 @@ from maple.screen.quick_slots import QUICK_SLOTS, QuickSlotsReader
 from maple.screen.sprites import (
     Profile,
     ReaderSprites,
+    StartupRefused,
     enabled_readers,
     load_reader_sprites,
     with_readers,
