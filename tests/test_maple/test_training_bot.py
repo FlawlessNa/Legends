@@ -14,12 +14,10 @@ must read.
 """
 
 import asyncio
-import json
 import queue
 import threading
 from collections import defaultdict
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -28,7 +26,7 @@ import pytest
 from botting import controller
 from botting.core import ActionRequest, DecisionMaker, ProxyFactory
 from botting.screen import Frame, Reading, Status, capture
-from game_data.catalogue import Bounds
+from game_data.catalogue import Bounds, Foothold
 from game_data.sprites import Sprite
 from maple.actions.menus import toggle_minimap
 from maple.bots import maple_bot
@@ -43,8 +41,7 @@ from maple.decision_makers import (
     SoloRebuff,
 )
 from maple.decision_makers import chat_replies as chat_replies_module
-from maple.model.mechanics.minimap_creation import minimap_edits_model
-from maple.model.world import WorldMap
+from maple.model.world import WorldMap, chain_platforms
 from maple.screen import client
 from maple.screen.buffs import BUFFS
 from maple.screen.chat import CHAT, ChatKind, ChatLine
@@ -173,42 +170,6 @@ class _Pipe:
         self.sent.append(request)
 
 
-def _write_map(root: Path) -> None:
-    """A map file for the synthetic minimap: one floor across its canvas."""
-    floor = {
-        "offset": [0, 0],
-        "walkable": True,
-        "weight": 1,
-        "avoid_right_edge": False,
-        "avoid_left_edge": False,
-        "edge_threshold": 0,
-        "no_jump_connections_from_endpoints": False,
-        "rotation_indexes": [],
-        "left": 10,
-        "right": 110,
-        "top": USER_AT[1],
-        "bottom": USER_AT[1],
-    }
-    (root / "Synthetic.json").write_text(
-        json.dumps(
-            {
-                "_meta": {
-                    "scale_x": 0.0625467102010949,
-                    "scale_y": 0.04618260326870873,
-                    "canvas_width": minimap.AREA_W,
-                    "canvas_height": minimap.AREA_H,
-                },
-                "map_id": minimap.MAP_ID,
-                "title_img_path": None,
-                "mobs": [],
-                "party_rebuff_zone": None,
-                "features": {"floor": floor},
-                "portals": [],
-            }
-        )
-    )
-
-
 class _Model:
     """The model `ChatReplies` checks at start: reachable unless `cause`."""
 
@@ -225,9 +186,9 @@ Started = tuple[TrainingBot, "_Source", "_Pipe", list[Declaration]]
 
 
 @pytest.fixture
-def start(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Any:  # noqa: ANN401
+def start(monkeypatch: pytest.MonkeyPatch) -> Any:  # noqa: ANN401
     """Starts the bot, with the profile's settings plus `settings`."""
-    return lambda **settings: _start(monkeypatch, tmp_path, **settings)
+    return lambda **settings: _start(monkeypatch, **settings)
 
 
 @pytest.fixture
@@ -237,15 +198,20 @@ def started(start: Any) -> Started:  # noqa: ANN401
 
 def _start(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
     **settings: Any,  # noqa: ANN401 - a profile setting is any value
 ) -> Started:
     monkeypatch.setattr(chat_replies_module, "AnthropicModel", _Model)
     source = _Source()
     monkeypatch.setattr(capture, "_source", source)
     monkeypatch.setattr(client, "find_window", lambda *_: 4242)
-    _write_map(tmp_path)
-    monkeypatch.setattr(minimap_edits_model, "_EDITS_ROOT", str(tmp_path))
+    # The synthetic minimap's map, as the profile would name it; the check at
+    # start that the minimap shows it is `test_maple_bot_client`'s.
+    monkeypatch.setattr(maple_bot, "resolve_map_id", lambda map_: minimap.MAP_ID)
+    monkeypatch.setattr(
+        maple_bot.MapleBot,
+        "_check_map_at_start",
+        lambda self, sprites: (minimap.MAP_ID, sprites),
+    )
     loaded: list[Declaration] = []
 
     def load(readers: Sequence[Declaration], profile: Profile) -> ReaderSprites:
@@ -254,12 +220,14 @@ def _start(
 
     monkeypatch.setattr(maple_bot, "load_reader_sprites", load)
     # The synthetic map isn't in any store: a map with no minimap, so no
-    # position is read on it either.
+    # position is read on it either, and one floor the rotation picks its
+    # targets on.
+    floor, _ = chain_platforms([Foothold("map", 0, 0, 1, 0, 0, 700, 0, 0, 0)])
     monkeypatch.setattr(
         maple_bot.WorldMap,
         "load",
         lambda map_id: WorldMap(
-            map_id, None, None, Bounds(0, 0, WIDTH, HEIGHT), None, (), (), (), ()
+            map_id, None, None, Bounds(0, 0, WIDTH, HEIGHT), None, floor, (), (), ()
         ),
     )
     # Nor its physics: Movement Plans' `Physics.img` values, written out.
@@ -286,7 +254,7 @@ def _start(
     bot = TrainingBot(
         "Someone",
         {},  # pyright: ignore[reportArgumentType] - the proxies are stubbed above
-        game_map="Synthetic",
+        map=minimap.MAP_ID,
         character_class="Bishop",
         models_path={},
         included_buffs=list(BUFF_NAMES),
@@ -305,7 +273,7 @@ def _decision_makers(bot: TrainingBot) -> dict[type[DecisionMaker], DecisionMake
 
 
 def test_every_reader_its_decision_makers_name_is_loaded(
-    started: tuple[TrainingBot, _Source, _Pipe, list[Declaration]],
+    started: Started,
 ) -> None:
     _, _, _, loaded = started
 
@@ -314,7 +282,7 @@ def test_every_reader_its_decision_makers_name_is_loaded(
 
 
 def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
-    started: tuple[TrainingBot, _Source, _Pipe, list[Declaration]],
+    started: Started,
 ) -> None:
     bot, source, pipe, _ = started
     data = bot.data
@@ -353,7 +321,10 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
         name: True for name in BUFF_NAMES
     }
     assert data.minimap_reading.status is Status.READ, data.minimap_reading.detail
-    assert data.current_minimap_position == USER_AT
+    minimap_view = data.minimap_reading.value
+    assert minimap_view is not None
+    assert minimap_view.self_position.value == USER_AT
+    assert "current_minimap_position" not in data._managed  # pyright: ignore[reportPrivateUsage]
     assert data.current_entire_minimap_box is not None
     assert data.chat_lines.status is Status.READ, data.chat_lines.detail
 

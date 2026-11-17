@@ -12,13 +12,17 @@ from botting.screen import Frame, frame_source
 from botting.visuals import InGameDetectionVisuals
 from maple.actions import ensure_minimap_displayed, startup_chat_keys
 from maple.bots.map_check import check_named_map, identify_map
-from maple.bots.map_setting import is_auto, resolve_map_id
+from maple.bots.map_mobs import MapMob, check_detection, map_mobs
+from maple.bots.map_setting import (
+    is_auto,
+    refuse_game_map,
+    refuse_mobs,
+    resolve_map_id,
+)
+from maple.decision_makers.mobs_hitting import MobsHitting
 from maple.decision_makers.rebuffs import solo_buffs
 from maple.model.characters import MAPPING as CHARACTER_MAPPING
-from maple.model.mechanics import MapleMap
-from maple.model.mechanics.minimap_creation.minimap_edits_model import (
-    MinimapEditsManager,
-)
+from maple.model.mechanics.maple_mob import MapleMob
 from maple.model.mechanics.physics import Calibration, game_physics
 from maple.model.world import WorldMap
 from maple.screen.buffs import ICON_BASE, BuffsReader
@@ -54,6 +58,12 @@ class MapleBot(Bot, ABC):
     any reader attribute exists (`map_check`), and refuses to start on another
     map or on one it can't tell. Showing the minimap for that check may press
     the minimap key.
+
+    The mobs its detection looks for are the map's, from its spawns in the
+    game data (`map_mobs`), by detection class name (`current_mobs`). A bot
+    that detects mobs refuses to start when no model in `models_path` detects
+    one of them: a named map's before anything is pressed, `map: auto`'s once
+    the map is identified.
     """
 
     def _replies_toggled(self, on: bool, source: str) -> None:
@@ -68,16 +78,18 @@ class MapleBot(Bot, ABC):
         self,
         ign: str,
         metadata: multiprocessing.managers.DictProxy,
-        game_map: str | None = None,
         map: str | int | None = None,
         detection_configs: str | None = None,
         client_size: str = "medium",
         models_path: dict[str, str] | None = None,
         character_class: str | None = None,
-        open_minimap_editor: bool = False,
         calibration: Mapping[str, object] | None = None,
         **kwargs: Any,  # noqa: ANN401
     ) -> None:
+        # A retired setting refuses the start rather than landing in `kwargs`
+        # unread.
+        refuse_game_map(kwargs.pop("game_map", None))
+        refuse_mobs(kwargs.pop("mobs", None))
         super().__init__(ign, metadata, **kwargs)
         # Read once, here: a malformed `Chat Keys` refuses the start, rather than
         # after a failsafe reaction or a Discord WRITE. DecisionMakers take them
@@ -98,10 +110,13 @@ class MapleBot(Bot, ABC):
         self.detection_configs = detection_configs
         self.client_size = client_size
         self.models_path = models_path
-        self.map_id = resolve_map_id(map, game_map)
+        self.map_id = resolve_map_id(map)
         self.map_auto = is_auto(map)
-        self.game_map = (game_map or "").replace("_", "").replace(" ", "")
-        self.open_minimap_editor = open_minimap_editor
+        # The map's mobs, once it is known: a named map's here, so a map no
+        # model covers is refused before the minimap key is pressed.
+        self.mobs: tuple[MapMob, ...] = ()
+        if self.map_id is not None and self._detects_mobs():
+            self.mobs = self._map_mobs(self.map_id)
         # Parsed here so a misspelt constant refuses the start; Movement Plans
         # read it through `data.calibration`.
         self.calibration = Calibration.from_mapping(calibration)
@@ -110,6 +125,32 @@ class MapleBot(Bot, ABC):
 
     def find_handle(self) -> int:
         return find_client()
+
+    def _detects_mobs(self) -> bool:
+        """Whether a Decision Maker of this bot detects mobs, and so needs a
+        model for the map's."""
+        return MobsHitting in self._decision_makers()
+
+    def _map_mobs(self, map_id: int) -> tuple[MapMob, ...]:
+        """
+        The mobs map `map_id` has (`map_mobs`), once checked against the
+        profile's models.
+
+        :raises ProfileError: No model in `models_path` detects one of them
+            (`check_detection`).
+        """
+        world_map = WorldMap.load(map_id)
+        mobs = map_mobs(world_map.mobs)
+        label = f"map {map_id}" + (f" ({world_map.name})" if world_map.name else "")
+        check_detection(mobs, self.models_path, label)
+        if not mobs:
+            logger.warning(
+                "%s has no mobs: %s for %r detects none, so it never casts.",
+                label,
+                type(self).__name__,
+                self.ign,
+            )
+        return mobs
 
     def child_init(
         self,
@@ -126,28 +167,24 @@ class MapleBot(Bot, ABC):
         # `Bot.child_init` is what builds `self.data`; everything below reads it,
         # including the lambdas, which a narrowing assert alone would not reach.
         assert self.data is not None
-        assert self.models_path is not None
+        if self.models_path is None and self._detects_mobs():
+            # Mob and character detection are what read a model; a bot that
+            # detects neither (a calibration sitting) needs no `models_path`.
+            raise ValueError(
+                f"{type(self).__name__} for {self.ign!r} hits mobs, which needs "
+                "`models_path` in the profile's settings (see profiles/example.yaml)."
+            )
         data = self.data
         # The readers' sprites are loaded once, before any reader attribute
         # exists: a missing or stale store refuses the start here, not mid-cycle.
-        map_file = (
-            MinimapEditsManager.from_json(self.game_map) if self.game_map else None
-        )
-        file_map_id = None if map_file is None else map_file.map_id
-        checked = self.map_auto or self.map_id is not None
         map_id = self.map_id
-        if map_id is None and not self.map_auto:
-            map_id = file_map_id
-        readers = enabled_readers(self._decision_makers())
-        if checked:
-            readers = with_readers(
-                readers,
-                MINIMAP,
-                *((MINIMAP_TITLE_READER,) if self.map_auto else ()),
-            )
+        readers = with_readers(
+            enabled_readers(self._decision_makers()),
+            MINIMAP,
+            *((MINIMAP_TITLE_READER,) if self.map_auto else ()),
+        )
         profile = Profile(
             job=self.job,
-            game_map=self.game_map,
             map_id=map_id,
             buffs=tuple(
                 buff.name
@@ -159,10 +196,9 @@ class MapleBot(Bot, ABC):
             ),
         )
         reader_sprites = load_reader_sprites(readers, profile)
-        if checked:
-            map_id, reader_sprites = self._check_map_at_start(
-                reader_sprites, file_map_id
-            )
+        map_id, reader_sprites = self._check_map_at_start(reader_sprites)
+        if self.map_auto and self._detects_mobs():
+            self.mobs = self._map_mobs(map_id)
         data.set_static("map_id", map_id)
         data.set_static("reader_sprites", reader_sprites)
         data.set_static("buff_names", profile.buffs)
@@ -203,26 +239,14 @@ class MapleBot(Bot, ABC):
                 self.ign, self.detection_configs, self.client_size
             ),
         )
-        # Only what `MapleMap` takes: `self.kwargs` is every profile setting,
-        # the DecisionMakers' included, which it refuses.
         data.create_attribute(
-            "current_map",
-            lambda: MapleMap(self.game_map, self.open_minimap_editor, ign=self.ign),
-        )
-        data.create_attribute("current_minimap", lambda: data.current_map.minimap)
-        data.create_attribute(
-            "current_grid",
-            lambda: data.current_minimap.generate_grid(
-                allow_teleport=data.character.skills.get("Teleport") is not None,
-                speed_multiplier=(
-                    data.speed_multiplier if data.has_ap_menu_attributes else 1.00
-                ),
-                jump_multiplier=(
-                    data.jump_multiplier if data.has_ap_menu_attributes else 1.00
-                ),
+            "current_mobs",
+            lambda: tuple(
+                MapleMob(mob.detection_class)
+                for mob in self.mobs
+                if mob.detection_class is not None
             ),
         )
-        data.create_attribute("current_mobs", lambda: data.current_map.mobs)
         # The bot's one capture: the readers take the `Frame`, mob and
         # character detection its pixels. `update_attribute("current_frame")`
         # captures a fresh one.
@@ -260,9 +284,7 @@ class MapleBot(Bot, ABC):
             "position_fusion", PositionFusion.for_map(world_map, frame_check)
         )
 
-    def _check_map_at_start(
-        self, sprites: ReaderSprites, file_map_id: int | None
-    ) -> tuple[int, ReaderSprites]:
+    def _check_map_at_start(self, sprites: ReaderSprites) -> tuple[int, ReaderSprites]:
         """
         The on-screen map check (`map_check`): shows the minimap, with its
         banner for `map: auto`, then checks the named map or identifies it.
@@ -270,8 +292,7 @@ class MapleBot(Bot, ABC):
         :returns: The map's id, and `sprites` with its minimap canvas, which
             `map: auto` couldn't declare before the map was known.
         :raises StartupRefused: The minimap shows another map than the named
-            one, `auto` identifies another map than the map file's, or the map
-            can't be told.
+            one, or the map can't be told.
         """
         assert self.data is not None
         handle = self.data.handle
@@ -300,14 +321,6 @@ class MapleBot(Bot, ABC):
             found.map_id,
             reading.detail,
         )
-        if file_map_id not in (None, found.map_id):
-            message = (
-                f"Refusing to start: `map: auto` identified {found.title} "
-                f"({found.map_id}), but the map file {self.game_map!r} is map "
-                f"{file_map_id}."
-            )
-            logger.critical(message)
-            raise StartupRefused(message)
         return found.map_id, sprites.with_canvas(found.canvas)
 
     def _show_minimap(self, minimap: MinimapReader, *, banner: bool) -> None:

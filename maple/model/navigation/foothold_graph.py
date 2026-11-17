@@ -11,12 +11,22 @@ source can be added to the lists, overlapping or not.
 along a platform, a climb along a rope), each a `MoveRange`:
 
 - `JUMP` left, right and up from every x of a platform, and left and right
-  from every y of a rope (from the top of the arc, as today's grid does);
-  each traced along `VRPhysics`' arc (`terrain`). A jump that lands back on
-  its own platform is no move. A sideways jump may instead grab the first
-  rope it crosses, and a jump up from right under a rope's bottom grabs it.
+  from every y of a rope (from the top of the arc, as the retired minimap grid
+  did); each traced along `VRPhysics`' arc (`terrain`). A jump that lands back on
+  its own platform is no move. A sideways jump off a platform may instead
+  grab the first rope it crosses once past the arc's top (`grab_after`,
+  #542), and a jump up from right under a rope's bottom grabs it.
+  A landing the character makes only with an exact take-off is no move
+  either (#509): one on a platform higher than `JUMP_RISE_SHARE` of the arc,
+  or a sideways jump's within `LANDING_MARGIN` of its platform's open end
+  (`OVERSHOOT_MARGIN` of the one it heads for, #542).
+  Nor is a sideways jump off a platform that takes off within `TAKEOFF_LEAD`
+  of walking of the open end it heads for: one input Step (#515) and the
+  latency from the jump key to the take-off (#521).
 - `DROP` down through a platform, onto the next platform below within
-  `DROP_REACH`.
+  `DROP_REACH`, except within `ROPE_GRAB_REACH` of a rope whose top meets
+  that platform and is `usable_from_foothold`: there the down key grabs the
+  rope, and the character climbs down it instead of dropping (#516).
 - `FALL` off a platform's end, unless a wall rises there or another platform
   continues it (a join); and off a rope's bottom, straight down.
 - `CLIMB` between a rope and a platform that meets it: one crossing it inside
@@ -26,7 +36,7 @@ along a platform, a climb along a rope), each a `MoveRange`:
   continuing the same way.
 - `PORTAL` from each portal pair's source to its target.
 - `TELEPORT` (only with `teleport=True`) left, right, up and down, with
-  today's grid's rules.
+  the retired minimap grid's rules.
 
 A move that works from a stretch is stored once, as an x-range (or a y-range
 on a rope), split wherever its landing surface changes. Ranges are found by
@@ -57,6 +67,7 @@ from typing import NamedTuple
 
 import numpy as np
 
+from botting.controller import TYPEMATIC_REPEAT
 from game_data.catalogue import Foothold, Rope
 from maple.model.mechanics.physics import VRPhysics
 from maple.model.world import Platform, WorldMap
@@ -66,13 +77,28 @@ from .terrain import Floats, Ints, Terrain
 
 #: How far below its take-off a drop may land, in virtual px. Today's grid
 #: allows `JUMP_DOWN_LIMIT`, 30 minimap px; at 16 virtual px each that is 480.
-#: Whether the client limits a drop at all is unverified (#397).
+#: Whether the client limits a drop at all is unverified: the physics Trial
+#: schedule's drops (`configs/trials/physics.json`, #397) measure it live.
 DROP_REACH = 480.0
 
 #: How far above a rope's top a platform may lie and still meet it, in virtual
 #: px. The files put a rope's top 2 to 3 px below the platform it climbs onto
 #: (every rope of Ellinia and Damp Forest).
 ROPE_TOP_SNAP = 4.0
+
+#: How far either side of a rope's x the down key grabs the rope from the
+#: platform at its top, in virtual px; the game files hold no such range (a
+#: rope is `x`, `y1`, `y2`, `l`, `uf` and `page`). Measured live (#516,
+#: Ellinia, Swordsman, speed 100%, 2026-11-14, `physics-ladder-only`): every
+#: down press at a rope's top that the records show grabbed the rope, 4 of 4
+#: (two drops planned from a coarse read 9 px off the ladder at x 627, two
+#: from a fused read 1 px off the rope at x -316), and a walk into the
+#: rope at x 635 with down held grabbed it before reaching it: on the frame
+#: 0.118 s after one at x 665.9, walking at 163.5 px/s, the character was on
+#: the rope and 4.4 px down it, where walking on would have put it at 646.6,
+#: 11.6 px from the rope. So the narrowest reach the record proves, not
+#: rounded; the grab came earlier than that frame, so the real reach is wider.
+ROPE_GRAB_REACH = 11.6
 
 #: How close a platform's end must lie to another platform to walk across, in
 #: virtual px: the client's own joins coincide exactly.
@@ -82,22 +108,96 @@ JOIN_TOLERANCE = 1.0
 #: on, in virtual px: one minimap px.
 PLACE_TOLERANCE = 16.0
 
-#: Seconds a portal is planned to take. Not in the game files: today's grid
-#: charges a portal 1 minimap px of walking, 16 virtual px at 125 px/s.
+#: Seconds a portal is planned to take. Not in the game files: the retired
+#: minimap grid charged a portal 1 minimap px of walking, 16 virtual px at
+#: 125 px/s.
 PORTAL_TIME = 16 / 125
 
-#: Seconds a teleport is planned to take. Not in the game files: today's grid
-#: charges a full-reach teleport (150 px, 9.375 minimap px) 2 minimap px plus
-#: 40% of its length, as walking at 16 virtual px per minimap px and 125 px/s.
+#: Seconds a teleport is planned to take. Not in the game files: the retired
+#: minimap grid charged a full-reach teleport (150 px, 9.375 minimap px)
+#: 2 minimap px plus 40% of its length, as walking at 16 virtual px per minimap
+#: px and 125 px/s.
 TELEPORT_TIME = (2 + 0.4 * 150 / 16) * 16 / 125
 
-#: The upward speed a jump off a rope starts with, in virtual px/s. Today's
-#: grid starts it at the top of the arc, with none; whether the client pushes
-#: the character up is unverified (#397). With none, a jump from one rope to
+#: The upward speed a jump off a rope starts with, in virtual px/s. The retired
+#: grid started it at the top of the arc, with none; whether the client pushes
+#: the character up is unverified: the physics Trial schedule's jumps off a
+#: rope measure it live (#397). With none, a jump from one rope to
 #: another always loses height.
 ROPE_JUMP_SPEED = 0.0
 
 _TOL = 1e-6
+
+#: How high above its take-off a jump may land on a platform, as a share of
+#: the arc's height (`VRPhysics.jump_height`); a take-off whose landing lies
+#: higher is no move. The arc reaches its height at no speed, so a platform
+#: there is met only exactly. Measured live (#509, Ellinia, Swordsman, speed
+#: 100%, 2026-11-13): 40 jumps planned to land 77.0 px up, against an arc of
+#: 77.006, and none landed there; the highest landing seen rose 73.6 px, its
+#: airborne read on the traced arc to 2 px. 73.6 / 77.006 is 0.956: rounded down to the
+#: hundredth, as a feasibility value is (`maple/calibration/analysis.py`).
+JUMP_RISE_SHARE = 0.95
+
+#: How far inside its landing platform a sideways jump must land, in virtual
+#: px, from each end the character could go past: an end with no wall rising
+#: at it and no platform continuing it. A take-off whose landing lies nearer is
+#: no move. A jump's landing moves with its take-off, and the take-off is
+#: where an open-loop walk stopped. Measured live (#509, the same runs):
+#: jumps landing 0.4 to 8.6 px inside an open end landed 2 times in 13; those
+#: landing 15.5 and 19.6 px inside landed 4 times in 5. So the narrowest
+#: margin measured to land, not rounded: none between 8.6 and 15.5 was seen,
+#: and a margin rounded down would plan landings no run has shown.
+LANDING_MARGIN = 15.5
+
+#: How far inside its landing platform a sideways jump must land from the
+#: open end it heads for, in virtual px: past it, the character falls off
+#: the far side. Wider than `LANDING_MARGIN`, which keeps for the end it
+#: comes from (a jump across a gap lands near that one). A jump lands past
+#: its traced landing when it takes off late, as it does by up to
+#: `TAKEOFF_LEAD` (its key a Step late, the client acting on it a latency
+#: later). Measured live (#542, Ellinia, Swordsman, speed 100%, runs 28 to
+#: 30, 2026-11-15, key times from #538): the jump landing 16.4 px inside the
+#: open end it heads for went past that end 14 times in 14, its take-off at
+#: the key -2.5 to +14.5 px from its point; the next nearest, 31.9 px
+#: inside, landed 13 times in 16 and went past no end. So the narrowest
+#: margin measured to land, not rounded: none between 16.4 and 31.9 was seen.
+#: A platform whose open ends are nearer together than both margins keeps
+#: `LANDING_MARGIN` at both: no landing it had is taken away.
+OVERSHOOT_MARGIN = 31.9
+
+#: Seconds by which the compile can place a walked-into jump's key past the
+#: walk's time: one Step of the walk (#515). A walk's repeats are
+#: `TYPEMATIC_REPEAT` apart, and the last one can run that far past the walk's
+#: time. Live (#515, Ellinia, 2026-11-14), a chained jump planned from a
+#: platform's open end exactly, the one point it lands from, took off after
+#: the character had walked off that end.
+TAKEOFF_STEP = TYPEMATIC_REPEAT
+
+#: Seconds from a walked-into jump's key going down, as the compile times it
+#: from the frame its plan was read on, to the take-off seen on later frames
+#: (#521). Neither end of it is modelled: the frame shows the game as it was
+#: drawn a little before its capture time, and the client acts on the key at a
+#: later tick of its own. Measured on the record of the jump batch after #519
+#: (Ellinia, Swordsman, speed 100%, 2026-11-14), each jump's key time
+#: reconstructed by compiling its recorded plan, its take-off fitted on the
+#: arc from the first airborne read: 24 and 40 ms from walks whose key was
+#: already down (that time does not depend on the read's age), 33 to 63 ms
+#: from rest (at a read age of 0.115 s); four take-offs planned 8 px inside the
+#: open end walked off it, which takes 48 to 52 ms or more for the two whose
+#: key needed no repeat. The largest measured, rounded up to 5 ms: the margin
+#: is a feasibility bound, and a smaller one would plan take-offs the record
+#: shows walking off.
+TAKEOFF_LATENCY = 0.065
+
+#: Seconds of walking a sideways jump off a platform must take off before the
+#: open end it heads for: a take-off nearer that end is no move. The jump
+#: takes off where the character is when the client acts on its key, up to
+#: one Step (`TAKEOFF_STEP`) and the latency (`TAKEOFF_LATENCY`) after the
+#: walk's time, so the take-off's margin is the walk speed times this, in
+#: virtual px: 14.6 at the 149 px/s of the live runs. On Ellinia it leaves out
+#: 8 of 415 jumps between surfaces, each of which took off from a stretch 4
+#: to 10 px wide, and no platform reaches fewer platforms for it (#521).
+TAKEOFF_LEAD = TAKEOFF_STEP + TAKEOFF_LATENCY
 
 #: Seconds `path` adds to a jump's cost when choosing between routes, so that
 #: a tie goes to the walk. Under a frame (a 60 fps frame is 16.7 ms), and far
@@ -131,6 +231,11 @@ class FootholdGraph:
         *,
         teleport: bool,
         drop_reach: float,
+        rise_share: float = JUMP_RISE_SHARE,
+        landing_margin: float = LANDING_MARGIN,
+        takeoff_lead: float = TAKEOFF_LEAD,
+        grab_reach: float = ROPE_GRAB_REACH,
+        overshoot_margin: float = OVERSHOOT_MARGIN,
     ) -> None:
         self._terrain = terrain
         self._physics = terrain.physics
@@ -138,7 +243,20 @@ class FootholdGraph:
         self._ropes = terrain.ropes
         self._teleport = teleport
         self._drop_reach = drop_reach
+        self._max_rise = rise_share * terrain.physics.jump_height
+        self._landing_margin = landing_margin
+        self._overshoot_margin = overshoot_margin
+        self._takeoff_margin = takeoff_lead * terrain.physics.walk_speed
+        self._grab_reach = grab_reach
         self._surfaces: tuple[Surface, ...] = (*self._platforms, *self._ropes)
+        self._rope_tops = self._find_rope_tops()
+        ends = [self._open(i) for i in range(len(self._platforms))]
+        self._open_left = np.array(
+            [np.nan if a is None else a for a, _ in ends], dtype=float
+        )
+        self._open_right = np.array(
+            [np.nan if b is None else b for _, b in ends], dtype=float
+        )
         physics = terrain.physics
         teleport_rate = physics.teleport_reach / TELEPORT_TIME if teleport else 0.0
         self._vx_max = max(physics.walk_speed, teleport_rate)
@@ -209,6 +327,11 @@ class FootholdGraph:
         portals: Iterable[tuple[Point, Point]] = (),
         teleport: bool = False,
         drop_reach: float = DROP_REACH,
+        rise_share: float = JUMP_RISE_SHARE,
+        landing_margin: float = LANDING_MARGIN,
+        takeoff_lead: float = TAKEOFF_LEAD,
+        grab_reach: float = ROPE_GRAB_REACH,
+        overshoot_margin: float = OVERSHOOT_MARGIN,
     ) -> FootholdGraph:
         """
         The graph of the surfaces given, from any source.
@@ -219,9 +342,33 @@ class FootholdGraph:
             of which lies on no surface is left out.
         :param teleport: Add teleport moves.
         :param drop_reach: How far below its take-off a drop may land.
+        :param rise_share: How high above its take-off a jump may land on a
+            platform, as a share of the arc's height (`JUMP_RISE_SHARE`); 1
+            takes the arc as traced.
+        :param landing_margin: How far inside an open end of its landing
+            platform a sideways jump must land (`LANDING_MARGIN`); 0 takes
+            the arc as traced.
+        :param overshoot_margin: The same, from the open end the jump heads
+            for (`OVERSHOOT_MARGIN`); never less than `landing_margin`.
+        :param takeoff_lead: Seconds of walking a sideways jump off a platform
+            must take off before the open end it heads for (`TAKEOFF_LEAD`);
+            0 takes every take-off as traced.
+        :param grab_reach: How far either side of a rope's x the down key
+            grabs it from the platform at its top (`ROPE_GRAB_REACH`); no drop
+            takes off there.
         """
         terrain = Terrain(platforms, walls, ropes, physics)
-        return cls(terrain, tuple(portals), teleport=teleport, drop_reach=drop_reach)
+        return cls(
+            terrain,
+            tuple(portals),
+            teleport=teleport,
+            drop_reach=drop_reach,
+            rise_share=rise_share,
+            landing_margin=landing_margin,
+            takeoff_lead=takeoff_lead,
+            grab_reach=grab_reach,
+            overshoot_margin=overshoot_margin,
+        )
 
     def _build_moves(self, portals: Sequence[tuple[Point, Point]]) -> None:
         physics = self._physics
@@ -337,7 +484,14 @@ class FootholdGraph:
     def _jump_side(self, vx: float, *, grab: bool) -> _Trace:
         def trace(i: int, xs: Floats) -> tuple[Ints, Floats, Floats, Floats]:
             ys = self._terrain.platform_y(i, xs)
-            hits = self._terrain.sweep(xs, ys, vx, -self._physics.jump_speed, grab=grab)
+            hits = self._terrain.sweep(
+                xs,
+                ys,
+                vx,
+                -self._physics.jump_speed,
+                grab=grab,
+                grab_after=self._grab_after(vx),
+            )
             surface = hits.surface.copy()
             platform = self._platforms[i]
             end = platform.right if vx > 0 else platform.left
@@ -346,6 +500,12 @@ class FootholdGraph:
                 end, float(self._terrain.platform_y(i, np.array([end]))[0])
             ):
                 surface[at_end] = -1
+            # Too near the open end it heads for, the jump can take off after
+            # the character has walked off it (`TAKEOFF_LEAD`).
+            ahead = self._open_right[i] if vx > 0 else self._open_left[i]
+            if not np.isnan(ahead):
+                surface[np.abs(xs - ahead) < self._takeoff_margin - _TOL] = -1
+            surface = self._sure_landings(surface, ys, hits.x, hits.y, vx)
             return surface, hits.x, hits.y, hits.t
 
         return trace
@@ -355,6 +515,9 @@ class FootholdGraph:
         apex = ys - self._physics.jump_height
         # Falling back from the top, it lands on the first platform below it.
         surface, heights = self._terrain.nearest(xs, apex, ys, highest=True)
+        # Too near the top, the landing is unsure: no move, not the next one
+        # down, since the character may land on it still.
+        surface = np.where(ys - heights > self._max_rise + _TOL, -1, surface)
         times = np.array(
             [
                 self._physics.jump_landing_time(h - y) if s >= 0 else np.nan
@@ -368,6 +531,9 @@ class FootholdGraph:
         surface, heights = self._terrain.nearest(
             xs, ys + JOIN_TOLERANCE, ys + self._drop_reach, exclude=i, highest=True
         )
+        # Within reach of a rope's top, the down key grabs the rope (#516).
+        for x in self._rope_tops.get(i, ()):
+            surface = np.where(np.abs(xs - x) <= self._grab_reach + _TOL, -1, surface)
         times = np.array(
             [
                 self._physics.fall_time(h - y) if s >= 0 else np.nan
@@ -398,7 +564,7 @@ class FootholdGraph:
             reach = self._physics.teleport_reach
             to = xs + sign * reach
             # The nearest platform at or above the take-off's height, else the
-            # nearest below, within half the reach: today's grid's rule.
+            # nearest below, within half the reach: the retired grid's rule.
             up, up_y = self._terrain.nearest(to, ys - reach / 2, ys, highest=False)
             down, down_y = self._terrain.nearest(
                 to, ys + _TOL, ys + reach / 2, highest=True
@@ -422,14 +588,85 @@ class FootholdGraph:
             np.where(found, TELEPORT_TIME, np.nan),
         )
 
+    def _grab_after(self, vx: float) -> float:
+        """
+        Seconds into a sideways jump off a platform before which a rope it
+        crosses is passed, not grabbed (#542): the arc's top, plus the time a
+        take-off as late as `TAKEOFF_LEAD` allows brings the rope nearer by
+        more than the grab's reach (`ROPE_GRAB_REACH`).
+
+        The client catches a rope only once the jump has stopped rising. On
+        runs 28 to 30 (Ellinia, 2026-11-15), every sideways jump whose key
+        went down 21.8 px or less before the rope passed it (24 of 24), and
+        the 4 at 23.8 to 24.8 px moving at the walk speed; every one 28.5 to
+        78 px before it grabbed it (38 of 38). Within reach of the rope at
+        the top of the arc, at the walk speed, is 28 px; the three grabs
+        from 23 to 25 px flew slower (68 to 117 px/s). A take-off up to
+        `TAKEOFF_LEAD` late must still find the rope within reach after the
+        top: 42.6 px at the walk speed of those runs.
+        """
+        apex = self._physics.jump_speed / self._physics.gravity
+        return max(0.0, apex + (self._takeoff_margin - self._grab_reach) / abs(vx))
+
     def _rope_jump(self, vx: float, *, grab: bool) -> _Trace:
         def trace(i: int, ys: Floats) -> tuple[Ints, Floats, Floats, Floats]:
             rope = self._ropes[i - len(self._platforms)]
             xs = np.full(len(ys), float(rope.x))
             hits = self._terrain.sweep(xs, ys, vx, -ROPE_JUMP_SPEED, grab=grab)
-            return hits.surface, hits.x, hits.y, hits.t
+            surface = self._sure_landings(hits.surface, ys, hits.x, hits.y, vx)
+            return surface, hits.x, hits.y, hits.t
 
         return trace
+
+    def _sure_landings(
+        self, surface: Ints, ys: Floats, x: Floats, y: Floats, vx: float
+    ) -> Ints:
+        """
+        `surface`, with -1 for each sideways jump's landing on a platform that
+        rises past `JUMP_RISE_SHARE` of the arc, or lies within
+        `LANDING_MARGIN` of the platform's open end it comes from, or within
+        `OVERSHOOT_MARGIN` of the one it heads for (at `vx`), where the
+        platform has room for both. A rope it grabs is kept.
+        """
+        if not self._platforms:
+            return surface
+        on_platform = (surface >= 0) & (surface < len(self._platforms))
+        index = np.where(on_platform, surface, 0)
+        near = self._landing_margin
+        far = max(self._overshoot_margin, near)
+        # A platform with no room for both keeps `LANDING_MARGIN` at both
+        # ends, as before #542: the wider margin never takes a platform's
+        # last landings away (a perch narrower than both together).
+        with np.errstate(invalid="ignore"):
+            room = self._open_right[index] - self._open_left[index]
+            far = np.where(room < near + far, near, far)
+        left, right = (near - _TOL, far - _TOL) if vx > 0 else (far - _TOL, near - _TOL)
+        # NaN (a closed end) compares false: no margin is kept from it.
+        with np.errstate(invalid="ignore"):
+            unsure = (
+                (ys - y > self._max_rise + _TOL)
+                | (x - self._open_left[index] < left)
+                | (self._open_right[index] - x < right)
+            )
+        return np.where(on_platform & unsure, -1, surface)
+
+    def _open(self, i: int) -> tuple[float | None, float | None]:
+        """
+        Platform `i`'s left and right ends where the character can go past
+        them, `None` for one a wall closes or another platform continues.
+        """
+        platform = self._platforms[i]
+        ends: list[float | None] = []
+        for end, direction in (
+            (platform.left, Direction.LEFT),
+            (platform.right, Direction.RIGHT),
+        ):
+            y = float(self._terrain.platform_y(i, np.array([float(end)]))[0])
+            closed = self._terrain.wall_rises_at(end, y) or self._joins(
+                i, end, y, direction
+            )
+            ends.append(None if closed else float(end))
+        return ends[0], ends[1]
 
     # --- point moves -----------------------------------------------------------
 
@@ -494,6 +731,24 @@ class FootholdGraph:
                     (float(end), height),
                     abs(height - y) / self._vy_max,
                 )
+
+    def _find_rope_tops(self) -> dict[int, list[float]]:
+        """
+        Each platform's ropes that the down key boards at their top: the x of
+        every `usable_from_foothold` rope whose top the platform meets (within
+        `ROPE_TOP_SNAP`, as `_add_rope_ends` steps onto it).
+        """
+        tops: dict[int, list[float]] = defaultdict(list)
+        for rope in self._ropes:
+            if rope.usable_from_foothold is False:
+                continue
+            top = min(rope.y1, rope.y2)
+            heights, owner = self._terrain.column(np.array([float(rope.x)]))
+            for k in np.flatnonzero(np.isfinite(heights[0])):
+                h, i = float(heights[0][k]), int(owner[k])
+                if top - ROPE_TOP_SNAP <= h <= top + ROPE_TOP_SNAP:
+                    tops[i].append(float(rope.x))
+        return tops
 
     def _add_rope_ends(self, j: int) -> None:
         """Rope `j`'s attachments, its bottom's fall, and jumps up to grab it."""

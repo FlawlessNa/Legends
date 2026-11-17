@@ -5,8 +5,8 @@ This is issue #116's acceptance criterion - "the framework runs against
 fakes/existing corpus maps and its record format round-trips" - and it is the only
 check here that puts the whole chain together: a schedule, real pathfinding over a
 real map's `FootholdGraph`, real compilation of the Movement Plan, the driver's
-judgement, and a JSONL file read back. Positions are virtual px (#396); the driver
-measures distances in whatever unit it is fed.
+judgement, and a JSONL file read back. Positions are virtual px, handed to the
+driver as the `Reading[VirtualPosition]` fusion gives (#397).
 
 **What is fake is exactly one thing**: the character. `_walk` advances it along the
 Path the movement layer just computed, a few dozen virtual px a cycle. Nothing offline can say
@@ -26,6 +26,7 @@ from pathlib import Path
 import pytest
 
 from botting.controller import InputState
+from botting.screen import Reading
 from maple.calibration.driver import TrialDriver
 from maple.calibration.records import (
     CycleRecord,
@@ -44,6 +45,7 @@ from maple.calibration.records import (
 from maple.calibration.specs import Knobs, TrialBatch, TrialSchedule, TrialSpec
 from maple.model.mechanics.movement_mechanics_v2 import MovementHandler
 from maple.model.navigation import Path as GraphPath
+from maple.screen.position import PositionSource, VirtualPosition
 from tests.test_maple.movement_lab import corpus
 
 #: How many virtual px along its Path the fake character covers per cycle. Not a
@@ -63,11 +65,13 @@ PERCH = next(e for e in corpus.FIXTURE_MAPS if e.name == "narrow_perch")
 
 
 def _whole(point: tuple[float, float]) -> tuple[int, int]:
-    """
-    A virtual position to the whole px a `TrialSpec` and the driver take: Trials
-    still judge in minimap positions, whole canvas px, until #397.
-    """
+    """A virtual position to the whole px a `TrialSpec` names its points in."""
     return round(point[0]), round(point[1])
+
+
+def _read(point: tuple[float, float]) -> Reading[VirtualPosition]:
+    """The fake character's position, as a fused read of it."""
+    return Reading.read(VirtualPosition(*point, PositionSource.FUSED), 0.0)
 
 
 def _pair(
@@ -122,7 +126,7 @@ def _run(
             else None
         )
         verdict = driver.advance(
-            _whole(position),
+            _read(position),
             now,
             plan=summarize_plan(plan),
             correlation_id=f"cycle-{0 if path is None else len(path.moves)}",
@@ -190,6 +194,7 @@ def test_a_schedule_runs_to_arrival_over_a_corpus_map(
     assert driver.finished
     outcomes = [r for r in sink if isinstance(r, TrialOutcome)]
     assert [o.result for o in outcomes] == [TrialResult.ARRIVED]
+    assert outcomes[0].final_error is not None
     assert outcomes[0].final_error <= outcomes[0].tolerance
 
 
@@ -227,7 +232,10 @@ def test_the_error_shrinks_as_the_loop_converges(held_movement_keys: object) -> 
         r for r in sink if isinstance(r, CycleRecord) and r.phase == Phase.MEASURING
     ]
     assert len(measured) > 2
-    assert measured[-1].error < measured[0].error
+    first, last = measured[0].error, measured[-1].error
+    assert first is not None
+    assert last is not None
+    assert last < first
 
 
 def test_a_trial_whose_budget_runs_out_is_recorded_as_a_timeout(
@@ -253,6 +261,7 @@ def test_a_trial_whose_budget_runs_out_is_recorded_as_a_timeout(
 
     (outcome,) = [r for r in sink if isinstance(r, TrialOutcome)]
     assert outcome.result == TrialResult.TIMEOUT
+    assert outcome.final_error is not None
     assert outcome.final_error > outcome.tolerance
 
 
@@ -279,7 +288,7 @@ def test_a_recorded_run_reads_back_exactly(
     read_back = read_records(path)
     assert read_back == list(memory)
     assert isinstance(read_back[0], ScheduleHeader)
-    assert read_back[0].map_name == LEDGE.name
+    assert read_back[0].map == LEDGE.name
     assert isinstance(read_back[-1], TrialOutcome)
 
 

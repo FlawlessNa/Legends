@@ -80,7 +80,6 @@ kept in step:
 | Directory | Why it is off the ratchet |
 | --- | --- |
 | `ml_training/`, `toolkit/`, `scripts/` | Standalone tools, run by hand. A `print` **is** the interface, and a tool that dies mid-session because it narrowed an exception too far is worse than one that reports and carries on. |
-| `maple/model/mechanics/minimap_creation/` | The GUI map editor — same reasoning, plus its `print`s are its UI. |
 | `maple/decision_makers/inventory_manager.py` | Parked, and raises on import. `maple/AGENTS.md` asks for exactly this: *"When lint and type gates land, exclude this file explicitly rather than editing it into compliance."* |
 
 `ignore` rather than `exclude` for Pyright, deliberately: these files are still
@@ -113,27 +112,8 @@ reach. A `cast()` is not an alternative: it silences the checker while reading a
 if it asserted something true.
 
 Recorded exemptions, so the next person meets them as decisions rather than as
-someone's shortcut:
-
-- **`pathfinding.core.diagonal_movement.DiagonalMovement`** is a plain class with
-  `int` class attributes that annotates its own parameters as
-  `diagonal_movement: DiagonalMovement`. No value of that type exists, so *every*
-  caller is a `reportArgumentType` error. `pathfinding` is one of the four
-  permanently-unstubbed dependencies above, so there is no upstream fix.
-  `MinimapGrid.adjacent_nodes` keeps the type off its own interface by taking a
-  `bool` and doing the conversion internally, which reduces the exposure to the one
-  suppressed call inside that method.
-- **`MinimapNode.connect`** takes a required `connection_type` that
-  `GridNode.connect` does not — a deliberate incompatibility, since a connection
-  that does not say how it is traversed cannot be compiled into a movement. Giving
-  the parameter a default would satisfy Pyright by permitting exactly what the
-  signature exists to forbid.
-- **`MinimapEdits.name`** re-declares `Box.name`,
-  which is `str | None = None`, as a required `str`: a minimap feature must be
-  named. Pyright reports any re-declaration that drops an inherited default,
-  regardless of `kw_only`, and the only fix it accepts — giving `name` a default —
-  permits exactly the nameless feature the declaration exists to forbid. The root
-  cause is `Box`'s shape, which every other Box in the tree depends on.
+someone's shortcut. There are none at the moment: the three recorded here went
+with the grid and the map editor (#399).
 
 ## "Strongly typed"
 

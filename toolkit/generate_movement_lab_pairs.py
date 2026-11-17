@@ -1,6 +1,7 @@
 """
-Regenerate the movement lab's frozen samples under
-`tests/test_maple/movement_lab/pairs/`.
+Regenerate the movement lab's frozen reachability samples.
+
+They live under `tests/test_maple/movement_lab/pairs/`.
 
 The samples are checked in, so regenerating is a command rather than a memory. Run it
 from the repo root:
@@ -16,6 +17,8 @@ the Corpus manifest changed, or **the code that decides reachability changed**. 
 last case is the point: reachability is frozen as data, so a pair that stops being
 reachable fails the lab's checks instead of being silently skipped. When the change was
 deliberate, rerun this and commit the diff; when it was not, it is a defect.
+
+No client; it sends no input.
 """
 
 import argparse

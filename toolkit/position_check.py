@@ -1,4 +1,6 @@
 """
+Watch and record how the position readers behave, live or over saved frames.
+
 Position check (#393, epic #302 Part 2, item 11 and decision C1): how the
 position readers behave, live beside the client or replayed over a folder of
 frames, so they can be calibrated and trusted.
@@ -122,9 +124,10 @@ from maple.screen.position import (
     PositionSource,
     YoloCharacterFinder,
 )
-from maple.screen.position.fusion import CameraSource
+from maple.screen.position.characters import Covered
+from maple.screen.position.fusion import CameraSource, front_art_of
 from maple.screen.sprites import FRAME_CHECK, Profile, load_reader_sprites
-from toolkit.capture_frames import MANIFEST, save_frame
+from toolkit.capture_frames import MANIFEST, Check, save_frame
 
 REPO = Path(__file__).resolve().parents[1]
 OUT_ROOT = REPO / "data" / "position_check"
@@ -210,6 +213,11 @@ class FinderTap:
     def learn_own(self, frame: Frame, near: tuple[float, float]) -> bool:
         return self.finder.learn_own(frame, near)
 
+    def find_own_hidden(
+        self, frame: Frame, near: tuple[float, float], covered: Covered
+    ) -> CharacterSighting | None:
+        return self.finder.find_own_hidden(frame, near, covered)
+
 
 @dataclass(frozen=True)
 class FrameRead:
@@ -258,7 +266,13 @@ class MapReaders:
         self.minimap = minimap
         self.camera = CameraTap(camera)
         self.finder = finder
-        self.fusion = PositionFusion(transform, lambda: self.camera, finder)
+        self.fusion = PositionFusion(
+            transform,
+            lambda: self.camera,
+            finder,
+            world_map=world_map,
+            front_art=None if world_map is None else front_art_of(world_map),
+        )
         self.frame_check = frame_check
         self.world_map = world_map
         self.render: Pixels | None = None
@@ -280,7 +294,7 @@ class MapReaders:
         :raises LookupError: The store's catalogue has no map `map_id`.
         :raises ValueError: The map has no minimap.
         """
-        profile = Profile(job="", game_map="", map_id=map_id)
+        profile = Profile(job="", map_id=map_id)
         sprites = load_reader_sprites(
             [FRAME_CHECK, MINIMAP], profile, store, config=config
         )
@@ -382,6 +396,19 @@ def _minimap_position(
     return marker.status.value, marker.detail, marker
 
 
+def _owns(read: FrameRead) -> list[bool]:
+    """
+    Whether each of the fusion's sightings is marked ours, in its order: the
+    finder's marks, then ours for each sighting fusion added past what `find`
+    returned (our tag found behind the map's art, `PositionFusion._hidden`).
+    """
+    if read.fusion is None:
+        return []
+    found = read.characters.value if read.characters is not None else None
+    owns = [s.own for s in found or ()]
+    return owns + [True] * (len(read.fusion.sightings) - len(owns))
+
+
 def play_area_read(read: FrameRead) -> tuple[float, float] | None:
     """
     The play area's position: the fused position when it is `fused`; else the
@@ -396,11 +423,9 @@ def play_area_read(read: FrameRead) -> tuple[float, float] | None:
         return value.x, value.y
     if fusion.minimap is None or not fusion.sightings:
         return None
-    found = read.characters.value if read.characters is not None else None
-    owns = [s.own for s in found] if found else [False] * len(fusion.sightings)
     places = [
         p
-        for p, own in zip(fusion.sightings, owns, strict=True)
+        for p, own in zip(fusion.sightings, _owns(read), strict=True)
         if own or not fusion.by_tag
     ]
     if not places:
@@ -433,8 +458,8 @@ def row(read: FrameRead, start: float = 0.0) -> dict[str, str]:
         ""
         if fusion is None
         else ";".join(
-            f"{x:.1f}:{y:.1f}" + (":own" if found and found[i].own else "")
-            for i, (x, y) in enumerate(fusion.sightings)
+            f"{x:.1f}:{y:.1f}" + (":own" if own else "")
+            for (x, y), own in zip(fusion.sightings, _owns(read), strict=True)
         )
     )
 
@@ -702,10 +727,6 @@ class Output:
         return text
 
 
-class Check(Protocol):
-    def frame_usable(self, frame: Frame) -> Reading[None] | None: ...
-
-
 def save(read: FrameRead, folder: Path, check: Check, start: float = 0.0) -> str | None:
     """
     Save `read`'s frame as `toolkit/capture_frames.py` saves one, with the map
@@ -835,7 +856,7 @@ class Identifier:
         from maple.screen.minimap_title import MinimapTitleReader
 
         sprites = load_reader_sprites(
-            [FRAME_CHECK, MINIMAP], Profile(job="", game_map=""), store, config=config
+            [FRAME_CHECK, MINIMAP], Profile(job=""), store, config=config
         )
         self.frame_check = FrameCheck(sprites)
         minimap = MinimapReader(sprites, self.frame_check)

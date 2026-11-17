@@ -201,7 +201,7 @@ def synth(
         if not keep_dataset:
             shutil.rmtree(dataset.dataset_path, ignore_errors=True)
     print(f"model: {folder}")
-    print("mobs for configs/maps/<map>.json:")
+    print("mobs for the profile's `mobs` setting:")
     print(json.dumps(classes))
     return folder
 

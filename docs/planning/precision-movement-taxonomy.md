@@ -42,8 +42,8 @@ The model gaps (PM2's teleport half, PM3 entirely) were closed by
 `_MovementComponent` marks a take-off within `edge_departure_threshold`
 (default 5 minimap px, 80 virtual px since #396; a **Knob** on `MovementHandler`,
 mirroring `narrow_platform_threshold`'s shape) of its platform's end in the
-travel direction. Until [#397](https://github.com/FlawlessNa/Legends/issues/397)
-converts them, the Knob values in `configs/trials` are still minimap px, 16× off.
+travel direction. [#397](https://github.com/FlawlessNa/Legends/issues/397)
+converted the Knob values in `configs/trials` to virtual px (×16).
 
 **Reading `movement.plan_started` across #396.** `components` keeps its meaning
 in old and new Sessions alike: `[movement_type, length]`, where a walk's or a
@@ -54,7 +54,14 @@ and the new `components_v` gives every component's measured length in virtual
 px, gestures included. An analyzer counting jumps sums the gesture counts in
 either kind of Session. The precision pre-stop
 (direction-key release ahead of the gesture) now fires on that flag unconditionally,
-not only when truncation happens to land there. Grid-baked flags were rejected —
+not only when truncation happens to land there, except ahead of a sideways jump the
+walk runs into the same way (#515): that release came straight back up one Step
+later, when the jump pressed its direction again, so it stopped nothing and only
+made the take-off one input delay late, past a platform's open end in the live
+record. Since #521 the graph plans no such take-off within `TAKEOFF_LEAD` of walking
+(14.6 px at 149 px/s) of the open end it heads for, the latency from the key to the
+take-off included, and a walk into it that starts against the other direction key
+first stops. Grid-baked flags were rejected —
 every map would need re-authoring and nothing could be swept.
 
 ## Tiers and budgets

@@ -1,5 +1,5 @@
 """
-POC: track the character on the map's full minimap canvas, on any map.
+Proof of concept: track the character on the map's full minimap canvas, on any map.
 
 **Capture only. This script never sends a key, a click or any other input to
 the game.** It copies the client's pixels with Desktop Duplication (the same

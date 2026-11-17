@@ -190,6 +190,21 @@ class Camera:
     sharpness: float
     play_area: tuple[int, int]
 
+    def to_virtual(
+        self, point: tuple[float, float], client_size: tuple[int, int]
+    ) -> tuple[float, float]:
+        """
+        A point on the client, in client px, in virtual px: scaled to the
+        play area's render size, then the camera added. How fusion places
+        the characters found, and how mobs found on screen are placed
+        (`MobsHittingMixin.mobs_in_virtual_px`).
+
+        :param client_size: The size of the client the point was found on.
+        """
+        sx = client_size[0] / self.play_area[0]
+        sy = client_size[1] / self.play_area[1]
+        return self.x + point[0] / sx, self.y + point[1] / sy
+
 
 @dataclass(frozen=True, slots=True)
 class _Found:

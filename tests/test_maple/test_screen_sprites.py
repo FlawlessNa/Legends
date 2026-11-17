@@ -59,7 +59,7 @@ BUFF_ICONS = {
         }
     }
 }
-PROFILE = Profile(job="Cleric", game_map="Line1Area1")
+PROFILE = Profile(job="Cleric")
 STATUS = Declaration(
     "status bar",
     canvases=(GAUGE_LABEL,),
@@ -302,7 +302,7 @@ def test_child_init_refuses_before_creating_any_attribute(
     bot = _Bot(
         "Someone",
         {},  # pyright: ignore[reportArgumentType] - metadata is never read here
-        game_map="Line1Area1",
+        map="auto",
         character_class="Bishop",
         models_path={},
     )
@@ -328,10 +328,16 @@ def test_child_init_keeps_the_loaded_sprites_and_a_frame_check(
     monkeypatch.setattr(
         maple_bot.InGameDetectionVisuals, "register_cache_id", lambda *_: None
     )
+    # The map check at start and the map it finds are `test_maple_bot_client`'s.
+    monkeypatch.setattr(maple_bot, "with_readers", lambda readers, *_: readers)
+    monkeypatch.setattr(
+        MapleBot, "_check_map_at_start", lambda self, sprites: (10002000, sprites)
+    )
+    monkeypatch.setattr(MapleBot, "_set_world_map", lambda *_: None)
     bot = _Bot(
         "Someone",
         {},  # pyright: ignore[reportArgumentType] - metadata is never read here
-        game_map="Line1Area1",
+        map="auto",
         character_class="Bishop",
         models_path={},
     )
@@ -458,7 +464,7 @@ def icon_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_declared_skill_icons_are_loaded_by_skill_name(
     icon_root: Path, config: Path
 ) -> None:
-    profile = Profile(job="Priest", game_map="x", buffs=("Bless",))
+    profile = Profile(job="Priest", buffs=("Bless",))
 
     sprites = load_reader_sprites([NAMED_BUFFS], profile, icon_root, config=config)
 
@@ -471,7 +477,7 @@ def test_declared_skill_icons_are_loaded_by_skill_name(
 def test_a_skill_the_job_doesnt_have_is_refused_naming_it(
     icon_root: Path, config: Path
 ) -> None:
-    profile = Profile(job="Assassin", game_map="x", buffs=("Bless",))
+    profile = Profile(job="Assassin", buffs=("Bless",))
 
     with pytest.raises(
         StartupRefused,

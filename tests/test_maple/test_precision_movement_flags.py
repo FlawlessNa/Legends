@@ -12,7 +12,7 @@ read off graph moves in virtual px (#396).
 Both are plan-time properties of the move, so these tests hand
 `MovementHandler.path_into_movements` a Path of one move over `narrow_perch`'s
 platforms (`tests/test_maple/movement_lab/fixture_maps.py`): a 200 px floor from 0
-to 200, a 30 px perch from 250 to 280, and another floor from 330 to 530.
+to 200, a 40 px perch from 235 to 275, and another floor from 310 to 510.
 """
 
 from maple.model.mechanics.movement_mechanics_v2 import (
@@ -65,8 +65,8 @@ def _jump_onto_the_far_floor() -> Move:
     return Move(
         MoveKind.JUMP,
         Direction.RIGHT,
-        (280.0, 0.0),
-        (340.0, 0.0),
+        (270.0, 0.0),
+        (330.0, 0.0),
         _PERCH,
         _FAR_FLOOR,
         0.55,
@@ -78,8 +78,8 @@ def _jump_onto_the_far_floor() -> Move:
 
 def test_the_fixture_has_the_widths_these_tests_rely_on() -> None:
     assert (_FLOOR.left, _FLOOR.right) == (0, 200)
-    assert (_PERCH.left, _PERCH.right) == (250, 280)
-    assert (_FAR_FLOOR.left, _FAR_FLOOR.right) == (330, 530)
+    assert (_PERCH.left, _PERCH.right) == (235, 275)
+    assert (_FAR_FLOOR.left, _FAR_FLOOR.right) == (310, 510)
 
 
 def test_a_jump_onto_the_narrow_perch_is_flagged_narrow() -> None:
@@ -101,7 +101,7 @@ def test_a_teleport_onto_the_narrow_perch_is_flagged_narrow() -> None:
 
 
 def test_narrow_platform_threshold_governs_the_flag() -> None:
-    """A threshold below the perch's 30 px width turns the same landing's `narrow` off."""
+    """A threshold below the perch's 40 px width turns the same landing's `narrow` off."""
     handler = _handler(narrow_platform_threshold=29)
 
     assert _component(handler, _teleport_onto_the_perch()).narrow is False

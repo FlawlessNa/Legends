@@ -8,6 +8,7 @@ import csv
 import json
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import cv2
@@ -19,6 +20,7 @@ from botting.utilities import Box
 from maple.model.world import MinimapTransform
 from maple.screen.minimap import MinimapState, MinimapView
 from maple.screen.position import Camera, CharacterSighting
+from maple.screen.position.characters import Covered
 from toolkit import position_check as tool
 
 REPO = Path(__file__).resolve().parents[2]
@@ -73,6 +75,11 @@ class Finder:
 
     def learn_own(self, frame: Frame, near: tuple[float, float]) -> bool:
         return self.knows
+
+    def find_own_hidden(
+        self, frame: Frame, near: tuple[float, float], covered: Covered
+    ) -> CharacterSighting | None:
+        return None
 
 
 def readers(
@@ -145,13 +152,35 @@ def test_no_minimap_position_asks_nothing_else_and_is_unsure() -> None:
     assert cameras.made == 0
 
 
-def test_two_characters_by_the_minimaps_are_unsure_and_the_nearest_is_shown() -> None:
+def test_two_characters_by_the_minimaps_are_coarse_and_the_nearest_is_shown() -> None:
+    """No telling which is ours: the minimap's position, coarse (#529)."""
     built, _ = readers(Finder((620, 344), (600, 340)))
 
     r = tool.row(built.read(screen()))
 
-    assert (r["position_status"], r["near"]) == ("unsure", "2")
+    assert (r["position_status"], r["position_source"]) == ("read", "coarse")
+    assert r["near"] == "2"
     assert (r["play_x"], r["play_y"]) == ("600.0", "340.0")
+
+
+def test_our_tag_found_behind_the_maps_art_is_marked_ours() -> None:
+    """Fusion adds the sighting `find_own_hidden` gave (#517) past the ones
+    `find` returned: the row marks it ours, and, the position not fused, it is
+    the play area's read."""
+    built, _ = readers(Finder((611, 344)))
+    read = built.read(screen())
+    assert read.fusion is not None
+    fusion = replace(
+        read.fusion,
+        position=Reading.unsure(AT, "not fused"),
+        sightings=(*read.fusion.sightings, (606.0, 344.0)),
+        by_tag=True,
+    )
+
+    r = tool.row(replace(read, fusion=fusion))
+
+    assert r["sightings"] == "611.0:344.0;606.0:344.0:own"
+    assert (r["play_x"], r["play_y"]) == ("606.0", "344.0")
 
 
 def test_our_tag_outside_the_window_is_the_play_area_read_and_flagged() -> None:

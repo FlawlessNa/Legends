@@ -7,9 +7,11 @@ are theirs (#393; epic #302 Part 2, acceptance criterion 10). Run with
 The direct calls read the frames as the fusion frame test does
 (`test_position_fusion_frames`): map by map, in the set's order within each
 map, one `NameTagFinder` for the whole set, and each map's own minimap reader,
-camera reader and fusion. The camera reader and the finder are also called
-directly, with the seed fusion gave the camera, on the frames fusion asked them
-on: a frame always reads the same, so each says what it said to fusion.
+camera reader and fusion, given the map and its art as the bot's is (#517:
+our tag looked for behind the map's art). The camera reader and the finder are
+also called directly, with the seed fusion gave the camera, on the frames
+fusion asked them on: a frame always reads the same, so each says what it said
+to fusion.
 """
 
 import csv
@@ -34,6 +36,7 @@ from maple.screen.position import (
     NameTagFinder,
     PositionFusion,
 )
+from maple.screen.position.fusion import front_art_of
 from maple.screen.sprites import FRAME_CHECK, Profile, load_reader_sprites
 from tests.frame_set import FrameEntry, FrameSet
 from toolkit import position_check as tool
@@ -69,14 +72,20 @@ def _order(frames: FrameSet) -> list[tuple[int | None, list[FrameEntry]]]:
 def _read_map(
     frames: FrameSet, map_id: int, entries: list[FrameEntry], finder: NameTagFinder
 ) -> Iterator[Direct]:
-    profile = Profile(job="", game_map="", map_id=map_id)
+    profile = Profile(job="", map_id=map_id)
     sprites = load_reader_sprites([FRAME_CHECK, MINIMAP], profile, STORE, config=CONFIG)
     frame_check = FrameCheck(sprites)
     minimap = MinimapReader(sprites, frame_check, map_id=map_id)
     world_map = WorldMap.load(map_id, root=STORE)
     assert world_map.minimap is not None
     camera = CameraReader(world_map, frame_check=frame_check)
-    fusion = PositionFusion(world_map.minimap, lambda: camera, finder)
+    fusion = PositionFusion(
+        world_map.minimap,
+        lambda: camera,
+        finder,
+        world_map=world_map,
+        front_art=front_art_of(world_map),
+    )
     seed: Camera | None = None
     for entry in entries:
         frame = Frame(frames.pixels(entry), entry.client_size, 0.0, True, True)
@@ -164,8 +173,10 @@ def _expected(d: Direct) -> dict[str, str]:
         "near": str(d.fusion.near),
         "by_tag": str(int(d.fusion.by_tag)),
         "own_elsewhere": str(int(d.fusion.own_elsewhere)),
+        # Past what `find` returned: ours, found behind the map's art (#517).
         "sightings": ";".join(
-            f"{x:.1f}:{y:.1f}" + (":own" if found and found[i].own else "")
+            f"{x:.1f}:{y:.1f}"
+            + (":own" if i >= len(found or ()) or (found and found[i].own) else "")
             for i, (x, y) in enumerate(d.fusion.sightings)
         ),
     }

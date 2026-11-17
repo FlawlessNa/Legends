@@ -6,6 +6,8 @@ from typing import Any
 
 from botting import PARENT_LOG
 from botting.core import BotData, DecisionMaker
+from maple.model.world import WorldMap
+from maple.screen.position import marker_of_feet
 from maple.telemetry_events import STATE_SNAPSHOT, state_snapshot_payload
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -32,18 +34,34 @@ class StateSnapshot(DecisionMaker):
     ) -> None:
         super().__init__(metadata, data, pipe)
 
-    def _last_known(self, name: str) -> Sequence[Any] | None:
+    def _last_known(self, name: str) -> Any:  # noqa: ANN401
         try:
             return self.data.get_last_known_value(name, update=False)
         except AttributeError:
             return None
 
     async def _decide(self) -> None:
+        reading = self._last_known("current_position")
+        value = getattr(reading, "value", None)
+        position = None if value is None else (value.x, value.y)
+        target = self._last_known("next_target")
+        # The canvas fields, as they always were: where the minimap draws the
+        # marker for the virtual position and target (#398).
+        world_map: WorldMap | None = getattr(self.data, "world_map", None)
+        transform = None if world_map is None else world_map.minimap
+
+        def canvas(point: Sequence[float] | None) -> tuple[int, int] | None:
+            if point is None or transform is None:
+                return None
+            return marker_of_feet(transform, (point[0], point[1]))
+
         self.emit(
             STATE_SNAPSHOT,
             state_snapshot_payload(
-                self._last_known("current_minimap_position"),
-                self._last_known("next_target"),
+                canvas(position),
+                canvas(target),
                 self._last_known("current_on_screen_position"),
+                virtual_position=position,
+                virtual_target=target,
             ),
         )

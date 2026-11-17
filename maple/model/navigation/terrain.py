@@ -139,6 +139,7 @@ class Terrain:
         vy0: float,
         *,
         grab: bool = False,
+        grab_after: float = 0.0,
     ) -> Hits:
         """
         Where sideways arcs from `(x0, y0)` land, at `vx` (non-zero) and
@@ -147,6 +148,8 @@ class Terrain:
         :param grab: Report the first rope each arc crosses inside its height,
             before it lands or is blocked, instead of the landing; -1 where it
             crosses none.
+        :param grab_after: Seconds into the arc before which a rope it crosses
+            is passed, not grabbed (#542).
         """
         n = len(x0)
         surface = np.full(n, -1, dtype=np.int64)
@@ -155,12 +158,20 @@ class Terrain:
         ht = np.full(n, np.nan)
         for start in range(0, n, _CHUNK):
             part = slice(start, start + _CHUNK)
-            s, x, y, t = self._sweep_chunk(x0[part], y0[part], vx, vy0, grab)
+            s, x, y, t = self._sweep_chunk(
+                x0[part], y0[part], vx, vy0, grab, grab_after
+            )
             surface[part], hx[part], hy[part], ht[part] = s, x, y, t
         return Hits(surface, hx, hy, ht)
 
     def _sweep_chunk(
-        self, x0: Floats, y0: Floats, vx: float, vy0: float, grab: bool
+        self,
+        x0: Floats,
+        y0: Floats,
+        vx: float,
+        vy0: float,
+        grab: bool,
+        grab_after: float = 0.0,
     ) -> tuple[Ints, Floats, Floats, Floats]:
         g, fs = self.physics.gravity, self.physics.fall_speed
         n = len(x0)
@@ -226,7 +237,7 @@ class Terrain:
                 tr = (self._rx[rkeep] - X0) / vx
                 yr = self.arc_y(Y0, vy0, tr)
                 hit = (
-                    (tr > _EPS)
+                    (tr > max(_EPS, grab_after))
                     & (yr >= self._ry1[rkeep] - _TOL)
                     & (yr <= self._ry2[rkeep] + _TOL)
                 )

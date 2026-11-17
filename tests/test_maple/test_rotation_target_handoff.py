@@ -17,30 +17,11 @@ from typing import cast
 import pytest
 
 from botting.core import BotData
+from botting.screen import Reading
 from maple.decision_makers.mixins import MobsHittingMixin, NextTargetMixin
-
-
-class _FakeFeature:
-    left = 0
-    right = 100
-    top = 5
-    avoid_edges = False
-    edge_threshold = 0
-
-    def random(self) -> tuple[int, int]:
-        return 5, 5
-
-
-class _FakeMinimap:
-    """The bare minimum `_create_rotation_attributes` reads off a minimap."""
-
-    feature_cycle = None
-
-    def random_point(self) -> tuple[int, int]:
-        return 5, 5
-
-    def get_feature_containing(self, target: tuple[int, int]) -> _FakeFeature:
-        return _FakeFeature()
+from maple.model.world import WorldMap
+from maple.screen.position import PositionSource, VirtualPosition
+from tests.test_maple.movement_lab.fixture_maps import walk_corridor
 
 
 class _RotationOwner(MobsHittingMixin, NextTargetMixin):
@@ -64,8 +45,9 @@ class _TargetHijacker(NextTargetMixin):
 @pytest.fixture
 def data() -> BotData:
     data = BotData("TestBot")
-    data.set_static("current_minimap", _FakeMinimap())
-    data.set_static("current_minimap_position", (50, 50))
+    data.set_static("world_map", WorldMap.from_map_data(walk_corridor()))
+    here = Reading.read(VirtualPosition(50.0, 0.0, PositionSource.FUSED), 0.0)
+    data.create_attribute("current_position", lambda: here)
     return data
 
 

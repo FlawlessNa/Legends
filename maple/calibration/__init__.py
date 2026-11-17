@@ -9,7 +9,9 @@ needs a game client:
 * `specs` - the checked-in schedule: Trials, batches, and the **Knob** overrides a
   batch sweeps.
 * `records` - the per-machine JSONL a run leaves behind, and how to read it back.
-* `driver` - the loop's judgement, fed positions and a clock from outside.
+* `driver` - the loop's judgement, fed virtual positions and a clock from outside.
+* `analysis` - the physics schedule's records turned into Calibration constants,
+  offline (`python -m maple.calibration.analysis <record>`).
 
 The bot around them is `maple.bots.CalibrationBot`, whose single DecisionMaker is
 `maple.decision_makers.TrialRunner`. It ships Movement Plans through the production
@@ -24,7 +26,9 @@ from .records import (
     ListSink,
     MovementSummary,
     Phase,
+    PositionRecord,
     RecordSink,
+    SampleRecord,
     ScheduleHeader,
     SequenceSummary,
     TrialOutcome,
@@ -37,6 +41,7 @@ from .records import (
 from .specs import (
     KNOB_NAMES,
     Knobs,
+    Measure,
     TrialBatch,
     TrialSchedule,
     TrialSpec,
@@ -44,6 +49,7 @@ from .specs import (
     available,
     load_schedule,
     render_schedule,
+    schedule_map_id,
 )
 
 __all__ = [
@@ -53,9 +59,12 @@ __all__ = [
     "JsonlRecordWriter",
     "Knobs",
     "ListSink",
+    "Measure",
     "MovementSummary",
     "Phase",
+    "PositionRecord",
     "RecordSink",
+    "SampleRecord",
     "ScheduleHeader",
     "SequenceSummary",
     "TrialBatch",
@@ -71,6 +80,7 @@ __all__ = [
     "load_schedule",
     "read_records",
     "render_schedule",
+    "schedule_map_id",
     "summarize_plan",
     "summarize_sequence",
 ]

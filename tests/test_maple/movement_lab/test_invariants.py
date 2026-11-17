@@ -423,7 +423,14 @@ def test_b2_fill_bound(
     component's Provenance owns, and only `fill`'s own silent branch ever discounts
     for them - the ordinary press-and-repeat path does not. This run turns that
     "if" into a measured "how often".
+
+    **A walk is the run of pieces `_cut` made of it** (#521): each piece holds to
+    its end on the plan's clock, so a piece after the first absorbs the Step its
+    predecessor's last repeat ran over, and only the run as a whole is bound by
+    `L / walk_speed` and one Step. Judged piece by piece, the old compile kept
+    each piece inside the bound while the run drifted one Step per piece.
     """
+    walks = (MovementTypes.WALK_LEFT, MovementTypes.WALK_RIGHT)
     violations = []
     for i, record in _reachable(corpus_plans):
         wrapper = _compiled(corpus_map, i)
@@ -432,14 +439,25 @@ def test_b2_fill_bound(
         spent: dict[int, float] = {}
         for origin, delay in zip(wrapper.origins, wrapper.delays):
             spent[origin] = spent.get(origin, 0.0) + delay + OVERHEAD
+        runs: list[list[int]] = []
         for origin, component in enumerate(record.movements):
-            if component.movement_type not in (
-                MovementTypes.WALK_LEFT,
-                MovementTypes.WALK_RIGHT,
-            ):
+            if component.movement_type not in walks:
                 continue
-            budget = component.length / corpus.LAB_PHYSICS.walk_speed
-            elapsed = spent.get(origin, 0.0)
+            previous = record.movements[origin - 1] if origin else None
+            if (
+                runs
+                and previous is not None
+                and runs[-1][-1] == origin - 1
+                and (previous.movement_type is component.movement_type)
+            ):
+                runs[-1].append(origin)
+            else:
+                runs.append([origin])
+        for run in runs:
+            origin = run[0]
+            length = sum(record.movements[j].length for j in run)
+            budget = length / corpus.LAB_PHYSICS.walk_speed
+            elapsed = sum(spent.get(j, 0.0) for j in run)
             # `budget` and `elapsed` sum the same per-Step delays in a different order
             # (one division here, an accumulation of individually-jittered delays in
             # `fill`), so floating-point addition's non-associativity alone can put

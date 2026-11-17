@@ -1,4 +1,6 @@
 """
+Proof of concept: read the character's position from the minimap and the play area at once.
+
 Hybrid tracker (proof of concept): the character's position read two ways at
 once, from the minimap and from the play area, each checking the other.
 
