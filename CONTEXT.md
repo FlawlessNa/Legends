@@ -500,3 +500,36 @@ the goal and runs A*; its answer is a Path. Built per map and per speed and
 jump stats, off the decision loop.
 _Avoid_: Grid, minimap grid — the grid it replaced, one node per minimap
 pixel, is retired.
+
+**Hunting Area**:
+A rectangle of a map, in whole virtual px with its edges inside it, that the
+`hunting_area` rotation keeps every destination in. What it holds is
+stretches: the parts of the map's Platforms inside it, the part inside for a
+Platform that crosses its side, and each part whose height is inside for a
+sloped one. Drawn by the maintainer at Session launch, or saved by name in its
+map's file, `configs/hunting_areas/<map id>.json`. Only destinations are kept
+inside it: Paths are planned on the whole map, so an area is drawn with its
+stretches joining inside.
+_Avoid_: Zone, spot, region, feature — a feature was a hand-drawn region of the
+retired map files.
+
+**Destination source**:
+What a rotation is: the one class that says where the character goes next,
+named by the profile's `rotation` (`random`, `smart`, `hunting_area`) and
+served by the Destination Provider. It gives the current destination until it
+is reached or no longer allowed, and a different one on Movement recovery's
+Abandon. Every source is travelled by the same `Rotation`: rotations differ in
+where to go, never in how.
+_Avoid_: Rotation, rotation mode — `Rotation` is the one DecisionMaker that
+moves the character to a source's destinations.
+
+**Settled**:
+Another player has stayed in the Hunting Area. It starts when the samples that
+saw at least one other player's minimap marker inside the rectangle add up to
+`SETTLE_PRESENCE` seconds of the last `SETTLE_WINDOW`, and ends when no sample
+has seen one inside for `LEAVE_AFTER` seconds; an `UNSURE` read is no sample.
+Counted per area, not per player: a marker has no identity, so two players
+passing one after the other read as one who stayed. Once settled, the
+maintainer is alerted on Discord and the character keeps away from the other
+players' mobs, never withholding a cast.
+_Avoid_: Camping, occupied, taken — a player passing through is not settled.
