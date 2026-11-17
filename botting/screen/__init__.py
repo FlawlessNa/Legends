@@ -24,6 +24,7 @@ from botting.screen.window import (
     ClientNotClosed,
     MultipleWindows,
     WindowNotFound,
+    bring_to_front,
     close_client,
     find_window,
 )
@@ -38,6 +39,7 @@ __all__ = [
     "Reading",
     "Status",
     "WindowNotFound",
+    "bring_to_front",
     "close_client",
     "find_glyphs",
     "find_mask_glyphs",
