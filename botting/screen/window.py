@@ -1,6 +1,6 @@
 """
-Finding a game's window by what it is, not by what its title says, and closing
-the game it belongs to.
+Finding a game's window by what it is, not by what its title says, bringing it
+to the front, and closing the game it belongs to.
 """
 
 import ntpath
@@ -23,6 +23,8 @@ class ClientNotClosed(RuntimeError):
 
 #: How long `close_client` waits for the process to end, then for its window to go.
 CLOSE_TIMEOUT = 5.0
+#: How long `bring_to_front` waits for the window to be in front.
+FRONT_TIMEOUT = 1.0
 #: The exit code the closed process is given.
 CLOSED_EXIT_CODE = 1
 
@@ -60,6 +62,28 @@ def find_window(class_name: str, executable: str) -> int:
             "expected exactly one."
         )
     return matches[0]
+
+
+def bring_to_front(handle: int, timeout: float = FRONT_TIMEOUT) -> str | None:
+    """
+    Bring the window `handle` to the front, and wait up to `timeout` seconds for
+    it to be there. It sends no key and no click: it only asks Windows to change
+    the foreground window.
+
+    :return: `None` when the window is in front, else why it is not (Windows can
+        refuse, for instance to a process it does not allow to take the focus).
+    """
+    if _win32.foreground_window() == handle:
+        return None
+    if not _win32.is_window(handle):
+        return f"window {handle} is gone"
+    problem = _win32.request_foreground(handle)
+    deadline = time.monotonic() + timeout
+    while _win32.foreground_window() != handle:
+        if time.monotonic() >= deadline:
+            return problem or f"Windows left window {handle} behind the foreground"
+        time.sleep(0.02)
+    return None
 
 
 def close_client(handle: int, timeout: float = CLOSE_TIMEOUT) -> None:

@@ -119,6 +119,36 @@ def foreground_window() -> int:
     return win32gui.GetForegroundWindow()
 
 
+def request_foreground(hwnd: int) -> str | None:
+    """
+    Ask Windows to make `hwnd` the foreground window, sending no key and no click:
+    restore it if it is minimised, borrow the current foreground window's input
+    queue (the sanctioned way past the foreground lock), then `SetForegroundWindow`.
+
+    :return: `None` when the calls went through, else why they did not. Whether
+        the window really is in front is for the caller to check
+        (`foreground_window`): Windows may accept the call and still refuse.
+    """
+    try:
+        if win32gui.IsIconic(hwnd):
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        current = win32gui.GetForegroundWindow()
+        mine = win32api.GetCurrentThreadId()
+        theirs = win32process.GetWindowThreadProcessId(current)[0] if current else mine
+        attached = theirs != mine
+        if attached:
+            win32process.AttachThreadInput(mine, theirs, True)
+        try:
+            win32gui.BringWindowToTop(hwnd)
+            win32gui.SetForegroundWindow(hwnd)
+        finally:
+            if attached:
+                win32process.AttachThreadInput(mine, theirs, False)
+    except Win32Error as err:
+        return f"Windows refused ({err.funcname}: {err.strerror})"
+    return None
+
+
 def client_rect_on_screen(hwnd: int) -> Rect:
     """
     The window's client area in screen coordinates: `GetClientRect` gives its
