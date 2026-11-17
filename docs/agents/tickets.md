@@ -34,9 +34,13 @@ A PR into `epic/**` is reviewed and merged without the maintainer
 (`.github/workflows/claude-review.yml`):
 
 1. Claude reviews it against the ticket, the epic's intent, and this file,
-   then posts one comment that starts with its verdict. If the main Claude
-   account returns no verdict (for example it is out of usage), the review
-   runs once more on a fallback account, when one is configured.
+   and the workflow posts its review as one comment that starts with the
+   verdict. If the main Claude account returns no verdict (for example it is
+   out of usage), the review runs once more on a fallback account, when one
+   is configured. The review reads only what the workflow fetched for it
+   (`code-review.md`, "The automated review"), so the ticket must be named
+   with `Closes #<ticket>`. A draft PR is not reviewed, and its `review`
+   check fails until it is marked ready.
 2. **On approve,** the workflow merges exactly the reviewed commit. It
    squash-merges, unless a commit in the PR has more than one parent (it brings
    `dev` in): then it merge-commits, so the epic keeps `dev`'s history.
