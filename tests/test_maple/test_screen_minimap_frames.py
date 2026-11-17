@@ -14,7 +14,7 @@ from botting.screen import Frame, Status
 from game_data.catalogue import Catalogue
 from game_data.config import CONFIG, STORE
 from maple.screen.locator import FrameCheck
-from maple.screen.minimap import MINIMAP, MinimapReader, MinimapState
+from maple.screen.minimap import MARKER_KINDS, MINIMAP, MinimapReader, MinimapState
 from maple.screen.sprites import (
     FRAME_CHECK,
     GAUGE_LABEL,
@@ -49,7 +49,7 @@ def reader_sprites(map_id: int | None = None) -> ReaderSprites:
 
 def reader_for(map_id: int | None = None) -> MinimapReader:
     sprites = reader_sprites(map_id)
-    return MinimapReader(sprites, FrameCheck(sprites), map_id=map_id, read_markers=True)
+    return MinimapReader(sprites, FrameCheck(sprites), map_id=map_id)
 
 
 def frame_of(frames: FrameSet, entry: FrameEntry) -> Frame:
@@ -169,9 +169,8 @@ def test_the_npcs_seen_in_ellinia_are_read_as_npc_markers(
     for entry in expanded(frames, ellinia):
         if entry.file not in at_one_spot:
             continue
-        view = reader.read(frame_of(frames, entry)).value
+        view = reader.read(frame_of(frames, entry), MARKER_KINDS).value
         assert view is not None
-        assert view.markers is not None
         markers = view.markers
         found.add(
             tuple((kind, len(markers.get(kind, ()))) for kind in ("npc", "trunk"))
