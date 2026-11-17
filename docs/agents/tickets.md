@@ -49,8 +49,11 @@ A PR into `epic/**` is reviewed and merged without the maintainer
    If you disagree with a finding, say so in the PR and stop: the maintainer
    decides.
 
-The `epic/**` ruleset requires a PR and a passing `review` check, so nothing
-reaches an epic branch any other way. When every ticket is merged, open one PR
+The `epic/**` ruleset requires a PR and a passing `review` check, and the
+workflow is the only thing that merges into an epic branch on its own. It does
+not stop a person with write access from merging by hand, and until the
+ruleset pins `review` to the GitHub Actions app, it accepts a check of that
+name from any source. Agents never merge. When every ticket is merged, open one PR
 from `epic/<slug>` into `dev`, which the maintainer reviews against the spec's
 acceptance criteria.
 

@@ -143,13 +143,17 @@ jobs:
       # while CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is set. The one allow rule
       # covers reads inside the workspace. The deny rules win over it: .git
       # (where the action keeps its token), /proc (the process environment),
-      # .claude/ and .claude-pr/ (copied from the PR's base by the action).
-      # `--setting-sources user` keeps out the checkout's settings and hooks.
+      # .claude/ and .claude-pr/ (the action's own copies of config paths).
+      # `--setting-sources user` keeps out the checkout's settings and hooks,
+      # and `--strict-mcp-config` every MCP server not named on the command
+      # line (none is): the action turns on enableAllProjectMcpServers in the
+      # user settings it writes.
       REVIEW_ARGS: |
           --model opus
           --max-turns 60
           --permission-mode dontAsk
           --setting-sources user
+          --strict-mcp-config
           --tools "Read,Grep,Glob"
           --allowedTools "Read(./**)"
           --disallowedTools "Bash,Write,Edit,NotebookEdit,WebFetch,WebSearch,Read(./.git/**),Read(//proc/**),Read(./.claude/**),Read(./.claude-pr/**)"
@@ -213,9 +217,13 @@ jobs:
             account=none
             RESULT=""
           fi
+          # The model wrote these: a line of the log that starts with `::` is
+          # read as a workflow command, so none may. A bare carriage return
+          # can start a line too.
+          neutralise() { tr '\r' '\n' | sed 's/^[[:space:]]*::/: :/'; }
           verdict="$(jq -r '.verdict // empty' <<<"$RESULT")"
-          echo "Judged by the $account account. Claude's verdict: ${verdict:-none}"
-          echo "$RESULT" | jq -r '.summary // empty'
+          echo "Judged by the $account account. Claude's verdict: ${verdict:-none}" | neutralise
+          echo "$RESULT" | jq -r '.summary // empty' | neutralise
           case "$verdict" in
             approve|request-changes) ;;
             *) echo "::error::Claude returned no verdict."; exit 1 ;;
