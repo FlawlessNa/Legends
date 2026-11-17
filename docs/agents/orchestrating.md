@@ -153,10 +153,13 @@ settle, not the maintainer's:
    remains a design choice (two defensible behaviours), or the PR touches a
    "not without asking" area (`tickets.md`) that the ticket does not cover.
 
-A `review` check that fails with no verdict comment (for example the job log
-says `error_max_turns`, or the comment is missing) did not judge anything:
-re-run it with `gh run rerun <run-id> --failed` before acting. If it fails the
-same way twice on a large PR, ask the agent to shrink or split the PR.
+A `review` check that fails with no verdict comment (for example the `claude`
+job's log says `error_max_turns`, or the comment is missing) did not judge
+anything: re-run it with `gh run rerun <run-id> --failed` before acting. If it
+fails the same way twice on a large PR, ask the agent to shrink or split the
+PR. A draft PR's `review` fails without a run of `claude`; marking it ready
+starts the review. If the `comment` job refused to post (its log says the
+comment holds a token pattern), nothing merges: tell the maintainer.
 
 The review retries once by itself on a fallback Claude account when the main
 one returns no verdict (`CLAUDE_CODE_OAUTH_TOKEN_FALLBACK`, see the header of
