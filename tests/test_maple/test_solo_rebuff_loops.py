@@ -7,6 +7,7 @@ Supervisor runs, pauses and restarts them; `SoloRebuff` holds no TaskGroup.
 import asyncio
 import threading
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 
 import pytest
 from pytest_mock import MockerFixture
@@ -36,6 +37,11 @@ def rebuff(mocker: MockerFixture) -> SoloRebuff:
     )
     data = BotData("Buffer")
     data.set_static("character", _Character())
+    # What `_create_buffs_attributes` reads when SoloRebuff is built; nothing
+    # here reads the buffs.
+    data.set_static("buffs_reader", SimpleNamespace(read=lambda frame, names: None))
+    data.set_static("buff_names", ("Haste", "Bless"))
+    data.set_static("current_frame", None)
     return SoloRebuff({}, data, mocker.Mock())  # pyright: ignore[reportArgumentType] - no Manager needed
 
 
