@@ -8,6 +8,7 @@ issue numbers it takes from a body, and whose text it keeps.
 import importlib.util
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -248,3 +249,343 @@ def test_only_regular_files_inside_the_tree_are_written(
     # A link written into the workspace could point Read at /proc or the
     # runner's files, which the allow rule would then cover.
     assert script.tree_skip_reason(mode, size, path) == reason
+
+
+# --- Dev-merge PRs -------------------------------------------------------------
+#
+# A PR that merges dev into an epic has no ticket. These build real git
+# histories (a bare origin and a clone checked out on dev, as the workflow's
+# job is) and run the whole script on them. Only the GitHub API is served from
+# a dict: git, and what the script makes of it, are real.
+
+
+def test_a_dev_merge_names_its_epic_on_an_epic_line(script: ModuleType) -> None:
+    assert script.named_epic("Brings dev in.\n\nEpic: #455\n") == 455
+    assert script.named_epic("epic:#455 (chat replies)") == 455
+    assert script.named_epic("  Epic: #455\nEpic: #302") == 455
+
+
+def test_a_mention_of_an_epic_is_not_an_epic_line(script: ModuleType) -> None:
+    assert script.named_epic("Merge of epic #302 into #455.") is None
+    assert script.named_epic("The Epic: #455 line goes first.") is None
+    assert script.named_epic("Epic: #٤٥٥") is None
+    assert script.named_epic("Epic: #４５５") is None
+
+
+def test_a_closes_line_makes_a_ticket_pr_whatever_else_the_body_says(
+    script: ModuleType,
+) -> None:
+    dev_merge = script.MergeEvidence((script.DevMerge("a" * 40, "b" * 40),), (), ())
+
+    assert script.pr_kind(560, 455, dev_merge) == script.KIND_TICKET
+    assert script.pr_kind(None, 455, dev_merge) == script.KIND_DEV_MERGE
+
+
+@pytest.mark.parametrize(
+    ("ref", "valid"),
+    [("dev", True), ("main", True), ("-x", False), ("a..b", False), ("a b", False)],
+)
+def test_only_a_branch_name_is_a_default_branch(
+    script: ModuleType, ref: str, valid: bool
+) -> None:
+    assert script.valid_branch(ref) is valid
+
+
+EPIC = "epic/chat-replies"
+REPO = "o/r"
+
+
+def _run(cwd: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
+    ).stdout.strip()
+
+
+class History:
+    """A bare origin and a clone of it, with dev and an epic cut from it.
+
+    Each PR is published as `refs/pull/<n>/head`, as GitHub does, and the clone
+    is left on dev, as the workflow's job checks it out.
+    """
+
+    def __init__(self, root: Path) -> None:
+        self.origin = root / "origin.git"
+        self.work = root / "work"
+        self.origin.mkdir()
+        self.work.mkdir()
+        _run(self.origin, "init", "--bare", "--quiet")
+        _run(self.work, "init", "--quiet", "--initial-branch=dev")
+        for key, value in (
+            ("user.name", "Tester"),
+            ("user.email", "tester@example.invalid"),
+            ("commit.gpgsign", "false"),
+            ("core.autocrlf", "false"),
+        ):
+            _run(self.work, "config", key, value)
+        _run(self.work, "remote", "add", "origin", self.origin.as_posix())
+        self.start = self.commit("README.md", "start\n", "Start")
+        self.branch(EPIC)
+        self.commit("epic.py", "epic = 1\n", "An epic ticket")
+        self.checkout("dev")
+        self.dev_tip = self.commit("dev.py", "dev = 1\n", "A fix on dev")
+        _run(self.work, "push", "--quiet", "origin", "dev", EPIC)
+
+    def commit(self, path: str, text: str, message: str) -> str:
+        # Bytes: write_text would give the file CRLF line ends on Windows.
+        (self.work / path).write_bytes(text.encode())
+        _run(self.work, "add", path)
+        _run(self.work, "commit", "--quiet", "-m", message)
+        return _run(self.work, "rev-parse", "HEAD")
+
+    def branch(self, name: str, start: str = "HEAD") -> None:
+        _run(self.work, "checkout", "--quiet", "-b", name, start)
+
+    def checkout(self, name: str) -> None:
+        _run(self.work, "checkout", "--quiet", name)
+
+    def merge(self, other: str) -> str:
+        _run(self.work, "merge", "--quiet", "--no-ff", "--no-edit", other)
+        return _run(self.work, "rev-parse", "HEAD")
+
+    def open_pr(self, number: int) -> str:
+        """Publish HEAD as PR `number`'s head, and go back to dev."""
+        head = _run(self.work, "rev-parse", "HEAD")
+        _run(self.work, "push", "--quiet", "origin", f"HEAD:refs/pull/{number}/head")
+        self.checkout("dev")
+        return head
+
+
+@dataclass(frozen=True)
+class Pr:
+    """A PR in the History: its number, head, and the commits a test names."""
+
+    number: int
+    head: str
+    merge: str = ""
+    own: str = ""
+
+
+@dataclass(frozen=True)
+class Prs:
+    history: History
+    dev_merge: Pr
+    dev_merge_cut_from_dev: Pr
+    no_merge: Pr
+    side_merge: Pr
+
+
+@pytest.fixture(scope="module")
+def prs(tmp_path_factory: pytest.TempPathFactory) -> Prs:
+    # One history for every test below: each git call costs a process.
+    history = History(tmp_path_factory.mktemp("history"))
+
+    # The usual dev merge: on a branch off the epic, merge dev, then fix.
+    history.branch("merge/dev", f"origin/{EPIC}")
+    merge = history.merge("dev")
+    fix = history.commit("epic.py", "epic = 1\nfixed = True\n", "Fix the merge")
+    dev_merge = Pr(1, history.open_pr(1), merge, fix)
+
+    # On a branch off dev, merge the epic: dev is the first parent.
+    history.branch("merge/epic")
+    merge = history.merge(f"origin/{EPIC}")
+    cut_from_dev = Pr(2, history.open_pr(2), merge)
+
+    # No merge at all.
+    history.branch("ticket/1", f"origin/{EPIC}")
+    work = history.commit("epic.py", "epic = 2\n", "Work with no ticket")
+    no_merge = Pr(3, history.open_pr(3), own=work)
+
+    # A merge of a branch that is not dev.
+    history.branch("side", history.start)
+    side = history.commit("side.py", "side = 1\n", "Not on dev")
+    history.branch("merge/side", f"origin/{EPIC}")
+    merge = history.merge("side")
+    side_merge = Pr(4, history.open_pr(4), merge, side)
+
+    return Prs(history, dev_merge, cut_from_dev, no_merge, side_merge)
+
+
+def _epic_issue(association: str = "OWNER") -> dict[str, Any]:
+    return _issue(association, body="The intent of the chat replies epic.") | {
+        "title": "Chat replies"
+    }
+
+
+def _review(
+    monkeypatch: pytest.MonkeyPatch,
+    script: ModuleType,
+    tmp_path: Path,
+    prs: Prs,
+    pr: Pr,
+    body: str,
+    issues: dict[int, dict[str, Any]],
+) -> Path:
+    """Run the script as the workflow does, and return its output directory."""
+    pull = {
+        "title": "Merge dev into epic/chat-replies",
+        "body": body,
+        "user": {"login": "agent"},
+        "author_association": "OWNER",
+        "base": {"ref": EPIC, "repo": {"default_branch": "dev"}},
+        "head": {"ref": "merge/dev-into-chat-replies"},
+        "changed_files": None,
+    }
+
+    def api(path: str) -> dict[str, Any]:
+        if path == f"repos/{REPO}/pulls/{pr.number}":
+            return pull
+        number = path.rsplit("/", 1)[1]
+        if path == f"repos/{REPO}/issues/{number}" and int(number) in issues:
+            return issues[int(number)]
+        raise script.NotFoundError(path)
+
+    monkeypatch.setattr(script, "api", api)
+    monkeypatch.setattr(script, "api_list", lambda path: [])
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    for name, value in (
+        ("REPO", REPO),
+        ("PR", str(pr.number)),
+        ("BASE_REF", EPIC),
+        ("HEAD_SHA", pr.head),
+    ):
+        monkeypatch.setenv(name, value)
+    monkeypatch.chdir(prs.history.work)
+    out = tmp_path / "review-input"
+    script.write_inputs(out)
+    return out
+
+
+def _read(out: Path, name: str) -> str:
+    return (out / name).read_text(encoding="utf-8")
+
+
+def _section(text: str, title: str) -> str:
+    """The body of one `## ` section of a Markdown file."""
+    return text.split(f"\n## {title}\n", 1)[1].split("\n## ", 1)[0]
+
+
+def test_a_dev_merge_pr_gets_its_epic_and_the_merge_s_evidence(
+    monkeypatch: pytest.MonkeyPatch, script: ModuleType, tmp_path: Path, prs: Prs
+) -> None:
+    pr = prs.dev_merge
+
+    out = _review(
+        monkeypatch,
+        script,
+        tmp_path,
+        prs,
+        pr,
+        "## What dev brings\n\nEpic: #455\n",
+        {455: _epic_issue()},
+    )
+
+    assert "The intent of the chat replies epic." in _read(out, "epic.md")
+    assert "Epic: #455" in _read(out, "ticket.md")
+    dev_merge = _read(out, "dev-merge.md")
+    assert dev_merge.startswith(f"Kind: {script.KIND_DEV_MERGE}\n")
+    assert _read(out, "README.md").startswith(f"Kind: {script.KIND_DEV_MERGE}\n")
+    merges = _section(dev_merge, "Merge commits that bring `dev` in")
+    assert f"- {pr.merge}" in merges
+    assert f"merges `dev` at {prs.history.dev_tip} A fix on dev" in merges
+    assert f"merges/{pr.merge}.patch" in merges
+    assert (out / "merges" / f"{pr.merge}.patch").is_file()
+    # The PR's own commit, with its diff. Dev's commit is not the PR's own.
+    own = _section(dev_merge, "The PR's own commits")
+    assert f"### {pr.own} Fix the merge" in own
+    assert "+fixed = True" in own
+    assert prs.history.dev_tip not in own
+
+
+def test_a_dev_merge_made_on_a_branch_cut_from_dev_is_one_too(
+    monkeypatch: pytest.MonkeyPatch, script: ModuleType, tmp_path: Path, prs: Prs
+) -> None:
+    pr = prs.dev_merge_cut_from_dev
+
+    out = _review(
+        monkeypatch, script, tmp_path, prs, pr, "Epic: #455", {455: _epic_issue()}
+    )
+
+    dev_merge = _read(out, "dev-merge.md")
+    assert dev_merge.startswith(f"Kind: {script.KIND_DEV_MERGE}\n")
+    assert f"- {pr.merge}" in _section(dev_merge, "Merge commits that bring `dev` in")
+    assert "(none)" in _section(dev_merge, "The PR's own commits")
+
+
+def test_an_epic_line_on_a_pr_that_merges_no_dev_is_reported(
+    monkeypatch: pytest.MonkeyPatch, script: ModuleType, tmp_path: Path, prs: Prs
+) -> None:
+    pr = prs.no_merge
+
+    out = _review(
+        monkeypatch, script, tmp_path, prs, pr, "Epic: #455", {455: _epic_issue()}
+    )
+
+    dev_merge = _read(out, "dev-merge.md")
+    assert dev_merge.startswith(f"Kind: {script.KIND_NOT_DEV_MERGE}\n")
+    assert "**This is not a dev merge.**" in dev_merge
+    assert "request changes" in dev_merge
+    assert pr.own in _section(dev_merge, "The PR's own commits")
+
+
+def test_a_merge_of_a_branch_that_is_not_dev_is_not_a_dev_merge(
+    monkeypatch: pytest.MonkeyPatch, script: ModuleType, tmp_path: Path, prs: Prs
+) -> None:
+    pr = prs.side_merge
+
+    out = _review(
+        monkeypatch, script, tmp_path, prs, pr, "Epic: #455", {455: _epic_issue()}
+    )
+
+    dev_merge = _read(out, "dev-merge.md")
+    assert dev_merge.startswith(f"Kind: {script.KIND_NOT_DEV_MERGE}\n")
+    assert pr.merge in _section(dev_merge, "Other merge commits")
+    assert pr.own in _section(dev_merge, "The PR's own commits")
+
+
+def test_a_dev_merge_that_names_no_epic_is_told_to(
+    monkeypatch: pytest.MonkeyPatch, script: ModuleType, tmp_path: Path, prs: Prs
+) -> None:
+    out = _review(monkeypatch, script, tmp_path, prs, prs.dev_merge, "Merges dev.", {})
+
+    dev_merge = _read(out, "dev-merge.md")
+    assert dev_merge.startswith(f"Kind: {script.KIND_NO_TICKET}\n")
+    assert "looks like a dev-merge PR whose body does not name its epic" in dev_merge
+    assert _read(out, "epic.md").startswith("# Epic\n\nNone")
+
+
+def test_the_epic_line_s_epic_is_kept_only_from_the_repo_s_people(
+    monkeypatch: pytest.MonkeyPatch, script: ModuleType, tmp_path: Path, prs: Prs
+) -> None:
+    out = _review(
+        monkeypatch,
+        script,
+        tmp_path,
+        prs,
+        prs.dev_merge,
+        "Epic: #455",
+        {455: _epic_issue("CONTRIBUTOR")},
+    )
+
+    epic = _read(out, "epic.md")
+    assert "Left out" in epic
+    assert "The intent of the chat replies epic." not in epic
+
+
+def test_a_ticket_pr_with_an_epic_line_is_still_a_ticket_pr(
+    monkeypatch: pytest.MonkeyPatch, script: ModuleType, tmp_path: Path, prs: Prs
+) -> None:
+    ticket = _issue("OWNER", body="Part of #302\n\nThe body of the ticket.")
+
+    out = _review(
+        monkeypatch,
+        script,
+        tmp_path,
+        prs,
+        prs.no_merge,
+        "Closes #560\n\nEpic: #455",
+        {560: ticket, 302: _epic_issue() | {"title": "The ticket's epic"}},
+    )
+
+    assert "The body of the ticket." in _read(out, "ticket.md")
+    assert "Epic #302" in _read(out, "epic.md")
+    assert _read(out, "dev-merge.md").startswith(f"Kind: {script.KIND_TICKET}\n")
