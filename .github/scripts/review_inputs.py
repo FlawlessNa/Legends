@@ -1,8 +1,8 @@
 """Write the inputs of the Claude review of an epic PR into a directory.
 
 `.github/workflows/claude-review.yml` runs this before Claude starts, with the
-job's GITHUB_TOKEN. Claude then reads only these files and the default
-branch's checkout: it has no shell and no network tools.
+job's GITHUB_TOKEN. Claude then reads only these files and the checkout
+around them: it has no shell and no network tools.
 
 Everything about the PR comes in through the environment, never through the
 command line or a workflow expression:
@@ -17,6 +17,13 @@ The ticket the PR closes and the epic the ticket is part of are included only
 when their author is the repo's OWNER, a MEMBER or a COLLABORATOR, and with only
 the comments by those. Anyone on GitHub can comment on an issue, so other text
 never reaches the review.
+
+A PR that merges the default branch (dev) into an epic has no ticket: its body
+names the epic on an `Epic: #<n>` line instead, and that epic is fetched under
+the same rule. Whether the PR really is such a merge is worked out from git
+alone, and written into `dev-merge.md` with the evidence: the merge commits that
+bring dev in, and the PR's own commits that are not on dev, which are the
+changes the review must judge closely.
 
 Usage: python .github/scripts/review_inputs.py <output directory>
 """
@@ -42,7 +49,12 @@ _CLOSES = re.compile(
     re.IGNORECASE | re.ASCII,
 )
 _PART_OF = re.compile(r"\bPart of #([0-9]+)\b", re.IGNORECASE | re.ASCII)
+# A dev-merge PR's line naming its epic, at the start of a line.
+_EPIC_LINE = re.compile(
+    r"^[ \t]*Epic:[ \t]*#([0-9]+)\b", re.IGNORECASE | re.ASCII | re.MULTILINE
+)
 _EPIC_REF = re.compile(r"epic/[A-Za-z0-9._/-]+", re.ASCII)
+_BRANCH = re.compile(r"[A-Za-z0-9._/-]+", re.ASCII)
 _SHA = re.compile(r"[0-9a-f]{40}", re.ASCII)
 _DIGITS = re.compile(r"[0-9]+", re.ASCII)
 
@@ -59,6 +71,12 @@ def epic_number(ticket_body: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
+def named_epic(pr_body: str) -> int | None:
+    """The epic a dev-merge PR names on its `Epic: #<n>` line, the first if several."""
+    match = _EPIC_LINE.search(pr_body)
+    return int(match.group(1)) if match else None
+
+
 def is_trusted(item: dict[str, Any]) -> bool:
     """Whether an issue or comment was written by the repo's own people."""
     return item.get("author_association") in TRUSTED
@@ -67,6 +85,16 @@ def is_trusted(item: dict[str, Any]) -> bool:
 def valid_base_ref(ref: str) -> bool:
     """An epic branch name, with nothing git could read as an option or range."""
     return bool(_EPIC_REF.fullmatch(ref)) and ".." not in ref and not ref.endswith("/")
+
+
+def valid_branch(ref: str) -> bool:
+    """A branch name, with nothing git could read as an option or range."""
+    return (
+        bool(_BRANCH.fullmatch(ref))
+        and not ref.startswith(("-", "/"))
+        and ".." not in ref
+        and not ref.endswith("/")
+    )
 
 
 @dataclass(frozen=True)
@@ -159,6 +187,21 @@ def git(*args: str) -> bytes:
 
 def git_text(*args: str) -> str:
     return git(*args).decode("utf-8", errors="replace").strip()
+
+
+def is_ancestor(commit: str, of: str) -> bool:
+    """Whether `commit` is reachable from `of` (or is `of`)."""
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", commit, of],
+        check=False,
+        capture_output=True,
+    )
+    if result.returncode not in (0, 1):
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        sys.exit(
+            f"review_inputs: git merge-base failed ({result.returncode}): {stderr}"
+        )
+    return result.returncode == 0
 
 
 class NotFoundError(Exception):
@@ -270,6 +313,205 @@ def blobs(shas: list[str]) -> list[bytes]:
     return found
 
 
+# --- Dev merges ----------------------------------------------------------------
+
+# What the review is told the PR is. `dev-merge.md` and `README.md` start with
+# `Kind: <one of these>`, and the workflow's prompt branches on it.
+KIND_TICKET = "ticket PR"
+KIND_DEV_MERGE = "dev-merge PR"
+KIND_NOT_DEV_MERGE = "names an epic but is not a dev merge"
+KIND_NO_TICKET = "no ticket and no epic"
+
+
+@dataclass(frozen=True)
+class DevMerge:
+    """A merge commit of the PR, and the commit of dev it brings in."""
+
+    merge: str
+    dev_commit: str
+
+
+@dataclass(frozen=True)
+class MergeEvidence:
+    """What git says about a PR's commits, measured against dev and the base."""
+
+    dev_merges: tuple[DevMerge, ...]
+    other_merges: tuple[str, ...]
+    own_commits: tuple[str, ...]
+
+    @property
+    def is_dev_merge(self) -> bool:
+        return bool(self.dev_merges)
+
+
+def merge_evidence(base_sha: str, head_sha: str, dev_sha: str) -> MergeEvidence:
+    """Which of the PR's merge commits bring dev in, and its commits not on dev.
+
+    A merge brings dev in when one of its parents (either one: the order
+    depends on which branch the merge was made on) is reachable from dev's tip
+    and not from the base, so it adds dev commits the epic lacked. The PR's
+    own commits are its non-merge commits that are on neither the base nor dev.
+    """
+    dev_merges: list[DevMerge] = []
+    other: list[str] = []
+    merges = git_text(
+        "rev-list", "--merges", "--reverse", f"{base_sha}..{head_sha}"
+    ).split()
+    for sha in merges:
+        parents = git_text("rev-list", "--parents", "-n", "1", sha).split()[1:]
+        brought = [
+            p
+            for p in parents
+            if is_ancestor(p, dev_sha) and not is_ancestor(p, base_sha)
+        ]
+        if brought:
+            dev_merges.extend(DevMerge(sha, p) for p in brought)
+        else:
+            other.append(sha)
+    own = git_text(
+        "rev-list", "--no-merges", "--reverse", head_sha, "--not", base_sha, dev_sha
+    ).split()
+    return MergeEvidence(tuple(dev_merges), tuple(other), tuple(own))
+
+
+def pr_kind(ticket: int | None, epic_line: int | None, evidence: MergeEvidence) -> str:
+    """What the review is to judge the PR as. A `Closes` line always wins."""
+    if ticket is not None:
+        return KIND_TICKET
+    if epic_line is None:
+        return KIND_NO_TICKET
+    return KIND_DEV_MERGE if evidence.is_dev_merge else KIND_NOT_DEV_MERGE
+
+
+def _one_line(sha: str) -> str:
+    return git_text("log", "-1", "--format=%H %s", sha)
+
+
+def _kind_text(
+    kind: str, evidence: MergeEvidence, base_ref: str, dev_ref: str, epic: int | None
+) -> str:
+    if kind == KIND_TICKET:
+        return (
+            "**Not a dev-merge PR.** Its body names a ticket with `Closes #<n>`, "
+            "so it is reviewed as a ticket PR. The evidence below is for the record."
+        )
+    if kind == KIND_DEV_MERGE:
+        return (
+            f"**This is a dev-merge PR.** Its body names epic #{epic} with "
+            f"`Epic: #{epic}`, and git shows it merges `{dev_ref}` into "
+            f'`{base_ref}`. Judge it by "Judging a dev-merge PR" in '
+            "`docs/agents/code-review.md`: no ticket is expected."
+        )
+    if kind == KIND_NOT_DEV_MERGE:
+        return (
+            f"**This is not a dev merge.** Its body names epic #{epic} with "
+            f"`Epic: #{epic}` and no ticket, which only a PR that merges "
+            f"`{dev_ref}` into the epic may do, but none of its merge commits "
+            f"brings in a commit of `{dev_ref}` that `{base_ref}` lacks. "
+            "That is a blocking finding: request changes. A ticket PR names its "
+            "ticket with `Closes #<ticket>` (`docs/agents/tickets.md`)."
+        )
+    if evidence.is_dev_merge:
+        return (
+            "**No ticket, and no epic.** The body names no ticket with "
+            "`Closes #<n>` and no epic with `Epic: #<n>`. Git shows it merges "
+            f"`{dev_ref}` into `{base_ref}`, so it looks like a dev-merge PR "
+            "whose body does not name its epic. That is a blocking finding: "
+            "request changes, since the body must say `Epic: #<n>` "
+            '(`docs/agents/tickets.md`, "A dev-merge PR").'
+        )
+    return (
+        "**No ticket, and no epic.** The body names no ticket with `Closes #<n>` "
+        f"and no epic with `Epic: #<n>`, and git shows no merge of `{dev_ref}`. "
+        "That is a blocking finding: request changes. A ticket PR names its "
+        "ticket with `Closes #<ticket>` (`docs/agents/tickets.md`)."
+    )
+
+
+def dev_merge_markdown(
+    kind: str,
+    evidence: MergeEvidence,
+    *,
+    base_ref: str,
+    dev_ref: str,
+    dev_sha: str,
+    epic: int | None,
+) -> str:
+    """`dev-merge.md`: the PR's kind, and git's evidence for it."""
+    parts = [
+        f"Kind: {kind}",
+        "",
+        "# Dev merge",
+        "",
+        _kind_text(kind, evidence, base_ref, dev_ref, epic),
+        "",
+        f"- `{dev_ref}`'s tip now: {dev_sha}",
+        f"- Merge commits that bring `{dev_ref}` in: {len(evidence.dev_merges)}",
+        f"- Other merge commits: {len(evidence.other_merges)}",
+        (
+            f"- The PR's own commits, on neither `{base_ref}` nor `{dev_ref}`: "
+            f"{len(evidence.own_commits)}"
+        ),
+        "",
+        f"## Merge commits that bring `{dev_ref}` in",
+        "",
+    ]
+    if not evidence.dev_merges:
+        parts.append("(none)")
+    for dm in evidence.dev_merges:
+        behind = git_text("rev-list", "--count", f"{dm.dev_commit}..{dev_sha}")
+        parts += [
+            f"- {_one_line(dm.merge)}",
+            (
+                f"  - merges `{dev_ref}` at {_one_line(dm.dev_commit)}, "
+                f"{behind} commits behind `{dev_ref}`'s tip now"
+            ),
+            f"  - its conflict resolutions: `merges/{dm.merge}.patch` (`git show --cc`)",
+        ]
+    parts += ["", "## Other merge commits", ""]
+    if not evidence.other_merges:
+        parts.append("(none)")
+    parts += [
+        f"- {_one_line(sha)}: brings in no commit of `{dev_ref}` that "
+        f"`{base_ref}` lacks. `merges/{sha}.patch`"
+        for sha in evidence.other_merges
+    ]
+    parts += [
+        "",
+        "## The PR's own commits",
+        "",
+        (
+            f"Every non-merge commit of the PR that is on neither `{base_ref}` nor "
+            f"`{dev_ref}`, oldest first, with its diff. In a dev-merge PR these are "
+            "the fixes the merge needed: judge each one closely."
+        ),
+        "",
+    ]
+    if not evidence.own_commits:
+        parts.append("(none)")
+    for sha in evidence.own_commits:
+        show = git(
+            "show",
+            "--no-color",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--find-renames",
+            "--format=fuller",
+            "--stat",
+            "--patch",
+            sha,
+        ).decode("utf-8", errors="replace")
+        parts += [
+            f"### {_one_line(sha)}",
+            "",
+            "````diff",
+            show.rstrip("\n"),
+            "````",
+            "",
+        ]
+    return "\n".join(parts) + "\n"
+
+
 def _who(item: dict[str, Any]) -> str:
     login = (item.get("user") or {}).get("login", "unknown")
     return f"{login} ({item.get('author_association', 'NONE')})"
@@ -348,9 +590,12 @@ def write_inputs(out: Path) -> None:
             f"review_inputs: the PR now targets {pr['base']['ref']!r}, not the "
             f"{base_ref!r} this run was started for. Not reviewing."
         )
+    dev_ref = (pr["base"].get("repo") or {}).get("default_branch") or ""
+    if not valid_branch(dev_ref):
+        sys.exit(f"review_inputs: the default branch {dev_ref!r} is not a branch name")
 
-    # The PR's head and base, from the server. The checkout holds dev's full
-    # history; a shallow one would hide the merge base.
+    # The PR's head and base, and dev, from the server. The checkout holds
+    # dev's full history; a shallow one would hide the merge base.
     shallow = git_text("rev-parse", "--is-shallow-repository") == "true"
     git(
         "fetch",
@@ -361,6 +606,7 @@ def write_inputs(out: Path) -> None:
         "origin",
         f"+refs/pull/{pr_number}/head:refs/review/head",
         f"+refs/heads/{base_ref}:refs/review/base",
+        f"+refs/heads/{dev_ref}:refs/review/dev",
     )
     fetched_head = git_text("rev-parse", "refs/review/head^{commit}")
     if fetched_head != head_sha:
@@ -376,6 +622,7 @@ def write_inputs(out: Path) -> None:
         )
     git("cat-file", "-e", f"{head_sha}^{{commit}}")
     base_sha = git_text("rev-parse", "refs/review/base^{commit}")
+    dev_sha = git_text("rev-parse", "refs/review/dev^{commit}")
     merge_base = git_text("merge-base", base_sha, head_sha)
 
     if out.exists():
@@ -423,24 +670,45 @@ def write_inputs(out: Path) -> None:
 
     pr_body = pr.get("body") or ""
     ticket = ticket_number(pr_body)
+    epic_line = named_epic(pr_body) if ticket is None else None
+    evidence = merge_evidence(base_sha, head_sha, dev_sha)
+    kind = pr_kind(ticket, epic_line, evidence)
     epic: int | None = None
     if ticket is None:
         ticket_md = (
-            "# Ticket\n\nNone: the PR body names no ticket with `Closes #<n>`.\n"
+            "# Ticket\n\nNone: the PR body names no ticket with `Closes #<n>`."
+            + (
+                f" It names its epic with `Epic: #{epic_line}`, as a dev-merge PR "
+                "does: see `dev-merge.md`.\n"
+                if epic_line is not None
+                else "\n"
+            )
         )
+        epic = epic_line
     else:
         ticket_md, ticket_issue = issue_markdown(repo, "Ticket", ticket)
         if ticket_issue is not None:
             epic = epic_number(ticket_issue.get("body") or "")
     if epic is None:
         epic_md = (
-            "# Epic\n\nNone: no trusted ticket was found, or its body has no "
-            "`Part of #<n>` line.\n"
+            "# Epic\n\nNone: the PR body has no `Epic: #<n>` line, and no "
+            "trusted ticket was found, or its body has no `Part of #<n>` line.\n"
         )
     else:
         epic_md, _ = issue_markdown(repo, "Epic", epic)
     (out / "ticket.md").write_text(ticket_md, encoding="utf-8")
     (out / "epic.md").write_text(epic_md, encoding="utf-8")
+    (out / "dev-merge.md").write_text(
+        dev_merge_markdown(
+            kind,
+            evidence,
+            base_ref=base_ref,
+            dev_ref=dev_ref,
+            dev_sha=dev_sha,
+            epic=epic_line,
+        ),
+        encoding="utf-8",
+    )
 
     moved = (
         ""
@@ -476,15 +744,24 @@ def write_inputs(out: Path) -> None:
         encoding="utf-8",
     )
     (out / "README.md").write_text(
-        f"""# The review's inputs for PR #{pr_number}
+        f"""Kind: {kind}
+
+# The review's inputs for PR #{pr_number}
 
 Written by `.github/scripts/review_inputs.py` before the review started. This
-directory and the working directory around it (the default branch, not the PR)
+directory and the working directory around it (a checkout of the default
+branch, not the PR, with a few config paths at its root restored from the epic)
 are everything the review can read.
 
 - `pr.md`: the PR's title, author, base, head and body.
+- `dev-merge.md`: what kind of PR this is (the `Kind:` line above), and git's
+  evidence for whether it merges `{dev_ref}` into the epic: the merge commits
+  that bring `{dev_ref}` in, and the PR's own commits that are not on
+  `{dev_ref}`, with their diffs.
 - `ticket.md`: the ticket the PR body closes (`Closes #<n>`), with its comments.
-- `epic.md`: the epic the ticket is `Part of`, with its comments.
+  A dev-merge PR has none.
+- `epic.md`: the epic the ticket is `Part of`, with its comments. For a
+  dev-merge PR, the epic its body names on its `Epic: #<n>` line.
 - `diff.patch`: the full diff, from the merge base {merge_base[:12]} to the
   reviewed commit {head_sha[:12]}. {len(files)} files, {len(diff_lines)} lines.
 - `diff-index.tsv`: where each file's section of `diff.patch` starts, and how
@@ -507,8 +784,9 @@ anyone else was left out on purpose.
     epic_named = f"#{epic}" if epic else "none"
     sys.stdout.write(
         f"PR #{pr_number}: {len(files)} files, {len(diff_lines)} diff lines, "
-        f"{commit_count} commits ({len(merges)} merges), "
-        f"ticket {ticket_named}, epic {epic_named}\n"
+        f"{commit_count} commits ({len(merges)} merges, "
+        f"{len(evidence.dev_merges)} bringing in {dev_ref}), "
+        f"ticket {ticket_named}, epic {epic_named}, kind: {kind}\n"
     )
 
 

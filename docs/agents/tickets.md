@@ -25,6 +25,7 @@ spec threshold (`topics.md`) and no spec covers it.
   maintainer reviews and merges it.
 - **Ticket of an epic:** branch off `epic/<slug>`, and open the PR into it. Say
   `Closes #<ticket>` in the body.
+- **Bringing `dev` into an epic:** a dev-merge PR, below. It has no ticket.
 - **You never merge anything.** A separate worktree is optional; it is useful
   when several sessions work in parallel.
 
@@ -39,7 +40,8 @@ A PR into `epic/**` is reviewed and merged without the maintainer
    out of usage), the review runs once more on a fallback account, when one
    is configured. The review reads only what the workflow fetched for it
    (`code-review.md`, "The automated review"), so the ticket must be named
-   with `Closes #<ticket>`. A draft PR is not reviewed, and its `review`
+   with `Closes #<ticket>` (a dev-merge PR names its epic with
+   `Epic: #<epic>` instead, below). A draft PR is not reviewed, and its `review`
    check fails until it is marked ready.
 2. **On approve,** the workflow merges exactly the reviewed commit. It
    squash-merges, unless a commit in the PR has more than one parent (it brings
@@ -56,6 +58,26 @@ ruleset pins `review` to the GitHub Actions app, it accepts a check of that
 name from any source. Agents never merge. When every ticket is merged, open one PR
 from `epic/<slug>` into `dev`, which the maintainer reviews against the spec's
 acceptance criteria.
+
+### A dev-merge PR
+
+A dev-merge PR brings `dev` into an epic branch (`orchestrating.md`, "Bringing dev into an epic").
+Branch off `epic/<slug>`, run `git merge origin/dev` (a real merge commit: no rebase, no squash), resolve the conflicts, fix what the merge broke, and open the PR into `epic/<slug>`.
+
+Its body names the epic on a line of its own, `Epic: #<epic>`, and **never** `Closes`.
+It has no ticket, and a `Closes` line would make the review judge it as a ticket PR.
+The review checks from git that the PR really merges `dev`, and requests changes when it names an epic but does not.
+
+The body covers what `code-review.md`, "Judging a dev-merge PR", checks:
+
+- what `dev` brings, by PR;
+- each conflict, and how it was resolved, keeping both sides' behaviour;
+- each fix the merge needed, in its own commit, with the test that was red without it;
+- broken tests fixed with real config, not mocks;
+- the `pytest` result, green as "Proving it" below says;
+- how merging `dev` changes which keys reach the game on the epic, and what could not be verified.
+
+Nothing else goes in: a change the merge does not need is blocking, and goes through a ticket instead.
 
 Every review draws on the maintainer's usage limits, so push a PR when it is
 ready, not to see what the reviewer says.
