@@ -13,16 +13,19 @@ from typing import Any, ClassVar, NamedTuple
 from botting.logging_config import producer_logger_name
 from botting.telemetry import emit_event
 from botting.telemetry_events import (
+    DECISION_CRASHED,
     DECISION_DISABLED,
     DECISION_ENABLED,
     DECISION_PAUSED,
     DECISION_RESUMED,
+    DecisionCrashedPayload,
     DecisionGatePayload,
 )
 
 from .action_data import ActionRequest, ActionWithValidation
 from .bot_data import BotData
 from .data_keys import Key, KeyNotDeclared
+from .errors import DecisionMakerCrashed
 from .proxy_factory import ProxyFactory
 from .signals import Announcement, Signal, SignalBoard
 from .supervisor import USER, Pause, PauseKind, Supervisor
@@ -488,7 +491,27 @@ class DecisionMaker(ABC):
                     )
         except asyncio.CancelledError:
             logger.info("%s has been disabled.", name)
-            # TODO - see if cleanup is required
+        except Exception as e:
+            self._report_crash(name, e)
+            raise DecisionMakerCrashed(repr(self), e) from e
         except BaseException as e:
             logger.error("Exception occurred in %s: %s.", name, e)
             raise
+
+    def _report_crash(self, name: str, error: Exception) -> None:
+        """
+        Log a crashed loop's full traceback on this DecisionMaker's own logger and
+        emit `decision.crashed`. Never raises: it runs on the way out of a crash.
+        """
+        try:
+            logging.getLogger(self._logger_name).error(
+                "%s crashed in %s: %s.", self, name, error, exc_info=error
+            )
+            payload: DecisionCrashedPayload = {
+                "decision_maker": repr(self),
+                "exception_type": type(error).__name__,
+                "message": str(error),
+            }
+            self.emit(DECISION_CRASHED, payload)
+        except Exception:
+            logger.exception("%s could not report its crash.", self)

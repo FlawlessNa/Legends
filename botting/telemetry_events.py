@@ -88,6 +88,10 @@ DECISION_PAUSED: Final = "decision.paused"
 #: ``decision.paused``, not necessarily the target's whole pause.
 DECISION_RESUMED: Final = "decision.resumed"
 
+#: A DecisionMaker's decision loop raised: the DecisionMaker, the exception's type
+#: and its message. The Bot ends on it, with `DecisionMakerCrashed`.
+DECISION_CRASHED: Final = "decision.crashed"
+
 # --- key ------------------------------------------------------------------
 #: A key went down at a client: a keydown for a key the Held-Keys Ledger did not
 #: hold. A keydown for a key already down (a typematic repeat) is not one.
@@ -155,6 +159,15 @@ class PausePayload(TypedDict):
     #: The holding DecisionMaker, as its ``repr`` names it, or ``"user"``.
     holder: str
     reason: str
+
+
+class DecisionCrashedPayload(TypedDict):
+    """``decision.crashed``: who crashed, and on what."""
+
+    #: The crashed DecisionMaker, as its ``repr`` names it.
+    decision_maker: str
+    exception_type: str
+    message: str
 
 
 class ActionFinishedPayload(TypedDict):
