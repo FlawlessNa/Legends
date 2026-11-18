@@ -16,26 +16,27 @@ client pixels, so they are never committed.
 **A glyph set** (`GLYPH_SETS`) is one way text is drawn: which pixels are its ink
 (`GlyphSetSpec.ink`), and how far a glyph may be from them. A glyph is a bool
 mask; a strip of the screen is turned into ink, then read with
-`botting.screen.read_mask_glyphs`, which compares each glyph's whole box, ink
+`botting.screen.find_mask_glyphs`, which compares each glyph's whole box, ink
 and background. Exact sprite matching (`read_glyphs`) can't be used: the
 countdown's yellow is blended with the icon under it, so its colours never
 repeat, and a chat glyph's ink alone fits inside other glyphs.
 
 On disk, a set is a folder of one PNG per glyph (ink white, background black)
 and a `manifest.json` naming each glyph's character, its file, and where it was
-cut from. `load_glyph_set` reads it; `GlyphsMissing` says how to make it.
+cut from. A character the client has drawn more than one way keeps each other
+form in a file of its own (`GlyphSet.forms`). `load_glyph_set` reads it; `GlyphsMissing` says how to make it.
 """
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import cv2
 import numpy as np
 from numpy.typing import NDArray
 
-from botting.screen import GlyphHit, find_mask_glyphs, read_mask_glyphs
+from botting.screen import GlyphHit, find_mask_glyphs
 
 REPO = Path(__file__).resolve().parents[2]
 GLYPHS = REPO / "data" / "glyphs"
@@ -90,6 +91,11 @@ class GlyphSetSpec:
         bgr_high = np.array(self.high[::-1], np.uint8)
         return ((pixels >= bgr_low) & (pixels <= bgr_high)).all(axis=2)
 
+    def in_colour(self, colour: RGB) -> GlyphSetSpec:
+        """The same set drawn in `colour` alone: its ink is that colour exactly.
+        For a font drawn unantialiased in more than one colour (the chat)."""
+        return replace(self, low=colour, high=colour)
+
 
 CHAT_GENERAL = GlyphSetSpec(
     "chat-general",
@@ -100,10 +106,21 @@ CHAT_GENERAL = GlyphSetSpec(
     rows=14,
     space_advance=4,
 )
-"""General chat lines: pure white, unantialiased, so read exactly. A line's
-cell is its 14 rows starting 3 below the top of its 16-row band, which holds
-every glyph from 11 rows above the baseline to 2 below it, and none of the next
-line's.
+"""The chat's font: Arial at 14 px, unantialiased, so read exactly. Its spec
+reads general lines' pure white; the other text colours of the log read the
+same glyphs (`GlyphSet.in_colour`). The set is cut from white general lines and
+from the outgoing whisper's green (frame set `v4`), and the harvest refuses a
+glyph whose cuts in the two colours differ, so the shapes are one font's. A
+line's cell is its 14 rows starting 3 below the top of its 16-row band, which
+holds every glyph from 11 rows above the baseline to 2 below it, and none of
+the next line's.
+
+**Not quite Arial.** The client draws `K` and `#` unlike Arial's render, and
+`A` two ways: as Arial does on frame set `v1` (f001-f005), and with one pixel
+more everywhere since (`v3`'s crowded Henesys, `v4`'s chat and name-tag
+frames). So those three are labelled by a person, on lines whose text is known
+(our own test lines, `toolkit/glyph_sources/v4.json`), and `A` keeps both forms
+(`GlyphSet.forms`).
 
 **Spaces.** The glyphs carry Arial's bearings at 14 px (`toolkit/harvest_glyphs.py`),
 whose space advances 4 columns. On frame set `v3`, of the 1,018 gaps between two
@@ -157,6 +174,8 @@ class GlyphSet:
         character -> every character it may be (Arial draws `I` and `l` alike).
     :ivar bearings: Each glyph's character -> the blank columns its font
         draws before and after its ink, for `GlyphSetSpec.space_advance`.
+    :ivar forms: Each character the client has drawn more than one way -> its
+        other forms, read as it is (the chat's `A`, `CHAT_GENERAL`).
     """
 
     spec: GlyphSetSpec
@@ -165,21 +184,40 @@ class GlyphSet:
     bearings: Mapping[str, tuple[int, int]] = field(
         default_factory=dict[str, tuple[int, int]]
     )
+    forms: Mapping[str, Sequence[NDArray[np.bool_]]] = field(
+        default_factory=dict[str, Sequence[NDArray[np.bool_]]]
+    )
+
+    def in_colour(self, colour: RGB) -> GlyphSet:
+        """The same glyphs, read where they are drawn in `colour` exactly
+        (`GlyphSetSpec.in_colour`)."""
+        return replace(self, spec=self.spec.in_colour(colour))
 
     def read(self, pixels: NDArray[np.uint8]) -> str:
-        """The text drawn in `pixels` (BGR). A glyph the set lacks is left out."""
-        return read_mask_glyphs(
-            self.spec.ink(pixels), self.glyphs, self.spec.max_error, self.spec.space_gap
-        )
+        """The text drawn in `pixels` (BGR). A glyph the set lacks is left out.
+        A gap of `GlyphSetSpec.space_gap` columns or more reads as a space."""
+        text: list[str] = []
+        previous: GlyphHit | None = None
+        gap = self.spec.space_gap
+        for hit in self._hits(self.spec.ink(pixels)):
+            if (
+                previous is not None
+                and gap is not None
+                and hit.x - (previous.x + previous.width) >= gap
+            ):
+                text.append(" ")
+            text.append(_char(hit))
+            previous = hit
+        return "".join(text)
 
     def read_all(self, pixels: NDArray[np.uint8]) -> str | None:
         """The text drawn in `pixels` (BGR), or `None` when some of its ink isn't
         a glyph of the set: never a string with characters missing."""
         ink = self.spec.ink(pixels)
-        hits = find_mask_glyphs(ink, self.glyphs, self.spec.max_error)
+        hits = self._hits(ink)
         if (ink & ~self._explained(ink, hits)).any():
             return None
-        return self._spell([(hit.x, hit.x + hit.width, hit.name) for hit in hits])
+        return self._spell([(hit.x, hit.x + hit.width, _char(hit)) for hit in hits])
 
     def read_marked(self, pixels: NDArray[np.uint8]) -> str:
         """
@@ -195,7 +233,7 @@ class GlyphSet:
         all harvested read as one.
         """
         ink = self.spec.ink(pixels)
-        hits = find_mask_glyphs(ink, self.glyphs, self.spec.max_error)
+        hits = self._hits(ink)
         unexplained = ink & ~self._explained(ink, hits)
         spans = [(hit.x, hit.x + hit.width) for hit in hits]
         inked = ink.any(axis=0).tolist()
@@ -212,19 +250,33 @@ class GlyphSet:
                 letters.append((left, right, UNREAD))
             else:
                 letters += [
-                    (hit.x, hit.x + hit.width, hit.name)
+                    (hit.x, hit.x + hit.width, _char(hit))
                     for hit in hits
                     if left <= hit.x < right
                 ]
         return self._spell(letters)
 
+    def _masks(self) -> dict[str, NDArray[np.bool_]]:
+        """Every form of every glyph, by a name whose first character is the
+        glyph's (`_char`)."""
+        masks = dict(self.glyphs)
+        for char, others in self.forms.items():
+            for i, mask in enumerate(others, start=1):
+                masks[f"{char}{_FORM}{i}"] = mask
+        return masks
+
+    def _hits(self, ink: NDArray[np.bool_]) -> list[GlyphHit]:
+        """Where the set's glyphs, in any of their forms, are drawn in `ink`."""
+        return find_mask_glyphs(ink, self._masks(), self.spec.max_error)
+
     def _explained(
         self, ink: NDArray[np.bool_], hits: Sequence[GlyphHit]
     ) -> NDArray[np.bool_]:
         """The ink of `ink` that `hits` account for."""
+        masks = self._masks()
         explained = np.zeros_like(ink)
         for hit in hits:
-            glyph = self.glyphs[hit.name]
+            glyph = masks[hit.name]
             explained[hit.y : hit.y + hit.height, hit.x : hit.x + hit.width] |= glyph
         return explained
 
@@ -251,6 +303,15 @@ class GlyphSet:
         return gap is not None and start - end >= gap
 
 
+_FORM = "#"
+"""Between a character and the number of its other form, in a hit's name."""
+
+
+def _char(hit: GlyphHit) -> str:
+    """The character a hit is of, whichever of its forms was found."""
+    return hit.name[0]
+
+
 def _merged(spans: Sequence[tuple[int, int]]) -> list[tuple[int, int]]:
     """`spans` (`[left, right)`), the overlapping ones merged, left to right."""
     merged: list[tuple[int, int]] = []
@@ -262,9 +323,11 @@ def _merged(spans: Sequence[tuple[int, int]]) -> list[tuple[int, int]]:
     return merged
 
 
-def glyph_file(char: str) -> str:
-    """The file name a character's glyph is kept under: its code point."""
-    return f"U+{ord(char):04X}.png"
+def glyph_file(char: str, form: int = 0) -> str:
+    """The file name a character's glyph is kept under: its code point, then
+    the number of the form for another form (`GlyphSet.forms`)."""
+    code = f"U+{ord(char):04X}"
+    return f"{code}.png" if form == 0 else f"{code}-{form}.png"
 
 
 def save_glyph_set(
@@ -274,6 +337,7 @@ def save_glyph_set(
     alike: Mapping[str, str] | None = None,
     root: Path = GLYPHS,
     bearings: Mapping[str, tuple[int, int]] | None = None,
+    forms: Mapping[str, Sequence[tuple[NDArray[np.bool_], object]]] | None = None,
 ) -> Path:
     """
     Write a glyph set under `root`, replacing any there.
@@ -282,6 +346,8 @@ def save_glyph_set(
         the manifest for a person checking the labels.
     :param bearings: Each glyph's character -> its font's bearings, kept for
         the glyphs that have them (`GlyphSet.bearings`).
+    :param forms: Each glyph's character -> its other forms, each with where it
+        was cut from (`GlyphSet.forms`).
     :returns: The set's folder.
     """
     folder = root / spec.name
@@ -297,6 +363,15 @@ def save_glyph_set(
         entries[char] = {"file": name, "source": sources.get(char)}
         if bearings is not None and char in bearings:
             entries[char]["bearings"] = list(bearings[char])
+        others: list[dict[str, object]] = []
+        for form, (other, source) in enumerate((forms or {}).get(char, ()), start=1):
+            _check(spec, char, other)
+            name = glyph_file(char, form)
+            if not cv2.imwrite(str(folder / name), other.astype(np.uint8) * 255):
+                raise OSError(f"can't write {folder / name}")
+            others.append({"file": name, "source": source})
+        if others:
+            entries[char]["forms"] = others
     manifest = {"set": spec.name, "glyphs": entries, "alike": dict(alike or {})}
     (folder / MANIFEST).write_text(
         json.dumps(manifest, indent=1, ensure_ascii=True) + "\n", encoding="utf-8"
@@ -326,10 +401,9 @@ def load_glyph_set(name: str, root: Path = GLYPHS) -> GlyphSet:
         raise GlyphsMissing(
             f"{folder / MANIFEST} is malformed ({error}): {hint}"
         ) from None
-    glyphs: dict[str, NDArray[np.bool_]] = {}
-    bearings: dict[str, tuple[int, int]] = {}
-    for char, entry in manifest.get("glyphs", {}).items():
-        path = folder / str(entry["file"])
+
+    def mask_of(char: str, file: object) -> NDArray[np.bool_]:
+        path = folder / str(file)
         image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
         if image is None:
             raise GlyphsMissing(f"{path} can't be read: {hint}")
@@ -338,14 +412,23 @@ def load_glyph_set(name: str, root: Path = GLYPHS) -> GlyphSet:
             _check(spec, char, mask)
         except ValueError as error:
             raise GlyphsMissing(f"{path}: {error}: {hint}") from None
-        glyphs[char] = mask
+        return mask
+
+    glyphs: dict[str, NDArray[np.bool_]] = {}
+    bearings: dict[str, tuple[int, int]] = {}
+    forms: dict[str, list[NDArray[np.bool_]]] = {}
+    for char, entry in manifest.get("glyphs", {}).items():
+        glyphs[char] = mask_of(char, entry["file"])
         if "bearings" in entry:
             before, after = entry["bearings"]
             bearings[char] = (int(before), int(after))
+        others = [mask_of(char, form["file"]) for form in entry.get("forms", [])]
+        if others:
+            forms[char] = others
     if not glyphs:
         raise GlyphsMissing(f"{folder / MANIFEST} lists no glyph: {hint}")
     alike = {str(k): str(v) for k, v in manifest.get("alike", {}).items()}
-    return GlyphSet(spec, glyphs, alike, bearings)
+    return GlyphSet(spec, glyphs, alike, bearings, forms)
 
 
 def _check(spec: GlyphSetSpec, char: str, mask: NDArray[np.bool_]) -> None:

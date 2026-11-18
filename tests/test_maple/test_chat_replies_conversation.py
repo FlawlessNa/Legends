@@ -30,6 +30,7 @@ class Line:
     outgoing: bool = False
     text: str | None = None
     continues: bool = False
+    mid_word: bool = False
 
 
 class Clock:
@@ -58,9 +59,11 @@ def general(speaker: str | None, message: str | None) -> Line:
     return Line(ChatKind.GENERAL, speaker, message)
 
 
-def rest(text: str, kind: ChatKind = ChatKind.GENERAL) -> Line:
+def rest(
+    text: str, kind: ChatKind = ChatKind.GENERAL, *, mid_word: bool = False
+) -> Line:
     """A row that continues the line above, which wrapped."""
-    return Line(kind, None, None, text=text, continues=True)
+    return Line(kind, None, None, text=text, continues=True, mid_word=mid_word)
 
 
 # Appending.
@@ -119,9 +122,9 @@ def test_every_entry_appended_while_replies_are_off_is_context(
 
 
 @pytest.mark.parametrize(
-    "kind", [ChatKind.MEGAPHONE, ChatKind.SYSTEM, ChatKind.UNKNOWN]
+    "kind", [ChatKind.MEGAPHONE, ChatKind.SYSTEM, ChatKind.NOTICE, ChatKind.UNKNOWN]
 )
-def test_megaphone_system_and_unknown_lines_are_never_appended(
+def test_megaphone_system_notice_and_unknown_lines_are_never_appended(
     conversation: Conversation, kind: ChatKind
 ) -> None:
     assert conversation.append(Line(kind, "Bob", "buying stuff"), Address.MUST) is None
@@ -363,6 +366,30 @@ def test_a_row_that_continues_a_line_is_joined_to_it(
     assert conversation.recent() == [joined]
     [burst] = conversation.pending()
     assert (burst.address, burst.entries) == (Address.MUST, (joined,))
+
+
+def test_a_row_that_continues_a_line_mid_word_is_joined_with_no_space(
+    conversation: Conversation,
+) -> None:
+    """The client broke the line where a letter no longer fit (#482)."""
+    conversation.append(general("Bob", "abcdeabcdea"), Address.JUDGE)
+
+    joined = conversation.append(rest("bcde", mid_word=True), Address.IGNORE)
+
+    assert joined is not None
+    assert joined.message == "abcdeabcdeabcde"
+
+
+def test_a_reply_that_wraps_mid_word_is_our_echo_once_joined(
+    conversation: Conversation,
+) -> None:
+    conversation.expect_echo("sry map's full, maybe later", ChatKind.GENERAL)
+    conversation.append(general("Mapier", "sry map's full, ma"), Address.JUDGE)
+
+    joined = conversation.append(rest("ybe later", mid_word=True), Address.IGNORE)
+
+    assert joined is not None
+    assert joined.ours
 
 
 def test_a_row_that_continues_a_line_keeps_its_stronger_address(

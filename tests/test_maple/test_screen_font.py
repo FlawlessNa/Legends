@@ -102,6 +102,36 @@ def test_saving_again_replaces_the_set(tmp_path: Path) -> None:
 def test_a_glyph_file_is_named_by_its_code_point() -> None:
     assert glyph_file("@") == "U+0040.png"
     assert glyph_file(":") == "U+003A.png"
+    assert glyph_file("A", 1) == "U+0041-1.png"
+
+
+H_WITH_A_SPUR = cell(["#..", "#.#", "###", "#.#", "#.#"])
+"""`h` drawn another way, one pixel more: the client draws its `A` two ways."""
+
+
+def test_other_forms_of_a_glyph_are_kept(tmp_path: Path) -> None:
+    save_glyph_set(
+        CHAT_GENERAL, LETTERS, {}, root=tmp_path, forms={"h": [(H_WITH_A_SPUR, "f2")]}
+    )
+
+    loaded = load_glyph_set(CHAT_GENERAL.name, tmp_path)
+
+    [form] = loaded.forms["h"]
+    assert (form == H_WITH_A_SPUR).all()
+    assert set(loaded.forms) == {"h"}
+    manifest = json.loads((tmp_path / "chat-general" / MANIFEST).read_text("utf-8"))
+    assert manifest["glyphs"]["h"]["forms"] == [
+        {"file": "U+0068-1.png", "source": "f2"}
+    ]
+
+
+def test_every_form_of_a_glyph_reads_as_its_character() -> None:
+    pixels = white_line([(LETTERS["h"], 2), (H_WITH_A_SPUR, 6), (LETTERS["i"], 10)])
+    glyphs = GlyphSet(CHAT_GENERAL, LETTERS, forms={"h": [H_WITH_A_SPUR]})
+
+    assert glyphs.read_marked(pixels) == glyphs.read_all(pixels) == "hhi"
+    assert glyphs.read(pixels) == "hhi"
+    assert GlyphSet(CHAT_GENERAL, LETTERS).read_marked(pixels) == "h�i"
 
 
 def test_a_set_not_harvested_is_missing_saying_how_to_harvest(
@@ -162,6 +192,20 @@ def test_chat_ink_is_exactly_white() -> None:
     pixels = draw(background, [(LETTERS["h"], 2)], (254, 255, 255))
 
     assert GlyphSet(CHAT_GENERAL, LETTERS).read(pixels) == ""
+
+
+def test_the_chat_glyphs_read_in_another_colour_only_there() -> None:
+    """A whisper is drawn in green with the same font: the same glyphs read
+    it, and no longer read the white."""
+    rows = CHAT_GENERAL.rows or 0
+    background = np.full((rows, 20, 3), 30, np.uint8)
+    green = draw(background, [(LETTERS["h"], 2)], (0, 255, 0))
+    white = draw(background, [(LETTERS["h"], 2)], (255, 255, 255))
+    in_green = GlyphSet(CHAT_GENERAL, LETTERS).in_colour((0, 255, 0))
+
+    assert (in_green.read(green), in_green.read(white)) == ("h", "")
+    assert in_green.spec.low == in_green.spec.high == (0, 255, 0)
+    assert in_green.spec.name == CHAT_GENERAL.name
 
 
 UNHARVESTED = cell(["#.#", "#.#", ".#.", "#.#", "#.#"])

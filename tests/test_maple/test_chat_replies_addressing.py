@@ -32,6 +32,7 @@ class Line:
     outgoing: bool = False
     text: str | None = None
     continues: bool = False
+    mid_word: bool = False
 
 
 @pytest.mark.parametrize(
@@ -59,6 +60,10 @@ class Line:
         (Line(ChatKind.MEGAPHONE, "Bob", "mapler hi"), Address.IGNORE),
         (Line(ChatKind.SYSTEM, None, "You have gained an item"), Address.IGNORE),
         (Line(ChatKind.UNKNOWN, None, None), Address.IGNORE),
+        (
+            Line(ChatKind.NOTICE, None, None, text="Could not find Mapler."),
+            Address.IGNORE,
+        ),
         # A GM line.
         (Line(ChatKind.GM, "Gee", "hello"), Address.GM),
     ],

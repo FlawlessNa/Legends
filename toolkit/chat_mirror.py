@@ -10,8 +10,9 @@ as it appears, with its time, the reader's kind, who wrote it and what it says:
 so the maintainer can put the console beside the game window and compare. It
 shows `maple/screen/chat.py`'s `ChatReader` as it is, including where it fails:
 the kind is the reader's (`unknown` is printed as `unknown`: a colour of row it
-cannot tell yet, such as party, buddy, whisper or GM), the text is
-`ChatLine.text`, and when it is `None` the line prints `<unreadable>`.
+cannot tell yet, such as party, buddy or GM), the speaker and message are
+`ChatLine.speaker` and `ChatLine.message`, and when the text is `None` the line
+prints `<unreadable>`.
 
 **It sends no keys, no clicks and no input, ever.** It copies the client's
 pixels (`botting.screen`'s Desktop Duplication, as the bot does) and prints. It
@@ -26,11 +27,12 @@ names) with the chat log showing, the game data store (`configs/game_data.ini`),
 and the chat's glyph set from `python -m toolkit.harvest_glyphs`. Stop it with
 Ctrl+C.
 
-**The speaker.** A general line is drawn `Name : message`: the speaker is what
-comes before the first ` : `. Where the text has no such prefix, or could not be
-read, the speaker is `?`, never a guess. Whisper, party, buddy, megaphone and GM
-lines have no glyphs yet (#315), so their text is `<unreadable>` and their
-speaker `?` until they do.
+**The speaker** is the reader's, split by each kind's format, the time the
+client may put first left out (#482): a general line's `Name : message`, an
+outgoing whisper's `Name<< message`, printed `to Name`. Where the reader gives
+none (a row that doesn't fit, the rest of a wrapped line, a notice), the
+speaker is `?` and the whole text is printed, never a guess. Party, buddy,
+megaphone and GM lines have no glyphs yet, so their text is `<unreadable>`.
 
 **What it cannot see**, it says once: when the chat log is hidden, when
 something covers it (`COVERED`), when the chat is not found, or when the frame
@@ -64,7 +66,7 @@ from typing import Final, Protocol
 import cv2
 
 from botting.screen import Frame, Reading, Status
-from maple.screen.chat import ChatKind, ChatLine
+from maple.screen.chat import TEXT_READ, ChatKind, ChatLine
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -73,8 +75,6 @@ DEFAULT_INTERVAL: Final = 0.25
 screen for much longer."""
 
 UNREADABLE: Final = "<unreadable>"
-SPEAKER_SEPARATOR: Final = " : "
-"""A general line is `Name : message` in the client."""
 UNKNOWN_SPEAKER: Final = "?"
 
 _NO_GLYPH: Final = " (a character no glyph explains)"
@@ -90,25 +90,24 @@ class ChatSource(Protocol):
 # ------------------------------------------------------------------ one line
 
 
-def split_speaker(text: str | None) -> tuple[str, str | None]:
+def speaker_and_message(line: ChatLine) -> tuple[str, str | None]:
     """
-    The speaker and the message of `text`, split where the format shows it
-    (`Name : message`): the speaker is `?` when `text` is `None` or has no
-    ` : ` after a name. The message is `text` whole in that case.
+    Who wrote `line` and what, as printed: the reader's speaker and message
+    (`to <speaker>` for an outgoing whisper); `?` and the whole text when the
+    reader split none.
     """
-    if text is None:
-        return UNKNOWN_SPEAKER, None
-    name, found, message = text.partition(SPEAKER_SEPARATOR)
-    if not found or not name.strip() or " " in name.strip():
-        return UNKNOWN_SPEAKER, text
-    return name.strip(), message
+    if line.speaker is None or line.message is None:
+        return UNKNOWN_SPEAKER, line.text
+    if line.outgoing and line.kind is ChatKind.WHISPER:
+        return f"to {line.speaker}", line.message
+    return line.speaker, line.message
 
 
 def format_line(line: ChatLine, stamp: str) -> str:
     """`HH:MM:SS  [kind]  IGN: text`, as printed for `line`."""
-    speaker, message = split_speaker(line.text)
+    speaker, message = speaker_and_message(line)
     if message is None:
-        note = _NO_GLYPH if line.kind is ChatKind.GENERAL else _NO_GLYPHS_YET
+        note = _NO_GLYPH if line.kind in TEXT_READ else _NO_GLYPHS_YET
         message = UNREADABLE + note
     return f"{stamp}  [{line.kind.value}]  {speaker}: {message}"
 

@@ -139,8 +139,9 @@ area's top-left), `feet` (`{x, y}`, our character's, or `covered`) and
 tags (#457) from: crowded Henesys chat, test lines on a quiet map, whispers at Free
 Market Entrance, and the Free Market's name tags at 1920x1080 and 1366x768. They
 carry `map_id` only (`unsure` where the capture names no map), so a test of a
-position or `minimap` reading skips a frame that has no such entry, and the two
-chat tests that read every general line (`NOT_READ_YET`) skip them until #482.
+position or `minimap` reading skips a frame that has no such entry. The chat
+frames carry a `chat` entry (#482); the chat tests that read every line's text
+(`NOT_READ_YET`) skip the name-tag frames, which carry none.
 `tests/frames/README.md` says what was left out.
 
 A frame has no entry for a reader whose answer depends on a choice its ticket
@@ -150,7 +151,8 @@ Readers of font-drawn text (the buff countdown, chat) read with glyphs harvested
 from the frames into the gitignored `data/glyphs/`: run `python -m
 toolkit.harvest_glyphs` after fetching the frames, before `pytest -m frames`.
 What it cuts, and where, is `toolkit/glyph_sources/<tag>.json`: frame names,
-boxes and digits, never pixels or chat text.
+boxes and digits, never pixels or chat text (a chat source names at most one
+letter, one the client draws unlike Arial, cut from our own test lines).
 
 Modules that touch the Held-Keys Ledger directly reset it through an `autouse`
 fixture of their own — see `tests/test_botting/test_held_keys_ledger.py`.

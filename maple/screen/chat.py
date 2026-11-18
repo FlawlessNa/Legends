@@ -38,13 +38,15 @@ narrower than `COVER_RUN`, and is caught only over a row's end.
   the map behind it moves its colour: each band is known by its colour over the
   darkest and the brightest map seen (`Band`);
 - no band (the log's backdrop, black at half opacity over the game, so never
-  brighter than `BACKDROP_MAX`) with all its text white is general, and all
-  yellow, or the light blue of an event's notice, is system (`TEXT_COLOURS`);
+  brighter than `BACKDROP_MAX`) with all its text of one of `TEXT_COLOURS` is
+  that colour's kind: white is general, green a whisper (the outgoing one,
+  frame set `v4`), light red a notice (the client's `Could not find <name>.`,
+  `v4`), and yellow, or the light blue of an event's notice, system;
 - a row with no band and no text is empty, and isn't a line;
-- anything else is `unknown`: party, buddy, whisper and GM lines haven't been
-  captured (frame set `v3` has none), so their colours aren't known, and they
-  read `unknown` until frames of them are in the set (#456). So does a
-  megaphone band not seen yet.
+- anything else is `unknown`: party, buddy, GM and incoming whisper lines
+  haven't been captured (#592), so their colours aren't known, and they read
+  `unknown` until frames of them are in the set, unless they share a colour
+  above. So does a megaphone band not seen yet.
 
 The mouse cursor over a row's text (`cursor.CURSOR_PATHS`) is none of the
 row's: when a row's text isn't of one kind, the cursor is looked for, and the
@@ -54,25 +56,28 @@ covers, text or not.
 
 A line that wraps is one row per screen row, each with the kind of its colours.
 
-**Text** is read for general lines, with the white glyphs harvested from the
-frames (`font.CHAT_GENERAL`, #313, #456), in each row's 14-row glyph cell, 3
-rows below its top. A letter with no glyph reads `UNREAD` (U+FFFD) in its place
+**Text** is read for general, whisper and notice lines (`TEXT_READ`), with the
+chat's glyphs harvested from the frames (`font.CHAT_GENERAL`, #313, #456, #482),
+each kind in its own colour, in each row's 14-row glyph cell, 3 rows below its
+top. A letter with no glyph reads `UNREAD` (U+FFFD) in its place
 (`GlyphSet.read_marked`), so a partly read line keeps its kind and the rest of
-its text. Frame set `v3` holds 52 of the 95 printable characters in white, the
-space among them (`toolkit/glyph_sources/v3.json`); the others read `UNREAD`
-until frames of them are harvested. Arial draws `I` and `l` alike, so both read
-`I` (`ALIKE`). The log fades out over its last rows of pixels (`FADE`), which
-the newest line's baseline and descenders are drawn in: the fade is undone
-before its glyphs are read.
-System, party, buddy, whisper and GM text waits for those colours' glyphs.
+its text. Frame set `v4` holds all 95 printable characters, in white and in the
+whisper's green (`toolkit/glyph_sources/v4.json`). Arial draws `I` and `l`
+alike, so both read `I` (`ALIKE`). The log fades out over its last rows of
+pixels (`FADE`), which the newest line's baseline and descenders are drawn in:
+the fade is undone, for the row's colour, before its glyphs are read.
+System, megaphone, party, buddy and GM text isn't read.
 
-**Speaker and message** are split from a general line's text by its format,
-`Name : message`, read on frame sets `v1` (f001-f005) and `v3`, where the client
-puts the time before it: `[16:22] Name : message`. A name is letters and digits
-(or `UNREAD`). A row that doesn't fit, the second row of a wrapped line among
-them, has neither. A line is `outgoing` when its speaker reads as the
-character's own name (`reads_as`, ignoring case); the outgoing whisper's format
-waits for a frame of one.
+**Speaker and message** are split from a line's text by its kind's format,
+after the time the client may put first, `[16:22] ` (a client option, on in
+frame sets `v3` and `v4`'s new frames, off in `v1`): a general line's `Name :
+message`, read on `v1` (f001-f005) and `v3`, and an outgoing whisper's
+`Recipient<< message`, read on `v4`. A name is letters and digits (or
+`UNREAD`). A row that doesn't fit has neither, and a notice never has. A line is
+`outgoing` when it is an outgoing whisper, or a general line whose speaker
+reads as the character's own name (`reads_as`, ignoring case). A green row that
+isn't an outgoing whisper (an incoming one, whose format isn't captured yet,
+#592) has no speaker.
 
 **Reads as.** Whether a text read may be a given one, a name or a message, is
 `reads_as`, the one place that says it: as long, and equal letter by letter,
@@ -80,12 +85,16 @@ where an `UNREAD` letter may be any letter and an `ALIKE` letter any of those
 drawn like it. A text with too few letters read (`MIN_READ`) reads as nothing:
 another player whose name reads mostly `UNREAD` is not the character.
 
-**Wrapped lines.** A general row that doesn't fit the format, directly below a
-general row read in the same `read`, `continues` the line above: its text is
-the rest of that line's message. The reader keeps it a row of its own; the
-conversation joins it to the line above (`maple.chat_replies.conversation`).
-A row whose line above scrolled away before it was read can't be told from a
-line that doesn't fit, and doesn't continue anything.
+**Wrapped lines.** The client draws a wrapped line's next rows indented
+(`WRAP_INDENT`). An indented row directly below a row of its kind, read in the
+same `read`, `continues` the line above: its text is the rest of that line's
+message, and it has no speaker, whatever its text. A row that starts where a
+line starts never continues one, so a notice or another player's line below a
+line is never joined to it. The reader keeps a continuing row a row of its own;
+the conversation joins it to the line above (`maple.chat_replies.conversation`),
+after a space, or straight after it when the line broke `mid_word`
+(`WRAP_FITS`). An indented row whose line above scrolled away before it was
+read has no speaker, and continues nothing.
 
 **New lines.** Each row has its text pixels, and the reader keeps what the
 reads so far showed of each row. A read compares its rows with them: the log
@@ -167,6 +176,10 @@ class ChatKind(enum.Enum):
     GM = "gm"
     MEGAPHONE = "megaphone"
     SYSTEM = "system"
+    NOTICE = "notice"
+    """The client's own word to the character, in light red: `Could not find
+    <name>.` under a whisper to someone offline, and game events. Never anyone's
+    line, so never `general`."""
     UNKNOWN = "unknown"
 
 
@@ -216,14 +229,30 @@ be taken for the backdrop, and its row read `unknown`: its text isn't one of
 `TEXT_COLOURS` alone. On the backdrop, a pixel with a channel above this is
 text."""
 INK_MIN = 200
+WHITE: RGB = (255, 255, 255)
+WHISPER_GREEN: RGB = (0, 255, 0)
+NOTICE_RED: RGB = (255, 175, 175)
 TEXT_COLOURS: dict[RGB, ChatKind] = {
-    (255, 255, 255): ChatKind.GENERAL,  # f001 rows 2-3 (v1)
+    WHITE: ChatKind.GENERAL,  # f001 rows 2-3 (v1)
     (255, 255, 0): ChatKind.SYSTEM,  # f065 rows 3-4 (v1)
     (96, 206, 255): ChatKind.SYSTEM,  # an event's notice: henesys_1366x768_08 (v3)
+    # Our whispers to an offline friend: chat_1920x1080_036 to _043 (v4).
+    WHISPER_GREEN: ChatKind.WHISPER,
+    # The `Could not find <name>.` under each of them, same frames (v4).
+    NOTICE_RED: ChatKind.NOTICE,
 }
 """The text colours of the rows on the backdrop, and the kind of line each is.
 A text pixel is one of these colours dimmed, by `FADE` at the log's bottom, to
-a brightest channel no lower than `INK_MIN`, within `COLOUR_TOLERANCE`."""
+a brightest channel no lower than `INK_MIN`, within `COLOUR_TOLERANCE`. The
+outgoing whisper's green is the only whisper colour seen: an incoming whisper,
+and party, buddy and GM lines, aren't in the frame set yet (#592)."""
+TEXT_READ: dict[ChatKind, RGB] = {
+    ChatKind.GENERAL: WHITE,
+    ChatKind.WHISPER: WHISPER_GREEN,
+    ChatKind.NOTICE: NOTICE_RED,
+}
+"""The kinds whose text is read, each in its colour, with the chat's glyphs
+(`font.CHAT_GENERAL`)."""
 COLOUR_TOLERANCE = 6
 """How far, per channel, a text pixel may be from its colour, dimmed as bright
 as the pixel. The text is drawn unantialiased: in the frame set, every pixel of
@@ -246,15 +275,37 @@ the harvested set says the same)."""
 MIN_READ = 2
 """The fewest letters (spaces aside) a text must have read for `reads_as` to
 match it with anything, and it must have read at least half of them too. A
-shorter text must have read all of them. 43 printable characters have no glyph
-yet (`font.CHAT_GENERAL`), so a 4-letter name read `UNREAD` throughout would
-otherwise be anyone of 4 letters, the character among them (#484)."""
+shorter text must have read all of them. A letter the set has no glyph for
+(a set harvested from an older frame set, a character outside printable ASCII)
+reads `UNREAD`, so a 4-letter name read `UNREAD` throughout would otherwise be
+anyone of 4 letters, the character among them (#484)."""
 
-_GENERAL_FORMAT = re.compile(
-    rf"(?:\[[^\]]*\] )?(?P<speaker>[A-Za-z0-9{UNREAD}]+) : (?P<message>.+)"
-)
-"""A general line: the time the client may put first, the speaker, then the
-message (module docstring)."""
+_TIME = r"(?:\[[^\]]*\] )?"
+"""The time the client may put first, `[hh:mm] ` (a client option)."""
+_NAME = rf"[A-Za-z0-9{UNREAD}]+"
+_GENERAL_FORMAT = re.compile(rf"{_TIME}(?P<speaker>{_NAME}) : (?P<message>.+)")
+"""A general line: the time, the speaker, then the message (module docstring)."""
+_WHISPER_OUT_FORMAT = re.compile(rf"{_TIME}(?P<speaker>{_NAME})<< (?P<message>.+)")
+"""A whisper the character sent: the time, the recipient, then the message
+(chat_1920x1080_036 to _043, v4)."""
+
+WRAP_INDENT = 12
+"""A row whose text starts this many columns or more into its band is the rest
+of a line that wrapped: the client draws a wrapped line's next rows indented,
+their first ink 22 or 23 columns in (48 rows of frame sets `v3` and `v4`), and
+every line's first row from column 3 (207 rows)."""
+WRAP_FITS = 525
+"""The furthest a row's text reaches, in columns into its band, on a row that
+wrapped: its pen after its last letter, Arial's bearing past the ink included.
+The client breaks a line where its next letter no longer fits (every row that
+wrapped in frame sets `v3` and `v4` ends between 518 and 525, even before a
+word two hundred columns wide). 525 is the most seen fitting, on a line of 70
+letters with no space (chat_1920x1080_030), whose next letter, 8 columns,
+didn't. So when the next row's first letter would have ended by 525, it isn't
+what overflowed: a space was there, invisible at the row's end, and the line
+broke at it (henesyscrowd_1920x1080_000). When it wouldn't have, the break is
+taken to be mid-word: a space there whose next letter didn't fit either can't
+be seen."""
 
 
 def reads_as(read: str, written: str, *, ignore_case: bool = False) -> bool:
@@ -294,21 +345,25 @@ class ChatLine:
 
     :ivar kind: What kind of line it is, from its colours.
     :ivar image: The row, as captured (`H x W x 3`, BGR).
-    :ivar text: What it says, for the kinds whose glyphs are harvested (general,
-        for now), with `UNREAD` for each letter that has no glyph; `None` for
-        the other kinds.
+    :ivar text: What it says, for the kinds whose text is read (`TEXT_READ`:
+        general, whisper and notice), with `UNREAD` for each letter that has no
+        glyph; `None` for the other kinds. The time the client may put first
+        is part of it.
     :ivar top: The row's top, in client pixels.
     :ivar speaker: Who wrote it, split from `text` by its kind's format; `None`
         when the kind has none known, or the row doesn't fit it. On an outgoing
         whisper, it is whom the whisper went to, not the character: the relay
-        reads it as `you · whisper to <speaker>` (#462). No whisper is read yet.
+        reads it as `you · whisper to <speaker>` (#462). Never the time.
     :ivar message: What they wrote, split the same way; `None` with `speaker`.
-    :ivar outgoing: The character sent it: its speaker reads as the
-        character's name (`reads_as`, ignoring case, so it must have read
-        enough of its letters).
-    :ivar continues: The row is the rest of the line above, which wrapped: a
-        general row that doesn't fit the format, directly below a general row of
-        the same `read`. Its words are in `text` only.
+    :ivar outgoing: The character sent it: an outgoing whisper, by its format,
+        or a general line whose speaker reads as the character's name
+        (`reads_as`, ignoring case, so it must have read enough of its letters).
+    :ivar continues: The row is the rest of the line above, which wrapped: an
+        indented row (`WRAP_INDENT`) directly below a row of its kind, of the
+        same `read`. Its words are in `text` only.
+    :ivar mid_word: A row that `continues` the line above from the middle of a
+        word: the line broke where a letter no longer fit, not at a space
+        (`WRAP_FITS`), so the row joins it with no space between.
     """
 
     kind: ChatKind
@@ -319,6 +374,7 @@ class ChatLine:
     message: str | None = None
     outgoing: bool = False
     continues: bool = False
+    mid_word: bool = False
 
 
 @dataclass(frozen=True, eq=False, slots=True)
@@ -377,7 +433,8 @@ class ChatReader:
         self._scroll_up = sprites.canvas(SCROLL_UP)
         self._target = Part(Sprite(target.path, rgba, target.origin))
         self._bar_bottom = target.rgba.shape[0] - target.origin[1]
-        self._glyphs: GlyphSet = sprites.glyph_set(CHAT_GENERAL.name)
+        glyphs: GlyphSet = sprites.glyph_set(CHAT_GENERAL.name)
+        self._glyphs = {kind: glyphs.in_colour(c) for kind, c in TEXT_READ.items()}
         self._cursors = [sprites.canvas(path).rgba for path in CURSOR_PATHS]
         self.locator = Locator(self._target, (self._shown,), tolerance)
         self._seen: list[_Seen] = []
@@ -470,9 +527,11 @@ class ChatReader:
             rows.append(row)
         new, self._seen = _new_rows(self._seen, rows, cursor.over_row)
         lines: list[ChatLine] = []
+        above: tuple[ChatLine, _Row] | None = None
         for row in new:
-            above = lines[-1] if lines else None
-            lines.append(self._line(frame.pixels, x, row, above, bottom, cursor))
+            line = self._line(frame.pixels, x, row, above, bottom, cursor)
+            lines.append(line)
+            above = (line, row)
         return Reading.read(lines, frame.captured_at)
 
     def forget(self) -> None:
@@ -559,16 +618,17 @@ class ChatReader:
         pixels: NDArray[np.uint8],
         x: int,
         row: _Row,
-        above: ChatLine | None,
+        above: tuple[ChatLine, _Row] | None,
         bottom: int,
         cursor: _Cursor,
     ) -> ChatLine:
-        """The line of `row`; `above` is the line of the new row read before it,
-        which a row that doesn't fit the format continues when it is directly
-        above, and general. `bottom` is where the log's rows end, and `cursor`
-        where the mouse cursor is over them."""
+        """The line of `row`; `above` is the new row read before it, and its
+        line, which an indented row (`WRAP_INDENT`) continues when it is
+        directly above, and of the same kind. `bottom` is where the log's rows
+        end, and `cursor` where the mouse cursor is over them."""
         assert row.kind is not None
-        if row.kind is not ChatKind.GENERAL:
+        glyphs = self._glyphs.get(row.kind)
+        if glyphs is None:
             return ChatLine(row.kind, row.image.copy(), None, row.top)
         cell_top = row.top + _CELL_TOP
         cell_bottom = cell_top + _CELL_ROWS
@@ -577,33 +637,59 @@ class ChatReader:
             pixels[cell_top:cell_bottom, max(left, 0) : x + BAND_RIGHT],
             cell_top,
             bottom,
+            TEXT_READ[row.kind],
         )
         if row.under_cursor:
             # What the cursor hides reads `UNREAD`, never as nothing. The cell
-            # is cut where the frame ends, and the cursor's pixels with it.
+            # is cut where the frame ends, and the cursor's pixels with it. They
+            # are painted in the text's colour, so they are ink no glyph explains.
             under = cursor.over(cell_top, cell_bottom)[:, max(-left, 0) :]
-            cell[under[: cell.shape[0], : cell.shape[1]]] = 255
-        text = self._glyphs.read_marked(cell)
-        split = _GENERAL_FORMAT.fullmatch(text)
-        if split is None:
-            continues = (
-                above is not None
-                and above.kind is ChatKind.GENERAL
-                and above.top + ROW_HEIGHT == row.top
-            )
+            cell[under[: cell.shape[0], : cell.shape[1]]] = TEXT_READ[row.kind][::-1]
+        text = glyphs.read_marked(cell)
+        if _indent(row, cursor) >= WRAP_INDENT:
+            if (
+                above is None
+                or above[0].kind is not row.kind
+                or above[0].top + ROW_HEIGHT != row.top
+            ):
+                return ChatLine(row.kind, row.image.copy(), text, row.top)
             return ChatLine(
-                row.kind, row.image.copy(), text, row.top, continues=continues
+                row.kind,
+                row.image.copy(),
+                text,
+                row.top,
+                continues=True,
+                mid_word=_mid_word(glyphs, above[0].text, above[1], text),
             )
-        speaker = split["speaker"]
-        return ChatLine(
-            row.kind,
-            row.image.copy(),
-            text,
-            row.top,
-            speaker,
-            split["message"],
-            self._ign is not None and reads_as(speaker, self._ign, ignore_case=True),
-        )
+        if row.kind is ChatKind.WHISPER:
+            split = _WHISPER_OUT_FORMAT.fullmatch(text)
+            if split is not None:
+                return ChatLine(
+                    row.kind,
+                    row.image.copy(),
+                    text,
+                    row.top,
+                    split["speaker"],
+                    split["message"],
+                    outgoing=True,
+                )
+        elif row.kind is ChatKind.GENERAL:
+            split = _GENERAL_FORMAT.fullmatch(text)
+            if split is not None:
+                speaker = split["speaker"]
+                ours = self._ign is not None and reads_as(
+                    speaker, self._ign, ignore_case=True
+                )
+                return ChatLine(
+                    row.kind,
+                    row.image.copy(),
+                    text,
+                    row.top,
+                    speaker,
+                    split["message"],
+                    ours,
+                )
+        return ChatLine(row.kind, row.image.copy(), text, row.top)
 
 
 _COVERED_TOGGLE = (
@@ -646,19 +732,25 @@ def _off_band(image: NDArray[np.int16], band: Band) -> NDArray[np.int16]:
     return np.abs(image - nearest).max(axis=-1).round().astype(np.int16)
 
 
-def _unfaded(cell: NDArray[np.uint8], cell_top: int, bottom: int) -> NDArray[np.uint8]:
+def _unfaded(
+    cell: NDArray[np.uint8], cell_top: int, bottom: int, colour: RGB
+) -> NDArray[np.uint8]:
     """
     A copy of `cell`, whose first row is at `cell_top`, with the log's `FADE`
-    undone in the rows it dims, so that its text is drawn in its own colour
-    again. `bottom` is where the log's rows end (`LOG_BOTTOM`).
+    undone for text in `colour`, in the rows it dims: a pixel within a level of
+    `colour` dimmed as its row is (rounded, so scaling back can miss by one:
+    175 dimmed to 231/255 is 159) is drawn in `colour` again. `bottom` is where
+    the log's rows end (`LOG_BOTTOM`).
     """
     cell = cell.copy()
+    bgr = np.array(colour[::-1], np.float64)
     first = bottom - len(FADE) + 1
     for i, level in enumerate(FADE):
         y = first + i - cell_top
         if 0 <= y < cell.shape[0]:
-            scaled = cell[y].astype(np.float64) * 255 / level
-            cell[y] = np.clip(scaled.round(), 0, 255).astype(np.uint8)
+            dimmed = bgr * level / 255
+            near = (np.abs(cell[y].astype(np.float64) - dimmed) <= 1).all(axis=1)
+            cell[y][near] = np.array(colour[::-1], np.uint8)
     return cell
 
 
@@ -668,6 +760,38 @@ def _off(
     """The pixels of `image` (BGR) more than `tolerance` from `colour` (RGB) in
     any channel."""
     return (np.abs(image - colour[::-1]) > tolerance).any(axis=2)
+
+
+def _indent(row: _Row, cursor: _Cursor) -> int:
+    """How many columns into its band a row's text starts (`WRAP_INDENT`). The
+    cursor over it counts as text, so hiding a line's first letters doesn't
+    indent it."""
+    inked = row.ink.any(axis=0)
+    if row.under_cursor:
+        inked = inked | cursor.over_row(row.top).any(axis=0)
+    return int(np.argmax(inked)) if inked.any() else len(inked)
+
+
+def _mid_word(glyphs: GlyphSet, above: str | None, row: _Row, text: str) -> bool:
+    """
+    Whether a row that continues the line above, `above` its text and `row`
+    its row, starts in the middle of a word, `text` the row's own (`WRAP_FITS`):
+    its first letter would not have fit on the row above. When it would have,
+    a space took its room there: the line broke at a space. `False` when the
+    letters at the break aren't read, or their bearings aren't known.
+    """
+    if not above or not text:
+        return False
+    last, first = above[-1], text[0]
+    bearings = glyphs.bearings
+    if last not in bearings or first not in bearings or first not in glyphs.glyphs:
+        return False
+    inked = np.flatnonzero(row.ink.any(axis=0))
+    if not len(inked):
+        return False
+    pen = int(inked[-1]) + 1 + bearings[last][1]
+    before, after = bearings[first]
+    return pen + before + glyphs.glyphs[first].shape[1] + after > WRAP_FITS
 
 
 def _longest_run(flags: NDArray[np.bool_]) -> int:

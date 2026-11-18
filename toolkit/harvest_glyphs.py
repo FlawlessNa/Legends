@@ -14,7 +14,12 @@ The glyphs are client pixels: they go to the gitignored `data/glyphs/`, which
   so they are kept as one glyph, `I`, and the manifest says so. Each glyph
   keeps Arial's bearings (the blank columns before and after its ink), which
   tell a space from the room a letter like `1` leaves around itself
-  (`font.CHAT_GENERAL`): metrics of the font, not pixels.
+  (`font.CHAT_GENERAL`): metrics of the font, not pixels. A line may give its
+  `colour` (RGB, white when left out): the whisper's green is the same font,
+  and a glyph cut in two colours must be the same both times. A line may
+  instead give the `text` a person read there, for a letter the client draws
+  unlike Arial (`A`, `K`, `#`): it is cut as `minimap-title` is, one letter per
+  run of inked columns, and keeps Arial's bearings.
 - `countdown`: a buff slot's countdown rows, `[x, y, width, height]`, with the
   digits a person read there. Each digit is one blob of yellow ink; a box whose
   blobs don't number its digits is refused.
@@ -76,18 +81,37 @@ class Harvest:
     sources: dict[str, str] = field(default_factory=dict[str, str])
     problems: list[str] = field(default_factory=list[str])
     labels: list[tuple[str, str]] = field(default_factory=list[tuple[str, str]])
+    forms: dict[str, list[tuple[Mask, str]]] = field(
+        default_factory=dict[str, list[tuple[Mask, str]]]
+    )
+    """Each glyph's other forms, with where each was cut (`font.GlyphSet.forms`)."""
 
-    def keep(self, char: str, mask: Mask, where: str, exact: bool) -> None:
+    def keep(
+        self, char: str, mask: Mask, where: str, exact: bool, new_form: bool = False
+    ) -> None:
         """Keep the first cut of each glyph. When `exact`, a later cut that
-        differs is a problem."""
+        differs is a problem, unless `new_form` (a person read it): then it is
+        kept as another form of the glyph, when it is none of its forms yet."""
         kept = self.glyphs.get(char)
         if kept is None:
             self.glyphs[char] = mask
             self.sources[char] = where
-        elif exact and (kept.shape != mask.shape or (kept != mask).any()):
+            return
+        if not exact:
+            return
+        known = [kept, *(form for form, _ in self.forms.get(char, []))]
+        if any(_same(form, mask) for form in known):
+            return
+        if new_form:
+            self.forms.setdefault(char, []).append((mask, where))
+        else:
             self.problems.append(
                 f"{where}: {char!r} differs from its cut at {self.sources[char]}"
             )
+
+
+def _same(a: Mask, b: Mask) -> bool:
+    return a.shape == b.shape and bool((a == b).all())
 
 
 # Chat: labelled by a font render.
@@ -141,13 +165,17 @@ def alike(labeller: Mapping[str, Mask]) -> dict[str, str]:
 
 
 def harvest_lines(
-    lines: Iterable[tuple[str, Mask]], labeller: Mapping[str, Mask]
+    lines: Iterable[tuple[str, Mask]],
+    labeller: Mapping[str, Mask],
+    into: Harvest | None = None,
 ) -> Harvest:
     """
     Cut each line's glyphs, labelled by `labeller`.
 
     :param lines: Each line's name and its ink, one glyph cell high.
     :param labeller: The labelling font's glyphs, each cut to its ink.
+    :param into: A harvest to add to, whose glyphs a cut must match; a new
+        one when left out.
     """
     groups = alike(labeller)
     distinct = {
@@ -155,7 +183,7 @@ def harvest_lines(
         for char, mask in labeller.items()
         if not any(char in group and char != first for first, group in groups.items())
     }
-    harvest = Harvest()
+    harvest = Harvest() if into is None else into
     for where, ink in lines:
         hits = find_mask_glyphs(ink, distinct, 0.0)
         explained = np.zeros_like(ink)
@@ -245,15 +273,22 @@ def column_runs(ink: Mask, splits: Iterable[int] = ()) -> list[tuple[int, int]]:
     return runs
 
 
-def harvest_cut_lines(lines: Iterable[tuple[str, Mask, str, Sequence[int]]]) -> Harvest:
+def harvest_cut_lines(
+    lines: Iterable[tuple[str, Mask, str, Sequence[int]]],
+    into: Harvest | None = None,
+    exact: bool = False,
+) -> Harvest:
     """
     Cut each line's letters, labelled by the text a person read there: one
     letter per run of inked columns, as tall as the line's cell.
 
     :param lines: Each line's name, its ink (one cell high), its text, and the
         columns where touching letters are split.
+    :param into: A harvest to add to; a new one when left out.
+    :param exact: A later cut of a glyph must be one of its forms, or is kept
+        as another form: a person read it (`Harvest.keep`).
     """
-    harvest = Harvest()
+    harvest = Harvest() if into is None else into
     for where, ink, text, splits in lines:
         runs = column_runs(ink, splits)
         letters = text.replace(" ", "")
@@ -265,7 +300,7 @@ def harvest_cut_lines(lines: Iterable[tuple[str, Mask, str, Sequence[int]]]) -> 
             continue
         harvest.labels.append((where, text))
         for char, (a, b) in zip(letters, runs, strict=True):
-            harvest.keep(char, ink[:, a:b], where, exact=False)
+            harvest.keep(char, ink[:, a:b], where, exact=exact, new_form=exact)
     return harvest
 
 
@@ -275,7 +310,8 @@ def misreads(
     strips: Iterable[tuple[str, NDArray[np.uint8], str]],
 ) -> list[str]:
     """Each strip (name, BGR pixels, expected text) the harvested set misreads."""
-    glyph_set = GlyphSet(spec, harvest.glyphs)
+    forms = {c: [mask for mask, _ in f] for c, f in harvest.forms.items()}
+    glyph_set = GlyphSet(spec, harvest.glyphs, forms=forms)
     wrong: list[str] = []
     for where, pixels, expected in strips:
         got = glyph_set.read(pixels)
@@ -315,24 +351,36 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     lines: list[tuple[str, Mask]] = []
-    line_strips: list[tuple[str, NDArray[np.uint8]]] = []
+    letters: list[tuple[str, Mask, str, Sequence[int]]] = []
+    line_strips: list[tuple[str, GlyphSetSpec, NDArray[np.uint8]]] = []
     rows = CHAT_GENERAL.rows or 0
     for source in sources.get(CHAT_GENERAL.name, []):
         x, top, width = source["line"]
-        where = f"{source['frame']} line {top}"
+        colour = source.get("colour")
+        spec = (
+            CHAT_GENERAL
+            if colour is None
+            else CHAT_GENERAL.in_colour(
+                (int(colour[0]), int(colour[1]), int(colour[2]))
+            )
+        )
+        where = f"{source['frame']} line {top} x {x}"
         strip = _load(directory, source["frame"])[
             top + CELL_OFFSET : top + CELL_OFFSET + rows, x : x + width
         ]
-        lines.append((where, CHAT_GENERAL.ink(strip)))
-        line_strips.append((where, strip))
+        if "text" in source:
+            ink = spec.ink(strip)
+            letters.append((where, ink, source["text"], source.get("splits", [])))
+        else:
+            lines.append((where, spec.ink(strip)))
+        line_strips.append((where, spec, strip))
     labeller = font_labeller(args.labeller_font)
     chat = harvest_lines(lines, labeller)
+    harvest_cut_lines(letters, into=chat, exact=True)
     labelled = dict(chat.labels)
-    chat.problems += misreads(
-        CHAT_GENERAL,
-        chat,
-        [(w, s, labelled[w]) for w, s in line_strips if w in labelled],
-    )
+    for where, spec, strip in line_strips:
+        if where in labelled:
+            chat.problems += misreads(spec, chat, [(where, strip, labelled[where])])
 
     boxes: list[tuple[str, Mask, str]] = []
     digit_strips: list[tuple[str, NDArray[np.uint8], str]] = []
@@ -384,7 +432,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{spec.name}: no source in {tag}, so its set is left as it was")
             continue
         folder = save_glyph_set(
-            spec, harvest.glyphs, harvest.sources, same, args.out, spacing
+            spec,
+            harvest.glyphs,
+            harvest.sources,
+            same,
+            args.out,
+            spacing,
+            harvest.forms,
         )
         print(f"wrote {folder}")
     return 0
