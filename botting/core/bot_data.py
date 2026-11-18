@@ -11,7 +11,7 @@ import numpy as np
 from .errors import StartupRefused
 
 if TYPE_CHECKING:
-    from .data_keys import Key, Provider
+    from .data_keys import Key, Provider, Providers
 
 logger = logging.getLogger(__name__)
 
@@ -232,7 +232,9 @@ class BotData:
     """
 
     #: The instance attributes `__setattr__` sets directly, not as data.
-    _OWN = frozenset({"ign", "_managed", "_static", "_features", "_clock", "_owned"})
+    _OWN = frozenset(
+        {"ign", "_managed", "_static", "_features", "_clock", "_owned", "providers"}
+    )
 
     def __init__(self, ign: str, clock: Clock = time.monotonic) -> None:
         """
@@ -247,6 +249,9 @@ class BotData:
         #: Every name a Provider owns, the key's own and its legacy one, to the
         #: key and the Provider that registered it.
         self._owned: dict[str, tuple[Key[Any], Provider]] = {}
+        #: The Bot's Providers, attached by `Providers` when the Bot makes them.
+        #: None for data no Bot has.
+        self.providers: Providers | None = None
 
     def __str__(self) -> str:
         return f"BotData({self.ign})"
@@ -564,12 +569,32 @@ class BotData:
         :raises LookupError: no Provider has registered `key`, which assembly
             does for every key a DecisionMaker declares in `reads`.
         """
-        if not self.is_provided(key):
-            raise LookupError(
-                f"{key!r} has no value in {self}: {key.provider.__name__} was not "
-                "built. A key is provided once a DecisionMaker's reads declares it."
-            )
+        self._refuse_unprovided(key)
         return self._managed[key.name].get(self)
+
+    def refresh[T](self, key: Key[T]) -> T:
+        """
+        `key`'s value, read now whatever its threshold, as `update_attribute`
+        reads an attribute.
+        :raises LookupError: no Provider has registered `key`.
+        """
+        self._refuse_unprovided(key)
+        self.update_attribute(key.name)
+        return self.read(key)
+
+    def build_provider(self, provider: type[Provider]) -> None:
+        """
+        Have the Bot build and set up `provider`, after every Provider it needs,
+        unless it already has. For unported code whose mixin used to create the
+        data itself (`MinimapAttributesMixin._create_minimap_attributes`); goes
+        with the last mixin.
+        :raises RuntimeError: no Bot's Providers are attached to this data.
+        """
+        if self.providers is None:
+            raise RuntimeError(
+                f"{self} builds no Provider: no Bot has attached its Providers to it."
+            )
+        self.providers.ensure(provider)
 
     def peek[T](self, key: Key[T]) -> T | None:
         """
@@ -580,6 +605,13 @@ class BotData:
         if not self.is_provided(key):
             return None
         return self.get_last_known_value(key.name, update=False)
+
+    def _refuse_unprovided(self, key: Key[Any]) -> None:
+        if not self.is_provided(key):
+            raise LookupError(
+                f"{key!r} has no value in {self}: {key.provider.__name__} was not "
+                "built. A key is provided once a DecisionMaker's reads declares it."
+            )
 
     def _canonical(self, name: str) -> str:
         """The name a managed attribute is stored under: a key's own for its legacy."""

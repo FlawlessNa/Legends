@@ -152,12 +152,23 @@ class DecisionMaker(ABC):
         `key`'s value, refreshed first when its threshold has passed.
         :raises KeyNotDeclared: `key` is not in this class's `reads`.
         """
+        return self.data.read(self._declared(key, "read"))
+
+    def refresh[T](self, key: Key[T]) -> T:
+        """
+        `key`'s value, read now whatever its threshold: for a decision that must
+        see the client as it is now, such as a fresh frame.
+        :raises KeyNotDeclared: `key` is not in this class's `reads`.
+        """
+        return self.data.refresh(self._declared(key, "refreshed"))
+
+    def _declared[T](self, key: Key[T], verb: str) -> Key[T]:
         if key not in type(self).reads:
             raise KeyNotDeclared(
-                f"{self} read {key.name!r}, which {type(self).__name__}.reads does "
-                "not declare."
+                f"{self} {verb} {key.name!r}, which {type(self).__name__}.reads "
+                "does not declare."
             )
-        return self.data.read(key)
+        return key
 
     def peek[T](self, key: Key[T]) -> T | None:
         """

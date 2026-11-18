@@ -20,7 +20,8 @@ import pytest
 
 from botting.controller import TypingPace
 from botting.controller.inputs.held_keys_ledger import HeldKeysLedger
-from botting.core import ActionRequest
+from botting.core import HANDLE as HANDLE_KEY
+from botting.core import ActionRequest, Key
 from botting.utilities import config_reader
 from maple.actions import writing
 from maple.actions.writing import (
@@ -33,7 +34,8 @@ from maple.actions.writing import (
     write_in_chat,
 )
 from maple.bots.training import TrainingBot
-from maple.decision_makers.mixins._reactions_mixins import ReactionsMixin
+from maple.decision_makers.providers import CHAT_KEYS, FRAME
+from maple.decision_makers.reactions import Reactions
 from maple.parsers import maple_parser
 from maple.parsers.maple_parser import MapleParser
 from maple.screen.sprites import StartupRefused
@@ -372,13 +374,24 @@ def test_chat_keys_reads_the_characters_section(
 # --- the callers -----------------------------------------------------------------
 
 
-class _Reacting(ReactionsMixin):
-    """The mixin on a bot that only records what it sends."""
+class _Reacting:
+    """`Reactions` on a bot that only records what it sends."""
 
     def __init__(self, chat_keys: dict[str, str]) -> None:
-        self.data = SimpleNamespace(ign=IGN, handle=HANDLE, chat_keys=chat_keys)  # pyright: ignore[reportAttributeAccessIssue]
+        self.data = SimpleNamespace(ign=IGN)
+        self.values: dict[Key[Any], object] = {
+            HANDLE_KEY: HANDLE,
+            CHAT_KEYS: chat_keys,
+            FRAME: SimpleNamespace(pixels=None),
+        }
         self.sent: list[ActionRequest] = []
-        self.send = self.sent.append
+        self.reactions = Reactions(self, self)  # pyright: ignore[reportArgumentType] - a stand-in
+
+    def read(self, key: Key[Any]) -> object:
+        return self.values[key]
+
+    def send(self, request: ActionRequest) -> None:
+        self.sent.append(request)
 
 
 def test_a_reaction_writes_with_the_characters_chat_keys(
@@ -387,11 +400,11 @@ def test_a_reaction_writes_with_the_characters_chat_keys(
     """The keys its bot read at startup, never read again here."""
     bound = {**DEFAULT_CHAT_KEYS, "general": "g"}
     monkeypatch.setattr(writing, "config_reader", _no_config)
-    monkeypatch.setattr(ReactionsMixin, "_light_reactions", ["wtf"])
+    monkeypatch.setattr(Reactions, "LIGHT", ["wtf"])
     reacting = _Reacting(bound)
 
     # Past `cooldown`, whose clock is shared by every bot in the process.
-    ReactionsMixin._react.__wrapped__(reacting, "light")  # pyright: ignore[reportFunctionMemberAccess]
+    Reactions.react.__wrapped__(reacting.reactions, "light")  # pyright: ignore[reportFunctionMemberAccess]
 
     (request,) = reacting.sent
     assert request.procedure is write_in_chat

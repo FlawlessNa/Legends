@@ -93,7 +93,7 @@ def new_session_dir() -> Path:
 BUCKET_NAMES: Final = ("movement", "inputs", "decisions", "other")
 
 #: Logger-name prefix -> Log Bucket. Longest prefix wins, so a submodule can
-#: escape its parent's bucket - which three ``decision_makers`` submodules do.
+#: escape its parent's bucket - which a few ``decision_makers`` submodules do.
 #:
 #: Records are routed here, on the handler, rather than by giving each bucket
 #: its own logger: ``Engine`` and ``PeripheralsProcess`` run in child processes,
@@ -108,6 +108,8 @@ BUCKETS: Final[dict[str, str]] = {
     "botting.maple.model.mechanics": "movement",
     "botting.maple.decision_makers.rotation": "movement",
     "botting.maple.decision_makers.mixins._map_mixins": "movement",
+    # The minimap and the position read on it, which the mixin above used to log.
+    "botting.maple.decision_makers.providers.minimap": "movement",
     "botting.maple.decision_makers.mixins._rotation_mixins": "movement",
     # Movement compilation, sitting under `maple.actions` rather than
     # `model.mechanics`. Its siblings there (menus, writing, skills) are not

@@ -10,17 +10,18 @@ A Provider's values live in `BotData`'s managed attributes, so refresh-on-read,
 thresholds, error handlers and the metadata history are the ones every attribute
 has always had.
 
-Assembly (`resolve_providers`, then `build_providers`) runs in `Bot.start`, before
+Assembly (`resolve_providers`, then `Providers.build`) runs in `Bot.start`, before
 the start barrier: it resolves the Providers the DecisionMakers' declarations need,
 refuses a Bot wired wrong with `StartupRefused`, then builds and sets them up in
-order.
+order. A Bot-level Provider is built by its Bot instead, in `Bot.child_init`, from
+what the Bot found at start (`Providers.add`).
 
 ADR 0004 records the decisions this module implements; `docs/agents/decision-makers.md`
 is the guide to writing against it.
 """
 
 import multiprocessing.connection
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from botting.logging_config import producer_logger_name
@@ -105,6 +106,11 @@ class Provider:
 
     A Provider may send Actions through `send`; they carry no Correlation ID,
     since no single decision owns them.
+
+    A **Bot-level** Provider (`bot_level = True`) serves what its Bot found and
+    checked at start, such as the game window's handle. Its Bot builds it in
+    `child_init` with `Providers.add`, handing it those values as keywords;
+    assembly never builds one.
     """
 
     #: The keys this Provider produces. Filled by `Key`, never declared.
@@ -113,6 +119,10 @@ class Provider:
     needs: ClassVar[tuple[Key[Any], ...]] = ()
     #: The Signals this Provider announces, with `announce`.
     announces: ClassVar[tuple[Signal[Any], ...]] = ()
+    #: Whether its Bot builds this Provider, in `child_init`, from what the Bot
+    #: found at start. Assembly refuses a Bot whose DecisionMakers read a key of
+    #: a Bot-level Provider its Bot did not build.
+    bot_level: ClassVar[bool] = False
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
@@ -191,16 +201,30 @@ class Provider:
 
     def read[T](self, key: Key[T]) -> T:
         """
-        The value of a key this Provider needs, refreshed first when its
-        threshold has passed.
-        :raises KeyNotDeclared: `key` is not in this class's `needs`.
+        The value of a key this Provider needs or provides, refreshed first when
+        its threshold has passed.
+        :raises KeyNotDeclared: `key` is in neither this class's `needs` nor its
+            `provides`.
         """
-        if key not in type(self).needs:
+        return self.data.read(self._declared(key, "read"))
+
+    def refresh[T](self, key: Key[T]) -> T:
+        """
+        The value of a key this Provider needs or provides, read now, whatever
+        its threshold.
+        :raises KeyNotDeclared: `key` is in neither this class's `needs` nor its
+            `provides`.
+        """
+        return self.data.refresh(self._declared(key, "refreshed"))
+
+    def _declared[T](self, key: Key[T], verb: str) -> Key[T]:
+        cls = type(self)
+        if key not in cls.needs and key not in cls.provides:
             raise KeyNotDeclared(
-                f"{self} read {key.name!r}, which {type(self).__name__}.needs "
-                "does not declare."
+                f"{self} {verb} {key.name!r}, which {cls.__name__}.needs does not "
+                "declare."
             )
-        return self.data.read(key)
+        return key
 
     def announce[T](self, signal: Signal[T], payload: T) -> None:
         """
@@ -314,28 +338,116 @@ def _describe(cycle: Sequence[tuple[type[Provider], Key[Any]]]) -> str:
     return f"{cycle[0][0].__name__} " + ", which ".join(steps)
 
 
-def build_providers(
-    order: Sequence[type[Provider]],
-    data: BotData,
-    pipe: multiprocessing.connection.Connection,
-    proxies: ProxyFactory,
-    settings: Mapping[str, object],
-    signals: SignalBoard | None = None,
-) -> list[Provider]:
+class Providers:
     """
-    Build every Provider in `order`, then set each up, in `order`: every
-    `__init__` runs before any `setup()`, so a Provider that cannot be built
-    stops the start before any I/O.
-    :raises StartupRefused: a Provider's `setup()` did not register every key it
-        provides.
+    The Providers of one Bot: each built once, and set up after those it needs.
+
+    `Bot.child_init` makes it and adds the Bot-level Providers (`add`); assembly
+    builds the ones the DecisionMakers read (`build`); unported code asks for
+    one through `BotData.build_provider`, which comes here (`ensure`). However
+    many ask, a Provider is built and set up once.
+
+    Making it attaches it to `data`, as `data.providers`.
     """
-    providers = [cls(data, pipe, proxies, **settings) for cls in order]
-    for provider in providers:
-        provider._signals = signals  # pyright: ignore[reportPrivateUsage] - assembly wires it
-    for provider in providers:
+
+    def __init__(
+        self,
+        data: BotData,
+        pipe: multiprocessing.connection.Connection,
+        proxies: ProxyFactory,
+        settings: Mapping[str, object],
+        signals: SignalBoard | None = None,
+    ) -> None:
+        """
+        :param data: The Bot's data, where the Providers' values live.
+        :param pipe: The Engine's end of the pipe to Main Process, for Actions.
+        :param proxies: The Bot's `ProxyFactory`.
+        :param settings: The Bot's profile settings: every Provider's keywords.
+        :param signals: The Bot's Signals, for a Provider that announces one.
+        """
+        self.data = data
+        self.pipe = pipe
+        self.proxies = proxies
+        self.settings = dict(settings)
+        self.signals = signals
+        #: Every Provider built, in the order they were built.
+        self._built: dict[type[Provider], Provider] = {}
+        data.providers = self
+
+    def __iter__(self) -> Iterator[Provider]:
+        """Every Provider built, in the order they were built and set up."""
+        return iter(self._built.values())
+
+    def __contains__(self, provider: type[Provider]) -> bool:
+        return provider in self._built
+
+    def add(self, provider: type[Provider], **values: object) -> Provider:
+        """
+        Build the Bot-level `provider` with `values`, what its Bot found at
+        start, and set it up now. Called by the Bot, in `child_init`.
+        :param values: The keywords `provider` takes beside the profile
+            settings; a value wins over a setting of the same name.
+        :raises ValueError: `provider` is not Bot-level, is built already, or
+            needs a Provider that is not built yet.
+        """
+        if not provider.bot_level:
+            raise ValueError(
+                f"{provider.__name__} is not Bot-level: assembly builds it, from "
+                "the DecisionMakers' reads."
+            )
+        if provider in self:
+            raise ValueError(f"{provider.__name__} is built already.")
+        missing = [
+            k.provider.__name__ for k in provider.needs if k.provider not in self
+        ]
+        if missing:
+            raise ValueError(
+                f"{provider.__name__} needs {', '.join(missing)}, which is not "
+                "built yet: add it first."
+            )
+        built = self._make(provider, values)
+        self._setup(built)
+        return built
+
+    def build(self, order: Sequence[type[Provider]]) -> None:
+        """
+        Build every Provider in `order` not built yet, then set each up, in
+        `order`: every `__init__` runs before any `setup()`, so a Provider that
+        cannot be built stops the start before any I/O.
+        :raises StartupRefused: a Provider in `order` is Bot-level and its Bot
+            did not build it, or a Provider's `setup()` did not register every
+            key it provides.
+        """
+        pending = [cls for cls in dict.fromkeys(order) if cls not in self]
+        unbuilt = [cls.__name__ for cls in pending if cls.bot_level]
+        if unbuilt:
+            raise StartupRefused(
+                f"{', '.join(unbuilt)} is Bot-level, and {self.data.ign}'s Bot "
+                "does not build it: a DecisionMaker that reads its keys runs only "
+                "on a Bot that serves them."
+            )
+        built = [self._make(cls, {}) for cls in pending]
+        for provider in built:
+            self._setup(provider)
+
+    def ensure(self, provider: type[Provider]) -> None:
+        """Build and set up `provider`, after every Provider it needs, unless built."""
+        self.build(_ordered([provider]))
+
+    def _make(self, cls: type[Provider], values: Mapping[str, object]) -> Provider:
+        provider = cls(
+            self.data, self.pipe, self.proxies, **{**self.settings, **values}
+        )
+        provider._signals = self.signals  # pyright: ignore[reportPrivateUsage] - assembly wires it
+        self._built[cls] = provider
+        return provider
+
+    def _setup(self, provider: Provider) -> None:
         provider.setup()
         missing = [
-            key.name for key in type(provider).provides if not data.is_provided(key)
+            key.name
+            for key in type(provider).provides
+            if not self.data.is_provided(key)
         ]
         if missing:
             raise StartupRefused(
@@ -343,4 +455,3 @@ def build_providers(
                 f"{', '.join(repr(name) for name in missing)}, which "
                 f"{type(provider).__name__} provides."
             )
-    return providers

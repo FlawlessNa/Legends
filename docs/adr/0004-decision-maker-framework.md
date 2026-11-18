@@ -17,7 +17,7 @@ When a DecisionMaker died half-way through a pause or a steer, nothing undid it.
 
 The intent and the approved spec are in epic #432.
 This ADR records the decisions; the terms are defined in `CONTEXT.md` (Supervisor, Pause, Data Key, Provider, Claim, Signal).
-The Supervisor and Pauses were delivered first (#433), then Data Keys, Providers and assembly (#434); what is named here but not yet in the tree is delivered by the later tickets of #432.
+The Supervisor and Pauses were delivered first (#433), then Data Keys, Providers and assembly (#434), then MapleStory's first Providers and the first port, `CheckStillInMap` (#438); what is named here but not yet in the tree is delivered by the later tickets of #432.
 
 ## Decision
 
@@ -97,6 +97,22 @@ A one-at-a-time gate replaces the hand-rolled per-DecisionMaker lock in Rotation
   Every Provider is then built before any is set up, so a Provider that cannot even be built stops the start before any I/O; each `setup()` runs after those of the Providers it needs, and must register every key its class provides.
   The DecisionMakers are built after that, then each `setup()` runs; an old-style DecisionMaker's is empty.
 - **A Provider takes the profile settings as keywords**, as a DecisionMaker does, so a Provider names the settings it uses in its signature.
+- **What the Bot finds at start is served by Bot-level Providers, which the Bot builds in `child_init`** (#438).
+  The spec has every Provider built by assembly from the profile settings, but what `MapleBot.child_init` builds is found and checked with what no Provider has: every DecisionMaker class's `screen_readers`, the profile as the Bot resolved it, and the map checked on the minimap, with its key presses.
+  So a Provider with `bot_level = True` takes those values as keywords, and the Bot builds it with `Providers.add` at the point `child_init` always published them: their I/O keeps its order and its timing, both before the start barrier.
+  Assembly skips a Provider already built, and refuses a Bot whose DecisionMakers read a key of a Bot-level Provider its Bot did not build, naming it, before anything is built.
+  Rejected: moving the start checks into the Providers' `setup()`, which would pass the DecisionMaker classes and the resolved profile as settings, and move the map check's key presses into assembly for nothing.
+- **The game window's handle is the engine's.**
+  `HANDLE` and `WindowProvider` are in `botting/core/window.py`, built first by `Bot.child_init` with what `Bot.find_handle` found, because the generic Bot both finds the handle and reads it (`Bot.pause`).
+  The spec put the handle with MapleStory's Bot-level Providers; `maple/decision_makers/providers` re-exports `HANDLE` so a port imports every key from one place.
+- **A Bot's Providers are one `Providers` object, attached to its `BotData`** as `data.providers`.
+  `child_init` makes it, assembly builds into it, and `BotData.build_provider(cls)` asks it for a Provider unless it is built: that is how a mixin that used to create data (`_create_minimap_attributes`) asks for its Provider, as the spec says.
+  `Bot.start` runs assembly as `Bot.assemble()`, so a test builds a Bot's DecisionMakers as the Engine does.
+- **`refresh(KEY)` reads a key now, whatever its threshold**, on `BotData`, a DecisionMaker and a Provider.
+  It is what `update_attribute(name)` then `data.<name>` was, which a decision that must see the client as it is (`CheckStillInMap`'s frame) needs.
+  A Provider may also read and refresh the keys it provides, once registered.
+- **A helper a DecisionMaker holds declares the keys it reads** (`MinimapRecovery.reads`, `Reactions.reads`), and its holder spreads them into its own `reads`, so a helper never reads a key its holder does not declare.
+  A helper keeps what its mixin shared: `Reactions.react` keeps the one 10 s cooldown every reaction in the process shares, and `ReactionsMixin` reacts through a `Reactions` until the last mixin goes.
 - **`BotData` measures time on an injected monotonic clock** (#57, for `BotData` only).
   `AttributeMetadata`'s timestamps are readings of that clock, and "never" is minus infinity, so the time since an attribute that was never validly updated is infinite rather than the two thousand years `datetime.min` gave; every comparison against it is unchanged.
 - **`StartupRefused` lives in `botting/core/`** (`errors.py`), and `maple/screen/sprites.py` raises that class.
