@@ -452,7 +452,6 @@ class _Owner(NextTargetMixin):
         self.emit = lambda event_type, payload=None: self.emitted.append(
             (event_type, payload or {})
         )
-        self.get_mobs_positions_in_img = lambda *a, **k: []
 
 
 def _owner(position: tuple[float, float], *, smart: bool = False) -> _Owner:

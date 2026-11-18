@@ -56,6 +56,7 @@ from maple.decision_makers.providers import (
     MapProvider,
     MinimapProvider,
     MobsProvider,
+    OnScreenPositionProvider,
     QuickSlotsProvider,
     ScreenReadersProvider,
     StatusBarProvider,
@@ -322,10 +323,9 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
     dms = _decision_makers(bot)
     assert set(dms) == set(bot._decision_makers())  # pyright: ignore[reportPrivateUsage]
     # The Bot-level Providers, in `child_init`'s order, then those assembly
-    # builds for what the DecisionMakers read, in the order they are read: the
-    # quick slots (`PetFood`), the buffs (`SoloRebuff`), the minimap, once, for
-    # `CheckStillInMap` and every unported DecisionMaker that asked for it, and
-    # the chat (`ChatReplies`).
+    # builds for what the DecisionMakers read, each after what it needs: the
+    # minimap, once, then the on-screen position (`MobsHitting`), the quick
+    # slots (`PetFood`), the buffs (`SoloRebuff`) and the chat (`ChatReplies`).
     assert [type(p) for p in bot.providers] == [
         WindowProvider,
         RepliesProvider,
@@ -334,9 +334,10 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
         CharacterProvider,
         MobsProvider,
         ClientProvider,
+        MinimapProvider,
+        OnScreenPositionProvider,
         QuickSlotsProvider,
         BuffsProvider,
-        MinimapProvider,
         ChatProvider,
     ]
 

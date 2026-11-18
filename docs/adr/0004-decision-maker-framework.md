@@ -17,7 +17,7 @@ When a DecisionMaker died half-way through a pause or a steer, nothing undid it.
 
 The intent and the approved spec are in epic #432.
 This ADR records the decisions; the terms are defined in `CONTEXT.md` (Supervisor, Pause, Data Key, Provider, Claim, Signal).
-The Supervisor and Pauses were delivered first (#433), then Data Keys, Providers and assembly (#434), then MapleStory's first Providers and the first port, `CheckStillInMap` (#438), then the buffs, status bar, quick slots and chat Providers with the ports of `SoloRebuff`, the consumables and `ChatReplies` (#440); what is named here but not yet in the tree is delivered by the later tickets of #432.
+The Supervisor and Pauses were delivered first (#433), then Data Keys, Providers and assembly (#434), then MapleStory's first Providers and the first port, `CheckStillInMap` (#438), then `MobsHitting`, `TelecastMobsHitting` and the Turn Gate (#439), then the buffs, status bar, quick slots and chat Providers with the ports of `SoloRebuff`, the consumables and `ChatReplies` (#440); what is named here but not yet in the tree is delivered by the later tickets of #432.
 
 ## Decision
 
@@ -77,6 +77,14 @@ A DecisionMaker lists the classes whose Actions it cancels in `cancels = (...)`.
 
 A one-at-a-time gate replaces the hand-rolled per-DecisionMaker lock in Rotation and MobsHitting, keeping each one's exact use, with the Manager lock underneath because the release runs in Main Process.
 
+- **`cancels` is resolved at assembly, like `pauses`** (#439): an entry is a class or its dotted path, and one that resolves to nothing refuses the start.
+  It is a declaration, not a check on each request: `cancel_tasks` is filled with `action_name`, and nothing compares the two at run time.
+  The Discord parser, which holds no DecisionMaker, names the same classes with `action_name` too.
+- **The gate is `TurnGate`, in `botting/core/turn_gate.py`** (#439), the Turn Gate of `CONTEXT.md`: the spec's `try_enter()`, `await enter()` and `releaser`, plus `await leave()`, for a decision that sends nothing (MobsHitting released from the Engine, through a thread, as before), and `reset()`, for `on_start()`.
+  `releaser` is the Manager lock's own `release`, so what travels to Main Process in an Action's callbacks is what travelled before.
+  A DecisionMaker makes its gate in `setup()`, since asking Main Process for the lock is I/O.
+  Named `TurnGate`, not `Gate`, because the glossary's Delivery Gate is a different thing.
+
 ### Data belongs to the Bot
 
 - **Providers over mixins with declared strings (D9).**
@@ -122,6 +130,11 @@ A one-at-a-time gate replaces the hand-rolled per-DecisionMaker lock in Rotation
   A Provider may also read and refresh the keys it provides, once registered.
 - **A helper a DecisionMaker holds declares the keys it reads** (`MinimapRecovery.reads`, `Reactions.reads`), and its holder spreads them into its own `reads`, so a helper never reads a key its holder does not declare.
   A helper keeps what its mixin shared: `Reactions.react` keeps the one 10 s cooldown every reaction in the process shares, and `ReactionsMixin` reacts through a `Reactions` until the last mixin goes.
+- **A ported DecisionMaker may read data an unported one still makes, through a plain function beside that one's mixin** (#439).
+  `TelecastMobsHitting` fuses its cast into the rotation's Movement Plan, which `MovementsMixin` plans until Rotation's port gives it a Provider (#442).
+  So it reads the plan with `planned_movements(data)` and freezes its compile with `movement_compiler(data, ...)`, functions in `_rotation_mixins.py` that `MovementsMixin` calls too, rather than keep the mixin in its hierarchy; the legacy read and its `has_pathing_attributes` check live there, and go with the mixin.
+  The spec's guide covered old reading new (`legacy_name`), not new reading old.
+- **What a mixin did as plain logic is functions** (#439): `MobsHittingMixin` is gone, and the mob counting, positions and closest-mob direction are `maple/decision_makers/mob_detection.py`, called by `MobsHitting`, the smart rotation and `CheckMobsStillSpawn` with the client's handle.
 - **`BotData` measures time on an injected monotonic clock** (#57, for `BotData` only).
   `AttributeMetadata`'s timestamps are readings of that clock, and "never" is minus infinity, so the time since an attribute that was never validly updated is infinite rather than the two thousand years `datetime.min` gave; every comparison against it is unchanged.
 - **`StartupRefused` lives in `botting/core/`** (`errors.py`), and `maple/screen/sprites.py` raises that class.

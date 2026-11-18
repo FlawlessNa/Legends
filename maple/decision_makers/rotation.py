@@ -11,7 +11,6 @@ from maple.telemetry_events import MOVEMENT_PLAN_STARTED, plan_started_payload
 
 from .mixins import (
     MinimapAttributesMixin,
-    MobsHittingMixin,
     MovementRecoveryMixin,
     MovementsMixin,
     NextTargetMixin,
@@ -25,7 +24,6 @@ class Rotation(
     MinimapAttributesMixin,
     MovementsMixin,
     NextTargetMixin,
-    MobsHittingMixin,
     DecisionMaker,
 ):
     """

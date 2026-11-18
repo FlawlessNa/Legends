@@ -9,13 +9,24 @@ from botting.core import DecisionMaker
 from maple.decision_makers import (
     ChatReplies,
     CheckStillInMap,
+    MobsHitting,
     MountFood,
     PetFood,
     SoloRebuff,
     SpeedPill,
+    TelecastMobsHitting,
 )
 
-PORTED = (CheckStillInMap, SoloRebuff, PetFood, SpeedPill, MountFood, ChatReplies)
+PORTED = (
+    CheckStillInMap,
+    MobsHitting,
+    TelecastMobsHitting,
+    SoloRebuff,
+    PetFood,
+    SpeedPill,
+    MountFood,
+    ChatReplies,
+)
 
 
 @pytest.mark.parametrize("cls", PORTED, ids=lambda cls: cls.__name__)

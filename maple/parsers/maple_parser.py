@@ -2,6 +2,7 @@ import itertools
 import logging
 
 from botting.communications import BaseParser
+from botting.core import action_name
 from botting.core.action_data import ActionRequest
 from botting.screen import frame_source
 from maple.actions import (
@@ -11,7 +12,7 @@ from maple.actions import (
     started_chat_keys,
     write_in_chat,
 )
-from maple.actions.writing import TRAINING_ACTIONS
+from maple.decision_makers.chat_replies import TRAINING
 from maple.screen.client import find_client
 
 logger = logging.getLogger(__name__)
@@ -58,7 +59,7 @@ class MapleParser(BaseParser):
             block_lower_priority=True,
             args=(handle, message),
             kwargs={"keys": _chat_keys(who), **self._where(to, channel)},
-            cancel_tasks=[f"{name}({who})" for name in TRAINING_ACTIONS],
+            cancel_tasks=[action_name(cls, who) for cls in TRAINING],
             callbacks=[lambda: self._confirmation_with_image(handle)],
         )
 

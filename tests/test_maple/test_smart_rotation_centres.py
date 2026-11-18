@@ -3,9 +3,10 @@
 places them in virtual px through the camera of the frame they were found on
 (#398), on the platform of the target.
 
-Faked at the BotData level, with the mobs stubbed: no game client is involved.
-The owner below is declared here with the same shape as `_RotationOwner` in
-`test_rotation_target_handoff.py`, rather than imported from it.
+Faked at the BotData level, with the mobs' detection stubbed: no game client is
+involved. The owner below is declared here with the same shape as
+`_RotationOwner` in `test_rotation_target_handoff.py`, rather than imported from
+it.
 """
 
 from collections.abc import Sequence
@@ -16,7 +17,7 @@ import pytest
 
 from botting.core import BotData
 from botting.screen import Frame, Reading
-from maple.decision_makers.mixins import MobsHittingMixin, NextTargetMixin
+from maple.decision_makers.mixins import NextTargetMixin, _rotation_mixins
 from maple.model.world import WorldMap
 from maple.screen.position import Camera, PositionSource, VirtualPosition
 from tests.test_maple.movement_lab.fixture_maps import walk_corridor
@@ -30,17 +31,11 @@ ORIGIN = Camera(0, -300, 1.0, 2.0, CLIENT)
 TWO_LEFT = [(70, 40, 90, 70), (60, 40, 80, 70)]
 
 
-class _Owner(MobsHittingMixin, NextTargetMixin):
+class _Owner(NextTargetMixin):
     TIME_ON_TARGET = 0.0
 
-    def __init__(self, data: BotData, mobs: list[tuple[int, int, int, int]]) -> None:
+    def __init__(self, data: BotData) -> None:
         self.data = data
-        self._mobs = mobs
-
-    def get_mobs_positions_in_img(
-        self, *args: object, **kwargs: object
-    ) -> list[Sequence[int]]:
-        return list(self._mobs)
 
 
 def _target(
@@ -54,6 +49,7 @@ def _target(
     on a frame whose camera is `camera` (`None`: that read matched no camera).
     """
     data = BotData("TestBot")
+    data.set_static("handle", 1)
     data.set_static("world_map", WORLD)
     position = Reading.read(VirtualPosition(*here, PositionSource.FUSED), 0.0)
     data.create_attribute("current_position", lambda: position)
@@ -66,13 +62,19 @@ def _target(
     data.create_attribute(
         "current_on_screen_position", lambda: character, initial_value=character
     )
-    owner = _Owner(data, mobs)
+    owner = _Owner(data)
     owner._create_rotation_attributes(smart_rotation=True, mob_count_threshold=2)
     data.next_target = here
     # Skip the "already on target" gate and the wait on it.
     owner._first_time_on_target = False
     owner._last_target_reached_at = 0.0
-    return owner._smart_rotation_target()
+
+    def detect(*args: object, **kwargs: object) -> list[Sequence[int]]:
+        return list(mobs)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(_rotation_mixins, "get_mobs_positions_in_img", detect)
+        return owner._smart_rotation_target()
 
 
 @pytest.mark.parametrize(

@@ -125,8 +125,7 @@ TRAINING: tuple[type[DecisionMaker], ...] = (
     TelecastMobsHitting,
 )
 """The DecisionMakers whose Actions in flight a reply cancels: the character
-stops training to type. The same as `TRAINING_ACTIONS`, which a Discord `WRITE`
-cancels."""
+stops training to type. A Discord `WRITE` cancels the same (`maple_parser`)."""
 
 GM_STOPS: tuple[type[DecisionMaker], ...] = (
     Rotation,

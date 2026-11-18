@@ -21,6 +21,7 @@ The replies switch, `REPLIES_ON`, is the generic Bot's too
 keys:
 
 - `minimap`: the minimap's reading, and the character's virtual position.
+- `on_screen`: where the character is on screen, as a box on the client.
 - `buffs`: the profile's buffs, as their icons show them.
 - `status_bar`: the status bar's reading.
 - `quick_slots`: the quick slots' reading.
@@ -47,6 +48,7 @@ from .minimap import (
     PositionReader,
 )
 from .mobs import MOBS, MobsProvider
+from .on_screen import ON_SCREEN_POSITION, OnScreenPositionProvider
 from .quick_slots import QUICK_SLOTS_READING, QuickSlotsProvider
 from .screen_readers import (
     BUFFS_READER,
@@ -79,6 +81,7 @@ __all__ = [
     "MINIMAP_READING",
     "MINIMAP_SHOWN",
     "MOBS",
+    "ON_SCREEN_POSITION",
     "POSITION",
     "POSITION_FUSION",
     "QUICK_SLOTS_READER",
@@ -96,6 +99,7 @@ __all__ = [
     "MinimapProvider",
     "MinimapRecovery",
     "MobsProvider",
+    "OnScreenPositionProvider",
     "PositionReader",
     "QuickSlotsProvider",
     "ScreenReadersProvider",

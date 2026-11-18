@@ -84,7 +84,7 @@ virtual px on `data.world_map`:
   time (`maple/movement_recovery.py`), and reports a long `UNSURE` streak.
 - `CheckStillInMap` checks the minimap against `world_map`'s canvas.
 - Mobs found on screen are placed through the camera of the frame they were
-  found on (`PositionFusion.camera`, `MobsHittingMixin.mobs_in_virtual_px`).
+  found on (`PositionFusion.camera`, `mob_detection.mobs_in_virtual_px`).
 - `TrialRunner` judges Trials on `current_position`, to the driver's target in
   virtual px (#397).
 
