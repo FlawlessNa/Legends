@@ -792,12 +792,12 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
 
     # --- the decision cycle --------------------------------------------------------
 
-    async def task(self) -> None:
-        """The decision loop; however it ends, the target ends and keys are released."""
-        try:
-            await super().task()
-        finally:
-            self._close()
+    def on_stop(self) -> None:
+        """
+        However the decision loop ended, the target ends and keys are released:
+        the Supervisor calls this once the loop has stopped, by any route.
+        """
+        self._close()
 
     async def _decide(self) -> None:
         if self._stopped:
@@ -913,7 +913,7 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             logger.exception("%s could not ask the Session to stop.", self)
 
     def _close(self) -> None:
-        """The task's end: the target abandoned, keys released, the file closed."""
+        """The loop's end: the target abandoned, keys released, the file closed."""
         self.playground.close(time.monotonic())
         self._writer.close()
         try:

@@ -27,6 +27,7 @@ from pytest_mock import MockerFixture
 from botting import controller
 from botting.core import ActionRequest
 from botting.core.bot_data import BotData
+from botting.core.supervisor import Supervisor, resolve_pauses
 from botting.screen import Reading
 from botting.stop_file import STOP_FILENAME
 from maple.actions import priorities
@@ -427,6 +428,14 @@ def harness(tmp_path: Path) -> _Runner:
     return _Runner(cast(mp.PlaygroundRunner, self), positions, pipe, link, sink)
 
 
+async def _supervised(runner: mp.PlaygroundRunner) -> None:
+    """Run the runner's decision loop as a Session does: under its Bot's
+    Supervisor, until it raises or is cancelled."""
+    await Supervisor(
+        runner.data.ign, [runner], resolve_pauses([mp.PlaygroundRunner])
+    ).run()
+
+
 def _start_target(h: _Runner) -> None:
     """A read, a click on `TARGET`, the positioning cycle, then a measured one."""
     h.decide()  # a read: the click needs a position to know what is reachable
@@ -513,11 +522,9 @@ def test_an_exception_releases_every_key_on_the_way_out(harness: _Runner) -> Non
     _start_target(harness)
     harness.runner.data.reconfigure_attribute("current_position", broken)
 
-    async def run() -> None:
-        await harness.runner.task()
-
-    with pytest.raises(RuntimeError, match="a reader broke"):
-        asyncio.run(run())
+    with pytest.raises(ExceptionGroup) as raised:
+        asyncio.run(_supervised(harness.runner))
+    assert raised.group_contains(RuntimeError, match="a reader broke")
 
     assert len(harness.releases) == 1
     assert harness.link.view["ended"]
@@ -531,7 +538,7 @@ def test_a_cancelled_task_releases_every_key(harness: _Runner) -> None:
     _start_target(harness)
 
     async def run() -> None:
-        task = asyncio.create_task(harness.runner.task())
+        task = asyncio.create_task(_supervised(harness.runner))
         await asyncio.sleep(0.05)
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
@@ -664,12 +671,13 @@ def _end_by(h: _Runner, how: str) -> None:
             raise RuntimeError("a reader broke")
 
         h.runner.data.reconfigure_attribute("current_position", broken)
-        with pytest.raises(RuntimeError):
-            asyncio.run(h.runner.task())
+        with pytest.raises(ExceptionGroup) as raised:
+            asyncio.run(_supervised(h.runner))
+        assert raised.group_contains(RuntimeError)
     elif how == "cancelled task":
 
         async def run() -> None:
-            task = asyncio.create_task(h.runner.task())
+            task = asyncio.create_task(_supervised(h.runner))
             await asyncio.sleep(0.05)
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
