@@ -3,9 +3,9 @@
 that draws the status bar, the quick slots, the minimap, two buffs and the
 chat, composed from each reader's synthetic sprites (no client pixels).
 
-The bot starts as `Engine` starts it (`child_init`, then its DecisionMakers),
-with the store, the Main Process proxies, the keybindings and the pipe
-stubbed. Each DecisionMaker then makes one decision; their task loops, which
+The bot starts as `Engine` starts it (`child_init`, then its assembly, which
+builds its Providers and its DecisionMakers), with the store, the Main Process
+proxies, the keybindings and the pipe stubbed. Each DecisionMaker then makes one decision; their task loops, which
 need Main Process to answer, are not run. Every reader the DecisionMakers name
 must read.
 
@@ -24,7 +24,7 @@ import numpy as np
 import pytest
 
 from botting import controller
-from botting.core import ActionRequest, DecisionMaker, ProxyFactory
+from botting.core import ActionRequest, DecisionMaker, ProxyFactory, WindowProvider
 from botting.screen import Frame, Reading, Status, capture
 from game_data.catalogue import Bounds, Foothold
 from game_data.sprites import Sprite
@@ -41,6 +41,14 @@ from maple.decision_makers import (
     SoloRebuff,
 )
 from maple.decision_makers import chat_replies as chat_replies_module
+from maple.decision_makers.providers import (
+    CharacterProvider,
+    ClientProvider,
+    MapProvider,
+    MinimapProvider,
+    MobsProvider,
+    ScreenReadersProvider,
+)
 from maple.model.world import WorldMap, chain_platforms
 from maple.screen import client
 from maple.screen.buffs import BUFFS
@@ -270,6 +278,9 @@ def _start(
 
 
 def _decision_makers(bot: TrainingBot) -> dict[type[DecisionMaker], DecisionMaker]:
+    """The bot's DecisionMakers, assembled as `Bot.start` assembles them."""
+    if bot.supervisor is None:
+        bot.assemble()
     return {type(dm): dm for dm in bot.decision_makers}
 
 
@@ -299,6 +310,17 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
 
     dms = _decision_makers(bot)
     assert set(dms) == set(bot._decision_makers())  # pyright: ignore[reportPrivateUsage]
+    # The Bot-level Providers, in `child_init`'s order, then the minimap's, once,
+    # for `CheckStillInMap` and every unported DecisionMaker that asked for it.
+    assert [type(p) for p in bot.providers] == [
+        WindowProvider,
+        ScreenReadersProvider,
+        MapProvider,
+        CharacterProvider,
+        MobsProvider,
+        ClientProvider,
+        MinimapProvider,
+    ]
 
     async def decide_once() -> None:
         for kind in (
@@ -352,7 +374,7 @@ def test_the_bot_refuses_to_start_when_the_model_cant_be_reached(
     bot, _, _, _ = start()
 
     with pytest.raises(StartupRefused, match="no credentials"):
-        _ = bot.decision_makers
+        bot.assemble()
 
 
 def test_with_chat_replies_false_it_starts_and_the_gm_alarm_still_fires(

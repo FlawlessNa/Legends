@@ -211,7 +211,7 @@ DEFAULT_CUT: Final = 1.0
 LOOP_PERIOD: Final = 0.1
 #: `AsyncTaskManager._throttle`, Main Process's sleep before each queue read:
 HANDOFF_THROTTLE: Final = 0.1
-#: The ``current_frame`` refresh threshold in `maple/bots/maple_bot.py`:
+#: The ``current_frame`` refresh threshold, `ClientProvider.FRAME_REFRESH`:
 FRAME_CACHE: Final = 0.1
 #: `Physics.img` walkSpeed, when the header carries no physics.
 DEFAULT_WALK_SPEED: Final = 125.0
@@ -1877,7 +1877,7 @@ def _render_where(run: Run) -> list[str]:
     )
     out.append(
         f"- **The frame cache**: `current_frame` is re-grabbed only when older than "
-        f"{FRAME_CACHE} s (`maple/bots/maple_bot.py`), so a cycle can plan on a sample's frame "
+        f"{FRAME_CACHE} s (`ClientProvider.FRAME_REFRESH`), so a cycle can plan on a sample's frame "
         "from before the Action finished (the stale-frame count above)."
     )
     out.append(

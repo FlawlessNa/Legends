@@ -121,6 +121,7 @@ _Avoid_: Attribute, managed attribute - a `ManagedAttribute` is where a key's va
 **Provider**:
 What produces the values of one or more Data Keys.
 It belongs to the Bot, not to a DecisionMaker: it is built once per Bot however many DecisionMakers read its keys, and configured from the Bot's profile settings.
+A **Bot-level** Provider serves what its Bot found and checked at start (the game window's handle, the map, the screen readers): the Bot builds it in `child_init`, and assembly never does.
 _Avoid_: Mixin - Providers replace the mixins' data role.
 
 **Claim**:

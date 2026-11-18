@@ -1,98 +1,34 @@
-import itertools
-import multiprocessing.managers
-import random
-from collections.abc import Callable
-from typing import ClassVar
+from functools import cached_property
+from typing import TYPE_CHECKING, ClassVar
 
-from botting.core import ActionRequest, BotData, DiscordRequest
-from botting.utilities import cooldown
-from maple.actions import priorities, write_in_chat
-
-_REACTIONS = itertools.count(1)
-"""Numbers each reaction's request. A reaction may wait behind a reply being typed
-(`writing`'s chat-input guard) for longer than its cooldown, so the next can come
-while it is still running, and two requests sharing an identifier end the Task
-Manager."""
+from botting.core import ActionRequest, BotData
+from maple.decision_makers.reactions import Reactions
 
 
 class ReactionsMixin:
     """
-    Mixin class that can be used to generate semi-random reactions to certain events.
+    Legacy: reactions for an unported DecisionMaker, through the `Reactions` it
+    holds, which reads its keys from `BotData` by name. A ported DecisionMaker
+    holds a `Reactions` itself. Goes with the last mixin.
     """
 
     data: BotData
-    metadata: multiprocessing.managers.DictProxy
-    send: Callable[[ActionRequest], None]
+    if TYPE_CHECKING:
+        # The DecisionMaker's: declared, not defined, so it never shadows it.
+        def send(
+            self, request: ActionRequest, correlation_id: str | None = None
+        ) -> None: ...
 
-    _light_reactions: ClassVar[list[str]] = [
-        "wtf",
-        "wassup?",
-        "why?",
-        "why",
-        "?",
-        "???",
-        "tha hell",
-        "wth",
-        "wth?",
-        "wtf!",
-        "wtf!?",
-    ]
-    _advanced_reactions: ClassVar[list[str]] = [
-        "Whaaaat is up?",
-        "What the actual ? is going on",
-        "Why????",
-        "Can I help you??",
-        "What's up?",
-        "Uhm Hello?",
-    ]
+    _light_reactions: ClassVar[list[str]] = Reactions.LIGHT
+    _advanced_reactions: ClassVar[list[str]] = Reactions.ADVANCED
 
-    def _draw(self, reaction_type: str, choices: list[str]) -> str:
-        """
-        Draws a line without replacement from this instance's own shuffled copy of
-        `choices`, and reshuffles a fresh copy once it is used up. The class-level
-        list is never modified, and a refill never starts with the line just sent.
-        """
-        decks: dict[str, list[str]] = self.__dict__.setdefault("_reaction_decks", {})
-        last: dict[str, str] = self.__dict__.setdefault("_reaction_last", {})
-        deck = decks.get(reaction_type)
-        if not deck:
-            deck = random.sample(choices, len(choices))
-            if len(deck) > 1 and deck[-1] == last.get(reaction_type):
-                # Lines are drawn from the end, so swap the repeat out of it.
-                deck[0], deck[-1] = deck[-1], deck[0]
-            decks[reaction_type] = deck
-        selected = deck.pop()
-        last[reaction_type] = selected
-        return selected
+    @cached_property
+    def _reactions(self) -> Reactions:
+        return Reactions(self, self.data)
 
-    @cooldown(10)
     def _react(self, reaction_type: str, disc_msg: str | None = None) -> None:
         """
-        Reacts to a certain event by sending a message to the chat.
+        Reacts to a certain event by sending a message to the chat, within
+        `Reactions.react`'s cooldown, which every holder in the process shares.
         """
-        if reaction_type == "light":
-            disc_alert = (
-                None
-                if disc_msg is None
-                else DiscordRequest(disc_msg, self.data.current_frame.pixels)
-            )
-            choices = self._light_reactions
-        else:
-            disc_alert = DiscordRequest(
-                disc_msg or f"{self} is failing", self.data.current_frame.pixels
-            )
-            choices = self._advanced_reactions
-
-        selected = self._draw(reaction_type, choices)
-        self.send(
-            ActionRequest(
-                f"{self} - Writing to chat #{next(_REACTIONS)}",
-                write_in_chat,
-                self.data.ign,
-                priorities.ANTI_DETECTION,
-                block_lower_priority=True,
-                args=(self.data.handle, selected),
-                kwargs={"keys": self.data.chat_keys},
-                discord_request=disc_alert,
-            )
-        )
+        self._reactions.react(reaction_type, disc_msg)

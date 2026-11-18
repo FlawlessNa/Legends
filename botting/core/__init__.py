@@ -1,6 +1,6 @@
 """
 The engine's core: Bots, DecisionMakers, their Supervisor, Data Keys and Signals,
-and the processes a Session runs.
+the game window's handle, and the processes a Session runs.
 
 Members load lazily (PEP 562): `from botting.core import Bot` imports `bot.py`
 when it is asked for, not before. Importing one light submodule, such as
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from .async_task_manager import AsyncTaskManager
     from .bot import Bot
     from .bot_data import BotData, OwnedByProvider
-    from .data_keys import Key, KeyNotDeclared, Provider
+    from .data_keys import Key, KeyNotDeclared, Provider, Providers
     from .decision_maker import (
         DecisionLoop,
         DecisionMaker,
@@ -34,8 +34,10 @@ if TYPE_CHECKING:
     from .session_manager import SessionManager
     from .signals import Announcement, Signal, SignalBoard, SignalNotDeclared
     from .supervisor import Pause, PauseTarget, Supervisor
+    from .window import HANDLE, WindowProvider
 
 __all__ = [
+    "HANDLE",
     "ActionRequest",
     "ActionWithValidation",
     "Announcement",
@@ -56,6 +58,7 @@ __all__ = [
     "PauseTarget",
     "PeripheralsProcess",
     "Provider",
+    "Providers",
     "ProxyFactory",
     "SessionManager",
     "Signal",
@@ -63,6 +66,7 @@ __all__ = [
     "SignalNotDeclared",
     "StartupRefused",
     "Supervisor",
+    "WindowProvider",
     "action_name",
 ]
 
@@ -78,6 +82,7 @@ _MEMBERS: dict[str, str] = {
     "Key": "data_keys",
     "KeyNotDeclared": "data_keys",
     "Provider": "data_keys",
+    "Providers": "data_keys",
     "DecisionLoop": "decision_maker",
     "DecisionMaker": "decision_maker",
     "PauseNotDeclared": "decision_maker",
@@ -96,6 +101,8 @@ _MEMBERS: dict[str, str] = {
     "Pause": "supervisor",
     "PauseTarget": "supervisor",
     "Supervisor": "supervisor",
+    "HANDLE": "window",
+    "WindowProvider": "window",
 }
 
 

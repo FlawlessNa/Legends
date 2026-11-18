@@ -10,11 +10,12 @@ from botting.controller import release_keys
 
 from .action_data import ActionRequest
 from .bot_data import BotData
-from .data_keys import Provider, build_providers, resolve_providers
+from .data_keys import Provider, Providers, resolve_providers
 from .decision_maker import DecisionMaker
 from .proxy_factory import ProxyFactory
 from .signals import SignalBoard, check_signals
 from .supervisor import Supervisor, resolve_pauses
+from .window import WindowProvider
 
 logger = logging.getLogger(__name__)
 
@@ -45,12 +46,9 @@ class Bot(ABC):
         self.kwargs = kwargs
 
         self._bot: asyncio.Task | None = None
-        #: Runs every DecisionMaker's loops. Built by `start`, once the
+        #: Runs every DecisionMaker's loops. Built by `assemble`, once the
         #: DecisionMakers are.
         self.supervisor: Supervisor | None = None
-        #: The Providers of every key the DecisionMakers read, built and set up
-        #: by `start`, each after those it needs.
-        self.providers: list[Provider] = []
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}({self.ign})"
@@ -62,65 +60,105 @@ class Bot(ABC):
     ) -> None:
         """
         Called by the Engine to create Bot within Child process.
+
+        Makes the Bot's data and its Providers, and builds the first Bot-level
+        one: `WindowProvider`, with the handle `find_handle` finds now. A game
+        layer adds its own Bot-level Providers after this, from what it finds
+        and checks at start (`Providers.add`).
         """
         self.data = BotData(self.ign)
-        self.data.set_static("handle", self.find_handle())
+        self.pipe = pipe
+        self.barrier = barrier
+        providers = self._make_providers(self.data, pipe)
+        providers.add(WindowProvider, handle=self.find_handle())
         self.data.set_static("replies_on", True)
         # What a DecisionMaker that stops the others' (ChatReplies, on a GM) names.
         self.data.set_static(
             "decision_maker_names",
             tuple(class_.__name__ for class_ in self._decision_makers()),
         )
-        self.pipe = pipe
-        self.barrier = barrier
+
+    @property
+    def providers(self) -> list[Provider]:
+        """Every Provider built for this Bot, in the order they were set up."""
+        if self.data is None or self.data.providers is None:
+            return []
+        return list(self.data.providers)
+
+    def _providers(self) -> Providers:
+        """
+        This Bot's Providers: `child_init`'s, or, for a Bot whose data was made
+        without it, made now.
+        """
+        assert self.data is not None, "the Bot's data is made before its Providers"
+        assert self.pipe is not None, "the Bot's pipe is set before its Providers"
+        if self.data.providers is None:
+            return self._make_providers(self.data, self.pipe)
+        return self.data.providers
+
+    def _make_providers(
+        self, data: BotData, pipe: multiprocessing.connection.Connection
+    ) -> Providers:
+        """This Bot's Providers, attached to `data`, with nothing built yet."""
+        return Providers(
+            data,
+            pipe,
+            ProxyFactory(self.metadata),
+            self.kwargs,
+            SignalBoard(data.clock),
+        )
 
     async def start(self) -> None:
         """
         Called by the Engine: assemble the Bot, then run its DecisionMakers.
 
         Assembly happens before the start barrier, so a Bot wired wrong is
-        refused before any bot starts:
-
-        1. the class-level declarations are resolved, with nothing built: the
-           Pauses, the Providers of every key read in the order to build them,
-           and the Signals awaited;
-        2. the Providers are built, then set up, in that order;
-        3. the DecisionMakers are built, then set up;
-        4. the Supervisor takes them, and runs their loops until the Bot ends.
-        :raises StartupRefused: a declaration resolves to nothing, two keys share
-            a name, the Providers form a cycle, a Signal is awaited that nothing
-            announces, or a Provider registers less
-            than it provides.
+        refused before any bot starts. The Supervisor then runs the
+        DecisionMakers' loops until the Bot ends.
+        :raises StartupRefused: as `assemble` does.
         """
         self._bot = asyncio.current_task()
-        assert self.data is not None, "child_init() must run before start()"
-        assert self.pipe is not None, "child_init() must run before start()"
-
-        classes = self._decision_makers()
-        declared_pauses = resolve_pauses(classes)
-        providers = resolve_providers(classes)
-        check_signals(classes, providers)
-
-        signals = SignalBoard(self.data.clock)
-        self.providers = build_providers(
-            providers,
-            self.data,
-            self.pipe,
-            ProxyFactory(self.metadata),
-            self.kwargs,
-            signals,
-        )
-        for decision_maker in self.decision_makers:
-            decision_maker._signals = signals  # pyright: ignore[reportPrivateUsage] - assembly wires it
-        for decision_maker in self.decision_makers:
-            decision_maker.setup()
-        self.supervisor = Supervisor(self.ign, self.decision_makers, declared_pauses)
+        self.assemble()
 
         # Synchronizes the start of all bots at the same time.
         assert self.barrier is not None, "child_init() must run before start()"
         await asyncio.to_thread(self.barrier.wait)
 
+        assert self.supervisor is not None, "assemble() builds the Supervisor"
         await self.supervisor.run()
+
+    def assemble(self) -> None:
+        """
+        Build what the DecisionMakers declare, then the DecisionMakers, and hand
+        them to a Supervisor. `start` calls it before the start barrier:
+
+        1. the class-level declarations are resolved, with nothing built: the
+           Pauses, the Providers of every key read in the order to build them,
+           and the Signals awaited;
+        2. the Providers not built yet are built, then set up, in that order
+           (the Bot-level ones were, by `child_init`);
+        3. the DecisionMakers are built, then set up;
+        4. the Supervisor takes them.
+        :raises StartupRefused: a declaration resolves to nothing, two keys share
+            a name, the Providers form a cycle, a Signal is awaited that nothing
+            announces, a key is read whose Bot-level Provider this Bot did not
+            build, or a Provider registers less than it provides.
+        """
+        assert self.data is not None, "child_init() must run before assemble()"
+        assert self.pipe is not None, "child_init() must run before assemble()"
+
+        classes = self._decision_makers()
+        declared_pauses = resolve_pauses(classes)
+        order = resolve_providers(classes)
+        check_signals(classes, order)
+
+        providers = self._providers()
+        providers.build(order)
+        for decision_maker in self.decision_makers:
+            decision_maker._signals = providers.signals  # pyright: ignore[reportPrivateUsage] - assembly wires it
+        for decision_maker in self.decision_makers:
+            decision_maker.setup()
+        self.supervisor = Supervisor(self.ign, self.decision_makers, declared_pauses)
 
     def pause(self) -> None:
         """

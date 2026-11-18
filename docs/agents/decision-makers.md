@@ -6,8 +6,9 @@ The terms are defined in `CONTEXT.md` ("Decision-making"); use them.
 The framework is being built by epic #432.
 What exists today: the Supervisor, Pauses, Data Keys, Providers, Signals and assembly.
 What does not exist yet: Claims (`steers`) and the crash policy.
-No game Provider exists yet either; MapleStory's keys and Providers arrive with the first port.
-Until then, an old-style DecisionMaker keeps its mixins, and the two kinds run side by side in one Bot.
+MapleStory's keys and Providers are in `maple/decision_makers/providers/`, one module per Provider; its package docstring lists them.
+`CheckStillInMap` is the first DecisionMaker ported, and the worked example below.
+Until each is ported, an old-style DecisionMaker keeps its mixins, and the two kinds run side by side in one Bot.
 
 ## The shape
 
@@ -88,13 +89,28 @@ It belongs to the Bot, not to a DecisionMaker.
 - **`needs`** lists the keys of other Providers this one reads, with `self.read(KEY)`.
   Assembly sets those Providers up first.
   Reading a key not in `needs` raises `KeyNotDeclared`.
+- **Its own keys.** `self.read(KEY)` and `self.refresh(KEY)` also take a key the Provider provides, once it is registered (the minimap's error handler refreshes the minimap's reading).
 - **Actions.** A Provider may send Actions with `self.send(request)` (the minimap's error handler moves the mouse).
   They carry no Correlation ID, since no single decision owns them, and `self.emit(...)` attributes the Provider's records to its own module.
+
+### Bot-level Providers
+
+Some data is not produced from the settings but found and checked by the Bot at start: the game window's handle, the map checked on the minimap, the screen readers built from the sprites every DecisionMaker's `screen_readers` declares.
+A **Bot-level** Provider serves it.
+
+- It sets `bot_level = True`, and takes what the Bot found as keyword arguments beside the settings: `ScreenReadersProvider(..., sprites=..., minimap=...)`.
+- The Bot builds it in `child_init`, with `data.providers.add(ProviderClass, **values)`, which sets it up at once.
+  Assembly never builds one: it skips those built, and refuses a Bot whose DecisionMakers read a key of one its Bot did not build.
+- `Bot.child_init` builds the first, `WindowProvider`, which serves `HANDLE` (`botting.core`).
+  `MapleBot.child_init` adds MapleStory's, in the order it always found them: the screen readers, the map, the character, the map's mobs, then the client's frame and chat keys.
+- A key a Bot-level Provider serves is read like any other: declare it in `reads`.
 
 ## Reading data
 
 - `self.read(KEY)` returns the key's value, typed, refreshed first when its threshold has passed.
   The key must be in `reads`, or it raises `KeyNotDeclared`.
+- `self.refresh(KEY)` reads the value now, whatever its threshold: for a decision that must see the client as it is, such as a fresh `FRAME`.
+  It is what `data.update_attribute(name)` followed by `data.<name>` was.
 - `self.peek(KEY)` returns the last known value without refreshing it, or None when there is none.
   The key must be in `reads` or `observes`.
   A key that is only observed never causes its Provider to be built, so `peek` is for a DecisionMaker that watches what others read, such as a state snapshot.
@@ -106,9 +122,12 @@ It belongs to the Bot, not to a DecisionMaker.
 
 1. It collects the class-level declarations of every DecisionMaker; nothing is built yet.
 2. It resolves the Providers of every key read, then of every key those Providers need, and orders them.
-3. It refuses the start with `StartupRefused` on a cycle between Providers (naming it), two keys with the same name (naming both), a `pauses` entry that resolves to nothing, or a Signal awaited that nothing in the Bot announces (naming the Signal and the DecisionMaker).
-4. It builds every Provider, then runs each `setup()`, in order.
+3. It refuses the start with `StartupRefused` on a cycle between Providers (naming it), two keys with the same name (naming both), a `pauses` entry that resolves to nothing, a Signal awaited that nothing in the Bot announces (naming the Signal and the DecisionMaker), or a key read whose Bot-level Provider the Bot did not build (naming it).
+4. It builds every Provider not built yet (the Bot-level ones were, by `child_init`), then runs each `setup()`, in order.
 5. It builds every DecisionMaker, then runs each `setup()`.
+
+`Bot.start` runs this as `Bot.assemble()`, then waits at the start barrier.
+A test that needs a Bot's DecisionMakers built as the Engine builds them calls `assemble()`.
 
 So a Bot wired wrong fails at startup with a message that names the cause, never mid-session.
 
@@ -167,10 +186,65 @@ class Looter(DecisionMaker):
 
 ## Old and new side by side
 
-- An unported DecisionMaker declares nothing and builds no Provider; it keeps doing its I/O in `__init__`, and its `setup()` stays empty.
-- It reads a Provider's value as `data.<legacy_name>`, and every `BotData` method that takes a name (`get_last_known_value`, `update_attribute`, the time queries) accepts the legacy name too.
+- An unported DecisionMaker declares nothing; it keeps doing its I/O in `__init__`, and its `setup()` stays empty.
+- It reads a Provider's value as `data.<legacy_name>`, or by the key's name when the key has no legacy one, and every `BotData` method that takes a name (`get_last_known_value`, `update_attribute`, the time queries) accepts the legacy name too.
+- A mixin method that used to create data asks for its Provider instead: `_create_minimap_attributes` is `self.data.build_provider(MinimapProvider)`, which builds and sets it up, after what it needs, unless it is built.
+  However many DecisionMakers ask, it is set up once.
 - `create_attribute`, `create_or_reconfigure_attribute` and `set_static` on a name a Provider owns raise `OwnedByProvider`: one producer per key.
 - `_disable_decision_makers` and `_enable_decision_makers` remain as a shim for unported code only, with their old semantics.
+
+## A worked example: porting `CheckStillInMap`
+
+`CheckStillInMap` (`maple/decision_makers/ensure_still_in_map.py`) checks every 3 s that the minimap shows the bot's map, recovers the minimap once when it does not, and stops the bot when it still does not.
+Before its port it was:
+
+```python
+class CheckStillInMap(MinimapAttributesMixin, ReactionsMixin, DecisionMaker):
+    def __init__(self, metadata, data, pipe, **kwargs):
+        super().__init__(metadata, data, pipe)
+        if not self.data.has_minimap_attributes:
+            self._create_minimap_attributes()  # I/O: shows the minimap
+        self.map_name = map_title(self.data.world_map)
+
+    async def _decide(self):
+        ...
+        self._minimap_pos_error_handler()  # the mixin's recovery
+        ...
+        self._disable_decision_makers(
+            "Rotation", "CheckStillInMap", "CheckMobsStillSpawn", "MobsHitting"
+        )
+        self._react("advanced")  # the mixin's reactions
+```
+
+The port, step by step:
+
+1. **List what it reads.**
+   Every `self.data.<name>` becomes a key: `current_frame` is `FRAME`, `minimap_reader` is `MINIMAP_READER`, `world_map` is `WORLD_MAP`.
+   Look through the mixin methods it calls too: the recovery read the handle, the minimap's box and its reading; the reactions read the frame, the handle and the chat keys.
+2. **Move the data a mixin created into a Provider.**
+   `_create_minimap_attributes` became `MinimapProvider`: the same setup I/O, the same keys in the same order, the same thresholds and error handler.
+   Declaring one of its keys in `reads` is what builds it, so the `has_minimap_attributes` check goes.
+3. **Turn the mixin's logic into a helper the DecisionMaker holds.**
+   The recovery is `MinimapRecovery`, the reactions are `Reactions`.
+   Each declares the keys it reads as `reads`, and the DecisionMaker spreads them into its own, so it reads nothing undeclared:
+
+   ```python
+   reads = (WORLD_MAP, *MinimapRecovery.reads, *Reactions.reads)
+   ```
+
+   A helper keeps what the mixin did, even what was shared: `Reactions.react` keeps the one 10 s cooldown every holder in the process shares, as `ReactionsMixin._react` had, and the mixin now reacts through a `Reactions` of its own.
+4. **Replace the shim with a Pause.**
+   It stopped four classes until a human looked, so it takes a user-held Pause on the same four, itself included: `self.pause_for_user(Rotation, CheckStillInMap, CheckMobsStillSpawn, MobsHitting, reason=...)`, declared in `pauses`.
+   Its own class is a dotted path there, since a class cannot name itself in its own body.
+   Only Discord `RESUME` releases it; the shim also ended at any DecisionMaker's `_enable_decision_makers`.
+5. **Move the reads and the I/O out of `__init__`.**
+   `__init__` builds the helpers; `setup()` reads `WORLD_MAP` for the map's name, and refuses the start when there is no minimap reader.
+6. **Read what must be fresh with `refresh`.**
+   `data.update_attribute("current_frame")` then `data.current_frame` is `self.refresh(FRAME)`.
+7. **Rewrite its tests on the new API** (`tests/test_maple/test_minimap_consumers.py`).
+   They build the Bot-level Providers as `MapleBot.child_init` builds them, with a client that shows the frame the test sets, so the check runs against real keys and no game client.
+
+What it decides, its thresholds, the classes it pauses and the keys it sends are unchanged.
 
 ## Testing one
 

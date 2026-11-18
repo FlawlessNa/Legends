@@ -10,9 +10,9 @@ from collections.abc import Callable
 import pytest
 
 from botting.screen import Reading
-from maple.decision_makers.mixins import HeldReading
+from maple.decision_makers.readings import HeldReading
 
-LOGGER = "botting.maple.decision_makers.mixins._readings"
+LOGGER = "botting.maple.decision_makers.readings"
 
 
 def _tenfold(value: int) -> int:
