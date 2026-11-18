@@ -22,7 +22,10 @@ on the quiet-map test lines, whose notes name none. They have no `camera`, `feet
 them. The 44 chat frames carry a `chat` entry (#482): each row's kind, read by
 the chat reader and checked against the capture's notes (whisper and notice rows
 on `chat_036` to `043`, our test lines on general on `021` to `035`). The name-tag
-frames carry none.
+frames carry none: #457's tests need no reading of them (our tag reads as our
+name, every other tag as a GDI render of Arial labels it,
+`tests/test_maple/test_name_tag_frames.py`), so none of their names is
+committed.
 
 `v2` and `v3` carry three more readings on every frame: `camera`, `feet` and
 `map_id`. `v2.json`'s other readings are as they were; `v3.json` repeats

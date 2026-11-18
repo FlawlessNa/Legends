@@ -29,6 +29,14 @@ The glyphs are client pixels: they go to the gitignored `data/glyphs/`, which
   (from `x`) where the second one starts. A line whose runs don't number its
   letters is refused.
 
+- `name-tag`: name tags on frames drawn 1:1 (up to 1366x768), each
+  `[x, top of its 11-row cell, width]` (`font.NAME_TAG`). They are **labelled
+  by Windows' GDI render of Arial** at 12 px, unantialiased, letters and digits
+  only, which the client draws them with (#457): Pillow's render of the font
+  draws `d` otherwise. A tag the render doesn't explain to the last pixel is
+  refused; Arial draws `I` and `l` alike, kept as `I`, as for the chat. Needs
+  Windows.
+
 Every source is read back with the harvested set; any misread fails the run, and
 nothing is written. The tool prints each source's labels for a person to check.
 Needs the frames on disk (`python scripts/fetch_frames.py`); sends nothing to
@@ -36,7 +44,9 @@ the game.
 """
 
 import argparse
+import ctypes
 import json
+import string
 import sys
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -52,6 +62,7 @@ from maple.screen.font import (
     COUNTDOWN,
     GLYPHS,
     MINIMAP_TITLE,
+    NAME_TAG,
     GlyphSet,
     GlyphSetSpec,
     save_glyph_set,
@@ -68,6 +79,12 @@ CELL_OFFSET = 3
 (`font.CHAT_GENERAL`)."""
 MIN_BLOB = 3
 """Ink blobs smaller than this, in pixels, are specks, not digits."""
+NAME_TAG_FACE = "Arial"
+NAME_TAG_SIZE = 12
+"""The name tags' font and its size in px (`font.NAME_TAG`)."""
+NAME_TAG_CHARACTERS = string.digits + string.ascii_uppercase + string.ascii_lowercase
+"""What a name is made of. Uppercase before lowercase, so Arial's `I` and `l`
+are kept as `I` (`alike`)."""
 
 type Mask = NDArray[np.bool_]
 
@@ -210,6 +227,123 @@ def harvest_lines(
     return harvest
 
 
+# Name tags: labelled by Windows' GDI render.
+
+
+def gdi_labeller(
+    face: str = NAME_TAG_FACE,
+    size: int = NAME_TAG_SIZE,
+    characters: str = NAME_TAG_CHARACTERS,
+) -> dict[str, Mask]:
+    """
+    Each of `characters` drawn by Windows' GDI in `face`, `size` px high (its
+    em), unantialiased, cut to its ink: how the client draws its text (#457).
+
+    :raises OSError: Not on Windows.
+    """
+    if sys.platform != "win32":
+        raise OSError("the GDI labeller draws with Windows' GDI: run on Windows")
+    from ctypes import wintypes
+
+    gdi32 = ctypes.windll.gdi32
+    gdi32.CreateCompatibleDC.restype = wintypes.HDC
+    gdi32.CreateCompatibleDC.argtypes = [wintypes.HDC]
+    gdi32.CreateDIBSection.restype = wintypes.HBITMAP
+    gdi32.CreateDIBSection.argtypes = [
+        wintypes.HDC,
+        ctypes.c_void_p,
+        wintypes.UINT,
+        ctypes.POINTER(ctypes.c_void_p),
+        wintypes.HANDLE,
+        wintypes.DWORD,
+    ]
+    gdi32.CreateFontW.restype = wintypes.HFONT
+    gdi32.SelectObject.restype = wintypes.HGDIOBJ
+    gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HGDIOBJ]
+    gdi32.SetTextColor.argtypes = [wintypes.HDC, wintypes.DWORD]
+    gdi32.SetBkColor.argtypes = [wintypes.HDC, wintypes.DWORD]
+    gdi32.TextOutW.argtypes = [
+        wintypes.HDC,
+        ctypes.c_int,
+        ctypes.c_int,
+        wintypes.LPCWSTR,
+        ctypes.c_int,
+    ]
+    gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
+    gdi32.DeleteDC.argtypes = [wintypes.HDC]
+
+    class BitmapInfoHeader(ctypes.Structure):
+        _fields_ = [
+            ("biSize", wintypes.DWORD),
+            ("biWidth", wintypes.LONG),
+            ("biHeight", wintypes.LONG),
+            ("biPlanes", wintypes.WORD),
+            ("biBitCount", wintypes.WORD),
+            ("biCompression", wintypes.DWORD),
+            ("biSizeImage", wintypes.DWORD),
+            ("biXPelsPerMeter", wintypes.LONG),
+            ("biYPelsPerMeter", wintypes.LONG),
+            ("biClrUsed", wintypes.DWORD),
+            ("biClrImportant", wintypes.DWORD),
+        ]
+
+    side = 4 * size
+    nonantialiased_quality = 3
+    drawn: dict[str, Mask] = {}
+    dc = gdi32.CreateCompatibleDC(None)
+    # A negative height asks for the em, not the cell, to be `size` px.
+    font = gdi32.CreateFontW(
+        -size, 0, 0, 0, 400, 0, 0, 0, 0, 0, 0, nonantialiased_quality, 0, face
+    )
+    header = BitmapInfoHeader(
+        ctypes.sizeof(BitmapInfoHeader), side, -side, 1, 32, 0, 0, 0, 0, 0, 0
+    )
+    bits = ctypes.c_void_p()
+    bitmap = gdi32.CreateDIBSection(
+        dc, ctypes.byref(header), 0, ctypes.byref(bits), None, 0
+    )
+    try:
+        gdi32.SelectObject(dc, bitmap)
+        gdi32.SelectObject(dc, font)
+        gdi32.SetTextColor(dc, 0xFFFFFF)
+        gdi32.SetBkColor(dc, 0)
+        buffer = ctypes.cast(bits, ctypes.POINTER(ctypes.c_uint8))
+        pixels = np.ctypeslib.as_array(buffer, shape=(side, side, 4))
+        for char in characters:
+            pixels[:] = 0
+            gdi32.TextOutW(dc, size, size, char, 1)
+            ink = pixels[..., 0] > 127
+            ys, xs = np.nonzero(ink)
+            drawn[char] = ink[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1].copy()
+    finally:
+        gdi32.DeleteObject(font)
+        gdi32.DeleteObject(bitmap)
+        gdi32.DeleteDC(dc)
+    return drawn
+
+
+def harvest_name_tags(
+    tags: Iterable[tuple[str, NDArray[np.uint8]]], labeller: Mapping[str, Mask]
+) -> Harvest:
+    """
+    Cut each name tag's glyphs, labelled by `labeller` (`gdi_labeller`), as a
+    chat line's are (`harvest_lines`), then read each labelled tag back with
+    the harvest, saying no text (`misreads`): a tag is another player's name.
+
+    :param tags: Each tag's name, and the BGR pixels of its cell.
+    """
+    strips = list(tags)
+    harvest = harvest_lines([(w, NAME_TAG.ink(p)) for w, p in strips], labeller)
+    labelled = dict(harvest.labels)
+    harvest.problems += misreads(
+        NAME_TAG,
+        harvest,
+        [(w, p, labelled[w]) for w, p in strips if w in labelled],
+        quiet=True,
+    )
+    return harvest
+
+
 # Countdown: labelled by a person.
 
 
@@ -308,15 +442,18 @@ def misreads(
     spec: GlyphSetSpec,
     harvest: Harvest,
     strips: Iterable[tuple[str, NDArray[np.uint8], str]],
+    quiet: bool = False,
 ) -> list[str]:
-    """Each strip (name, BGR pixels, expected text) the harvested set misreads."""
+    """Each strip (name, BGR pixels, expected text) the harvested set misreads.
+    When `quiet`, the texts aren't said: a name tag's is another player's name."""
     forms = {c: [mask for mask, _ in f] for c, f in harvest.forms.items()}
     glyph_set = GlyphSet(spec, harvest.glyphs, forms=forms)
     wrong: list[str] = []
     for where, pixels, expected in strips:
         got = glyph_set.read(pixels)
         if got.replace(" ", "") != expected.replace(" ", ""):
-            wrong.append(f"{where}: read {got!r}, labelled {expected!r}")
+            said = "" if quiet else f" {got!r}, labelled {expected!r}"
+            wrong.append(f"{where}: read{said or ' otherwise than labelled'}")
     return wrong
 
 
@@ -406,14 +543,33 @@ def main(argv: list[str] | None = None) -> int:
     title = harvest_cut_lines(title_lines)
     title.problems += misreads(MINIMAP_TITLE, title, title_strips)
 
-    harvests = ((CHAT_GENERAL, chat), (COUNTDOWN, digits), (MINIMAP_TITLE, title))
+    tag_strips: list[tuple[str, NDArray[np.uint8]]] = []
+    rows = NAME_TAG.rows or 0
+    for source in sources.get(NAME_TAG.name, []):
+        x, top, width = source["tag"]
+        where = f"{source['frame']} tag {x},{top}"
+        strip = _load(directory, source["frame"])[top : top + rows, x : x + width]
+        tag_strips.append((where, strip))
+    tag_labeller = gdi_labeller() if tag_strips else {}
+    tags = harvest_name_tags(tag_strips, tag_labeller)
+
+    harvests = (
+        (CHAT_GENERAL, chat),
+        (COUNTDOWN, digits),
+        (MINIMAP_TITLE, title),
+        (NAME_TAG, tags),
+    )
     for spec, harvest in harvests:
         print(
             f"{spec.name}: {len(harvest.glyphs)} glyph(s): {''.join(sorted(harvest.glyphs))}"
         )
+        if spec is NAME_TAG:
+            # Other players' names: counted, never printed.
+            print(f"  {len(harvest.labels)} of {len(tag_strips)} tag(s) labelled")
+            continue
         for where, text in harvest.labels:
             print(f"  {where}: {text}")
-    problems = chat.problems + digits.problems + title.problems
+    problems = chat.problems + digits.problems + title.problems + tags.problems
     if problems:
         print("\nNothing written:", *problems, sep="\n  ", file=sys.stderr)
         return 1
@@ -427,6 +583,12 @@ def main(argv: list[str] | None = None) -> int:
         ),
         (COUNTDOWN, digits, {}, None),
         (MINIMAP_TITLE, title, {}, None),
+        (
+            NAME_TAG,
+            tags,
+            {k: v for k, v in alike(tag_labeller).items() if k in tags.glyphs},
+            None,
+        ),
     ):
         if not harvest.glyphs:
             print(f"{spec.name}: no source in {tag}, so its set is left as it was")

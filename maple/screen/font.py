@@ -159,8 +159,27 @@ columns apart and words 4 (#387). Not the client's font: a render of
 as "Dungeon" but gets 73 of its 179 ink pixels wrong, so the glyphs are
 harvested (R4)."""
 
+NAME_TAG = GlyphSetSpec(
+    "name-tag",
+    low=(255, 255, 255),
+    high=(255, 255, 255),
+    max_error=0.0,
+    rows=11,
+)
+"""A character's name tag (#457): its name in pure white on a dark box, drawn
+1:1 up to 1366x768. The font is Arial at 12 px as Windows' GDI draws it
+unantialiased: on frame set `v4`'s name-tag frames at 1366x768, GDI's render
+explains 61 of the 83 tags to the last pixel, the 22 others being cut or
+overlapped by something else. Pillow's render of the same font, which labels
+the chat, draws `d` otherwise. (GDI's Arial at 14 px also draws the chat's `K`,
+`#` and newer `A`, which Pillow's doesn't: the client draws its text with GDI.)
+A tag's cell is the 11 rows starting 3 below the top of its box, from the top
+of a capital to the bottom of a descender. A name has no space. Above 1366x768
+the play area, tags included, is drawn smaller and upscaled
+(`maple.screen.name_tag` undoes it before reading)."""
+
 GLYPH_SETS: dict[str, GlyphSetSpec] = {
-    s.name: s for s in (CHAT_GENERAL, COUNTDOWN, MINIMAP_TITLE)
+    s.name: s for s in (CHAT_GENERAL, COUNTDOWN, MINIMAP_TITLE, NAME_TAG)
 }
 
 

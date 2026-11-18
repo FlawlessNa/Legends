@@ -22,12 +22,14 @@ from maple.bots.map_setting import (
 from maple.decision_makers.mobs_hitting import MobsHitting
 from maple.decision_makers.rebuffs import solo_buffs
 from maple.model.characters import MAPPING as CHARACTER_MAPPING
+from maple.model.characters.character import Character
 from maple.model.mechanics.maple_mob import MapleMob
 from maple.model.mechanics.physics import Calibration, game_physics
 from maple.model.world import WorldMap
 from maple.screen.buffs import ICON_BASE, BuffsReader
 from maple.screen.chat import TARGET_SELECT, ChatReader
 from maple.screen.client import find_client
+from maple.screen.font import NAME_TAG
 from maple.screen.locator import FrameCheck
 from maple.screen.map_identification import MapCanvases, MapIdentifier
 from maple.screen.minimap import MINIMAP, NW, MinimapReader
@@ -233,12 +235,17 @@ class MapleBot(Bot, ABC):
                 )
         InGameDetectionVisuals.register_models(self.models_path)
         InGameDetectionVisuals.register_cache_id(data.handle)
-        data.create_attribute(
-            "character",
-            lambda: self.character_class(
+        name_tags = reader_sprites.glyph_sets.get(NAME_TAG.name)
+
+        def character() -> Character:
+            made = self.character_class(
                 self.ign, self.detection_configs, self.client_size
-            ),
-        )
+            )
+            if name_tags is not None:
+                made.read_name_tags_with(name_tags)
+            return made
+
+        data.create_attribute("character", character)
         data.create_attribute(
             "current_mobs",
             lambda: tuple(
