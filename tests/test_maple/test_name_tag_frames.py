@@ -6,6 +6,12 @@ cuts under it (`tag_strip`).
 
 - Our tag reads as our name on every name-tag frame (`v4`'s 20, at 1366x768
   and 1920x1080), and no other tag does.
+- On every frame of the set where `NameTagFinder` finds our tag whole (its
+  learned template, uncut by the client's edge), our tag reads as our name at
+  least as often as measured when #457 landed (`OUR_TAG_FLOOR`): not on every
+  one. Where another tag overlaps ours, a stray white pixel touches a letter,
+  a glow lightens the box, or an upscaled tag doesn't solve cleanly, it reads
+  otherwise, and the picker falls back on continuity and confidence.
 - Every tag on those frames at 1366x768 that Windows' GDI render of Arial
   labels (`toolkit.harvest_glyphs.gdi_labeller`), 61 of the 83 found, reads
   as labelled, so none reads `UNREAD`. The render doesn't label the others:
@@ -27,9 +33,12 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
+from botting.screen import Frame, Status
+from game_data.catalogue import Catalogue
+from game_data.config import STORE
 from maple.model.characters.own_character import NameTagReader, tag_strip
 from maple.screen.font import NAME_TAG, load_glyph_set
-from maple.screen.position import tag_upscale
+from maple.screen.position import NameTagFinder, tag_upscale
 from maple.screen.position.characters import (
     STATUS_BAR_ROWS,
     TAG_TO_FEET,
@@ -37,6 +46,7 @@ from maple.screen.position.characters import (
     find_name_tags,
 )
 from tests.frame_set import FrameSet
+from tests.test_maple.test_screen_characters_frames import minimap_feet
 from toolkit import harvest_glyphs
 
 pytestmark = [pytest.mark.frames]
@@ -112,6 +122,70 @@ def test_our_tag_reads_as_our_name_on_every_name_tag_frame(
         f"{f}: {ours[f]} tags read as our name" for f in sorted(files) if ours[f] != 1
     ]
     assert not wrong, "\n".join(wrong)
+
+
+OUR_TAG_FLOOR: dict[tuple[int, int], tuple[int, int]] = {
+    (800, 600): (23, 23),
+    (1024, 768): (14, 20),
+    (1280, 720): (12, 13),
+    (1366, 768): (44, 59),
+    (1920, 1080): (120, 184),
+    (1920, 1200): (2, 5),
+}
+"""Per client size, of the frames where `NameTagFinder` finds our tag whole,
+how many our tag reads as our name on, and how many there are, as measured
+when #457 landed (frame set `v4`). 2560x1440 has none: our tag is cut by the
+client's edge on all its frames."""
+
+
+@pytest.mark.client_files
+def test_our_tag_reads_as_our_name_no_less_often_where_it_is_seen_whole(
+    frames: FrameSet, reader: NameTagReader
+) -> None:
+    """One finder reads every frame in order, learning our tag where the
+    minimap puts our character (`test_screen_characters_frames.py`)."""
+    map_ids = {
+        entry.expect["map_id"].value
+        for entry in frames.entries
+        if entry.expect["map_id"].status is Status.READ
+    }
+    with Catalogue.latest(STORE) as catalogue:
+        maps = {i: catalogue.map(i).minimap for i in map_ids}
+    minimaps = {i: m for i, m in maps.items() if m is not None}
+    finder = NameTagFinder()
+    seen: collections.Counter[tuple[int, int]] = collections.Counter()
+    read: collections.Counter[tuple[int, int]] = collections.Counter()
+    for entry in frames.entries:
+        pixels = frames.pixels(entry)
+        frame = Frame(pixels, entry.client_size, 0.0, True, True)
+        near = minimap_feet(entry, minimaps)
+        if near is not None:
+            finder.learn_own(frame, near)
+        reading = finder.find(frame)
+        ours = [s for s in reading.value or [] if s.own and s.box is not None]
+        if len(ours) != 1 or ours[0].box is None:
+            continue
+        x0, y0, x1, _ = ours[0].box
+        if x0 < 0 or x1 > entry.client_size[0]:
+            continue  # cut by the client's edge
+        scale = tag_upscale(entry.client_size)
+        assert scale is not None
+        centre, half = (x0 + x1) / 2, CHARACTER_WIDTH * scale / 2
+        feet = y0 - round(TAG_TO_FEET * scale)
+        strip = tag_strip(
+            pixels, (round(centre - half), 0, round(centre + half), feet), scale
+        )
+        assert strip is not None, entry.file
+        seen[entry.client_size] += 1
+        read[entry.client_size] += reader.read_tag(strip, entry.client_size) == OURS
+    measured = {size: (read[size], seen[size]) for size in seen}
+    assert measured.keys() == OUR_TAG_FLOOR.keys()
+    worse = [
+        f"{size}: {measured[size]}, was {floor}"
+        for size, floor in OUR_TAG_FLOOR.items()
+        if measured[size][0] < floor[0] or measured[size][1] != floor[1]
+    ]
+    assert not worse, "; ".join(worse)
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="labels with Windows' GDI")

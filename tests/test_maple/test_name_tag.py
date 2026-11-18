@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 
 from maple.screen.font import NAME_TAG, UNREAD, GlyphSet
 from maple.screen.name_tag import (
+    NAME_GAP,
     NAME_TAGS,
     OFFSETS,
     UNSCALED_WHITE,
@@ -187,6 +188,17 @@ def test_the_tag_nearest_the_middle_is_read() -> None:
     draw_tag(image, "bbbb", 90)
     draw_tag(image, "oooo", 160)
     assert read_name_tag(SET, image, (1366, 768)) == "bbbb"
+
+
+def test_of_two_tags_drawn_side_by_side_the_one_nearest_the_middle_is_read() -> None:
+    """`find_name_tags` joins them into one box; their texts are `NAME_GAP`
+    columns apart or more, which no two letters of a name are."""
+    image = blank(width=120)
+    draw_tag(image, "AbbA", 40)
+    draw_tag(image, "pAoA", 40 + 21 + 1 + NAME_GAP)
+    assert read_name_tag(SET, image, (1366, 768)) == "AbbA"
+    shifted = np.ascontiguousarray(image[:, 10:])
+    assert read_name_tag(SET, shifted, (1366, 768)) == "pAoA"
 
 
 def test_no_tag_reads_nothing() -> None:

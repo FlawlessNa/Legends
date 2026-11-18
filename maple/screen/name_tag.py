@@ -71,6 +71,13 @@ between the tag's dark box and its white. Under the labelled feet of `v4`'s
 1920x1080 frames, our tag reads as our name on 71 at 170, 74 at 190 and 74
 at 210."""
 
+NAME_GAP = 5
+"""Blank columns, in play-area px, that part two names: GDI's Arial at 12 px
+leaves at most 4 between two letters (after a `1`), and two tags whose boxes
+don't overlap leave at least 6 between their texts. `find_name_tags` joins
+tags drawn side by side into one box; the reader reads the name nearest the
+strip's middle."""
+
 PAD = 8
 """Client px kept around an upscaled tag's text, so the text's edges are
 solved from the pixels they are blended into."""
@@ -97,7 +104,9 @@ def read_name_tag(
     if scale == 1.0:
         top, left = max(0, y0 - CELL_RISE), max(0, x0 - 1)
         ink = NAME_TAG.ink(pixels[top : y0 + ROWS, left : x1 + 1])
-        return _read_cell(glyphs, ink, y0 - top, 0, ink.shape[1], slack=0)
+        return _read_cell(
+            glyphs, ink, y0 - top, 0, ink.shape[1], middle - left, slack=0
+        )
     top, left = max(0, y0 - PAD), max(0, x0 - PAD)
     window = pixels[top : y1 + PAD, left : x1 + PAD].astype(np.float64)
     lightest = np.minimum(np.minimum(window[..., 0], window[..., 1]), window[..., 2])
@@ -116,6 +125,7 @@ def read_name_tag(
         text_top,
         max(0, text_left - 1),
         min(ink.shape[1], text_right + 1),
+        (middle - left) / kx - first_column,
         slack=1,
     )
 
@@ -191,11 +201,17 @@ def _read_cell(
     text_top: int,
     left: int,
     right: int,
+    middle: float,
     slack: int,
 ) -> str:
     """The text of the cell of `ink`'s columns `left` to `right` whose top
     reads the fewest `UNREAD` letters, of those from `CELL_RISE` (and
-    `slack`) rows above `text_top` to `slack` rows below it."""
+    `slack`) rows above `text_top` to `slack` rows below it. Where those
+    columns hold more than one name (`NAME_GAP`), only the one nearest the
+    column `middle` is read."""
+    band = ink[max(0, text_top - CELL_RISE - slack) : text_top + ROWS + slack]
+    start, end = _nearest_name(band[:, left:right].any(axis=0), middle - left)
+    left, right = max(0, left + start - 1), min(ink.shape[1], left + end + 1)
     best: tuple[tuple[int, int], str] | None = None
     for top in range(text_top - CELL_RISE - slack, text_top + slack + 1):
         if top < 0 or top >= ink.shape[0]:
@@ -211,6 +227,28 @@ def _read_cell(
         if best is None or key < best[0]:
             best = (key, text)
     return "" if best is None else best[1]
+
+
+def _nearest_name(inked: NDArray[np.bool_], middle: float) -> tuple[int, int]:
+    """
+    Of `inked`'s columns, the run holding one name nearest the column
+    `middle`, as `[start, end)`: runs of inked columns joined across gaps
+    narrower than `NAME_GAP`. All of them when none is inked.
+    """
+    columns = np.flatnonzero(inked)
+    if columns.size == 0:
+        return 0, inked.size
+    breaks = np.flatnonzero(np.diff(columns) > NAME_GAP)
+    starts = [int(columns[0]), *(int(columns[i + 1]) for i in breaks)]
+    ends = [*(int(columns[i]) + 1 for i in breaks), int(columns[-1]) + 1]
+
+    def distance(run: tuple[int, int]) -> float:
+        start, end = run
+        if start <= middle < end:
+            return 0.0
+        return min(abs(start - middle), abs(end - middle))
+
+    return min(zip(starts, ends, strict=True), key=distance)
 
 
 def _drawn(ink: NDArray[np.bool_]) -> NDArray[np.uint8]:
