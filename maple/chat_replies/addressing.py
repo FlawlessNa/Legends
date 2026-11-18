@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from maple.screen.chat import ChatKind, reads_as
 from maple.screen.font import UNREAD
 
-from .line import ReadLine, same_name, same_speaker
+from .line import PLAYER_KINDS, ReadLine, is_ours, same_speaker
 
 
 class Address(enum.Enum):
@@ -88,7 +88,7 @@ class Addressing:
         later lines are `GM` too, whatever their kind."""
         if line.continues:
             return Address.MUST if self.names_us(line.text) else Address.IGNORE
-        if line.outgoing or same_name(line.speaker, self.ign):
+        if is_ours(line, self.ign):
             return Address.IGNORE
         if line.kind is ChatKind.GM:
             speaker = line.speaker
@@ -97,7 +97,7 @@ class Addressing:
             ):
                 self._gms.append(speaker)
             return Address.GM
-        if line.kind not in _ALWAYS_ANSWERED and line.kind is not ChatKind.GENERAL:
+        if line.kind not in PLAYER_KINDS:
             return Address.IGNORE
         if line.speaker is not None and any(
             same_speaker(line.speaker, gm) for gm in self._gms

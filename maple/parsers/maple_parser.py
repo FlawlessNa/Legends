@@ -11,6 +11,7 @@ from maple.actions import (
     started_chat_keys,
     write_in_chat,
 )
+from maple.actions.writing import TRAINING_ACTIONS
 from maple.screen.client import find_client
 
 logger = logging.getLogger(__name__)
@@ -57,11 +58,7 @@ class MapleParser(BaseParser):
             block_lower_priority=True,
             args=(handle, message),
             kwargs={"keys": _chat_keys(who), **self._where(to, channel)},
-            cancel_tasks=[
-                f"Rotation({who})",
-                f"MobsHitting({who})",
-                f"TelecastMobsHitting({who})",
-            ],
+            cancel_tasks=[f"{name}({who})" for name in TRAINING_ACTIONS],
             callbacks=[lambda: self._confirmation_with_image(handle)],
         )
 

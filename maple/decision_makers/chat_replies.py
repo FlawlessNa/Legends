@@ -67,11 +67,17 @@ from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
 from botting.llm import DEFAULT_MODEL_ID, AnthropicModel, ModelAnswer, StructuredModel
 from botting.screen import ClientNotClosed, Reading, Status, close_client
 from maple.actions import priorities, reply_in_chat
+from maple.actions.writing import TRAINING_ACTIONS, WHISPER
 from maple.chat_replies.addressing import STRENGTH, Address, Addressing
 from maple.chat_replies.conversation import Burst, Conversation, Entry, EntryState
 from maple.chat_replies.instructions import InstructionsError, load_instructions
 from maple.chat_replies.line import same_speaker
-from maple.chat_replies.mirror import discord_mention, mirror, mirror_unanswered
+from maple.chat_replies.mirror import (
+    LINE_JOIN,
+    discord_mention,
+    mirror,
+    mirror_unanswered,
+)
 from maple.chat_replies.relay import Failed, Relay, RelayOutcome, Reply, Silent
 from maple.screen.chat import CHAT, ChatKind, ChatLine
 from maple.screen.font import UNREAD
@@ -115,16 +121,13 @@ SESSION_WINDOW = 600.0
 ECHO_WAIT = 60.0
 """Seconds lines are held for a reply's echo before following the chat anyway,
 should Main Process never say the reply was typed."""
-TRAINING_ACTIONS = ("Rotation", "MobsHitting", "TelecastMobsHitting")
-"""The DecisionMakers whose Actions in flight a reply cancels, as a Discord
-`WRITE` does."""
 CHANNELS: dict[ChatKind, str] = {
     ChatKind.GENERAL: "general",
     ChatKind.PARTY: "party",
     ChatKind.BUDDY: "buddy",
-    ChatKind.WHISPER: "whisper",
+    ChatKind.WHISPER: WHISPER,
     # Where a GM's own line is answered isn't known until GM lines are captured
-    # (#482): on general, where a person would answer a GM who spoke on the map.
+    # (#592): on general, where a person would answer a GM who spoke on the map.
     ChatKind.GM: "general",
 }
 """The channel `reply_in_chat` answers each kind of line on."""
@@ -509,7 +512,7 @@ class ChatReplies(UIMixin, DecisionMaker):
                     self.data.handle,
                     text,
                     channel,
-                    burst.speaker if channel == "whisper" else None,
+                    burst.speaker if channel == WHISPER else None,
                     TypingPace(),
                 ),
                 kwargs={"keys": self.data.chat_keys},
@@ -657,7 +660,7 @@ def _refusal(burst: Burst) -> Failed | None:
     """Why `burst` gets no reply without asking the model, if it doesn't."""
     if not any(e.message for e in burst.entries):
         return Failed("nothing of what was said was read", "nothing_read")
-    if CHANNELS[burst.channel] == "whisper" and (
+    if CHANNELS[burst.channel] == WHISPER and (
         burst.speaker is None or UNREAD in burst.speaker
     ):
         return Failed(
@@ -670,7 +673,7 @@ def _refusal(burst: Burst) -> Failed | None:
 def _said(*entries: Entry) -> str:
     """What `entries` said, for the log."""
     first = entries[0]
-    said = " / ".join(e.message or "?" for e in entries)
+    said = LINE_JOIN.join(e.message or "?" for e in entries)
     return f"[{first.kind.value}] {first.speaker or '?'}: {said}"
 
 
