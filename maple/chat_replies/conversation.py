@@ -4,8 +4,8 @@ are ours, and which are left to answer.
 
 **Entries.** Each line the chat reader reports is appended once, with its
 `Address`, as an `Entry` numbered by the conversation's own counter (`seq`).
-Megaphone, system and `unknown` lines are never appended: they are no one's
-words to answer or to quote.
+Megaphone, system, notice and `unknown` lines are never appended: they are no
+one's words to answer or to quote.
 
 **Ours.** An entry is ours when the reader says the line is outgoing, or its
 speaker reads as the IGN (`same_name`). A misread IGN would make the character
@@ -18,7 +18,8 @@ never `pending`.
 **Wrapped lines.** A row that `continues` the line above (the reader's word for
 the rest of a line that wrapped) is not an entry of its own: it is joined to the
 last entry, the line above, when that is of the same kind. Its text is added to
-that entry's message after a space, the entry takes the stronger of the two
+that entry's message after a space, or straight after it when the line broke
+mid-word (the reader's `mid_word`), the entry takes the stronger of the two
 addresses (`Addressing` makes the row `MUST` when it names the IGN), and the
 whole message is matched against our echoes again, since a reply that wraps
 only reads whole once joined. A row that continues nothing is appended as it
@@ -138,7 +139,7 @@ class Conversation:
     ) -> Entry | None:
         """
         Append a line the chat reader reported, once, with its address. `None`,
-        and nothing appended, for a megaphone, system or `unknown` line.
+        and nothing appended, for a megaphone, system, notice or `unknown` line.
 
         A row that `continues` the line above is joined to the last entry
         instead (module docstring), and that entry, updated, is returned: the
@@ -178,7 +179,7 @@ class Conversation:
         rest = (line.text or "").strip()
         message = last.message
         if message is not None and rest:
-            message = f"{message} {rest}"
+            message = f"{message}{rest}" if line.mid_word else f"{message} {rest}"
         echoed = message != last.message and self._take_echo(message, line.kind, now)
         ours = last.ours or echoed
         joined = last.address if ours else strongest([last.address, address])

@@ -3,7 +3,7 @@ What the reply side reads from a chat line.
 
 `maple.screen.chat.ChatLine` has these fields: the kind from its colours, the
 speaker, message and direction split from its text by the kind's format, and
-whether the row continues the line above. Splitting is the reader's job, so
+whether the row continues the line above, and from the middle of a word. Splitting is the reader's job, so
 nothing here parses `text`.
 
 Whether a name read is a given one goes through `maple.screen.chat.reads_as`,
@@ -29,6 +29,8 @@ class ReadLine(Protocol):
         `None` for the others.
     :ivar continues: The row is the rest of the line above, which wrapped: it
         has no speaker, and its words are in `text` only.
+    :ivar mid_word: A row that `continues` the line above from the middle of a
+        word, so it joins it with no space between.
     """
 
     @property
@@ -48,6 +50,9 @@ class ReadLine(Protocol):
 
     @property
     def continues(self) -> bool: ...
+
+    @property
+    def mid_word(self) -> bool: ...
 
 
 def same_name(speaker: str | None, name: str) -> bool:

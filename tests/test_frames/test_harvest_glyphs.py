@@ -70,6 +70,36 @@ def test_a_glyph_cut_differently_in_two_lines_is_a_problem() -> None:
     assert any(p.startswith("b:") for p in harvest.problems)
 
 
+def test_a_letter_a_person_read_is_added_to_the_font_s_harvest() -> None:
+    """The client draws a few letters unlike the labelling font: a person
+    labels those on a line whose text is known (#482)."""
+    harvest = tool.harvest_lines([("a", line(("h", 1)))], LABELLER)
+    ink = np.zeros((ROWS, 4), bool)
+    ink[2:7, 0:3] = True
+
+    tool.harvest_cut_lines([("b", ink, "K", [])], into=harvest, exact=True)
+
+    assert harvest.problems == []
+    assert set(harvest.glyphs) == {"h", "K"}
+    assert harvest.sources["K"] == "b"
+
+
+def test_a_letter_a_person_read_another_way_is_kept_as_another_form() -> None:
+    """The client has drawn `A` two ways: as Arial does, and with a pixel more.
+    A cut the font labelled must match; one a person labelled is another form."""
+    harvest = tool.harvest_lines([("a", line(("h", 1)))], LABELLER)
+    spur = harvest.glyphs["h"].copy()
+    spur[3, 2] = True
+
+    tool.harvest_cut_lines([("b", spur, "h", [])], into=harvest, exact=True)
+    tool.harvest_cut_lines([("c", spur, "h", [])], into=harvest, exact=True)
+
+    assert harvest.problems == []
+    [(form, where)] = harvest.forms["h"]
+    assert (form == spur).all()
+    assert where == "b"
+
+
 def test_digits_are_cut_one_blob_each_labelled_by_the_text() -> None:
     ink = np.zeros((7, 12), bool)
     ink[1:6, 1:4] = glyph(["###", "..#", "###", "#..", "###"])
@@ -141,11 +171,15 @@ def test_a_harvest_that_misreads_its_own_source_is_reported() -> None:
 
 def test_the_committed_sources_hold_no_pixels() -> None:
     """Frame names, boxes and digits only: chat text is never committed, since
-    it carries other players' names."""
+    it carries other players' names. A chat source gives at most one letter, the
+    client's own drawing of a letter Arial draws otherwise."""
     for path in tool.SOURCES.glob("*.json"):
         sources = json.loads(path.read_text(encoding="utf-8"))
         for entry in sources[CHAT_GENERAL.name]:
-            assert set(entry) == {"frame", "line"}
+            assert (
+                {"frame", "line"} <= set(entry) <= {"frame", "line", "colour", "text"}
+            )
+            assert len(entry.get("text", "?")) == 1
         for entry in sources[COUNTDOWN.name]:
             assert set(entry) == {"frame", "box", "text"}
             assert entry["text"].isdigit()

@@ -506,7 +506,8 @@ pixel, is retired.
 **Conversation**:
 The session's chat, every line read in order as an **Entry**, with which lines
 are the character's own and which are left to answer. Lines it doesn't answer
-stay in it as context. Megaphone, system and `unknown` lines are not in it.
+stay in it as context. Megaphone, system, notice and `unknown` lines are not
+in it.
 _Avoid_: History, transcript: the transcript is what a request to the model is
 given, the last part of the Conversation rendered as text.
 
@@ -515,6 +516,12 @@ What a chat line asks of the character: `MUST` be answered, `GM` (a GM's line,
 answered carefully), `JUDGE` (the model judges whether it was meant for us),
 or `IGNORE`.
 _Avoid_: Mention: a whisper names no one, and is addressed all the same.
+
+**Notice**:
+A line the client writes to the character in light red, such as `Could not find
+<name>.` under a whisper to someone offline, or a game event. No one's words:
+never `general`, never in the **Conversation**, never answered.
+_Avoid_: System line: `system` is the yellow and light-blue kind.
 
 **Burst**:
 Everything one player said on one channel that is left to answer. One reply

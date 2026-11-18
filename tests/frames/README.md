@@ -19,7 +19,10 @@ frames, Free Market Entrance 80002000 on the whisper and name-tag frames), `unsu
 on the quiet-map test lines, whose notes name none. They have no `camera`, `feet` or
 `minimap`: labelling those is a judgement the readers' tickets make (#482 reads
 `chat`, #457 the name tags), and no test of those readers looks at a frame without
-them. They carry no `chat` entry for the same reason.
+them. The 44 chat frames carry a `chat` entry (#482): each row's kind, read by
+the chat reader and checked against the capture's notes (whisper and notice rows
+on `chat_036` to `043`, our test lines on general on `021` to `035`). The name-tag
+frames carry none.
 
 `v2` and `v3` carry three more readings on every frame: `camera`, `feet` and
 `map_id`. `v2.json`'s other readings are as they were; `v3.json` repeats

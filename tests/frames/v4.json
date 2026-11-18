@@ -24863,6 +24863,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "general",
+      "general",
+      "megaphone"
+     ]
     }
    }
   },
@@ -24877,6 +24888,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "general",
+      "megaphone",
+      "general"
+     ]
     }
    }
   },
@@ -24891,6 +24913,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "megaphone",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -24905,6 +24938,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "general",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -24919,6 +24963,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "general",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -24933,6 +24988,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "general",
+      "megaphone",
+      "general"
+     ]
     }
    }
   },
@@ -24947,6 +25013,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "megaphone",
+      "general",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -24961,6 +25038,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "megaphone",
+      "megaphone",
+      "general",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -24975,6 +25063,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "general",
+      "general",
+      "general",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -24989,6 +25088,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "general",
+      "megaphone",
+      "general"
+     ]
     }
    }
   },
@@ -25003,6 +25113,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "general",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -25017,6 +25138,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "megaphone",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -25031,6 +25163,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "general",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -25045,6 +25188,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "general",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -25059,6 +25213,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "general",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -25073,6 +25238,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "general",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -25087,6 +25263,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "general",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -25101,6 +25288,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "megaphone",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -25115,6 +25313,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "general",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -25129,6 +25338,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "general",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -25143,6 +25363,17 @@
     "map_id": {
      "status": "read",
      "value": 10001000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "general",
+      "general",
+      "general",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -25157,6 +25388,17 @@
     "map_id": {
      "status": "unsure",
      "value": null
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "general",
+      "megaphone",
+      "megaphone"
+     ]
     }
    }
   },
@@ -25171,6 +25413,17 @@
     "map_id": {
      "status": "unsure",
      "value": null
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "general",
+      "megaphone",
+      "megaphone"
+     ]
     }
    }
   },
@@ -25185,6 +25438,17 @@
     "map_id": {
      "status": "unsure",
      "value": null
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "general",
+      "megaphone",
+      "megaphone"
+     ]
     }
    }
   },
@@ -25199,6 +25463,17 @@
     "map_id": {
      "status": "unsure",
      "value": null
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "general"
+     ]
     }
    }
   },
@@ -25213,6 +25488,17 @@
     "map_id": {
      "status": "unsure",
      "value": null
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "general"
+     ]
     }
    }
   },
@@ -25227,6 +25513,17 @@
     "map_id": {
      "status": "unsure",
      "value": null
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "general",
+      "megaphone",
+      "megaphone",
+      "general"
+     ]
     }
    }
   },
@@ -25241,6 +25538,17 @@
     "map_id": {
      "status": "unsure",
      "value": null
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "general",
+      "megaphone",
+      "megaphone",
+      "general"
+     ]
     }
    }
   },
@@ -25255,6 +25563,17 @@
     "map_id": {
      "status": "unsure",
      "value": null
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "megaphone",
+      "megaphone",
+      "general",
+      "megaphone",
+      "megaphone"
+     ]
     }
    }
   },
@@ -25269,6 +25588,17 @@
     "map_id": {
      "status": "unsure",
      "value": null
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "general",
+      "megaphone",
+      "megaphone",
+      "general",
+      "megaphone",
+      "megaphone"
+     ]
     }
    }
   },
@@ -25283,6 +25613,17 @@
     "map_id": {
      "status": "unsure",
      "value": null
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -25297,6 +25638,17 @@
     "map_id": {
      "status": "unsure",
      "value": null
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -25311,6 +25663,17 @@
     "map_id": {
      "status": "unsure",
      "value": null
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -25325,6 +25688,17 @@
     "map_id": {
      "status": "unsure",
      "value": null
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "general",
+      "general"
+     ]
     }
    }
   },
@@ -25339,6 +25713,17 @@
     "map_id": {
      "status": "unsure",
      "value": null
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "general",
+      "megaphone",
+      "megaphone"
+     ]
     }
    }
   },
@@ -25353,6 +25738,17 @@
     "map_id": {
      "status": "unsure",
      "value": null
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "general",
+      "megaphone",
+      "megaphone"
+     ]
     }
    }
   },
@@ -25367,6 +25763,17 @@
     "map_id": {
      "status": "read",
      "value": 80002000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "whisper",
+      "notice"
+     ]
     }
    }
   },
@@ -25381,6 +25788,17 @@
     "map_id": {
      "status": "read",
      "value": 80002000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "whisper",
+      "notice"
+     ]
     }
    }
   },
@@ -25395,6 +25813,17 @@
     "map_id": {
      "status": "read",
      "value": 80002000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "whisper",
+      "notice"
+     ]
     }
    }
   },
@@ -25409,6 +25838,17 @@
     "map_id": {
      "status": "read",
      "value": 80002000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "megaphone",
+      "whisper",
+      "notice"
+     ]
     }
    }
   },
@@ -25423,6 +25863,17 @@
     "map_id": {
      "status": "read",
      "value": 80002000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "whisper",
+      "notice",
+      "megaphone",
+      "whisper",
+      "notice"
+     ]
     }
    }
   },
@@ -25437,6 +25888,17 @@
     "map_id": {
      "status": "read",
      "value": 80002000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "megaphone",
+      "whisper",
+      "notice",
+      "megaphone",
+      "whisper",
+      "notice"
+     ]
     }
    }
   },
@@ -25451,6 +25913,17 @@
     "map_id": {
      "status": "read",
      "value": 80002000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "whisper",
+      "notice",
+      "megaphone",
+      "megaphone",
+      "whisper",
+      "notice"
+     ]
     }
    }
   },
@@ -25465,6 +25938,17 @@
     "map_id": {
      "status": "read",
      "value": 80002000
+    },
+    "chat": {
+     "status": "read",
+     "value": [
+      "whisper",
+      "notice",
+      "megaphone",
+      "megaphone",
+      "whisper",
+      "notice"
+     ]
     }
    }
   },

@@ -14,7 +14,7 @@ judges it, or it is ignored.
   first, where how close the speaker is (D9), or how many players are on the
   map, plugs in later.
 - `IGNORE`: our own lines, a general line `judge_gate` rejects, and the kinds
-  never answered (megaphone, system, `unknown`).
+  never answered (megaphone, system, notice, `unknown`).
 
 A row that `continues` the line above asks nothing on its own: it is `MUST`
 when its text names the IGN, `IGNORE` otherwise. `Conversation` joins it to the
