@@ -27,6 +27,7 @@ from pytest_mock import MockerFixture
 from botting import controller
 from botting.core import ActionRequest
 from botting.core.bot_data import BotData
+from botting.core.errors import DecisionMakerCrashed
 from botting.core.supervisor import Supervisor, resolve_pauses
 from botting.screen import Reading
 from botting.stop_file import STOP_FILENAME
@@ -524,7 +525,7 @@ def test_an_exception_releases_every_key_on_the_way_out(harness: _Runner) -> Non
 
     with pytest.raises(ExceptionGroup) as raised:
         asyncio.run(_supervised(harness.runner))
-    assert raised.group_contains(RuntimeError, match="a reader broke")
+    assert raised.group_contains(DecisionMakerCrashed, match="a reader broke")
 
     assert len(harness.releases) == 1
     assert harness.link.view["ended"]
@@ -673,7 +674,7 @@ def _end_by(h: _Runner, how: str) -> None:
         h.runner.data.reconfigure_attribute("current_position", broken)
         with pytest.raises(ExceptionGroup) as raised:
             asyncio.run(_supervised(h.runner))
-        assert raised.group_contains(RuntimeError)
+        assert raised.group_contains(DecisionMakerCrashed, match="a reader broke")
     elif how == "cancelled task":
 
         async def run() -> None:

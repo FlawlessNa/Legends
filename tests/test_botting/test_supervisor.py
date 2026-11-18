@@ -29,9 +29,11 @@ from botting.core.decision_maker import (
     PauseNotDeclared,
     action_name,
 )
-from botting.core.errors import StartupRefused
-from botting.core.supervisor import Supervisor, resolve_pauses
+from botting.core.errors import DecisionMakerCrashed, StartupRefused
+from botting.core.supervisor import USER, Pause, PauseKind, Supervisor, resolve_pauses
+from botting.logging_config import producer_logger_name
 from botting.telemetry_events import (
+    DECISION_CRASHED,
     DECISION_DISABLED,
     DECISION_ENABLED,
     DECISION_PAUSED,
@@ -353,7 +355,7 @@ def test_a_loop_that_raises_still_ends_the_bot() -> None:
         supervisor = Supervisor(IGN, dms, resolve_pauses([Crashing, Worker]))
         with pytest.raises(ExceptionGroup) as raised:
             await asyncio.wait_for(supervisor.run(), timeout=5)
-        assert raised.group_contains(RuntimeError, match="boom")
+        assert raised.group_contains(DecisionMakerCrashed, match="boom")
 
     asyncio.run(scenario())
 
@@ -876,5 +878,135 @@ def test_a_miswired_pauses_entry_refuses_the_start_before_any_decision_maker_is_
         bot.barrier = threading.Barrier(1)
         with pytest.raises(StartupRefused, match="Unbuildable.*Nowhere"):
             await bot.start()
+
+    asyncio.run(scenario())
+
+
+# --- the crash policy ---------------------------------------------------------------
+
+
+class Raiser(DecisionMaker):
+    """Raises on its first decision, after `Worker`'s Pause is taken, if asked."""
+
+    pauses = (Worker,)
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401 - DecisionMaker's own
+        super().__init__(*args, **kwargs)
+        self.pause_held = asyncio.Event()
+
+    async def _decide(self) -> None:
+        async with self.pause(Worker, reason="about to crash"):
+            self.pause_held.set()
+            await asyncio.sleep(0)
+            raise RuntimeError("boom")
+
+
+class PausingAndCrashing(DecisionMaker):
+    """One loop holds a Pause for ever; the other one crashes."""
+
+    pauses = (Worker,)
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401 - DecisionMaker's own
+        super().__init__(*args, **kwargs)
+        self.pause_held = asyncio.Event()
+
+    def loops(self) -> Sequence[DecisionLoop]:
+        return (
+            DecisionLoop("holds", self._hold),
+            DecisionLoop("crashes", self._crash),
+        )
+
+    async def _decide(self) -> None:
+        raise AssertionError("loops() names both loops")
+
+    async def _hold(self) -> None:
+        async with self.pause(Worker, reason="holds"):
+            self.pause_held.set()
+            await asyncio.Event().wait()
+
+    async def _crash(self) -> None:
+        await self.pause_held.wait()
+        raise RuntimeError("boom")
+
+
+async def _crash_of(*classes: type[DecisionMaker]) -> tuple[Supervisor, ExceptionGroup]:
+    dms, _ = _build(*classes)
+    supervisor = Supervisor(IGN, dms, resolve_pauses(classes))
+    with pytest.raises(ExceptionGroup) as raised:
+        await asyncio.wait_for(supervisor.run(), timeout=5)
+    return supervisor, raised.value
+
+
+def test_a_crashing_loop_logs_its_traceback_on_the_decision_makers_logger(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level("ERROR")
+
+    asyncio.run(_crash_of(Crashing))
+
+    [record] = [r for r in caplog.records if "crashed in" in r.getMessage()]
+    assert record.name == producer_logger_name(Crashing.__module__)
+    assert f"Crashing({IGN})" in record.getMessage()
+    assert record.exc_info is not None
+    assert record.exc_info[0] is RuntimeError
+
+
+def test_a_crashing_loop_emits_decision_crashed(
+    emitted: list[tuple[str | None, str, Mapping[str, object]]],
+) -> None:
+    asyncio.run(_crash_of(Crashing))
+
+    [(correlation_id, _, payload)] = [e for e in emitted if e[1] == DECISION_CRASHED]
+    assert correlation_id is not None
+    assert payload == {
+        "decision_maker": f"Crashing({IGN})",
+        "exception_type": "RuntimeError",
+        "message": "boom",
+    }
+
+
+def test_a_crashing_loop_ends_the_bot_with_decision_maker_crashed() -> None:
+    _, group = asyncio.run(_crash_of(Crashing, Worker))
+
+    [crash] = group.exceptions
+    assert isinstance(crash, DecisionMakerCrashed)
+    assert crash.decision_maker == f"Crashing({IGN})"
+    assert str(crash) == f"Crashing({IGN}) crashed: RuntimeError: boom"
+    assert isinstance(crash.__cause__, RuntimeError)
+
+
+def test_a_cancelled_loop_is_not_a_crash(
+    emitted: list[tuple[str | None, str, Mapping[str, object]]],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level("ERROR")
+
+    async def scenario() -> None:
+        async with _running(Worker) as run:
+            run.supervisor.hold(
+                Pause(run.supervisor.target(Worker), USER, "test", PauseKind.SCOPED)
+            )
+            await _settle()
+
+    asyncio.run(scenario())
+
+    assert not [e for e in emitted if e[1] == DECISION_CRASHED]
+    assert not [r for r in caplog.records if r.exc_info]
+
+
+def test_the_crashed_decision_makers_pauses_are_released_before_the_bot_ends() -> None:
+    async def scenario() -> None:
+        supervisor, _ = await _crash_of(Raiser, Worker)
+        assert supervisor.held(Worker) == []
+
+    asyncio.run(scenario())
+
+
+def test_a_pause_held_by_another_loop_of_the_crashed_decision_maker_is_released() -> (
+    None
+):
+    async def scenario() -> None:
+        supervisor, _ = await _crash_of(PausingAndCrashing, Worker)
+        assert supervisor.held(Worker) == []
 
     asyncio.run(scenario())

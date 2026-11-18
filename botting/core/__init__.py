@@ -27,7 +27,7 @@ if TYPE_CHECKING:
         action_name,
     )
     from .engine import Engine
-    from .errors import StartupRefused
+    from .errors import DecisionMakerCrashed, StartupRefused
     from .metadata import MetadataNamespace
     from .peripherals_process import PeripheralsProcess
     from .proxy_factory import ProxyFactory
@@ -44,6 +44,7 @@ __all__ = [
     "BotData",
     "DecisionLoop",
     "DecisionMaker",
+    "DecisionMakerCrashed",
     "DiscordRequest",
     "Engine",
     "Key",
@@ -82,6 +83,7 @@ _MEMBERS: dict[str, str] = {
     "PauseNotDeclared": "decision_maker",
     "action_name": "decision_maker",
     "Engine": "engine",
+    "DecisionMakerCrashed": "errors",
     "StartupRefused": "errors",
     "MetadataNamespace": "metadata",
     "PeripheralsProcess": "peripherals_process",
