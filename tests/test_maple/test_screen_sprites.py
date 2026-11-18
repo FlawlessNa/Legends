@@ -24,6 +24,7 @@ from maple.bots.maple_bot import MapleBot
 from maple.screen import client
 from maple.screen import sprites as sprites_module
 from maple.screen.font import CHAT_GENERAL, COUNTDOWN, save_glyph_set
+from maple.screen.name_tag import NAME_TAGS
 from maple.screen.sprites import (
     FRAME_CHECK,
     GAUGE_LABEL,
@@ -221,6 +222,21 @@ def test_a_declared_glyph_set_not_harvested_is_refused_saying_how(
     ):
         load_reader_sprites(
             [FRAME_CHECK, COUNTDOWN_READER],
+            PROFILE,
+            root,
+            config=config,
+            glyphs=tmp_path / "glyphs",
+        )
+
+
+def test_the_name_tag_reader_is_refused_without_its_glyphs(
+    root: Path, config: Path, tmp_path: Path
+) -> None:
+    with pytest.raises(
+        StartupRefused, match=r"name tag reader needs glyphs.*'name-tag' glyphs"
+    ):
+        load_reader_sprites(
+            [FRAME_CHECK, NAME_TAGS],
             PROFILE,
             root,
             config=config,

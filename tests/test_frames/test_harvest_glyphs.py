@@ -1,14 +1,17 @@
 """
 `toolkit/harvest_glyphs.py` cuts glyphs, on synthetic ink and a synthetic
-labeller: no frame, no client pixels, no font file.
+labeller: no frame, no client pixels, no font file. The GDI labeller draws
+with Windows' own Arial, on Windows only.
 """
 
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
-from maple.screen.font import CHAT_GENERAL, COUNTDOWN, MINIMAP_TITLE
+from maple.screen.font import CHAT_GENERAL, COUNTDOWN, MINIMAP_TITLE, NAME_TAG
 from toolkit import harvest_glyphs as tool
 
 
@@ -169,10 +172,61 @@ def test_a_harvest_that_misreads_its_own_source_is_reported() -> None:
     ]
 
 
+def test_a_quiet_misread_says_no_text() -> None:
+    """A name tag's text is another player's name."""
+    harvest = tool.Harvest(glyphs={"1": np.ones((5, 2), bool)})
+    pixels = np.zeros((7, 10, 3), np.uint8)
+    pixels[1:6, 2:4] = (14, 236, 252)
+
+    assert tool.misreads(COUNTDOWN, harvest, [("bad", pixels, "7")], quiet=True) == [
+        "bad: read otherwise than labelled"
+    ]
+
+
+def tag(*placed: tuple[str, int], width: int = 30) -> np.ndarray:
+    """A name tag's cell, `NAME_TAG.rows` high: `placed` in pure white on a
+    dark box."""
+    pixels = np.full((NAME_TAG.rows or 0, width, 3), 40, np.uint8)
+    for char, x in placed:
+        mask = LABELLER[char]
+        h, w = mask.shape
+        pixels[2 : 2 + h, x : x + w][mask] = 255
+    return pixels
+
+
+def test_name_tags_are_cut_into_cells_labelled_by_the_font() -> None:
+    harvest = tool.harvest_name_tags(
+        [("t1", tag(("h", 2), ("i", 7))), ("t2", tag(("i", 1), ("I", 4)))], LABELLER
+    )
+    assert harvest.problems == []
+    assert sorted(harvest.glyphs) == ["I", "h", "i"]
+    assert all(g.shape[0] == NAME_TAG.rows for g in harvest.glyphs.values())
+    assert harvest.labels == [("t1", "hi"), ("t2", "iI")]
+
+
+def test_a_name_tag_the_font_doesnt_explain_is_refused_saying_no_text() -> None:
+    pixels = tag(("h", 2))
+    pixels[0, 20] = 255
+    harvest = tool.harvest_name_tags([("t", pixels)], LABELLER)
+    assert harvest.labels == []
+    assert harvest.problems == ["t: 1 ink pixel(s) no labelling glyph explains"]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="draws with Windows' GDI")
+def test_the_gdi_labeller_draws_every_letter_and_digit_of_a_name() -> None:
+    drawn = tool.gdi_labeller()
+    assert "".join(drawn) == tool.NAME_TAG_CHARACTERS
+    # Arial at 12 px: a capital is 9 px high, and `I` and `l` are drawn alike,
+    # kept as `I`.
+    assert drawn["M"].shape[0] == 9
+    assert tool.alike(drawn) == {"I": "Il"}
+
+
 def test_the_committed_sources_hold_no_pixels() -> None:
     """Frame names, boxes and digits only: chat text is never committed, since
     it carries other players' names. A chat source gives at most one letter, the
-    client's own drawing of a letter Arial draws otherwise."""
+    client's own drawing of a letter Arial draws otherwise. A name tag source
+    gives no text at all."""
     for path in tool.SOURCES.glob("*.json"):
         sources = json.loads(path.read_text(encoding="utf-8"))
         for entry in sources[CHAT_GENERAL.name]:
@@ -186,4 +240,7 @@ def test_the_committed_sources_hold_no_pixels() -> None:
         for entry in sources.get(MINIMAP_TITLE.name, []):
             assert set(entry) <= {"frame", "line", "text", "splits"}
             assert entry["text"].replace(" ", "").isalpha()
+        for entry in sources.get(NAME_TAG.name, []):
+            assert set(entry) == {"frame", "tag"}
+            assert len(entry["tag"]) == 3
     assert Path(tool.SOURCES / "v1.json").is_file()

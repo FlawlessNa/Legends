@@ -46,6 +46,7 @@ from maple.screen import client
 from maple.screen.buffs import BUFFS
 from maple.screen.chat import CHAT, ChatKind, ChatLine
 from maple.screen.minimap import MINIMAP
+from maple.screen.name_tag import NAME_TAGS
 from maple.screen.quick_slots import QUICK_SLOTS
 from maple.screen.sprites import (
     FRAME_CHECK,
@@ -278,7 +279,15 @@ def test_every_reader_its_decision_makers_name_is_loaded(
     _, _, _, loaded = started
 
     assert loaded[0] == FRAME_CHECK
-    assert set(loaded) == {FRAME_CHECK, STATUS_BAR, QUICK_SLOTS, MINIMAP, BUFFS, CHAT}
+    assert set(loaded) == {
+        FRAME_CHECK,
+        STATUS_BAR,
+        QUICK_SLOTS,
+        MINIMAP,
+        BUFFS,
+        CHAT,
+        NAME_TAGS,
+    }
 
 
 def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(

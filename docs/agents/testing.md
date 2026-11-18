@@ -141,18 +141,21 @@ Market Entrance, and the Free Market's name tags at 1920x1080 and 1366x768. They
 carry `map_id` only (`unsure` where the capture names no map), so a test of a
 position or `minimap` reading skips a frame that has no such entry. The chat
 frames carry a `chat` entry (#482); the chat tests that read every line's text
-(`NOT_READ_YET`) skip the name-tag frames, which carry none.
+(`NOT_READ_YET`) skip the name-tag frames, which carry none. The name-tag tests
+(#457, `test_name_tag_frames.py`) need no entry: our tag must read as our name,
+and every other tag as Windows' GDI render of Arial labels it.
 `tests/frames/README.md` says what was left out.
 
 A frame has no entry for a reader whose answer depends on a choice its ticket
 hasn't made yet: `notes` says why.
 
-Readers of font-drawn text (the buff countdown, chat) read with glyphs harvested
-from the frames into the gitignored `data/glyphs/`: run `python -m
-toolkit.harvest_glyphs` after fetching the frames, before `pytest -m frames`.
-What it cuts, and where, is `toolkit/glyph_sources/<tag>.json`: frame names,
-boxes and digits, never pixels or chat text (a chat source names at most one
-letter, one the client draws unlike Arial, cut from our own test lines).
+Readers of font-drawn text (the buff countdown, chat, name tags) read with glyphs
+harvested from the frames into the gitignored `data/glyphs/`: run `python -m
+toolkit.harvest_glyphs` after fetching the frames, before `pytest -m frames`
+(on Windows: the name tags are labelled by its GDI). What it cuts, and where, is
+`toolkit/glyph_sources/<tag>.json`: frame names, boxes and digits, never pixels,
+chat text or a name (a chat source names at most one letter, one the client
+draws unlike Arial, cut from our own test lines; a name-tag source none).
 
 Modules that touch the Held-Keys Ledger directly reset it through an `autouse`
 fixture of their own — see `tests/test_botting/test_held_keys_ledger.py`.

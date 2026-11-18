@@ -9,9 +9,10 @@ from ultralytics.engine.results import Results
 
 from botting.models_abstractions import BaseCharacter
 from botting.utilities import Box, config_reader
+from maple.screen.font import GlyphSet
 
 from .maple_skills import MapleSkill
-from .own_character import Candidate, OwnCharacterPicker
+from .own_character import Candidate, NameTagReader, OwnCharacterPicker
 
 DEBUG = True
 
@@ -54,6 +55,15 @@ class Character(BaseCharacter, ABC):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.ign})"
+
+    def read_name_tags_with(self, glyphs: GlyphSet) -> None:
+        """
+        Tell our character from other players' by the name tag under each,
+        read with `glyphs` (the `name-tag` set, `maple.screen.name_tag`).
+        Until this is called, no tag is read: the box is kept by the picker's
+        fallbacks alone (`OwnCharacterPicker`).
+        """
+        self._own_character_picker = OwnCharacterPicker(self.ign, NameTagReader(glyphs))
 
     def _character_candidates(
         self, detections: Results, mask: np.ndarray | None
