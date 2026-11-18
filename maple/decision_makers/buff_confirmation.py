@@ -1,5 +1,6 @@
 """
-Casting buffs, and confirming the cast took effect by the buff's icon (D9, R1).
+Confirming a buff's cast took effect by the buff's icon (D9, R1). `SoloRebuff`
+casts through `CastCheck`.
 
 A cast is judged by comparing the buffs read from a frame captured before it
 was sent with those read after:
@@ -24,18 +25,11 @@ regeneration, potions and Magic Guard all move it.
 
 import enum
 import logging
-import multiprocessing.connection
-import random
-import threading
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from botting import PARENT_LOG
-from botting.core import ActionRequest, ActionWithValidation, BotData
 from botting.screen import Reading, Status
-from maple.actions import priorities
-from maple.actions.skills_related_v2 import cast_skill_single_press
-from maple.model.characters import MapleBuff, MaplePartyBuff, MapleSkill
 from maple.screen.buffs import BuffState
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
@@ -151,99 +145,3 @@ class CastCheck:
                     reading.detail,
                 )
         return True
-
-
-class RebuffMixin:
-    data: BotData
-    pipe: multiprocessing.connection.Connection
-    correlation_id: str | None
-
-    def _get_character_default_buffs(
-        self, buff_type: str
-    ) -> list[MapleBuff | MaplePartyBuff]:
-        return [
-            skill
-            for skill in self.data.character.skills.values()
-            if skill.type == buff_type and skill.use_by_default
-        ]
-
-    def _create_buffs_attributes(self) -> None:
-        """
-        `buffs`, a `Reading[dict[str, BuffState]]` of the profile's buffs
-        (`buff_names`), from the bot's one `buffs_reader` and its
-        `current_frame`. It is never refreshed on its own: a consumer updates
-        `current_frame`, then `buffs`.
-
-        The DecisionMaker must name `BUFFS` in its `screen_readers`, so the
-        reader exists when the bot starts.
-        """
-        reader = self.data.buffs_reader
-        names = tuple(self.data.buff_names)
-        self.data.create_or_reconfigure_attribute(
-            "buffs", lambda: reader.read(self.data.current_frame, names)
-        )
-        self.data.set_feature("has_buffs_attributes")
-
-    def _read_buffs(self) -> BuffsReading:
-        """The profile's buffs in a frame captured now (`buffs`)."""
-        self.data.update_attributes("current_frame", "buffs")
-        return self.data.buffs
-
-    def _buff_confirmation(
-        self, before: BuffsReading, after: BuffsReading, buff: str
-    ) -> Confirmation:
-        return buff_confirmation(before, after, buff)
-
-    async def _cast_and_confirm(
-        self,
-        buffs: list[MapleSkill],
-        condition: threading.Condition,
-        predicate: Callable[[], bool] | None = None,
-    ) -> None:
-        """
-        Cast the buffs, and cast again while one is `NOT_CONFIRMED`.
-
-        The buffs are read from a frame captured before the cast is sent, and
-        from one captured after it (`CastCheck`).
-        """
-        names = [buff.name for buff in buffs]
-        if predicate is None:
-            predicate = CastCheck(
-                self._read_buffs,
-                names,
-                self._buff_confirmation,
-                owner=self,
-            )
-        request = ActionRequest(
-            f"{self} - {names}",
-            self._cast_skills_single_press,
-            self.data.ign,
-            priority=priorities.BUFFS,
-            block_lower_priority=True,
-            args=(self.data.handle, self.data.ign, buffs),
-        )
-        validator = ActionWithValidation(
-            self.pipe,
-            predicate,
-            condition,
-            timeout=15.0,
-            max_trials=20,
-            correlation_id=self.correlation_id,
-        )
-        await validator.execute_async(request)
-
-    @staticmethod
-    def _randomized(duration: float) -> float:
-        """
-        Pick a random point within 80% and 85% of the buff's duration.
-        :param duration: The duration of the buff.
-        :return:
-        """
-        return duration * (0.8 + 0.05 * random.random())
-
-    @staticmethod
-    async def _cast_skills_single_press(
-        handle: int, ign: str, skills: list[MapleSkill]
-    ) -> None:
-        for skill in skills:
-            await cast_skill_single_press(handle, ign, skill)

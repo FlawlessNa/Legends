@@ -7,7 +7,7 @@ The framework is being built by epic #432.
 What exists today: the Supervisor, Pauses, Data Keys, Providers, Signals and assembly.
 What does not exist yet: Claims (`steers`) and the crash policy.
 MapleStory's keys and Providers are in `maple/decision_makers/providers/`, one module per Provider; its package docstring lists them.
-`CheckStillInMap` is the first DecisionMaker ported, and the worked example below.
+`CheckStillInMap` is the first DecisionMaker ported, and the worked example below; `SoloRebuff`, the consumables and `ChatReplies` are ported too.
 Until each is ported, an old-style DecisionMaker keeps its mixins, and the two kinds run side by side in one Bot.
 
 ## The shape
@@ -104,6 +104,7 @@ A **Bot-level** Provider serves it.
 - `Bot.child_init` builds the first, `WindowProvider`, which serves `HANDLE` (`botting.core`).
   `MapleBot.child_init` adds MapleStory's, in the order it always found them: the screen readers, the map, the character, the map's mobs, then the client's frame and chat keys.
 - A key a Bot-level Provider serves is read like any other: declare it in `reads`.
+- A value the Bot changes while it runs is a Bot-level key too: `RepliesProvider` serves `REPLIES_ON`, and `Bot.replies` switches it, which refreshes the key for every reader. Never a `BotData` static read by name.
 
 ## Reading data
 
@@ -139,6 +140,7 @@ So a Bot wired wrong fails at startup with a message that names the cause, never
   It is released when the block exits, by any route, including your own decision being cancelled.
   Pass `cancel_actions=True` to also cancel the Actions the paused class already sent.
 - A DecisionMaker that needs a human calls `self.pause_for_user(*classes, reason="...")`; only Discord `RESUME` releases it.
+  To stop every other DecisionMaker of the Bot, declare them all, as `ChatReplies.pauses` (`GM_STOPS`) does, with a test that the list covers the package: a Pause on a class the Bot does not run does nothing.
 - A paused DecisionMaker keeps its state.
   Before every start and restart, the Supervisor calls `on_start()`, and once its loops have stopped, `on_stop()`: put resets there, never in an override of the loop.
 - A DecisionMaker with several loops (one per buff) overrides `loops()`, and nothing else.

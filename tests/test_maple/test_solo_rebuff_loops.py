@@ -13,9 +13,9 @@ import pytest
 from pytest_mock import MockerFixture
 
 from botting.core import DecisionMaker, ProxyFactory
-from botting.core.bot_data import BotData
 from maple.decision_makers.rebuffs import SoloRebuff
 from maple.model.characters.maple_skills import MapleBuff, MapleSkill
+from tests.test_maple.serving import assemble, serve
 
 HASTE = MapleBuff("Haste", duration=200, _use_by_default=True)
 BLESS = MapleBuff("Bless", duration=300, _use_by_default=True)
@@ -29,20 +29,25 @@ class _Character:
 
 
 @pytest.fixture
-def rebuff(mocker: MockerFixture) -> SoloRebuff:
+def rebuff(monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture) -> SoloRebuff:
     # The per-buff Conditions are Manager proxies in a Session; a local one
     # behaves the same for anything that does not cross a process.
     mocker.patch.object(
         ProxyFactory, "instance", side_effect=lambda *_a, **_k: threading.Condition()
     )
-    data = BotData("Buffer")
-    data.set_static("character", _Character())
-    # What `_create_buffs_attributes` reads when SoloRebuff is built; nothing
-    # here reads the buffs.
-    data.set_static("buffs_reader", SimpleNamespace(read=lambda frame, names: None))
-    data.set_static("buff_names", ("Haste", "Bless"))
-    data.set_static("current_frame", None)
-    return SoloRebuff({}, data, mocker.Mock())  # pyright: ignore[reportArgumentType] - no Manager needed
+    # The buffs reader `BuffsProvider` reads once at setup; nothing here reads
+    # the buffs.
+    served = serve(
+        monkeypatch,
+        "Buffer",
+        buffs=SimpleNamespace(read=lambda frame, names: None),
+        character=_Character(),
+        buff_names=("Haste", "Bless"),
+    )
+    assemble(served, SoloRebuff)
+    rebuff = SoloRebuff({}, served.data, mocker.Mock())  # pyright: ignore[reportArgumentType] - no Manager needed
+    rebuff.setup()
+    return rebuff
 
 
 def test_solo_rebuff_declares_one_loop_per_buff(rebuff: SoloRebuff) -> None:

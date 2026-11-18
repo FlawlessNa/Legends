@@ -18,7 +18,7 @@ from typing import Any
 
 import pytest
 
-from botting.core import HANDLE, WindowProvider
+from botting.core import HANDLE, REPLIES_ON, RepliesProvider, WindowProvider
 from botting.core.bot_data import BotData
 from botting.core.data_keys import Key, KeyNotDeclared, Provider, Providers
 from botting.core.errors import StartupRefused
@@ -102,21 +102,28 @@ def _providers(data: BotData) -> Providers:
 # --- what a Bot builds ---------------------------------------------------------------
 
 
-def test_child_init_serves_the_handle_find_handle_found() -> None:
+def test_child_init_serves_the_handle_find_handle_found_and_the_replies_switch() -> (
+    None
+):
     bot = _TestBot()
     bot.child_init(_Pipe(), None)  # pyright: ignore[reportArgumentType] - neither is used before start()
 
     assert bot.data is not None
     assert bot.data.read(HANDLE) == 4242
     assert bot.data.handle == 4242
-    assert [type(p) for p in bot.providers] == [WindowProvider]
+    assert bot.data.read(REPLIES_ON) is True
+    assert [type(p) for p in bot.providers] == [WindowProvider, RepliesProvider]
 
 
 def test_a_bot_level_provider_is_set_up_in_child_init_and_never_rebuilt() -> None:
     async def scenario() -> None:
         async with _started(_FindingBot(FoundReader, OtherFoundReader)) as bot:
             assert _dm(bot, FoundReader).read(FOUND) == FOUND_AT_START
-            assert [type(p) for p in bot.providers] == [WindowProvider, Found]
+            assert [type(p) for p in bot.providers] == [
+                WindowProvider,
+                RepliesProvider,
+                Found,
+            ]
             assert LOG == [
                 ("built", "Found"),
                 ("setup", "Found"),
@@ -198,6 +205,7 @@ def test_assembly_does_not_rebuild_what_unported_code_asked_for() -> None:
         async with _started(_TestBot(CountReader, Asking, DoubleReader)) as bot:
             assert [type(p) for p in bot.providers] == [
                 WindowProvider,
+                RepliesProvider,
                 Counter,
                 Doubler,
             ]

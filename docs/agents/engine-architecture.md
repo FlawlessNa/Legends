@@ -84,10 +84,10 @@ then goes one of two ways:
 DecisionMaker (the Supervisor cancels their loops) and sends a high-priority
 `ActionRequest` back to Main to release the movement keys. `RESUME` reaches
 `Bot.resume()`, which releases every user-held Pause and every legacy shim
-Pause; a DecisionMaker whose last Pause goes runs `on_start()` and restarts.
-Before that it calls each DecisionMaker's `on_resume()` hook, so one that
-stopped others until RESUME (`ChatReplies`, after a GM) knows they are given
-back. Nothing finds a task by its name.
+Pause, those a DecisionMaker took with `pause_for_user` included
+(`ChatReplies` stops training on a GM's line until RESUME); a DecisionMaker
+whose last Pause goes runs `on_start()` and restarts. Nothing finds a task by
+its name.
 
 That is the shape to copy when an Engine needs something done to a client:
 change what runs locally, then send a high-priority `ActionRequest` back to

@@ -3,8 +3,8 @@
 Process proxies stubbed by in-process primitives.
 
 RESUME restarts what PAUSE stopped, as it always has; it leaves a running loop
-alone, so a RESUME with no PAUSE never runs one twice; and a DecisionMaker's
-`on_resume` hook gives back what it disabled through the legacy shim.
+alone, so a RESUME with no PAUSE never runs one twice; and it ends the legacy
+shim's Pauses without a later enable running a loop twice.
 """
 
 import asyncio
@@ -29,15 +29,7 @@ class Training(_Loop):
 
 
 class Chat(_Loop):
-    """Gives `Training` back on RESUME, as `ChatReplies` does after a GM."""
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
-        super().__init__(*args, **kwargs)
-        self.disabled: tuple[str, ...] = ()
-
-    def on_resume(self) -> None:
-        given_back, self.disabled = self.disabled, ()
-        self._enable_decision_makers(*given_back)
+    """Disables `Training` through the legacy shim."""
 
 
 class _Bot(Bot):
@@ -125,33 +117,11 @@ def test_pause_then_resume_restarts_every_loop(metadata: dict[str, object]) -> N
     _scenario(metadata, steps)
 
 
-def test_what_a_decision_maker_disabled_comes_back_through_its_hook_once(
-    metadata: dict[str, object],
-) -> None:
-    async def steps(bot: _Bot) -> None:
-        chat = next(dm for dm in bot.decision_makers if isinstance(dm, Chat))
-        chat._disable_decision_makers("Training")  # pyright: ignore[reportPrivateUsage]
-        chat.disabled = ("Training",)
-        await _until(lambda: not _loops("Training"))
-
-        bot.resume()
-        await _until(lambda: len(_loops("Training")) == 1)
-        await asyncio.sleep(0.1)
-
-        assert len(_loops("Training")) == 1
-        assert len(_loops("Chat")) == 1
-        # Given back as enabled, so the next disable stops it again.
-        chat._disable_decision_makers("Training")  # pyright: ignore[reportPrivateUsage]
-        await _until(lambda: not _loops("Training"))
-
-    _scenario(metadata, steps)
-
-
 def test_an_enable_after_resume_restarted_a_disabled_loop_runs_no_loop_twice(
     metadata: dict[str, object],
 ) -> None:
-    """A loop disabled by someone whose hook doesn't give it back is restarted by
-    RESUME, as PAUSE leaves it; a later enable then finds it running (#489)."""
+    """A loop disabled through the shim is restarted by RESUME, as PAUSE leaves
+    it; a later enable then finds it running (#489)."""
 
     async def steps(bot: _Bot) -> None:
         chat = next(dm for dm in bot.decision_makers if isinstance(dm, Chat))

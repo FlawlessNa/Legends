@@ -1,6 +1,6 @@
 """
 The engine's core: Bots, DecisionMakers, their Supervisor, Data Keys and Signals,
-the game window's handle, and the processes a Session runs.
+the game window's handle, the replies switch, and the processes a Session runs.
 
 Members load lazily (PEP 562): `from botting.core import Bot` imports `bot.py`
 when it is asked for, not before. Importing one light submodule, such as
@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from .metadata import MetadataNamespace
     from .peripherals_process import PeripheralsProcess
     from .proxy_factory import ProxyFactory
+    from .replies import REPLIES_ON, RepliesProvider
     from .session_manager import SessionManager
     from .signals import Announcement, Signal, SignalBoard, SignalNotDeclared
     from .supervisor import Pause, PauseTarget, Supervisor
@@ -38,6 +39,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "HANDLE",
+    "REPLIES_ON",
     "ActionRequest",
     "ActionWithValidation",
     "Announcement",
@@ -60,6 +62,7 @@ __all__ = [
     "Provider",
     "Providers",
     "ProxyFactory",
+    "RepliesProvider",
     "SessionManager",
     "Signal",
     "SignalBoard",
@@ -93,6 +96,8 @@ _MEMBERS: dict[str, str] = {
     "MetadataNamespace": "metadata",
     "PeripheralsProcess": "peripherals_process",
     "ProxyFactory": "proxy_factory",
+    "REPLIES_ON": "replies",
+    "RepliesProvider": "replies",
     "SessionManager": "session_manager",
     "Announcement": "signals",
     "Signal": "signals",

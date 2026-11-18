@@ -13,6 +13,7 @@ from .bot_data import BotData
 from .data_keys import Provider, Providers, resolve_providers
 from .decision_maker import DecisionMaker
 from .proxy_factory import ProxyFactory
+from .replies import RepliesProvider
 from .signals import SignalBoard, check_signals
 from .supervisor import Supervisor, resolve_pauses
 from .window import WindowProvider
@@ -61,22 +62,18 @@ class Bot(ABC):
         """
         Called by the Engine to create Bot within Child process.
 
-        Makes the Bot's data and its Providers, and builds the first Bot-level
-        one: `WindowProvider`, with the handle `find_handle` finds now. A game
-        layer adds its own Bot-level Providers after this, from what it finds
-        and checks at start (`Providers.add`).
+        Makes the Bot's data and its Providers, and builds the engine's
+        Bot-level ones: `WindowProvider`, with the handle `find_handle` finds
+        now, and `RepliesProvider`, the replies switch, on. A game layer adds
+        its own Bot-level Providers after this, from what it finds and checks
+        at start (`Providers.add`).
         """
         self.data = BotData(self.ign)
         self.pipe = pipe
         self.barrier = barrier
         providers = self._make_providers(self.data, pipe)
         providers.add(WindowProvider, handle=self.find_handle())
-        self.data.set_static("replies_on", True)
-        # What a DecisionMaker that stops the others' (ChatReplies, on a GM) names.
-        self.data.set_static(
-            "decision_maker_names",
-            tuple(class_.__name__ for class_ in self._decision_makers()),
-        )
+        providers.add(RepliesProvider)
 
     @property
     def providers(self) -> list[Provider]:
@@ -195,31 +192,30 @@ class Bot(ABC):
 
     def resume(self) -> None:
         """
-        Discord `RESUME`: release every user-held Pause, and every legacy shim
-        Pause, as `RESUME` has always restarted every DecisionMaker. A Pause a
-        DecisionMaker holds in a block stays held until the block exits.
-
-        Each DecisionMaker's ``on_resume`` hook runs first, so one that stopped
-        others until RESUME (``ChatReplies``, after a GM) knows they are given
-        back.
+        Discord `RESUME`: release every user-held Pause, those a DecisionMaker
+        took with `pause_for_user` included (`ChatReplies`, on a GM's line), and
+        every legacy shim Pause, as `RESUME` has always restarted every
+        DecisionMaker. A Pause a DecisionMaker holds in a block stays held until
+        the block exits.
         """
         if self.supervisor is None:
             logger.warning("%s is not running yet: there is nothing to resume.", self)
             return
-        for dm in self.decision_makers:
-            dm.on_resume()
         self.supervisor.resume_for_user()
 
     def replies(self, on: bool, source: str = "discord_replies") -> None:
         """
         Stops (``on=False``) or hands back the automatic replies of this Bot.
-        Sets the ``replies_on`` static of its BotData, which the DecisionMaker
-        that replies reads before each reply, and reports the switch.
+        Switches `REPLIES_ON`, which the DecisionMaker that replies reads before
+        each reply, and reports the switch.
         :param on: Whether automatic replies are on.
         :param source: Which command did it, for the report.
         """
-        assert self.data is not None, "child_init() must run before replies()"
-        self.data.set_static("replies_on", on)
+        switch = next(
+            (p for p in self.providers if isinstance(p, RepliesProvider)), None
+        )
+        assert switch is not None, "child_init() builds the replies switch"
+        switch.switch(on)
         self._replies_toggled(on, source)
 
     def takeover(self) -> None:
