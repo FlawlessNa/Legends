@@ -53,8 +53,8 @@ def _map_id(entry: FrameEntry) -> int | None:
 
 
 def _labelled(entry: FrameEntry) -> tuple[int, int] | None:
-    expected = entry.expect["camera"]
-    if expected.status is not Status.READ:
+    expected = entry.expect.get("camera")
+    if expected is None or expected.status is not Status.READ:
         return None
     return expected.value["x"], expected.value["y"]
 
@@ -161,7 +161,9 @@ def test_the_frame_check_makes_the_untrusted_frames_unsure(frames: FrameSet) -> 
     checked = CameraReader(world_map, frame_check=FrameCheck(sprites))
     unchecked = CameraReader(world_map)
     untrusted = [
-        e for e in frames.entries if e.expect["camera"].status is Status.UNSURE
+        e
+        for e in frames.entries
+        if (camera := e.expect.get("camera")) and camera.status is Status.UNSURE
     ]
     assert {e.file for e in untrusted} == MID_RESIZE | {DESKTOP}
     for entry in untrusted:

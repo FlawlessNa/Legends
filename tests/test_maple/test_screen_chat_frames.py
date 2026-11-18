@@ -45,6 +45,10 @@ pytestmark = [pytest.mark.frames, pytest.mark.client_files]
 NOBODY = "Qx0q"
 """A made-up name, which no line of the frame set is from."""
 
+# v4's new frames, which carry no `chat` reading yet (#482): its timestamps, whispers
+# and test lines are read there, not here.
+NOT_READ_YET = ("chat_", "nametags_")
+
 
 @pytest.fixture(scope="module")
 def sprites() -> ReaderSprites:
@@ -115,6 +119,8 @@ def _general_lines(
         pytest.skip(f"the labelling font {harvest_glyphs.ARIAL} isn't on this machine")
     labeller = harvest_glyphs.font_labeller(harvest_glyphs.ARIAL)
     for entry in frames.entries:
+        if entry.file.startswith(NOT_READ_YET):
+            continue
         reader.forget()
         frame = _frame(frames, entry.file)
         reading = reader.read(frame)

@@ -112,7 +112,11 @@ def own(reading: Reading[list[CharacterSighting]]) -> list[CharacterSighting]:
 
 
 def feet_read(seen: list[Seen]) -> list[Seen]:
-    return [s for s in seen if s.entry.expect["feet"].status is Status.READ]
+    return [
+        s
+        for s in seen
+        if (feet := s.entry.expect.get("feet")) and feet.status is Status.READ
+    ]
 
 
 def test_our_feet_are_found_within_2_px_where_our_tag_is_visible(
@@ -155,7 +159,8 @@ def test_ours_is_never_placed_on_a_frame_whose_feet_cant_be_read(
     placed = [
         s.entry.file
         for s in seen
-        if s.entry.expect["feet"].status is Status.COVERED
+        if (feet := s.entry.expect.get("feet"))
+        and feet.status is Status.COVERED
         and s.reading.status is Status.READ
         and own(s.reading)
     ]
