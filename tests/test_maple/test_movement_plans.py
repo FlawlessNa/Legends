@@ -231,11 +231,20 @@ def test_a_climb_lasts_its_length_at_the_climb_speed() -> None:
 
 @pytest.mark.parametrize("flight", [0.2, 0.555, 1.1])
 def test_a_jump_holds_its_direction_for_its_flight_from_the_take_off(
-    flight: float,
+    flight: float, overhead: float
 ) -> None:
     """
     The jump key's press is the take-off; the direction stays held until the flight
     is over. No fixed number of seconds: the flight is the component's own.
+
+    The send loop spends one `OVERHEAD` on top of every Step's delay, and two Steps
+    sit between the take-off and the direction's release (the jump key's own press
+    and its release). The jump spends both out of its flight, so the hold is the
+    flight whatever `OVERHEAD` is (#589). It held the flight plus two `OVERHEAD`s
+    before, which #473 wrote down as the expectation: every key after a jump then
+    went down that late. `OVERHEAD` is measured once at import and reads ~1 ms on a
+    quiet machine but 10 ms or more when other processes are running, so the test
+    runs at several values of it (root `conftest.overhead`), not at the machine's.
     """
     plan = (
         _MovementComponent(MovementTypes.JUMP_RIGHT, 70.0, duration=flight),
@@ -246,8 +255,7 @@ def test_a_jump_holds_its_direction_for_its_flight_from_the_take_off(
 
     ((take_off, _),) = wrapper.holds[JUMP_KEY]
     ((_, landed),) = wrapper.holds["right"]
-    # The release Step after the flight costs one `OVERHEAD` (about 1 ms).
-    assert landed - take_off == pytest.approx(flight, abs=0.005)
+    assert landed - take_off == pytest.approx(flight, abs=1e-9)
 
 
 def test_a_jump_with_no_flight_refuses_to_compile() -> None:

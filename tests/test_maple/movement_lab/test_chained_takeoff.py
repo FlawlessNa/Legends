@@ -57,6 +57,12 @@ standing jumps are not known to do. It shows each jump key now acts while the
 character is on the platform its plan takes off from, and the records' ways
 of failing come back without the fixes; only a live Trial checks them
 (`gap-right-1`, `gap-left-3`).
+
+**The send loop's clock.** Each Step goes out its delay plus `OVERHEAD`
+after the one before it, as `KeyboardInputWrapper.duration` counts it. The
+replays read `OVERHEAD` when they run, and run at several values of it
+(`_at_every_overhead`), so a plan that is on time only on a quiet machine
+fails here on any machine (#589).
 """
 
 from __future__ import annotations
@@ -68,8 +74,8 @@ from dataclasses import dataclass, field
 
 import pytest
 
+from botting import controller
 from botting.controller import InputState, KeyboardInputWrapper
-from botting.controller.inputs.inputs_helpers import OVERHEAD
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementHandler,
     MovementTypes,
@@ -221,7 +227,7 @@ class _Character:
             events = events if isinstance(events, list) else [events] * len(keys)
             for key, event in zip(keys, events, strict=True):
                 self._press(key, event, takeoff(origin))
-            at += delay + OVERHEAD
+            at += delay + controller.OVERHEAD
         self.run(at + self.latency)
         return at
 
@@ -310,6 +316,20 @@ def _replay(
 def _seeded() -> None:
     """The Steps' delays are drawn at random: the same draws every run."""
     random.seed(515)
+
+
+@pytest.fixture(autouse=True)
+def _at_every_overhead(overhead: float) -> None:
+    """
+    Every test here at several send-loop `OVERHEAD`s (root `conftest.overhead`),
+    the replay's clock spending the same one as the compile's.
+
+    `OVERHEAD` is measured once at import, and a loaded machine measures it
+    several times larger (#589). The jump's two Steps paid it on top of its
+    flight, so every key after a jump went down two `OVERHEAD`s late: from
+    8 ms, the second jump key of the walking chain went down past the ledge's
+    open end, and the test failed whenever the suite ran on a busy machine.
+    """
 
 
 @pytest.fixture(scope="module")
@@ -449,7 +469,7 @@ def _steps(sequence: KeyboardInputWrapper) -> list[tuple[float, str, str]]:
         keys = keys if isinstance(keys, list) else [keys]
         events = events if isinstance(events, list) else [events] * len(keys)
         steps += [(at, k, e) for k, e in zip(keys, events, strict=True)]
-        at += delay + OVERHEAD
+        at += delay + controller.OVERHEAD
     return steps
 
 
@@ -501,7 +521,7 @@ def test_a_jump_walked_into_presses_its_key_as_the_walk_ends(rope: bool) -> None
 
     walk = _WALK.length / PHYSICS.walk_speed
     # Within the Step that ends the walk: no input delay after it.
-    assert _press_time(sequence) == pytest.approx(walk, abs=OVERHEAD * 2)
+    assert _press_time(sequence) == pytest.approx(walk, abs=controller.OVERHEAD * 2)
     # `right` stays down from the walk into the jump: no release between.
     assert ("right", "keyup") not in [
         (k, e) for t, k, e in _steps(sequence) if t <= _press_time(sequence)
