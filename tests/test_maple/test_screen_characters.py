@@ -511,10 +511,12 @@ def test_a_learned_finder_reads_a_full_frame_in_budget() -> None:
     """
     #508: the finder took 165 to 220 ms on a 1920x1080 frame, most of it numpy
     reducing the channels slowly, and a position waited on it. Now about 50 ms
-    here: the best of five reads must come in under 150 ms, which a machine
-    twice as slow as this one still does, and a stage that got 3x slower does
-    not. It can't see the camera's read, the frame grab, or a machine short
-    on memory; `toolkit.position_check replay` and `live` time those.
+    here: the best of five reads must use under 150 ms of CPU time, which a
+    machine twice as slow as this one still does, and a stage that got 3x
+    slower does not. CPU time, not wall-clock, so a busy machine (#597: 16 busy
+    loops on 16 cores failed it most runs) cannot fail it. It can't see the
+    camera's read, the frame grab, or a machine short on memory;
+    `toolkit.position_check replay` and `live` time those.
     """
     image = blank((1920, 1080))
     draw_tag(image, OURS, 900, 600)
@@ -526,11 +528,11 @@ def test_a_learned_finder_reads_a_full_frame_in_budget() -> None:
     finder._learned[scale] = _lightest(image[y0:y1, x0:x1])  # pyright: ignore[reportPrivateUsage]
     shown = frame(image)
     assert finder.find(shown).value is not None
-    best = min(_seconds(lambda: finder.find(shown)) for _ in range(5))
+    best = min(_cpu_seconds(lambda: finder.find(shown)) for _ in range(5))
     assert best < 0.150, f"{best * 1000:.0f} ms"
 
 
-def _seconds(call: Callable[[], object]) -> float:
-    start = time.perf_counter()
+def _cpu_seconds(call: Callable[[], object]) -> float:
+    start = time.process_time()
     call()
-    return time.perf_counter() - start
+    return time.process_time() - start
