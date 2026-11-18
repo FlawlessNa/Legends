@@ -1,13 +1,14 @@
 """
-What the bot's DecisionMakers take from the chat reader: the `chat_lines`
-attribute, whether the log is shown (`CheckMobsStillSpawn`), where the chat
-starts (`MobsHitting`), and what the character is not looked for in
-(`OnScreenPositionProvider`). Stubbed readers, no client.
+What the bot's DecisionMakers take from the chat reader: `ChatProvider`'s
+`CHAT_LINES` and `CHAT_SHOWN`, whether the log is shown (`CheckMobsStillSpawn`),
+where the chat starts (`MobsHitting`), and what the character is not looked for
+in (`OnScreenPositionProvider`). Stubbed readers, no client.
 """
 
 from typing import Any
 
 import numpy as np
+import pytest
 from pytest_mock import MockerFixture
 
 from botting.core import Key
@@ -15,43 +16,60 @@ from botting.core.bot_data import BotData
 from botting.screen import Frame, Reading, Status
 from botting.utilities import Box
 from maple.decision_makers import CheckMobsStillSpawn, MobsHitting
-from maple.decision_makers.mixins import UIMixin
 from maple.decision_makers.providers import (
+    CHAT_LINES,
     CHAT_READER,
+    CHAT_SHOWN,
     FRAME,
     MINIMAP_BOX,
+    ChatProvider,
     OnScreenPositionProvider,
 )
 from maple.screen.chat import CHAT
+from tests.test_maple.serving import serve
 
 
 def frame(h: int = 300) -> Frame:
     return Frame(np.zeros((h, 400, 3), np.uint8), (400, h), 0.0, True, True)
 
 
-class _Consumer(UIMixin):
-    def __init__(self, data: BotData) -> None:
-        self.data = data
+def _chat(monkeypatch: pytest.MonkeyPatch, reader: object, current: Frame) -> BotData:
+    """A Bot's data whose chat reader is `reader`, with `ChatProvider` built."""
+    served = serve(monkeypatch, frames=lambda: current, chat=reader)
+    served.data.build_provider(ChatProvider)
+    return served.data
 
 
-def test_chat_lines_is_read_only_when_updated(mocker: MockerFixture) -> None:
-    """Each update returns what is new since the one before, so nothing reads
-    it on its own, not even when it is created."""
-    data = BotData("Bot")
+def test_chat_lines_is_read_only_when_refreshed(
+    monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
+    """Each refresh returns what is new since the one before, so nothing reads
+    it on its own, not even when it is set up."""
     current = frame()
-    data.create_attribute("current_frame", lambda: current, threshold=0.1)
     reader = mocker.Mock()
     reader.read.return_value = Reading.read([], 1.0)
-    data.set_static("chat_reader", reader)
-
-    _Consumer(data)._create_chat_attributes()  # pyright: ignore[reportPrivateUsage]
+    data = _chat(monkeypatch, reader, current)
 
     reader.read.assert_not_called()
-    assert data.chat_lines.status is Status.ABSENT
-    data.update_attribute("chat_lines")
+    assert data.read(CHAT_LINES).status is Status.ABSENT
+    assert data.chat_lines.status is Status.ABSENT, "unported code reads it by name"
+    assert data.refresh(CHAT_LINES).value == []
     reader.read.assert_called_once_with(current)
-    assert data.chat_lines.value == []
-    assert data.has_chat_attributes
+
+
+def test_whether_the_chat_is_shown_is_read_only_when_refreshed(
+    monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
+    """What `CheckMobsStillSpawn` asks the chat reader, served for its port."""
+    current = frame()
+    reader = mocker.Mock()
+    reader.shown.return_value = Reading.read(True, 1.0)
+    data = _chat(monkeypatch, reader, current)
+
+    reader.shown.assert_not_called()
+    assert data.read(CHAT_SHOWN).status is Status.ABSENT
+    assert data.refresh(CHAT_SHOWN).value is True
+    reader.shown.assert_called_once_with(current)
 
 
 def test_mob_spawn_check_shows_and_hides_the_chat_by_the_reader(

@@ -24,7 +24,14 @@ import numpy as np
 import pytest
 
 from botting import controller
-from botting.core import ActionRequest, DecisionMaker, ProxyFactory, WindowProvider
+from botting.core import (
+    ActionRequest,
+    DecisionMaker,
+    ProxyFactory,
+    RepliesProvider,
+    WindowProvider,
+)
+from botting.core.supervisor import USER
 from botting.screen import Frame, Reading, Status, capture
 from game_data.catalogue import Bounds, Foothold
 from game_data.sprites import Sprite
@@ -42,13 +49,17 @@ from maple.decision_makers import (
 )
 from maple.decision_makers import chat_replies as chat_replies_module
 from maple.decision_makers.providers import (
+    BuffsProvider,
     CharacterProvider,
+    ChatProvider,
     ClientProvider,
     MapProvider,
     MinimapProvider,
     MobsProvider,
     OnScreenPositionProvider,
+    QuickSlotsProvider,
     ScreenReadersProvider,
+    StatusBarProvider,
 )
 from maple.model.world import WorldMap, chain_platforms
 from maple.screen import client
@@ -311,11 +322,13 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
 
     dms = _decision_makers(bot)
     assert set(dms) == set(bot._decision_makers())  # pyright: ignore[reportPrivateUsage]
-    # The Bot-level Providers, in `child_init`'s order, then the minimap's, once,
-    # for `CheckStillInMap` and every unported DecisionMaker that asked for it,
-    # then the on-screen position's for `MobsHitting`, which needs the minimap's.
+    # The Bot-level Providers, in `child_init`'s order, then those assembly
+    # builds for what the DecisionMakers read, each after what it needs: the
+    # minimap, once, then the on-screen position (`MobsHitting`), the quick
+    # slots (`PetFood`), the buffs (`SoloRebuff`) and the chat (`ChatReplies`).
     assert [type(p) for p in bot.providers] == [
         WindowProvider,
+        RepliesProvider,
         ScreenReadersProvider,
         MapProvider,
         CharacterProvider,
@@ -323,6 +336,9 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
         ClientProvider,
         MinimapProvider,
         OnScreenPositionProvider,
+        QuickSlotsProvider,
+        BuffsProvider,
+        ChatProvider,
     ]
 
     async def decide_once() -> None:
@@ -340,6 +356,9 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
     rebuff = dms[SoloRebuff]
     assert isinstance(rebuff, SoloRebuff)
     rebuff._read_buffs()  # pyright: ignore[reportPrivateUsage]
+    # The status bar's reader is loaded for `PetFood`'s `screen_readers`; no
+    # DecisionMaker of this bot reads it, so it is asked for here.
+    data.build_provider(StatusBarProvider)
 
     assert isinstance(data.current_frame, Frame)
     assert source.grabs > 1
@@ -393,17 +412,14 @@ def test_with_chat_replies_false_it_starts_and_the_gm_alarm_still_fires(
     monkeypatch.setattr(data.chat_reader, "read", lambda frame: Reading.read([gm], 1.0))
     alarms: list[str] = []
     monkeypatch.setattr(chat, "emit", lambda event, *a, **k: alarms.append(event))
-    disabled: list[str] = []
-    monkeypatch.setattr(
-        chat, "_disable_decision_makers", lambda *names, **k: disabled.extend(names)
-    )
+    assert bot.supervisor is not None
 
     asyncio.run(chat._decide())  # pyright: ignore[reportPrivateUsage]
 
     assert CHAT_GM_LINE in alarms
-    assert ChatReplies.__name__ not in disabled
-    assert set(disabled) == {
-        c.__name__
-        for c in bot._decision_makers()
-        if c is not ChatReplies  # pyright: ignore[reportPrivateUsage]
+    paused = {
+        c
+        for c in bot._decision_makers()  # pyright: ignore[reportPrivateUsage]
+        if any(p.holder == USER for p in bot.supervisor.held(c))
     }
+    assert paused == set(bot._decision_makers()) - {ChatReplies}  # pyright: ignore[reportPrivateUsage]

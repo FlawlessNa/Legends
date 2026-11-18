@@ -17,7 +17,7 @@ When a DecisionMaker died half-way through a pause or a steer, nothing undid it.
 
 The intent and the approved spec are in epic #432.
 This ADR records the decisions; the terms are defined in `CONTEXT.md` (Supervisor, Pause, Data Key, Provider, Claim, Signal).
-The Supervisor and Pauses were delivered first (#433), then Data Keys, Providers and assembly (#434), then MapleStory's first Providers and the first port, `CheckStillInMap` (#438), then `MobsHitting`, `TelecastMobsHitting` and the Turn Gate (#439); what is named here but not yet in the tree is delivered by the later tickets of #432.
+The Supervisor and Pauses were delivered first (#433), then Data Keys, Providers and assembly (#434), then MapleStory's first Providers and the first port, `CheckStillInMap` (#438), then `MobsHitting`, `TelecastMobsHitting` and the Turn Gate (#439), then the buffs, status bar, quick slots and chat Providers with the ports of `SoloRebuff`, the consumables and `ChatReplies` (#440); what is named here but not yet in the tree is delivered by the later tickets of #432.
 
 ## Decision
 
@@ -56,6 +56,11 @@ A DecisionMaker pauses others by holding a Pause for as long as it needs: `async
 - **The user.** Discord `PAUSE` is a Pause held by `"user"` on every DecisionMaker, plus the same movement-key release request it always sent.
   `RESUME` releases every user-held Pause, and every shim Pause.
   A DecisionMaker that needs a human takes a user-held Pause on the classes it names with `self.pause_for_user(*classes, reason=...)`; only `RESUME` releases it, and it may name its own class.
+- **"Every other DecisionMaker of this bot" is a declared list** (#440).
+  A GM's line makes `ChatReplies` take a user-held Pause on `GM_STOPS`, its `pauses`: every DecisionMaker class of `maple.decision_makers` but its own, since a Pause on a class the Bot does not run does nothing.
+  A test fails when a DecisionMaker of the package is missing from it, so a new one is stopped too.
+  `RESUME` is what gives training back, as for any user-held Pause, so `Bot.resume` no longer calls an `on_resume` hook on each DecisionMaker, and the Bot no longer publishes its DecisionMakers' names as a `BotData` static; both existed only for the GM stop (#489).
+  Rejected: an "every other" entry in `pauses` that assembly resolves against the Bot's classes, which would change the core for one user; and the class names looked up at run time, which is what the spec rules out.
 - **Address.** A Pause's target is a small value, `PauseTarget(bot, cls)`, resolved within this Bot, so a later cross-machine design can address another bot without changing call sites.
   Nothing addresses another bot yet.
 - **Legacy shim.** `_disable_decision_makers(*names)` and `_enable_decision_makers(*names)` keep working for unported DecisionMakers, within this Bot only, with today's semantics exactly.
@@ -113,6 +118,10 @@ A one-at-a-time gate replaces the hand-rolled per-DecisionMaker lock in Rotation
 - **The game window's handle is the engine's.**
   `HANDLE` and `WindowProvider` are in `botting/core/window.py`, built first by `Bot.child_init` with what `Bot.find_handle` found, because the generic Bot both finds the handle and reads it (`Bot.pause`).
   The spec put the handle with MapleStory's Bot-level Providers; `maple/decision_makers/providers` re-exports `HANDLE` so a port imports every key from one place.
+- **The replies switch is the engine's, and a Bot-level key** (#440).
+  `REPLIES_ON` and `RepliesProvider` are in `botting/core/replies.py`, built on by `Bot.child_init` after `WindowProvider`, because the generic Bot is what the Discord grammar's `REPLIES OFF|ON` and the takeover a `WRITE` implies reach (`Bot.replies`, `Bot.takeover`).
+  `Bot.replies` switches the Provider, which refreshes its key, so a DecisionMaker that replies declares `REPLIES_ON` in `reads` and reads it; the key has no threshold and changes only when switched.
+  It replaces the `replies_on` static, which `ChatReplies` read by name.
 - **A Bot's Providers are one `Providers` object, attached to its `BotData`** as `data.providers`.
   `child_init` makes it, assembly builds into it, and `BotData.build_provider(cls)` asks it for a Provider unless it is built: that is how a mixin that used to create data (`_create_minimap_attributes`) asks for its Provider, as the spec says.
   `Bot.start` runs assembly as `Bot.assemble()`, so a test builds a Bot's DecisionMakers as the Engine does.

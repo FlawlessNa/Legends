@@ -247,14 +247,6 @@ class DecisionMaker(ABC):
         whatever stopped them: a Pause, the Bot ending, or a loop that raised.
         """
 
-    def on_resume(self) -> None:
-        """
-        Called by ``Bot.resume()`` on every DecisionMaker of the Bot, before the
-        user's and the legacy shim's Pauses are released. A DecisionMaker that
-        stopped others until RESUME (``ChatReplies``, after a GM) learns here that
-        they are given back.
-        """
-
     def send(self, request: ActionRequest, correlation_id: str | None = None) -> None:
         """
         Sole chokepoint through which a DecisionMaker reaches the Main Process.

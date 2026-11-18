@@ -1,7 +1,6 @@
 """
-`SoloRebuff` runs one loop per buff. A disable (`_disable_decision_makers`, as
-a GM line in `ChatReplies` or a lost map in `CheckStillInMap` sends) must stop
-every one of them: until #464 its decision task returned once the loops were
+`SoloRebuff` runs one loop per buff. A Pause (a GM line in `ChatReplies`, a lost
+map in `CheckStillInMap`; here the legacy shim's) must stop every one of them: until #464 its decision task returned once the loops were
 started, so cancelling it stopped nothing and the buffs kept being cast. The
 Supervisor now runs the loops, and stops them all on a Pause.
 """
@@ -10,13 +9,15 @@ import asyncio
 import threading
 from types import SimpleNamespace
 
-from botting.core import BotData
+import pytest
+
 from botting.core.supervisor import Supervisor, resolve_pauses
 from maple.decision_makers import SoloRebuff
 from tests.test_botting.test_bot_resume import (
     _until,  # pyright: ignore[reportPrivateUsage]
     metadata,  # noqa: F401 - the fixture
 )
+from tests.test_maple.serving import assemble, serve
 
 
 def _buff(name: str) -> SimpleNamespace:
@@ -34,16 +35,22 @@ def _buff_loops() -> list[asyncio.Task]:
     ]
 
 
-def test_a_disable_stops_every_buff_loop(metadata: dict[str, object]) -> None:  # noqa: F811
-    data = BotData("Alice")
-    data.set_static(
-        "character",
-        SimpleNamespace(skills={"Bless": _buff("Bless"), "Haste": _buff("Haste")}),
+def test_a_disable_stops_every_buff_loop(
+    monkeypatch: pytest.MonkeyPatch,
+    metadata: dict[str, object],  # noqa: F811
+) -> None:
+    served = serve(
+        monkeypatch,
+        "Alice",
+        buffs=SimpleNamespace(read=lambda frame, names: None),
+        character=SimpleNamespace(
+            skills={"Bless": _buff("Bless"), "Haste": _buff("Haste")}
+        ),
+        buff_names=("Bless", "Haste"),
     )
-    data.set_static("buffs_reader", SimpleNamespace(read=lambda frame, names: None))
-    data.set_static("buff_names", ("Bless", "Haste"))
-    data.set_static("current_frame", None)
-    rebuff = SoloRebuff(metadata, data, None)  # pyright: ignore[reportArgumentType]
+    assemble(served, SoloRebuff)
+    rebuff = SoloRebuff(metadata, served.data, None)  # pyright: ignore[reportArgumentType]
+    rebuff.setup()
     casts: list[str] = []
 
     async def recast(buff: SimpleNamespace, condition: threading.Condition) -> None:

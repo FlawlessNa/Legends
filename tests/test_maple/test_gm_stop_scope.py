@@ -2,11 +2,15 @@
 A GM line stops the training of the bot it was read on, and no other (#489).
 
 Two Bots in one session, each a training loop and the real `ChatReplies`, with
-the real Supervisor on the real Bot lifecycle. The Main
+the real Supervisor on the real Bot lifecycle, and each Bot's Providers built as
+`child_init` builds them. The Main
 Process proxies are in-process primitives in one metadata dict, which every
 Bot shares as Engines share the Manager's: a key already made is handed back,
 not made again. The chat is scripted, and replying is off, so no model is
 asked; the GM stop runs with replies off as with them on.
+
+The training loop stands in for `Rotation`: `ChatReplies` pauses it as one of
+its `GM_STOPS`, as it would every DecisionMaker of the package.
 
 The names are invented.
 """
@@ -22,10 +26,12 @@ from typing import Any
 import numpy as np
 import pytest
 
-from botting.core import Bot, BotData, DecisionMaker, ProxyFactory
+from botting.core import Bot, DecisionMaker, ProxyFactory
 from botting.screen import Reading
+from maple.decision_makers import chat_replies
 from maple.decision_makers.chat_replies import ChatReplies
 from maple.screen.chat import ChatKind, ChatLine
+from tests.test_maple.serving import serve
 
 
 class Training(DecisionMaker):
@@ -72,6 +78,12 @@ def _gm_line() -> ChatLine:
         False,
         False,
     )
+
+
+@pytest.fixture(autouse=True)
+def training_is_stopped_by_a_gm(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(chat_replies, "GM_STOPS", (*chat_replies.GM_STOPS, Training))
+    monkeypatch.setattr(ChatReplies, "pauses", (*ChatReplies.pauses, Training))
 
 
 @pytest.fixture
@@ -147,7 +159,12 @@ async def _settled() -> None:
     await asyncio.sleep(1.2)
 
 
-def _make(ign: str, metadata: dict[str, object], config: Path) -> tuple[_Bot, _Reader]:
+def _make(
+    monkeypatch: pytest.MonkeyPatch,
+    ign: str,
+    metadata: dict[str, object],
+    config: Path,
+) -> tuple[_Bot, _Reader]:
     bot = _Bot(
         ign,
         metadata,  # pyright: ignore[reportArgumentType]
@@ -155,22 +172,22 @@ def _make(ign: str, metadata: dict[str, object], config: Path) -> tuple[_Bot, _R
         discord_config=config,
     )
     reader = _Reader()
-    data = BotData(ign)
-    data.set_static("handle", 1)
-    data.set_static("replies_on", True)
-    data.set_static(
-        "decision_maker_names",
-        tuple(c.__name__ for c in bot._decision_makers()),  # pyright: ignore[reportPrivateUsage]
+    pipe = _Pipe()
+    served = serve(
+        monkeypatch,
+        ign,
+        pipe=pipe,
+        proxies=ProxyFactory(metadata),  # pyright: ignore[reportArgumentType]
+        chat=reader,
     )
-    data.set_static("chat_reader", reader)
-    data.create_attribute("current_frame", lambda: None)
-    bot.data = data
-    bot.pipe = _Pipe()  # pyright: ignore[reportAttributeAccessIssue]
+    bot.data = served.data
+    bot.pipe = pipe  # pyright: ignore[reportAttributeAccessIssue]
     bot.barrier = threading.Barrier(1)
     return bot, reader
 
 
 def _two_bots(
+    monkeypatch: pytest.MonkeyPatch,
     metadata: dict[str, object],
     tmp_path: Path,
     steps: Callable[[dict[str, tuple[_Bot, _Reader]]], Awaitable[None]],
@@ -178,7 +195,9 @@ def _two_bots(
     async def run() -> None:
         asyncio.get_running_loop().set_default_executor(_DaemonThreads())
         config = tmp_path / "no-discord.ini"
-        bots = {ign: _make(ign, metadata, config) for ign in ("Alice", "Bob")}
+        bots = {
+            ign: _make(monkeypatch, ign, metadata, config) for ign in ("Alice", "Bob")
+        }
         started = [asyncio.create_task(bot.start()) for bot, _ in bots.values()]
         await _until(
             lambda: all(
@@ -197,7 +216,7 @@ def _two_bots(
 
 
 def test_a_gm_line_stops_only_its_own_bots_training(
-    metadata: dict[str, object], tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, metadata: dict[str, object], tmp_path: Path
 ) -> None:
     async def steps(bots: dict[str, tuple[_Bot, _Reader]]) -> None:
         bots["Alice"][1].queued.append(_gm_line())
@@ -208,12 +227,15 @@ def test_a_gm_line_stops_only_its_own_bots_training(
         assert _loops("ChatReplies", "Alice") == 1
         assert _loops("ChatReplies", "Bob") == 1
 
-    _two_bots(metadata, tmp_path, steps)
+    _two_bots(monkeypatch, metadata, tmp_path, steps)
 
 
 @pytest.mark.parametrize("order", [("Bob", "Alice"), ("Alice", "Bob")])
 def test_resume_to_both_after_a_gm_runs_each_loop_once(
-    metadata: dict[str, object], tmp_path: Path, order: tuple[str, str]
+    monkeypatch: pytest.MonkeyPatch,
+    metadata: dict[str, object],
+    tmp_path: Path,
+    order: tuple[str, str],
 ) -> None:
     async def steps(bots: dict[str, tuple[_Bot, _Reader]]) -> None:
         bots["Alice"][1].queued.append(_gm_line())
@@ -229,11 +251,11 @@ def test_resume_to_both_after_a_gm_runs_each_loop_once(
             assert _loops("Training", ign) == 1, ign
             assert _loops("ChatReplies", ign) == 1, ign
 
-    _two_bots(metadata, tmp_path, steps)
+    _two_bots(monkeypatch, metadata, tmp_path, steps)
 
 
 def test_resume_to_the_gms_bot_alone_gives_back_its_training(
-    metadata: dict[str, object], tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, metadata: dict[str, object], tmp_path: Path
 ) -> None:
     async def steps(bots: dict[str, tuple[_Bot, _Reader]]) -> None:
         bots["Alice"][1].queued.append(_gm_line())
@@ -248,4 +270,4 @@ def test_resume_to_the_gms_bot_alone_gives_back_its_training(
             assert _loops("Training", ign) == 1, ign
             assert _loops("ChatReplies", ign) == 1, ign
 
-    _two_bots(metadata, tmp_path, steps)
+    _two_bots(monkeypatch, metadata, tmp_path, steps)
