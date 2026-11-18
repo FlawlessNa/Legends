@@ -30,7 +30,14 @@ from botting.core.decision_maker import (
     action_name,
 )
 from botting.core.errors import DecisionMakerCrashed, StartupRefused
-from botting.core.supervisor import USER, Pause, PauseKind, Supervisor, resolve_pauses
+from botting.core.supervisor import (
+    USER,
+    Pause,
+    PauseKind,
+    Supervisor,
+    resolve_cancels,
+    resolve_pauses,
+)
 from botting.logging_config import producer_logger_name
 from botting.telemetry_events import (
     DECISION_CRASHED,
@@ -577,6 +584,37 @@ def test_a_pauses_entry_that_resolves_to_nothing_refuses_the_start(entry: str) -
 
     with pytest.raises(StartupRefused, match=entry.replace(".", r"\.")):
         resolve_pauses([Worker, Miswired])
+
+
+# --- cancels ------------------------------------------------------------------------
+
+
+def test_a_cancels_declaration_resolves_like_pauses() -> None:
+    class Canceller(Idle):
+        cancels = (Worker, "tests.test_botting.test_supervisor.SubWorker")
+
+    assert resolve_cancels([Worker, Canceller]) == {
+        Worker: frozenset(),
+        Canceller: frozenset({Worker, SubWorker}),
+    }
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "tests.test_botting.test_supervisor.Nowhere",
+        "tests.test_botting.no_such_module.Worker",
+        "tests.test_botting.test_supervisor.IGN",
+    ],
+)
+def test_a_cancels_entry_that_resolves_to_nothing_refuses_the_start(
+    entry: str,
+) -> None:
+    class Miswired(Idle):
+        cancels = (entry,)
+
+    with pytest.raises(StartupRefused, match=rf"cancels entry '{entry}'"):
+        resolve_cancels([Worker, Miswired])
 
 
 # --- cancel_actions -----------------------------------------------------------------

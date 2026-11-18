@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from .session_manager import SessionManager
     from .signals import Announcement, Signal, SignalBoard, SignalNotDeclared
     from .supervisor import Pause, PauseTarget, Supervisor
+    from .turn_gate import TurnGate
     from .window import HANDLE, WindowProvider
 
 __all__ = [
@@ -66,6 +67,7 @@ __all__ = [
     "SignalNotDeclared",
     "StartupRefused",
     "Supervisor",
+    "TurnGate",
     "WindowProvider",
     "action_name",
 ]
@@ -101,6 +103,7 @@ _MEMBERS: dict[str, str] = {
     "Pause": "supervisor",
     "PauseTarget": "supervisor",
     "Supervisor": "supervisor",
+    "TurnGate": "turn_gate",
     "HANDLE": "window",
     "WindowProvider": "window",
 }

@@ -7,7 +7,9 @@ is reported as text, never sent as an image.
 import numpy as np
 import pytest
 
+from botting.core import action_name
 from botting.screen import Frame
+from maple.decision_makers import MobsHitting, Rotation, TelecastMobsHitting
 from maple.parsers import maple_parser
 from maple.parsers.maple_parser import MapleParser
 
@@ -82,6 +84,26 @@ def test_write_whispers_a_player_when_given_to(monkeypatch: pytest.MonkeyPatch) 
         "channel": "whisper",
         "whisper_to": "Bob",
     }
+
+
+def test_a_write_cancels_the_training_actions_by_their_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The character stops training to type: the names are `action_name`'s."""
+    parser, _ = _parser(monkeypatch, _frame(True))
+    monkeypatch.setattr(maple_parser, "find_client", lambda: 7)
+
+    request = parser.write("hi", "Alice")
+
+    assert request.cancel_tasks == [
+        action_name(cls, "Alice")
+        for cls in (Rotation, MobsHitting, TelecastMobsHitting)
+    ]
+    assert request.cancel_tasks == [
+        "Rotation(Alice)",
+        "MobsHitting(Alice)",
+        "TelecastMobsHitting(Alice)",
+    ]
 
 
 def test_a_plain_write_names_no_channel_and_a_channel_write_does(

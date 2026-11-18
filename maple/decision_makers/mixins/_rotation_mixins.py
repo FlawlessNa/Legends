@@ -3,13 +3,17 @@ import logging
 import math
 import statistics
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 
 import numpy as np
 
 from botting import PARENT_LOG
 from botting.core import BotData
 from botting.screen import Frame, Reading
+from maple.decision_makers.mob_detection import (
+    get_mobs_positions_in_img,
+    mobs_in_virtual_px,
+)
 from maple.model.characters.maple_skills import MapleSkill
 from maple.model.mechanics import (
     MovementHandler,
@@ -50,9 +54,6 @@ class NextTargetMixin:
     """
 
     data: BotData
-    # Supplied by MobsHittingMixin, which smart rotation asserts is co-inherited.
-    get_mobs_positions_in_img: Callable[..., list[Sequence[int]]]
-    mobs_in_virtual_px: Callable[..., list[Point]]
     #: Arrival for the basic rotation, in virtual px: 10 minimap px, as it was
     #: judged in minimap px before #398 (16 virtual px each, `mag` 4).
     BASE_ROTATION_THRESHOLD = 160.0
@@ -231,9 +232,6 @@ class NextTargetMixin:
         assert hasattr(self.data, "mob_threshold"), (
             "_mob_threshold attribute must be set."
         )
-        assert hasattr(self, "get_mobs_positions_in_img"), (
-            f"MobsHittingMixin must be inherited by {self} for smart rotation"
-        )
         if not hasattr(self, "_first_time_on_target"):
             self._first_time_on_target = True
         if not hasattr(self, "_last_target_reached_at"):
@@ -271,8 +269,8 @@ class NextTargetMixin:
                 max(0, y1 - 100) : min(shape[0], y2 + 100),
                 max(0, x1 - 500) : min(shape[1], x2 + 500),
             ] = 255
-            mobs_locations = self.get_mobs_positions_in_img(
-                frame.pixels, self.data.current_mobs, mask=mask
+            mobs_locations = get_mobs_positions_in_img(
+                frame.pixels, self.data.current_mobs, self.data.handle, mask=mask
             )
             if len(mobs_locations) >= max(
                 self.data.mob_threshold, self.MIN_MOBS_THRESHOLD
@@ -306,7 +304,7 @@ class NextTargetMixin:
         if camera is None or reading.value is None or platform is None:
             return None
         here = reading.value.x
-        xs = [x for x, _ in self.mobs_in_virtual_px(mobs, frame.client_size, camera)]
+        xs = [x for x, _ in mobs_in_virtual_px(mobs, frame.client_size, camera)]
         left = [here - x for x in xs if x < here]
         right = [x - here for x in xs if x >= here]
         if len(left) > len(right):
@@ -360,6 +358,57 @@ def _world_map_of(data: BotData) -> WorldMap:
             "profile's `map` setting)"
         )
     return world_map
+
+
+def planned_movements(data: BotData) -> tuple[_MovementComponent, ...] | None:
+    """
+    The Movement Plan the rotation planned last, planned again when stale;
+    None when no DecisionMaker of the Bot plans one (`MovementsMixin`).
+
+    For a DecisionMaker ported off the mixins that reads the rotation's plan
+    (`TelecastMobsHitting`), until a Provider serves it (#442).
+    """
+    if not data.has_pathing_attributes:
+        return None
+    return data.movements
+
+
+def movement_compiler(
+    data: BotData,
+    physics: VRPhysics,
+    *,
+    read_at: float | None,
+    correlation_id: str | None,
+) -> functools.partial:
+    """
+    The current Movement Plan's compile, its inputs frozen into a picklable
+    callable (`MovementsMixin._movement_compiler`, which says why).
+    :param data: The Bot's data, whose plan, handle, character and pathing
+        statics are frozen.
+    :param physics: The character's physics now.
+    :param read_at: When the frame the Path was planned from was captured: the
+        compile leads the plan by how far the character has walked since. None
+        gives no lead.
+    :param correlation_id: The decision it belongs to.
+    """
+    return functools.partial(
+        compile_movements,
+        movements=data.movements,
+        handle=data.handle,
+        ign=data.ign,
+        speed=physics.walk_speed,
+        climb_speed=physics.climb_speed,
+        teleport=data.character.skills.get("Teleport"),
+        total_duration=data.action_duration,
+        always_release=data.always_release_keys,
+        walk_acceleration=physics.walk_acceleration,
+        walk_deceleration=physics.walk_deceleration,
+        read_at=read_at,
+        # Baked in here, inside `_decide()`: the compile runs in Main Process,
+        # where only this partial knows which decision it belongs to (ADR 0001).
+        # The sequence's key records carry it (#538).
+        correlation_id=correlation_id,
+    )
 
 
 def current_physics(data: BotData) -> VRPhysics:
@@ -631,22 +680,9 @@ class MovementsMixin:
         rest, at dispatch (`compile_movements`, `_time_walks`). A host whose
         plan was not planned here (no Path read) gets no lead.
         """
-        physics = self._physics()
-        return functools.partial(
-            compile_movements,
-            movements=self.data.movements,
-            handle=self.data.handle,
-            ign=self.data.ign,
-            speed=physics.walk_speed,
-            climb_speed=physics.climb_speed,
-            teleport=self.data.character.skills.get("Teleport"),
-            total_duration=self.data.action_duration,
-            always_release=self.data.always_release_keys,
-            walk_acceleration=physics.walk_acceleration,
-            walk_deceleration=physics.walk_deceleration,
+        return movement_compiler(
+            self.data,
+            self._physics(),
             read_at=getattr(self, "_path_read_at", None),
-            # Baked in here, inside `_decide()`: the compile runs in Main Process,
-            # where only this partial knows which decision it belongs to (ADR 0001).
-            # The sequence's key records carry it (#538).
             correlation_id=getattr(self, "correlation_id", None),
         )

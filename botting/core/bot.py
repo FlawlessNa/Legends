@@ -14,7 +14,7 @@ from .data_keys import Provider, Providers, resolve_providers
 from .decision_maker import DecisionMaker
 from .proxy_factory import ProxyFactory
 from .signals import SignalBoard, check_signals
-from .supervisor import Supervisor, resolve_pauses
+from .supervisor import Supervisor, resolve_cancels, resolve_pauses
 from .window import WindowProvider
 
 logger = logging.getLogger(__name__)
@@ -133,8 +133,8 @@ class Bot(ABC):
         them to a Supervisor. `start` calls it before the start barrier:
 
         1. the class-level declarations are resolved, with nothing built: the
-           Pauses, the Providers of every key read in the order to build them,
-           and the Signals awaited;
+           Pauses, the classes whose Actions are cancelled, the Providers of
+           every key read in the order to build them, and the Signals awaited;
         2. the Providers not built yet are built, then set up, in that order
            (the Bot-level ones were, by `child_init`);
         3. the DecisionMakers are built, then set up;
@@ -149,6 +149,7 @@ class Bot(ABC):
 
         classes = self._decision_makers()
         declared_pauses = resolve_pauses(classes)
+        resolve_cancels(classes)
         order = resolve_providers(classes)
         check_signals(classes, order)
 

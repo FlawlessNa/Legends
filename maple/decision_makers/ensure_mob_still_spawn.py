@@ -14,14 +14,13 @@ from maple.telemetry_events import (
     MobSpawnRestoredPayload,
 )
 
-from .mixins import MobsHittingMixin, NextTargetMixin, ReactionsMixin, UIMixin
+from .mixins import NextTargetMixin, ReactionsMixin, UIMixin
+from .mob_detection import mob_count_in_img
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
-class CheckMobsStillSpawn(
-    MobsHittingMixin, UIMixin, NextTargetMixin, ReactionsMixin, DecisionMaker
-):
+class CheckMobsStillSpawn(UIMixin, NextTargetMixin, ReactionsMixin, DecisionMaker):
     _throttle = 3.0
     FAILSAFE_TIMER = 30.0
     screen_readers = (CHAT,)
@@ -46,8 +45,11 @@ class CheckMobsStillSpawn(
         self._last_valid_detection = time.perf_counter() + 10.0
 
     async def _decide(self) -> None:
-        mob_count = self.mob_count_in_img(
-            self.data.current_frame.pixels, self.data.current_mobs, debug=True
+        mob_count = mob_count_in_img(
+            self.data.current_frame.pixels,
+            self.data.current_mobs,
+            self.data.handle,
+            debug=True,
         )
 
         # Enough mobs, reset timer
@@ -123,8 +125,11 @@ class CheckMobsStillSpawn(
 
     async def _rotate_until_mobs_detected(self) -> None:
         while True:
-            mob_count = self.mob_count_in_img(
-                self.data.current_frame.pixels, self.data.current_mobs, debug=False
+            mob_count = mob_count_in_img(
+                self.data.current_frame.pixels,
+                self.data.current_mobs,
+                self.data.handle,
+                debug=False,
             )
             logger.debug("%s sees %s mob(s).", self.data.ign, mob_count)
             if mob_count >= self._alert_threshold:

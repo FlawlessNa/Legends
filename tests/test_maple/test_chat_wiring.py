@@ -1,17 +1,27 @@
 """
 What the bot's DecisionMakers take from the chat reader: the `chat_lines`
-attribute, whether the log is shown (`CheckMobsStillSpawn`), and where the chat
-starts (`MobsHitting`). Stubbed readers, no client.
+attribute, whether the log is shown (`CheckMobsStillSpawn`), where the chat
+starts (`MobsHitting`), and what the character is not looked for in
+(`OnScreenPositionProvider`). Stubbed readers, no client.
 """
+
+from typing import Any
 
 import numpy as np
 from pytest_mock import MockerFixture
 
+from botting.core import Key
 from botting.core.bot_data import BotData
 from botting.screen import Frame, Reading, Status
 from botting.utilities import Box
 from maple.decision_makers import CheckMobsStillSpawn, MobsHitting
 from maple.decision_makers.mixins import UIMixin
+from maple.decision_makers.providers import (
+    CHAT_READER,
+    FRAME,
+    MINIMAP_BOX,
+    OnScreenPositionProvider,
+)
 from maple.screen.chat import CHAT
 
 
@@ -61,35 +71,42 @@ def test_mob_spawn_check_shows_and_hides_the_chat_by_the_reader(
     assert CHAT in CheckMobsStillSpawn.screen_readers
 
 
+def _reading(values: dict[Key[Any], object]) -> Any:  # noqa: ANN401 - stands in for `read`
+    """A `read` that serves `values`, which a test changes."""
+    return lambda key: values[key]
+
+
 def test_mobs_hitting_leaves_out_the_chat_from_its_top(mocker: MockerFixture) -> None:
     hitting = object.__new__(MobsHitting)
-    hitting.data = mocker.Mock()
-    hitting.data.current_frame = frame(h=300)
-    hitting.data.chat_reader.region.return_value = Box(
-        left=10, right=300, top=220, bottom=290
-    )
+    reader = mocker.Mock()
+    hitting.read = _reading({FRAME: frame(h=300), CHAT_READER: reader})
+    reader.region.return_value = Box(left=10, right=300, top=220, bottom=290)
     assert hitting._chat_top() == 220  # pyright: ignore[reportPrivateUsage]
 
-    hitting.data.chat_reader.region.return_value = None
+    reader.region.return_value = None
     assert hitting._chat_top() == 300  # pyright: ignore[reportPrivateUsage]
     assert CHAT in MobsHitting.screen_readers
 
 
-def test_mobs_hitting_hides_the_minimap_and_the_chat_as_read(
+def test_the_on_screen_position_hides_the_minimap_and_the_chat_as_read(
     mocker: MockerFixture,
 ) -> None:
     """The character found inside the minimap or the chat isn't ours: both are
     hidden, where their readers place them, in client pixels."""
-    hitting = object.__new__(MobsHitting)
-    hitting.data = mocker.Mock()
-    hitting.data.current_frame = frame()
+    provider = object.__new__(OnScreenPositionProvider)
     minimap = Box(left=20, right=152, top=20, bottom=167)
     chat = Box(left=10, right=300, top=220, bottom=290)
-    hitting.data.current_entire_minimap_box = minimap
-    hitting.data.chat_reader.region.return_value = chat
+    reader = mocker.Mock()
+    values: dict[Key[Any], object] = {
+        FRAME: frame(),
+        MINIMAP_BOX: minimap,
+        CHAT_READER: reader,
+    }
+    provider.read = _reading(values)
+    reader.region.return_value = chat
 
-    assert hitting._regions_to_hide() == [minimap, chat]  # pyright: ignore[reportPrivateUsage]
+    assert provider.regions_to_hide() == [minimap, chat]
 
-    hitting.data.current_entire_minimap_box = None
-    hitting.data.chat_reader.region.return_value = None
-    assert hitting._regions_to_hide() == []  # pyright: ignore[reportPrivateUsage]
+    values[MINIMAP_BOX] = None
+    reader.region.return_value = None
+    assert provider.regions_to_hide() == []

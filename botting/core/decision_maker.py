@@ -86,6 +86,10 @@ class DecisionMaker(ABC):
     #: create a cycle; assembly resolves it, and refuses the start when it
     #: resolves to nothing. Pausing a class not named here raises.
     pauses: ClassVar[tuple[type[DecisionMaker] | str, ...]] = ()
+    #: The DecisionMaker classes whose Actions this one cancels, naming them with
+    #: `action_name` in its requests' `cancel_tasks`. An entry is the class or its
+    #: dotted path, as in `pauses`; assembly refuses one that resolves to nothing.
+    cancels: ClassVar[tuple[type[DecisionMaker] | str, ...]] = ()
 
     #: The Data Keys this DecisionMaker reads with `read`. Assembly builds and
     #: sets up their Providers before any DecisionMaker is built.

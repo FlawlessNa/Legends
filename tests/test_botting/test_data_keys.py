@@ -244,6 +244,11 @@ class ShadowReader(NeverBuilt):
     reads = (SHADOW,)
 
 
+class Miscancelling(NeverBuilt):
+    reads = (COUNT,)
+    cancels = ("tests.test_botting.test_data_keys.Nowhere",)
+
+
 # --- the Bot ------------------------------------------------------------------------
 
 
@@ -316,6 +321,16 @@ def test_a_cycle_between_providers_is_refused_naming_it_before_anything_is_built
         "Providers form a cycle: Ouro needs 'boros' from Boros, "
         "which needs 'ouro' from Ouro."
     )
+    assert LOG == []
+
+
+def test_a_cancels_entry_that_resolves_to_nothing_is_refused_before_anything_is_built() -> (
+    None
+):
+    refused = _refused(Idle, Miscancelling)
+
+    assert "Miscancelling" in str(refused)
+    assert "test_data_keys.Nowhere" in str(refused)
     assert LOG == []
 
 

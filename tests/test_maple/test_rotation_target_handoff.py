@@ -18,13 +18,13 @@ import pytest
 
 from botting.core import BotData
 from botting.screen import Reading
-from maple.decision_makers.mixins import MobsHittingMixin, NextTargetMixin
+from maple.decision_makers.mixins import NextTargetMixin
 from maple.model.world import WorldMap
 from maple.screen.position import PositionSource, VirtualPosition
 from tests.test_maple.movement_lab.fixture_maps import walk_corridor
 
 
-class _RotationOwner(MobsHittingMixin, NextTargetMixin):
+class _RotationOwner(NextTargetMixin):
     """Stands in for the Rotation DecisionMaker: owns the smart-rotation target."""
 
     def __init__(self, data: BotData) -> None:
@@ -33,8 +33,9 @@ class _RotationOwner(MobsHittingMixin, NextTargetMixin):
 
 class _TargetHijacker(NextTargetMixin):
     """
-    Stands in for a DecisionMaker that pins the target, then resets it. Deliberately does
-    *not* inherit MobsHittingMixin - that is what made the old reset fatal.
+    Stands in for a DecisionMaker that pins the target, then resets it. The old
+    reset was fatal because it did not inherit `MobsHittingMixin`; mob detection
+    is plain functions now, so what tells it from the owner is only the instance.
     """
 
     def __init__(self, data: BotData) -> None:
@@ -113,7 +114,7 @@ def test_smart_rotation_survives_a_full_hijack_reset_cycle(
     hijacker._restore_rotation_target()
 
     # Used to raise AssertionError: the reset had rebound next_target to the
-    # hijacker, which has no `get_mobs_positions_in_img`.
+    # hijacker, which had no `get_mobs_positions_in_img` when it was a mixin's.
     data.update_attribute("next_target")
     assert data.has_smart_rotation
 

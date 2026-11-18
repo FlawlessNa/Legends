@@ -136,6 +136,11 @@ A DecisionMaker or a Provider announces it, and the DecisionMakers that await it
 A Bot whose DecisionMaker awaits a Signal that nothing in it announces is refused at assembly.
 _Avoid_: Event - a Telemetry Record has an Event Type; a Signal is not recorded.
 
+**Turn Gate**:
+One decision at a time on the client, for one DecisionMaker (`TurnGate`): a decision enters it before it sends an Action, and the Action's callback leaves it from Main Process once the Action is done.
+It wraps a Manager Lock, because that release runs in another process.
+_Avoid_: Lock - the lock is what it is built on; Delivery Gate - movement recovery's precondition, unrelated.
+
 ## Movement compilation
 
 **Path**:

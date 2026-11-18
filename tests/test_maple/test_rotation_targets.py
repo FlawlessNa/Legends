@@ -12,7 +12,7 @@ from collections.abc import Callable
 
 import pytest
 
-from botting.core import BotData
+from botting.core import BotData, Providers
 from botting.screen import Reading
 from maple.decision_makers.ensure_mob_still_spawn import CheckMobsStillSpawn
 from maple.decision_makers.mixins import MovementsMixin, NextTargetMixin
@@ -21,6 +21,7 @@ from maple.decision_makers.mixins._rotation_mixins import (
     read_position,
 )
 from maple.decision_makers.mobs_hitting import MobsHitting
+from maple.decision_makers.providers import POSITION, MapProvider, MinimapProvider
 from maple.model.navigation import FootholdGraph
 from maple.model.world import WorldMap
 from maple.screen.position import PositionSource, VirtualPosition
@@ -233,6 +234,24 @@ def test_the_mob_spawn_check_wanders_the_platforms_while_no_mob_shows() -> None:
 # --- the ladder check before a cast ------------------------------------------
 
 
+def _hitting(
+    world: WorldMap, at: Callable[[], Reading[VirtualPosition]]
+) -> MobsHitting:
+    """
+    A `MobsHitting` on a Bot whose map is `world` and whose position is `at`'s,
+    read once, as a Session has. `POSITION` is registered as `MinimapProvider`
+    registers it, with no minimap to show.
+    """
+    data = BotData("T")
+    providers = Providers(data, None, None, {})  # pyright: ignore[reportArgumentType] - nothing is sent
+    providers.add(MapProvider, map_id=0, world_map=world)
+    data.provide(POSITION, object.__new__(MinimapProvider), at, initial_value=at())
+    data.update_attribute(POSITION.name)
+    hitting = object.__new__(MobsHitting)
+    hitting.data = data
+    return hitting
+
+
 @pytest.mark.parametrize(
     ("x", "y", "on_ladder"),
     [
@@ -244,16 +263,14 @@ def test_the_mob_spawn_check_wanders_the_platforms_while_no_mob_shows() -> None:
 def test_no_skill_is_cast_on_a_rope_of_the_map(
     x: float, y: float, on_ladder: bool
 ) -> None:
-    hitting = object.__new__(MobsHitting)
-    hitting.data = _data(WorldMap.from_map_data(rope_grab()), lambda: _fused(x, y))
+    hitting = _hitting(WorldMap.from_map_data(rope_grab()), lambda: _fused(x, y))
 
     assert hitting._currently_on_ladder() is on_ladder
 
 
 def test_an_unsure_position_is_not_on_a_ladder() -> None:
-    hitting = object.__new__(MobsHitting)
     unsure = Reading.unsure(0.0, "two characters")
-    hitting.data = _data(WorldMap.from_map_data(rope_grab()), lambda: unsure)
+    hitting = _hitting(WorldMap.from_map_data(rope_grab()), lambda: unsure)
 
     assert hitting._currently_on_ladder() is False
 
@@ -261,14 +278,12 @@ def test_an_unsure_position_is_not_on_a_ladder() -> None:
 def test_the_ladder_check_reads_no_position() -> None:
     """The rotation reads it every cycle; a cast need not pay a camera match."""
     reads: list[int] = []
-    data = _data(
+    hitting = _hitting(
         WorldMap.from_map_data(rope_grab()),
         lambda: reads.append(1) or _fused(300.0, -100.0),
     )
-    data.reconfigure_attribute("current_position", threshold=1e-9)
+    hitting.data.reconfigure_attribute("current_position", threshold=1e-9)
     reads.clear()
-    hitting = object.__new__(MobsHitting)
-    hitting.data = data
 
     assert hitting._currently_on_ladder() is True
     assert reads == []

@@ -111,23 +111,41 @@ def resolve_pauses(
     :raises StartupRefused: an entry resolves to nothing, or to something that is
         not a DecisionMaker class.
     """
+    return {cls: _resolve_classes(cls, "pauses", cls.pauses) for cls in classes}
+
+
+def resolve_cancels(
+    classes: Iterable[type[DecisionMaker]],
+) -> dict[type[DecisionMaker], frozenset[type[DecisionMaker]]]:
+    """
+    Resolve each class's `cancels` declaration into the classes whose Actions
+    it cancels, as `resolve_pauses` resolves `pauses`.
+    :raises StartupRefused: an entry resolves to nothing, or to something that is
+        not a DecisionMaker class.
+    """
+    return {cls: _resolve_classes(cls, "cancels", cls.cancels) for cls in classes}
+
+
+def _resolve_classes(
+    cls: type[DecisionMaker],
+    declaration: str,
+    entries: Iterable[type[DecisionMaker] | str],
+) -> frozenset[type[DecisionMaker]]:
+    """The DecisionMaker classes `cls`'s `declaration` names."""
     # Imported here: decision_maker imports this module.
     from .decision_maker import DecisionMaker
 
-    resolved: dict[type[DecisionMaker], frozenset[type[DecisionMaker]]] = {}
-    for cls in classes:
-        targets: set[type[DecisionMaker]] = set()
-        for entry in cls.pauses:
-            target = _resolve(entry) if isinstance(entry, str) else entry
-            if not (isinstance(target, type) and issubclass(target, DecisionMaker)):
-                raise StartupRefused(
-                    f"{cls.__name__} declares pauses entry {entry!r}, which is not "
-                    "a DecisionMaker class: name the class, or its dotted path "
-                    "('package.module.ClassName')."
-                )
-            targets.add(target)
-        resolved[cls] = frozenset(targets)
-    return resolved
+    targets: set[type[DecisionMaker]] = set()
+    for entry in entries:
+        target = _resolve(entry) if isinstance(entry, str) else entry
+        if not (isinstance(target, type) and issubclass(target, DecisionMaker)):
+            raise StartupRefused(
+                f"{cls.__name__} declares {declaration} entry {entry!r}, which is "
+                "not a DecisionMaker class: name the class, or its dotted path "
+                "('package.module.ClassName')."
+            )
+        targets.add(target)
+    return frozenset(targets)
 
 
 def _resolve(path: str) -> object:
