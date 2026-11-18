@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 
 #: What an exchange's lines are joined with when a player said several.
 LINE_JOIN = " / "
+#: What a line read while automatic replies are off came to.
+REPLIES_OFF = "(replies off)"
 
 
 def format_exchange(
@@ -57,10 +59,6 @@ def format_unanswered(entry: Entry, mention: str | None = None) -> str:
     return _format(_alone(entry), REPLIES_OFF, mention)
 
 
-#: What a line read while automatic replies are off came to.
-REPLIES_OFF = "(replies off)"
-
-
 def _alone(entry: Entry) -> Burst:
     return Burst(entry.speaker, entry.kind, entry.address, (entry,))
 
@@ -83,8 +81,7 @@ def mirror(
     Post one exchange to Discord through `send`. A GM exchange rings the
     maintainer; every other one is posted quietly.
     """
-    text = format_exchange(burst, outcome, mention)
-    send(text if burst.address is Address.GM else QuietMessage(text))
+    _post(send, format_exchange(burst, outcome, mention), burst.address)
 
 
 def mirror_unanswered(
@@ -92,8 +89,12 @@ def mirror_unanswered(
 ) -> None:
     """Post one line read while automatic replies are off, through `send`. A GM's
     rings the maintainer; every other one is posted quietly."""
-    text = format_unanswered(entry, mention)
-    send(text if entry.address is Address.GM else QuietMessage(text))
+    _post(send, format_unanswered(entry, mention), entry.address)
+
+
+def _post(send: Callable[[str], object], text: str, address: Address) -> None:
+    """Send `text`: a GM's rings the maintainer, every other one is quiet."""
+    send(text if address is Address.GM else QuietMessage(text))
 
 
 def discord_mention() -> str | None:

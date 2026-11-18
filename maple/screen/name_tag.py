@@ -28,11 +28,12 @@ some captures and its height over the play area's on others. So each is
 tried (`OFFSETS`, `horizontal_scales`), and the solution kept is the one
 that, made pure white and dark at `UNSCALED_WHITE`, explains the client's
 pixels best. On `v4`'s ten name-tag frames at 1920x1080, our tag reads as our
-name on all ten, and no other tag does. Under the labelled feet of `v4`'s 139
-frames at 1920x1080, it reads so on 74 (35 of 58 at 1366x768, where nothing is
-undone): on many of the others our tag isn't whole there (cut by the client's
-edge, behind something, or joined to another's tag), which no reading can
-help.
+name on all ten, and no other tag does. On the other frames, how often it
+reads so where `NameTagFinder` finds it whole, per client size, is the floor
+`OUR_TAG_FLOOR` holds (`tests/test_maple/test_name_tag_frames.py`): where
+another tag overlaps ours, a stray white pixel touches a letter, a glow
+lightens the box, or an upscaled tag doesn't solve cleanly, it reads
+otherwise.
 
 No value here is read from the client: `UNSCALED_WHITE` and `OFFSETS` were
 chosen on frame set `v4`, and the play area's sizes are `camera.PLAY_AREAS`.
@@ -67,9 +68,11 @@ each axis: every tenth of one."""
 
 UNSCALED_WHITE = 190.0
 """An unscaled tag's pixel is ink from this lightest channel up, halfway
-between the tag's dark box and its white. Under the labelled feet of `v4`'s
-1920x1080 frames, our tag reads as our name on 71 at 170, 74 at 190 and 74
-at 210."""
+between the tag's dark box and its white. When it was chosen, under the
+labelled feet of `v4`'s 1920x1080 frames and before the reader read only the
+name nearest the strip's middle (`NAME_GAP`), our tag read as our name on 71
+frames at 170, 74 at 190 and 74 at 210: a comparison of thresholds, not the
+reader's rate today, which `OUR_TAG_FLOOR` holds."""
 
 NAME_GAP = 5
 """Blank columns, in play-area px, that part two names: GDI's Arial at 12 px

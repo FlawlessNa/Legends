@@ -575,16 +575,17 @@ class ChatReader:
         image = pixels[top : top + ROW_HEIGHT, max(left, 0) : right]
         if left < 0 or image.shape[:2] != (ROW_HEIGHT, right - left):
             return f"the log's row at y={top} is off the frame"
+        covered = f"something is over the log's row at y={top}"
         background = _background(image[:, :_END])
         if background != _background(image[:, -_END:]):
-            return f"something is over the log's row at y={top}"
+            return covered
         pixels16 = image.astype(np.int16)
         # The row's own text: its top rows hold the descenders of the line above.
         own = pixels16[_CELL_TOP:]
         if background == _BACKDROP:
             gap = pixels16[_GAP_ROW].max(axis=1) > BACKDROP_MAX
             if _longest_run(gap) > COVER_RUN:
-                return f"something is over the log's row at y={top}"
+                return covered
             ink = own.max(axis=2) > BACKDROP_MAX
             under = np.zeros_like(ink)
             if ink.any() and _text_kind(own[ink]) is ChatKind.UNKNOWN:
@@ -601,14 +602,14 @@ class ChatReader:
             colour = _median(image[:, :_END])
             gap = _off(pixels16[_GAP_ROW : _GAP_ROW + 1], colour, BAND_TOLERANCE)
             if _longest_run(gap[0]) > COVER_RUN:
-                return f"something is over the log's row at y={top}"
+                return covered
             ink = _off(own, colour, _INK_DIFFERENCE)
             kind = ChatKind.UNKNOWN
         else:
             band = MEGAPHONE_BANDS[background]
             gap = _off_band(pixels16[_GAP_ROW : _GAP_ROW + 1], band) > BAND_TOLERANCE
             if _longest_run(gap[0]) > COVER_RUN:
-                return f"something is over the log's row at y={top}"
+                return covered
             ink = _off_band(own, band) > _INK_DIFFERENCE
             kind = ChatKind.MEGAPHONE
         return _Row(kind, ink, image, top)
@@ -627,9 +628,10 @@ class ChatReader:
         directly above, and of the same kind. `bottom` is where the log's rows
         end, and `cursor` where the mouse cursor is over them."""
         assert row.kind is not None
+        image = row.image.copy()
         glyphs = self._glyphs.get(row.kind)
         if glyphs is None:
-            return ChatLine(row.kind, row.image.copy(), None, row.top)
+            return ChatLine(row.kind, image, None, row.top)
         cell_top = row.top + _CELL_TOP
         cell_bottom = cell_top + _CELL_ROWS
         left = x + BAND_LEFT
@@ -652,44 +654,33 @@ class ChatReader:
                 or above[0].kind is not row.kind
                 or above[0].top + ROW_HEIGHT != row.top
             ):
-                return ChatLine(row.kind, row.image.copy(), text, row.top)
+                return ChatLine(row.kind, image, text, row.top)
+            mid_word = _mid_word(glyphs, above[0].text, above[1], text)
             return ChatLine(
-                row.kind,
-                row.image.copy(),
-                text,
-                row.top,
-                continues=True,
-                mid_word=_mid_word(glyphs, above[0].text, above[1], text),
+                row.kind, image, text, row.top, continues=True, mid_word=mid_word
             )
-        if row.kind is ChatKind.WHISPER:
+        speaker, message, outgoing = self._split(row.kind, text)
+        return ChatLine(row.kind, image, text, row.top, speaker, message, outgoing)
+
+    def _split(self, kind: ChatKind, text: str) -> tuple[str | None, str | None, bool]:
+        """
+        A line's speaker, message, and whether the character sent it, split
+        from its `text` by its kind's format (module docstring); `None`,
+        `None` and `False` when its kind has no format known, or it doesn't fit.
+        """
+        if kind is ChatKind.WHISPER:
             split = _WHISPER_OUT_FORMAT.fullmatch(text)
             if split is not None:
-                return ChatLine(
-                    row.kind,
-                    row.image.copy(),
-                    text,
-                    row.top,
-                    split["speaker"],
-                    split["message"],
-                    outgoing=True,
-                )
-        elif row.kind is ChatKind.GENERAL:
+                return split["speaker"], split["message"], True
+        elif kind is ChatKind.GENERAL:
             split = _GENERAL_FORMAT.fullmatch(text)
             if split is not None:
                 speaker = split["speaker"]
                 ours = self._ign is not None and reads_as(
                     speaker, self._ign, ignore_case=True
                 )
-                return ChatLine(
-                    row.kind,
-                    row.image.copy(),
-                    text,
-                    row.top,
-                    speaker,
-                    split["message"],
-                    ours,
-                )
-        return ChatLine(row.kind, row.image.copy(), text, row.top)
+                return speaker, split["message"], ours
+        return None, None, False
 
 
 _COVERED_TOGGLE = (

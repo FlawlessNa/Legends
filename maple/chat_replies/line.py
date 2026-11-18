@@ -3,16 +3,24 @@ What the reply side reads from a chat line.
 
 `maple.screen.chat.ChatLine` has these fields: the kind from its colours, the
 speaker, message and direction split from its text by the kind's format, and
-whether the row continues the line above, and from the middle of a word. Splitting is the reader's job, so
-nothing here parses `text`.
+whether the row continues the line above, and from the middle of a word.
+Splitting is the reader's job, so nothing here parses `text`.
 
 Whether a name read is a given one goes through `maple.screen.chat.reads_as`,
-like every other "does this read as that": `same_name` and `same_speaker`.
+like every other "does this read as that": `same_name` and `same_speaker`, and
+`is_ours`, whether the character sent a line.
 """
 
 from typing import Protocol
 
 from maple.screen.chat import ChatKind, reads_as
+
+PLAYER_KINDS = frozenset(
+    {ChatKind.GENERAL, ChatKind.PARTY, ChatKind.BUDDY, ChatKind.WHISPER, ChatKind.GM}
+)
+"""The kinds of line a player wrote to the character or near it: the only ones
+the conversation keeps and addressing may answer. Megaphone, system, notice and
+`unknown` lines are no one's words to answer or to quote."""
 
 
 class ReadLine(Protocol):
@@ -60,6 +68,12 @@ def same_name(speaker: str | None, name: str) -> bool:
     whole: `reads_as`, ignoring case, since in-game names are unique whatever
     their case. A speaker with too few letters read is no one's name."""
     return speaker is not None and reads_as(speaker, name, ignore_case=True)
+
+
+def is_ours(line: ReadLine, ign: str) -> bool:
+    """Whether the character, `ign`, sent `line`: the reader says it is
+    outgoing, or its speaker reads as the IGN (`same_name`)."""
+    return line.outgoing or same_name(line.speaker, ign)
 
 
 def same_speaker(a: str | None, b: str | None) -> bool:

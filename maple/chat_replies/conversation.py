@@ -5,7 +5,7 @@ are ours, and which are left to answer.
 **Entries.** Each line the chat reader reports is appended once, with its
 `Address`, as an `Entry` numbered by the conversation's own counter (`seq`).
 Megaphone, system, notice and `unknown` lines are never appended: they are no
-one's words to answer or to quote.
+one's words to answer or to quote (`line.PLAYER_KINDS`).
 
 **Ours.** An entry is ours when the reader says the line is outgoing, or its
 speaker reads as the IGN (`same_name`). A misread IGN would make the character
@@ -43,20 +43,14 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
-from maple.screen import font
 from maple.screen.chat import ChatKind, reads_as
+from maple.screen.font import UNREAD
 
 from .addressing import Address, strongest
-from .line import ReadLine, same_name, same_speaker
+from .line import PLAYER_KINDS, ReadLine, is_ours, same_speaker
 
 ECHO_WINDOW = 10.0
 """Seconds after `expect_echo` within which our reply's echo is recognised."""
-UNREAD = font.UNREAD
-"""What the chat reader reads for a character it has no glyph for. It matches
-any character when an echo is compared with what was sent."""
-APPENDED_KINDS = frozenset(
-    {ChatKind.GENERAL, ChatKind.PARTY, ChatKind.BUDDY, ChatKind.WHISPER, ChatKind.GM}
-)
 
 
 class EntryState(enum.Enum):
@@ -148,7 +142,7 @@ class Conversation:
         :param replies_on: Whether automatic replies are on. A line appended
             while they are off is `context`, and is never answered late.
         """
-        if line.kind not in APPENDED_KINDS:
+        if line.kind not in PLAYER_KINDS:
             return None
         now = self._clock()
         if line.continues and self._entries and self._entries[-1].kind is line.kind:
@@ -156,7 +150,7 @@ class Conversation:
         # The echo is taken even from a line known to be ours, so it can't be
         # matched later by another player's line repeating it.
         echoed = self._take_echo(line.message, line.kind, now)
-        ours = line.outgoing or same_name(line.speaker, self.ign) or echoed
+        ours = is_ours(line, self.ign) or echoed
         answerable = address is not Address.IGNORE and not ours and replies_on
         entry = Entry(
             seq=len(self._entries) + 1,
