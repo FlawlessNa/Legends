@@ -1,0 +1,12 @@
+# Proposes updates to the actions the workflows use. Each is pinned to a full
+# commit SHA with its tag in a comment, and Dependabot updates both together.
+# Its PRs go into dev, which the maintainer reviews and merges.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

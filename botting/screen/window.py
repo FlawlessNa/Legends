@@ -1,6 +1,10 @@
-"""Finding a game's window by what it is, not by what its title says."""
+"""
+Finding a game's window by what it is, not by what its title says, bringing it
+to the front, and closing the game it belongs to.
+"""
 
 import ntpath
+import time
 
 from . import _win32
 
@@ -11,6 +15,18 @@ class WindowNotFound(LookupError):
 
 class MultipleWindows(LookupError):
     """More than one visible top-level window matches the class and executable."""
+
+
+class ClientNotClosed(RuntimeError):
+    """`close_client` couldn't end the window's process, or its window stayed."""
+
+
+#: How long `close_client` waits for the process to end, then for its window to go.
+CLOSE_TIMEOUT = 5.0
+#: How long `bring_to_front` waits for the window to be in front.
+FRONT_TIMEOUT = 1.0
+#: The exit code the closed process is given.
+CLOSED_EXIT_CODE = 1
 
 
 def find_window(class_name: str, executable: str) -> int:
@@ -46,3 +62,60 @@ def find_window(class_name: str, executable: str) -> int:
             "expected exactly one."
         )
     return matches[0]
+
+
+def bring_to_front(handle: int, timeout: float = FRONT_TIMEOUT) -> str | None:
+    """
+    Bring the window `handle` to the front, and wait up to `timeout` seconds for
+    it to be there. It sends no key and no click: it only asks Windows to change
+    the foreground window.
+
+    :return: `None` when the window is in front, else why it is not (Windows can
+        refuse, for instance to a process it does not allow to take the focus).
+    """
+    if _win32.foreground_window() == handle:
+        return None
+    if not _win32.is_window(handle):
+        return f"window {handle} is gone"
+    problem = _win32.request_foreground(handle)
+    deadline = time.monotonic() + timeout
+    while _win32.foreground_window() != handle:
+        if time.monotonic() >= deadline:
+            return problem or f"Windows left window {handle} behind the foreground"
+        time.sleep(0.02)
+    return None
+
+
+def close_client(handle: int, timeout: float = CLOSE_TIMEOUT) -> None:
+    """
+    Close the game that owns the window `handle`: end its process, then confirm
+    the window is gone.
+
+    The process is terminated rather than asked to close (`WM_CLOSE`), which a
+    game may answer with a confirmation that someone would then have to click.
+    A window that is already gone is closed already. A process that can't be
+    ended is no failure if its window goes all the same: it was already ending,
+    and its window outlives it for a moment.
+
+    :param handle: The game's window, as `find_window` found it.
+    :param timeout: Seconds to wait for the process to end, then as long again
+        for its window to be gone.
+    :raises ClientNotClosed: when the window is still there after `timeout`,
+        naming why the process couldn't be ended if it couldn't.
+    """
+    if not _win32.is_window(handle):
+        return
+    problem = _win32.terminate_window_process(
+        handle, CLOSED_EXIT_CODE, int(timeout * 1000)
+    )
+    deadline = time.monotonic() + timeout
+    while _win32.is_window(handle):
+        if time.monotonic() > deadline:
+            if problem is not None:
+                raise ClientNotClosed(
+                    f"Could not close the client of window {handle}: {problem}"
+                )
+            raise ClientNotClosed(
+                f"Window {handle} was still there {timeout} s after its process ended."
+            )
+        time.sleep(0.05)

@@ -9,8 +9,11 @@ the handles are arbitrary integers.
 
 import asyncio
 import importlib
+from collections.abc import Iterator
+from typing import Any
 
 import pytest
+from pytest_mock import MockerFixture
 
 from botting.controller.inputs.focused_inputs import focused_inputs
 from botting.controller.inputs.held_keys_ledger import HeldKeysLedger
@@ -25,7 +28,7 @@ focused_inputs_module = importlib.import_module(
 
 
 @pytest.fixture(autouse=True)
-def reset_ledger():
+def reset_ledger() -> Iterator[None]:
     """The ledger is process-wide state, so every test starts and ends from empty."""
     HeldKeysLedger.reset()
     yield
@@ -40,11 +43,11 @@ class _SendLoopScenario:
 
     def __init__(
         self,
-        keys: list,
-        events: list,
+        keys: list[Any],
+        events: list[Any],
         delays: list[float],
-        forced_key_releases: list[str] = None,
-        cancel_after: int = None,
+        forced_key_releases: list[str] | None = None,
+        cancel_after: int | None = None,
     ) -> None:
         self.keys = keys
         self.events = events
@@ -54,19 +57,19 @@ class _SendLoopScenario:
         self.released: list[str] = []
         self.delivered = 0
 
-    def run(self, mocker) -> "_SendLoopScenario":
+    def run(self, mocker: MockerFixture) -> _SendLoopScenario:
         asyncio.run(self._run(mocker))
         return self
 
-    async def _run(self, mocker) -> None:
+    async def _run(self, mocker: MockerFixture) -> None:
         reached = asyncio.Event()
 
-        def _fake_send(structure):
+        def _fake_send(structure: object) -> None:
             self.delivered += 1
             if self.delivered == self.cancel_after:
                 reached.set()
 
-        def _fake_release(keys, hwnd):
+        def _fake_release(keys: list[str], hwnd: int, **_: object) -> None:
             self.released.extend(keys)
 
         # `mocker` undoes every patch below when the test ends.
@@ -101,7 +104,9 @@ class _SendLoopScenario:
             pass
 
 
-def test_cancellation_releases_a_direction_never_declared_for_forced_release(mocker):
+def test_cancellation_releases_a_direction_never_declared_for_forced_release(
+    mocker: MockerFixture,
+) -> None:
     """
     The defect this fixes: a movement Action that declares no forced release for
     its direction key used to leave it down forever once preempted.
@@ -120,7 +125,7 @@ def test_cancellation_releases_a_direction_never_declared_for_forced_release(moc
     assert HeldKeysLedger.keys_held(HANDLE) == frozenset({"right", "jump"})
 
 
-def test_normal_completion_carries_the_direction_over(mocker):
+def test_normal_completion_carries_the_direction_over(mocker: MockerFixture) -> None:
     """
     A Continuation deliberately keeps walking across the route-cycle boundary, so
     the same key must survive a sequence that ran to its end (C3).
@@ -137,7 +142,9 @@ def test_normal_completion_carries_the_direction_over(mocker):
     assert HeldKeysLedger.keys_held(HANDLE) == frozenset({"right"})
 
 
-def test_cancellation_releases_a_direction_inherited_from_a_prior_sequence(mocker):
+def test_cancellation_releases_a_direction_inherited_from_a_prior_sequence(
+    mocker: MockerFixture,
+) -> None:
     """
     Preemption can land before this sequence delivers a Step of its own. The key
     left down is then the one the previous Continuation carried over, and D2 still
@@ -156,7 +163,9 @@ def test_cancellation_releases_a_direction_inherited_from_a_prior_sequence(mocke
     assert sorted(scenario.released) == ["jump", "left"]
 
 
-def test_every_direction_key_is_released_not_just_left_and_right(mocker):
+def test_every_direction_key_is_released_not_just_left_and_right(
+    mocker: MockerFixture,
+) -> None:
     """`up` and `down` are direction keys too - a held `up` keeps climbing."""
     scenario = _SendLoopScenario(
         keys=["up", "down", "left", "right"],
@@ -169,7 +178,9 @@ def test_every_direction_key_is_released_not_just_left_and_right(mocker):
     assert sorted(scenario.released) == ["down", "left", "right", "up"]
 
 
-def test_nothing_is_sent_when_the_ledger_holds_no_direction(mocker):
+def test_nothing_is_sent_when_the_ledger_holds_no_direction(
+    mocker: MockerFixture,
+) -> None:
     scenario = _SendLoopScenario(
         keys=["jump", "jump"],
         events=["keydown", "keyup"],

@@ -18,11 +18,14 @@ four Log Buckets - those partition code for routing and carry a catch-all
 * ``combat`` - what the bot chose to hit, and with what.
 * ``inventory`` - the trip to town, milestone by milestone.
 * ``rebuff`` - the cross-Engine handshake that gets a party buffed together.
+* ``chat`` - lines read in the chat log that the bot reacts to.
 * ``movement`` - Movement Plans started and targets reached, with deliberately
   minimal fields (#331). The movement-framework map may add records but not
   repurpose these. ``rotation`` stays reserved for that map.
 * ``state`` - where the character was, sampled on a clock rather than on an
   event.
+* ``position`` - each read of the character's virtual position, whatever it
+  read (#392).
 
 This module sits at the package root rather than under ``decision_makers/`` or
 ``model/`` because movement telemetry is assembled across both - anywhere
@@ -66,6 +69,10 @@ RECOVERY_ESCALATE: Final = "recovery.escalate"
 #: A Reaction Ladder that had advanced was reset - by real progress, or by a
 #: natural target change.
 RECOVERY_LADDER_RESET: Final = "recovery.ladder_reset"
+#: The character's position stayed unplaced (``UNSURE``, or not read) for the
+#: Unsure position window while the rotation held: reported once per episode,
+#: with a Discord alert, and nothing done in-game (#398).
+RECOVERY_POSITION_UNSURE: Final = "recovery.position_unsure"
 
 # --- combat ---------------------------------------------------------------
 #: Enough mobs were in range, so the training skill is being cast.
@@ -101,6 +108,25 @@ REBUFF_PARTY_COMPLETE: Final = "rebuff.party_complete"
 #: The shared ready state was cleared, ending one rebuff round.
 REBUFF_STATE_RESET: Final = "rebuff.state_reset"
 
+# --- chat -----------------------------------------------------------------
+#: A GM's line appeared in the chat log. One record per line, the first time
+#: it is read; ``ChatReplies`` raises the alarm on it.
+CHAT_GM_LINE: Final = "chat.gm_line"
+#: Automatic replies were stopped or handed back, from Discord.
+CHAT_REPLIES_TOGGLED: Final = "chat.replies_toggled"
+#: A chat line asks for a reply, or for the model's judgement: one record per
+#: line of the conversation, the first time it is addressed.
+CHAT_LINE_ADDRESSED: Final = "chat.line_addressed"
+#: A reply was handed to Main Process to type.
+CHAT_REPLY_SENT: Final = "chat.reply_sent"
+#: The model chose to say nothing, under any address.
+CHAT_REPLY_SILENT: Final = "chat.reply_silent"
+#: No reply came of lines that asked for one.
+CHAT_REPLY_FAILED: Final = "chat.reply_failed"
+#: The session's model calls passed their limit: the session ends and the game
+#: is closed.
+CHAT_REPLY_LIMITED: Final = "chat.reply_limited"
+
 # --- movement -------------------------------------------------------------
 #: Rotation is about to ship a Movement Plan.
 MOVEMENT_PLAN_STARTED: Final = "movement.plan_started"
@@ -110,6 +136,12 @@ MOVEMENT_TARGET_REACHED: Final = "movement.target_reached"
 # --- state ----------------------------------------------------------------
 #: A periodic sample of where the character is and where it is heading.
 STATE_SNAPSHOT: Final = "state.snapshot"
+
+# --- position -------------------------------------------------------------
+#: The character's virtual position was read: one record per read of
+#: ``current_position``, ``UNSURE`` ones included, so an analyzer can count
+#: reads per source and time how long the position stayed unsure.
+POSITION_READ: Final = "position.read"
 
 
 class MapCheckPayload(TypedDict):
@@ -125,7 +157,23 @@ class MobSpawnRestoredPayload(TypedDict):
     alert_threshold: int
 
 
-class StuckDetectedPayload(TypedDict):
+class TargetFields(TypedDict):
+    """
+    The target every ``recovery.*`` record of the Stuck monitor names.
+
+    ``target_x``/``target_y`` are minimap (canvas) px, as they always were: where
+    the marker is drawn for feet at the target, None when the bot has no minimap
+    transform. ``target_vx``/``target_vy`` are the target in virtual px, which is
+    what the monitor judges in since #398.
+    """
+
+    target_x: int | None
+    target_y: int | None
+    target_vx: float
+    target_vy: float
+
+
+class StuckDetectedPayload(TargetFields):
     """
     ``recovery.stuck_detected``: which symptom, aimed at what, and by how much.
 
@@ -136,22 +184,33 @@ class StuckDetectedPayload(TypedDict):
     """
 
     symptom: str
-    target_x: int
-    target_y: int
     measure: float
     threshold: float
 
 
-class ReactionPayload(TypedDict):
+class PositionUnsurePayload(TargetFields):
+    """
+    ``recovery.position_unsure``: how long the position went unplaced, in wall
+    seconds, against the window that reported it.
+    """
+
+    measure: float
+    threshold: float
+
+
+class ReactionPayload(TargetFields):
     """
     ``recovery.reflex`` / ``recovery.abandon`` / ``recovery.escalate``: which
-    symptom advanced the ladder, and the suspected grid connection when the
-    Movement Plan named one. Suspect fields are None when no plan was in hand.
+    symptom advanced the ladder, and the suspected move when the Movement Plan
+    named one. Suspect fields are None when no plan was in hand.
+
+    ``suspected_start_x`` to ``suspected_end_y`` are minimap (canvas) px, as they
+    always were; since #398 they are where the minimap draws the marker for the
+    graph move's take-off and landing, which the ``_vx``/``_vy`` fields carry in
+    virtual px.
     """
 
     symptom: str
-    target_x: int
-    target_y: int
     reflex_attempt: int
     abandon_count: int
     suspected_movement: str | None
@@ -159,14 +218,16 @@ class ReactionPayload(TypedDict):
     suspected_start_y: int | None
     suspected_end_x: int | None
     suspected_end_y: int | None
+    suspected_start_vx: float | None
+    suspected_start_vy: float | None
+    suspected_end_vx: float | None
+    suspected_end_vy: float | None
 
 
-class LadderResetPayload(TypedDict):
+class LadderResetPayload(TargetFields):
     """``recovery.ladder_reset``: why an engaged ladder was reset."""
 
     reason: str
-    target_x: int
-    target_y: int
 
 
 class MobsHitPayload(TypedDict):
@@ -208,30 +269,151 @@ class RebuffPayload(TypedDict):
     ign: str
 
 
+class ChatLinePayload(TypedDict):
+    """
+    ``chat.gm_line``: what the line says, and where it was drawn.
+
+    ``text`` is None when the line's text couldn't be read in full: the line's
+    image goes to Discord instead, not into the record.
+    """
+
+    kind: str
+    text: str | None
+    row_top: int
+
+
+class LineAddressedPayload(TypedDict):
+    """
+    ``chat.line_addressed``: the line's place in the conversation, its kind, and
+    its address (``gm``, ``must`` or ``judge``). Never who wrote it, or what.
+    """
+
+    seq: int
+    kind: str
+    address: str
+
+
+class ReplySentPayload(TypedDict):
+    """
+    ``chat.reply_sent``: the last line the reply answers (``seq``), the channel
+    and length of the reply, how long the model took (``model_ms``), and how
+    long the reply then waited for the read delay to end (``wait_ms``, 0 when
+    the model took longer than the delay).
+    """
+
+    seq: int
+    channel: str
+    chars: int
+    model_ms: int
+    wait_ms: int
+
+
+class ReplySilentPayload(TypedDict):
+    """``chat.reply_silent``: the last line left unanswered, and its burst's
+    address: a ``must`` or ``gm`` silence is the model ignoring the rules."""
+
+    seq: int
+    address: str
+
+
+class ReplyFailedPayload(TypedDict):
+    """
+    ``chat.reply_failed``: the last line left unanswered, and why, as one word
+    (``model_timeout``, ``model_error``, ``model_refused``, ``rejected``,
+    ``no_target``, ``nothing_read``, ``replies_off``). The full reason is in the
+    log, which may quote what was said; this never does.
+    """
+
+    seq: int
+    reason: str
+
+
+class ReplyLimitedPayload(TypedDict):
+    """``chat.reply_limited``: the model calls made in the window, at the limit."""
+
+    calls_in_window: int
+
+
+class RepliesToggledPayload(TypedDict):
+    """
+    ``chat.replies_toggled``: whether automatic replies are now on, and which
+    Discord command did it: ``discord_replies`` for ``REPLIES``,
+    ``discord_write`` for the ``WRITE`` that implies it.
+    """
+
+    on: bool
+    source: str
+
+
 class PlanStartedPayload(TypedDict):
     """
     ``movement.plan_started``: the Movement Plan being shipped, and from where to
-    where. Each component is ``[movement_type, length]``, ``movement_type`` being
-    the ``MovementTypes`` member name and ``length`` in minimap units, not time.
+    where.
+
+    Each of ``components`` is ``[movement_type, length]``, ``movement_type``
+    being the ``MovementTypes`` member name, with the meaning it always had:
+    for a walk or a climb, ``length`` in minimap (canvas) px, not time; for a
+    gesture (``JUMP*``, ``TELEPORT_*``, ``ENTER_PORTAL``), how many: 1 per jump
+    or portal, the casts for a teleport. ``components_v`` is ``[movement_type,
+    length]`` with every ``length`` measured in virtual px, to 0.1, gestures
+    included (#396). ``from_vx``/``from_vy`` is the virtual position the Path was
+    planned from, ``target_vx``/``target_vy`` the virtual target; ``from_x``,
+    ``from_y``, ``target_x`` and ``target_y`` are their canvas-px equivalents
+    through the minimap transform (the marker's pixel, as the minimap reads
+    it).
+
+    ``transitions`` is one entry per component, in order (#12): ``{"narrow",
+    "edge_departure", "grabs_rope", "start", "end"}``, the precision flags the
+    Plan was built with and the transition's virtual take-off and landing
+    (``[vx, vy]``, to 0.1; None for a component built by hand). It is what lets
+    an analyzer tell a precision movement from the Session alone. A Session
+    recorded before #12 has none.
     """
 
     components: list[list[Any]]
+    components_v: list[list[Any]]
+    transitions: list[dict[str, Any]]
     from_x: int
     from_y: int
     target_x: int
     target_y: int
+    from_vx: float
+    from_vy: float
+    target_vx: float
+    target_vy: float
 
 
 class TargetReachedPayload(TypedDict):
-    """``movement.target_reached``: the target, and how far off the character was."""
+    """
+    ``movement.target_reached``: the target, and how far off the character was.
+
+    ``target_x``, ``target_y`` and ``distance`` are in minimap (canvas) px.
+    ``target_vx``/``target_vy`` is the target in virtual px, ``vx``/``vy`` the
+    character's virtual position and ``virtual_distance`` between the two;
+    each is None when the arrival wasn't judged with one. Since #398 the
+    rotation judges arrival in virtual px, and the canvas fields are where the
+    minimap draws the marker for each.
+    """
 
     target_x: int
     target_y: int
     distance: float
+    target_vx: float | None
+    target_vy: float | None
+    vx: float | None
+    vy: float | None
+    virtual_distance: float | None
 
 
 class StateSnapshotPayload(TypedDict):
-    """``state.snapshot``: every field is None while its value is unknown."""
+    """
+    ``state.snapshot``: every field is None while its value is unknown.
+
+    ``x``/``y`` and ``target_x``/``target_y`` are minimap (canvas) px, as they
+    always were; since #398 they are where the minimap draws the marker for the
+    virtual position and target, which ``vx``/``vy`` and
+    ``target_vx``/``target_vy`` carry.
+    """
 
     x: int | None
     y: int | None
@@ -239,44 +421,138 @@ class StateSnapshotPayload(TypedDict):
     target_y: int | None
     on_screen_x: int | None
     on_screen_y: int | None
+    vx: float | None
+    vy: float | None
+    target_vx: float | None
+    target_vy: float | None
+
+
+class PositionReadPayload(TypedDict):
+    """
+    ``position.read``: what the read gave, and what each read said
+    (`maple.screen.position.Fusion`). Positions are in virtual px; a field is
+    None when its read didn't give it.
+
+    ``status`` is the Reading's status value (``read`` or ``unsure``);
+    ``source`` is ``fused`` or ``coarse``, None unless read. ``found`` counts the
+    characters found on screen, ``near`` those within the window around the
+    minimap's position;
+    ``by_tag`` says the finder could tell ours apart by its name tag, so only a
+    character marked ours could be chosen; ``own_elsewhere`` that a character
+    marked ours was found outside the window. ``detail`` is why,
+    as the Reading says it.
+    """
+
+    status: str
+    source: str | None
+    x: float | None
+    y: float | None
+    minimap_x: int | None
+    minimap_y: int | None
+    camera_x: int | None
+    camera_y: int | None
+    found: int
+    near: int
+    by_tag: bool
+    own_elsewhere: bool
+    detail: str
+
+
+#: The ``MovementTypes`` names whose ``components`` length is a distance; every
+#: other component's is a count.
+_TRAVEL = ("WALK_", "CLIMB_")
 
 
 def plan_started_payload(
-    movements: Iterable[Any], position: Sequence[Any], target: Sequence[Any]
+    movements: Iterable[Any],
+    position: Sequence[Any],
+    target: Sequence[Any],
+    *,
+    virtual_position: Sequence[Any],
+    virtual_target: Sequence[Any],
+    scale: float,
 ) -> PlanStartedPayload:
     """
     :param movements: ``_MovementComponent``s, each with ``movement_type`` and
-        ``length``.
-    :param position: The character's minimap position.
-    :param target: The rotation's target.
+        ``length`` (virtual px).
+    :param position: The character's position, canvas px.
+    :param target: The target, canvas px.
+    :param virtual_position: The virtual position the Path was planned from.
+    :param virtual_target: The virtual target it was planned to.
+    :param scale: Virtual px per canvas px, for ``components``' lengths.
     """
+    movements_list = list(movements)
+    moves = [
+        (
+            getattr(m.movement_type, "name", str(m.movement_type)),
+            float(m.length),
+            int(getattr(m, "casts", 1)),
+        )
+        for m in movements_list
+    ]
     return {
         "components": [
-            [
-                getattr(move.movement_type, "name", str(move.movement_type)),
-                int(move.length),
-            ]
-            for move in movements
+            [name, round(length / scale) if name.startswith(_TRAVEL) else casts]
+            for name, length, casts in moves
         ],
+        "components_v": [[name, round(length, 1)] for name, length, _ in moves],
+        "transitions": [_transition(m) for m in movements_list],
         "from_x": int(position[0]),
         "from_y": int(position[1]),
         "target_x": int(target[0]),
         "target_y": int(target[1]),
+        "from_vx": round(float(virtual_position[0]), 1),
+        "from_vy": round(float(virtual_position[1]), 1),
+        "target_vx": round(float(virtual_target[0]), 1),
+        "target_vy": round(float(virtual_target[1]), 1),
+    }
+
+
+def _transition(component: object) -> dict[str, Any]:
+    """One component's precision flags and virtual take-off and landing."""
+
+    def point(value: Sequence[Any] | None) -> list[float] | None:
+        return None if value is None else [round(float(v), 1) for v in value[:2]]
+
+    return {
+        "narrow": bool(getattr(component, "narrow", False)),
+        "edge_departure": bool(getattr(component, "edge_departure", False)),
+        "grabs_rope": bool(getattr(component, "grabs_rope", False)),
+        "start": point(getattr(component, "start", None)),
+        "end": point(getattr(component, "end", None)),
     }
 
 
 def target_reached_payload(
-    position: Sequence[Any], target: Sequence[Any]
+    position: Sequence[Any],
+    target: Sequence[Any],
+    *,
+    virtual_position: Sequence[Any] | None = None,
+    virtual_target: Sequence[Any] | None = None,
 ) -> TargetReachedPayload:
     """
-    :param position: The character's minimap position.
-    :param target: The target it was judged to have reached.
+    :param position: The character's position, canvas px.
+    :param target: The target it was judged to have reached, canvas px.
+    :param virtual_position: The character's virtual position, when known.
+    :param virtual_target: The target in virtual px, when known.
     """
+    virtual_distance = None
+    if virtual_position is not None and virtual_target is not None:
+        virtual_distance = round(float(math.dist(virtual_position, virtual_target)), 1)
     return {
         "target_x": int(target[0]),
         "target_y": int(target[1]),
         "distance": float(math.dist(position, target)),
+        "target_vx": _rounded(virtual_target, 0),
+        "target_vy": _rounded(virtual_target, 1),
+        "vx": _rounded(virtual_position, 0),
+        "vy": _rounded(virtual_position, 1),
+        "virtual_distance": virtual_distance,
     }
+
+
+def _rounded(point: Sequence[Any] | None, axis: int) -> float | None:
+    return None if point is None else round(float(point[axis]), 1)
 
 
 def _as_int(value: SupportsInt | None) -> int | None:
@@ -287,12 +563,17 @@ def state_snapshot_payload(
     position: Sequence[Any] | None,
     target: Sequence[Any] | None,
     on_screen: Sequence[Any] | None,
+    *,
+    virtual_position: Sequence[Any] | None = None,
+    virtual_target: Sequence[Any] | None = None,
 ) -> StateSnapshotPayload:
     """
-    :param position: The minimap position, or None if unknown.
-    :param target: The rotation's target, or None if unknown.
+    :param position: The minimap (canvas px) position, or None if unknown.
+    :param target: The rotation's target in canvas px, or None if unknown.
     :param on_screen: The character's on-screen box ``(x1, y1, x2, y2)``, or None
         if unknown; reported as its centre.
+    :param virtual_position: The virtual position, or None if unknown.
+    :param virtual_target: The target in virtual px, or None if unknown.
     """
     on_screen_x = on_screen_y = None
     if on_screen is not None:
@@ -305,4 +586,8 @@ def state_snapshot_payload(
         "target_y": _as_int(target[1]) if target is not None else None,
         "on_screen_x": on_screen_x,
         "on_screen_y": on_screen_y,
+        "vx": _rounded(virtual_position, 0),
+        "vy": _rounded(virtual_position, 1),
+        "target_vx": _rounded(virtual_target, 0),
+        "target_vy": _rounded(virtual_target, 1),
     }

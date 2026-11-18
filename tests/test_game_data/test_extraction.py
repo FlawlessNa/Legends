@@ -12,6 +12,8 @@ import hashlib
 import json
 import os
 import sqlite3
+import threading
+import time
 import zlib
 from contextlib import closing
 from datetime import UTC, datetime, timedelta
@@ -619,3 +621,37 @@ def test_status_compares_with_the_latest_extraction(
 
     assert status(a, root).freshness is Freshness.STALE
     assert status(b, root).freshness is Freshness.FRESH
+
+
+# --- a file held open while the folder lands --------------------------------------
+
+
+def test_a_file_held_open_briefly_does_not_stop_the_folder_landing(
+    client: Path, root: Path
+) -> None:
+    # On Windows a folder can't be renamed while a file in it is open without
+    # delete sharing, which is how antivirus and the search indexer hold a
+    # freshly written file. Here a real handle is held for a short while.
+    holders: list[threading.Thread] = []
+
+    def hold(file: Path, seconds: float) -> None:
+        with file.open("rb"):
+            opened.set()
+            time.sleep(seconds)
+
+    opened = threading.Event()
+
+    def catalogue(extraction: Path, images: ImageStore) -> int | None:
+        holder = threading.Thread(target=hold, args=(extraction / "raw.sqlite", 0.4))
+        holder.start()
+        holders.append(holder)
+        assert opened.wait(5)
+        return None
+
+    result = extract(client, root, catalogue=catalogue)
+    for holder in holders:
+        holder.join()
+
+    assert result.created
+    assert latest(root) == result.manifest.build
+    assert (Store(root).extraction(result.manifest.build) / "raw.sqlite").is_file()

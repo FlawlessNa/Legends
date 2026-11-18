@@ -16,6 +16,7 @@ class Actions(Enum):
     PAUSE = "PAUSE"
     RESUME = "RESUME"
     WRITE = "WRITE"
+    REPLIES = "REPLIES"
 
 
 class BaseParser(ABC):
@@ -29,7 +30,17 @@ class BaseParser(ABC):
     PAUSE --ign IgnFromARunningBot1 IgnFromARunningBot2
     RESUME --ign IgnFromAPausedBot
     WRITE --ign IgnFromABot --m Message to write
+    WRITE -ign IgnFromABot -to SomePlayer -m Message to whisper
+    WRITE -ign IgnFromABot -channel party -m Message to the party
+    REPLIES OFF -ign IgnFromABot
+    REPLIES ON
+
+    ``REPLIES`` declares one argument, ``ON`` or ``OFF``, right after the action.
+    A ``WRITE`` stops the automatic replies of the bot it writes through.
     """
+
+    #: The channels a ``WRITE`` can name. A whisper is named by ``-to`` instead.
+    write_channels: ClassVar[tuple[str, ...]] = ("general", "party", "buddy")
 
     action_choices: ClassVar[list[str]] = [action.value for action in Actions]
     action_choices.extend(action.value.lower() for action in Actions)
@@ -37,7 +48,7 @@ class BaseParser(ABC):
 
     def __init__(self, pipe: multiprocessing.connection.Connection) -> None:
         self.pipe = pipe
-        self.main_ign = None
+        self.main_ign: str | None = None
 
     @cached_property
     def parser(self) -> argparse.ArgumentParser:
@@ -66,6 +77,19 @@ class BaseParser(ABC):
             required=False,
         )
         parser.add_argument(
+            "-to",
+            type=str,
+            help="The player to whisper the message to.",
+            required=False,
+        )
+        parser.add_argument(
+            "-channel",
+            type=str,
+            help="The chat channel to write on.",
+            required=False,
+            choices=self.write_channels,
+        )
+        parser.add_argument(
             "positional_message",
             type=str,
             help="The message to write (positional argument).",
@@ -74,11 +98,15 @@ class BaseParser(ABC):
         )
         return parser
 
-    def parse_message(self, message: str) -> ActionRequest | str | None:
+    def parse_message(
+        self, message: str
+    ) -> ActionRequest | str | list[ActionRequest | str] | None:
         """
         Parses a message from the user and fires the appropriate actions.
         :param message: The message to parse.
-        :return: TBD.
+        :return: What the Main Process must do: an ActionRequest to run, a string
+            to dispatch to every Engine, or a list of those, in order. ``None``
+            when the message is not valid.
         """
         try:
             args = self.parser.parse_args(message.split())
@@ -120,7 +148,31 @@ class BaseParser(ABC):
                 self.pipe.send(msg)
             request = self.resume(args.ign)
 
+        elif action == "REPLIES":
+            if (
+                args.message
+                or (args.positional_message or [])[1:]
+                or args.to
+                or args.channel
+            ):
+                msg = "REPLIES action only accepts ON or OFF, and -ign."
+                logger.warning(msg)
+                self.pipe.send(msg)
+                return
+            switch = (args.positional_message or [""])[0].upper()
+            if switch not in ("ON", "OFF"):
+                msg = "REPLIES action requires ON or OFF right after it."
+                logger.warning(msg)
+                self.pipe.send(msg)
+                return
+            request = self.replies(switch == "ON", args.ign)
+
         elif action == "WRITE":
+            if args.to and args.channel:
+                msg = "WRITE accepts -to (a whisper) or -channel, not both."
+                logger.warning(msg)
+                self.pipe.send(msg)
+                return
             if not args.message and not args.positional_message:
                 msg = "WRITE action requires a --message argument. Please provide one."
                 logger.warning(msg)
@@ -142,16 +194,45 @@ class BaseParser(ABC):
                     self.pipe.send(msg)
                     return
                 ign = args.ign[0]
+            if ign is None:
+                msg = (
+                    "WRITE action needs an -ign: no bot is defined to write by default."
+                )
+                logger.warning(msg)
+                self.pipe.send(msg)
+                return
             content = args.message or args.positional_message
-            request = self.write(" ".join(content), ign)
+            request = [
+                self.takeover(ign),
+                self.write(" ".join(content), ign, to=args.to, channel=args.channel),
+            ]
         else:
             raise ValueError(f"Invalid action: {action}")
 
-        self.pipe.send(
-            f"Confirmation that '{getattr(request, 'identifier', request)}' was "
-            f"requested by user"
-        )
+        for item in request if isinstance(request, list) else [request]:
+            self.pipe.send(
+                f"Confirmation that '{getattr(item, 'identifier', item)}' was "
+                f"requested by user"
+            )
         return request
+
+    @staticmethod
+    def replies(on: bool, who: list[str] | None = None) -> str:
+        """
+        The command string that hands automatic replies back (``on``) or stops
+        them, for ``who`` or every bot. ``ON``/``OFF`` is the one argument the
+        command declares, so it comes right after the action.
+        """
+        return f"REPLIES {'ON' if on else 'OFF'} {' '.join(who or ['All'])}"
+
+    @staticmethod
+    def takeover(who: str) -> str:
+        """
+        The command string a ``WRITE`` sends ahead of itself: the maintainer is
+        typing for ``who``, so its automatic replies stop. Same effect as
+        ``REPLIES OFF``, reported as coming from the write.
+        """
+        return f"TAKEOVER {who}"
 
     @staticmethod
     def _kill() -> None:
@@ -191,12 +272,21 @@ class BaseParser(ABC):
         """
 
     @abstractmethod
-    def write(self, message: str, who: str | None = None) -> ActionRequest | str:
+    def write(
+        self,
+        message: str,
+        who: str | None = None,
+        *,
+        to: str | None = None,
+        channel: str | None = None,
+    ) -> ActionRequest | str:
         """
         Called from the MainProcess. Should write a message to a specific bot.
         :param message: The message to write.
         :param who: The bot that should write the message. If None, the "Main" bot
         writes the message.
+        :param to: A player to whisper the message to. Takes the whisper channel.
+        :param channel: The channel to write on; general when neither is given.
         :return: An ActionRequest for Main Process to run, or a string to
             dispatch to every Engine.
         """

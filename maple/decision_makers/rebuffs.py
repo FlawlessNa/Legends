@@ -54,6 +54,7 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
         self._buffs = solo_buffs(
             self.data.character.skills, included_buffs, excluded_buffs
         )
+        self._create_buffs_attributes()
         # One per buff, made once: a restart after a Pause reuses it.
         self._conditions: dict[str, threading.Condition] = {
             buff.name: self._proxies.instance(f"{self} - {buff.name}", "Condition")

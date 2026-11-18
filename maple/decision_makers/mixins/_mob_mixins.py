@@ -6,6 +6,7 @@ import numpy as np
 
 from botting.core import BotData
 from botting.models_abstractions import BaseMob
+from maple.screen.position import Camera
 
 
 class MobsHittingMixin:
@@ -63,6 +64,25 @@ class MobsHittingMixin:
         """
         x1, y1, x2, y2 = box
         return (x1 + x2) / 2, (y1 + y2) / 2
+
+    @staticmethod
+    def mobs_in_virtual_px(
+        mobs: list[Sequence[int]], client_size: tuple[int, int], camera: Camera
+    ) -> list[tuple[float, float]]:
+        """
+        Where mobs found on screen stand, in virtual px: the middle of each
+        detection box's bottom edge, placed through the camera of the frame
+        they were found on (`Camera.to_virtual`). Whatever the detections
+        found is placed; how good they are is the detectors' business.
+        :param mobs: Rectangles (x1, y1, x2, y2) in client px, as
+            `get_onscreen_mobs` returns.
+        :param client_size: The size of the client they were found on.
+        :param camera: The camera of the frame they were found on.
+        """
+        return [
+            camera.to_virtual(((x1 + x2) / 2, y2), client_size)
+            for x1, _, x2, y2 in mobs
+        ]
 
     @staticmethod
     def get_closest_mob_direction(

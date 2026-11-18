@@ -61,7 +61,7 @@ Ask what would prove the ticket done:
 | A diff readable against an ADR or a documented rule | `ready-for-agent` |
 | A number someone measured from a running client | `ready-for-human` |
 | "The character stopped drifting" / "the rotation looks right" | `ready-for-human` |
-| A minimap trail recorded in the GUI editor | `ready-for-human` |
+| A Trial schedule run at the client | `ready-for-human` |
 | A timing or animation constant | `ready-for-human` |
 
 **Mixed tickets split.** A ticket that is 80% offline refactor and 20% "then tune

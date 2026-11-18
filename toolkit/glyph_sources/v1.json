@@ -1,0 +1,29 @@
+{
+ "_about": "Where toolkit/harvest_glyphs.py cuts glyphs from frame set v1. No pixels: frame names, boxes in client pixels, and the countdown's digits as a person read them. A chat line is [x, top of its 16-row band, width]; its text is labelled by an Arial render (see the tool).",
+ "chat-general": [
+  {"frame": "f001_1366x768.png", "line": [288, 650, 548]},
+  {"frame": "f001_1366x768.png", "line": [288, 666, 548]},
+  {"frame": "f003_1366x768.png", "line": [288, 634, 548]},
+  {"frame": "f003_1366x768.png", "line": [288, 650, 548]},
+  {"frame": "f004_1366x768.png", "line": [288, 634, 548]},
+  {"frame": "f004_1366x768.png", "line": [288, 650, 548]},
+  {"frame": "f005_1366x768.png", "line": [288, 634, 548]}
+ ],
+ "countdown": [
+  {"frame": "f007_1366x768.png", "box": [1331, 13, 32, 13], "text": "27"},
+  {"frame": "f008_1366x768.png", "box": [1331, 13, 32, 13], "text": "24"},
+  {"frame": "f008_1366x768.png", "box": [1299, 13, 32, 13], "text": "27"},
+  {"frame": "f009_1366x768.png", "box": [1331, 13, 32, 13], "text": "19"},
+  {"frame": "f009_1366x768.png", "box": [1299, 13, 32, 13], "text": "21"},
+  {"frame": "f010_1366x768.png", "box": [1331, 13, 32, 13], "text": "16"},
+  {"frame": "f010_1366x768.png", "box": [1299, 13, 32, 13], "text": "19"},
+  {"frame": "f011_1366x768.png", "box": [1331, 13, 32, 13], "text": "13"},
+  {"frame": "f011_1366x768.png", "box": [1299, 13, 32, 13], "text": "16"},
+  {"frame": "f012_1366x768.png", "box": [1331, 13, 32, 13], "text": "10"},
+  {"frame": "f012_1366x768.png", "box": [1299, 13, 32, 13], "text": "13"},
+  {"frame": "f013_1366x768.png", "box": [1331, 13, 32, 13], "text": "8"},
+  {"frame": "f013_1366x768.png", "box": [1299, 13, 32, 13], "text": "10"},
+  {"frame": "f014_1366x768.png", "box": [1331, 13, 32, 13], "text": "5"},
+  {"frame": "f014_1366x768.png", "box": [1299, 13, 32, 13], "text": "7"}
+ ]
+}

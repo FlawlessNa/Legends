@@ -4,6 +4,7 @@ import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import threading
+import time
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
@@ -228,7 +229,15 @@ class DecisionMaker(ABC):
         whatever stopped them: a Pause, the Bot ending, or a loop that raised.
         """
 
-    def send(self, request: ActionRequest) -> None:
+    def on_resume(self) -> None:
+        """
+        Called by ``Bot.resume()`` on every DecisionMaker of the Bot, before the
+        user's and the legacy shim's Pauses are released. A DecisionMaker that
+        stopped others until RESUME (``ChatReplies``, after a GM) learns here that
+        they are given back.
+        """
+
+    def send(self, request: ActionRequest, correlation_id: str | None = None) -> None:
         """
         Sole chokepoint through which a DecisionMaker reaches the Main Process.
         Stamps the current correlation_id onto the request, then sends it.
@@ -238,11 +247,19 @@ class DecisionMaker(ABC):
         ActionWithValidation's retry loop); those must carry the id of the _decide()
         call that sent them, not of whenever they happened to be built.
         :param request: The ActionRequest to send to the Main Process.
+        :param correlation_id: The decision the request comes from, when it is not
+            the _decide() call in flight: a task an earlier call started, which
+            sends once that call is over. ``None`` stamps the call in flight.
         """
-        request.correlation_id = self.correlation_id
+        request.correlation_id = correlation_id or self.correlation_id
         self.pipe.send(request)
 
-    def emit(self, event_type: str, payload: Mapping[str, Any] | None = None) -> None:
+    def emit(
+        self,
+        event_type: str,
+        payload: Mapping[str, Any] | None = None,
+        correlation_id: str | None = None,
+    ) -> None:
         """
         Emit a Telemetry Record for the _decide() call currently in flight.
 
@@ -255,9 +272,15 @@ class DecisionMaker(ABC):
         the truthful value, not a gap to paper over.
         :param event_type: What happened.
         :param payload: Event-specific detail.
+        :param correlation_id: The decision it happened for, when it is not the
+            _decide() call in flight (as for ``send``). ``None`` for the call in
+            flight.
         """
         emit_event(
-            self.correlation_id, event_type, payload, logger_name=self._logger_name
+            correlation_id or self.correlation_id,
+            event_type,
+            payload,
+            logger_name=self._logger_name,
         )
 
     # --- Pauses -------------------------------------------------------------------
@@ -440,6 +463,12 @@ class DecisionMaker(ABC):
         """
         Decide, throttle, repeat, until cancelled.
 
+        The throttle is the loop's **period**: the next decision starts
+        `_throttle` s after the last one started, or at once when that decision
+        took longer. It used to be a pause after each decision, which added a
+        position read's time (0.1 to 0.2 s) to the 0.1 s interval, so decisions
+        came every 0.34 s (#508).
+
         The Supervisor runs one of these for each of `loops()`, so a
         DecisionMaker that owns more than one loop runs them all on the same
         machinery rather than reimplementing it - each loop mints its own
@@ -451,9 +480,12 @@ class DecisionMaker(ABC):
         try:
             while True:
                 self.correlation_id = str(uuid.uuid4())
+                started = time.monotonic()
                 await decide()
                 if self._throttle:
-                    await asyncio.sleep(self._throttle)
+                    await asyncio.sleep(
+                        max(0.0, self._throttle - (time.monotonic() - started))
+                    )
         except asyncio.CancelledError:
             logger.info("%s has been disabled.", name)
             # TODO - see if cleanup is required

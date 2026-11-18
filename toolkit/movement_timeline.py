@@ -1,5 +1,5 @@
 """
-Visualizes a KeyboardInputWrapper as a Gantt-style key-hold timeline.
+Visualize a KeyboardInputWrapper as a Gantt-style key-hold timeline.
 
 Each row is a unique key; each bar is a continuous hold interval.
 Forced key releases are marked with a red dashed line at the end of the timeline.
@@ -11,6 +11,9 @@ Import usage:
 
 Standalone demo:
     python -m toolkit.movement_timeline
+
+Needs matplotlib; no client. It draws what a wrapper recorded and sends no
+input.
 """
 
 from __future__ import annotations

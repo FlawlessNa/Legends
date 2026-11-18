@@ -18,20 +18,25 @@ import pytest
 from botting.core import DecisionMaker
 from game_data.catalogue.model import Ref, SkillData
 from game_data.extraction import Manifest, Store
+from game_data.sprites import Sprite
 from maple.bots import maple_bot
 from maple.bots.maple_bot import MapleBot
 from maple.screen import client
 from maple.screen import sprites as sprites_module
+from maple.screen.font import CHAT_GENERAL, COUNTDOWN, save_glyph_set
+from maple.screen.name_tag import NAME_TAGS
 from maple.screen.sprites import (
     FRAME_CHECK,
     GAUGE_LABEL,
     Declaration,
     Profile,
+    ReaderSprites,
     StartupRefused,
     enabled_readers,
     job_line,
     load_reader_sprites,
     skill_icon_path,
+    with_readers,
 )
 
 BUILD = "0123456789abcdef"
@@ -55,7 +60,7 @@ BUFF_ICONS = {
         }
     }
 }
-PROFILE = Profile(job="Cleric", game_map="Line1Area1")
+PROFILE = Profile(job="Cleric")
 STATUS = Declaration(
     "status bar",
     canvases=(GAUGE_LABEL,),
@@ -204,6 +209,69 @@ def test_a_declared_vector_that_doesnt_exist_is_refused_naming_it(
         load_reader_sprites([broken], PROFILE, root, config=config)
 
 
+# Glyph sets: harvested from frames, needed only by the readers that name them.
+
+COUNTDOWN_READER = Declaration("buffs", glyph_sets=(COUNTDOWN.name,))
+
+
+def test_a_declared_glyph_set_not_harvested_is_refused_saying_how(
+    root: Path, config: Path, tmp_path: Path
+) -> None:
+    with pytest.raises(
+        StartupRefused, match=r"buffs reader needs glyphs.*toolkit\.harvest_glyphs"
+    ):
+        load_reader_sprites(
+            [FRAME_CHECK, COUNTDOWN_READER],
+            PROFILE,
+            root,
+            config=config,
+            glyphs=tmp_path / "glyphs",
+        )
+
+
+def test_the_name_tag_reader_is_refused_without_its_glyphs(
+    root: Path, config: Path, tmp_path: Path
+) -> None:
+    with pytest.raises(
+        StartupRefused, match=r"name tag reader needs glyphs.*'name-tag' glyphs"
+    ):
+        load_reader_sprites(
+            [FRAME_CHECK, NAME_TAGS],
+            PROFILE,
+            root,
+            config=config,
+            glyphs=tmp_path / "glyphs",
+        )
+
+
+def test_a_declared_glyph_set_is_loaded(
+    root: Path, config: Path, tmp_path: Path
+) -> None:
+    save_glyph_set(COUNTDOWN, {"1": np.ones((5, 2), bool)}, {}, root=tmp_path / "g")
+
+    sprites = load_reader_sprites(
+        [FRAME_CHECK, COUNTDOWN_READER],
+        PROFILE,
+        root,
+        config=config,
+        glyphs=tmp_path / "g",
+    )
+
+    assert set(sprites.glyph_set(COUNTDOWN.name).glyphs) == {"1"}
+    with pytest.raises(KeyError, match="enabled reader"):
+        sprites.glyph_set(CHAT_GENERAL.name)
+
+
+def test_glyphs_are_needed_only_when_a_reader_names_them(
+    root: Path, config: Path, tmp_path: Path
+) -> None:
+    sprites = load_reader_sprites(
+        [FRAME_CHECK], PROFILE, root, config=config, glyphs=tmp_path / "none"
+    )
+
+    assert sprites.glyph_sets == {}
+
+
 class _Reads(DecisionMaker):
     screen_readers = (STATUS,)
 
@@ -250,7 +318,7 @@ def test_child_init_refuses_before_creating_any_attribute(
     bot = _Bot(
         "Someone",
         {},  # pyright: ignore[reportArgumentType] - metadata is never read here
-        game_map="Line1Area1",
+        map="auto",
         character_class="Bishop",
         models_path={},
     )
@@ -276,10 +344,16 @@ def test_child_init_keeps_the_loaded_sprites_and_a_frame_check(
     monkeypatch.setattr(
         maple_bot.InGameDetectionVisuals, "register_cache_id", lambda *_: None
     )
+    # The map check at start and the map it finds are `test_maple_bot_client`'s.
+    monkeypatch.setattr(maple_bot, "with_readers", lambda readers, *_: readers)
+    monkeypatch.setattr(
+        MapleBot, "_check_map_at_start", lambda self, sprites: (10002000, sprites)
+    )
+    monkeypatch.setattr(MapleBot, "_set_world_map", lambda *_: None)
     bot = _Bot(
         "Someone",
         {},  # pyright: ignore[reportArgumentType] - metadata is never read here
-        game_map="Line1Area1",
+        map="auto",
         character_class="Bishop",
         models_path={},
     )
@@ -406,7 +480,7 @@ def icon_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_declared_skill_icons_are_loaded_by_skill_name(
     icon_root: Path, config: Path
 ) -> None:
-    profile = Profile(job="Priest", game_map="x", buffs=("Bless",))
+    profile = Profile(job="Priest", buffs=("Bless",))
 
     sprites = load_reader_sprites([NAMED_BUFFS], profile, icon_root, config=config)
 
@@ -419,7 +493,7 @@ def test_declared_skill_icons_are_loaded_by_skill_name(
 def test_a_skill_the_job_doesnt_have_is_refused_naming_it(
     icon_root: Path, config: Path
 ) -> None:
-    profile = Profile(job="Assassin", game_map="x", buffs=("Bless",))
+    profile = Profile(job="Assassin", buffs=("Bless",))
 
     with pytest.raises(
         StartupRefused,
@@ -440,3 +514,23 @@ def test_no_skill_named_opens_no_catalogue(
         load_reader_sprites([NAMED_BUFFS], PROFILE, root, config=config).skill_icons
         == {}
     )
+
+
+# The map check at start: readers it needs, and the canvas `auto` adds.
+
+
+def test_readers_the_map_check_needs_are_added_once_after_the_frame_check() -> None:
+    a, b = Declaration("a"), Declaration("b")
+
+    assert with_readers([], a) == [FRAME_CHECK, a]
+    assert with_readers([FRAME_CHECK, a, b], a) == [FRAME_CHECK, a, b]
+    assert with_readers([FRAME_CHECK, b], a) == [FRAME_CHECK, b, a]
+
+
+def test_a_canvas_added_after_loading_leaves_the_loaded_sprites_as_they_were() -> None:
+    loaded = ReaderSprites("build", {"x": Sprite("x", ICON, (0, 0))})
+    added = loaded.with_canvas(Sprite("y", ICON, (0, 0)))
+
+    assert set(added.canvases) == {"x", "y"}
+    assert set(loaded.canvases) == {"x"}
+    assert added.build == "build"

@@ -6,6 +6,7 @@ import time
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker
+from maple.screen.position import marker_of_feet
 from maple.telemetry_events import MOVEMENT_PLAN_STARTED, plan_started_payload
 
 from .mixins import (
@@ -53,7 +54,8 @@ class Rotation(
         **kwargs: object,
     ) -> None:
         super().__init__(metadata, data, pipe)
-        self._teleport_skill = self.data.character.skills.get("Teleport")
+        # No `self._teleport_skill` attribute: it would shadow
+        # `MovementsMixin._teleport_skill()`, which `_new_handler` calls below.
         self.lock = self._proxies.instance(repr(self), "Lock")
 
         if disable_teleport:
@@ -101,13 +103,27 @@ class Rotation(
         from inside telemetry. The cache is also what the Plan was computed from.
         """
         last_known = functools.partial(self.data.get_last_known_value, update=False)
-        position = last_known("current_minimap_position")
+        reading = last_known("current_position")
         target = last_known("next_target")
-        if position is None or target is None:
+        transform = self._world_map().minimap
+        if reading is None or reading.value is None or target is None:
             return
+        assert transform is not None
+        virtual_position = (reading.value.x, reading.value.y)
+        # The target is virtual (#398); the canvas fields are where the minimap
+        # draws the marker for it, from the one read above, so `target_*` and
+        # `target_v*` can't describe two targets.
+        virtual_target = (float(target[0]), float(target[1]))
         self.emit(
             MOVEMENT_PLAN_STARTED,
-            plan_started_payload(last_known("movements"), position, target),
+            plan_started_payload(
+                last_known("movements"),
+                marker_of_feet(transform, virtual_position),
+                marker_of_feet(transform, virtual_target),
+                virtual_position=virtual_position,
+                virtual_target=virtual_target,
+                scale=transform.scale,
+            ),
         )
 
     def _request(self) -> ActionRequest:

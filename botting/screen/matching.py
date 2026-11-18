@@ -198,3 +198,77 @@ def read_glyphs(
     a trace: use `find_glyphs` to see where the glyphs are.
     """
     return "".join(hit.name for hit in find_glyphs(strip, glyphs, tolerance))
+
+
+def find_mask_glyphs(
+    mask: np.ndarray,
+    glyphs: Mapping[str, np.ndarray],
+    max_error: float,
+) -> list[GlyphHit]:
+    """
+    Where ``glyphs`` (name -> ``H x W`` bool mask) are drawn in ``mask``, a bool
+    image of which pixels are ink, left to right.
+
+    For text whose colours don't repeat exactly, so `find_glyphs` can't be used:
+    the caller turns pixels into ink first. A glyph's error at a place is the
+    share of its whole box, ink and background, that differs from ``mask``; a
+    place within ``max_error`` is a candidate. Candidates are accepted lowest
+    error first, then largest ink first, skipping any whose box overlaps one
+    already accepted.
+    """
+    if mask.ndim != 2:
+        raise ValueError("mask must be a 2-D bool array")
+    image = np.ascontiguousarray(mask, dtype=np.float32)
+    candidates: list[tuple[float, int, int, str, int, int, int, int]] = []
+    for name, glyph in glyphs.items():
+        if glyph.ndim != 2 or not glyph.any():
+            raise ValueError(f"glyph {name!r} must be a 2-D bool mask with ink")
+        h, w = glyph.shape
+        if image.shape[0] < h or image.shape[1] < w:
+            continue
+        template = np.ascontiguousarray(glyph, dtype=np.float32)
+        ink = int(glyph.sum())
+        both = cv2.matchTemplate(image, template, cv2.TM_CCORR)
+        on = cv2.matchTemplate(image, np.ones_like(template), cv2.TM_CCORR)
+        # Each differing pixel is on in exactly one of the two.
+        errors = (np.rint(on + ink - 2 * both)) / (h * w)
+        ys, xs = np.nonzero(errors <= max_error)
+        for y, x in zip(ys.tolist(), xs.tolist(), strict=True):
+            candidates.append((float(errors[y, x]), -ink, x, name, x, y, w, h))
+    candidates.sort(key=lambda c: c[:3])
+
+    accepted: list[GlyphHit] = []
+    for *_, name, x, y, w, h in candidates:
+        if any(
+            x < a.x + a.width and a.x < x + w and y < a.y + a.height and a.y < y + h
+            for a in accepted
+        ):
+            continue
+        accepted.append(GlyphHit(name, x, y, w, h))
+    accepted.sort(key=lambda a: a.x)
+    return accepted
+
+
+def read_mask_glyphs(
+    mask: np.ndarray,
+    glyphs: Mapping[str, np.ndarray],
+    max_error: float,
+    space_gap: int | None = None,
+) -> str:
+    """
+    Read a string from an ink ``mask`` with `find_mask_glyphs`.
+
+    With ``space_gap``, a gap of that many columns or more between two glyphs'
+    boxes reads as a space.
+    """
+    hits = find_mask_glyphs(mask, glyphs, max_error)
+    text: list[str] = []
+    for previous, hit in zip([None, *hits], hits, strict=False):
+        if (
+            previous is not None
+            and space_gap is not None
+            and hit.x - (previous.x + previous.width) >= space_gap
+        ):
+            text.append(" ")
+        text.append(hit.name)
+    return "".join(text)
