@@ -2,7 +2,7 @@
 A GM line stops the training of the bot it was read on, and no other (#489).
 
 Two Bots in one session, each a training loop and the real `ChatReplies`, with
-the real enabler and disabler threads on the real Bot lifecycle. The Main
+the real Supervisor on the real Bot lifecycle. The Main
 Process proxies are in-process primitives in one metadata dict, which every
 Bot shares as Engines share the Manager's: a key already made is handed back,
 not made again. The chat is scripted, and replying is off, so no model is
@@ -104,9 +104,8 @@ def metadata(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
 
 class _DaemonThreads(concurrent.futures.ThreadPoolExecutor):
     """
-    The loop's `to_thread` executor, on daemon threads that nothing joins: the
-    enabler and disabler threads wait on their Conditions for as long as the
-    process lives, which in an Engine is how they end.
+    The loop's `to_thread` executor, on daemon threads that nothing joins, so a
+    thread still waiting when the test ends never holds it up.
     """
 
     def submit(  # pyright: ignore[reportIncompatibleMethodOverride]

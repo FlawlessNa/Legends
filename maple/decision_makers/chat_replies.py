@@ -7,8 +7,8 @@ everything about replies: replies being off (`chat_replies: false`, `REPLIES
 OFF`), the model being unreachable, or a reply in flight never delay or silence
 it. A GM's line, and any later line of the same speaker, also stops training:
 every other DecisionMaker of the bot, and of no other bot, is disabled
-(`_disable_decision_makers`, `self_only`) until `RESUME` gives them back
-(`on_resume`, called by `Bot.resume`).
+(`_disable_decision_makers`, which reaches its own bot only) until `RESUME`
+gives them back (`on_resume`, called by `Bot.resume`).
 
 **Following the conversation.** Every cycle each line read is addressed
 (`Addressing`) and appended to the `Conversation`. Lines on screen at the first
@@ -63,11 +63,18 @@ from pydantic import BaseModel
 
 from botting import PARENT_LOG, controller
 from botting.controller import TypingPace
-from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
+from botting.core import (
+    ActionRequest,
+    BotData,
+    DecisionMaker,
+    DiscordRequest,
+    StartupRefused,
+    action_name,
+)
 from botting.llm import DEFAULT_MODEL_ID, AnthropicModel, ModelAnswer, StructuredModel
 from botting.screen import ClientNotClosed, Reading, Status, close_client
 from maple.actions import priorities, reply_in_chat
-from maple.actions.writing import TRAINING_ACTIONS, WHISPER
+from maple.actions.writing import WHISPER
 from maple.chat_replies.addressing import STRENGTH, Address, Addressing
 from maple.chat_replies.conversation import Burst, Conversation, Entry, EntryState
 from maple.chat_replies.instructions import InstructionsError, load_instructions
@@ -81,7 +88,6 @@ from maple.chat_replies.mirror import (
 from maple.chat_replies.relay import Failed, Relay, RelayOutcome, Reply, Silent
 from maple.screen.chat import CHAT, ChatKind, ChatLine
 from maple.screen.font import UNREAD
-from maple.screen.sprites import StartupRefused
 from maple.telemetry_events import (
     CHAT_GM_LINE,
     CHAT_LINE_ADDRESSED,
@@ -99,6 +105,18 @@ from maple.telemetry_events import (
 from paths import ROOT
 
 from .mixins import UIMixin
+from .mobs_hitting import MobsHitting
+from .rotation import Rotation
+from .telecast_mobs_hitting import TelecastMobsHitting
+
+TRAINING: tuple[type[DecisionMaker], ...] = (
+    Rotation,
+    MobsHitting,
+    TelecastMobsHitting,
+)
+"""The DecisionMakers whose Actions in flight a reply cancels: the character
+stops training to type. The same as `TRAINING_ACTIONS`, which a Discord `WRITE`
+cancels."""
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -287,12 +305,10 @@ class ChatReplies(UIMixin, DecisionMaker):
 
     # --- the loop --------------------------------------------------------------
 
-    async def task(self) -> None:
-        try:
-            await super().task()
-        finally:
-            if self._replying is not None:
-                self._replying.cancel()
+    def on_stop(self) -> None:
+        """However the loop stopped, a reply still being prepared is dropped."""
+        if self._replying is not None:
+            self._replying.cancel()
 
     async def _decide(self) -> None:
         self._take_typed()
@@ -507,7 +523,7 @@ class ChatReplies(UIMixin, DecisionMaker):
                 ign,
                 priorities.ANTI_DETECTION,
                 block_lower_priority=True,
-                cancel_tasks=[f"{name}({ign})" for name in TRAINING_ACTIONS],
+                cancel_tasks=[action_name(cls, ign) for cls in TRAINING],
                 args=(
                     self.data.handle,
                     text,
@@ -588,7 +604,7 @@ class ChatReplies(UIMixin, DecisionMaker):
                 ign,
                 priorities.KILL_SWITCH,
                 block_lower_priority=True,
-                cancel_tasks=[f"{name}({ign})" for name in TRAINING_ACTIONS],
+                cancel_tasks=[action_name(cls, ign) for cls in TRAINING],
                 args=(self.data.handle,),
                 discord_request=(
                     DiscordRequest(
@@ -640,11 +656,14 @@ class ChatReplies(UIMixin, DecisionMaker):
             self.data.ign,
             ", ".join(names),
         )
-        self._disable_decision_makers(*names, self_only=True)
+        self._disable_decision_makers(*names)
         self._stopped = names
 
-    def on_resume(self) -> tuple[str, ...]:
-        """RESUME gives back what a GM stopped on this bot, and nothing else."""
+    def on_resume(self) -> None:
+        """
+        RESUME gives back what a GM stopped on this bot, and nothing else, and
+        a later GM line stops training again.
+        """
         stopped, self._stopped = self._stopped, ()
         if stopped:
             logger.info(
@@ -652,8 +671,7 @@ class ChatReplies(UIMixin, DecisionMaker):
                 self.data.ign,
                 ", ".join(stopped),
             )
-            self._enable_decision_makers(*stopped, self_only=True)
-        return stopped
+            self._enable_decision_makers(*stopped)
 
 
 def _refusal(burst: Burst) -> Failed | None:

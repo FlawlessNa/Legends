@@ -345,6 +345,24 @@ def test_a_whisper_is_answered_on_whisper_with_the_characters_keys(
     ]
 
 
+def test_a_reply_being_prepared_is_dropped_when_the_loop_stops(
+    harness: Callable[..., Harness],
+) -> None:
+    """The Supervisor calls `on_stop` however the loop stopped (a PAUSE, the Bot
+    ending): the reply the model is still preparing is never sent."""
+    h = harness(latency=5.0, answers=[says("ya")])
+
+    async def body() -> None:
+        await started(h)
+        await h.cycle(line(ChatKind.WHISPER, "Bob", "hi u there?"))
+        assert h.model.asked, "the reply is being prepared"
+        h.dm.on_stop()
+        await h.clock.advance(30)
+
+    scenario(body)
+    assert h.replies == []
+
+
 def test_a_general_line_naming_us_is_answered_on_general(
     harness: Callable[..., Harness],
 ) -> None:
@@ -925,10 +943,12 @@ def test_resume_gives_back_exactly_what_the_gm_stopped(
 
     scenario(body)
     assert h.disabled == ["Rotation", "MobsHitting", "PetFood"], "once"
-    assert h.dm.on_resume() == ("Rotation", "MobsHitting", "PetFood")
+    h.dm.on_resume()
     assert h.enabled == ["Rotation", "MobsHitting", "PetFood"]
-    assert h.dm.on_resume() == (), "a RESUME with no GM gives back nothing"
-    assert h.enabled == ["Rotation", "MobsHitting", "PetFood"]
+    h.dm.on_resume()
+    assert h.enabled == ["Rotation", "MobsHitting", "PetFood"], (
+        "a RESUME with no GM gives back nothing"
+    )
 
 
 def test_no_discord_alert_or_post_when_discord_isnt_configured(
