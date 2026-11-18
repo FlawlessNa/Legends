@@ -20,9 +20,17 @@ from botting.screen.matching import (
     read_mask_glyphs,
 )
 from botting.screen.reading import Reading, Status
-from botting.screen.window import MultipleWindows, WindowNotFound, find_window
+from botting.screen.window import (
+    ClientNotClosed,
+    MultipleWindows,
+    WindowNotFound,
+    bring_to_front,
+    close_client,
+    find_window,
+)
 
 __all__ = [
+    "ClientNotClosed",
     "Frame",
     "FrameSource",
     "GlyphHit",
@@ -31,6 +39,8 @@ __all__ = [
     "Reading",
     "Status",
     "WindowNotFound",
+    "bring_to_front",
+    "close_client",
     "find_glyphs",
     "find_mask_glyphs",
     "find_window",

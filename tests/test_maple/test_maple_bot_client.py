@@ -4,6 +4,7 @@ and its map, whose mobs are the ones it looks for."""
 import logging
 from collections.abc import Sequence
 from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -11,7 +12,9 @@ import pytest
 
 from botting.core import Bot, DecisionMaker
 from botting.screen import Frame
+from botting.utilities import config_reader
 from game_data.catalogue import Bounds, Spawn
+from maple.actions import writing
 from maple.bots import map_mobs, maple_bot
 from maple.bots.map_setting import is_auto
 from maple.bots.maple_bot import MapleBot
@@ -46,6 +49,23 @@ from tests.test_maple.test_screen_minimap_title import (
     draw_title,
     title_sprites,
 )
+
+
+@pytest.fixture(autouse=True)
+def _keybindings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """
+    A real keybindings config for "Someone": a MapleBot reads its character's
+    chat keys when it is built, and `configs/keybindings.ini` is gitignored, so
+    a worktree or CI has none, and the bot would warn that it falls back to the
+    default keys.
+    """
+    ini = tmp_path / "keybindings.ini"
+    ini.write_text("[Someone]\nChat Keys = {\n    'general': 'g',\n    }\n")
+    monkeypatch.setattr(
+        writing,
+        "config_reader",
+        lambda name, section: config_reader(name, section, full_path=str(ini)),
+    )
 
 
 class _Stop(Exception):

@@ -73,7 +73,7 @@ def _by_map(frames: FrameSet) -> dict[int, list[FrameEntry]]:
     out: dict[int, list[FrameEntry]] = {}
     for entry in frames.entries:
         map_id = entry.expect["map_id"]
-        if map_id.status is Status.READ:
+        if "feet" in entry.expect and map_id.status is Status.READ:
             out.setdefault(map_id.value, []).append(entry)
     return out
 

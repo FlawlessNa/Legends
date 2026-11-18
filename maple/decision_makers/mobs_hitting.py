@@ -17,6 +17,7 @@ from maple.model.characters import MapleSkill
 from maple.model.world import WorldMap
 from maple.screen.chat import CHAT
 from maple.screen.minimap import MINIMAP
+from maple.screen.name_tag import NAME_TAGS
 from maple.screen.position import VirtualPosition
 from maple.telemetry_events import COMBAT_MOBS_HIT, MobsHitPayload
 
@@ -29,7 +30,7 @@ class MobsHitting(
     MobsHittingMixin, MinimapAttributesMixin, NextTargetMixin, DecisionMaker
 ):
     ON_SCREEN_THRESHOLD = 0.65
-    screen_readers = (MINIMAP, CHAT)
+    screen_readers = (MINIMAP, CHAT, NAME_TAGS)
 
     def __init__(
         self,

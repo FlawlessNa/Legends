@@ -28,6 +28,8 @@ events inverts the dependency. Areas here:
   (``time.monotonic()``). Written just after the send, off the send loop, so
   the envelope's timestamp trails the payload's ``wall`` and a record can land
   after records emitted later: order key records by ``t``.
+* ``llm`` - a request to the language model (``botting.llm``): which model,
+  what it cost in tokens, how long it took and how it ended.
 * ``recording`` - the screen recorder, in the Peripherals process: where the
   video is, and a checkpoint about once a second that maps the telemetry clock
   to a frame index (``botting.session`` cuts frames with them). Like
@@ -81,6 +83,10 @@ KEY_DOWN: Final = "key.down"
 #: A keyup was sent to a client. Every keyup is one, ``held`` saying whether the
 #: ledger had the key down (not held: a straggler `release_all` found down).
 KEY_UP: Final = "key.up"
+
+# --- llm ------------------------------------------------------------------
+#: One request to the language model ended, whatever the outcome.
+LLM_REQUEST: Final = "llm.request"
 
 # --- recording ------------------------------------------------------------
 #: The recorder's writer is open; the video at ``path`` is being written.
@@ -190,6 +196,19 @@ class KeyUpPayload(KeyPayload):
 
     #: Whether the Held-Keys Ledger held the key before this keyup.
     held: bool
+
+
+class LlmRequestPayload(TypedDict):
+    """``llm.request``: the model asked, what it cost, and how the call ended."""
+
+    model: str
+    input_tokens: int
+    #: Input tokens served from the prompt cache.
+    cached_tokens: int
+    output_tokens: int
+    ms: int
+    #: ``ok``, ``refused``, ``timeout`` or ``error`` (``botting.llm.Outcome``).
+    outcome: str
 
 
 class RecordingStartedPayload(TypedDict):

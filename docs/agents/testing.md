@@ -126,20 +126,36 @@ left, Henesys Market (the minimap scrolls sideways), Henesys crowded with
 other players, and Ellinia climbing (the minimap scrolls vertically). Its new
 frames read `minimap` (Henesys Market's banner is `Victoria Road: Henesys
 Market`; where the marker is clipped at the canvas's edge, `self_position` is
-where the whole marker would be, as the reader places it since #502) and none
+where the whole marker would be, as the reader places it since #502) and `chat`
+(#483: megaphones, including the red band of a crate's announcement, system
+lines, including an event's light-blue notice, and general lines; `unsure` at
+2560x1440, where the UI is upscaled), and none
 of `v1`'s other readers. `v2` and `v3` give every
 frame three position readings in virtual px: `camera` (`{x, y}`, the play
 area's top-left), `feet` (`{x, y}`, our character's, or `covered`) and
 `map_id`. `tests/frames/README.md` says how each was made and checked.
 
+`v4` is `v3`'s frames and readings unchanged plus 64 to read chat (#482) and name
+tags (#457) from: crowded Henesys chat, test lines on a quiet map, whispers at Free
+Market Entrance, and the Free Market's name tags at 1920x1080 and 1366x768. They
+carry `map_id` only (`unsure` where the capture names no map), so a test of a
+position or `minimap` reading skips a frame that has no such entry. The chat
+frames carry a `chat` entry (#482); the chat tests that read every line's text
+(`NOT_READ_YET`) skip the name-tag frames, which carry none. The name-tag tests
+(#457, `test_name_tag_frames.py`) need no entry: our tag must read as our name,
+and every other tag as Windows' GDI render of Arial labels it.
+`tests/frames/README.md` says what was left out.
+
 A frame has no entry for a reader whose answer depends on a choice its ticket
 hasn't made yet: `notes` says why.
 
-Readers of font-drawn text (the buff countdown, chat) read with glyphs harvested
-from the frames into the gitignored `data/glyphs/`: run `python -m
-toolkit.harvest_glyphs` after fetching the frames, before `pytest -m frames`.
-What it cuts, and where, is `toolkit/glyph_sources/<tag>.json`: frame names,
-boxes and digits, never pixels or chat text.
+Readers of font-drawn text (the buff countdown, chat, name tags) read with glyphs
+harvested from the frames into the gitignored `data/glyphs/`: run `python -m
+toolkit.harvest_glyphs` after fetching the frames, before `pytest -m frames`
+(on Windows: the name tags are labelled by its GDI). What it cuts, and where, is
+`toolkit/glyph_sources/<tag>.json`: frame names, boxes and digits, never pixels,
+chat text or a name (a chat source names at most one letter, one the client
+draws unlike Arial, cut from our own test lines; a name-tag source none).
 
 Modules that touch the Held-Keys Ledger directly reset it through an `autouse`
 fixture of their own — see `tests/test_botting/test_held_keys_ledger.py`.

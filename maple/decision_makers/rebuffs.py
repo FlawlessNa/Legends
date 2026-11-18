@@ -76,6 +76,10 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
         on a vararg passthrough. `_decision_loop` is that same machinery, named:
         the loops mint their own Correlation IDs and log under their own names,
         exactly as before.
+
+        It waits on its loops rather than returning once they are started: this
+        task is what a disable (`_disable_decision_makers`) cancels, and
+        cancelling it cancels the loops with it.
         """
         assert self._tg is not None, "start() must run before task()"
         for buff in self._buffs:
@@ -85,6 +89,7 @@ class SoloRebuff(RebuffMixin, DecisionMaker):
                 self._decision_loop(ident, partial(self._recast, buff, condition)),
                 name=ident,
             )
+        await asyncio.gather(*self._sub_tasks.values())
 
     async def _recast(self, buff: MapleSkill, condition: threading.Condition) -> None:
         """One buff's decision: cast it, then sleep out its duration."""

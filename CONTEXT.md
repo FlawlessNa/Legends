@@ -500,3 +500,42 @@ the goal and runs A*; its answer is a Path. Built per map and per speed and
 jump stats, off the decision loop.
 _Avoid_: Grid, minimap grid — the grid it replaced, one node per minimap
 pixel, is retired.
+
+## Chat replies
+
+**Conversation**:
+The session's chat, every line read in order as an **Entry**, with which lines
+are the character's own and which are left to answer. Lines it doesn't answer
+stay in it as context. Megaphone, system, notice and `unknown` lines are not
+in it.
+_Avoid_: History, transcript: the transcript is what a request to the model is
+given, the last part of the Conversation rendered as text.
+
+**Address**:
+What a chat line asks of the character: `MUST` be answered, `GM` (a GM's line,
+answered carefully), `JUDGE` (the model judges whether it was meant for us),
+or `IGNORE`.
+_Avoid_: Mention: a whisper names no one, and is addressed all the same.
+
+**Notice**:
+A line the client writes to the character in light red, such as `Could not find
+<name>.` under a whisper to someone offline, or a game event. No one's words:
+never `general`, never in the **Conversation**, never answered.
+_Avoid_: System line: `system` is the yellow and light-blue kind.
+
+**Burst**:
+Everything one player said on one channel that is left to answer. One reply
+answers a Burst, and its Address is the strongest of its Entries'.
+_Avoid_: Thread, message group.
+
+**Read delay**:
+The human moment before a reply is sent: 2 s plus 60 ms per character, jittered
+by 30 %, capped at 8 s, counted from when the line appeared. The model's
+latency is spent inside it; training goes on until it ends.
+_Avoid_: Typing delay: typing comes after it, at a human pace (`TypingPace`).
+
+**Takeover**:
+The maintainer answering for the character: `REPLIES OFF`, or a Discord
+`WRITE`, which implies it. Lines keep being read and posted to Discord, and
+are never answered, not even once `REPLIES ON` hands the replies back.
+_Avoid_: Pause: `PAUSE` stops every DecisionMaker, replies or not.

@@ -11,7 +11,15 @@ The glyphs are client pixels: they go to the gitignored `data/glyphs/`, which
   matches them exactly (#313). The render only labels: what is kept is the
   frame's own pixels, and nothing reads Arial afterwards. A line the render
   doesn't explain to the last pixel is refused. Arial draws `I` and `l` alike,
-  so they are kept as one glyph, `I`, and the manifest says so.
+  so they are kept as one glyph, `I`, and the manifest says so. Each glyph
+  keeps Arial's bearings (the blank columns before and after its ink), which
+  tell a space from the room a letter like `1` leaves around itself
+  (`font.CHAT_GENERAL`): metrics of the font, not pixels. A line may give its
+  `colour` (RGB, white when left out): the whisper's green is the same font,
+  and a glyph cut in two colours must be the same both times. A line may
+  instead give the `text` a person read there, for a letter the client draws
+  unlike Arial (`A`, `K`, `#`): it is cut as `minimap-title` is, one letter per
+  run of inked columns, and keeps Arial's bearings.
 - `countdown`: a buff slot's countdown rows, `[x, y, width, height]`, with the
   digits a person read there. Each digit is one blob of yellow ink; a box whose
   blobs don't number its digits is refused.
@@ -21,6 +29,14 @@ The glyphs are client pixels: they go to the gitignored `data/glyphs/`, which
   (from `x`) where the second one starts. A line whose runs don't number its
   letters is refused.
 
+- `name-tag`: name tags on frames drawn 1:1 (up to 1366x768), each
+  `[x, top of its 11-row cell, width]` (`font.NAME_TAG`). They are **labelled
+  by Windows' GDI render of Arial** at 12 px, unantialiased, letters and digits
+  only, which the client draws them with (#457): Pillow's render of the font
+  draws `d` otherwise. A tag the render doesn't explain to the last pixel is
+  refused; Arial draws `I` and `l` alike, kept as `I`, as for the chat. Needs
+  Windows.
+
 Every source is read back with the harvested set; any misread fails the run, and
 nothing is written. The tool prints each source's labels for a person to check.
 Needs the frames on disk (`python scripts/fetch_frames.py`); sends nothing to
@@ -28,7 +44,9 @@ the game.
 """
 
 import argparse
+import ctypes
 import json
+import string
 import sys
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -44,6 +62,7 @@ from maple.screen.font import (
     COUNTDOWN,
     GLYPHS,
     MINIMAP_TITLE,
+    NAME_TAG,
     GlyphSet,
     GlyphSetSpec,
     save_glyph_set,
@@ -60,6 +79,12 @@ CELL_OFFSET = 3
 (`font.CHAT_GENERAL`)."""
 MIN_BLOB = 3
 """Ink blobs smaller than this, in pixels, are specks, not digits."""
+NAME_TAG_FACE = "Arial"
+NAME_TAG_SIZE = 12
+"""The name tags' font and its size in px (`font.NAME_TAG`)."""
+NAME_TAG_CHARACTERS = string.digits + string.ascii_uppercase + string.ascii_lowercase
+"""What a name is made of. Uppercase before lowercase, so Arial's `I` and `l`
+are kept as `I` (`alike`)."""
 
 type Mask = NDArray[np.bool_]
 
@@ -73,18 +98,37 @@ class Harvest:
     sources: dict[str, str] = field(default_factory=dict[str, str])
     problems: list[str] = field(default_factory=list[str])
     labels: list[tuple[str, str]] = field(default_factory=list[tuple[str, str]])
+    forms: dict[str, list[tuple[Mask, str]]] = field(
+        default_factory=dict[str, list[tuple[Mask, str]]]
+    )
+    """Each glyph's other forms, with where each was cut (`font.GlyphSet.forms`)."""
 
-    def keep(self, char: str, mask: Mask, where: str, exact: bool) -> None:
+    def keep(
+        self, char: str, mask: Mask, where: str, exact: bool, new_form: bool = False
+    ) -> None:
         """Keep the first cut of each glyph. When `exact`, a later cut that
-        differs is a problem."""
+        differs is a problem, unless `new_form` (a person read it): then it is
+        kept as another form of the glyph, when it is none of its forms yet."""
         kept = self.glyphs.get(char)
         if kept is None:
             self.glyphs[char] = mask
             self.sources[char] = where
-        elif exact and (kept.shape != mask.shape or (kept != mask).any()):
+            return
+        if not exact:
+            return
+        known = [kept, *(form for form, _ in self.forms.get(char, []))]
+        if any(_same(form, mask) for form in known):
+            return
+        if new_form:
+            self.forms.setdefault(char, []).append((mask, where))
+        else:
             self.problems.append(
                 f"{where}: {char!r} differs from its cut at {self.sources[char]}"
             )
+
+
+def _same(a: Mask, b: Mask) -> bool:
+    return a.shape == b.shape and bool((a == b).all())
 
 
 # Chat: labelled by a font render.
@@ -108,6 +152,26 @@ def font_labeller(font: Path, size: int = LABELLER_SIZE) -> dict[str, Mask]:
     return drawn
 
 
+def font_bearings(font: Path, size: int = LABELLER_SIZE) -> dict[str, tuple[int, int]]:
+    """Each printable ASCII character's bearings in `font`, unantialiased: the
+    columns from where it is drawn to its ink, and from its ink to where the
+    next character is drawn."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    face = ImageFont.truetype(str(font), size)
+    bearings: dict[str, tuple[int, int]] = {}
+    for char in map(chr, range(0x21, 0x7F)):
+        image = Image.new("L", (4 * size, 4 * size), 0)
+        draw = ImageDraw.Draw(image)
+        draw.fontmode = "1"
+        draw.text((size, size), char, font=face, fill=255)
+        xs = np.nonzero(np.array(image) > 127)[1]
+        before = int(xs.min()) - size
+        after = round(face.getlength(char)) - (int(xs.max()) + 1 - size)
+        bearings[char] = (before, after)
+    return bearings
+
+
 def alike(labeller: Mapping[str, Mask]) -> dict[str, str]:
     """Characters drawn alike: the first of each group -> the whole group."""
     groups: dict[tuple[tuple[int, ...], bytes], str] = {}
@@ -118,13 +182,17 @@ def alike(labeller: Mapping[str, Mask]) -> dict[str, str]:
 
 
 def harvest_lines(
-    lines: Iterable[tuple[str, Mask]], labeller: Mapping[str, Mask]
+    lines: Iterable[tuple[str, Mask]],
+    labeller: Mapping[str, Mask],
+    into: Harvest | None = None,
 ) -> Harvest:
     """
     Cut each line's glyphs, labelled by `labeller`.
 
     :param lines: Each line's name and its ink, one glyph cell high.
     :param labeller: The labelling font's glyphs, each cut to its ink.
+    :param into: A harvest to add to, whose glyphs a cut must match; a new
+        one when left out.
     """
     groups = alike(labeller)
     distinct = {
@@ -132,7 +200,7 @@ def harvest_lines(
         for char, mask in labeller.items()
         if not any(char in group and char != first for first, group in groups.items())
     }
-    harvest = Harvest()
+    harvest = Harvest() if into is None else into
     for where, ink in lines:
         hits = find_mask_glyphs(ink, distinct, 0.0)
         explained = np.zeros_like(ink)
@@ -156,6 +224,123 @@ def harvest_lines(
         harvest.labels.append((where, "".join(name for name, _ in cells)))
         for name, cell in cells:
             harvest.keep(name, cell, where, exact=True)
+    return harvest
+
+
+# Name tags: labelled by Windows' GDI render.
+
+
+def gdi_labeller(
+    face: str = NAME_TAG_FACE,
+    size: int = NAME_TAG_SIZE,
+    characters: str = NAME_TAG_CHARACTERS,
+) -> dict[str, Mask]:
+    """
+    Each of `characters` drawn by Windows' GDI in `face`, `size` px high (its
+    em), unantialiased, cut to its ink: how the client draws its text (#457).
+
+    :raises OSError: Not on Windows.
+    """
+    if sys.platform != "win32":
+        raise OSError("the GDI labeller draws with Windows' GDI: run on Windows")
+    from ctypes import wintypes
+
+    gdi32 = ctypes.windll.gdi32
+    gdi32.CreateCompatibleDC.restype = wintypes.HDC
+    gdi32.CreateCompatibleDC.argtypes = [wintypes.HDC]
+    gdi32.CreateDIBSection.restype = wintypes.HBITMAP
+    gdi32.CreateDIBSection.argtypes = [
+        wintypes.HDC,
+        ctypes.c_void_p,
+        wintypes.UINT,
+        ctypes.POINTER(ctypes.c_void_p),
+        wintypes.HANDLE,
+        wintypes.DWORD,
+    ]
+    gdi32.CreateFontW.restype = wintypes.HFONT
+    gdi32.SelectObject.restype = wintypes.HGDIOBJ
+    gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HGDIOBJ]
+    gdi32.SetTextColor.argtypes = [wintypes.HDC, wintypes.DWORD]
+    gdi32.SetBkColor.argtypes = [wintypes.HDC, wintypes.DWORD]
+    gdi32.TextOutW.argtypes = [
+        wintypes.HDC,
+        ctypes.c_int,
+        ctypes.c_int,
+        wintypes.LPCWSTR,
+        ctypes.c_int,
+    ]
+    gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
+    gdi32.DeleteDC.argtypes = [wintypes.HDC]
+
+    class BitmapInfoHeader(ctypes.Structure):
+        _fields_ = [
+            ("biSize", wintypes.DWORD),
+            ("biWidth", wintypes.LONG),
+            ("biHeight", wintypes.LONG),
+            ("biPlanes", wintypes.WORD),
+            ("biBitCount", wintypes.WORD),
+            ("biCompression", wintypes.DWORD),
+            ("biSizeImage", wintypes.DWORD),
+            ("biXPelsPerMeter", wintypes.LONG),
+            ("biYPelsPerMeter", wintypes.LONG),
+            ("biClrUsed", wintypes.DWORD),
+            ("biClrImportant", wintypes.DWORD),
+        ]
+
+    side = 4 * size
+    nonantialiased_quality = 3
+    drawn: dict[str, Mask] = {}
+    dc = gdi32.CreateCompatibleDC(None)
+    # A negative height asks for the em, not the cell, to be `size` px.
+    font = gdi32.CreateFontW(
+        -size, 0, 0, 0, 400, 0, 0, 0, 0, 0, 0, nonantialiased_quality, 0, face
+    )
+    header = BitmapInfoHeader(
+        ctypes.sizeof(BitmapInfoHeader), side, -side, 1, 32, 0, 0, 0, 0, 0, 0
+    )
+    bits = ctypes.c_void_p()
+    bitmap = gdi32.CreateDIBSection(
+        dc, ctypes.byref(header), 0, ctypes.byref(bits), None, 0
+    )
+    try:
+        gdi32.SelectObject(dc, bitmap)
+        gdi32.SelectObject(dc, font)
+        gdi32.SetTextColor(dc, 0xFFFFFF)
+        gdi32.SetBkColor(dc, 0)
+        buffer = ctypes.cast(bits, ctypes.POINTER(ctypes.c_uint8))
+        pixels = np.ctypeslib.as_array(buffer, shape=(side, side, 4))
+        for char in characters:
+            pixels[:] = 0
+            gdi32.TextOutW(dc, size, size, char, 1)
+            ink = pixels[..., 0] > 127
+            ys, xs = np.nonzero(ink)
+            drawn[char] = ink[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1].copy()
+    finally:
+        gdi32.DeleteObject(font)
+        gdi32.DeleteObject(bitmap)
+        gdi32.DeleteDC(dc)
+    return drawn
+
+
+def harvest_name_tags(
+    tags: Iterable[tuple[str, NDArray[np.uint8]]], labeller: Mapping[str, Mask]
+) -> Harvest:
+    """
+    Cut each name tag's glyphs, labelled by `labeller` (`gdi_labeller`), as a
+    chat line's are (`harvest_lines`), then read each labelled tag back with
+    the harvest, saying no text (`misreads`): a tag is another player's name.
+
+    :param tags: Each tag's name, and the BGR pixels of its cell.
+    """
+    strips = list(tags)
+    harvest = harvest_lines([(w, NAME_TAG.ink(p)) for w, p in strips], labeller)
+    labelled = dict(harvest.labels)
+    harvest.problems += misreads(
+        NAME_TAG,
+        harvest,
+        [(w, p, labelled[w]) for w, p in strips if w in labelled],
+        quiet=True,
+    )
     return harvest
 
 
@@ -222,15 +407,22 @@ def column_runs(ink: Mask, splits: Iterable[int] = ()) -> list[tuple[int, int]]:
     return runs
 
 
-def harvest_cut_lines(lines: Iterable[tuple[str, Mask, str, Sequence[int]]]) -> Harvest:
+def harvest_cut_lines(
+    lines: Iterable[tuple[str, Mask, str, Sequence[int]]],
+    into: Harvest | None = None,
+    exact: bool = False,
+) -> Harvest:
     """
     Cut each line's letters, labelled by the text a person read there: one
     letter per run of inked columns, as tall as the line's cell.
 
     :param lines: Each line's name, its ink (one cell high), its text, and the
         columns where touching letters are split.
+    :param into: A harvest to add to; a new one when left out.
+    :param exact: A later cut of a glyph must be one of its forms, or is kept
+        as another form: a person read it (`Harvest.keep`).
     """
-    harvest = Harvest()
+    harvest = Harvest() if into is None else into
     for where, ink, text, splits in lines:
         runs = column_runs(ink, splits)
         letters = text.replace(" ", "")
@@ -242,7 +434,7 @@ def harvest_cut_lines(lines: Iterable[tuple[str, Mask, str, Sequence[int]]]) -> 
             continue
         harvest.labels.append((where, text))
         for char, (a, b) in zip(letters, runs, strict=True):
-            harvest.keep(char, ink[:, a:b], where, exact=False)
+            harvest.keep(char, ink[:, a:b], where, exact=exact, new_form=exact)
     return harvest
 
 
@@ -250,14 +442,18 @@ def misreads(
     spec: GlyphSetSpec,
     harvest: Harvest,
     strips: Iterable[tuple[str, NDArray[np.uint8], str]],
+    quiet: bool = False,
 ) -> list[str]:
-    """Each strip (name, BGR pixels, expected text) the harvested set misreads."""
-    glyph_set = GlyphSet(spec, harvest.glyphs)
+    """Each strip (name, BGR pixels, expected text) the harvested set misreads.
+    When `quiet`, the texts aren't said: a name tag's is another player's name."""
+    forms = {c: [mask for mask, _ in f] for c, f in harvest.forms.items()}
+    glyph_set = GlyphSet(spec, harvest.glyphs, forms=forms)
     wrong: list[str] = []
     for where, pixels, expected in strips:
         got = glyph_set.read(pixels)
         if got.replace(" ", "") != expected.replace(" ", ""):
-            wrong.append(f"{where}: read {got!r}, labelled {expected!r}")
+            said = "" if quiet else f" {got!r}, labelled {expected!r}"
+            wrong.append(f"{where}: read{said or ' otherwise than labelled'}")
     return wrong
 
 
@@ -292,24 +488,36 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     lines: list[tuple[str, Mask]] = []
-    line_strips: list[tuple[str, NDArray[np.uint8]]] = []
+    letters: list[tuple[str, Mask, str, Sequence[int]]] = []
+    line_strips: list[tuple[str, GlyphSetSpec, NDArray[np.uint8]]] = []
     rows = CHAT_GENERAL.rows or 0
     for source in sources.get(CHAT_GENERAL.name, []):
         x, top, width = source["line"]
-        where = f"{source['frame']} line {top}"
+        colour = source.get("colour")
+        spec = (
+            CHAT_GENERAL
+            if colour is None
+            else CHAT_GENERAL.in_colour(
+                (int(colour[0]), int(colour[1]), int(colour[2]))
+            )
+        )
+        where = f"{source['frame']} line {top} x {x}"
         strip = _load(directory, source["frame"])[
             top + CELL_OFFSET : top + CELL_OFFSET + rows, x : x + width
         ]
-        lines.append((where, CHAT_GENERAL.ink(strip)))
-        line_strips.append((where, strip))
+        if "text" in source:
+            ink = spec.ink(strip)
+            letters.append((where, ink, source["text"], source.get("splits", [])))
+        else:
+            lines.append((where, spec.ink(strip)))
+        line_strips.append((where, spec, strip))
     labeller = font_labeller(args.labeller_font)
     chat = harvest_lines(lines, labeller)
+    harvest_cut_lines(letters, into=chat, exact=True)
     labelled = dict(chat.labels)
-    chat.problems += misreads(
-        CHAT_GENERAL,
-        chat,
-        [(w, s, labelled[w]) for w, s in line_strips if w in labelled],
-    )
+    for where, spec, strip in line_strips:
+        if where in labelled:
+            chat.problems += misreads(spec, chat, [(where, strip, labelled[where])])
 
     boxes: list[tuple[str, Mask, str]] = []
     digit_strips: list[tuple[str, NDArray[np.uint8], str]] = []
@@ -335,30 +543,65 @@ def main(argv: list[str] | None = None) -> int:
     title = harvest_cut_lines(title_lines)
     title.problems += misreads(MINIMAP_TITLE, title, title_strips)
 
-    harvests = ((CHAT_GENERAL, chat), (COUNTDOWN, digits), (MINIMAP_TITLE, title))
+    tag_strips: list[tuple[str, NDArray[np.uint8]]] = []
+    rows = NAME_TAG.rows or 0
+    for source in sources.get(NAME_TAG.name, []):
+        x, top, width = source["tag"]
+        where = f"{source['frame']} tag {x},{top}"
+        strip = _load(directory, source["frame"])[top : top + rows, x : x + width]
+        tag_strips.append((where, strip))
+    tag_labeller = gdi_labeller() if tag_strips else {}
+    tags = harvest_name_tags(tag_strips, tag_labeller)
+
+    harvests = (
+        (CHAT_GENERAL, chat),
+        (COUNTDOWN, digits),
+        (MINIMAP_TITLE, title),
+        (NAME_TAG, tags),
+    )
     for spec, harvest in harvests:
         print(
             f"{spec.name}: {len(harvest.glyphs)} glyph(s): {''.join(sorted(harvest.glyphs))}"
         )
+        if spec is NAME_TAG:
+            # Other players' names: counted, never printed.
+            print(f"  {len(harvest.labels)} of {len(tag_strips)} tag(s) labelled")
+            continue
         for where, text in harvest.labels:
             print(f"  {where}: {text}")
-    problems = chat.problems + digits.problems + title.problems
+    problems = chat.problems + digits.problems + title.problems + tags.problems
     if problems:
         print("\nNothing written:", *problems, sep="\n  ", file=sys.stderr)
         return 1
-    for spec, harvest, same in (
+    bearings = font_bearings(args.labeller_font)
+    for spec, harvest, same, spacing in (
         (
             CHAT_GENERAL,
             chat,
             {k: v for k, v in alike(labeller).items() if k in chat.glyphs},
+            {k: v for k, v in bearings.items() if k in chat.glyphs},
         ),
-        (COUNTDOWN, digits, {}),
-        (MINIMAP_TITLE, title, {}),
+        (COUNTDOWN, digits, {}, None),
+        (MINIMAP_TITLE, title, {}, None),
+        (
+            NAME_TAG,
+            tags,
+            {k: v for k, v in alike(tag_labeller).items() if k in tags.glyphs},
+            None,
+        ),
     ):
         if not harvest.glyphs:
             print(f"{spec.name}: no source in {tag}, so its set is left as it was")
             continue
-        folder = save_glyph_set(spec, harvest.glyphs, harvest.sources, same, args.out)
+        folder = save_glyph_set(
+            spec,
+            harvest.glyphs,
+            harvest.sources,
+            same,
+            args.out,
+            spacing,
+            harvest.forms,
+        )
         print(f"wrote {folder}")
     return 0
 

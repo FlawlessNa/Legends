@@ -4,23 +4,31 @@ Picking the bot's own character among several `Character` detections.
 The model also fires on other players. The kept box is the one whose name tag
 reads as the IGN; when no tag reads (it is hidden), the one closest to the box
 kept last; otherwise the most confident.
+
+A tag is read with the `name-tag` glyphs (`NameTagReader`,
+`maple.screen.name_tag`), never OCR (#457). A picker given no reader reads no
+tag and keeps the box by its fallbacks alone.
 """
 
-import string
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
-import cv2
 import numpy as np
 from fuzzywuzzy import fuzz
 
-from botting.visuals import InGameBaseVisuals
+from maple.screen.font import GlyphSet
+from maple.screen.name_tag import read_name_tag
+from maple.screen.position import tag_upscale
 
-# Name-tag strip, read from the image the detection ran on.
+# Name-tag strip, read from the image the detection ran on, in play-area px:
+# multiplied by the tag scale (`tag_upscale`) on an upscaled client.
 TAG_STRIP_GAP_PX = 0  # between the box's bottom edge and the strip
-TAG_STRIP_EXTRA_WIDTH_PX = 40  # added to the box's width, centred on the box
+# Added to the box's width, centred on the box: wide enough for a long name
+# (a 12-letter one is 88 px on frame set v4) under a narrow box. The reader
+# reads the tag nearest the strip's middle.
+TAG_STRIP_EXTRA_WIDTH_PX = 80
 TAG_STRIP_HEIGHT_PX = 18
 
 # The threshold the IGN was fuzzy-matched with when it located the client.
@@ -29,9 +37,6 @@ TAG_MATCH_RATIO = 90  # fuzz.ratio, 0..100, strictly exceeded
 # Continuity between frames.
 TRACK_MAX_DISTANCE_PX = 150.0  # box-centre to box-centre
 TRACK_MAX_AGE_S = 5.0  # the last kept box is forgotten after this long
-
-TAG_TEXT_MIN_GRAY = 200  # 0..255, white tag text
-TAG_UPSCALE = 3
 
 Box4 = tuple[int, int, int, int]  # x1, y1, x2, y2
 
@@ -43,35 +48,47 @@ class Candidate:
 
 
 class TagReader(Protocol):
-    def read_tag(self, strip: np.ndarray) -> str: ...
+    def read_tag(self, strip: np.ndarray, client_size: tuple[int, int]) -> str:
+        """The name on the tag in `strip`, cut from a client of `client_size`."""
+        ...
+
+    def fold(self, text: str) -> str:
+        """`text` as two readings of one name compare equal: case aside, and
+        letters the font draws alike as one."""
+        ...
 
 
-class NameTagReader(InGameBaseVisuals):
-    """Reads the white name tag under a character."""
+class NameTagReader:
+    """Reads the white name tag under a character with the `name-tag` glyphs
+    (`maple.screen.name_tag`): a letter with no glyph reads U+FFFD."""
 
-    CONFIG = f"--psm 7 -c tessedit_char_whitelist={string.ascii_letters}{string.digits}"
+    def __init__(self, glyphs: GlyphSet) -> None:
+        self._glyphs = glyphs
+        self._alike = {
+            char: group[0] for group in glyphs.alike.values() for char in group
+        }
 
-    def _preprocess_img(self, image: np.ndarray) -> np.ndarray:
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        text = cv2.inRange(gray, np.array([TAG_TEXT_MIN_GRAY]), np.array([255]))
-        text = cv2.resize(text, None, fx=TAG_UPSCALE, fy=TAG_UPSCALE)
-        return cv2.bitwise_not(text)  # dark text on white, as tesseract prefers
+    def read_tag(self, strip: np.ndarray, client_size: tuple[int, int]) -> str:
+        return read_name_tag(self._glyphs, strip, client_size)
 
-    def read_tag(self, strip: np.ndarray) -> str:
-        return self.read_from_img(strip, self.CONFIG, confidence_level=0)
+    def fold(self, text: str) -> str:
+        """Case aside, and each letter of a group the font draws alike (Arial's
+        `I` and `l`, `GlyphSet.alike`) as the group's first."""
+        return "".join(self._alike.get(char, char) for char in text).casefold()
 
 
-def tag_strip(image: np.ndarray, box: Box4) -> np.ndarray | None:
-    """The strip under `box`, clipped to the image; None when nothing is left."""
+def tag_strip(image: np.ndarray, box: Box4, scale: float = 1.0) -> np.ndarray | None:
+    """The strip under `box`, clipped to the image; None when nothing is left.
+    `scale` is the client's tag scale (`tag_upscale`)."""
     x1, _, x2, y2 = box
     centre = (x1 + x2) / 2
-    half = (x2 - x1 + TAG_STRIP_EXTRA_WIDTH_PX) / 2
-    top = y2 + TAG_STRIP_GAP_PX
+    half = (x2 - x1 + TAG_STRIP_EXTRA_WIDTH_PX * scale) / 2
+    top = y2 + round(TAG_STRIP_GAP_PX * scale)
     left, right = (
         max(0, round(centre - half)),
         min(image.shape[1], round(centre + half)),
     )
-    bottom = min(image.shape[0], top + TAG_STRIP_HEIGHT_PX)
+    bottom = min(image.shape[0], top + round(TAG_STRIP_HEIGHT_PX * scale))
     if right <= left or bottom <= top:
         return None
     return image[top:bottom, left:right]
@@ -89,7 +106,7 @@ class OwnCharacterPicker:
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.ign = ign
-        self._reader = reader or NameTagReader()
+        self._reader = reader
         self._clock = clock
         self._last: Box4 | None = None
         self._last_at = 0.0
@@ -112,13 +129,18 @@ class OwnCharacterPicker:
     def _by_tag(
         self, image: np.ndarray, candidates: Sequence[Candidate]
     ) -> Box4 | None:
+        if self._reader is None:
+            return None
+        client_size = (image.shape[1], image.shape[0])
+        scale = tag_upscale(client_size) or 1.0
+        ign = self._reader.fold(self.ign)
         matching: list[Candidate] = []
         for cand in candidates:
-            strip = tag_strip(image, cand.box)
+            strip = tag_strip(image, cand.box, scale)
             if strip is None:
                 continue
-            text = self._reader.read_tag(strip)
-            if fuzz.ratio(text.lower(), self.ign.lower()) > TAG_MATCH_RATIO:
+            text = self._reader.fold(self._reader.read_tag(strip, client_size))
+            if fuzz.ratio(text, ign) > TAG_MATCH_RATIO:
                 matching.append(cand)
         if not matching:
             return None

@@ -26,9 +26,11 @@ only section is used.
 trusted only when the client is in front, before and after, did not move, and
 its client area is entirely on the primary monitor. A copy that is not trusted
 is asked for again for up to a second (a new process's first copy can come back
-empty), then they exit 6 with the reason, and write nothing. They send no input,
-so they do not bring the client to the front themselves: if the client is not
-in front, ask the maintainer to bring it there.
+empty), then they exit 6 with the reason, and write nothing. They bring the
+client to the front first, by asking Windows for the foreground window: no key,
+no click, no `release_all`, no ledger reset. If Windows refuses, they exit 6
+with that reason. `--no-front` skips it and copies only if the client is already
+in front, for whoever needs the window left alone.
 
 ### Elevation
 
@@ -49,8 +51,8 @@ code (the module docstring lists them).
 
 | Command                                      | Does                                                     |
 | -------------------------------------------- | -------------------------------------------------------- |
-| `screenshot [--region NAME \| --box l,t,r,b]` | writes a PNG to `probe/`; with no flag, the whole client |
-| `regions`                                    | each region's box `[l, t, r, b]`, or null if not showing |
+| `screenshot [--region NAME \| --box l,t,r,b] [--no-front]` | writes a PNG to `probe/`; with no flag, the whole client |
+| `regions [--no-front]`                       | each region's box `[l, t, r, b]`, or null if not showing |
 | `keys [--ign NAME]`                          | lists the key binding names                              |
 | `press KEY [--times N] [--ign NAME]`         | keydown then keyup, N ≤ 10                               |
 | `hold DIRECTION --ms MS`                     | holds a direction, then releases it, MS ≤ 10000          |

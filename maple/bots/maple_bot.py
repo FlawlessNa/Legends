@@ -6,11 +6,11 @@ from abc import ABC
 from collections.abc import Mapping
 from typing import Any
 
-from botting import PARENT_LOG
+from botting import PARENT_LOG, emit_event
 from botting.core import Bot, ProxyFactory
 from botting.screen import Frame, frame_source
 from botting.visuals import InGameDetectionVisuals
-from maple.actions import ensure_minimap_displayed
+from maple.actions import ensure_minimap_displayed, startup_chat_keys
 from maple.bots.map_check import check_named_map, identify_map
 from maple.bots.map_mobs import MapMob, check_detection, map_mobs
 from maple.bots.map_setting import (
@@ -22,12 +22,14 @@ from maple.bots.map_setting import (
 from maple.decision_makers.mobs_hitting import MobsHitting
 from maple.decision_makers.rebuffs import solo_buffs
 from maple.model.characters import MAPPING as CHARACTER_MAPPING
+from maple.model.characters.character import Character
 from maple.model.mechanics.maple_mob import MapleMob
 from maple.model.mechanics.physics import Calibration, game_physics
 from maple.model.world import WorldMap
 from maple.screen.buffs import ICON_BASE, BuffsReader
 from maple.screen.chat import TARGET_SELECT, ChatReader
 from maple.screen.client import find_client
+from maple.screen.font import NAME_TAG
 from maple.screen.locator import FrameCheck
 from maple.screen.map_identification import MapCanvases, MapIdentifier
 from maple.screen.minimap import MINIMAP, NW, MinimapReader
@@ -37,12 +39,14 @@ from maple.screen.quick_slots import QUICK_SLOTS, QuickSlotsReader
 from maple.screen.sprites import (
     Profile,
     ReaderSprites,
+    StartupRefused,
     enabled_readers,
     load_reader_sprites,
     with_readers,
 )
 from maple.screen.status_bar import BACKGROUND as STATUS_BAR_BACKGROUND
 from maple.screen.status_bar import StatusBarReader
+from maple.telemetry_events import CHAT_REPLIES_TOGGLED, RepliesToggledPayload
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -63,6 +67,10 @@ class MapleBot(Bot, ABC):
     one of them: a named map's before anything is pressed, `map: auto`'s once
     the map is identified.
     """
+
+    def _replies_toggled(self, on: bool, source: str) -> None:
+        payload: RepliesToggledPayload = {"on": on, "source": source}
+        emit_event(None, CHAT_REPLIES_TOGGLED, payload, logger.name)
 
     MINIMAP_TIME_LIMIT = 7.5
     """Seconds the minimap key is pressed for at start to show the minimap, as
@@ -85,6 +93,15 @@ class MapleBot(Bot, ABC):
         refuse_game_map(kwargs.pop("game_map", None))
         refuse_mobs(kwargs.pop("mobs", None))
         super().__init__(ign, metadata, **kwargs)
+        # Read once, here: a malformed `Chat Keys` refuses the start, rather than
+        # after a failsafe reaction or a Discord WRITE. DecisionMakers take them
+        # from `data.chat_keys`, the Discord parser from `started_chat_keys`.
+        try:
+            self.chat_keys = startup_chat_keys(ign)
+        except (TypeError, ValueError) as exc:
+            message = f"Refusing to start {ign}: {exc}"
+            logger.critical(message)
+            raise StartupRefused(message) from exc
         if not character_class:
             raise ValueError(
                 f"{type(self).__name__} for {ign!r} needs `character_class` in the "
@@ -213,15 +230,22 @@ class MapleBot(Bot, ABC):
                     MinimapReader(reader_sprites, frame_check, map_id=map_id),
                 )
             if TARGET_SELECT in reader_sprites.canvases:
-                data.set_static("chat_reader", ChatReader(reader_sprites, frame_check))
+                data.set_static(
+                    "chat_reader", ChatReader(reader_sprites, frame_check, ign=self.ign)
+                )
         InGameDetectionVisuals.register_models(self.models_path)
         InGameDetectionVisuals.register_cache_id(data.handle)
-        data.create_attribute(
-            "character",
-            lambda: self.character_class(
+        name_tags = reader_sprites.glyph_sets.get(NAME_TAG.name)
+
+        def character() -> Character:
+            made = self.character_class(
                 self.ign, self.detection_configs, self.client_size
-            ),
-        )
+            )
+            if name_tags is not None:
+                made.read_name_tags_with(name_tags)
+            return made
+
+        data.create_attribute("character", character)
         data.create_attribute(
             "current_mobs",
             lambda: tuple(
@@ -243,6 +267,7 @@ class MapleBot(Bot, ABC):
         data.set_static("speed_multiplier", self.kwargs.get("speed_multiplier", 1.00))
         data.set_static("jump_multiplier", self.kwargs.get("jump_multiplier", 1.00))
         data.set_static("calibration", self.calibration)
+        data.set_static("chat_keys", self.chat_keys)
 
     def _set_world_map(self, map_id: int, frame_check: FrameCheck) -> None:
         """

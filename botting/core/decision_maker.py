@@ -39,6 +39,10 @@ class DecisionMaker(ABC):
     #: falls back to it when a caller passes no condition of its own.
     _condition: threading.Condition
 
+    #: The event loop `start` ran on: where the enabler and disabler threads
+    #: restart and cancel the decision task.
+    _loop: asyncio.AbstractEventLoop
+
     def __init__(
         self,
         metadata: multiprocessing.managers.DictProxy,
@@ -51,10 +55,18 @@ class DecisionMaker(ABC):
         self.pipe = pipe
         self._proxies = ProxyFactory(metadata)
 
+        # One gate of each per DecisionMaker per Bot, so a disable or enable can
+        # reach one Bot's (`self_only`) or every Bot's (`_gates`).
         class_name = self.__class__.__name__
-        self._disabler = self._proxies.shared(class_name, "disabler", "Condition")
-        self._enabler = self._proxies.shared(class_name, "enabler", "Condition")
-        self.decision_task = None
+        self._disabler = self._proxies.shared(
+            class_name, _gate("disabler", data.ign), "Condition"
+        )
+        self._enabler = self._proxies.shared(
+            class_name, _gate("enabler", data.ign), "Condition"
+        )
+        self.decision_task: asyncio.Task | None = None
+        # Whether the decision loop is meant to run. False only between a disable
+        # and the enable or RESUME that gives it back (`restart`).
         self._enabled = True
 
         # Identifies the current _decide() call. Minted by task(), read by send() and
@@ -81,7 +93,7 @@ class DecisionMaker(ABC):
     async def _decide(self) -> None:
         pass
 
-    def send(self, request: ActionRequest) -> None:
+    def send(self, request: ActionRequest, correlation_id: str | None = None) -> None:
         """
         Sole chokepoint through which a DecisionMaker reaches the Main Process.
         Stamps the current correlation_id onto the request, then sends it.
@@ -91,11 +103,19 @@ class DecisionMaker(ABC):
         ActionWithValidation's retry loop); those must carry the id of the _decide()
         call that sent them, not of whenever they happened to be built.
         :param request: The ActionRequest to send to the Main Process.
+        :param correlation_id: The decision the request comes from, when it is not
+            the _decide() call in flight: a task an earlier call started, which
+            sends once that call is over. ``None`` stamps the call in flight.
         """
-        request.correlation_id = self.correlation_id
+        request.correlation_id = correlation_id or self.correlation_id
         self.pipe.send(request)
 
-    def emit(self, event_type: str, payload: Mapping[str, Any] | None = None) -> None:
+    def emit(
+        self,
+        event_type: str,
+        payload: Mapping[str, Any] | None = None,
+        correlation_id: str | None = None,
+    ) -> None:
         """
         Emit a Telemetry Record for the _decide() call currently in flight.
 
@@ -108,40 +128,100 @@ class DecisionMaker(ABC):
         the truthful value, not a gap to paper over.
         :param event_type: What happened.
         :param payload: Event-specific detail.
+        :param correlation_id: The decision it happened for, when it is not the
+            _decide() call in flight (as for ``send``). ``None`` for the call in
+            flight.
         """
         emit_event(
-            self.correlation_id, event_type, payload, logger_name=self._logger_name
+            correlation_id or self.correlation_id,
+            event_type,
+            payload,
+            logger_name=self._logger_name,
         )
+
+    def on_resume(self) -> tuple[str, ...]:
+        """
+        Called by ``Bot.resume()`` on every DecisionMaker of the Bot, before it
+        restarts any of them.
+
+        A DecisionMaker that disabled others, and is the one to give them back on
+        RESUME, enables them here with ``_enable_decision_makers`` and returns their
+        class names: their enablers restart them, so ``resume`` leaves them alone.
+        :return: The class names this DecisionMaker enabled. None by default.
+        """
+        return ()
+
+    @property
+    def running(self) -> bool:
+        """
+        Whether its decision task is running: started, and neither ended nor
+        cancelled. A task whose cancellation is requested but not yet delivered
+        is not running: it will make no further decision.
+        """
+        task = self.decision_task
+        return task is not None and not task.done() and not task.cancelling()
+
+    def restart(self, tg: asyncio.TaskGroup) -> None:
+        """
+        Runs the decision loop again, unless it is running, and counts it
+        enabled. The one place a loop is restarted, by an enable or by
+        ``Bot.resume()``, so neither can start a second loop beside one the
+        other started.
+        :param tg: The Bot's TaskGroup, which the loop runs in.
+        """
+        self._enabled = True
+        if not self.running:
+            self.decision_task = tg.create_task(self.task(), name=f"{self}")
 
     def _disable_decision_makers(self, *args: str, self_only: bool = False) -> None:
         """
-        Disables the given decision makers across all engines.
+        Disables the given decision makers, of every Bot in every Engine, or of
+        this Bot only.
         :param args: The DecisionMakers (class names) to disable.
-        :return:
+        :param self_only: Only this Bot's: the others' keep running.
         """
-        for class_name in args:
-            key = f"proxy/shared/{class_name}/disabler"
-            condition_proxy = self.metadata.get(key, None)
-            if condition_proxy is not None:
-                gated: DecisionGatePayload = {"target": class_name}
-                self.emit(DECISION_DISABLED, gated)
-                with condition_proxy:
-                    condition_proxy.notify_all()
+        self._notify("disabler", DECISION_DISABLED, args, self_only)
 
     def _enable_decision_makers(self, *args: str, self_only: bool = False) -> None:
         """
-        Enables the given decision makers across all engines.
+        Enables the given decision makers, of every Bot in every Engine, or of
+        this Bot only. One already running is left alone.
         :param args: The DecisionMakers (class names) to enable.
-        :return:
+        :param self_only: Only this Bot's: the others' are left as they are.
         """
-        for class_name in args:
-            key = f"proxy/shared/{class_name}/enabler"
-            condition_proxy = self.metadata.get(key, None)
-            if condition_proxy is not None:
-                gated: DecisionGatePayload = {"target": class_name}
-                self.emit(DECISION_ENABLED, gated)
+        self._notify("enabler", DECISION_ENABLED, args, self_only)
+
+    def _notify(
+        self, gate: str, event_type: str, class_names: tuple[str, ...], self_only: bool
+    ) -> None:
+        """Notify the `gate` Conditions of `class_names`: this Bot's, or every Bot's."""
+        for class_name in class_names:
+            conditions = self._gates(class_name, gate, self_only)
+            if not conditions:
+                continue
+            gated: DecisionGatePayload = {"target": class_name}
+            self.emit(event_type, gated)
+            for condition_proxy in conditions:
                 with condition_proxy:
                     condition_proxy.notify_all()
+
+    def _gates(self, class_name: str, gate: str, self_only: bool) -> list[Any]:
+        """
+        The `gate` Conditions of `class_name` made so far: this Bot's alone, or
+        every Bot's in the Session. A Bot without that DecisionMaker has none.
+        Typed `Any` as `ProxyFactory` returns them: Manager proxies.
+        """
+        if self_only:
+            keys = [_gate_key(class_name, gate, self.data.ign)]
+        else:
+            prefix = _gate_key(class_name, gate, "")
+            # `keys()` is one round trip to the Manager, and a snapshot: iterating
+            # the DictProxy itself is one per key, over a dict others write to.
+            names = self.metadata.keys()
+            keys = [k for k in names if str(k).startswith(prefix)]
+        found = (self.metadata.get(key, None) for key in keys)
+        # A tuple is a request Main Process hasn't answered yet: no one waits on it.
+        return [c for c in found if c is not None and not isinstance(c, tuple)]
 
     async def _validate_request_async(
         self,
@@ -162,6 +242,7 @@ class DecisionMaker(ABC):
         await validator.execute_async(request)
 
     async def start(self, tg: asyncio.TaskGroup) -> None:
+        self._loop = asyncio.get_running_loop()
         tg.create_task(
             asyncio.to_thread(self._disabler_task, tg),
             name=f"{self} - Disabler",
@@ -224,24 +305,49 @@ class DecisionMaker(ABC):
             raise
 
     def _enabler_task(self, tg: asyncio.TaskGroup) -> None:
+        """
+        Listens for an enable request, in a thread. The task is restarted on the
+        event loop's own thread (`call_soon_threadsafe`): asyncio isn't thread-safe,
+        and a task created from another thread is missing from `asyncio.all_tasks()`
+        on that loop, which is what `Bot.pause()` cancels by.
+        """
+        loop = self._loop
         while True:
             with self._enabler:
                 self._enabler.wait()
-                if not self._enabled:
-                    self.decision_task = tg.create_task(self.task(), name=f"{self}")
-                    self._enabled = True
+                loop.call_soon_threadsafe(self._enable, tg)
+
+    def _enable(self, tg: asyncio.TaskGroup) -> None:
+        if not self._enabled:
+            self.restart(tg)
 
     def _disabler_task(
         self, tg: asyncio.TaskGroup, *args: object, **kwargs: object
     ) -> None:
         """
-        Listens for a disable request.
+        Listens for a disable request, in a thread; the task is cancelled on the
+        event loop's own thread, as `_enabler_task` restarts it.
         :return:
         """
+        loop = self._loop
         while True:
             with self._disabler:
                 # When notified, cancel the task
                 self._disabler.wait()
-                if self._enabled and self.decision_task is not None:
-                    self.decision_task.cancel()
-                    self._enabled = False
+                loop.call_soon_threadsafe(self._disable)
+
+    def _disable(self) -> None:
+        if self._enabled and self.decision_task is not None:
+            self.decision_task.cancel()
+            self._enabled = False
+
+
+def _gate(gate: str, ign: str) -> str:
+    """The name, under its class's group, of one Bot's `gate` Condition."""
+    return f"{gate}/{ign}"
+
+
+def _gate_key(class_name: str, gate: str, ign: str) -> str:
+    """The metadata key of `ign`'s `gate` Condition for `class_name`; with an empty
+    `ign`, the prefix every Bot's shares."""
+    return ProxyFactory.shared_key(class_name, _gate(gate, ign))

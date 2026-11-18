@@ -50,6 +50,12 @@ class Bot(ABC):
         """
         self.data = BotData(self.ign)
         self.data.set_static("handle", self.find_handle())
+        self.data.set_static("replies_on", True)
+        # What a DecisionMaker that stops the others' (ChatReplies, on a GM) names.
+        self.data.set_static(
+            "decision_maker_names",
+            tuple(class_.__name__ for class_ in self._decision_makers()),
+        )
         self.pipe = pipe
         self.barrier = barrier
 
@@ -110,11 +116,42 @@ class Bot(ABC):
     def resume(self) -> None:
         """
         Resumes the DecisionMakers tasks.
+
+        Each DecisionMaker's ``on_resume`` hook runs first: one that disabled others
+        and gives them back on RESUME (``ChatReplies``, after a GM) enables them
+        there, and their enablers restart them. Every other DecisionMaker whose task
+        isn't running is restarted, as ``pause`` left it, and counts as enabled
+        again (``DecisionMaker.restart``), so a later enable finds it running. One
+        still running is left alone, so a RESUME with no PAUSE before it never runs
+        a loop twice.
         """
         assert self._tg is not None, "start() must run before resume()"
+        enabled = {name for dm in self.decision_makers for name in dm.on_resume()}
         for dm in self.decision_makers:
-            task = self._tg.create_task(dm.task(), name=f"{dm}")
-            dm.decision_task = task
+            if type(dm).__name__ not in enabled:
+                dm.restart(self._tg)
+
+    def replies(self, on: bool, source: str = "discord_replies") -> None:
+        """
+        Stops (``on=False``) or hands back the automatic replies of this Bot.
+        Sets the ``replies_on`` static of its BotData, which the DecisionMaker
+        that replies reads before each reply, and reports the switch.
+        :param on: Whether automatic replies are on.
+        :param source: Which command did it, for the report.
+        """
+        assert self.data is not None, "child_init() must run before replies()"
+        self.data.set_static("replies_on", on)
+        self._replies_toggled(on, source)
+
+    def takeover(self) -> None:
+        """The maintainer writes for this Bot: its automatic replies stop."""
+        self.replies(False, source="discord_write")
+
+    def _replies_toggled(self, on: bool, source: str) -> None:
+        """
+        Called once `replies` has switched. A game layer overrides it to emit its
+        own Event Type: the engine knows no game's events.
+        """
 
     @cached_property
     def decision_makers(self) -> list[DecisionMaker]:

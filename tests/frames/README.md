@@ -11,6 +11,21 @@ the file format and how tests use it.
 | `v1` | 66 | Damp Forest at 1366x768, 800x600, 1024x768 and 1920x1080 |
 | `v2` | 111 | `v1` unchanged, plus Ellinia at every client size (quick slots, buffs, the stat window) |
 | `v3` | 307 | `v2` unchanged, plus 196 frames of Henesys, Henesys Market, crowded Henesys and Ellinia climbing |
+| `v4` | 371 | `v3` unchanged, plus 64 frames to read chat (44) and name tags (20) from |
+
+`v4` adds no reading to `v3`'s frames, and its 64 new ones carry only `map_id`:
+`read` where the capture's notes name the map (Henesys 10001000 on the crowded chat
+frames, Free Market Entrance 80002000 on the whisper and name-tag frames), `unsure`
+on the quiet-map test lines, whose notes name none. They have no `camera`, `feet` or
+`minimap`: labelling those is a judgement the readers' tickets make (#482 reads
+`chat`, #457 the name tags), and no test of those readers looks at a frame without
+them. The 44 chat frames carry a `chat` entry (#482): each row's kind, read by
+the chat reader and checked against the capture's notes (whisper and notice rows
+on `chat_036` to `043`, our test lines on general on `021` to `035`). The name-tag
+frames carry none: #457's tests need no reading of them (our tag reads as our
+name, every other tag as a GDI render of Arial labels it,
+`tests/test_maple/test_name_tag_frames.py`), so none of their names is
+committed.
 
 `v2` and `v3` carry three more readings on every frame: `camera`, `feet` and
 `map_id`. `v2.json`'s other readings are as they were; `v3.json` repeats
@@ -101,6 +116,15 @@ map over all its frames).
   the reader's: on every one, the frame's `feet` label falls inside that canvas
   pixel (12 and 7 virtual px from its top-left corner, of 16), and the
   previous step reads `[424, 56]`.
+- **`chat`** (`v3`'s new frames only, `v1`'s format, #483): the production
+  `ChatReader`'s kinds, each frame read with nothing remembered. Every
+  distinct log (101 of them, frames whose rows' text pixels are the same
+  taken once) was looked at with each row's kind written beside it, and every
+  kind is the row's: a band is a megaphone (yellow, pink, teal, light blue,
+  and the red band of a crate's announcement), yellow text and an event's
+  light-blue text with no band are system, and white text with no band is
+  general. No window or notice is over the log on any of them. The 11 frames
+  at 2560x1440 are `unsure`: the UI is upscaled there, as for `minimap`.
 
 ### Corrected by hand
 
@@ -170,3 +194,18 @@ to `_010`, where the character stands still where `_000` shows it.
 
 The 2560x1440 frames are all one camera, with our character at the map's
 right end.
+
+## `v4`'s new frames
+
+Captured by the maintainer at the live client (#564) and published on 2026-11-17: 64
+PNGs, each named for what it is for.
+
+| Frames | Shows | Size |
+| --- | --- | --- |
+| `chat_1920x1080_000` to `043` | busy chat (megaphones, general lines, timestamps on) on a crowded Henesys, in short runs at a few spots; a quiet map with test lines typed on general; Free Market Entrance with test lines whispered to an offline friend | 1920x1080 |
+| `nametags_1920x1080_000` to `009` | Free Market Entrance, crowded, many name tags, two spots | 1920x1080 |
+| `nametags_1366x768_000` to `009` | the same at the other size | 1366x768 |
+
+Each entry's `notes` is the capture's own line. The frames show other players'
+names and messages, so nothing read from them is written here or anywhere in the
+repository.

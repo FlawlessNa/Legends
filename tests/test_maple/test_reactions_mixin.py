@@ -15,14 +15,20 @@ from types import SimpleNamespace
 import pytest
 
 from botting.core import ActionRequest
-from maple.actions import priorities, write_in_chat
+from maple.actions import DEFAULT_CHAT_KEYS, priorities, write_in_chat
 from maple.decision_makers.mixins import ReactionsMixin
+
+KEYS = {**DEFAULT_CHAT_KEYS, "general": "g"}
+"""The character's chat keys, as its bot read them at startup."""
 
 
 class _Reactor(ReactionsMixin):
     def __init__(self) -> None:
         self.data = SimpleNamespace(  # type: ignore[assignment]
-            ign="tester", handle=1234, current_frame=SimpleNamespace(pixels=None)
+            ign="tester",
+            handle=1234,
+            current_frame=SimpleNamespace(pixels=None),
+            chat_keys=KEYS,
         )
         self.sent: list[ActionRequest] = []
         self.send = self.sent.append
@@ -59,6 +65,7 @@ def test_reacting_past_the_list_length_keeps_sending_one_chat_request_each(
         assert request.priority == priorities.ANTI_DETECTION
         assert request.args[0] == 1234
         assert isinstance(request.args[1], str)
+        assert request.kwargs == {"keys": KEYS}
 
 
 @pytest.mark.parametrize("reaction_type", ["light", "advanced"])

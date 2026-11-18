@@ -36,33 +36,47 @@ from toolkit.chat_mirror import (
     mirror,
     refuse_inside_repo,
     save_unread,
-    split_speaker,
+    speaker_and_message,
 )
 
 IMAGE = np.zeros((16, 541, 3), np.uint8)
 NO_GLYPHS = "<unreadable> (no glyphs for this kind yet)"
 
 
-def line(kind: ChatKind, text: str | None) -> ChatLine:
-    return ChatLine(kind, IMAGE, text, 0)
+def line(
+    kind: ChatKind,
+    text: str | None,
+    speaker: str | None = None,
+    message: str | None = None,
+    outgoing: bool = False,
+) -> ChatLine:
+    if speaker is None and text is not None and " : " in text:
+        speaker, message = text.split(" : ", 1)
+    return ChatLine(kind, IMAGE, text, 0, speaker, message, outgoing)
 
 
 @pytest.mark.parametrize(
-    ("text", "speaker", "message"),
+    ("printed_line", "speaker", "message"),
     [
-        ("Rina : anyone selling?", "Rina", "anyone selling?"),
-        ("Rina : a : b", "Rina", "a : b"),
-        ("Rina : ", "Rina", ""),
-        ("no speaker here", "?", "no speaker here"),
-        (" : orphan", "?", " : orphan"),
-        ("two words : x", "?", "two words : x"),
-        (None, "?", None),
+        (line(ChatKind.GENERAL, "[21:36] Rina : hi", "Rina", "hi"), "Rina", "hi"),
+        (line(ChatKind.GENERAL, "no speaker here"), "?", "no speaker here"),
+        (
+            line(ChatKind.WHISPER, "[00:55] Kai<< psst", "Kai", "psst", True),
+            "to Kai",
+            "psst",
+        ),
+        (line(ChatKind.NOTICE, "Could not find Kai."), "?", "Could not find Kai."),
+        (line(ChatKind.MEGAPHONE, None), "?", None),
     ],
+    ids=["timestamped general", "no speaker", "outgoing whisper", "notice", "none"],
 )
-def test_the_speaker_is_split_off_only_where_the_format_shows_it(
-    text: str | None, speaker: str, message: str | None
+def test_the_speaker_and_message_are_the_readers(
+    printed_line: ChatLine, speaker: str, message: str | None
 ) -> None:
-    assert split_speaker(text) == (speaker, message)
+    """The time the client puts first is the reader's to leave out: the
+    mirror once split the text itself, and printed `?` for every timestamped
+    line (#482)."""
+    assert speaker_and_message(printed_line) == (speaker, message)
 
 
 @pytest.mark.parametrize(
@@ -78,7 +92,11 @@ def test_the_speaker_is_split_off_only_where_the_format_shows_it(
         (ChatKind.UNKNOWN, None, f"12:03:41  [unknown]  ?: {NO_GLYPHS}"),
         (ChatKind.MEGAPHONE, None, f"12:03:41  [megaphone]  ?: {NO_GLYPHS}"),
         (ChatKind.SYSTEM, None, f"12:03:41  [system]  ?: {NO_GLYPHS}"),
-        (ChatKind.WHISPER, "Kai : psst", "12:03:41  [whisper]  Kai: psst"),
+        (
+            ChatKind.NOTICE,
+            "Could not find Kai.",
+            "12:03:41  [notice]  ?: Could not find Kai.",
+        ),
         (ChatKind.PARTY, None, f"12:03:41  [party]  ?: {NO_GLYPHS}"),
         (ChatKind.BUDDY, None, f"12:03:41  [buddy]  ?: {NO_GLYPHS}"),
         (ChatKind.GM, None, f"12:03:41  [gm]  ?: {NO_GLYPHS}"),
