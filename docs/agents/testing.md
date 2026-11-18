@@ -135,6 +135,14 @@ frame three position readings in virtual px: `camera` (`{x, y}`, the play
 area's top-left), `feet` (`{x, y}`, our character's, or `covered`) and
 `map_id`. `tests/frames/README.md` says how each was made and checked.
 
+`v4` is `v3`'s frames and readings unchanged plus 64 to read chat (#482) and name
+tags (#457) from: crowded Henesys chat, test lines on a quiet map, whispers at Free
+Market Entrance, and the Free Market's name tags at 1920x1080 and 1366x768. They
+carry `map_id` only (`unsure` where the capture names no map), so a test of a
+position or `minimap` reading skips a frame that has no such entry, and the two
+chat tests that read every general line (`NOT_READ_YET`) skip them until #482.
+`tests/frames/README.md` says what was left out.
+
 A frame has no entry for a reader whose answer depends on a choice its ticket
 hasn't made yet: `notes` says why.
 
