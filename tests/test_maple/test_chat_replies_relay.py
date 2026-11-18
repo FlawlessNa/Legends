@@ -43,6 +43,7 @@ class Line:
     outgoing: bool = False
     text: str | None = None
     continues: bool = False
+    mid_word: bool = False
 
 
 class ScriptedModel:
