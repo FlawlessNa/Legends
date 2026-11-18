@@ -16,8 +16,8 @@ Start a topic with `/intent`.
    maintainer approves it.
 3. **Tickets.** Once the spec is approved (or the intent, if no spec was
    needed), draft the tickets. If there is a spec, have them reviewed
-   independently (below). Then the maintainer approves the list of tickets,
-   not each body, and you publish the epic.
+   independently (below). Then publish the epic without asking. The maintainer
+   does not approve the tickets; you tell them afterwards.
 
 **A standalone ticket carries its own intent.** A clear bug with a clear
 acceptance test, labelled `ready-for-agent`, needs no topic: see `tickets.md`.
@@ -45,7 +45,7 @@ The page has these sections, in order. It grows a section per phase:
 4. **`spec.md`:** rendered from the file, once past the threshold, with an
    approve control.
 5. **`draft-tickets.md`:** the drafted tickets and the review's findings,
-   rendered the same way, with an approve control for the list.
+   rendered the same way, as a record with no control.
 
 ### Rules
 
@@ -120,7 +120,7 @@ names the sections it needs.
 
 The agent that wrote the spec is the worst judge of it: it fills the gaps from
 the conversation without noticing. So once the tickets are drafted, and before
-the maintainer sees the list, a reviewer with **none of the conversation**
+you publish, a reviewer with **none of the conversation**
 checks them. It runs whenever there is a spec.
 
 - **Who:** a fresh subagent on the strongest model, or a fresh session. Give
@@ -137,22 +137,20 @@ checks them. It runs whenever there is a spec.
   4. Report findings only, each naming the ticket or section. Change nothing.
 - **Once, not a loop.** Fix each finding or argue against it, and record both
   under `## Review` at the end of `draft-tickets.md`: the finding, then
-  what you did about it. The maintainer sees what was caught. A finding
-  that would change the approved spec goes back to the maintainer as a
-  decision.
-- **It blocks nothing.** Its job is to make the list the maintainer approves
-  a better one.
+  what you did about it. A finding that would change the approved spec, or
+  the agreed intent, goes back to the maintainer as a decision. Nothing else
+  stops you before publishing.
 
 This is on trial with the first epics. If it keeps finding nothing a ticket
 agent would have tripped over, drop it.
 
 ## Publishing and splitting
 
-Once the maintainer approves the list of tickets:
+Publish as soon as the tickets are drafted, and reviewed if there is a spec:
 
 1. Create the epic: `gh issue create --label epic`. Its body is `intent.md`,
-   then `spec.md`, then a `## Tickets` checklist. The epic is the durable
-   record; the `.lavish/` files are not.
+   then `spec.md`, then the `## Review` record, then a `## Tickets` checklist.
+   The epic is the durable record; the `.lavish/` files are not.
 2. File each ticket, link it as a sub-issue of the epic (see
    `issue-tracker.md`), and add it to the checklist.
 3. The agent that ran the discussion writes the tickets, while it still has
@@ -161,6 +159,7 @@ Once the maintainer approves the list of tickets:
    `git push origin origin/dev:refs/heads/epic/<slug>`. Tickets merge into it
    through the epic flow (`tickets.md`). Skip this when every ticket can land
    on `dev` on its own and the maintainer prefers to merge each one.
+5. Tell the maintainer: the epic's link, and a one-line list of the tickets.
 
 ### The ticket template
 

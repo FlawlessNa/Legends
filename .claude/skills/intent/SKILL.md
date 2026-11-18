@@ -45,5 +45,9 @@ replying, and don't modify that skill.
 Follow `topics.md`:
 1. Mark the intent agreed and check the threshold.
 2. Write and approve the spec if the threshold is crossed.
-3. Publish the epic, file the tickets with the template, and link them as
-   sub-issues.
+3. Draft the tickets. With a spec, run the independent review and record it.
+   Stop only for a finding that would change the approved spec or the agreed
+   intent.
+4. Publish the epic without asking, file the tickets with the template, and
+   link them as sub-issues. Then tell the maintainer the epic's link and a
+   one-line list of the tickets.

@@ -9,7 +9,6 @@ gravity 2000 px/s², so a jump that lands at its take-off's height flies
 2 × 555 ÷ 2000 = 0.555 s.
 """
 
-import importlib
 import math
 import random
 import threading
@@ -50,9 +49,6 @@ from maple.screen.position import (
 from tests.test_maple.movement_lab import corpus
 
 JUMP_KEY = "space"
-# `botting.controller.inputs` re-exports a function of the same name, which shadows
-# the module as an attribute: only `import_module` reaches it.
-focused_inputs = importlib.import_module("botting.controller.inputs.focused_inputs")
 NOBODY = InputState(frozenset())
 PHYSICS = corpus.LAB_PHYSICS
 
@@ -233,10 +229,9 @@ def test_a_climb_lasts_its_length_at_the_climb_speed() -> None:
     assert t_up - t_down >= 0.5
 
 
-@pytest.mark.parametrize("overhead", [None, 0.0, 0.012, 0.03])
 @pytest.mark.parametrize("flight", [0.2, 0.555, 1.1])
 def test_a_jump_holds_its_direction_for_its_flight_from_the_take_off(
-    flight: float, overhead: float | None, monkeypatch: pytest.MonkeyPatch
+    flight: float, overhead: float
 ) -> None:
     """
     The jump key's press is the take-off; the direction stays held until the flight
@@ -244,15 +239,13 @@ def test_a_jump_holds_its_direction_for_its_flight_from_the_take_off(
 
     The send loop spends one `OVERHEAD` on top of every Step's delay, and two Steps
     sit between the take-off and the direction's release (the jump key's own press
-    and its release), so the hold is the flight plus two `OVERHEAD`. `OVERHEAD` is
-    measured once at import and reads ~1 ms on a quiet machine but 10 ms or more
-    when other processes are running, so the expectation is written in terms of it
-    and the test is run at several values, not left to the machine's load. `None`
-    is the constant as measured.
+    and its release). The jump spends both out of its flight, so the hold is the
+    flight whatever `OVERHEAD` is (#589). It held the flight plus two `OVERHEAD`s
+    before, which #473 wrote down as the expectation: every key after a jump then
+    went down that late. `OVERHEAD` is measured once at import and reads ~1 ms on a
+    quiet machine but 10 ms or more when other processes are running, so the test
+    runs at several values of it (root `conftest.overhead`), not at the machine's.
     """
-    if overhead is not None:
-        # `holds` reads the constant `focused_inputs` imported by name.
-        monkeypatch.setattr(focused_inputs, "OVERHEAD", overhead)
     plan = (
         _MovementComponent(MovementTypes.JUMP_RIGHT, 70.0, duration=flight),
         _MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),
@@ -262,9 +255,7 @@ def test_a_jump_holds_its_direction_for_its_flight_from_the_take_off(
 
     ((take_off, _),) = wrapper.holds[JUMP_KEY]
     ((_, landed),) = wrapper.holds["right"]
-    assert landed - take_off == pytest.approx(
-        flight + 2 * focused_inputs.OVERHEAD, abs=1e-9
-    )
+    assert landed - take_off == pytest.approx(flight, abs=1e-9)
 
 
 def test_a_jump_with_no_flight_refuses_to_compile() -> None:
