@@ -65,6 +65,12 @@ class Bot(ABC):
         """
         self.data = BotData(self.ign)
         self.data.set_static("handle", self.find_handle())
+        self.data.set_static("replies_on", True)
+        # What a DecisionMaker that stops the others' (ChatReplies, on a GM) names.
+        self.data.set_static(
+            "decision_maker_names",
+            tuple(class_.__name__ for class_ in self._decision_makers()),
+        )
         self.pipe = pipe
         self.barrier = barrier
 
@@ -154,11 +160,39 @@ class Bot(ABC):
         Discord `RESUME`: release every user-held Pause, and every legacy shim
         Pause, as `RESUME` has always restarted every DecisionMaker. A Pause a
         DecisionMaker holds in a block stays held until the block exits.
+
+        Each DecisionMaker's ``on_resume`` hook runs first, so one that stopped
+        others until RESUME (``ChatReplies``, after a GM) knows they are given
+        back.
         """
         if self.supervisor is None:
             logger.warning("%s is not running yet: there is nothing to resume.", self)
             return
+        for dm in self.decision_makers:
+            dm.on_resume()
         self.supervisor.resume_for_user()
+
+    def replies(self, on: bool, source: str = "discord_replies") -> None:
+        """
+        Stops (``on=False``) or hands back the automatic replies of this Bot.
+        Sets the ``replies_on`` static of its BotData, which the DecisionMaker
+        that replies reads before each reply, and reports the switch.
+        :param on: Whether automatic replies are on.
+        :param source: Which command did it, for the report.
+        """
+        assert self.data is not None, "child_init() must run before replies()"
+        self.data.set_static("replies_on", on)
+        self._replies_toggled(on, source)
+
+    def takeover(self) -> None:
+        """The maintainer writes for this Bot: its automatic replies stop."""
+        self.replies(False, source="discord_write")
+
+    def _replies_toggled(self, on: bool, source: str) -> None:
+        """
+        Called once `replies` has switched. A game layer overrides it to emit its
+        own Event Type: the engine knows no game's events.
+        """
 
     @cached_property
     def decision_makers(self) -> list[DecisionMaker]:

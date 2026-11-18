@@ -25,6 +25,7 @@ spec threshold (`topics.md`) and no spec covers it.
   maintainer reviews and merges it.
 - **Ticket of an epic:** branch off `epic/<slug>`, and open the PR into it. Say
   `Closes #<ticket>` in the body.
+- **Bringing `dev` into an epic:** a dev-merge PR, below. It has no ticket.
 - **You never merge anything.** A separate worktree is optional; it is useful
   when several sessions work in parallel.
 
@@ -34,17 +35,49 @@ A PR into `epic/**` is reviewed and merged without the maintainer
 (`.github/workflows/claude-review.yml`):
 
 1. Claude reviews it against the ticket, the epic's intent, and this file,
-   then posts one comment that starts with its verdict.
-2. **On approve,** the workflow squash-merges exactly the reviewed commit.
+   and the workflow posts its review as one comment that starts with the
+   verdict. If the main Claude account returns no verdict (for example it is
+   out of usage), the review runs once more on a fallback account, when one
+   is configured. The review reads only what the workflow fetched for it
+   (`code-review.md`, "The automated review"), so the ticket must be named
+   with `Closes #<ticket>` (a dev-merge PR names its epic with
+   `Epic: #<epic>` instead, below). A draft PR is not reviewed, and its `review`
+   check fails until it is marked ready.
+2. **On approve,** the workflow merges exactly the reviewed commit. It
+   squash-merges, unless a commit in the PR has more than one parent (it brings
+   `dev` in): then it merge-commits, so the epic keeps `dev`'s history.
 3. **On request-changes,** the `review` check fails. Read the comment, fix
    every blocking finding, and push. The push triggers a fresh review.
    If you disagree with a finding, say so in the PR and stop: the maintainer
    decides.
 
-The `epic/**` ruleset requires a PR and a passing `review` check, so nothing
-reaches an epic branch any other way. When every ticket is merged, open one PR
+The `epic/**` ruleset requires a PR and a passing `review` check, and the
+workflow is the only thing that merges into an epic branch on its own. It does
+not stop a person with write access from merging by hand, and until the
+ruleset pins `review` to the GitHub Actions app, it accepts a check of that
+name from any source. Agents never merge. When every ticket is merged, open one PR
 from `epic/<slug>` into `dev`, which the maintainer reviews against the spec's
 acceptance criteria.
+
+### A dev-merge PR
+
+A dev-merge PR brings `dev` into an epic branch (`orchestrating.md`, "Bringing dev into an epic").
+Branch off `epic/<slug>`, run `git merge origin/dev` (a real merge commit: no rebase, no squash), resolve the conflicts, fix what the merge broke, and open the PR into `epic/<slug>`.
+
+Its body names the epic on a line of its own, `Epic: #<epic>`, and **never** `Closes`.
+It has no ticket, and a `Closes` line would make the review judge it as a ticket PR.
+The review checks from git that the PR really merges `dev`, and requests changes when it names an epic but does not.
+
+The body covers what `code-review.md`, "Judging a dev-merge PR", checks:
+
+- what `dev` brings, by PR;
+- each conflict, and how it was resolved, keeping both sides' behaviour;
+- each fix the merge needed, in its own commit, with the test that was red without it;
+- broken tests fixed with real config, not mocks;
+- the `pytest` result, green as "Proving it" below says;
+- how merging `dev` changes which keys reach the game on the epic, and what could not be verified.
+
+Nothing else goes in: a change the merge does not need is blocking, and goes through a ticket instead.
 
 Every review draws on the maintainer's usage limits, so push a PR when it is
 ready, not to see what the reviewer says.
@@ -93,7 +126,7 @@ starts and you read with the Session reader.
   verdict with counts and the Session directory (`game-client.md`, "Live
   Session").
 - **Not verified:** say why (no client open, the maintainer was not available
-  to start a Session, the change needs a minimap trail), and put what a human
+  to start a Session, the change needs a Trial run at the client), and put what a human
   must watch in the PR's handoff. That is a legitimate outcome, not a failure;
   "Nothing to verify" is not one when keys or timing can change.
 
@@ -106,8 +139,8 @@ Stop rather than finish whenever the work needs:
 - a **running game client**, to reproduce, confirm or record, beyond the
   probe and a Test Session the maintainer starts for you ("Against the live
   game" above);
-- a **minimap trail**, recorded through the GUI editor in
-  `maple/model/mechanics/minimap_creation/`;
+- a **Trial run**: a Trial schedule (`configs/trials/`) driven at the client,
+  which the maintainer starts;
 - a judgment that reduces to **watching the character**.
 
 Stopping is compliance, not failure. Report what you finished, what you did
@@ -125,7 +158,7 @@ config parsing, logging.
 - the input send path, focus handling, and the Held-Keys Ledger (ADR 0002);
 - the telemetry envelope and transport (ADR 0001);
 - anything an ADR decides;
-- map JSON under `configs/maps/`, and pinned dependency versions;
+- pinned dependency versions;
 - `maple/decision_makers/inventory_manager.py`, which is parked (see
   `maple/AGENTS.md`).
 

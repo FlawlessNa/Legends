@@ -27,6 +27,7 @@ import numpy as np
 
 from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
+from botting.screen import Reading
 from botting.utilities import Box, find_image
 from maple._old.maps import RoyalsMap
 from maple.actions import expand_inventory, priorities, toggle_inventory
@@ -311,7 +312,7 @@ class InventoryManager(
         self.data.always_release_keys = True
 
         door_spot = getattr(
-            self.data.current_minimap, "door_spot", [self.data.current_minimap_position]
+            self.data.current_minimap, "door_spot", [_virtual_position(self.data)]
         )
         self._door_spot = random.choice(door_spot)
 
@@ -319,7 +320,7 @@ class InventoryManager(
         self._door_spot = self._npc_positions = self._open_shop_box = None
         self._create_pathing_attributes(self.data.action_duration)
         self._restore_rotation_target()
-        self.data.next_target = self.data.current_minimap_position
+        self.data.next_target = _virtual_position(self.data)
         self._enable_decision_makers(
             "MobsHitting",
             "TelecastMobsHitting",
@@ -337,7 +338,7 @@ class InventoryManager(
         # Refresh door spot to current position
         grid = self.data.current_minimap.grid
         while True:
-            target = self.data.current_minimap_position
+            target = _virtual_position(self.data)
             if grid.node(*target).walkable:
                 break
             await asyncio.sleep(0.1)
@@ -365,7 +366,7 @@ class InventoryManager(
     async def _wait_until_target_reached(self) -> None:
         while True:
             if (
-                math.dist(self.data.current_minimap_position, self.data.next_target)
+                math.dist(_virtual_position(self.data), self.data.next_target)
                 < self._DISTANCE_TO_DOOR_THRESHOLD
             ):
                 break
@@ -405,16 +406,16 @@ class InventoryManager(
         # Use the temporary connection as next target
         self._set_fixed_target((0, 0))
 
-        def _temp_minimap_pos():
+        def _temp_position():
             try:
-                return self._get_minimap_pos()
+                return self._get_position()
             except Exception:
-                return 0, 0
+                return Reading.unsure(0.0, "the minimap is unread through the door")
 
-        # Overwrite the current_minimap_position attribute to disable the error handler
+        # Overwrite the current_position attribute to disable the error handler
         self.data.reconfigure_attribute(
-            "current_minimap_position",
-            update_function=_temp_minimap_pos,
+            "current_position",
+            update_function=_temp_position,
             threshold=self.MINIMAP_POS_REFRESH_RATE,
             error_handler=None,
         )
@@ -455,10 +456,10 @@ class InventoryManager(
             raise NotImplementedError(
                 "TODO - Implement iterative algo for each map that has path to shop"
             )
-        self._door_spot = self.data.current_minimap_position
-        self._npc_positions = self.data.current_minimap.get_character_positions(
-            self.data.handle, "NPC", self.data.current_client_img
-        )
+        self._door_spot = _virtual_position(self.data)
+        # Where the map places its NPCs, in virtual px (#398): the game files'
+        # spawns, on the bot's `WorldMap`.
+        self._npc_positions = [(npc.x, npc.cy) for npc in self.data.world_map.npcs]
         self._set_fixed_target(self.data.current_minimap.npc_shop)
         await self._wait_until_target_reached()
 
@@ -576,3 +577,15 @@ class InventoryManager(
                 callbacks=[self._condition.release],
             )
         )
+
+
+def _virtual_position(data: BotData) -> tuple[float, float]:
+    """
+    The character's virtual position (#398), read from `current_position`.
+
+    :raises ValueError: It is unsure.
+    """
+    reading = data.current_position
+    if reading.value is None:
+        raise ValueError(f"position {reading.status.value}: {reading.detail}")
+    return reading.value.x, reading.value.y

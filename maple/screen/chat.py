@@ -1,0 +1,942 @@
+"""
+The chat: its log split into lines, each line's kind, and the new lines since
+the last read.
+
+**Locating.** The chat is drawn from one point, the point `UI/StatusBar.img/chat`
+is drawn from. It is found by `chat/button:ChatTargetSelect/normal/0` (the "All"
+button) with its label masked out, since the label changes with the chat target,
+and by the log's toggle beside it, `button:ChatLogMin/normal/0` while the log is
+shown, `button:ChatLogMax/normal/0` while it is hidden. Both are placed by their
+origins, and both match MSCW's screen exactly (frame set `v1`, f001).
+
+**MSCW draws its own log.** The classic log's sprites (`chatbackgrnd2`,
+`chatedit`) don't match the screen anywhere, and `chatlog_lt` (20, 12) and
+`chatlog_rb` (520, 29) don't bound MSCW's log: they lie across the input bar,
+which the log sits above. So the log is placed by the one log sprite MSCW still
+draws, the scroll bar's up arrow `chat/VScr/enabled/prev0`, whose top is the
+log's top, and by these offsets from the chat's point, measured on frame set
+`v1` and `v2` at 800x600, 1024x768, 1280x720, 1366x768 and 1920x1080:
+
+- the rows end `LOG_BOTTOM` below the point, and are `ROW_HEIGHT` tall, packed
+  from the bottom: as many as fit under the arrow (4 in `v1`; 6 in `v2`'s `j_*`
+  frames, whose log is taller);
+- a row's band runs from `BAND_LEFT` to `BAND_RIGHT`, and the arrow is drawn at
+  `SCROLL_X`;
+- a row's text is drawn from `BAND_LEFT + 2` to `BAND_RIGHT - 5` at most, so the
+  band's two ends (`_END`) show only the row's own background.
+
+**Covered.** A row's background is read at its two ends, which must agree, and
+along its gap row (`_GAP_ROW`), which no text crosses, so a run of it longer
+than `COVER_RUN` that doesn't show the background is something over the row.
+Either makes the reading `COVERED`: in the frame set, every window or notice
+over the log did (f031-f033, f045, f047, f048, f050-f052). The cursor is
+narrower than `COVER_RUN`, and is caught only over a row's end.
+
+**Kinds.** Then:
+
+- a band of one of `MEGAPHONE_BANDS` is a megaphone. A band is translucent, so
+  the map behind it moves its colour: each band is known by its colour over the
+  darkest and the brightest map seen (`Band`);
+- no band (the log's backdrop, black at half opacity over the game, so never
+  brighter than `BACKDROP_MAX`) with all its text of one of `TEXT_COLOURS` is
+  that colour's kind: white is general, green a whisper (the outgoing one,
+  frame set `v4`), light red a notice (the client's `Could not find <name>.`,
+  `v4`), and yellow, or the light blue of an event's notice, system;
+- a row with no band and no text is empty, and isn't a line;
+- anything else is `unknown`: party, buddy, GM and incoming whisper lines
+  haven't been captured (#592), so their colours aren't known, and they read
+  `unknown` until frames of them are in the set, unless they share a colour
+  above. So does a megaphone band not seen yet.
+
+The mouse cursor over a row's text (`cursor.CURSOR_PATHS`) is none of the
+row's: when a row's text isn't of one kind, the cursor is looked for, and the
+pixels it is drawn over are left out of the row's kind and its text pixels. In
+its text, what the cursor hides reads `UNREAD`, one for each run of columns it
+covers, text or not.
+
+A line that wraps is one row per screen row, each with the kind of its colours.
+
+**Text** is read for general, whisper and notice lines (`TEXT_READ`), with the
+chat's glyphs harvested from the frames (`font.CHAT_GENERAL`, #313, #456, #482),
+each kind in its own colour, in each row's 14-row glyph cell, 3 rows below its
+top. A letter with no glyph reads `UNREAD` (U+FFFD) in its place
+(`GlyphSet.read_marked`), so a partly read line keeps its kind and the rest of
+its text. Frame set `v4` holds all 95 printable characters, in white and in the
+whisper's green (`toolkit/glyph_sources/v4.json`). Arial draws `I` and `l`
+alike, so both read `I` (`ALIKE`). The log fades out over its last rows of
+pixels (`FADE`), which the newest line's baseline and descenders are drawn in:
+the fade is undone, for the row's colour, before its glyphs are read.
+System, megaphone, party, buddy and GM text isn't read.
+
+**Speaker and message** are split from a line's text by its kind's format,
+after the time the client may put first, `[16:22] ` (a client option, on in
+frame sets `v3` and `v4`'s new frames, off in `v1`): a general line's `Name :
+message`, read on `v1` (f001-f005) and `v3`, and an outgoing whisper's
+`Recipient<< message`, read on `v4`. A name is letters and digits (or
+`UNREAD`). A row that doesn't fit has neither, and a notice never has. A line is
+`outgoing` when it is an outgoing whisper, or a general line whose speaker
+reads as the character's own name (`reads_as`, ignoring case). A green row that
+isn't an outgoing whisper (an incoming one, whose format isn't captured yet,
+#592) has no speaker.
+
+**Reads as.** Whether a text read may be a given one, a name or a message, is
+`reads_as`, the one place that says it: as long, and equal letter by letter,
+where an `UNREAD` letter may be any letter and an `ALIKE` letter any of those
+drawn like it. A text with too few letters read (`MIN_READ`) reads as nothing:
+another player whose name reads mostly `UNREAD` is not the character.
+
+**Wrapped lines.** The client draws a wrapped line's next rows indented
+(`WRAP_INDENT`). An indented row directly below a row of its kind, read in the
+same `read`, `continues` the line above: its text is the rest of that line's
+message, and it has no speaker, whatever its text. A row that starts where a
+line starts never continues one, so a notice or another player's line below a
+line is never joined to it. The reader keeps a continuing row a row of its own;
+the conversation joins it to the line above (`maple.chat_replies.conversation`),
+after a space, or straight after it when the line broke `mid_word`
+(`WRAP_FITS`). An indented row whose line above scrolled away before it was
+read has no speaker, and continues nothing.
+
+**New lines.** Each row has its text pixels, and the reader keeps what the
+reads so far showed of each row. A read compares its rows with them: the log
+scrolls up as lines arrive, so the new lines are the bottom rows that the rows
+seen before, shifted up the fewest rows, don't explain. A line repeated
+exactly, as many times as the log has rows, can't be told from no new line.
+
+The cursor moves over the log, so a row and what was seen of it are compared
+only where the cursor was over neither: a line is reported once, whether the
+cursor rests on it, crosses it or leaves it, and what the cursor hid when it
+was reported reads `UNREAD` in it. A row whose text the cursor hid whole was
+never reported: it is new in the first read that shows any of its text.
+"""
+
+import enum
+import re
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+
+import numpy as np
+from numpy.typing import NDArray
+
+from botting.screen import Frame, Reading, match, matches_at
+from botting.utilities import Box
+from game_data.sprites import Sprite
+
+from .cursor import CURSOR_PATHS, cursor_mask
+from .font import CHAT_GENERAL, UNREAD, GlyphSet
+from .locator import FrameCheck, Located, Locator, Part
+from .sprites import Declaration, ReaderSprites
+
+_CHAT = "UI/StatusBar.img/chat"
+TARGET_SELECT = f"{_CHAT}/button:ChatTargetSelect/normal/0"
+SCROLL_UP = f"{_CHAT}/VScr/enabled/prev0"
+LOG_SHOWN = "UI/StatusBar.img/button:ChatLogMin/normal/0"
+LOG_HIDDEN = "UI/StatusBar.img/button:ChatLogMax/normal/0"
+
+CHAT = Declaration(
+    "chat",
+    canvases=(TARGET_SELECT, SCROLL_UP, LOG_SHOWN, LOG_HIDDEN, *CURSOR_PATHS),
+    glyph_sets=(CHAT_GENERAL.name,),
+)
+
+# The target button's label: the rows and columns it may be drawn in, masked out
+# of the anchor. The border and the arrow at its left are kept.
+_LABEL_ROWS = (2, 16)
+_LABEL_COLUMNS = (10, 72)
+
+# Offsets from the chat's point, measured on the frame set (module docstring).
+LOG_BOTTOM = 3
+ROW_HEIGHT = 16
+BAND_LEFT = 11
+BAND_RIGHT = 552
+SCROLL_X = 555
+_END = 2
+"""Columns read at each end of a row for its background."""
+_CELL_TOP = 3
+"""A row's glyph cell starts this many rows below its top (`font.CHAT_GENERAL`)."""
+_CELL_ROWS = CHAT_GENERAL.rows or ROW_HEIGHT
+"""A row's glyph cell's height: it runs past the row, into the next one's top."""
+_GAP_ROW = 2
+"""A row's third pixel row holds no text: its own starts below it, and the line
+above's descenders end above it. Only the channel badges of megaphones cross it."""
+COVER_RUN = 80
+"""More columns than this in a run, along a row's gap row, that don't show its
+background, are something over the log. In the frame set, a row's own badges
+crossed at most 60 in a run (36 on the labelled frames), and every window over
+the log 124 or more (f031, f045, f047). A cursor is narrower, and isn't caught
+unless it covers a row's end."""
+
+type RGB = tuple[int, int, int]
+
+
+class ChatKind(enum.Enum):
+    GENERAL = "general"
+    PARTY = "party"
+    BUDDY = "buddy"
+    WHISPER = "whisper"
+    GM = "gm"
+    MEGAPHONE = "megaphone"
+    SYSTEM = "system"
+    NOTICE = "notice"
+    """The client's own word to the character, in light red: `Could not find
+    <name>.` under a whisper to someone offline, and game events. Never anyone's
+    line, so never `general`."""
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class Band:
+    """
+    A megaphone band's colour, in RGB, over the darkest and the brightest map
+    it was read on. The band is drawn translucent, so the game behind it shows
+    through: its row ends read anywhere between the two.
+    """
+
+    dark: RGB
+    bright: RGB
+    seen: str
+    """The frames each end was read from."""
+
+
+MEGAPHONE_BANDS: dict[str, Band] = {
+    "yellow": Band((221, 172, 0), (238, 189, 17), "f022 row 3 (v1); ellinia_042 (v3)"),
+    "pink": Band((204, 153, 177), (229, 178, 202), "f024 row 1 (v1); ellinia_036 (v3)"),
+    "teal": Band((81, 207, 191), (98, 224, 208), "f012 row 1 (v1); ellinia_038 (v3)"),
+    "light blue": Band(
+        (142, 162, 179), (175, 195, 214), "f001 row 4 (v1); henesyscrowd_030 (v3)"
+    ),
+    "red": Band(
+        (138, 60, 49),
+        (187, 105, 106),
+        "j_1280x720_pagedown_3 and _4 (v2); henesyscrowd_000 (v3)",
+    ),
+}
+"""Each megaphone band, by its colour's name. The red band carries the client's
+announcements of what a player obtained from a crate, a broadcast like the
+megaphones'. Over the game, yellow, pink and teal brighten by 17 levels from
+their darkest to their brightest, light blue by 33 and red by about 50: the
+more translucent a band, the more the map behind it moves it."""
+BAND_TOLERANCE = 24
+"""How far, per channel, a row's end may be from a band, between its dark and
+bright colours, and still be that band; the nearest band, when two are in
+reach. A band's ends in the frame set were within 11 of it; two bands are 46 or
+more apart (pink and light blue)."""
+BACKDROP_MAX = 127
+"""A row end with no channel above this is the log's backdrop, not a band. The
+backdrop is black drawn at half opacity over the game, so no pixel of it is
+brighter than 127: in the frame set, its brightest pixel read 127, over Henesys,
+and the darkest band end 132 (red, over Ellinia). A band darker than this would
+be taken for the backdrop, and its row read `unknown`: its text isn't one of
+`TEXT_COLOURS` alone. On the backdrop, a pixel with a channel above this is
+text."""
+INK_MIN = 200
+WHITE: RGB = (255, 255, 255)
+WHISPER_GREEN: RGB = (0, 255, 0)
+NOTICE_RED: RGB = (255, 175, 175)
+TEXT_COLOURS: dict[RGB, ChatKind] = {
+    WHITE: ChatKind.GENERAL,  # f001 rows 2-3 (v1)
+    (255, 255, 0): ChatKind.SYSTEM,  # f065 rows 3-4 (v1)
+    (96, 206, 255): ChatKind.SYSTEM,  # an event's notice: henesys_1366x768_08 (v3)
+    # Our whispers to an offline friend: chat_1920x1080_036 to _043 (v4).
+    WHISPER_GREEN: ChatKind.WHISPER,
+    # The `Could not find <name>.` under each of them, same frames (v4).
+    NOTICE_RED: ChatKind.NOTICE,
+}
+"""The text colours of the rows on the backdrop, and the kind of line each is.
+A text pixel is one of these colours dimmed, by `FADE` at the log's bottom, to
+a brightest channel no lower than `INK_MIN`, within `COLOUR_TOLERANCE`. The
+outgoing whisper's green is the only whisper colour seen: an incoming whisper,
+and party, buddy and GM lines, aren't in the frame set yet (#592)."""
+TEXT_READ: dict[ChatKind, RGB] = {
+    ChatKind.GENERAL: WHITE,
+    ChatKind.WHISPER: WHISPER_GREEN,
+    ChatKind.NOTICE: NOTICE_RED,
+}
+"""The kinds whose text is read, each in its colour, with the chat's glyphs
+(`font.CHAT_GENERAL`)."""
+COLOUR_TOLERANCE = 6
+"""How far, per channel, a text pixel may be from its colour, dimmed as bright
+as the pixel. The text is drawn unantialiased: in the frame set, every pixel of
+a line was its colour exactly, or dimmed by the fade."""
+FADE = (251, 243, 231, 214)
+"""The log fades out at its bottom: its last three rows of pixels, and the one
+below them that the bottom row's descenders reach (`LOG_BOTTOM`), draw white as
+these, top to bottom, and every colour by as much. Measured on every frame of
+the set, at every client size; the log's top doesn't fade."""
+_INK_DIFFERENCE = 48
+"""On a band, a pixel more than this from the band's colour, in any channel,
+is text, for the row's text pixels."""
+
+
+ALIKE: dict[str, str] = {"I": "Il"}
+"""Letters the chat's font, Arial at 14 px, draws alike: the one a line reads ->
+every letter it may be (`toolkit.harvest_glyphs.alike`; a `frames` test checks
+the harvested set says the same)."""
+
+MIN_READ = 2
+"""The fewest letters (spaces aside) a text must have read for `reads_as` to
+match it with anything, and it must have read at least half of them too. A
+shorter text must have read all of them. A letter the set has no glyph for
+(a set harvested from an older frame set, a character outside printable ASCII)
+reads `UNREAD`, so a 4-letter name read `UNREAD` throughout would otherwise be
+anyone of 4 letters, the character among them (#484)."""
+
+_TIME = r"(?:\[[^\]]*\] )?"
+"""The time the client may put first, `[hh:mm] ` (a client option)."""
+_NAME = rf"[A-Za-z0-9{UNREAD}]+"
+_GENERAL_FORMAT = re.compile(rf"{_TIME}(?P<speaker>{_NAME}) : (?P<message>.+)")
+"""A general line: the time, the speaker, then the message (module docstring)."""
+_WHISPER_OUT_FORMAT = re.compile(rf"{_TIME}(?P<speaker>{_NAME})<< (?P<message>.+)")
+"""A whisper the character sent: the time, the recipient, then the message
+(chat_1920x1080_036 to _043, v4)."""
+
+WRAP_INDENT = 12
+"""A row whose text starts this many columns or more into its band is the rest
+of a line that wrapped: the client draws a wrapped line's next rows indented,
+their first ink 22 or 23 columns in (48 rows of frame sets `v3` and `v4`), and
+every line's first row from column 3 (207 rows)."""
+WRAP_FITS = 525
+"""The furthest a row's text reaches, in columns into its band, on a row that
+wrapped: its pen after its last letter, Arial's bearing past the ink included.
+The client breaks a line where its next letter no longer fits (every row that
+wrapped in frame sets `v3` and `v4` ends between 518 and 525, even before a
+word two hundred columns wide). 525 is the most seen fitting, on a line of 70
+letters with no space (chat_1920x1080_030), whose next letter, 8 columns,
+didn't. So when the next row's first letter would have ended by 525, it isn't
+what overflowed: a space was there, invisible at the row's end, and the line
+broke at it (henesyscrowd_1920x1080_000). When it wouldn't have, the break is
+taken to be mid-word: a space there whose next letter didn't fit either can't
+be seen."""
+
+
+def reads_as(read: str, written: str, *, ignore_case: bool = False) -> bool:
+    """
+    Whether chat text read as `read` may be `written`: as long, and equal letter
+    by letter, where `UNREAD` may be any letter and a letter of `ALIKE` any of
+    those drawn like it. `read` must have read enough of its letters
+    (`MIN_READ`): one that hasn't is never anything.
+    """
+    if len(read) != len(written) or not _read_enough(read):
+        return False
+    for r, w in zip(read, written, strict=True):
+        if r == UNREAD:
+            continue
+        could_be = ALIKE.get(r, r)
+        if ignore_case:
+            if w.casefold() not in {c.casefold() for c in could_be}:
+                return False
+        elif w not in could_be:
+            return False
+    return True
+
+
+def _read_enough(read: str) -> bool:
+    """Whether `read` has read enough of its letters to be matched (`MIN_READ`)."""
+    letters = [c for c in read if not c.isspace()]
+    known = sum(c != UNREAD for c in letters)
+    return (
+        known > 0 and known >= min(MIN_READ, len(letters)) and 2 * known >= len(letters)
+    )
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class ChatLine:
+    """
+    One row of the chat log.
+
+    :ivar kind: What kind of line it is, from its colours.
+    :ivar image: The row, as captured (`H x W x 3`, BGR).
+    :ivar text: What it says, for the kinds whose text is read (`TEXT_READ`:
+        general, whisper and notice), with `UNREAD` for each letter that has no
+        glyph; `None` for the other kinds. The time the client may put first
+        is part of it.
+    :ivar top: The row's top, in client pixels.
+    :ivar speaker: Who wrote it, split from `text` by its kind's format; `None`
+        when the kind has none known, or the row doesn't fit it. On an outgoing
+        whisper, it is whom the whisper went to, not the character: the relay
+        reads it as `you · whisper to <speaker>` (#462). Never the time.
+    :ivar message: What they wrote, split the same way; `None` with `speaker`.
+    :ivar outgoing: The character sent it: an outgoing whisper, by its format,
+        or a general line whose speaker reads as the character's name
+        (`reads_as`, ignoring case, so it must have read enough of its letters).
+    :ivar continues: The row is the rest of the line above, which wrapped: an
+        indented row (`WRAP_INDENT`) directly below a row of its kind, of the
+        same `read`. Its words are in `text` only.
+    :ivar mid_word: A row that `continues` the line above from the middle of a
+        word: the line broke where a letter no longer fit, not at a space
+        (`WRAP_FITS`), so the row joins it with no space between.
+    """
+
+    kind: ChatKind
+    image: NDArray[np.uint8]
+    text: str | None
+    top: int
+    speaker: str | None = None
+    message: str | None = None
+    outgoing: bool = False
+    continues: bool = False
+    mid_word: bool = False
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class _Row:
+    kind: ChatKind | None
+    """`None` for an empty row."""
+    ink: NDArray[np.bool_]
+    """Which of its pixels, from its glyph cell's top (`_CELL_TOP`) to its
+    bottom, are text, the cursor's left out where it was looked for."""
+    image: NDArray[np.uint8]
+    top: int
+    under_cursor: bool = False
+    """The mouse cursor is drawn over its text."""
+
+
+@dataclass(frozen=True, eq=False, slots=True)
+class _Seen:
+    """
+    What the reads so far showed of a row of the log: its kind, and which of
+    its pixels are text (`_Row.ink`), except the `hidden` ones, which the cursor
+    was over in every read that showed the row.
+    """
+
+    kind: ChatKind | None
+    """`None` while the row has shown no text: an empty row, or one whose text
+    the cursor hid whole, which no line was reported of."""
+    ink: NDArray[np.bool_]
+    hidden: NDArray[np.bool_]
+
+
+class ChatReader:
+    """
+    Reads the chat. One per bot, sharing its `FrameCheck`.
+
+    It remembers where the chat was, and the rows it saw last, so `read` returns
+    only the lines that are new since its previous `read`. Given the
+    character's name, `ign`, it tells the lines the character sent; without it,
+    no line is `outgoing`.
+    """
+
+    def __init__(
+        self,
+        sprites: ReaderSprites,
+        frame_check: FrameCheck,
+        tolerance: float = 0.5,
+        ign: str | None = None,
+    ) -> None:
+        self._frame_check = frame_check
+        self._ign = ign
+        self._tolerance = tolerance
+        target = sprites.canvas(TARGET_SELECT)
+        rgba = target.rgba.copy()
+        rgba[slice(*_LABEL_ROWS), slice(*_LABEL_COLUMNS), 3] = 0
+        self._shown = Part(sprites.canvas(LOG_SHOWN))
+        self._hidden = Part(sprites.canvas(LOG_HIDDEN))
+        self._scroll_up = sprites.canvas(SCROLL_UP)
+        self._target = Part(Sprite(target.path, rgba, target.origin))
+        self._bar_bottom = target.rgba.shape[0] - target.origin[1]
+        glyphs: GlyphSet = sprites.glyph_set(CHAT_GENERAL.name)
+        self._glyphs = {kind: glyphs.in_colour(c) for kind, c in TEXT_READ.items()}
+        self._cursors = [sprites.canvas(path).rgba for path in CURSOR_PATHS]
+        self.locator = Locator(self._target, (self._shown,), tolerance)
+        self._seen: list[_Seen] = []
+
+    # The chat's state.
+
+    def shown(self, frame: Frame) -> Reading[bool]:
+        """
+        Whether the chat log is shown. `False` when the log is hidden, or the
+        chat isn't drawn at all while the rest of the UI is.
+        """
+        unusable = self._frame_check.frame_usable(frame)
+        if unusable is not None:
+            return unusable
+        located = self.locator.locate(frame)
+        if located is None:
+            return Reading.read(False, frame.captured_at, "chat not drawn")
+        state = self._log_state(frame, located)
+        if state is None:
+            return Reading.covered(frame.captured_at, _COVERED_TOGGLE)
+        return Reading.read(state, frame.captured_at)
+
+    def region(self, frame: Frame) -> Box | None:
+        """
+        The chat, log included when it is shown, in client pixels; `None` when
+        it isn't found whole. For readers of the play area to leave out.
+        """
+        if self._frame_check.frame_usable(frame) is not None:
+            return None
+        located = self.locator.locate(frame)
+        if located is None or not located.anchor.matched:
+            return None
+        x, y = located.point
+        top = y + LOG_BOTTOM
+        if self._log_state(frame, located):
+            arrow = self._find_scroll_up(frame, located)
+            if arrow is not None:
+                top = arrow
+        return Box(
+            left=x,
+            right=x + SCROLL_X + self._scroll_up.rgba.shape[1],
+            top=top,
+            bottom=y + self._bar_bottom,
+        )
+
+    # The lines.
+
+    def read(self, frame: Frame) -> Reading[list[ChatLine]]:
+        """
+        The lines new since the previous `read`, top to bottom. The first read
+        returns every line shown. Never raises because of what is on screen.
+
+        `ABSENT` when the chat or its log isn't shown; `COVERED` when something
+        is over the log, its arrow or the chat's buttons. Neither changes what
+        the next read compares with.
+        """
+        unusable = self._frame_check.frame_usable(frame)
+        if unusable is not None:
+            return unusable
+        located = self.locator.locate(frame)
+        if located is None:
+            return Reading.absent(frame.captured_at, "chat not found")
+        if not located.anchor.matched:
+            return Reading.covered(
+                frame.captured_at, f"not where expected: {TARGET_SELECT}"
+            )
+        state = self._log_state(frame, located)
+        if state is None:
+            return Reading.covered(frame.captured_at, _COVERED_TOGGLE)
+        if not state:
+            return Reading.absent(frame.captured_at, "chat log hidden")
+        arrow = self._find_scroll_up(frame, located)
+        if arrow is None:
+            return Reading.covered(frame.captured_at, f"log top not found: {SCROLL_UP}")
+        x = located.point[0]
+        bottom = located.point[1] + LOG_BOTTOM
+        cursor = _Cursor(
+            frame.pixels,
+            self._cursors,
+            x,
+            arrow,
+            bottom - ROW_HEIGHT + _CELL_TOP + _CELL_ROWS,
+            self._tolerance,
+        )
+        rows: list[_Row] = []
+        for top in self._row_tops(located, arrow):
+            row = self._row(frame.pixels, x, top, cursor)
+            if isinstance(row, str):
+                return Reading.covered(frame.captured_at, row)
+            rows.append(row)
+        new, self._seen = _new_rows(self._seen, rows, cursor.over_row)
+        lines: list[ChatLine] = []
+        above: tuple[ChatLine, _Row] | None = None
+        for row in new:
+            line = self._line(frame.pixels, x, row, above, bottom, cursor)
+            lines.append(line)
+            above = (line, row)
+        return Reading.read(lines, frame.captured_at)
+
+    def forget(self) -> None:
+        """Forget the rows seen, so the next `read` returns every line shown."""
+        self._seen = []
+
+    # Helpers.
+
+    def _log_state(self, frame: Frame, located: Located) -> bool | None:
+        """`True` when the log's toggle says it is shown, `False` hidden, `None`
+        when neither toggle is where it should be."""
+        if located.parts[0].matched:
+            return True
+        part = located.parts[0]
+        hidden = self._hidden.sprite
+        if matches_at(frame.pixels, hidden.rgba, part.x, part.y, self._tolerance):
+            return False
+        return None
+
+    def _find_scroll_up(self, frame: Frame, located: Located) -> int | None:
+        """The log's top, in client pixels: the up arrow's top nearest the bar,
+        in the arrow's column above the chat's point."""
+        x, y = located.point
+        arrow = self._scroll_up.rgba
+        height, width = arrow.shape[:2]
+        column = (x + SCROLL_X, 0, width, y + LOG_BOTTOM)
+        hits = match(frame.pixels, arrow, column, self._tolerance)
+        tops = [hit.y for hit in hits if y + LOG_BOTTOM - hit.y >= height]
+        return max(tops) if tops else None
+
+    def _row_tops(self, located: Located, log_top: int) -> list[int]:
+        bottom = located.point[1] + LOG_BOTTOM
+        count = (bottom - log_top) // ROW_HEIGHT
+        return [bottom - ROW_HEIGHT * (count - i) for i in range(count)]
+
+    def _row(
+        self, pixels: NDArray[np.uint8], x: int, top: int, cursor: _Cursor
+    ) -> _Row | str:
+        """A row of the log, or why it can't be read."""
+        left, right = x + BAND_LEFT, x + BAND_RIGHT
+        image = pixels[top : top + ROW_HEIGHT, max(left, 0) : right]
+        if left < 0 or image.shape[:2] != (ROW_HEIGHT, right - left):
+            return f"the log's row at y={top} is off the frame"
+        covered = f"something is over the log's row at y={top}"
+        background = _background(image[:, :_END])
+        if background != _background(image[:, -_END:]):
+            return covered
+        pixels16 = image.astype(np.int16)
+        # The row's own text: its top rows hold the descenders of the line above.
+        own = pixels16[_CELL_TOP:]
+        if background == _BACKDROP:
+            gap = pixels16[_GAP_ROW].max(axis=1) > BACKDROP_MAX
+            if _longest_run(gap) > COVER_RUN:
+                return covered
+            ink = own.max(axis=2) > BACKDROP_MAX
+            under = np.zeros_like(ink)
+            if ink.any() and _text_kind(own[ink]) is ChatKind.UNKNOWN:
+                # The cursor, drawn over the text, isn't the line's.
+                under = cursor.over_row(top)
+                ink &= ~under
+            if not ink.any():
+                return _Row(None, ink, image, top)
+            kind = _text_kind(own[ink])
+            return _Row(kind, ink, image, top, bool(under.any()))
+        elif background is None:
+            # Ends that agree on no known band are a band not seen yet, or
+            # something drawn across the whole row: `unknown` either way.
+            colour = _median(image[:, :_END])
+            gap = _off(pixels16[_GAP_ROW : _GAP_ROW + 1], colour, BAND_TOLERANCE)
+            if _longest_run(gap[0]) > COVER_RUN:
+                return covered
+            ink = _off(own, colour, _INK_DIFFERENCE)
+            kind = ChatKind.UNKNOWN
+        else:
+            band = MEGAPHONE_BANDS[background]
+            gap = _off_band(pixels16[_GAP_ROW : _GAP_ROW + 1], band) > BAND_TOLERANCE
+            if _longest_run(gap[0]) > COVER_RUN:
+                return covered
+            ink = _off_band(own, band) > _INK_DIFFERENCE
+            kind = ChatKind.MEGAPHONE
+        return _Row(kind, ink, image, top)
+
+    def _line(
+        self,
+        pixels: NDArray[np.uint8],
+        x: int,
+        row: _Row,
+        above: tuple[ChatLine, _Row] | None,
+        bottom: int,
+        cursor: _Cursor,
+    ) -> ChatLine:
+        """The line of `row`; `above` is the new row read before it, and its
+        line, which an indented row (`WRAP_INDENT`) continues when it is
+        directly above, and of the same kind. `bottom` is where the log's rows
+        end, and `cursor` where the mouse cursor is over them."""
+        assert row.kind is not None
+        image = row.image.copy()
+        glyphs = self._glyphs.get(row.kind)
+        if glyphs is None:
+            return ChatLine(row.kind, image, None, row.top)
+        cell_top = row.top + _CELL_TOP
+        cell_bottom = cell_top + _CELL_ROWS
+        left = x + BAND_LEFT
+        cell = _unfaded(
+            pixels[cell_top:cell_bottom, max(left, 0) : x + BAND_RIGHT],
+            cell_top,
+            bottom,
+            TEXT_READ[row.kind],
+        )
+        if row.under_cursor:
+            # What the cursor hides reads `UNREAD`, never as nothing. The cell
+            # is cut where the frame ends, and the cursor's pixels with it. They
+            # are painted in the text's colour, so they are ink no glyph explains.
+            under = cursor.over(cell_top, cell_bottom)[:, max(-left, 0) :]
+            cell[under[: cell.shape[0], : cell.shape[1]]] = TEXT_READ[row.kind][::-1]
+        text = glyphs.read_marked(cell)
+        if _indent(row, cursor) >= WRAP_INDENT:
+            if (
+                above is None
+                or above[0].kind is not row.kind
+                or above[0].top + ROW_HEIGHT != row.top
+            ):
+                return ChatLine(row.kind, image, text, row.top)
+            mid_word = _mid_word(glyphs, above[0].text, above[1], text)
+            return ChatLine(
+                row.kind, image, text, row.top, continues=True, mid_word=mid_word
+            )
+        speaker, message, outgoing = self._split(row.kind, text)
+        return ChatLine(row.kind, image, text, row.top, speaker, message, outgoing)
+
+    def _split(self, kind: ChatKind, text: str) -> tuple[str | None, str | None, bool]:
+        """
+        A line's speaker, message, and whether the character sent it, split
+        from its `text` by its kind's format (module docstring); `None`,
+        `None` and `False` when its kind has no format known, or it doesn't fit.
+        """
+        if kind is ChatKind.WHISPER:
+            split = _WHISPER_OUT_FORMAT.fullmatch(text)
+            if split is not None:
+                return split["speaker"], split["message"], True
+        elif kind is ChatKind.GENERAL:
+            split = _GENERAL_FORMAT.fullmatch(text)
+            if split is not None:
+                speaker = split["speaker"]
+                ours = self._ign is not None and reads_as(
+                    speaker, self._ign, ignore_case=True
+                )
+                return speaker, split["message"], ours
+        return None, None, False
+
+
+_COVERED_TOGGLE = (
+    f"neither {LOG_SHOWN} nor {LOG_HIDDEN} is where expected: something is over it"
+)
+
+
+def _median(pixels: NDArray[np.uint8]) -> NDArray[np.int16]:
+    """The median colour of `pixels` (BGR), as RGB."""
+    return np.median(pixels.reshape(-1, 3), axis=0).astype(np.int16)[::-1]
+
+
+_BACKDROP = "backdrop"
+
+
+def _background(end: NDArray[np.uint8]) -> str | None:
+    """
+    What a row's end shows: `_BACKDROP` for the log's backdrop, a megaphone
+    band's name, or `None` for any other colour.
+    """
+    colour = _median(end)
+    if int(colour.max()) <= BACKDROP_MAX:
+        return _BACKDROP
+    bgr = colour[::-1].reshape(1, 3)
+    off = {name: int(_off_band(bgr, band)[0]) for name, band in MEGAPHONE_BANDS.items()}
+    nearest = min(off, key=lambda name: off[name])
+    return nearest if off[nearest] <= BAND_TOLERANCE else None
+
+
+def _off_band(image: NDArray[np.int16], band: Band) -> NDArray[np.int16]:
+    """
+    How far each pixel of `image` (`... x 3`, BGR) is from `band`: the largest
+    difference, over the channels, from the nearest colour between its dark and
+    bright ones.
+    """
+    dark = np.array(band.dark[::-1], np.float64)
+    span = np.array(band.bright[::-1], np.float64) - dark
+    along = np.clip(((image - dark) @ span) / (span @ span), 0.0, 1.0)
+    nearest = dark + along[..., np.newaxis] * span
+    return np.abs(image - nearest).max(axis=-1).round().astype(np.int16)
+
+
+def _unfaded(
+    cell: NDArray[np.uint8], cell_top: int, bottom: int, colour: RGB
+) -> NDArray[np.uint8]:
+    """
+    A copy of `cell`, whose first row is at `cell_top`, with the log's `FADE`
+    undone for text in `colour`, in the rows it dims: a pixel within a level of
+    `colour` dimmed as its row is (rounded, so scaling back can miss by one:
+    175 dimmed to 231/255 is 159) is drawn in `colour` again. `bottom` is where
+    the log's rows end (`LOG_BOTTOM`).
+    """
+    cell = cell.copy()
+    bgr = np.array(colour[::-1], np.float64)
+    first = bottom - len(FADE) + 1
+    for i, level in enumerate(FADE):
+        y = first + i - cell_top
+        if 0 <= y < cell.shape[0]:
+            dimmed = bgr * level / 255
+            near = (np.abs(cell[y].astype(np.float64) - dimmed) <= 1).all(axis=1)
+            cell[y][near] = np.array(colour[::-1], np.uint8)
+    return cell
+
+
+def _off(
+    image: NDArray[np.int16], colour: NDArray[np.int16], tolerance: int
+) -> NDArray[np.bool_]:
+    """The pixels of `image` (BGR) more than `tolerance` from `colour` (RGB) in
+    any channel."""
+    return (np.abs(image - colour[::-1]) > tolerance).any(axis=2)
+
+
+def _indent(row: _Row, cursor: _Cursor) -> int:
+    """How many columns into its band a row's text starts (`WRAP_INDENT`). The
+    cursor over it counts as text, so hiding a line's first letters doesn't
+    indent it."""
+    inked = row.ink.any(axis=0)
+    if row.under_cursor:
+        inked = inked | cursor.over_row(row.top).any(axis=0)
+    return int(np.argmax(inked)) if inked.any() else len(inked)
+
+
+def _mid_word(glyphs: GlyphSet, above: str | None, row: _Row, text: str) -> bool:
+    """
+    Whether a row that continues the line above, `above` its text and `row`
+    its row, starts in the middle of a word, `text` the row's own (`WRAP_FITS`):
+    its first letter would not have fit on the row above. When it would have,
+    a space took its room there: the line broke at a space. `False` when the
+    letters at the break aren't read, or their bearings aren't known.
+    """
+    if not above or not text:
+        return False
+    last, first = above[-1], text[0]
+    bearings = glyphs.bearings
+    if last not in bearings or first not in bearings or first not in glyphs.glyphs:
+        return False
+    inked = np.flatnonzero(row.ink.any(axis=0))
+    if not len(inked):
+        return False
+    pen = int(inked[-1]) + 1 + bearings[last][1]
+    before, after = bearings[first]
+    return pen + before + glyphs.glyphs[first].shape[1] + after > WRAP_FITS
+
+
+def _longest_run(flags: NDArray[np.bool_]) -> int:
+    """The longest run of `True` in a 1-D array."""
+    longest = run = 0
+    for flag in flags.tolist():
+        run = run + 1 if flag else 0
+        longest = max(longest, run)
+    return longest
+
+
+def _text_kind(ink: NDArray[np.int16]) -> ChatKind:
+    """
+    The kind of a row on the backdrop, from its text pixels `ink` (`N x 3`,
+    BGR): the kind of `TEXT_COLOURS` every pixel is a colour of, `unknown` when
+    some pixel is none of them, or they are of more than one kind.
+    """
+    brightest = ink.max(axis=1, keepdims=True).astype(np.float64)
+    explained = (brightest >= INK_MIN)[:, 0]
+    kinds: set[ChatKind] = set()
+    of_some_colour = np.zeros(len(ink), dtype=bool)
+    for colour, kind in TEXT_COLOURS.items():
+        bgr = np.array(colour[::-1], np.float64)
+        dimmed = bgr * brightest / bgr.max()
+        this = explained & (np.abs(ink - dimmed) <= COLOUR_TOLERANCE).all(axis=1)
+        if this.any():
+            kinds.add(kind)
+        of_some_colour |= this
+    if not of_some_colour.all() or len(kinds) != 1:
+        return ChatKind.UNKNOWN
+    return kinds.pop()
+
+
+class _Cursor:
+    """
+    Where the mouse cursor is drawn over the log's rows. It is looked for only
+    when a row asks, and once per read.
+    """
+
+    def __init__(
+        self,
+        pixels: NDArray[np.uint8],
+        cursors: list[NDArray[np.uint8]],
+        x: int,
+        top: int,
+        bottom: int,
+        tolerance: float,
+    ) -> None:
+        """The cursor is looked for over the rows' band, from client row `top`,
+        the log's top, to `bottom` (excluded), the last row's glyph cell's
+        bottom, past where the log's rows end."""
+        self._pixels = pixels
+        self._cursors = cursors
+        self._area = (x + BAND_LEFT, top, BAND_RIGHT - BAND_LEFT, bottom - top)
+        self._tolerance = tolerance
+        self._mask: NDArray[np.bool_] | None = None
+
+    def over(self, top: int, bottom: int) -> NDArray[np.bool_]:
+        """Which pixels of the rows' band, from client row `top` to `bottom`
+        (excluded), the cursor is drawn over: always `bottom - top` rows, none
+        of them over the rows outside where it was looked for."""
+        mask = self._mask
+        if mask is None:
+            mask = cursor_mask(self._pixels, self._cursors, self._area, self._tolerance)
+            self._mask = mask
+        first = self._area[1]
+        over = np.zeros((bottom - top, mask.shape[1]), dtype=bool)
+        start, stop = max(top, first), min(bottom, first + mask.shape[0])
+        if start < stop:
+            over[start - top : stop - top] = mask[start - first : stop - first]
+        return over
+
+    def over_row(self, top: int) -> NDArray[np.bool_]:
+        """Which of a row's text pixels (`_Row.ink`) the cursor is over; `top`
+        is the row's top."""
+        return self.over(top + _CELL_TOP, top + ROW_HEIGHT)
+
+
+def _new_rows(
+    seen: Sequence[_Seen],
+    rows: Sequence[_Row],
+    hidden: Callable[[int], NDArray[np.bool_]],
+) -> tuple[list[_Row], list[_Seen]]:
+    """
+    The rows of `rows` that no line was reported of before, without the empty
+    ones, top to bottom, and what is seen of each row after this read. `seen`
+    is what was seen of each row before, top to bottom, and `hidden` which of a
+    row's text pixels the cursor is over, given the row's top.
+
+    The log scrolls up as lines arrive: with `k` new lines, the top rows of
+    `rows` are the bottom rows of `seen`, shifted up by `k`. The smallest such
+    `k` is taken, so an unchanged log has no new line. A row kept is new only
+    when it shows text for the first time, its text hidden whole before.
+    """
+    n = len(rows)
+    for k in range(n + 1):
+        kept = n - k
+        if kept > len(seen):
+            continue
+        before = seen[len(seen) - kept :]
+        known = _still_seen(before, rows[:kept], hidden)
+        if known is not None:
+            shown = [
+                row
+                for row, was in zip(rows[:kept], before, strict=True)
+                if was.kind is None and row.kind is not None
+            ]
+            arrived = rows[kept:]
+            new = shown + [row for row in arrived if row.kind is not None]
+            known += [_Seen(row.kind, row.ink, hidden(row.top)) for row in arrived]
+            return new, known
+    raise AssertionError("k == n always explains the rows")
+
+
+def _still_seen(
+    seen: Sequence[_Seen],
+    rows: Sequence[_Row],
+    hidden: Callable[[int], NDArray[np.bool_]],
+) -> list[_Seen] | None:
+    """What is seen of each row after `rows` show them, when each of `rows` is
+    the row `seen` says, at the same place; `None` when one isn't."""
+    known: list[_Seen] = []
+    for was, row in zip(seen, rows, strict=True):
+        now = _same_row(was, row, hidden)
+        if now is None:
+            return None
+        known.append(now)
+    return known
+
+
+def _same_row(
+    was: _Seen, row: _Row, hidden: Callable[[int], NDArray[np.bool_]]
+) -> _Seen | None:
+    """
+    What is seen of a row after `row` shows it, when `row` is the row `was`
+    says; `None` when it isn't. They are compared where the cursor was over
+    neither: their text pixels there must be the same, and their kinds too,
+    unless one of them showed no text with the cursor over it.
+    """
+    if was.kind == row.kind and np.array_equal(was.ink, row.ink):
+        return was
+    cover = hidden(row.top)
+    unknown = was.hidden | cover
+    if not unknown.any():
+        return None
+    hid_all = (was.kind is None and bool(was.hidden.any())) or (
+        row.kind is None and bool(cover.any())
+    )
+    if was.kind != row.kind and not hid_all:
+        return None
+    if not np.array_equal(was.ink & ~unknown, row.ink & ~unknown):
+        return None
+    return _Seen(
+        was.kind if was.kind is not None else row.kind,
+        (was.ink & ~was.hidden) | (row.ink & ~cover),
+        was.hidden & cover,
+    )

@@ -10,7 +10,8 @@
    another canvas already led to reuses that image, and one named by a
    `_hash` the store has isn't decoded at all.
 3. **Build the catalogue**, through the catalogue hook.
-4. **Write the manifest, then rename** the folder to `extractions/<build-id>`.
+4. **Write the manifest, then rename** the folder to `extractions/<build-id>`,
+   retrying for a moment when Windows refuses because a file in it is held open.
    Until the rename, the store's existing extractions are untouched. If
    anything fails, the folder is deleted and the error raised. Images the
    failed run wrote stay, named by nobody, until the next retention.
@@ -70,6 +71,8 @@ from .store import RAW, TEMPORARY, Store
 
 EXTRACTOR_VERSION = 1
 HASH = "_hash"
+LAND_SECONDS = 2.0
+LAND_PAUSE = 0.05
 
 type CatalogueHook = Callable[[Path, ImageStore], int | None]
 """Builds the catalogue in an extraction's folder; returns its schema version."""
@@ -171,7 +174,7 @@ def extract(
             failures=tuple(raw.failures),
         )
         manifest.write(folder)
-        folder.rename(store.extraction(build))
+        _land(folder, store.extraction(build))
     except BaseException:
         shutil.rmtree(folder, ignore_errors=True)
         raise
@@ -180,6 +183,26 @@ def extract(
     return Extracted(
         manifest, True, raw.written, report_path, time.perf_counter() - started
     )
+
+
+def _land(folder: Path, target: Path) -> None:
+    """
+    Renames the finished `folder` to `target`.
+
+    On Windows a folder can't be renamed while a file in it is open, and
+    antivirus and the search indexer hold a freshly written file for a moment,
+    so a `PermissionError` is retried, for about `LAND_SECONDS`, before it is
+    raised.
+    """
+    deadline = time.monotonic() + LAND_SECONDS
+    while True:
+        try:
+            folder.rename(target)
+            return
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(LAND_PAUSE)
 
 
 class _RawWriter:

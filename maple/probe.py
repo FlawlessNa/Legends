@@ -8,10 +8,13 @@ screen is read. ``--ign`` only names the `configs/keybindings.ini` section that
 binding names come from; without it, the file's only section is used.
 
 ``screenshot``, ``regions`` and ``keys`` send no input, so they touch neither the
-Held-Keys Ledger nor any key. ``screenshot`` and ``regions`` capture through
-`FrameSource` (Desktop Duplication), which copies what is on screen: a frame that
-isn't the client's own pixels (the client not in front, covered, moved) is refused
-with its reason, and no PNG is written.
+Held-Keys Ledger nor any key. ``screenshot`` and ``regions`` first bring the client
+to the front (`bring_to_front`: it asks Windows for the foreground window, and sends
+no key and no click, so no `release_all` and no ledger reset; ``--no-front`` skips
+it), then capture through `FrameSource` (Desktop Duplication), which copies what is
+on screen: a frame that isn't the client's own pixels (the client not in front,
+covered, moved) is refused with its reason, and no PNG is written. When Windows
+refuses to bring the client forward, the command exits 6 with that reason.
 
 ``press``, ``hold``, ``write`` and ``click`` are each one complete gesture, run by
 `run_guarded` (ADR 0002): validate everything first, so a refusal sends nothing; bring
@@ -73,7 +76,13 @@ from botting.controller.inputs import (
     release_directions,
 )
 from botting.controller.inputs.focused_inputs import activate
-from botting.screen import Frame, MultipleWindows, WindowNotFound, frame_source
+from botting.screen import (
+    Frame,
+    MultipleWindows,
+    WindowNotFound,
+    bring_to_front,
+    frame_source,
+)
 from botting.utilities import Box, config_reader
 from botting.utilities.elevation import input_blocked_reason, window_process_id
 from maple import menus
@@ -141,7 +150,7 @@ def readers() -> Readers:
     """
     try:
         sprites = load_reader_sprites(
-            [FRAME_CHECK, STATUS_BAR, MINIMAP, BUFFS], Profile(job="", game_map="")
+            [FRAME_CHECK, STATUS_BAR, MINIMAP, BUFFS], Profile(job="")
         )
     except StartupRefused as err:
         raise ProbeError(EXIT_ERROR, f"The regions need the game data: {err}")
@@ -358,6 +367,21 @@ def grab(handle: int) -> Frame:
     return frame
 
 
+def front(handle: int) -> None:
+    """
+    Brings the client to the front for a read-only command: no key, no click, no
+    `release_all`, no ledger reset (unlike `ProbeClient.front`, which is guarded
+    input). A `ProbeError` with the reason when Windows won't.
+    """
+    problem = bring_to_front(handle)
+    if problem is not None:
+        raise ProbeError(
+            EXIT_FRAME_NOT_OK,
+            f"Could not bring the client to the front: {problem}. Nothing was "
+            "written. Bring it to the front, uncovered, and try again.",
+        )
+
+
 def crop(frame: Frame, box: Box) -> NDArray[np.uint8]:
     width, height = frame.client_size
     return frame.pixels[
@@ -445,8 +469,16 @@ def _display_path(path: Path) -> str:
 # --- commands ----------------------------------------------------------------
 
 
+def _read_frame(args: argparse.Namespace) -> Frame:
+    """The client's frame, after bringing it to the front unless `--no-front`."""
+    handle = resolve_handle()
+    if not args.no_front:
+        front(handle)
+    return grab(handle)
+
+
 def cmd_screenshot(args: argparse.Namespace) -> dict:
-    frame = grab(resolve_handle())
+    frame = _read_frame(args)
     if args.region is not None:
         label = args.region
         image = crop(frame, find_region(args.region, frame))
@@ -469,8 +501,7 @@ def cmd_screenshot(args: argparse.Namespace) -> dict:
 
 def cmd_regions(args: argparse.Namespace) -> dict:
     """Each region's box `[l, t, r, b]` in PNG pixels, or null when it isn't showing."""
-    del args
-    frame = grab(resolve_handle())
+    frame = _read_frame(args)
     found = readers()
     showing: dict[str, list[int] | None] = {}
     for name, finder in REGIONS.items():
@@ -615,9 +646,7 @@ def cmd_click(args: argparse.Namespace) -> dict:
 def menu_sprites() -> ReaderSprites:
     """The Game Menu's and Options window's sprites, from the `game_data` store."""
     try:
-        return load_reader_sprites(
-            list(menus.DECLARATIONS), Profile(job="", game_map="")
-        )
+        return load_reader_sprites(list(menus.DECLARATIONS), Profile(job=""))
     except StartupRefused as err:
         raise ProbeError(EXIT_ERROR, f"`resolution` needs the game data: {err}")
 
@@ -767,6 +796,13 @@ def _bounded(low: int, high: int | None = None) -> Callable[[str], int]:
 
 
 def _parser() -> argparse.ArgumentParser:
+    no_front = argparse.ArgumentParser(add_help=False)
+    no_front.add_argument(
+        "--no-front",
+        action="store_true",
+        help="don't bring the client to the front first: copy only if it already "
+        "is in front, else exit 6",
+    )
     bindings = argparse.ArgumentParser(add_help=False)
     bindings.add_argument(
         "--ign",
@@ -780,7 +816,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    shot = sub.add_parser("screenshot", help="save a PNG to probe/")
+    shot = sub.add_parser(
+        "screenshot",
+        parents=[no_front],
+        help="bring the client to the front, then save a PNG to probe/",
+    )
     which = shot.add_mutually_exclusive_group()
     which.add_argument("--region", choices=tuple(REGIONS))
     which.add_argument(
@@ -792,7 +832,10 @@ def _parser() -> argparse.ArgumentParser:
     shot.set_defaults(run=cmd_screenshot)
 
     sub.add_parser(
-        "regions", help="list the regions and where each is showing"
+        "regions",
+        parents=[no_front],
+        help="bring the client to the front, then list the regions and where "
+        "each is showing",
     ).set_defaults(run=cmd_regions)
     sub.add_parser(
         "keys", parents=[bindings], help="list the key binding names"

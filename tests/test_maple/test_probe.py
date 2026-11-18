@@ -25,8 +25,17 @@ def frame(ok: bool = True, reason: str = "") -> Frame:
 
 
 @pytest.fixture
+def front(mocker: MockerFixture) -> MagicMock:
+    """`bring_to_front`, mocked to succeed; the real one asks Windows."""
+    return mocker.patch.object(probe, "bring_to_front", return_value=None)
+
+
+@pytest.fixture
 def shot(
-    mocker: MockerFixture, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    mocker: MockerFixture,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    front: MagicMock,
 ) -> MagicMock:
     """Mocks the window, the capture and the output folder; returns the grab mock."""
     monkeypatch.setattr(probe, "PROBE_DIR", tmp_path / "probe")
@@ -370,3 +379,83 @@ def test_keys_for_an_unknown_ign_is_an_error(
     assert probe.main(["keys", "--ign", "Nobody"]) == probe.EXIT_ERROR
 
     assert "Nobody" in capsys.readouterr().err
+
+
+# --- bringing the client to the front ---------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _no_regions_to_read(request: pytest.FixtureRequest, mocker: MockerFixture) -> None:
+    """The front tests need only a frame, not what each region reader finds."""
+    if request.node.name.split("[")[0] in FRONT_TESTS:
+        mocker.patch.dict(probe.REGIONS, {}, clear=True)
+
+
+FRONT_TESTS = {
+    "test_the_read_only_commands_bring_the_client_to_the_front_before_the_copy",
+    "test_bringing_the_client_to_the_front_sends_no_input",
+    "test_no_front_copies_without_bringing_the_client_forward",
+}
+
+
+@pytest.mark.parametrize(
+    "argv", [["screenshot"], ["screenshot", "--box", "0,0,10,10"], ["regions"]]
+)
+def test_the_read_only_commands_bring_the_client_to_the_front_before_the_copy(
+    shot: MagicMock, front: MagicMock, argv: list[str]
+) -> None:
+    order = MagicMock()
+    order.attach_mock(front, "front")
+    order.attach_mock(shot, "grab")
+
+    assert probe.main(argv) == 0
+
+    assert [call[0] for call in order.mock_calls] == ["front", "grab"]
+    front.assert_called_once_with(HANDLE)
+
+
+def test_bringing_the_client_to_the_front_sends_no_input(
+    shot: MagicMock, mocker: MockerFixture
+) -> None:
+    guarded = mocker.patch.object(probe, "run_guarded")
+    released = mocker.patch.object(probe, "release_all")
+    ledger = mocker.patch.object(probe, "HeldKeysLedger")
+
+    assert probe.main(["screenshot"]) == 0
+    assert probe.main(["regions"]) == 0
+
+    guarded.assert_not_called()
+    released.assert_not_called()
+    assert ledger.mock_calls == []
+
+
+@pytest.mark.parametrize(
+    "argv", [["screenshot", "--no-front"], ["regions", "--no-front"]]
+)
+def test_no_front_copies_without_bringing_the_client_forward(
+    shot: MagicMock, front: MagicMock, argv: list[str]
+) -> None:
+    assert probe.main(argv) == 0
+
+    front.assert_not_called()
+    shot.assert_called_once_with(HANDLE)
+
+
+@pytest.mark.parametrize("argv", [["screenshot"], ["regions"]])
+def test_a_client_that_cannot_be_brought_forward_exits_6_and_writes_nothing(
+    shot: MagicMock,
+    front: MagicMock,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    argv: list[str],
+) -> None:
+    front.return_value = "Windows refused"
+
+    code = probe.main(argv)
+
+    captured = capsys.readouterr()
+    assert code == probe.EXIT_FRAME_NOT_OK
+    assert "Windows refused" in captured.err
+    assert captured.out == ""
+    shot.assert_not_called()
+    assert not (tmp_path / "probe").exists()

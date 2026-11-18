@@ -8,14 +8,11 @@ import numpy as np
 from ultralytics.engine.results import Results
 
 from botting.models_abstractions import BaseCharacter
-from botting.utilities import (
-    Box,
-    config_reader,
-    take_screenshot,
-)
+from botting.utilities import Box, config_reader
+from maple.screen.font import GlyphSet
 
 from .maple_skills import MapleSkill
-from .own_character import Candidate, OwnCharacterPicker
+from .own_character import Candidate, NameTagReader, OwnCharacterPicker
 
 DEBUG = True
 
@@ -58,6 +55,15 @@ class Character(BaseCharacter, ABC):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.ign})"
+
+    def read_name_tags_with(self, glyphs: GlyphSet) -> None:
+        """
+        Tell our character from other players' by the name tag under each,
+        read with `glyphs` (the `name-tag` set, `maple.screen.name_tag`).
+        Until this is called, no tag is read: the box is kept by the picker's
+        fallbacks alone (`OwnCharacterPicker`).
+        """
+        self._own_character_picker = OwnCharacterPicker(self.ign, NameTagReader(glyphs))
 
     def _character_candidates(
         self, detections: Results, mask: np.ndarray | None
@@ -102,7 +108,7 @@ class Character(BaseCharacter, ABC):
 
     def get_onscreen_position(
         self,
-        image: np.ndarray | None,
+        image: np.ndarray,
         handle: int,
         regions_to_hide: list[Box] | None = None,
         acceptance_threshold: float | None = None,
@@ -112,7 +118,7 @@ class Character(BaseCharacter, ABC):
         Applies detection method specified through user configs.
         Optionally hides regions of the image (such as minimap) to prevent false positive.
         Optionally applies offset to the detection, as the detection may not be the character itself.
-        :param image:
+        :param image: The client's pixels: the bot's `current_frame.pixels`.
         :param handle:
         :param regions_to_hide:
         :param acceptance_threshold: To use with detection model.
@@ -121,11 +127,7 @@ class Character(BaseCharacter, ABC):
         model_res: Sequence[int] | None = None
         detection_res: Sequence[int] | None = None
         mask: np.ndarray | None = None
-        if image is None:
-            assert handle is not None
-            image = take_screenshot(handle, self.detection_box)
-        else:
-            image = image.copy()
+        image = image.copy()
 
         if regions_to_hide is not None:
             mask = np.ones(image.shape, np.uint8) * 255

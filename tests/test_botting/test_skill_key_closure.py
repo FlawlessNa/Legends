@@ -132,7 +132,7 @@ def _compile(*components: _MovementComponent) -> KeyboardInputWrapper:
 
 def test_teleport_releases_its_skill_key_within_the_sequence() -> None:
     """Load-bearing: the fill used to end with the teleport key still down."""
-    sequence = _compile(_MovementComponent(MovementTypes.TELEPORT_RIGHT, 3))
+    sequence = _compile(_MovementComponent(MovementTypes.TELEPORT_RIGHT, 450, casts=3))
     assert _latched(sequence) == set()
 
 
@@ -143,7 +143,7 @@ def test_teleport_does_not_hold_its_skill_key_into_the_following_component() -> 
     end, so a fix that only released the key last would still be red here.
     """
     sequence = _compile(
-        _MovementComponent(MovementTypes.TELEPORT_RIGHT, 3),
+        _MovementComponent(MovementTypes.TELEPORT_RIGHT, 450, casts=3),
         _MovementComponent(MovementTypes.WALK_RIGHT, 5),
     )
     walk_steps = [
@@ -223,16 +223,16 @@ def test_the_repeat_key_shape_still_carries_up_into_the_climb() -> None:
 @pytest.mark.parametrize(
     "components",
     [
-        (_MovementComponent(MovementTypes.TELEPORT_RIGHT, 3),),
+        (_MovementComponent(MovementTypes.TELEPORT_RIGHT, 450, casts=3),),
         (_MovementComponent(MovementTypes.TELEPORT_LEFT, 1),),
         (_MovementComponent(MovementTypes.TELEPORT_UP, 2),),
         (
-            _MovementComponent(MovementTypes.TELEPORT_RIGHT, 3),
+            _MovementComponent(MovementTypes.TELEPORT_RIGHT, 450, casts=3),
             _MovementComponent(MovementTypes.WALK_RIGHT, 5),
         ),
         (
             _MovementComponent(MovementTypes.WALK_RIGHT, 5),
-            _MovementComponent(MovementTypes.TELEPORT_RIGHT, 3),
+            _MovementComponent(MovementTypes.TELEPORT_RIGHT, 450, casts=3),
         ),
         (
             _MovementComponent(MovementTypes.TELEPORT_RIGHT, 2),
@@ -250,10 +250,10 @@ def test_no_plan_latches_a_skill_key(
 @pytest.mark.parametrize(
     "components",
     [
-        (_MovementComponent(MovementTypes.TELEPORT_RIGHT, 3),),
+        (_MovementComponent(MovementTypes.TELEPORT_RIGHT, 450, casts=3),),
         (_MovementComponent(MovementTypes.TELEPORT_DOWN, 1),),
         (
-            _MovementComponent(MovementTypes.TELEPORT_RIGHT, 3),
+            _MovementComponent(MovementTypes.TELEPORT_RIGHT, 450, casts=3),
             _MovementComponent(MovementTypes.WALK_RIGHT, 5),
         ),
     ],

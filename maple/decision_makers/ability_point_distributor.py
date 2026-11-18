@@ -89,7 +89,7 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
         target = self.data.ability_menu.stat_mapper[self.data.character.main_stat]
         target = self.data.ability_menu.get_abs_box(self.data.handle, target)
         # The old readers' boxes carry the margins `find_image` adds; the mouse
-        # takes client-area points. Both go with the old readers in #316.
+        # takes client-area points. Both go with the ability menu in #314.
         x, y = target.center
         point = (x - CLIENT_HORIZONTAL_MARGIN_PX, y - CLIENT_VERTICAL_MARGIN_PX)
 
@@ -106,7 +106,7 @@ class AbilityPointDistributor(MenusMixin, UIMixin, DecisionMaker):
             self.pipe,
             lambda: (
                 self.data.ability_menu.get_available_ap(
-                    self.data.handle, self.data.current_client_img
+                    self.data.handle, self.data.current_frame.pixels
                 )
                 == 0
             ),

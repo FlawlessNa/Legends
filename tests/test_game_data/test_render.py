@@ -507,6 +507,18 @@ def test_an_animated_object_is_drawn_at_frame_modulo_its_frame_count(
     assert {at: layers_at(screen, *at) for at in expected} == expected
 
 
+def test_keep_draws_only_the_items_it_is_true_for(cat: Catalogue) -> None:
+    """Without the animated object, nothing is drawn where it was; the tiles
+    and the other objects are drawn as before."""
+    every = render_map(cat, LAYERS)
+    static = render_map(cat, LAYERS, keep=lambda item: len(item.frames) <= 1)
+
+    assert layers_at(every, 120, 0) == RED
+    assert layers_at(static, 120, 0) == NOTHING
+    assert layers_at(static, -1, -1) == layers_at(every, -1, -1) == RED
+    assert layers_at(static, 50, 19) == layers_at(every, 50, 19) == WHITE
+
+
 # --- backgrounds -------------------------------------------------------------
 
 

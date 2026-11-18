@@ -34,8 +34,10 @@ Transport facts that constrain code:
   `send()`.
 - Pipe reads block. Both ends poll via `asyncio.to_thread(pipe.poll)`. Don't
   add a blocking read to an event loop.
-- Engines **read** the game clients (screenshots, OCR). Main Process **writes**
-  to them. An Engine that tries to send input raises.
+- Engines **read** the game clients: each Bot's `current_frame`, one Desktop
+  Duplication capture (`botting.screen`), which the readers and detection
+  share. Main Process **writes** to them. An Engine that tries to send input
+  raises.
 
 ## The action path
 
@@ -83,7 +85,9 @@ DecisionMaker (the Supervisor cancels their loops) and sends a high-priority
 `ActionRequest` back to Main to release the movement keys. `RESUME` reaches
 `Bot.resume()`, which releases every user-held Pause and every legacy shim
 Pause; a DecisionMaker whose last Pause goes runs `on_start()` and restarts.
-Nothing finds a task by its name.
+Before that it calls each DecisionMaker's `on_resume()` hook, so one that
+stopped others until RESUME (`ChatReplies`, after a GM) knows they are given
+back. Nothing finds a task by its name.
 
 That is the shape to copy when an Engine needs something done to a client:
 change what runs locally, then send a high-priority `ActionRequest` back to
@@ -151,6 +155,7 @@ registered in `ignored_keys`, or `_monitor_proxy` will try to service it as one.
 | Recorder + both Discord directions | `botting/core/peripherals_process.py`, `botting/communications/` |
 | Buckets, thresholds, dictConfig | `botting/logging_config.py` |
 | `emit_event`, the JSONL sink | `botting/telemetry.py`, `telemetry_events.py` |
+| `key.down`/`key.up` records, buffered off the send loop | `botting/controller/inputs/key_times.py` |
 | Reading a Session's `telemetry.jsonl` back (`python -m botting.session`) | `botting/session/` |
 
 ## Traps
