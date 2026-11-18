@@ -47,6 +47,7 @@ from maple.decision_makers.providers import (
     MapProvider,
     MinimapProvider,
     MobsProvider,
+    OnScreenPositionProvider,
     ScreenReadersProvider,
 )
 from maple.model.world import WorldMap, chain_platforms
@@ -311,7 +312,8 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
     dms = _decision_makers(bot)
     assert set(dms) == set(bot._decision_makers())  # pyright: ignore[reportPrivateUsage]
     # The Bot-level Providers, in `child_init`'s order, then the minimap's, once,
-    # for `CheckStillInMap` and every unported DecisionMaker that asked for it.
+    # for `CheckStillInMap` and every unported DecisionMaker that asked for it,
+    # then the on-screen position's for `MobsHitting`, which needs the minimap's.
     assert [type(p) for p in bot.providers] == [
         WindowProvider,
         ScreenReadersProvider,
@@ -320,6 +322,7 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
         MobsProvider,
         ClientProvider,
         MinimapProvider,
+        OnScreenPositionProvider,
     ]
 
     async def decide_once() -> None:

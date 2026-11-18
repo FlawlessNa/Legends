@@ -69,10 +69,6 @@ DEFAULT_CHAT_KEYS: Mapping[str, str] = MappingProxyType(
 
 WHISPER = "whisper"
 
-TRAINING_ACTIONS = ("Rotation", "MobsHitting", "TelecastMobsHitting")
-"""The DecisionMakers whose Actions in flight a line typed in the chat cancels,
-a reply as a Discord `WRITE`: the character stops training to type."""
-
 # Pauses, in seconds, as (shortest, longest). The spec sets the pause before
 # opening the channel and the one before sending. The others are the waits
 # `write_in_chat` has always made, kept as the shortest: the chat input may need

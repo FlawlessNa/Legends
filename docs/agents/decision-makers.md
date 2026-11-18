@@ -15,7 +15,7 @@ Until each is ported, an old-style DecisionMaker keeps its mixins, and the two k
 A DecisionMaker written against the framework:
 
 - has no mixin in its class hierarchy (it may still subclass another DecisionMaker or a plain base class);
-- declares the Data Keys it reads in `reads`, the ones it only peeks at in `observes`, and the classes it may pause in `pauses`;
+- declares the Data Keys it reads in `reads`, the ones it only peeks at in `observes`, the classes it may pause in `pauses`, and the classes whose Actions it cancels in `cancels`;
 - does no I/O in `__init__`, and does its one-time I/O in `setup()`;
 - uses no `has_*` flag, no `hasattr`, no `getattr(self.data, ...)`, and no task name built from a string;
 - stays an asynchronous loop: `_decide()` runs one decision, and Actions go to Main Process through `self.send(...)`.
@@ -122,7 +122,7 @@ A **Bot-level** Provider serves it.
 
 1. It collects the class-level declarations of every DecisionMaker; nothing is built yet.
 2. It resolves the Providers of every key read, then of every key those Providers need, and orders them.
-3. It refuses the start with `StartupRefused` on a cycle between Providers (naming it), two keys with the same name (naming both), a `pauses` entry that resolves to nothing, a Signal awaited that nothing in the Bot announces (naming the Signal and the DecisionMaker), or a key read whose Bot-level Provider the Bot did not build (naming it).
+3. It refuses the start with `StartupRefused` on a cycle between Providers (naming it), two keys with the same name (naming both), a `pauses` or `cancels` entry that resolves to nothing, a Signal awaited that nothing in the Bot announces (naming the Signal and the DecisionMaker), or a key read whose Bot-level Provider the Bot did not build (naming it).
 4. It builds every Provider not built yet (the Bot-level ones were, by `child_init`), then runs each `setup()`, in order.
 5. It builds every DecisionMaker, then runs each `setup()`.
 
@@ -142,6 +142,14 @@ So a Bot wired wrong fails at startup with a message that names the cause, never
 - A paused DecisionMaker keeps its state.
   Before every start and restart, the Supervisor calls `on_start()`, and once its loops have stopped, `on_stop()`: put resets there, never in an override of the loop.
 - A DecisionMaker with several loops (one per buff) overrides `loops()`, and nothing else.
+
+## Cancelling another's Actions, and taking turns
+
+- An Action names the Actions it cancels in `cancel_tasks`, each with `action_name(cls, ign)`, never a string built by hand: `cancel_tasks=[action_name(Rotation, self.data.ign)]`.
+  Declare those classes in `cancels = (...)`, as `pauses` is declared; assembly refuses an entry that resolves to nothing.
+- A DecisionMaker that must send one Action at a time holds a `TurnGate` (the Turn Gate, `CONTEXT.md`), made in `setup()` over its Manager lock: `TurnGate(self._proxies.instance(repr(self), "Lock"))`.
+  `await gate.enter()` waits for its turn without blocking the event loop (`gate.try_enter()` takes it only when it is free), `gate.releaser` goes in the Action's `callbacks` so Main Process leaves the gate once the Action is done, `await gate.leave()` leaves it for a decision that sends nothing, and `on_start()` calls `gate.reset()`.
+  `MobsHitting` is the example.
 
 ## Signals
 
@@ -192,6 +200,8 @@ class Looter(DecisionMaker):
   However many DecisionMakers ask, it is set up once.
 - `create_attribute`, `create_or_reconfigure_attribute` and `set_static` on a name a Provider owns raise `OwnedByProvider`: one producer per key.
 - `_disable_decision_makers` and `_enable_decision_makers` remain as a shim for unported code only, with their old semantics.
+- The other way round, a ported DecisionMaker that needs data an unported one still makes reads it through a plain function beside that one's mixin, which the mixin uses too, and which goes with it: `TelecastMobsHitting` reads the rotation's Movement Plan with `planned_movements(data)` until Rotation's port gives it a Provider.
+  It does not keep the mixin in its hierarchy for it.
 
 ## A worked example: porting `CheckStillInMap`
 
