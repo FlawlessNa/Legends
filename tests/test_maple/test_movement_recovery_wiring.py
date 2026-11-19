@@ -31,6 +31,7 @@ from maple.decision_makers.providers import (
     MOVEMENTS,
     PATH,
     POSITION,
+    DestinationProvider,
     MinimapProvider,
     PathingProvider,
 )
@@ -40,7 +41,7 @@ from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
     _MovementComponent,
 )
-from maple.model.navigation import Direction, Move, MoveKind, Path
+from maple.model.navigation import Direction, Move, MoveKind, Path, Point
 from maple.model.world import WorldMap
 from maple.movement_recovery import Reaction, RecoveryThresholds, Rung, Symptom
 from maple.screen.position import PositionSource, VirtualPosition
@@ -432,6 +433,52 @@ def test_abandon_does_nothing_while_the_destination_is_claimed(loop: _Loop) -> N
 
     assert loop.data.read(DESTINATION) == (60.0, 0.0)
     assert loop.sent == []
+    loop.data.release(claim)
+
+
+def _served_source_abandons(
+    loop: _Loop, monkeypatch: pytest.MonkeyPatch
+) -> list[Point]:
+    """
+    Stands in for the served source's `abandon()`: it heads for `ELSEWHERE`, and
+    each call is kept.
+    """
+    providers = loop.data.providers
+    assert providers is not None
+    source = providers.get(DestinationProvider).source
+    given: list[Point] = []
+    monkeypatch.setattr(source, "abandon", lambda: given.append(ELSEWHERE) or ELSEWHERE)
+    return given
+
+
+#: Where the stand-in source's Abandon heads: the corridor's far end.
+ELSEWHERE = (600.0, -20.0)
+
+
+def test_abandon_heads_where_the_served_source_abandons_to(
+    loop: _Loop, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each rotation's source picks its own Abandon (#577)."""
+    given = _served_source_abandons(loop, monkeypatch)
+
+    _react(loop, Rung.ABANDON, abandon_count=1)
+
+    assert given == [ELSEWHERE]
+    assert loop.data.read(DESTINATION) == ELSEWHERE
+
+
+def test_abandon_asks_the_source_nothing_while_the_destination_is_claimed(
+    loop: _Loop, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    given = _served_source_abandons(loop, monkeypatch)
+    claim = loop.data.claim(
+        DESTINATION, lambda _: (60.0, 0.0), holder="X(TestBot)", reason="test"
+    )
+
+    _react(loop, Rung.ABANDON, abandon_count=1)
+
+    assert given == []
+    assert loop.data.read(DESTINATION) == (60.0, 0.0)
     loop.data.release(claim)
 
 

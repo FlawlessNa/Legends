@@ -30,6 +30,8 @@ from maple.decision_makers.providers import (
     wander,
 )
 from maple.decision_makers.providers import destination as destination_module
+from maple.decision_makers.providers.sources.random import RandomSource
+from maple.decision_makers.providers.sources.smart import SmartSource
 from maple.decision_makers.recovery import MovementRecovery
 from maple.model.navigation import FootholdGraph
 from maple.model.world import WorldMap
@@ -187,8 +189,8 @@ def test_the_destinations_logs_stay_in_the_movement_bucket() -> None:
 
 
 def test_arrival_is_ten_minimap_px_in_virtual_px() -> None:
-    assert DestinationProvider.BASE_ROTATION_THRESHOLD == 10 * 16
-    assert DestinationProvider.SMART_ROTATION_THRESHOLD == 4 * 16
+    assert RandomSource.ARRIVAL == 10 * 16
+    assert SmartSource.ARRIVAL == 4 * 16
 
 
 def test_abandon_draws_only_where_a_path_reaches() -> None:

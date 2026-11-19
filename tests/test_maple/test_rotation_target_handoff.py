@@ -24,6 +24,7 @@ import pytest
 from botting.core import BotData, fixed
 from botting.screen import Reading
 from maple.decision_makers.providers import DESTINATION, DestinationProvider
+from maple.decision_makers.providers.sources.smart import SmartSource
 from maple.model.world import WorldMap
 from maple.screen.position import PositionSource, VirtualPosition
 from tests.test_maple.movement_lab.fixture_maps import walk_corridor
@@ -59,8 +60,8 @@ def test_owner_installs_its_own_smart_rotation_target(
     owner: DestinationProvider,
 ) -> None:
     update_function = _update_function(owner.data)
-    assert update_function.__self__ is owner
-    assert update_function.__func__ is DestinationProvider._smart  # pyright: ignore[reportPrivateUsage]
+    assert update_function.__self__ is owner.source
+    assert update_function.__func__ is SmartSource.next
 
 
 # --- the same handoff, through a Claim ------------------------------------------

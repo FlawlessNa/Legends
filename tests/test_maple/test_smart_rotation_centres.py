@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-import maple.decision_makers.providers.destination as destination_module
+import maple.decision_makers.providers.sources.smart as smart_module
 from botting.screen import Frame, Reading
 from maple.decision_makers.providers import (
     DESTINATION,
@@ -67,16 +67,18 @@ def _target(
     )
     data.store(DESTINATION, here)
     # Skip the "already on target" gate and the wait on it.
-    provider._first_time_on_target = False
-    provider._last_target_reached_at = 0.0
-    provider.TIME_ON_TARGET = 0.0
+    source = provider.source
+    assert isinstance(source, smart_module.SmartSource)
+    source._first_time_on_target = False
+    source._last_target_reached_at = 0.0
+    source.TIME_ON_TARGET = 0.0
 
     def detect(*args: object, **kwargs: object) -> list[Sequence[int]]:
         return list(mobs)
 
     with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(destination_module, "get_mobs_positions_in_img", detect)
-        return provider._smart()
+        patch.setattr(smart_module, "get_mobs_positions_in_img", detect)
+        return source.next()
 
 
 @pytest.mark.parametrize(
