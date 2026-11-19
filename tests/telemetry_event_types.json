@@ -23,6 +23,9 @@
     "SESSION_STOP_REQUESTED": "session.stop_requested"
   },
   "maple.telemetry_events": {
+    "AREA_PLAYER_LEFT": "area.player_left",
+    "AREA_PLAYER_SETTLED": "area.player_settled",
+    "AREA_STAND_BY": "area.stand_by",
     "CHAT_GM_LINE": "chat.gm_line",
     "CHAT_LINE_ADDRESSED": "chat.line_addressed",
     "CHAT_REPLIES_TOGGLED": "chat.replies_toggled",

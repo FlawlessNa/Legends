@@ -24,6 +24,8 @@ four Log Buckets - those partition code for routing and carry a catch-all
   repurpose these. ``rotation`` stays reserved for that map.
 * ``rotation`` - where the rotation hunts: the Hunting Area it was given
   (#571).
+* ``area`` - what the area watch saw and did in the Hunting Area: someone
+  settled, someone left, the character standing by (#580).
 * ``state`` - where the character was, sampled on a clock rather than on an
   event.
 * ``position`` - each read of the character's virtual position, whatever it
@@ -142,6 +144,15 @@ ROTATION_AREA_SET: Final = "rotation.area_set"
 #: The Hunting Area source picked a new destination, or became crowded out:
 #: where, why, and how many mobs a cast reaches from there.
 ROTATION_DESTINATION_PICKED: Final = "rotation.destination_picked"
+
+# --- area -----------------------------------------------------------------
+#: Another player settled in the Hunting Area, and the Discord alert went.
+AREA_PLAYER_SETTLED: Final = "area.player_settled"
+#: Settled ended: no other player has been inside for long enough.
+AREA_PLAYER_LEFT: Final = "area.player_left"
+#: Nothing was left to go for, so the character stopped travelling until
+#: Discord ``RESUME``.
+AREA_STAND_BY: Final = "area.stand_by"
 
 # --- state ----------------------------------------------------------------
 #: A periodic sample of where the character is and where it is heading.
@@ -446,6 +457,17 @@ class DestinationPickedPayload(TypedDict):
     y: float
     why: str
     mobs: int
+
+
+class AreaWatchPayload(TypedDict):
+    """
+    ``area.player_settled``, ``area.player_left`` and ``area.stand_by``: how
+    many other players were inside the area on the last read, and the share of
+    its cells nobody is near. Counts only: no name, no position.
+    """
+
+    inside: int
+    free_share: float
 
 
 class StateSnapshotPayload(TypedDict):

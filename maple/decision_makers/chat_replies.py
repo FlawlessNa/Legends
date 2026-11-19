@@ -108,6 +108,7 @@ from maple.telemetry_events import (
 from paths import ROOT
 
 from .ability_point_distributor import AbilityPointDistributor
+from .area_watch import AreaWatch
 from .consumables import MountFood, PetFood, SpeedPill
 from .ensure_mob_still_spawn import CheckMobsStillSpawn
 from .ensure_still_in_map import CheckStillInMap
@@ -140,6 +141,7 @@ GM_STOPS: tuple[type[DecisionMaker], ...] = (
     AbilityPointDistributor,
     StateSnapshot,
     TrialRunner,
+    AreaWatch,
 )
 """What a GM's line pauses until `RESUME`: every DecisionMaker of the package but
 `ChatReplies`, which goes on reading the chat and answering. A Pause on a class
