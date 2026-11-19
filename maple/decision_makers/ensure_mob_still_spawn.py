@@ -65,7 +65,7 @@ class CheckMobsStillSpawn(DecisionMaker):
         self._alert_timer = mob_spawn_alert_timer
         self._alert_threshold = mob_spawn_alert_threshold
         self._last_valid_detection = time.perf_counter() + 30.0
-        self._reactions = Reactions(self, self)
+        self._reactions = Reactions(self)
 
     def setup(self) -> None:
         self._condition = self._proxies.instance(repr(self), "Condition")
