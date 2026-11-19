@@ -152,7 +152,7 @@ A one-at-a-time gate replaces the hand-rolled per-DecisionMaker lock in Rotation
   `BotData.claim` puts the claimed source in place of the key's update function, keeps its threshold and its Provider's error handler, and refreshes it once, so the Claim bites at once; `DecisionMaker.claim` is the scoped way to hold one, and emits `data.claimed` and `data.released`.
   `reconfigure_attribute`, `snapshot_attribute` and `Provider.store` refuse a claimed key, so the legacy steer and a Provider's own writes cannot undo a Claim behind its back.
 - **A source is a function of the key's Provider**, `Source[T] = Callable[[Provider], T]`, called at every refresh while the Claim is held (#441).
-  `fixed(value)` and `following(read)` ignore the Provider; `wander`, in `DESTINATION`'s module, steers it into its random mode, which is what `CheckMobsStillSpawn` claims.
+  `fixed(value)` and `following(read)` ignore the Provider; `wander`, in `DESTINATION`'s module, steers it into its random mode, which is what `CheckMobsStillSpawn` claims, and `wander_in_area` into random points of the Hunting Area, which it claims instead when the rotation has one.
   Rejected: a source with no argument, which leaves no way to claim one of the Provider's own modes short of handing DecisionMakers the Provider.
 - **Released, a key serves its Provider's own value as it was when the Claim was taken** (#441).
   The release puts back the Provider's update function, the value, and the time of its last update, so a key with a threshold refreshes on it as if nothing had claimed it.
@@ -165,9 +165,15 @@ A one-at-a-time gate replaces the hand-rolled per-DecisionMaker lock in Rotation
   The spec did not name it; it is the hook symmetric with `on_start()`/`on_stop()` that keeps the Claim scoped.
   Rejected: a Claim per decision, which records a `data.claimed` and a `data.released` ten times a second; and an unscoped Claim released in `on_stop()`, which is the legacy hazard again.
 - **`DESTINATION` is the first steerable key** (#441), legacy name `next_target`, with `DESTINATION_PLATFORM` (legacy `next_feature`), both served by `DestinationProvider` in `maple/decision_makers/providers/destination.py`.
-  It holds the two modes `NextTargetMixin` had, random and smart, picked by the profile's `smart_rotation_enabled` and `mob_count_threshold`; the feature-cycle mode the spec names went with the hand-made maps (#398).
+  It first held the two modes `NextTargetMixin` had, random and smart; the feature-cycle mode the spec names went with the hand-made maps (#398).
+  Each mode is now a destination source (below), chosen by the profile's `rotation`.
   It is built by assembly when a DecisionMaker steers it, and otherwise when the unported Rotation's mixin asks `BotData` for it, before any destination is drawn either way.
   `NextTargetMixin` keeps only that request and the legacy hijack the parked `InventoryManager` uses.
+- **Rotations are destination sources** (#571).
+  `DestinationProvider` holds no rotation of its own: each is a `DestinationSource`, one class per module under `maple/decision_makers/providers/sources/`, registered by name in `destination.py`, and the Provider serves the one the profile's `rotation` names (`random`, `smart`, `hunting_area`).
+  A source says where to go, never how, so the one `Rotation` travels every source's destinations, and a Provider's `needs` is the union of its sources'.
+  Rejected: one DecisionMaker per rotation, which would repeat pathing, the Turn Gate and Movement recovery in each, and could run two at once.
+  `wander_in_area` serves `CheckMobsStillSpawn`'s Claim beside `wander` when the rotation has a Hunting Area.
 - **A Provider steers its own key only while nothing claims it.**
   `Provider.claimed(KEY)` says whether something does, and `Provider.store(KEY, value)` sets a key it provides without its update (a mode that decides `DESTINATION` and its platform at once, Abandon), refusing a claimed one.
 - **Movement recovery's Abandon goes through the Provider** (#441): `DestinationProvider.abandon()` draws a new destination, and does nothing while `DESTINATION` is claimed, when recovery logs that it kept its target and sends no alert.

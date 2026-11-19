@@ -160,14 +160,28 @@ class Rebuffer(DecisionMaker):
 ```
 
 - Declare the keys you may claim in `steers`. Assembly builds their Providers, and refuses the start when one is not steerable. A steered key may also be read.
-- What is claimed is a **source**: a function given the key's Provider, called at every refresh while the Claim is held. `fixed(value)` serves one value, `following(read)` whatever `read()` returns now, and a Provider's module may offer more: `wander` steers `DESTINATION` into its random mode. The key keeps refreshing on its own threshold; taking the Claim refreshes it once.
+- What is claimed is a **source**: a function given the key's Provider, called at every refresh while the Claim is held. `fixed(value)` serves one value, `following(read)` whatever `read()` returns now, and a Provider's module may offer more: `wander` steers `DESTINATION` into its random mode, and `wander_in_area` into random points of the Hunting Area. The key keeps refreshing on its own threshold; taking the Claim refreshes it once.
 - **Exclusive.** A second Claim on a held key raises `ClaimHeld` at once, naming the holder and its reason. A DecisionMaker that wants to wait does so itself.
 - **Scoped.** It is released when the block exits, by any route: normally, an exception, a Pause on its holder or a crash. The key then serves its Provider's own value again: the one it served when the Claim was taken, refreshed on its threshold from its Provider's own update.
 - A Claim that belongs to a whole run, not to one decision, goes in `holds_for_run()`: the Supervisor enters it after `on_start()` and leaves it once the loops have stopped, before `on_stop()`. `TrialRunner` claims `DESTINATION` there.
 - `data.claimed` and `data.released` record each Claim, with its key, holder and reason.
 - Nothing writes around a Claim: `Provider.store`, and a write to the key's attribute in `BotData`, raise `ClaimHeld` while it is held.
 
-`CheckMobsStillSpawn` is the worked takeover: when mobs stop spawning it holds a Pause on mob hitting and a Claim on `DESTINATION` with `wander` until they come back, so nothing is left paused or claimed if it is cancelled half-way. When they never come back, it takes a user-held Pause on everything it stops before its own blocks release.
+`CheckMobsStillSpawn` is the worked takeover: when mobs stop spawning it holds a Pause on mob hitting and a Claim on `DESTINATION` with `wander` (`wander_in_area` when the rotation has a Hunting Area) until they come back, so nothing is left paused or claimed if it is cancelled half-way. When they never come back, it takes a user-held Pause on everything it stops before its own blocks release.
+
+## Adding a rotation
+
+A rotation is a destination source: it says where the character goes, and the one `Rotation` takes it there.
+Add one without touching the others:
+
+1. **Write the source**, one module under `maple/decision_makers/providers/sources/`, shaped as `DestinationSource` (`providers/destination.py`).
+   `needs` lists the Data Keys it reads, `next()` returns the destination now (the current one until it is reached or no longer allowed), and `abandon()` returns a different one for Movement recovery.
+   It reads and emits through the `DestinationProvider` it is built with (`random.py` is the smallest example), and sends no keys.
+2. **Register it**: one `register_source("name", YourSource)` line in `providers/destination.py`.
+   The Provider's `needs` becomes the union of every source's, so a key your source reads is built for every bot that has a destination: its Provider does no I/O and refuses nothing while another rotation is named.
+3. **Add its name to `ROTATIONS`** in `maple/decision_makers/rotation_setting.py`.
+   That constant, not the registry, is what the profile is checked against, and a test holds the two equal.
+4. **Name it in the profile**: `rotation: name`, documented in `profiles/example.yaml`.
 
 ## Cancelling another's Actions, and taking turns
 
