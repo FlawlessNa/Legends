@@ -21,7 +21,7 @@ from botting.controller import InputState, KeyboardInputWrapper
 from botting.screen import Reading
 from game_data.catalogue import Rope
 from maple.actions import movements_v2
-from maple.decision_makers.providers import PathingProvider, actionable
+from maple.decision_makers.providers import MOVEMENTS, PATH, PathingProvider, actionable
 from maple.model.mechanics import movement_mechanics_v2
 from maple.model.mechanics.movement_mechanics_v2 import (
     _MAX_TRAVEL_LENGTH,
@@ -46,7 +46,7 @@ from maple.screen.position import (
     marker_of_feet,
 )
 from tests.test_maple.movement_lab import corpus
-from tests.test_maple.serving import pathing
+from tests.test_maple.serving import override, pathing
 
 JUMP_KEY = "space"
 NOBODY = InputState(frozenset())
@@ -351,8 +351,8 @@ def _planner(
         # The graph builds in a worker thread from setup on (#430), and planning
         # holds until it is there: waited for here, so the tests below plan.
         data.movement_handler.graph(provider.physics())
-    data.reconfigure_attribute("path", threshold=1e-9)
-    data.reconfigure_attribute("movements", threshold=1e-9)
+    override(data, PATH, threshold=1e-9)
+    override(data, MOVEMENTS, threshold=1e-9)
     return provider
 
 

@@ -34,7 +34,7 @@ Transport facts that constrain code:
   `send()`.
 - Pipe reads block. Both ends poll via `asyncio.to_thread(pipe.poll)`. Don't
   add a blocking read to an event loop.
-- Engines **read** the game clients: each Bot's `current_frame`, one Desktop
+- Engines **read** the game clients: each Bot's `FRAME`, one Desktop
   Duplication capture (`botting.screen`), which the readers and detection
   share. Main Process **writes** to them. An Engine that tries to send input
   raises.
@@ -83,8 +83,8 @@ then goes one of two ways:
 `PAUSE` reaches `Bot.pause()`, which takes a Pause held by the user on every
 DecisionMaker (the Supervisor cancels their loops) and sends a high-priority
 `ActionRequest` back to Main to release the movement keys. `RESUME` reaches
-`Bot.resume()`, which releases every user-held Pause and every legacy shim
-Pause, those a DecisionMaker took with `pause_for_user` included
+`Bot.resume()`, which releases every user-held Pause, those a DecisionMaker
+took with `pause_for_user` included
 (`ChatReplies` stops training on a GM's line until RESUME); a DecisionMaker
 whose last Pause goes runs `on_start()` and restarts. Nothing finds a task by
 its name.
@@ -102,9 +102,7 @@ no Pause to one, and restarts them when the last is released; Pauses stack,
 cover their exact class only, and are released however the block exits. By
 default a Pause sends nothing to Main Process; `cancel_actions=True` sends one
 request cancelling the paused DecisionMakers' Actions by `action_name`. A
-Pause never reaches another Bot or another Engine. Unported DecisionMakers
-still call `_disable_decision_makers` / `_enable_decision_makers`, a shim over
-unscoped Pauses with the old semantics. ADR 0004 has the rules.
+Pause never reaches another Bot or another Engine. ADR 0004 has the rules.
 
 ## Logging and telemetry
 
@@ -145,7 +143,7 @@ registered in `ignored_keys`, or `_monitor_proxy` will try to service it as one.
 | Decision loops, Pauses, restarts | `botting/core/supervisor.py` |
 | Data Keys, Providers, assembly order | `botting/core/data_keys.py` |
 | Assembly, before the start barrier | `botting/core/bot.py` (`start`) |
-| Decide cycle, Correlation IDs, `pause`, the legacy shim | `botting/core/decision_maker.py` |
+| Decide cycle, Correlation IDs, `pause`, `pause_for_user` | `botting/core/decision_maker.py` |
 | Priority, cancellation, `action.*` telemetry | `botting/core/async_task_manager.py` |
 | `ActionRequest`, `ActionWithValidation` | `botting/core/action_data.py` |
 | Managed attributes, update thresholds | `botting/core/bot_data.py` |

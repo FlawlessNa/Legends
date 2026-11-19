@@ -16,6 +16,7 @@ import pytest
 import maple.decision_makers.providers.destination as destination_module
 from botting.screen import Frame, Reading
 from maple.decision_makers.providers import (
+    DESTINATION,
     ON_SCREEN_POSITION,
     OnScreenPositionProvider,
 )
@@ -64,7 +65,7 @@ def _target(
         lambda: character,
         initial_value=character,
     )
-    data.next_target = here
+    data.store(DESTINATION, here)
     # Skip the "already on target" gate and the wait on it.
     provider._first_time_on_target = False
     provider._last_target_reached_at = 0.0

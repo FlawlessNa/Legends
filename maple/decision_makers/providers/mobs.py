@@ -42,4 +42,4 @@ class MobsProvider(Provider):
 
 
 #: The map's mobs, one class per detection class name. Made once, at start.
-MOBS: Key[tuple[BaseMob, ...]] = Key("mobs", MobsProvider, legacy_name="current_mobs")
+MOBS: Key[tuple[BaseMob, ...]] = Key("mobs", MobsProvider)

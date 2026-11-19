@@ -19,6 +19,7 @@ from maple.bots import map_mobs, maple_bot
 from maple.bots.map_setting import is_auto
 from maple.bots.maple_bot import MapleBot
 from maple.decision_makers.mobs_hitting import MobsHitting
+from maple.decision_makers.providers import MOBS
 from maple.launchers.profile import ProfileError
 from maple.model.mechanics.physics import Calibration
 from maple.model.world import MinimapTransform, WorldMap
@@ -363,7 +364,7 @@ def test_current_mobs_are_the_maps_mobs_by_detection_class(
     bot.child_init(None, None)  # pyright: ignore[reportArgumentType]
 
     assert bot.data is not None
-    assert [type(mob).__name__ for mob in bot.data.current_mobs] == [
+    assert [type(mob).__name__ for mob in bot.data.read(MOBS)] == [
         "Bubbling",
         "Slimy",
     ]
@@ -383,7 +384,7 @@ def test_auto_checks_the_mobs_of_the_map_it_identified(
 
     assert loaded[0] == 10002000
     assert bot.data is not None
-    assert [type(mob).__name__ for mob in bot.data.current_mobs] == ["Bubbling"]
+    assert [type(mob).__name__ for mob in bot.data.read(MOBS)] == ["Bubbling"]
 
 
 def test_auto_refuses_an_identified_map_no_model_covers(

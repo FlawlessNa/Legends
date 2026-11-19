@@ -30,6 +30,7 @@ from maple.decision_makers.providers import (
     MINIMAP_SHOWN,
     MOVEMENTS,
     PATH,
+    POSITION,
     MinimapProvider,
     PathingProvider,
 )
@@ -46,7 +47,7 @@ from maple.screen.position import PositionSource, VirtualPosition
 from maple.telemetry_events import RECOVERY_STUCK_DETECTED
 from tests.test_maple.movement_lab.corpus import LAB_PHYSICS
 from tests.test_maple.movement_lab.fixture_maps import walk_corridor
-from tests.test_maple.serving import destination
+from tests.test_maple.serving import destination, override
 
 WALK = (_MovementComponent(MovementTypes.WALK_RIGHT, 80),)
 SENTINEL_ONLY = (_MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),)
@@ -222,10 +223,10 @@ def test_an_unsure_position_is_handed_over_as_no_position(
 ) -> None:
     observe = mocker.patch.object(loop.recovery._monitor, "observe", return_value=None)
     loop.recovery._recovery_starts_at = 0.0
-    loop.data.reconfigure_attribute(
-        "current_position", update_function=lambda: Reading.unsure(0.0, "two there")
+    override(
+        loop.data, POSITION, update_function=lambda: Reading.unsure(0.0, "two there")
     )
-    loop.data.update_attribute("current_position")
+    loop.data.update_attribute(POSITION.name)
 
     loop.recovery.check(now=100.0)
 
@@ -237,7 +238,7 @@ def test_no_path_is_handed_over_as_no_remaining_time(
 ) -> None:
     observe = mocker.patch.object(loop.recovery._monitor, "observe", return_value=None)
     loop.recovery._recovery_starts_at = 0.0
-    loop.data.reconfigure_attribute("path", update_function=lambda: None)
+    override(loop.data, PATH, update_function=lambda: None)
     loop.data.update_attribute("path")
 
     loop.recovery.check(now=100.0)
@@ -397,11 +398,11 @@ def test_reflex_releases_through_the_ledger_rather_than_blind(
 
 
 def test_abandon_actually_changes_where_the_loop_is_heading(loop: _Loop) -> None:
-    before = loop.data.next_target
+    before = loop.data.read(DESTINATION)
 
     _react(loop, Rung.ABANDON, abandon_count=1)
 
-    assert loop.data.next_target != before
+    assert loop.data.read(DESTINATION) != before
 
 
 def test_abandon_heads_for_a_point_on_a_platform(loop: _Loop) -> None:
@@ -429,7 +430,7 @@ def test_abandon_does_nothing_while_the_destination_is_claimed(loop: _Loop) -> N
 
     _react(loop, Rung.ABANDON, abandon_count=1)
 
-    assert loop.data.next_target == (60.0, 0.0)
+    assert loop.data.read(DESTINATION) == (60.0, 0.0)
     assert loop.sent == []
     loop.data.release(claim)
 
@@ -539,11 +540,12 @@ def test_a_long_unsure_position_alerts_and_sends_no_key(loop: _Loop) -> None:
     The rotation holds on purpose (C-NOGUESS), so the alert is all there is: a
     Reflex would move a character the bot can't place.
     """
-    loop.data.reconfigure_attribute(
-        "current_position",
+    override(
+        loop.data,
+        POSITION,
         update_function=lambda: Reading.unsure(0.0, "2 characters within 32 px"),
     )
-    loop.data.update_attribute("current_position")
+    loop.data.update_attribute(POSITION.name)
 
     loop.recovery._react_to(Reaction(Symptom.UNSURE_POSITION, None, (99, 99)))
 
@@ -559,11 +561,12 @@ def test_a_long_unsure_streak_reaches_the_alert_through_the_cycle(
     loop: _Loop,
 ) -> None:
     """End to end: unsure reads, cycle after cycle, past the window, alert once."""
-    loop.data.reconfigure_attribute(
-        "current_position",
+    override(
+        loop.data,
+        POSITION,
         update_function=lambda: Reading.unsure(0.0, "reads disagree"),
     )
-    loop.data.update_attribute("current_position")
+    loop.data.update_attribute(POSITION.name)
     loop.recovery._recovery_starts_at = 0.0
 
     for second in range(40):

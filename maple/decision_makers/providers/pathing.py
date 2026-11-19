@@ -3,9 +3,8 @@ The rotation's pathing: the Path from the character's virtual position to
 `DESTINATION` on the map's foothold graph, its Movement Plan, and what that plan
 is compiled with at dispatch.
 
-`PathingProvider` holds what `MovementsMixin._create_pathing_attributes` set up
-(#442): the `MovementHandler`, the Path, the Movement Plan, the Action duration
-cap and the release flag, with the same thresholds. It is built once per Bot,
+`PathingProvider` serves the `MovementHandler`, the Path, the Movement Plan,
+the Action duration cap and the release flag (#442). It is built once per Bot,
 when a DecisionMaker reads one of its keys (`Rotation`, `TelecastMobsHitting`,
 `TrialRunner`), and configured from the profile: `movements_duration` is the
 cap, `disable_teleport` takes the teleport skill away.
@@ -59,6 +58,7 @@ from .destination import DESTINATION
 from .map import GAME_PHYSICS, WORLD_MAP
 from .menus import JUMP_MULTIPLIER, SPEED_MULTIPLIER
 from .minimap import POSITION
+from .profile import CALIBRATION, PROFILE_JUMP_MULTIPLIER, PROFILE_SPEED_MULTIPLIER
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -78,7 +78,17 @@ class PathingProvider(Provider):
     the precision Knobs and whether Paths may teleport with `configure`.
     """
 
-    needs = (HANDLE, CHARACTER, WORLD_MAP, GAME_PHYSICS, POSITION, DESTINATION)
+    needs = (
+        HANDLE,
+        CHARACTER,
+        WORLD_MAP,
+        GAME_PHYSICS,
+        POSITION,
+        DESTINATION,
+        PROFILE_SPEED_MULTIPLIER,
+        PROFILE_JUMP_MULTIPLIER,
+        CALIBRATION,
+    )
 
     #: Seconds a Path and a Movement Plan are served before a read plans again.
     REFRESH = 0.1
@@ -167,9 +177,9 @@ class PathingProvider(Provider):
         The speed and jump are the ability menu's, `SPEED_MULTIPLIER` and
         `JUMP_MULTIPLIER`, when the Bot built `AbilityMenuProvider` and so read
         them (the last read: nothing here refreshes them, nor causes the
-        Provider to be built); otherwise the profile's, which
-        `MapleBot.child_init` set on the Bot's data. The Calibration constants
-        are the profile's too.
+        Provider to be built); otherwise the profile's
+        (`PROFILE_SPEED_MULTIPLIER`, `PROFILE_JUMP_MULTIPLIER`). The Calibration
+        constants are the profile's too (`CALIBRATION`).
         :raises ValueError: The game's physics aren't known (no map).
         """
         values = self.read(GAME_PHYSICS)
@@ -179,9 +189,13 @@ class PathingProvider(Provider):
         jump = self.data.peek(JUMP_MULTIPLIER)
         return VRPhysics.from_game_files(
             values,
-            speed_multiplier=self.data.speed_multiplier if speed is None else speed,
-            jump_multiplier=self.data.jump_multiplier if jump is None else jump,
-            calibration=self.data.calibration,
+            speed_multiplier=(
+                self.read(PROFILE_SPEED_MULTIPLIER) if speed is None else speed
+            ),
+            jump_multiplier=(
+                self.read(PROFILE_JUMP_MULTIPLIER) if jump is None else jump
+            ),
+            calibration=self.read(CALIBRATION),
         )
 
     def compiler(

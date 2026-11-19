@@ -194,10 +194,8 @@ class Bot(ABC):
     def resume(self) -> None:
         """
         Discord `RESUME`: release every user-held Pause, those a DecisionMaker
-        took with `pause_for_user` included (`ChatReplies`, on a GM's line), and
-        every legacy shim Pause, as `RESUME` has always restarted every
-        DecisionMaker. A Pause a DecisionMaker holds in a block stays held until
-        the block exits.
+        took with `pause_for_user` included (`ChatReplies`, on a GM's line). A
+        Pause a DecisionMaker holds in a block stays held until the block exits.
         """
         if self.supervisor is None:
             logger.warning("%s is not running yet: there is nothing to resume.", self)

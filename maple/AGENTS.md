@@ -52,24 +52,24 @@ Event Types are constants in `maple/telemetry_events.py`, and payloads are the
 
 The map comes from the client's files: the profile's `map` (a game name, an
 id, or `auto`) is resolved through `game_data`'s Catalogue, and `MapleBot`
-serves `WORLD_MAP` (`data.world_map` to unported code), the map's `WorldMap`
+serves `WORLD_MAP`, the map's `WorldMap`
 (platforms, walls, ropes, portals, NPCs, the minimap transform and the static
 render), through its Bot-level `MapProvider` (`maple/decision_makers/providers/`). Navigation is in
 virtual px (ADR 0004). The hand-made map files (deleted, #546), `MapleMinimap`, `MinimapGrid`,
 `MinimapPhysics` and the GUI map editor are retired (#399): don't bring them
 back. A profile that sets `game_map` refuses to start. `data.current_map`,
-`current_minimap` and `current_grid` are gone. `data.current_mobs`, the mobs
+`current_minimap` and `current_grid` are gone. `MOBS`, the mobs
 detection looks for, stays: it is built from the map's mob spawns in the game
 data, by detection class name (`maple/bots/map_mobs.py`, #548). The profile has
 no `mobs`: one that sets it refuses to start, and so does a bot that detects
 mobs on a map with a mob no model in `models_path` detects.
 
-`current_position` is the character's position in virtual px,
+`POSITION` is the character's position in virtual px,
 `Reading[VirtualPosition]`: the minimap, the camera and the characters on
-screen, fused by `maple/screen/position/fusion.py` on `data.world_map`. It is
+screen, fused by `maple/screen/position/fusion.py` on `WORLD_MAP`. It is
 read only when asked, and it is the only position in `BotData`
 (`current_minimap_position` is gone, #398). Every DecisionMaker works in
-virtual px on `data.world_map`:
+virtual px on `WORLD_MAP`:
 
 - It is `fused` when a character on screen is ours and agrees with the
   minimap, `coarse` (the minimap alone) otherwise, and `UNSURE` only when the

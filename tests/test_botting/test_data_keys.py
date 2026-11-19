@@ -92,7 +92,7 @@ class Counter(Logged):
         return self.updates
 
 
-COUNT: Key[int] = Key("count", provider=Counter, legacy_name="legacy_count")
+COUNT: Key[int] = Key("count", provider=Counter)
 
 
 class Doubler(Logged):
@@ -167,8 +167,6 @@ class TwinB(Unbuildable):
 
 TWIN_A: Key[int] = Key("twin", provider=TwinA)
 TWIN_B: Key[int] = Key("twin", provider=TwinB)
-#: Its legacy name is another key's name.
-SHADOW: Key[int] = Key("shadow", provider=TwinB, legacy_name="count")
 
 
 # --- the DecisionMakers -------------------------------------------------------------
@@ -212,15 +210,10 @@ class ForgottenReader(Idle):
     reads = (FORGOTTEN,)
 
 
-class Unported(DecisionMaker):
-    """Declares nothing, and reads COUNT by its legacy name, as a mixin user does."""
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401 - DecisionMaker's own
-        super().__init__(*args, **kwargs)
-        self.seen: list[int] = []
+class Undeclared(DecisionMaker):
+    """Declares nothing, and waits."""
 
     async def _decide(self) -> None:
-        self.seen.append(self.data.legacy_count)
         await asyncio.Event().wait()
 
 
@@ -238,10 +231,6 @@ class CycleReader(NeverBuilt):
 
 class TwinReader(NeverBuilt):
     reads = (TWIN_A, TWIN_B)
-
-
-class ShadowReader(NeverBuilt):
-    reads = (SHADOW,)
 
 
 class Miscancelling(NeverBuilt):
@@ -343,15 +332,6 @@ def test_two_keys_with_the_same_name_are_refused_naming_both() -> None:
     assert LOG == []
 
 
-def test_a_legacy_name_that_is_another_keys_name_is_refused() -> None:
-    refused = _refused(CountReader, ShadowReader)
-
-    assert "'count'" in str(refused)
-    assert "Counter" in str(refused)
-    assert "TwinB" in str(refused)
-    assert LOG == []
-
-
 def test_a_provider_that_does_not_register_a_key_it_provides_is_refused() -> None:
     refused = _refused(ForgottenReader)
 
@@ -418,7 +398,7 @@ def test_a_provider_is_built_with_the_bots_profile_settings() -> None:
 
 def test_a_bot_that_declares_nothing_builds_no_provider_and_runs() -> None:
     async def scenario() -> None:
-        async with _started(Unported) as bot:
+        async with _started(Undeclared) as bot:
             assert bot.providers == []
             assert LOG == []
 
@@ -455,6 +435,35 @@ def test_peek_returns_the_last_known_value_without_refreshing() -> None:
             counter = bot.providers[0]
             assert isinstance(counter, Counter)
             assert counter.updates == 1
+
+    asyncio.run(scenario())
+
+
+def test_valid_age_is_the_time_since_the_last_valid_refresh_without_refreshing() -> (
+    None
+):
+    """What movement recovery asks of the position before it charges a clock."""
+    clock = FakeClock()
+
+    async def scenario() -> None:
+        async with _started(CountReader, CountObserver, clock=clock) as bot:
+            clock.advance(5)
+            assert _dm(bot, CountObserver).valid_age(COUNT) == 5
+            assert _dm(bot, CountReader).valid_age(COUNT) == 5
+            counter = bot.providers[0]
+            assert isinstance(counter, Counter)
+            assert counter.updates == 1
+            assert _dm(bot, CountReader).read(COUNT) == 2
+            assert _dm(bot, CountReader).valid_age(COUNT) == 0
+
+    asyncio.run(scenario())
+
+
+def test_valid_age_of_an_undeclared_key_raises() -> None:
+    async def scenario() -> None:
+        async with _started(CountReader, Idle) as bot:
+            with pytest.raises(KeyNotDeclared, match=r"Idle.*'count'"):
+                _dm(bot, Idle).valid_age(COUNT)
 
     asyncio.run(scenario())
 
@@ -510,37 +519,19 @@ def test_a_provider_error_handler_retries_the_update_as_today() -> None:
     asyncio.run(scenario())
 
 
-# --- the legacy bridge ----------------------------------------------------------------
+# --- one producer per key -------------------------------------------------------------
 
 
-def test_an_unported_decision_maker_reads_a_provided_value_by_its_legacy_name() -> None:
-    async def scenario() -> None:
-        async with _started(CountReader, Unported) as bot:
-            unported = _dm(bot, Unported)
-            for _ in range(20):
-                if unported.seen:
-                    break
-                await asyncio.sleep(0.01)
-            assert unported.seen == [1]
-            assert bot.data is not None
-            assert bot.data.get_last_known_value("legacy_count", update=False) == 1
-
-    asyncio.run(scenario())
-
-
-@pytest.mark.parametrize("name", ["legacy_count", "count"])
-def test_creating_an_attribute_a_provider_owns_raises(name: str) -> None:
+def test_creating_an_attribute_a_provider_owns_raises() -> None:
     async def scenario() -> None:
         async with _started(CountReader) as bot:
             data = bot.data
             assert data is not None
             with pytest.raises(OwnedByProvider, match=r"Counter"):
-                data.create_attribute(name, lambda: 0)
+                data.create_attribute("count", lambda: 0)
             with pytest.raises(OwnedByProvider, match=r"Counter"):
-                data.create_or_reconfigure_attribute(name, lambda: 0)
-            with pytest.raises(OwnedByProvider, match=r"Counter"):
-                data.set_static(name, 0)
-            assert data.legacy_count == 1
+                data.set_static("count", 0)
+            assert data.read(COUNT) == 1
 
     asyncio.run(scenario())
 

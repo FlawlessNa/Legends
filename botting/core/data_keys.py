@@ -49,10 +49,7 @@ class Key[T]:
     """
     The name and type of one piece of data a Bot shares, and its Provider::
 
-        MINIMAP_POSITION: Key[tuple[int, int]] = Key(
-            "minimap_position", provider=MinimapProvider,
-            legacy_name="current_minimap_position",
-        )
+        POSITION: Key[Reading[VirtualPosition]] = Key("position", MinimapProvider)
 
     Defined after its Provider's class: making the key adds it to the Provider's
     `provides`, so a key has one producer by construction. Compared by identity.
@@ -63,33 +60,23 @@ class Key[T]:
         name: str,
         provider: type[Provider],
         *,
-        legacy_name: str | None = None,
         steerable: bool = False,
     ) -> None:
         """
         :param name: What the key is called, in `BotData` and in messages. Unique
             within a Bot; assembly refuses two keys of one name.
         :param provider: The Provider class that produces the key's value.
-        :param legacy_name: The name unported code reads the value by, as
-            `data.<legacy_name>`. Goes with the last mixin.
         :param steerable: Whether a DecisionMaker may steer the value with a
             Claim, declaring the key in its `steers`; assembly refuses a
             DecisionMaker that steers a key which is not.
         """
         self.name = name
         self.provider = provider
-        self.legacy_name = legacy_name
         self.steerable = steerable
         provider._add(self)  # pyright: ignore[reportPrivateUsage] - the key is what fills provides
 
     def __repr__(self) -> str:
         return f"Key({self.name!r}, provider={self.provider.__name__})"
-
-    def names(self) -> tuple[str, ...]:
-        """Every name the key's value is reachable by: its own, then its legacy one."""
-        return (
-            (self.name,) if self.legacy_name is None else (self.name, self.legacy_name)
-        )
 
 
 class Provider:
@@ -338,16 +325,15 @@ def _refuse_unsteerable(classes: Iterable[type[DecisionMaker]]) -> None:
 
 
 def _refuse_shared_names(keys: Iterable[Key[Any]]) -> None:
-    """Every name a key is reachable by, legacy names included, names one key."""
+    """Every key's name names that key only."""
     named: dict[str, Key[Any]] = {}
     for key in dict.fromkeys(keys):
-        for name in key.names():
-            other = named.setdefault(name, key)
-            if other is not key:
-                raise StartupRefused(
-                    f"Two Data Keys share the name {name!r}: {other!r} and {key!r}. "
-                    "Rename one of them."
-                )
+        other = named.setdefault(key.name, key)
+        if other is not key:
+            raise StartupRefused(
+                f"Two Data Keys share the name {key.name!r}: {other!r} and {key!r}. "
+                "Rename one of them."
+            )
 
 
 def _ordered(roots: Sequence[type[Provider]]) -> list[type[Provider]]:
@@ -387,9 +373,9 @@ class Providers:
     The Providers of one Bot: each built once, and set up after those it needs.
 
     `Bot.child_init` makes it and adds the Bot-level Providers (`add`); assembly
-    builds the ones the DecisionMakers read (`build`); unported code asks for
-    one through `BotData.build_provider`, which comes here (`ensure`). However
-    many ask, a Provider is built and set up once.
+    builds the ones the DecisionMakers read (`build`); code outside assembly,
+    such as a test, builds one on demand (`ensure`). However many ask, a
+    Provider is built and set up once.
 
     Making it attaches it to `data`, as `data.providers`.
     """

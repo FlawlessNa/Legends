@@ -49,10 +49,13 @@ from maple.calibration.specs import (
     TrialSpecError,
 )
 from maple.decision_makers.providers import (
+    CALIBRATION,
+    CHARACTER,
     DESTINATION,
     FRAME,
     MAP_ID,
     MINIMAP_READING,
+    PATH,
     POSITION,
     POSITION_FUSION,
     WORLD_MAP,
@@ -65,7 +68,7 @@ from maple.decision_makers.trial_runner import TrialRunner
 from maple.model.mechanics.movement_mechanics_v2 import _NARROW_PLATFORM_THRESHOLD
 from maple.screen.position import PositionSource, VirtualPosition
 from tests.test_maple.movement_lab import corpus
-from tests.test_maple.serving import pathing
+from tests.test_maple.serving import override, pathing
 
 ENTRY = next(e for e in corpus.FIXTURE_MAPS if e.name == "walk_corridor")
 
@@ -202,7 +205,7 @@ def harness() -> _Harness:
     # second one would re-read the first one's Path - a test-clock artefact, not
     # behaviour worth pinning. Not `None` or `0`: `ManagedAttribute.get` reads a
     # falsy threshold as "never refresh".
-    data.reconfigure_attribute("path", threshold=1e-9)
+    override(data, PATH, threshold=1e-9)
     return _Harness(cast(TrialRunner, self), positions, pipe, writer)
 
 
@@ -602,14 +605,14 @@ def test_its_run_claims_the_destination_with_the_driver_s_target(
             claim = data.claim_on(DESTINATION)
             assert claim is not None
             assert claim.holder == "TrialRunner(Lab)"
-            assert data.next_target == (16, 0)
+            assert data.read(DESTINATION) == (16, 0)
             harness.runner._driver.advance(_read(START), 0.0)
             assert harness.runner.refresh(DESTINATION) == (288, 0)
 
     asyncio.run(run())
 
     assert data.claim_on(DESTINATION) is None
-    assert data.next_target == (0.0, 0.0), "its Provider's own value is back"
+    assert data.read(DESTINATION) == (0.0, 0.0), "its Provider's own value is back"
 
 
 def test_a_decision_plans_to_the_claimed_destination(harness: _Harness) -> None:
@@ -618,7 +621,7 @@ def test_a_decision_plans_to_the_claimed_destination(harness: _Harness) -> None:
     asyncio.run(harness.runner._decide())  # positioning completes
     asyncio.run(harness.runner._decide())  # first measured cycle: to the target
 
-    assert harness.runner.data.next_target == TARGET
+    assert harness.runner.data.read(DESTINATION) == TARGET
 
 
 def test_a_batch_planned_without_teleport_builds_a_handler_without_it(
@@ -634,7 +637,7 @@ def test_a_batch_planned_without_teleport_builds_a_handler_without_it(
 
     runner: Any = harness.runner
     # The character `CHARACTER` serves, as a teleporting class's would be.
-    runner.data.reconfigure_attribute("character", update_function=_Teleporter)
+    override(runner.data, CHARACTER, update_function=_Teleporter)
     runner.data.update_attribute("character")
     runner.schedule = TrialSchedule(
         "teleport-lab",
@@ -711,9 +714,9 @@ def test_the_record_header_names_the_physics_the_sitting_planned_with(
 
     runner: Any = harness.runner
     # The map `MAP_ID` serves, as `MapProvider` would serve Ellinia's.
-    runner.data.reconfigure_attribute("map_id", update_function=lambda: 10002000)
+    override(runner.data, MAP_ID, update_function=lambda: 10002000)
     runner.data.update_attribute("map_id")
-    runner.data.set_static("calibration", Calibration(jump=0.98))
+    runner.data.store(CALIBRATION, Calibration(jump=0.98))
     header = runner._header()
     assert header.map_id == 10002000
     assert header.physics == corpus.LAB_PHYSICS_VALUES

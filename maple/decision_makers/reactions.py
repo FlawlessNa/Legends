@@ -38,8 +38,8 @@ class Reactions:
     one given a Discord message.
 
     A DecisionMaker holds one, and declares `reads` in its own. Every holder in
-    the process shares one 10 s cooldown, as `ReactionsMixin._react` always
-    has: a reaction within 10 s of another, whoever sent it, is dropped.
+    the process shares one 10 s cooldown: a reaction within 10 s of another,
+    whoever sent it, is dropped.
     """
 
     #: The keys it reads, which its holder declares.
@@ -71,8 +71,8 @@ class Reactions:
         """
         :param owner: Who reacts: the requests carry its name, and go through its
             `send`.
-        :param reader: What `reads` is read through: the owner itself when it
-            declares them, or the Bot's `BotData` for an unported owner.
+        :param reader: What `reads` is read through: the owner itself, which
+            declares them.
         """
         self.owner = owner
         self.reader = reader

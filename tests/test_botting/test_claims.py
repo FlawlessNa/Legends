@@ -278,6 +278,24 @@ def test_a_second_claim_on_a_held_key_raises_claim_held_naming_the_holder() -> N
     asyncio.run(scenario())
 
 
+def test_a_claimed_key_cannot_be_written_around_its_claim() -> None:
+    """Neither a Provider's `store` nor a write by the key's name undoes a Claim."""
+
+    async def scenario() -> None:
+        async with _started(Idle, Reader) as bot:
+            data = _data(bot)
+            async with _dm(bot, Idle).claim(COUNT, fixed(-1), reason="held"):
+                with pytest.raises(ClaimHeld, match="held"):
+                    data.store(COUNT, 5)
+                with pytest.raises(ClaimHeld, match="held"):
+                    data.count = 5
+                assert _dm(bot, Reader).read(COUNT) == -1
+            data.count = 5
+            assert _dm(bot, Reader).read(COUNT) == 5
+
+    asyncio.run(scenario())
+
+
 def test_a_claim_whose_block_raises_is_released() -> None:
     async def scenario() -> None:
         async with _started(Idle, OtherIdle, Reader) as bot:

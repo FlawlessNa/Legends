@@ -22,8 +22,9 @@ def test_the_bots_frame_keeps_its_refresh_threshold(
     served = serve(monkeypatch, frames=lambda: frame, status_bar=reader)
     data = served.data
 
-    data.build_provider(StatusBarProvider)
-    data.build_provider(StatusBarProvider)
+    assert data.providers is not None
+    data.providers.ensure(StatusBarProvider)
+    data.providers.ensure(StatusBarProvider)
 
     assert data._managed["frame"].threshold == ClientProvider.FRAME_REFRESH  # pyright: ignore[reportPrivateUsage]
     assert data.status_bar.detail == "x"

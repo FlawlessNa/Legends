@@ -18,16 +18,20 @@ to this path.
 import logging
 import logging.config
 import logging.handlers
+import multiprocessing.queues
 import queue
+from collections.abc import Iterator
+from pathlib import Path
+from typing import cast
 
 import pytest
 
 from botting.logging_config import (
     BUCKET_NAMES,
     CONSOLE_DEFAULT,
+    PARENT_LOG,
     ConsoleFilter,
     CustomFormatter,
-    PARENT_LOG,
     _env_overrides,
     bucket_for,
     full_config,
@@ -41,7 +45,7 @@ DECISIONS_LOGGER = f"{PARENT_LOG}.core.engine"
 
 
 @pytest.fixture
-def session_dir(tmp_path):
+def session_dir(tmp_path: Path) -> Iterator[Path]:
     """
     A Session directory with the full handler set configured against it.
 
@@ -64,7 +68,7 @@ def session_dir(tmp_path):
     parent.propagate = saved_propagate
 
 
-def read(session_dir, name: str) -> list[str]:
+def read(session_dir: Path, name: str) -> list[str]:
     """:return: The lines of one log file, or [] if it was never written to."""
     for handler in logging.getLogger(PARENT_LOG).handlers:
         handler.flush()
@@ -78,7 +82,7 @@ def read(session_dir, name: str) -> list[str]:
 
 
 @pytest.mark.parametrize(
-    "name, bucket",
+    ("name", "bucket"),
     [
         (PARENT_LOG, "other"),
         (f"{PARENT_LOG}.communications.discord_comm", "other"),
@@ -89,31 +93,35 @@ def read(session_dir, name: str) -> list[str]:
         # Three decision_makers submodules escape their parent's bucket - the
         # reason routing is longest-prefix rather than first-match.
         (f"{PARENT_LOG}.maple.decision_makers.rotation", "movement"),
-        (f"{PARENT_LOG}.maple.decision_makers.mixins._map_mixins", "movement"),
-        (f"{PARENT_LOG}.maple.decision_makers.mixins._rotation_mixins", "movement"),
+        (f"{PARENT_LOG}.maple.decision_makers.providers.minimap", "movement"),
+        (f"{PARENT_LOG}.maple.decision_makers.providers.destination", "movement"),
         (f"{PARENT_LOG}.maple.model.mechanics.movement_mechanics_v2", "movement"),
         (f"{PARENT_LOG}.maple.actions.movements_v2", "movement"),
         # ...while its siblings under maple.actions are not movement.
         (f"{PARENT_LOG}.maple.actions.menus", "other"),
     ],
 )
-def test_bucket_for_routes_on_the_longest_matching_prefix(name, bucket):
+def test_bucket_for_routes_on_the_longest_matching_prefix(
+    name: str, bucket: str
+) -> None:
     assert bucket_for(name) == bucket
 
 
-def test_a_prefix_only_matches_on_a_dotted_boundary():
+def test_a_prefix_only_matches_on_a_dotted_boundary() -> None:
     """`botting.core` must not claim `botting.core_utils`."""
     assert bucket_for(f"{PARENT_LOG}.core_utils.thing") == "other"
 
 
-def test_an_unknown_name_falls_back_to_other():
+def test_an_unknown_name_falls_back_to_other() -> None:
     assert bucket_for("some.foreign.library") == "other"
 
 
 # --- One record, every sink it belongs in -----------------------------------
 
 
-def test_a_record_lands_in_exactly_one_bucket_file_and_in_session_log(session_dir):
+def test_a_record_lands_in_exactly_one_bucket_file_and_in_session_log(
+    session_dir: Path,
+) -> None:
     """
     The regression guard for the formatter's in-place record mutation.
 
@@ -146,7 +154,7 @@ def test_a_record_lands_in_exactly_one_bucket_file_and_in_session_log(session_di
     assert len(read(session_dir, "session")) == 1
 
 
-def test_every_bucket_gets_its_own_file(session_dir):
+def test_every_bucket_gets_its_own_file(session_dir: Path) -> None:
     logging.getLogger(MOVEMENT_LOGGER).warning("moved")
     logging.getLogger(DECISIONS_LOGGER).warning("decided")
 
@@ -157,7 +165,7 @@ def test_every_bucket_gets_its_own_file(session_dir):
     assert len(read(session_dir, "session")) == 2
 
 
-def test_files_capture_below_the_console_threshold(session_dir):
+def test_files_capture_below_the_console_threshold(session_dir: Path) -> None:
     """
     Capture and display are two dials. A DEBUG record is invisible on the
     console at the default threshold and still lands in both files - which is
@@ -169,7 +177,7 @@ def test_files_capture_below_the_console_threshold(session_dir):
     assert len(read(session_dir, "session")) == 1
 
 
-def test_telemetry_records_never_reach_a_text_file(session_dir):
+def test_telemetry_records_never_reach_a_text_file(session_dir: Path) -> None:
     """
     A Telemetry Record carries an empty message, so a text handler missing the
     `not_telemetry` filter contributes one blank line per emitted event.
@@ -183,7 +191,7 @@ def test_telemetry_records_never_reach_a_text_file(session_dir):
 # --- The formatter ----------------------------------------------------------
 
 
-def test_the_formatter_leaves_the_record_untouched():
+def test_the_formatter_leaves_the_record_untouched() -> None:
     record = logging.LogRecord(
         MOVEMENT_LOGGER, logging.WARNING, __file__, 1, "hello", None, None
     )
@@ -194,7 +202,7 @@ def test_the_formatter_leaves_the_record_untouched():
     assert record.__dict__ == before
 
 
-def test_the_formatter_strips_the_prefix_before_padding():
+def test_the_formatter_strips_the_prefix_before_padding() -> None:
     """
     Padding first and stripping after leaves each record padded to a different
     width, which is what made the console and the file disagree.
@@ -208,7 +216,7 @@ def test_the_formatter_strips_the_prefix_before_padding():
     assert line == "engine".ljust(50) + "|"
 
 
-def test_the_formatter_names_the_task_even_outside_one():
+def test_the_formatter_names_the_task_even_outside_one() -> None:
     record = logging.LogRecord(
         MOVEMENT_LOGGER, logging.WARNING, __file__, 1, "hi", None, None
     )
@@ -226,7 +234,7 @@ def make_record(name: str, level: int) -> logging.LogRecord:
     return logging.LogRecord(name, level, __file__, 1, "m", None, None)
 
 
-def test_an_empty_threshold_map_reproduces_todays_console():
+def test_an_empty_threshold_map_reproduces_todays_console() -> None:
     """
     The seed that makes the sweep reviewable: everything at INFO and above is
     shown, everything below is not.
@@ -237,7 +245,7 @@ def test_an_empty_threshold_map_reproduces_todays_console():
     assert not console.filter(make_record(MOVEMENT_LOGGER, logging.DEBUG))
 
 
-def test_env_var_turns_one_bucket_up(monkeypatch):
+def test_env_var_turns_one_bucket_up(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("BOTTING_CONSOLE", "movement=DEBUG")
     console = ConsoleFilter()
 
@@ -246,7 +254,7 @@ def test_env_var_turns_one_bucket_up(monkeypatch):
     assert not console.filter(make_record(DECISIONS_LOGGER, logging.DEBUG))
 
 
-def test_env_var_mutes_a_prefix(monkeypatch):
+def test_env_var_mutes_a_prefix(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("BOTTING_CONSOLE", f"{DECISIONS_LOGGER}=OFF")
     console = ConsoleFilter()
 
@@ -254,14 +262,16 @@ def test_env_var_mutes_a_prefix(monkeypatch):
     assert console.filter(make_record(MOVEMENT_LOGGER, logging.INFO))
 
 
-def test_an_unknown_level_name_is_rejected(monkeypatch):
+def test_an_unknown_level_name_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("BOTTING_CONSOLE", "movement=LOUD")
 
     with pytest.raises(ValueError, match="LOUD"):
         _env_overrides()
 
 
-def test_the_display_dial_cannot_cost_file_fidelity(monkeypatch, tmp_path):
+def test_the_display_dial_cannot_cost_file_fidelity(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """
     `BOTTING_CONSOLE` is console-only by construction: no file handler carries
     the ConsoleFilter, so muting a prefix cannot silence its log files.
@@ -276,7 +286,7 @@ def test_the_display_dial_cannot_cost_file_fidelity(monkeypatch, tmp_path):
 # --- The capture dial -------------------------------------------------------
 
 
-def test_levels_config_declares_no_handlers():
+def test_levels_config_declares_no_handlers() -> None:
     """
     It is applied in every process, including the children - which have no
     business owning a file.
@@ -287,7 +297,7 @@ def test_levels_config_declares_no_handlers():
     assert config["loggers"][PARENT_LOG] == {"level": "DEBUG", "propagate": False}
 
 
-def test_every_text_handler_filters_telemetry_out(tmp_path):
+def test_every_text_handler_filters_telemetry_out(tmp_path: Path) -> None:
     config = full_config(tmp_path)
 
     for handler in config["handlers"].values():
@@ -297,8 +307,19 @@ def test_every_text_handler_filters_telemetry_out(tmp_path):
 # --- The child-process end of the queue -------------------------------------
 
 
+def _as_log_queue(
+    q: queue.Queue[logging.LogRecord],
+) -> multiprocessing.queues.Queue[logging.LogRecord]:
+    """
+    `q`, typed as the process queue a child logs to: a thread queue has every
+    method `setup_child_proc_logging`'s handler calls, and none of a process
+    queue's feeder thread, so a record put on it can be read back at once.
+    """
+    return cast("multiprocessing.queues.Queue[logging.LogRecord]", q)
+
+
 @pytest.fixture
-def isolated_loggers():
+def isolated_loggers() -> Iterator[tuple[logging.Logger, logging.Logger]]:
     """
     Save and restore both `botting` and the root logger.
 
@@ -313,11 +334,13 @@ def isolated_loggers():
         lg.propagate = propagate
 
 
-def test_setup_child_proc_logging_installs_one_queue_handler(isolated_loggers):
+def test_setup_child_proc_logging_installs_one_queue_handler(
+    isolated_loggers: tuple[logging.Logger, logging.Logger],
+) -> None:
     parent, _ = isolated_loggers
-    q = queue.Queue()
+    q: queue.Queue[logging.LogRecord] = queue.Queue()
 
-    setup_child_proc_logging(q)
+    setup_child_proc_logging(_as_log_queue(q))
 
     assert len(parent.handlers) == 1
     handler = parent.handlers[0]
@@ -328,21 +351,25 @@ def test_setup_child_proc_logging_installs_one_queue_handler(isolated_loggers):
     assert q.get_nowait().getMessage() == "from the child process"
 
 
-def test_setup_child_proc_logging_closes_the_handlers_it_drops(isolated_loggers):
+def test_setup_child_proc_logging_closes_the_handlers_it_drops(
+    isolated_loggers: tuple[logging.Logger, logging.Logger],
+) -> None:
     """A child inherits no file of its own; whatever was attached is shut."""
     parent, _ = isolated_loggers
-    closed = []
+    closed: list[logging.Handler] = []
     stale = logging.NullHandler()
     stale.close = lambda: closed.append(stale)
     parent.addHandler(stale)
 
-    setup_child_proc_logging(queue.Queue())
+    setup_child_proc_logging(_as_log_queue(queue.Queue()))
 
     assert closed == [stale]
     assert stale not in parent.handlers
 
 
-def test_setup_child_proc_logging_ignores_handlers_further_up(isolated_loggers):
+def test_setup_child_proc_logging_ignores_handlers_further_up(
+    isolated_loggers: tuple[logging.Logger, logging.Logger],
+) -> None:
     """
     Regression test. The loop this replaces was `while root.hasHandlers()`,
     which walks *up* the hierarchy: with `botting` handler-less, propagating,
@@ -357,7 +384,7 @@ def test_setup_child_proc_logging_ignores_handlers_further_up(isolated_loggers):
     root_handler = logging.NullHandler()
     root.addHandler(root_handler)
 
-    setup_child_proc_logging(queue.Queue())
+    setup_child_proc_logging(_as_log_queue(queue.Queue()))
 
     assert [type(h) for h in parent.handlers] == [logging.handlers.QueueHandler]
     # The root logger is somebody else's; the child must not have touched it.

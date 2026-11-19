@@ -7,9 +7,6 @@ Issue #478: `_react` removed each pick from the class-level list, so after 11 li
 These tests drive the real `Reactions` with `send` captured. The 10 second
 `@cooldown` is a rate limit, not part of what is checked, so the undecorated
 function is called (`__wrapped__`), except where the cooldown is what is checked.
-
-`ReactionsMixin`, which unported DecisionMakers still hold, reacts through a
-`Reactions` it reads `BotData` for, so the cooldown is the same one.
 """
 
 import itertools
@@ -23,7 +20,6 @@ import pytest
 from botting.core import HANDLE, ActionRequest, Key
 from botting.utilities import functions_helpers
 from maple.actions import DEFAULT_CHAT_KEYS, priorities, write_in_chat
-from maple.decision_makers.mixins import ReactionsMixin
 from maple.decision_makers.providers import CHAT_KEYS, FRAME
 from maple.decision_makers.reactions import Reactions
 
@@ -135,33 +131,24 @@ def test_an_advanced_reaction_alerts_discord_in_its_holders_name() -> None:
 # --- one cooldown for every holder ------------------------------------------------
 
 
-class _Legacy(ReactionsMixin):
-    """An unported DecisionMaker: the mixin reads its keys from `BotData`."""
-
-    def __init__(self, reactor: _Reactor) -> None:
-        self.data = SimpleNamespace(ign="legacy", read=reactor.read)  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
-        self.sent: list[ActionRequest] = []
-        self.send = self.sent.append  # pyright: ignore[reportAttributeAccessIssue] - a stand-in
-
-
-def test_a_ported_and_an_unported_holder_share_the_cooldown(
+def test_two_holders_share_the_cooldown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """
     `CheckStillInMap` and `CheckMobsStillSpawn` used to react through the one
     `ReactionsMixin._react`, whose cooldown dropped a reaction within 10 s of the
-    other's. `CheckStillInMap` holds a `Reactions` now; the drop stays.
+    other's. Each holds a `Reactions` now; the drop stays.
     """
     # Past every reaction the session's earlier tests sent: the clock is shared.
     now = [time.perf_counter() + 1e6]
     monkeypatch.setattr(functions_helpers.time, "perf_counter", lambda: now[0])
-    ported = _Reactor()
-    unported = _Legacy(ported)
+    first = _Reactor()
+    second = _Reactor()
 
-    ported.reactions.react("advanced")
-    unported._react("advanced")  # pyright: ignore[reportPrivateUsage]
+    first.reactions.react("advanced")
+    second.reactions.react("advanced")
     now[0] += 10.0
-    unported._react("advanced")  # pyright: ignore[reportPrivateUsage]
+    second.reactions.react("advanced")
 
-    assert len(ported.sent) == 1
-    assert len(unported.sent) == 1
+    assert len(first.sent) == 1
+    assert len(second.sent) == 1

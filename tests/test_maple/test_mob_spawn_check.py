@@ -135,7 +135,7 @@ def test_the_failsafe_cancelled_half_way_leaves_nothing_paused_or_claimed(
         await asyncio.Event().wait()
 
     bot.procedure(wander_for_ever)
-    before = bot.data.next_target
+    before = bot.data.read(DESTINATION)
 
     async def scenario() -> None:
         failsafe = asyncio.create_task(bot.check._failsafe())
@@ -151,7 +151,9 @@ def test_the_failsafe_cancelled_half_way_leaves_nothing_paused_or_claimed(
     assert bot.paused(MobsHitting) == []
     assert bot.paused(TelecastMobsHitting) == []
     assert bot.data.claim_on(DESTINATION) is None
-    assert bot.data.next_target == before, "the Provider's own destination is back"
+    assert bot.data.read(DESTINATION) == before, (
+        "the Provider's own destination is back"
+    )
 
 
 def test_a_failsafe_that_times_out_stops_the_bot_for_the_user(bot: _Bot) -> None:

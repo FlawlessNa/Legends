@@ -2,9 +2,8 @@
 The minimap: its reading, whether it is shown, where it is, and the character's
 virtual position read from it.
 
-`MinimapProvider` holds what `MinimapAttributesMixin._create_minimap_attributes`
-set up, and is built once per Bot: by assembly when a DecisionMaker reads one of
-its keys, or when an unported DecisionMaker's mixin asks `BotData` for it.
+`MinimapProvider` is built once per Bot, by assembly, when a DecisionMaker reads
+one of its keys.
 
 Two helpers are shared with DecisionMakers that need them:
 
@@ -157,19 +156,13 @@ MINIMAP_READING: Key[Reading[MinimapView]] = Key("minimap_reading", MinimapProvi
 #: Whether the minimap is read expanded: a minimised one shows no map, so no
 #: position. Not on screen is an answer (False); covered or unsure keeps the last
 #: answer (`HeldReading`). Refreshed only when asked to: it has no threshold.
-MINIMAP_SHOWN: Key[bool] = Key(
-    "minimap_shown", MinimapProvider, legacy_name="minimap_currently_displayed"
-)
+MINIMAP_SHOWN: Key[bool] = Key("minimap_shown", MinimapProvider)
 #: The whole minimap, frame included, in client pixels: the last one read, or
 #: None before the first (`HeldReading`).
-MINIMAP_BOX: Key[Box | None] = Key(
-    "minimap_box", MinimapProvider, legacy_name="current_entire_minimap_box"
-)
+MINIMAP_BOX: Key[Box | None] = Key("minimap_box", MinimapProvider)
 #: The character's position, in virtual px, for every DecisionMaker (#398):
 #: `PositionReader`'s, with `MinimapRecovery` as its error handler.
-POSITION: Key[Reading[VirtualPosition]] = Key(
-    "position", MinimapProvider, legacy_name="current_position"
-)
+POSITION: Key[Reading[VirtualPosition]] = Key("position", MinimapProvider)
 
 
 class _Holder(Protocol):
@@ -314,7 +307,7 @@ class PositionReader:
     `coarse` where the play area doesn't (the reads disagree, or two characters
     stand where the minimap puts ours: #529), with why in the detail. A
     consumer that gets an `UNSURE` reading holds until a read places the
-    character (`MovementsMixin` plans no Path, the rotation keeps its target).
+    character (`PathingProvider` plans no Path, the rotation keeps its target).
     A long streak of them is reported by movement recovery (#398).
 
     **A shown minimap that doesn't place the marker holds too** (#502). Its

@@ -68,7 +68,5 @@ class OnScreenPositionProvider(Provider):
 #: The character's box on the client (x1, y1, x2, y2), in client pixels; None
 #: when the last read did not find it.
 ON_SCREEN_POSITION: Key[tuple[int, int, int, int] | None] = Key(
-    "on_screen_position",
-    OnScreenPositionProvider,
-    legacy_name="current_on_screen_position",
+    "on_screen_position", OnScreenPositionProvider
 )

@@ -41,8 +41,6 @@ from botting.core.supervisor import (
 from botting.logging_config import producer_logger_name
 from botting.telemetry_events import (
     DECISION_CRASHED,
-    DECISION_DISABLED,
-    DECISION_ENABLED,
     DECISION_PAUSED,
     DECISION_RESUMED,
 )
@@ -136,28 +134,6 @@ class Boss(DecisionMaker):
 
     async def _decide(self) -> None:
         await asyncio.Event().wait()
-
-
-class Legacy(DecisionMaker):
-    """An unported DecisionMaker, driving the shim from the test."""
-
-    async def _decide(self) -> None:
-        await asyncio.Event().wait()
-
-
-class SelfDisabling(Worker):
-    """
-    Disables itself through the shim on its third decision, as TrialRunner does.
-    Throttled like every game DecisionMaker, so the cancellation lands on the
-    throttle's sleep.
-    """
-
-    _throttle = 0.001
-
-    async def _decide(self) -> None:
-        await super()._decide()
-        if len(self.decisions) == 3:
-            self._disable_decision_makers("SelfDisabling")
 
 
 class Escalating(Worker):
@@ -794,9 +770,6 @@ def test_pause_for_user_holds_until_resume_and_nothing_else() -> None:
             # The Holder's own scoped Pause ends; the user-held one does not.
             holder.release.set()
             assert not await _is_running(worker)
-            # Nor does the shim's enable, nor the holder being paused.
-            holder._enable_decision_makers("Worker")  # pyright: ignore[reportPrivateUsage]
-            assert not await _is_running(worker)
 
             bot.resume()
             assert await _is_running(worker)
@@ -814,85 +787,6 @@ def test_a_decision_maker_may_pause_itself_for_the_user() -> None:
 
             bot.resume()
             assert await _eventually(lambda: len(dm.decisions) > 3)
-
-    asyncio.run(scenario())
-
-
-# --- the legacy shim ----------------------------------------------------------------
-
-
-def test_the_shim_disables_until_the_matching_enable(
-    emitted: list[tuple[str | None, str, Mapping[str, object]]],
-) -> None:
-    async def scenario() -> None:
-        async with _running(Worker, Legacy) as bot:
-            legacy = bot[Legacy]
-            legacy._disable_decision_makers("Worker", "Absent")  # pyright: ignore[reportPrivateUsage]
-            assert not await _is_running(bot[Worker])
-            legacy._enable_decision_makers("Worker", "Absent")  # pyright: ignore[reportPrivateUsage]
-            assert await _is_running(bot[Worker])
-
-    asyncio.run(scenario())
-    # Today's records, for the classes this Bot runs only, and no Pause records.
-    assert [(event, payload) for _, event, payload in emitted] == [
-        (DECISION_DISABLED, {"target": "Worker"}),
-        (DECISION_ENABLED, {"target": "Worker"}),
-    ]
-
-
-def test_one_shim_enable_undoes_any_number_of_disables_whoever_took_them() -> None:
-    class OtherLegacy(Legacy):
-        pass
-
-    async def scenario() -> None:
-        async with _running(Worker, Legacy, OtherLegacy) as bot:
-            bot[Legacy]._disable_decision_makers("Worker")  # pyright: ignore[reportPrivateUsage]
-            bot[OtherLegacy]._disable_decision_makers("Worker")  # pyright: ignore[reportPrivateUsage]
-            bot[Legacy]._disable_decision_makers("Worker")  # pyright: ignore[reportPrivateUsage]
-            assert not await _is_running(bot[Worker])
-            bot[OtherLegacy]._enable_decision_makers("Worker")  # pyright: ignore[reportPrivateUsage]
-            assert await _is_running(bot[Worker])
-
-    asyncio.run(scenario())
-
-
-def test_a_shim_pause_survives_its_holder_being_paused() -> None:
-    async def scenario() -> None:
-        async with _running(Worker, Legacy, Idle) as bot:
-            bot[Legacy]._disable_decision_makers("Worker")  # pyright: ignore[reportPrivateUsage]
-            pause = bot.supervisor.pause_for_user(reason="test")
-            for held in pause:
-                bot.supervisor.release(held)
-            assert not await _is_running(bot[Worker])
-
-    asyncio.run(scenario())
-
-
-def test_a_decision_maker_may_disable_itself_through_the_shim() -> None:
-    async def scenario() -> None:
-        async with _running(SelfDisabling) as bot:
-            dm = bot[SelfDisabling]
-            assert await _eventually(lambda: len(dm.decisions) >= 3)
-            assert not await _is_running(dm)
-            assert len(dm.decisions) == 3
-            assert dm.starts == 1
-
-            dm._enable_decision_makers("SelfDisabling")  # pyright: ignore[reportPrivateUsage]
-            assert await _eventually(lambda: len(dm.decisions) > 3)
-            assert dm.starts == 2
-
-    asyncio.run(scenario())
-
-
-def test_resume_ends_shim_pauses() -> None:
-    async def scenario() -> None:
-        async with _bot(Worker, Legacy) as (bot, _):
-            worker = _dm(bot, Worker)
-            assert await _wait_running(worker)
-            _dm(bot, Legacy)._disable_decision_makers("Worker")  # pyright: ignore[reportPrivateUsage]
-            assert not await _is_running(worker)
-            bot.resume()
-            assert await _is_running(worker)
 
     asyncio.run(scenario())
 

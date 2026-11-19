@@ -45,9 +45,6 @@ class PauseKind(Enum):
     SCOPED = "scoped"
     #: Held by the user: ends at Discord `RESUME`, and nothing else.
     USER = "user"
-    #: Taken by the legacy `_disable_decision_makers`: ends at the matching
-    #: `_enable_decision_makers` or at Discord `RESUME`.
-    SHIM = "shim"
 
 
 @dataclass(frozen=True)
@@ -165,8 +162,8 @@ class Supervisor:
     Runs every DecisionMaker's loops for one Bot, and holds the Bot's Pauses.
 
     Built by `Bot.start` once its DecisionMakers are, and attached to each of
-    them: a DecisionMaker reaches it through `pause`, `pause_for_user` and the
-    legacy shim, never directly.
+    them: a DecisionMaker reaches it through `pause` and `pause_for_user`, never
+    directly.
     """
 
     def __init__(
@@ -371,23 +368,18 @@ class Supervisor:
 
     def resume_for_user(self) -> list[Pause]:
         """
-        Discord `RESUME`: release every user-held Pause, and every legacy shim
-        Pause, as `RESUME` has always restarted every DecisionMaker. Scoped
-        Pauses stay held: their blocks are still running.
+        Discord `RESUME`: release every user-held Pause. Scoped Pauses stay
+        held: their blocks are still running.
         :return: The Pauses released.
         """
         released: list[Pause] = []
         for slot in self._slots:
             for pause in list(slot.pauses):
-                if pause.kind is PauseKind.SCOPED:
+                if pause.kind is not PauseKind.USER:
                     continue
                 if self.release(pause):
                     released.append(pause)
-                    if pause.kind is PauseKind.USER:
-                        emit_event(
-                            None,
-                            DECISION_RESUMED,
-                            pause.payload(),
-                            logger_name=__name__,
-                        )
+                    emit_event(
+                        None, DECISION_RESUMED, pause.payload(), logger_name=__name__
+                    )
         return released

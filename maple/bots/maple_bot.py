@@ -25,6 +25,7 @@ from maple.decision_makers.providers import (
     ClientProvider,
     MapProvider,
     MobsProvider,
+    ProfileProvider,
     ScreenReadersProvider,
 )
 from maple.decision_makers.rebuffs import solo_buffs
@@ -125,7 +126,7 @@ class MapleBot(Bot, ABC):
         if self.map_id is not None and self._detects_mobs():
             self.mobs = self._map_mobs(self.map_id)
         # Parsed here so a misspelt constant refuses the start; Movement Plans
-        # read it through `data.calibration`.
+        # read it as `CALIBRATION` (`ProfileProvider`).
         self.calibration = Calibration.from_mapping(calibration)
         self.kwargs = kwargs
         self.kwargs.update(ign=ign)
@@ -170,8 +171,8 @@ class MapleBot(Bot, ABC):
         Loads the readers' sprites, checks the map on the minimap, then builds
         the Bot-level Providers with what it found, in this order: the screen
         readers, the map, the character, the map's mobs, and the client's frame
-        and chat keys (`maple.decision_makers.providers`). Every DecisionMaker
-        reads them, unported ones by their legacy names.
+        and chat keys, and the profile's movement stats
+        (`maple.decision_makers.providers`). DecisionMakers read them as keys.
         """
         super().child_init(pipe, barrier)
         assert self.data is not None
@@ -253,11 +254,9 @@ class MapleBot(Bot, ABC):
         providers.add(ClientProvider, chat_keys=self.chat_keys)
         # The character's speed and jump stats, from the profile. A Bot that
         # builds the ability menu's Provider (`AbilityPointDistributor`) reads
-        # them off the menu too, as keys; Movement Plans take those when they
-        # exist (`PathingProvider.physics`), and these otherwise.
-        data.set_static("speed_multiplier", self.kwargs.get("speed_multiplier", 1.00))
-        data.set_static("jump_multiplier", self.kwargs.get("jump_multiplier", 1.00))
-        data.set_static("calibration", self.calibration)
+        # them off the menu too; Movement Plans take those when they exist
+        # (`PathingProvider.physics`), and these otherwise.
+        providers.add(ProfileProvider, calibration=self.calibration)
 
     def _world_map(self, map_id: int, frame_check: FrameCheck) -> dict[str, object]:
         """

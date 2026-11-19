@@ -2,12 +2,10 @@
 The client's menus: the ability menu, with the character's speed and jump it
 shows, and the inventory menu.
 
-`AbilityMenuProvider` and `InventoryMenuProvider` hold what
-`MenusMixin._create_ap_menu_attributes` and `_create_inventory_menu_attributes`
-set up (#443): the same attributes, in the same order, with the same thresholds.
-Each is built once per Bot, when a DecisionMaker reads one of its keys
-(`AbilityPointDistributor`), or, for the inventory, when the parked
-`InventoryManager` asks for it through its mixin.
+`AbilityMenuProvider` and `InventoryMenuProvider` serve them (#443). Each is
+built once per Bot, when a DecisionMaker reads one of its keys
+(`AbilityPointDistributor` reads the ability menu's). Nothing reads the
+inventory's yet: it waits for the parked `InventoryManager` to be ported.
 
 They are two Providers because the ability menu's setup opens the menu, reads
 it and closes it, while the inventory's reads the client as it is, which shows no
@@ -99,9 +97,9 @@ JUMP_MULTIPLIER: Key[float] = Key("ability_menu_jump", AbilityMenuProvider)
 
 class InventoryMenuProvider(Provider):
     """
-    Serves the inventory menu and what it shows, as the mixin made them: the
-    mesos and the active tab are read at setup, the rest start with a value, and
-    each is refreshed when asked to.
+    Serves the inventory menu and what it shows: the mesos and the active tab
+    are read at setup, the rest start with a value, and each is refreshed when
+    asked to.
     """
 
     needs = (FRAME, HANDLE)

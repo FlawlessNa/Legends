@@ -49,6 +49,8 @@ from maple.decision_makers import (
 )
 from maple.decision_makers import chat_replies as chat_replies_module
 from maple.decision_makers.providers import (
+    FRAME,
+    MINIMAP_BOX,
     BuffsProvider,
     CharacterProvider,
     ChatProvider,
@@ -59,6 +61,7 @@ from maple.decision_makers.providers import (
     MobsProvider,
     OnScreenPositionProvider,
     PathingProvider,
+    ProfileProvider,
     QuickSlotsProvider,
     ScreenReadersProvider,
     StatusBarProvider,
@@ -337,6 +340,7 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
         CharacterProvider,
         MobsProvider,
         ClientProvider,
+        ProfileProvider,
         MinimapProvider,
         OnScreenPositionProvider,
         DestinationProvider,
@@ -363,9 +367,10 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
     rebuff._read_buffs()  # pyright: ignore[reportPrivateUsage]
     # The status bar's reader is loaded for `PetFood`'s `screen_readers`; no
     # DecisionMaker of this bot reads it, so it is asked for here.
-    data.build_provider(StatusBarProvider)
+    assert data.providers is not None
+    data.providers.ensure(StatusBarProvider)
 
-    assert isinstance(data.current_frame, Frame)
+    assert isinstance(data.read(FRAME), Frame)
     assert source.grabs > 1
     with pytest.raises(AttributeError):
         _ = data.current_client_img
@@ -383,7 +388,7 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
     assert minimap_view is not None
     assert minimap_view.self_position.value == USER_AT
     assert "current_minimap_position" not in data._managed  # pyright: ignore[reportPrivateUsage]
-    assert data.current_entire_minimap_box is not None
+    assert data.read(MINIMAP_BOX) is not None
     assert data.chat_lines.status is Status.READ, data.chat_lines.detail
 
     # The minimap was already shown expanded: its key was never pressed.

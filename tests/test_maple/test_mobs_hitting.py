@@ -53,9 +53,7 @@ def test_it_reads_the_on_screen_position_and_cancels_the_rotation(
     assert resolve_cancels([cls])[cls] == {Rotation}
 
 
-def test_the_on_screen_position_keeps_its_legacy_name() -> None:
-    """The unported smart rotation reads it by that name."""
-    assert ON_SCREEN_POSITION.legacy_name == "current_on_screen_position"
+def test_the_on_screen_position_is_its_providers() -> None:
     assert ON_SCREEN_POSITION.provider is OnScreenPositionProvider
 
 

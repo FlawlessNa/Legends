@@ -2,8 +2,8 @@
 The rotation's destination: where the character heads next, in virtual px on
 the Bot's `WorldMap`, and the platform it is on (#398).
 
-`DestinationProvider` holds what `NextTargetMixin` did: its two modes, chosen by
-the profile, and movement recovery's Abandon. `DESTINATION` is the first
+`DestinationProvider` holds the rotation's two modes, chosen by the profile,
+and movement recovery's Abandon (#441). `DESTINATION` is the first
 steerable Data Key: a DecisionMaker that must send the character somewhere else
 claims it (`CheckMobsStillSpawn` wanders, `TrialRunner` walks its schedule), and
 the Provider's own value comes back when the Claim is released.
@@ -372,12 +372,10 @@ class DestinationProvider(Provider):
 
 #: Where the rotation heads next, in virtual px. Steerable: a DecisionMaker that
 #: claims it decides where the character goes. Refreshed only when asked to.
-DESTINATION: Key[Point] = Key(
-    "destination", DestinationProvider, legacy_name="next_target", steerable=True
-)
+DESTINATION: Key[Point] = Key("destination", DestinationProvider, steerable=True)
 #: The platform `DESTINATION` is on, or None when it is on none.
 DESTINATION_PLATFORM: Key[Platform | None] = Key(
-    "destination_platform", DestinationProvider, legacy_name="next_feature"
+    "destination_platform", DestinationProvider
 )
 
 
