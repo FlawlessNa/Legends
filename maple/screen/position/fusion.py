@@ -215,7 +215,7 @@ class PositionFusion:
     def camera(self) -> Camera | None:
         """
         The camera the last read matched: what places things found on that
-        read's frame, such as mobs (`MobsHittingMixin.mobs_in_virtual_px`).
+        read's frame, such as mobs (`mob_detection.mobs_in_virtual_px`).
         `None` before the first read, and when the last read matched none
         (the minimap unread, or the camera `UNSURE`): never an older camera.
         """

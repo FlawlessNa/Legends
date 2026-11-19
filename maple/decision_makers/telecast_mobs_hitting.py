@@ -4,11 +4,12 @@ import logging
 from botting import PARENT_LOG
 from botting.core import ActionRequest
 from maple.actions.movements_v2 import telecast_compiler
+from maple.model.characters import MapleSkill
 from maple.model.mechanics import MovementTypes
 from maple.telemetry_events import COMBAT_TELECAST, TelecastPayload
 
-from .mixins import MovementsMixin
 from .mobs_hitting import MobsHitting
+from .providers import CHARACTER, HANDLE, MOVEMENTS, PathingProvider, pathing
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -22,22 +23,26 @@ _TELEPORT_MOVEMENTS = frozenset(
 )
 
 
-class TelecastMobsHitting(MovementsMixin, MobsHitting):
+class TelecastMobsHitting(MobsHitting):
     """
     Casts the training skill *through* the movement instead of standing still for it,
     by fusing the ultimate's key into the teleport keydowns of the Movement Plan that
     is about to be dispatched.
 
-    Inherits `MovementsMixin` purely for `_movement_compiler`: the plan and every
-    compile input are frozen exactly the way rotation freezes them, so a telecast and
-    the movement it replaces compile from identical inputs. The pathing attributes
-    themselves are created by `Rotation` on the shared `BotData`; this DecisionMaker
-    only reads them.
+    The plan and every compile input are frozen by `PathingProvider.compiler`,
+    exactly the way rotation freezes them, so a telecast and the movement it
+    replaces compile from identical inputs. The plan is the rotation's:
+    `PathingProvider` plans it, and this DecisionMaker reads it (`MOVEMENTS`).
     """
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._teleport_skill = self.data.character.skills["Teleport"]
+    reads = (*MobsHitting.reads, MOVEMENTS)
+
+    def setup(self) -> None:
+        super().setup()
+        #: The teleport its casts are fused into.
+        self._teleport_skill: MapleSkill = self.read(CHARACTER).skills["Teleport"]
+        #: The Bot's pathing, which compiles the plan the cast is fused into.
+        self._pathing: PathingProvider = pathing(self.data)
 
     def _teleport_in_movement_plan(self) -> bool:
         """
@@ -52,14 +57,14 @@ class TelecastMobsHitting(MovementsMixin, MobsHitting):
         past `total_duration` and are truncated away - which is exactly the case
         `telecast_compiler` falls back to a plain cast for.
         """
-        if not self.data.has_pathing_attributes:
-            return False
-        movements = self.data.movements
         return any(
-            move.movement_type in _TELEPORT_MOVEMENTS for move in movements or ()
+            move.movement_type in _TELEPORT_MOVEMENTS for move in self.read(MOVEMENTS)
         )
 
-    def _hit_mobs(self, *args, **kwargs) -> ActionRequest:
+    def _hit_mobs(self, direction: str | None) -> ActionRequest:
+        # A telecast faces where the movement goes: the facing is not used, and
+        # the plain cast it falls back to has no facing prelude either.
+        del direction
         if not self._teleport_in_movement_plan():
             return super()._hit_mobs(direction=None)
 
@@ -70,8 +75,9 @@ class TelecastMobsHitting(MovementsMixin, MobsHitting):
         self.emit(COMBAT_TELECAST, fused)
         compiler = functools.partial(
             telecast_compiler,
-            movement_compiler=self._movement_compiler(),
-            handle=self.data.handle,
+            # The Path is the rotation's: no frame of its own to lead from.
+            movement_compiler=self._pathing.compiler(self.correlation_id, lead=False),
+            handle=self.read(HANDLE),
             ign=self.data.ign,
             teleport_skill=self._teleport_skill,
             ultimate_skill=self.training_skill,

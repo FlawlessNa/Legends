@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import threading
@@ -9,7 +10,15 @@ from botting.controller import release_keys
 
 from .action_data import ActionRequest
 from .bot_data import BotData
+from .data_keys import Provider, Providers, resolve_providers
 from .decision_maker import DecisionMaker
+from .proxy_factory import ProxyFactory
+from .replies import RepliesProvider
+from .signals import SignalBoard, check_signals
+from .supervisor import Supervisor, resolve_cancels, resolve_pauses
+from .window import WindowProvider
+
+logger = logging.getLogger(__name__)
 
 USER_REQUESTS_PRIORITY = 98  # Matches a user-issued request: pause comes from Discord.
 
@@ -17,8 +26,8 @@ USER_REQUESTS_PRIORITY = 98  # Matches a user-issued request: pause comes from D
 class Bot(ABC):
     """
     Abstract base class to represent a Bot of any kind.
-    A Bot is a container of DecisionMakers, which are cycled and called
-    one at a time.
+    A Bot is a container of DecisionMakers, whose decision loops its Supervisor
+    runs concurrently.
 
     A bot represents a single game client entity and is assigned a single
     BotData instance which it shares with all its DecisionMakers.
@@ -38,7 +47,12 @@ class Bot(ABC):
         self.kwargs = kwargs
 
         self._bot: asyncio.Task | None = None
-        self._tg: asyncio.TaskGroup | None = None
+        #: Runs every DecisionMaker's loops. Built by `assemble`, once the
+        #: DecisionMakers are.
+        self.supervisor: Supervisor | None = None
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self.ign})"
 
     def child_init(
         self,
@@ -47,51 +61,115 @@ class Bot(ABC):
     ) -> None:
         """
         Called by the Engine to create Bot within Child process.
+
+        Makes the Bot's data and its Providers, and builds the engine's
+        Bot-level ones: `WindowProvider`, with the handle `find_handle` finds
+        now, and `RepliesProvider`, the replies switch, on. A game layer adds
+        its own Bot-level Providers after this, from what it finds and checks
+        at start (`Providers.add`).
         """
         self.data = BotData(self.ign)
-        self.data.set_static("handle", self.find_handle())
-        self.data.set_static("replies_on", True)
-        # What a DecisionMaker that stops the others' (ChatReplies, on a GM) names.
-        self.data.set_static(
-            "decision_maker_names",
-            tuple(class_.__name__ for class_ in self._decision_makers()),
-        )
         self.pipe = pipe
         self.barrier = barrier
+        providers = self._make_providers(self.data, pipe)
+        providers.add(WindowProvider, handle=self.find_handle())
+        providers.add(RepliesProvider)
+
+    @property
+    def providers(self) -> list[Provider]:
+        """Every Provider built for this Bot, in the order they were set up."""
+        if self.data is None or self.data.providers is None:
+            return []
+        return list(self.data.providers)
+
+    def _providers(self) -> Providers:
+        """
+        This Bot's Providers: `child_init`'s, or, for a Bot whose data was made
+        without it, made now.
+        """
+        assert self.data is not None, "the Bot's data is made before its Providers"
+        assert self.pipe is not None, "the Bot's pipe is set before its Providers"
+        if self.data.providers is None:
+            return self._make_providers(self.data, self.pipe)
+        return self.data.providers
+
+    def _make_providers(
+        self, data: BotData, pipe: multiprocessing.connection.Connection
+    ) -> Providers:
+        """This Bot's Providers, attached to `data`, with nothing built yet."""
+        return Providers(
+            data,
+            pipe,
+            ProxyFactory(self.metadata),
+            self.kwargs,
+            SignalBoard(data.clock),
+        )
 
     async def start(self) -> None:
         """
-        Called by the Engine to start the DecisionMakers tasks.
-        Passes the TaskGroup to each DecisionMaker, such that they can define sub-tasks
-        if required.
+        Called by the Engine: assemble the Bot, then run its DecisionMakers.
+
+        Assembly happens before the start barrier, so a Bot wired wrong is
+        refused before any bot starts. The Supervisor then runs the
+        DecisionMakers' loops until the Bot ends.
+        :raises StartupRefused: as `assemble` does.
         """
         self._bot = asyncio.current_task()
+        self.assemble()
 
-        async with asyncio.TaskGroup() as tg:
-            self._tg = tg
-            decision_makers = self.decision_makers  # Instantiate DecisionMakers.
+        # Synchronizes the start of all bots at the same time.
+        assert self.barrier is not None, "child_init() must run before start()"
+        await asyncio.to_thread(self.barrier.wait)
 
-            # Synchronizes the start of all bots at the same time.
-            assert self.barrier is not None, "child_init() must run before start()"
-            await asyncio.to_thread(self.barrier.wait)
+        assert self.supervisor is not None, "assemble() builds the Supervisor"
+        await self.supervisor.run()
 
-            for dm in decision_makers:
-                tg.create_task(dm.start(tg), name=f"{dm}")
+    def assemble(self) -> None:
+        """
+        Build what the DecisionMakers declare, then the DecisionMakers, and hand
+        them to a Supervisor. `start` calls it before the start barrier:
+
+        1. the class-level declarations are resolved, with nothing built: the
+           Pauses, the classes whose Actions are cancelled, the Providers of
+           every key read in the order to build them, and the Signals awaited;
+        2. the Providers not built yet are built, then set up, in that order
+           (the Bot-level ones were, by `child_init`);
+        3. the DecisionMakers are built, then set up;
+        4. the Supervisor takes them.
+        :raises StartupRefused: a declaration resolves to nothing, two keys share
+            a name, the Providers form a cycle, a Signal is awaited that nothing
+            announces, a key is read whose Bot-level Provider this Bot did not
+            build, or a Provider registers less than it provides.
+        """
+        assert self.data is not None, "child_init() must run before assemble()"
+        assert self.pipe is not None, "child_init() must run before assemble()"
+
+        classes = self._decision_makers()
+        declared_pauses = resolve_pauses(classes)
+        resolve_cancels(classes)
+        order = resolve_providers(classes)
+        check_signals(classes, order)
+
+        providers = self._providers()
+        providers.build(order)
+        for decision_maker in self.decision_makers:
+            decision_maker._signals = providers.signals  # pyright: ignore[reportPrivateUsage] - assembly wires it
+        for decision_maker in self.decision_makers:
+            decision_maker.setup()
+        self.supervisor = Supervisor(self.ign, self.decision_makers, declared_pauses)
 
     def pause(self) -> None:
         """
-        Pauses all DecisionMakers tasks.
-        This can be overridden to provide custom behavior.
-        Runs inside the Engine process, which may not send input, so the movement keys
-        are dropped through an ActionRequest executed in Main Process instead.
+        Discord `PAUSE`: a Pause held by the user on every DecisionMaker, which
+        only `resume` releases, and the movement keys released.
+
+        Runs inside the Engine process, which may not send input, so the movement
+        keys are dropped through an ActionRequest executed in Main Process instead.
         """
-        for dm_class in self._decision_makers():
-            for task in asyncio.all_tasks():
-                name = task.get_name()
-                if "Enabler" in name or "Disabler" in name:
-                    continue
-                elif name.startswith(dm_class.__name__):
-                    task.cancel()
+        if self.supervisor is None:
+            logger.warning("%s is not running yet: there is nothing to pause.", self)
+        else:
+            self.supervisor.pause_for_user(reason="Discord PAUSE")
         assert self.pipe is not None
         assert self.data is not None
         self.pipe.send(
@@ -115,32 +193,27 @@ class Bot(ABC):
 
     def resume(self) -> None:
         """
-        Resumes the DecisionMakers tasks.
-
-        Each DecisionMaker's ``on_resume`` hook runs first: one that disabled others
-        and gives them back on RESUME (``ChatReplies``, after a GM) enables them
-        there, and their enablers restart them. Every other DecisionMaker whose task
-        isn't running is restarted, as ``pause`` left it, and counts as enabled
-        again (``DecisionMaker.restart``), so a later enable finds it running. One
-        still running is left alone, so a RESUME with no PAUSE before it never runs
-        a loop twice.
+        Discord `RESUME`: release every user-held Pause, those a DecisionMaker
+        took with `pause_for_user` included (`ChatReplies`, on a GM's line). A
+        Pause a DecisionMaker holds in a block stays held until the block exits.
         """
-        assert self._tg is not None, "start() must run before resume()"
-        enabled = {name for dm in self.decision_makers for name in dm.on_resume()}
-        for dm in self.decision_makers:
-            if type(dm).__name__ not in enabled:
-                dm.restart(self._tg)
+        if self.supervisor is None:
+            logger.warning("%s is not running yet: there is nothing to resume.", self)
+            return
+        self.supervisor.resume_for_user()
 
     def replies(self, on: bool, source: str = "discord_replies") -> None:
         """
         Stops (``on=False``) or hands back the automatic replies of this Bot.
-        Sets the ``replies_on`` static of its BotData, which the DecisionMaker
-        that replies reads before each reply, and reports the switch.
+        Switches `REPLIES_ON`, which the DecisionMaker that replies reads before
+        each reply, and reports the switch.
         :param on: Whether automatic replies are on.
         :param source: Which command did it, for the report.
         """
-        assert self.data is not None, "child_init() must run before replies()"
-        self.data.set_static("replies_on", on)
+        assert self.data is not None, "child_init() makes the Bot's data"
+        providers = self.data.providers
+        assert providers is not None, "child_init() builds the replies switch"
+        providers.get(RepliesProvider).switch(on)
         self._replies_toggled(on, source)
 
     def takeover(self) -> None:

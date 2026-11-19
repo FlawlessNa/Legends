@@ -25,14 +25,17 @@ from pydantic import BaseModel
 
 from botting.communications.messages import QuietMessage
 from botting.controller import TypingPace
-from botting.core import ActionRequest, BotData, ProxyFactory
+from botting.core import ActionRequest, DecisionMaker, ProxyFactory, Supervisor
+from botting.core.supervisor import USER, resolve_pauses
 from botting.llm import ModelAnswer
 from botting.screen import Reading
 from maple.actions import DEFAULT_CHAT_KEYS, priorities, reply_in_chat
 from maple.bots.training import TrainingBot
 from maple.chat_replies.relay import _Answer
+from maple.decision_makers import MobsHitting, PetFood, Rotation
 from maple.decision_makers import chat_replies as module
 from maple.decision_makers.chat_replies import (
+    GM_STOPS,
     PLAYER_INTERVAL,
     READ_CAP,
     SESSION_CALLS,
@@ -51,11 +54,13 @@ from maple.telemetry_events import (
     CHAT_REPLY_SENT,
     CHAT_REPLY_SILENT,
 )
+from tests.test_maple.serving import assemble, serve
 
 IGN = "Mapler"
 HANDLE = 4242
 KEYS = {**DEFAULT_CHAT_KEYS, "general": "g"}
-TRAINING = ("Rotation", "MobsHitting", "PetFood", "ChatReplies")
+TRAINING: tuple[type[DecisionMaker], ...] = (Rotation, MobsHitting, PetFood)
+"""The other DecisionMakers of the bot: what a GM's line stops."""
 
 
 # --- virtual time -------------------------------------------------------------------
@@ -203,7 +208,12 @@ def _proxy(
 
 
 class Harness:
-    """One `ChatReplies`, its chat, its model and what it sends."""
+    """
+    One `ChatReplies`, its chat, its model and what it sends, on a Bot's data
+    with its Providers, set up as assembly sets it up. A Supervisor holds the
+    bot's Pauses, with the other DecisionMakers of `TRAINING` beside it, never
+    run: what a GM's line pauses is read off it.
+    """
 
     def __init__(
         self,
@@ -223,13 +233,18 @@ class Harness:
         self.model = ScriptedModel(self.clock, latency, list(answers or []), cause)
         self.reader = _Reader()
         self.pipe = _Pipe(self.clock)
-        self.data = BotData(IGN)
-        self.data.set_static("handle", HANDLE)
-        self.data.set_static("replies_on", True)
-        self.data.set_static("chat_keys", KEYS)
-        self.data.set_static("decision_maker_names", TRAINING)
-        self.data.set_static("chat_reader", self.reader)
-        self.data.create_attribute("current_frame", lambda: None)
+        served = serve(
+            monkeypatch,
+            IGN,
+            pipe=self.pipe,
+            handle=HANDLE,
+            chat_keys=KEYS,
+            chat=self.reader,
+        )
+        assemble(served, ChatReplies)
+        self.data = served.data
+        #: The replies switch, as `REPLIES OFF|ON` and a `WRITE` switch it.
+        self.switch = served.replies
         config = tmp_path / "discord.ini"
         if discord:
             config.write_text("[DEFAULT]\n", encoding="utf-8")
@@ -255,18 +270,12 @@ class Harness:
                 (event, dict(payload or {}), correlation_id or self.dm.correlation_id)
             ),
         )
-        self.disabled: list[str] = []
-        self.enabled: list[str] = []
-        monkeypatch.setattr(
-            self.dm,
-            "_disable_decision_makers",
-            lambda *names, **kw: self.disabled.extend(names),
+        self.supervisor = Supervisor(
+            IGN,
+            [*(object.__new__(cls) for cls in TRAINING), self.dm],
+            resolve_pauses([ChatReplies]),
         )
-        monkeypatch.setattr(
-            self.dm,
-            "_enable_decision_makers",
-            lambda *names, **kw: self.enabled.extend(names),
-        )
+        self.dm.setup()
         self._cycle = itertools.count(1)
 
     async def cycle(self, *lines: ChatLine, then: float = 0.5) -> None:
@@ -296,6 +305,19 @@ class Harness:
 
     def events_of(self, event: str) -> list[dict[str, Any]]:
         return [payload for e, payload, _ in self.events if e == event]
+
+    def paused(self) -> list[str]:
+        """The other DecisionMakers a user-held Pause holds, once per Pause."""
+        return [
+            cls.__name__
+            for cls in TRAINING
+            for pause in self.supervisor.held(cls)
+            if pause.holder == USER
+        ]
+
+    def resume(self) -> list[object]:
+        """Discord `RESUME`: what it released."""
+        return list(self.supervisor.resume_for_user())
 
     def typed(self, request: ActionRequest) -> None:
         """Main Process typed the reply: its callbacks run."""
@@ -343,6 +365,24 @@ def test_a_whisper_is_answered_on_whisper_with_the_characters_keys(
         f"MobsHitting({IGN})",
         f"TelecastMobsHitting({IGN})",
     ]
+
+
+def test_a_reply_being_prepared_is_dropped_when_the_loop_stops(
+    harness: Callable[..., Harness],
+) -> None:
+    """The Supervisor calls `on_stop` however the loop stopped (a PAUSE, the Bot
+    ending): the reply the model is still preparing is never sent."""
+    h = harness(latency=5.0, answers=[says("ya")])
+
+    async def body() -> None:
+        await started(h)
+        await h.cycle(line(ChatKind.WHISPER, "Bob", "hi u there?"))
+        assert h.model.asked, "the reply is being prepared"
+        h.dm.on_stop()
+        await h.clock.advance(30)
+
+    scenario(body)
+    assert h.replies == []
 
 
 def test_a_general_line_naming_us_is_answered_on_general(
@@ -773,10 +813,10 @@ def test_replies_off_reads_and_posts_but_never_answers_even_once_back_on(
 
     async def body() -> None:
         await started(h)
-        h.data.set_static("replies_on", False)
+        h.switch.switch(False)
         await h.cycle(line(ChatKind.WHISPER, "Bob", "hi"))
         await h.run(10)
-        h.data.set_static("replies_on", True)
+        h.switch.switch(True)
         await h.run(10)
 
     scenario(body)
@@ -798,9 +838,9 @@ def test_a_takeover_between_the_models_answer_and_the_send_cancels_the_reply(
         await h.cycle(line(ChatKind.WHISPER, "Bob", "hi there"))
         await h.run(1)
         assert len(h.model.asked) == 1
-        h.dm.data.set_static("replies_on", False)  # a Discord WRITE's TAKEOVER
+        h.switch.switch(False)  # a Discord WRITE's TAKEOVER
         await h.run(10)
-        h.dm.data.set_static("replies_on", True)
+        h.switch.switch(True)
         await h.run(10)
 
     scenario(body)
@@ -820,9 +860,9 @@ def test_lines_left_pending_when_replies_go_off_are_given_up(
             line(ChatKind.WHISPER, "Bob", "hi"), line(ChatKind.PARTY, "Ann", "yo")
         )
         await h.run(1)
-        h.dm.data.set_static("replies_on", False)
+        h.switch.switch(False)
         await h.run(10)
-        h.dm.data.set_static("replies_on", True)
+        h.switch.switch(True)
         await h.run(20)
 
     scenario(body)
@@ -878,7 +918,7 @@ def test_a_gm_line_raises_the_alarm_at_once_and_stops_training(
     assert alarm["kind"] == "gm"
     [(_, alert)] = [(t, r) for t, r in h.requests if r.identifier.endswith("GM alert")]
     assert alert.discord_request is not None
-    assert h.disabled == ["Rotation", "MobsHitting", "PetFood"]
+    assert h.paused() == ["Rotation", "MobsHitting", "PetFood"]
 
 
 def test_a_gm_is_answered_first_with_the_gm_section_and_rings(
@@ -905,12 +945,11 @@ def test_a_gms_later_whisper_is_a_gm_line_too(harness: Callable[..., Harness]) -
     async def body() -> None:
         await started(h)
         await h.cycle(gm_line())
-        h.disabled.clear()
-        h.dm.on_resume()
+        h.resume()
         await h.cycle(line(ChatKind.WHISPER, "Zed", "hello?"))
 
     scenario(body)
-    assert h.disabled == ["Rotation", "MobsHitting", "PetFood"]
+    assert h.paused() == ["Rotation", "MobsHitting", "PetFood"]
 
 
 def test_resume_gives_back_exactly_what_the_gm_stopped(
@@ -924,11 +963,10 @@ def test_resume_gives_back_exactly_what_the_gm_stopped(
         await h.cycle(gm_line())
 
     scenario(body)
-    assert h.disabled == ["Rotation", "MobsHitting", "PetFood"], "once"
-    assert h.dm.on_resume() == ("Rotation", "MobsHitting", "PetFood")
-    assert h.enabled == ["Rotation", "MobsHitting", "PetFood"]
-    assert h.dm.on_resume() == (), "a RESUME with no GM gives back nothing"
-    assert h.enabled == ["Rotation", "MobsHitting", "PetFood"]
+    assert h.paused() == ["Rotation", "MobsHitting", "PetFood"], "once"
+    assert len(h.resume()) == len(TRAINING)
+    assert h.paused() == []
+    assert h.resume() == [], "a RESUME with no GM gives back nothing"
 
 
 def test_no_discord_alert_or_post_when_discord_isnt_configured(
@@ -972,3 +1010,21 @@ def test_unloadable_instructions_refuse_the_start(
 def test_the_training_bot_runs_chat_replies_which_declares_the_chat() -> None:
     assert ChatReplies in TrainingBot._decision_makers(None)  # pyright: ignore[reportArgumentType, reportPrivateUsage]
     assert CHAT in ChatReplies.screen_readers
+
+
+def test_a_gm_stops_every_other_decision_maker_and_declares_it() -> None:
+    """`GM_STOPS` is every DecisionMaker of the package but `ChatReplies`, and
+    `ChatReplies` declares each one it pauses."""
+    from maple import decision_makers
+
+    exported = (getattr(decision_makers, name) for name in decision_makers.__all__)
+    others = {
+        cls
+        for cls in exported
+        if isinstance(cls, type)
+        and issubclass(cls, DecisionMaker)
+        and cls is not ChatReplies
+    }
+
+    assert set(GM_STOPS) == others
+    assert set(ChatReplies.pauses) == others

@@ -197,7 +197,7 @@ class Camera:
         A point on the client, in client px, in virtual px: scaled to the
         play area's render size, then the camera added. How fusion places
         the characters found, and how mobs found on screen are placed
-        (`MobsHittingMixin.mobs_in_virtual_px`).
+        (`mob_detection.mobs_in_virtual_px`).
 
         :param client_size: The size of the client the point was found on.
         """

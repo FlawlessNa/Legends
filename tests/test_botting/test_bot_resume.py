@@ -3,15 +3,13 @@
 Process proxies stubbed by in-process primitives.
 
 RESUME restarts what PAUSE stopped, as it always has; it leaves a running loop
-alone, so a RESUME with no PAUSE never runs one twice; and a DecisionMaker's
-`on_resume` hook gives back what it disabled, through its enablers.
+alone, so a RESUME with no PAUSE never runs one twice; and it ends the legacy
+shim's Pauses without a later enable running a loop twice.
 """
 
 import asyncio
-import concurrent.futures
 import queue
 import threading
-from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -31,16 +29,7 @@ class Training(_Loop):
 
 
 class Chat(_Loop):
-    """Gives `Training` back on RESUME, as `ChatReplies` does after a GM."""
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
-        super().__init__(*args, **kwargs)
-        self.disabled: tuple[str, ...] = ()
-
-    def on_resume(self) -> tuple[str, ...]:
-        given_back, self.disabled = self.disabled, ()
-        self._enable_decision_makers(*given_back)
-        return given_back
+    """Disables `Training` through the legacy shim."""
 
 
 class _Bot(Bot):
@@ -76,14 +65,10 @@ def metadata(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
     return meta
 
 
-def _loops(name: str) -> list[asyncio.Task]:
-    return [
-        t
-        for t in asyncio.all_tasks()
-        if t.get_name().startswith(name)
-        and not t.done()
-        and "abler" not in t.get_name()
-    ]
+def _loops(dm: str) -> list[asyncio.Task]:
+    """The decision loops of `dm` running for Alice: not its Supervisor task."""
+    name = f"{dm}(Alice)"
+    return [t for t in asyncio.all_tasks() if t.get_name() == name and not t.done()]
 
 
 async def _until(predicate: Any, timeout: float = 2.0) -> None:  # noqa: ANN401
@@ -92,38 +77,8 @@ async def _until(predicate: Any, timeout: float = 2.0) -> None:  # noqa: ANN401
             await asyncio.sleep(0.01)
 
 
-class _DaemonThreads(concurrent.futures.ThreadPoolExecutor):
-    """
-    The loop's `to_thread` executor, on daemon threads that nothing joins: the
-    enabler and disabler threads wait on their Conditions for as long as the
-    process lives, which in an Engine is how they end.
-    """
-
-    def submit(  # pyright: ignore[reportIncompatibleMethodOverride]
-        self,
-        fn: Callable[..., object],
-        /,
-        *args: object,
-        **kwargs: object,
-    ) -> concurrent.futures.Future[object]:
-        future: concurrent.futures.Future[object] = concurrent.futures.Future()
-
-        def run() -> None:
-            try:
-                future.set_result(fn(*args, **kwargs))
-            except BaseException as exc:  # noqa: BLE001 - handed to the future
-                future.set_exception(exc)
-
-        threading.Thread(target=run, daemon=True).start()
-        return future
-
-    def shutdown(self, wait: bool = True, **kwargs: object) -> None:
-        pass
-
-
 def _scenario(metadata: dict[str, object], steps: Any) -> None:  # noqa: ANN401
     async def run() -> None:
-        asyncio.get_running_loop().set_default_executor(_DaemonThreads())
         bot = _Bot("Alice", metadata)  # pyright: ignore[reportArgumentType]
         bot.data = BotData("Alice")
         bot.pipe = _Pipe()  # pyright: ignore[reportAttributeAccessIssue]
@@ -158,52 +113,6 @@ def test_pause_then_resume_restarts_every_loop(metadata: dict[str, object]) -> N
         await _until(lambda: not _loops("Training") and not _loops("Chat"))
         bot.resume()
         await _until(lambda: len(_loops("Training")) == 1 and len(_loops("Chat")) == 1)
-
-    _scenario(metadata, steps)
-
-
-def test_what_a_decision_maker_disabled_comes_back_through_its_hook_once(
-    metadata: dict[str, object],
-) -> None:
-    async def steps(bot: _Bot) -> None:
-        chat = next(dm for dm in bot.decision_makers if isinstance(dm, Chat))
-        training = next(dm for dm in bot.decision_makers if isinstance(dm, Training))
-        chat._disable_decision_makers("Training")  # pyright: ignore[reportPrivateUsage]
-        chat.disabled = ("Training",)
-        await _until(lambda: not _loops("Training"))
-
-        bot.resume()
-        await _until(lambda: len(_loops("Training")) == 1)
-        await asyncio.sleep(0.1)
-
-        assert len(_loops("Training")) == 1
-        assert len(_loops("Chat")) == 1
-        # Given back as enabled, so the next disable stops it again.
-        assert training._enabled  # pyright: ignore[reportPrivateUsage]
-
-    _scenario(metadata, steps)
-
-
-def test_an_enable_after_resume_restarted_a_disabled_loop_runs_no_loop_twice(
-    metadata: dict[str, object],
-) -> None:
-    """A loop disabled by someone whose hook doesn't give it back is restarted by
-    RESUME, as PAUSE leaves it; a later enable then finds it running (#489)."""
-
-    async def steps(bot: _Bot) -> None:
-        chat = next(dm for dm in bot.decision_makers if isinstance(dm, Chat))
-        training = next(dm for dm in bot.decision_makers if isinstance(dm, Training))
-        chat._disable_decision_makers("Training")  # pyright: ignore[reportPrivateUsage]
-        await _until(lambda: not _loops("Training"))
-
-        bot.resume()
-        await _until(lambda: len(_loops("Training")) == 1)
-        assert training._enabled  # pyright: ignore[reportPrivateUsage]
-
-        chat._enable_decision_makers("Training")  # pyright: ignore[reportPrivateUsage]
-        await asyncio.sleep(0.1)
-
-        assert len(_loops("Training")) == 1
 
     _scenario(metadata, steps)
 

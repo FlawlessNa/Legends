@@ -349,7 +349,7 @@ def test_child_init_keeps_the_loaded_sprites_and_a_frame_check(
     monkeypatch.setattr(
         MapleBot, "_check_map_at_start", lambda self, sprites: (10002000, sprites)
     )
-    monkeypatch.setattr(MapleBot, "_set_world_map", lambda *_: None)
+    monkeypatch.setattr(MapleBot, "_world_map", lambda *_: {})
     bot = _Bot(
         "Someone",
         {},  # pyright: ignore[reportArgumentType] - metadata is never read here

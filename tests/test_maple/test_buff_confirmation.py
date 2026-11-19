@@ -5,15 +5,14 @@ before and after readings make of it, and which casts `CastCheck` asks for again
 
 import itertools
 from collections.abc import Iterator
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 from pytest_mock import MockerFixture
 
-from botting.core.bot_data import BotData
 from botting.screen import Frame, Reading
-from maple.decision_makers.mixins import RebuffMixin
-from maple.decision_makers.mixins._buffs_mixins import (
+from maple.decision_makers.buff_confirmation import (
     FRESHNESS_MARGINS,
     BuffsReading,
     CastCheck,
@@ -21,7 +20,10 @@ from maple.decision_makers.mixins._buffs_mixins import (
     FreshnessMargins,
     buff_confirmation,
 )
+from maple.decision_makers.providers import BUFFS_READING, FRAME
+from maple.decision_makers.rebuffs import SoloRebuff
 from maple.screen.buffs import BuffState
+from tests.test_maple.serving import assemble, serve
 
 # Synthetic margins: the real ones wait for frames (`FRESHNESS_MARGINS`).
 MARGINS = FreshnessMargins(drop=0.3, nearly_fresh=0.2)
@@ -194,30 +196,30 @@ def test_one_buff_not_confirmed_retries_them_all() -> None:
     assert casts(check) == 2
 
 
-class _Rebuff(RebuffMixin):
-    def __init__(self, data: BotData) -> None:
-        self.data = data
-
-
-def test_buffs_are_read_from_a_frame_captured_now(mocker: MockerFixture) -> None:
-    data = BotData("Bot")
-    frames = iter(
+def test_buffs_are_read_from_a_frame_captured_now(
+    monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
+    frames = (
         Frame(np.zeros((4, 4, 3), np.uint8), (4, 4), float(t), True, True)
         for t in itertools.count()
     )
-    data.create_attribute("current_frame", lambda: next(frames), threshold=60)
     reader = mocker.Mock()
     reader.read.return_value = read(SHOWN)
-    data.set_static("buffs_reader", reader)
-    data.set_static("buff_names", (BUFF,))
-    rebuff = _Rebuff(data)
-    rebuff._create_buffs_attributes()  # pyright: ignore[reportPrivateUsage]
-    first = data.current_frame
+    served = serve(
+        monkeypatch,
+        frames=lambda: next(frames),
+        buffs=reader,
+        character=SimpleNamespace(skills={}),
+        buff_names=(BUFF,),
+    )
+    assemble(served, SoloRebuff)
+    rebuff = SoloRebuff({}, served.data, None)  # pyright: ignore[reportArgumentType] - no Manager or pipe needed
+    rebuff.setup()
+    first = served.data.read(FRAME)
 
     assert rebuff._read_buffs() == read(SHOWN)  # pyright: ignore[reportPrivateUsage]
 
     frame, buffs = reader.read.call_args.args
     assert frame is not first
     assert buffs == (BUFF,)
-    assert data.buffs == read(SHOWN)
-    assert data.has_buffs_attributes
+    assert served.data.read(BUFFS_READING) == read(SHOWN)

@@ -21,6 +21,7 @@ import logging
 import os
 import shutil
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Final
 
@@ -30,6 +31,18 @@ from paths import ROOT
 #: ``botting/`` names itself after ``__name__``; every logger in ``maple/``
 #: prefixes ``__name__`` with this.
 PARENT_LOG: Final = "botting"
+
+
+def producer_logger_name(module: str) -> str:
+    """
+    The logger a Producer defined in `module` attributes its Telemetry Records
+    to, following its own package's convention: a ``botting`` module's name as
+    it is, any other prefixed with ``PARENT_LOG``.
+    """
+    if module == PARENT_LOG or module.startswith(f"{PARENT_LOG}."):
+        return module
+    return f"{PARENT_LOG}.{module}"
+
 
 LOGS_ROOT: Final[Path] = Path(ROOT) / "logs"
 
@@ -80,7 +93,7 @@ def new_session_dir() -> Path:
 BUCKET_NAMES: Final = ("movement", "inputs", "decisions", "other")
 
 #: Logger-name prefix -> Log Bucket. Longest prefix wins, so a submodule can
-#: escape its parent's bucket - which three ``decision_makers`` submodules do.
+#: escape its parent's bucket - which a few ``decision_makers`` submodules do.
 #:
 #: Records are routed here, on the handler, rather than by giving each bucket
 #: its own logger: ``Engine`` and ``PeripheralsProcess`` run in child processes,
@@ -94,8 +107,10 @@ BUCKETS: Final[dict[str, str]] = {
     "botting.maple.decision_makers": "decisions",
     "botting.maple.model.mechanics": "movement",
     "botting.maple.decision_makers.rotation": "movement",
-    "botting.maple.decision_makers.mixins._map_mixins": "movement",
-    "botting.maple.decision_makers.mixins._rotation_mixins": "movement",
+    # The minimap and the position read on it.
+    "botting.maple.decision_makers.providers.minimap": "movement",
+    # The rotation's destination.
+    "botting.maple.decision_makers.providers.destination": "movement",
     # Movement compilation, sitting under `maple.actions` rather than
     # `model.mechanics`. Its siblings there (menus, writing, skills) are not
     # movement, hence the module-level prefix rather than the package one.
@@ -123,7 +138,7 @@ _FMT: Final = (
 )
 
 
-def _longest_prefix(name: str, table: dict, default):
+def _longest_prefix[T](name: str, table: Mapping[str, T], default: T) -> T:
     """
     Look ``name`` up in a prefix table, letting the most specific entry win.
 

@@ -9,7 +9,7 @@ side, their keys interleave into one garbled line.
 Each scenario runs Main Process as it is live: the real `AsyncTaskManager`, fed
 the requests their real builders make (`ChatReplies` for the reply, through
 `tests/test_maple/test_chat_replies.py`'s harness; `MapleParser.write`;
-`ReactionsMixin._react`), runs the real procedures. Only what leaves the process
+`Reactions.react`), runs the real procedures. Only what leaves the process
 is captured (`tests/sent_input.py`), so the keys recorded are the ones the game
 would have received, in the order it would have received them.
 
@@ -20,14 +20,17 @@ import asyncio
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
 from botting.controller.inputs.held_keys_ledger import HeldKeysLedger
-from botting.core import ActionRequest
+from botting.core import HANDLE as HANDLE_KEY
+from botting.core import ActionRequest, Key
 from botting.core.async_task_manager import AsyncTaskManager
 from maple.actions import writing
-from maple.decision_makers.mixins import ReactionsMixin
+from maple.decision_makers.providers import CHAT_KEYS, FRAME
+from maple.decision_makers.reactions import Reactions
 from maple.parsers import maple_parser
 from maple.parsers.maple_parser import MapleParser
 from maple.screen.chat import ChatKind
@@ -117,21 +120,27 @@ def writes(monkeypatch: pytest.MonkeyPatch) -> Callable[[str], ActionRequest]:
     return lambda message: parser.write(message, IGN)
 
 
-class _Reacting(ReactionsMixin):
+class _Reacting:
     """A bot's failsafe reaction, with `send` captured."""
 
     def __init__(self) -> None:
-        self.data = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
-            ign=IGN,
-            handle=HANDLE,
-            chat_keys=KEYS,
-            current_frame=SimpleNamespace(pixels=None),
-        )
+        self.data = SimpleNamespace(ign=IGN)
+        self.values: dict[Key[Any], object] = {
+            HANDLE_KEY: HANDLE,
+            CHAT_KEYS: KEYS,
+            FRAME: SimpleNamespace(pixels=None),
+        }
         self.sent: list[ActionRequest] = []
-        self.send = self.sent.append
+        self.reactions = Reactions(self)  # pyright: ignore[reportArgumentType] - a stand-in
 
     def __str__(self) -> str:
         return f"Rotation({IGN})"
+
+    def read(self, key: Key[Any]) -> object:
+        return self.values[key]
+
+    def send(self, request: ActionRequest) -> None:
+        self.sent.append(request)
 
 
 @pytest.fixture
@@ -141,8 +150,8 @@ def reacts(monkeypatch: pytest.MonkeyPatch) -> Callable[[str], ActionRequest]:
     reacting = _Reacting()
 
     def react(message: str) -> ActionRequest:
-        monkeypatch.setattr(ReactionsMixin, "_light_reactions", [message])
-        ReactionsMixin._react.__wrapped__(reacting, "light")  # pyright: ignore[reportFunctionMemberAccess]
+        monkeypatch.setattr(Reactions, "LIGHT", [message])
+        Reactions.react.__wrapped__(reacting.reactions, "light")  # pyright: ignore[reportFunctionMemberAccess]
         return reacting.sent[-1]
 
     return react

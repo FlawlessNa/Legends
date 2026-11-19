@@ -94,6 +94,59 @@ _Avoid_: Log level — a record's severity and its console visibility are
 distinct dials, and one word for both is the confusion this term exists to
 prevent.
 
+## Decision-making
+
+The framework DecisionMakers are built on (ADR 0004).
+Every DecisionMaker runs on the Supervisor, Pauses, Data Keys, Providers, Claims and Signals (epic #432); the mixins they replace are gone.
+
+**Supervisor**:
+The one owner of a Bot's decision loops (`botting/core/supervisor.py`).
+It starts every DecisionMaker's loops once the Bot is assembled, calls its `on_start()` before every start and restart and its `on_stop()` once they have stopped, holds what it holds for a run (`holds_for_run()`) in between, and is the only thing that cancels or restarts a loop.
+It runs in the Engine's event loop, with no thread and no Manager object.
+_Avoid_: Scheduler, task manager - `AsyncTaskManager` is Main Process's arbiter of Actions, a different thing.
+
+**Pause**:
+A hold on one DecisionMaker class in one Bot, taken by a holder (a DecisionMaker, or the user) for a reason.
+A DecisionMaker holding at least one Pause has its loops cancelled and keeps its state; once the last is released, `on_start()` runs and its loops start again.
+Pauses stack, and cover their exact class only, never a subclass.
+A DecisionMaker's own are scoped to its `async with self.pause(...)` block, so they are released however the block exits, the holder itself being paused included.
+A user-held Pause (Discord `PAUSE`, `pause_for_user`) lasts until Discord `RESUME`.
+_Avoid_: Disable, suspend - the legacy shim that disabled a DecisionMaker, unscoped, went with the mixins (#444).
+
+**Data Key**:
+The name and type of one piece of data a Bot shares between its DecisionMakers (`Key[T]`), naming the one Provider that produces it.
+A DecisionMaker declares the keys it reads, and reads no others.
+_Avoid_: Attribute, managed attribute - a `ManagedAttribute` is where a key's value is stored, not what names it.
+
+**Provider**:
+What produces the values of one or more Data Keys.
+It belongs to the Bot, not to a DecisionMaker: it is built once per Bot however many DecisionMakers read its keys, and configured from the Bot's profile settings.
+A **Bot-level** Provider serves what its Bot found and checked at start (the game window's handle, the map, the screen readers): the Bot builds it in `child_init`, and assembly never does.
+_Avoid_: Mixin - Providers replace the mixins' data role.
+
+**Assembly**:
+What `Bot.start` does before the start barrier (`Bot.assemble`): it resolves the DecisionMakers' declarations, builds and sets up the Providers they read, each after those it needs, then builds and sets up the DecisionMakers and hands them to the Supervisor.
+A Bot wired wrong is refused here, with `StartupRefused` naming the missing or conflicting piece, before any bot starts.
+
+**Claim**:
+A scoped, exclusive right to steer a steerable Data Key: while it is held, the key serves the claimant's value source instead of its Provider's own.
+A second Claim on a held key is refused at once, naming the holder.
+What is claimed is a value source, not a value, so the key keeps refreshing on its own threshold while claimed.
+Like a Pause, it is released when its block exits, by any route, and the key then serves its Provider's own value again.
+`DESTINATION`, where the rotation heads, is the first steerable key.
+_Avoid_: Override, lock, reconfigure - `reconfigure_attribute` was the unscoped legacy a Claim replaced (#444).
+
+**Signal**:
+A typed announcement, within one Bot, that something happened.
+A DecisionMaker or a Provider announces it, and the DecisionMakers that await it wake on it instead of polling.
+A Bot whose DecisionMaker awaits a Signal that nothing in it announces is refused at assembly.
+_Avoid_: Event - a Telemetry Record has an Event Type; a Signal is not recorded.
+
+**Turn Gate**:
+One decision at a time on the client, for one DecisionMaker (`TurnGate`): a decision enters it before it sends an Action, and the Action's callback leaves it from Main Process once the Action is done.
+It wraps a Manager Lock, because that release runs in another process.
+_Avoid_: Lock - the lock is what it is built on; Delivery Gate - movement recovery's precondition, unrelated.
+
 ## Movement compilation
 
 **Path**:
@@ -460,7 +513,7 @@ not a unit.
 
 **Virtual position**:
 Where our character's feet are, in virtual coordinates, read every cycle as a
-`Reading[VirtualPosition]` (`data.current_position`). Fused from two reads: the
+`Reading[VirtualPosition]` (`POSITION`). Fused from two reads: the
 play area for precision (the Camera plus the feet found on screen) and the
 minimap as the check and the fallback. A position from the minimap alone is
 flagged coarse: that is the position whenever the play area doesn't place our

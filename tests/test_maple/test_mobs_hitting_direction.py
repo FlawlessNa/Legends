@@ -7,18 +7,22 @@ branch could only ever raise `NameError`, right after a `breakpoint()` froze the
 bot. The facing is now derived from the character's on-screen bounding box.
 
 Everything here is pure geometry: the detection call is stubbed, so no game
-client and no `MobsHitting` instance are involved.
+client and no `MobsHitting` instance are involved. The geometry is
+`mob_detection`'s functions, which were `MobsHittingMixin`'s methods.
 """
 
 import logging
 from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
 import pytest
 
-from botting.core import BotData
-from maple.decision_makers.mixins import MobsHittingMixin
+from botting.core import Key
+from maple.decision_makers import mobs_hitting
+from maple.decision_makers.mob_detection import box_center, get_closest_mob_direction
 from maple.decision_makers.mobs_hitting import MobsHitting
+from maple.decision_makers.providers import HANDLE, MOBS
 
 # A character standing at x = 100, y = 55 on screen: x1, y1, x2, y2.
 CHARACTER_BOX = (90, 40, 110, 70)
@@ -36,41 +40,35 @@ PIXELS = np.zeros((1, 1, 3), dtype=np.uint8)
 MASK = np.zeros((1, 1), dtype=np.uint8)
 
 
-def _fake_data() -> BotData:
-    """The one read `_closest_mob_direction` makes before the detection call."""
-    data = BotData("TestBot")
-    data.set_static("current_mobs", ())
-    return data
-
-
-class _FakeMobsHitting(MobsHittingMixin):
+class _FakeMobsHitting:
     """
-    The slice of `MobsHitting` that `_closest_mob_direction` reaches through.
+    The slice of `MobsHitting` that `_closest_mob_direction` reaches through: the
+    two keys it reads before the detection call, which it only forwards to it.
 
     `_closest_mob_direction` is called unbound against this, which is the point of
     extracting it: the only thing standing between it and pure logic is the one
     detection call stubbed out below.
     """
 
-    def __init__(
-        self, mobs: list[Sequence[int]], raises: Exception | None = None
-    ) -> None:
-        self._mobs = mobs
-        self._raises = raises
-        self.data = _fake_data()  # only ever forwarded to the stub below
-
-    def get_mobs_positions_in_img(
-        self, *args: object, **kwargs: object
-    ) -> list[Sequence[int]]:
-        if self._raises is not None:
-            raise self._raises
-        return self._mobs
+    def read(self, key: Key[Any]) -> object:
+        return {MOBS: (), HANDLE: 1}[key]
 
 
 def _direction(
     mobs: list[Sequence[int]], raises: Exception | None = None
 ) -> str | None:
-    fake = _FakeMobsHitting(mobs, raises)
+    def detect(*args: object, **kwargs: object) -> list[Sequence[int]]:
+        if raises is not None:
+            raise raises
+        return mobs
+
+    fake = _FakeMobsHitting()
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(mobs_hitting, "get_mobs_positions_in_img", detect)
+        return _closest(fake)
+
+
+def _closest(fake: _FakeMobsHitting) -> str | None:
     # `_closest_mob_direction` is nominally typed to `MobsHitting`, a DecisionMaker
     # whose construction needs a live manager, pipe and proxy factory. Calling it
     # unbound against the stand-in is the whole point of extracting it, so the shape
@@ -87,7 +85,7 @@ def _direction(
 
 
 def test_box_center_is_the_middle_of_an_x1y1x2y2_box() -> None:
-    assert MobsHittingMixin.box_center(CHARACTER_BOX) == (100.0, 55.0)
+    assert box_center(CHARACTER_BOX) == (100.0, 55.0)
 
 
 # --- get_closest_mob_direction ----------------------------------------------
@@ -105,21 +103,11 @@ def test_box_center_is_the_middle_of_an_x1y1x2y2_box() -> None:
 def test_direction_points_at_the_closest_mob(
     mobs: list[Sequence[int]], expected: str
 ) -> None:
-    assert (
-        MobsHittingMixin.get_closest_mob_direction(
-            MobsHittingMixin.box_center(CHARACTER_BOX), mobs
-        )
-        == expected
-    )
+    assert get_closest_mob_direction(box_center(CHARACTER_BOX), mobs) == expected
 
 
 def test_direction_is_none_without_mobs() -> None:
-    assert (
-        MobsHittingMixin.get_closest_mob_direction(
-            MobsHittingMixin.box_center(CHARACTER_BOX), []
-        )
-        is None
-    )
+    assert get_closest_mob_direction(box_center(CHARACTER_BOX), []) is None
 
 
 # --- the unidirectional branch of _decide -----------------------------------
@@ -152,7 +140,4 @@ def test_detection_failure_logs_and_falls_back_to_no_facing(
 
 def test_a_mob_left_of_the_character_in_x1y1x2y2_is_to_the_left() -> None:
     # Centre 420 in x1, y1, x2, y2; read as x, y, w, h it would be 620, to the right.
-    assert (
-        MobsHittingMixin.get_closest_mob_direction((500, 5), [(400, 0, 440, 10)])
-        == "left"
-    )
+    assert get_closest_mob_direction((500, 5), [(400, 0, 440, 10)]) == "left"

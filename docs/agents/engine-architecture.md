@@ -16,9 +16,11 @@ question. The rules that a change can *violate* are in
   `QueueListener` thread for logs, the Held-Keys Ledger, and every keystroke
   that reaches a client.
 - **Engine Process** — one per bot group, spawned by `SessionManager.launch()`.
-  Runs `asyncio.run()` over its Bots. Each Bot owns a `BotData` and a set of
-  `DecisionMaker`s, each of which is one asyncio task plus two threads (an
-  enabler and a disabler waiting on shared Conditions).
+  Runs `asyncio.run()` over its Bots. Each Bot owns a `BotData`, the
+  Providers of the Data Keys its DecisionMakers read, a set of
+  `DecisionMaker`s and a `Supervisor`, which runs every DecisionMaker's
+  decision loops as asyncio tasks in the Engine's event loop. No thread is
+  involved in pausing (ADR 0004).
 - **Peripherals Process** — one. Screen recorder, Discord I/O (user → main),
   Discord relay (main → user), as three tasks in one loop.
 - **Manager Process** — `multiprocessing.Manager()`. Holds the `metadata`
@@ -32,7 +34,7 @@ Transport facts that constrain code:
   `send()`.
 - Pipe reads block. Both ends poll via `asyncio.to_thread(pipe.poll)`. Don't
   add a blocking read to an event loop.
-- Engines **read** the game clients: each Bot's `current_frame`, one Desktop
+- Engines **read** the game clients: each Bot's `FRAME`, one Desktop
   Duplication capture (`botting.screen`), which the readers and detection
   share. Main Process **writes** to them. An Engine that tries to send input
   raises.
@@ -41,8 +43,9 @@ Transport facts that constrain code:
 
 The hot loop, in order. Steps 1–2 run in an Engine, 3–8 in Main Process.
 
-1. `DecisionMaker._decide()` runs one cycle. The base class mints a fresh
-   Correlation ID per cycle; subclasses never assign it.
+1. `DecisionMaker._decide()` runs one cycle, in a decision loop the Bot's
+   Supervisor runs. The base class mints a fresh Correlation ID per cycle;
+   subclasses never assign it.
 2. `DecisionMaker.send(request)` stamps that id onto the `ActionRequest` and
    writes it to the pipe. Stamping happens at send, not at construction,
    because some requests are built once and re-sent many times.
@@ -77,18 +80,29 @@ then goes one of two ways:
 - **A command string** (`PAUSE --ign X`) → broadcast to every Engine pipe →
   `_poll_for_updates` matches on ign → `getattr(bot, action)()`.
 
-`Bot.resume()` restarts each DecisionMaker whose task isn't running, after
-asking each one's `on_resume()` hook: a DecisionMaker that disabled others and
-gives them back on RESUME (`ChatReplies`, after a GM) enables them there, and
-their enablers restart them. The enabler and disabler threads restart and
-cancel a decision task through `call_soon_threadsafe`, on the Engine's loop.
-An enable and a RESUME both restart a loop through `DecisionMaker.restart`,
-which counts it enabled and starts it only if it isn't running, so neither can
-start a second loop beside the other's.
+`PAUSE` reaches `Bot.pause()`, which takes a Pause held by the user on every
+DecisionMaker (the Supervisor cancels their loops) and sends a high-priority
+`ActionRequest` back to Main to release the movement keys. `RESUME` reaches
+`Bot.resume()`, which releases every user-held Pause, those a DecisionMaker
+took with `pause_for_user` included
+(`ChatReplies` stops training on a GM's line until RESUME); a DecisionMaker
+whose last Pause goes runs `on_start()` and restarts. Nothing finds a task by
+its name.
 
-`Bot.pause()` is the shape to copy when an Engine needs something done to a
-client: cancel the local tasks, then send a high-priority `ActionRequest` back
-to Main to do the part that requires input.
+That is the shape to copy when an Engine needs something done to a client:
+change what runs locally, then send a high-priority `ActionRequest` back to
+Main to do the part that requires input.
+
+## Pauses
+
+A DecisionMaker pauses another of its own Bot with
+`async with self.pause(Other, reason=...)`, naming `Other` in its `pauses`
+declaration. The Supervisor cancels a DecisionMaker's loops when it goes from
+no Pause to one, and restarts them when the last is released; Pauses stack,
+cover their exact class only, and are released however the block exits. By
+default a Pause sends nothing to Main Process; `cancel_actions=True` sends one
+request cancelling the paused DecisionMakers' Actions by `action_name`. A
+Pause never reaches another Bot or another Engine. ADR 0004 has the rules.
 
 ## Logging and telemetry
 
@@ -112,12 +126,8 @@ not in `ignored_keys`, replaces it with a real proxy, and notifies back.
 Use `ProxyFactory` rather than the raw protocol:
 
 - `instance(owner, type)` — popped after creation. Per-bot locks and conditions.
-- `shared(group, name, type)` — persists, auto-registered in `ignored_keys`,
-  so every Engine finds the same object. Each `DecisionMaker` waits on its
-  own enabler and disabler, keyed by class name and IGN
-  (`proxy/shared/Rotation/disabler/<IGN>`): `_disable_decision_makers("Rotation")`
-  notifies every bot's in every Engine, and `self_only=True` only its own
-  bot's (a GM's stop, in `ChatReplies`).
+- `shared(group, name, type)` — persists, auto-registered in `ignored_keys`.
+  For cross-bot synchronisation; pausing does not use it.
 
 Anything written into `metadata` that is *not* a pending proxy request must be
 registered in `ignored_keys`, or `_monitor_proxy` will try to service it as one.
@@ -129,8 +139,11 @@ registered in `ignored_keys`, or `_monitor_proxy` will try to service it as one.
 | --- | --- |
 | Session setup, teardown, proxy monitor | `botting/core/session_manager.py` |
 | Engine child loop + Main-side listener | `botting/core/engine.py` |
-| Bot lifecycle, pause/resume | `botting/core/bot.py` |
-| Decide cycle, Correlation IDs, enable/disable | `botting/core/decision_maker.py` |
+| Bot lifecycle, Discord pause/resume | `botting/core/bot.py` |
+| Decision loops, Pauses, restarts | `botting/core/supervisor.py` |
+| Data Keys, Providers, assembly order | `botting/core/data_keys.py` |
+| Assembly, before the start barrier | `botting/core/bot.py` (`start`) |
+| Decide cycle, Correlation IDs, `pause`, `pause_for_user` | `botting/core/decision_maker.py` |
 | Priority, cancellation, `action.*` telemetry | `botting/core/async_task_manager.py` |
 | `ActionRequest`, `ActionWithValidation` | `botting/core/action_data.py` |
 | Managed attributes, update thresholds | `botting/core/bot_data.py` |

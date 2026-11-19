@@ -6,9 +6,9 @@ alarm on a GM's line, and answers players who talk to the character (#455).
 everything about replies: replies being off (`chat_replies: false`, `REPLIES
 OFF`), the model being unreachable, or a reply in flight never delay or silence
 it. A GM's line, and any later line of the same speaker, also stops training:
-every other DecisionMaker of the bot, and of no other bot, is disabled
-(`_disable_decision_makers`, `self_only`) until `RESUME` gives them back
-(`on_resume`, called by `Bot.resume`).
+it takes a user-held Pause (`pause_for_user`) on every other DecisionMaker of
+its own bot (`GM_STOPS`, its `pauses`), and only `RESUME` releases it. A GM
+line after the `RESUME` stops training again.
 
 **Following the conversation.** Every cycle each line read is addressed
 (`Addressing`) and appended to the `Conversation`. Lines on screen at the first
@@ -20,7 +20,7 @@ The reply is sent no sooner than a read delay after its lines appeared: 2 s
 plus 60 ms per character, jittered by 30 %, capped at 8 s (`read_delay`). The
 model's latency is spent inside that delay; a model slower than it is sent at
 once. The send is one `reply_in_chat` Action at `ANTI_DETECTION`, blocking
-lower priorities and cancelling the training Actions in flight; `replies_on` is
+lower priorities and cancelling the training Actions in flight; `REPLIES_ON` is
 read again just before it, so a takeover since the model answered cancels it.
 
 **Our own reply's echo.** The Action's callback, in Main Process, puts the reply
@@ -34,7 +34,8 @@ from when the last one ended; and 20 model calls per 10 minutes for the session
 emitted and one Action releases every key, closes the game and ends the session
 as `KILL` does, its Discord alert ringing the maintainer.
 
-**Takeover.** `replies_on` (`REPLIES OFF`, a Discord `WRITE`) stops the
+**Takeover.** `REPLIES_ON` (`REPLIES OFF`, a Discord `WRITE`, which switch it
+through `Bot.replies`) stops the
 replies, not the reading: lines read then are context, posted to Discord as they
 come, and lines left pending are given up, never answered late. A `WRITE` that
 comes while a reply is being typed never cuts it off: Main Process types one
@@ -63,11 +64,20 @@ from pydantic import BaseModel
 
 from botting import PARENT_LOG, controller
 from botting.controller import TypingPace
-from botting.core import ActionRequest, BotData, DecisionMaker, DiscordRequest
+from botting.core import (
+    REPLIES_ON,
+    ActionRequest,
+    BotData,
+    DecisionMaker,
+    DiscordRequest,
+    StartupRefused,
+    action_name,
+)
+from botting.core.supervisor import USER
 from botting.llm import DEFAULT_MODEL_ID, AnthropicModel, ModelAnswer, StructuredModel
 from botting.screen import ClientNotClosed, Reading, Status, close_client
 from maple.actions import priorities, reply_in_chat
-from maple.actions.writing import TRAINING_ACTIONS, WHISPER
+from maple.actions.writing import WHISPER
 from maple.chat_replies.addressing import STRENGTH, Address, Addressing
 from maple.chat_replies.conversation import Burst, Conversation, Entry, EntryState
 from maple.chat_replies.instructions import InstructionsError, load_instructions
@@ -81,7 +91,6 @@ from maple.chat_replies.mirror import (
 from maple.chat_replies.relay import Failed, Relay, RelayOutcome, Reply, Silent
 from maple.screen.chat import CHAT, ChatKind, ChatLine
 from maple.screen.font import UNREAD
-from maple.screen.sprites import StartupRefused
 from maple.telemetry_events import (
     CHAT_GM_LINE,
     CHAT_LINE_ADDRESSED,
@@ -98,7 +107,46 @@ from maple.telemetry_events import (
 )
 from paths import ROOT
 
-from .mixins import UIMixin
+from .ability_point_distributor import AbilityPointDistributor
+from .consumables import MountFood, PetFood, SpeedPill
+from .ensure_mob_still_spawn import CheckMobsStillSpawn
+from .ensure_still_in_map import CheckStillInMap
+from .mobs_hitting import MobsHitting
+from .providers import CHAT_KEYS, CHAT_LINES, FRAME, HANDLE
+from .rebuffs import SoloRebuff
+from .rotation import Rotation
+from .state_snapshot import StateSnapshot
+from .telecast_mobs_hitting import TelecastMobsHitting
+from .trial_runner import TrialRunner
+
+TRAINING: tuple[type[DecisionMaker], ...] = (
+    Rotation,
+    MobsHitting,
+    TelecastMobsHitting,
+)
+"""The DecisionMakers whose Actions in flight a reply cancels: the character
+stops training to type. A Discord `WRITE` cancels the same (`maple_parser`)."""
+
+GM_STOPS: tuple[type[DecisionMaker], ...] = (
+    Rotation,
+    MobsHitting,
+    TelecastMobsHitting,
+    CheckMobsStillSpawn,
+    CheckStillInMap,
+    SoloRebuff,
+    PetFood,
+    SpeedPill,
+    MountFood,
+    AbilityPointDistributor,
+    StateSnapshot,
+    TrialRunner,
+)
+"""What a GM's line pauses until `RESUME`: every DecisionMaker of the package but
+`ChatReplies`, which goes on reading the chat and answering. A Pause on a class
+the bot doesn't run does nothing, so one list serves every Bot. A new
+DecisionMaker joins it: `test_chat_replies` checks that none is left out."""
+GM_REASON = "a GM is talking"
+"""The reason of the GM stop's Pauses."""
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -196,12 +244,14 @@ class _Read:
     """On screen at the first read: said before the session."""
 
 
-class ChatReplies(UIMixin, DecisionMaker):
-    """Reads `chat_lines` every cycle: raises the alarm on a GM's line, and
+class ChatReplies(DecisionMaker):
+    """Reads `CHAT_LINES` every cycle: raises the alarm on a GM's line, and
     answers what is addressed to the character (module docstring)."""
 
     _throttle = 0.5
     screen_readers = (CHAT,)
+    reads = (HANDLE, FRAME, CHAT_LINES, CHAT_KEYS, REPLIES_ON)
+    pauses = GM_STOPS
 
     def __init__(
         self,
@@ -224,14 +274,12 @@ class ChatReplies(UIMixin, DecisionMaker):
             conversation.
         :param sleep: Waits out what is left of the read delay.
         :param rng: Where the read delays' jitter is drawn.
-        :raises StartupRefused: Replying is on, and the instructions don't load
-            or the model can't be reached.
         """
         super().__init__(metadata, data, pipe)
+        self._chat_replies = chat_replies
+        self._model_factory = model_factory or AnthropicModel
         self._discord_config = discord_config
         self._last_status: Status | None = None
-        if not self.data.has_chat_attributes:
-            self._create_chat_attributes()
         ign = self.data.ign
         self._clock = clock
         self._sleep = sleep
@@ -240,14 +288,13 @@ class ChatReplies(UIMixin, DecisionMaker):
         self._addressing = Addressing(ign)
         self._relay: Relay | None = None
         self._calls: _CallLimit | None = None
-        if chat_replies:
-            self._relay, self._calls = self._start_replies(
-                model_factory or AnthropicModel
-            )
-        self._discord = discord_config.is_file()
-        self._mention = discord_mention() if self._discord else None
-        # Filled in Main Process by the reply's callback, once it is typed.
-        self._typed = self._proxies.instance(f"{self} - typed", "Queue")
+        #: Whether Discord is configured, and who its alerts ring. Set by
+        #: `setup()`.
+        self._discord = False
+        self._mention: str | None = None
+        #: Filled in Main Process by the reply's callback, once it is typed.
+        #: Made by `setup()`, a Manager queue.
+        self._typed: queue.Queue[tuple[str, str]] = queue.Queue()
 
         self._first_read = True
         self._held: list[_Read] = []
@@ -257,10 +304,23 @@ class ChatReplies(UIMixin, DecisionMaker):
         self._jitter: dict[int, float] = {}
         self._announced: set[int] = set()
         self._exchanged: list[tuple[str | None, float]] = []
-        self._stopped: tuple[str, ...] = ()
         self._limited = False
 
     # --- startup ---------------------------------------------------------------
+
+    def setup(self) -> None:
+        """
+        With replying on, loads the instructions and checks the model; then
+        reads the Discord configuration, and makes the queue the reply's
+        callback fills in Main Process.
+        :raises StartupRefused: Replying is on, and the instructions don't load
+            or the model can't be reached.
+        """
+        if self._chat_replies:
+            self._relay, self._calls = self._start_replies(self._model_factory)
+        self._discord = self._discord_config.is_file()
+        self._mention = discord_mention() if self._discord else None
+        self._typed = self._proxies.instance(f"{self} - typed", "Queue")
 
     def _start_replies(
         self, factory: Callable[[], CheckedModel]
@@ -287,17 +347,15 @@ class ChatReplies(UIMixin, DecisionMaker):
 
     # --- the loop --------------------------------------------------------------
 
-    async def task(self) -> None:
-        try:
-            await super().task()
-        finally:
-            if self._replying is not None:
-                self._replying.cancel()
+    def on_stop(self) -> None:
+        """However the loop stopped, a reply still being prepared is dropped."""
+        if self._replying is not None:
+            self._replying.cancel()
 
     async def _decide(self) -> None:
         self._take_typed()
-        self.data.update_attributes("current_frame", "chat_lines")
-        reading: Reading[list[ChatLine]] = self.data.chat_lines
+        self.refresh(FRAME)
+        reading = self.refresh(CHAT_LINES)
         self._log_status(reading)
         if reading.value is not None:
             now = self._clock()
@@ -384,7 +442,7 @@ class ChatReplies(UIMixin, DecisionMaker):
     def _answering(self) -> bool:
         """Whether automatic replies are on: in the profile, from Discord, and
         not past the session's limit."""
-        return self._relay is not None and not self._limited and self.data.replies_on
+        return self._relay is not None and not self._limited and self.read(REPLIES_ON)
 
     # --- replying --------------------------------------------------------------
 
@@ -417,7 +475,7 @@ class ChatReplies(UIMixin, DecisionMaker):
             or self._typing_since is not None
         ):
             return
-        if not self.data.replies_on:
+        if not self.read(REPLIES_ON):
             self._give_up_pending()
             return
         now = self._clock()
@@ -507,15 +565,15 @@ class ChatReplies(UIMixin, DecisionMaker):
                 ign,
                 priorities.ANTI_DETECTION,
                 block_lower_priority=True,
-                cancel_tasks=[f"{name}({ign})" for name in TRAINING_ACTIONS],
+                cancel_tasks=[action_name(cls, ign) for cls in TRAINING],
                 args=(
-                    self.data.handle,
+                    self.read(HANDLE),
                     text,
                     channel,
                     burst.speaker if channel == WHISPER else None,
                     TypingPace(),
                 ),
-                kwargs={"keys": self.data.chat_keys},
+                kwargs={"keys": self.read(CHAT_KEYS)},
                 callbacks=[partial(self._typed.put_nowait, (text, channel))],
             ),
             correlation_id,
@@ -588,8 +646,8 @@ class ChatReplies(UIMixin, DecisionMaker):
                 ign,
                 priorities.KILL_SWITCH,
                 block_lower_priority=True,
-                cancel_tasks=[f"{name}({ign})" for name in TRAINING_ACTIONS],
-                args=(self.data.handle,),
+                cancel_tasks=[action_name(cls, ign) for cls in TRAINING],
+                args=(self.read(HANDLE),),
                 discord_request=(
                     DiscordRequest(
                         f"{self._mention} {message}" if self._mention else message
@@ -627,33 +685,26 @@ class ChatReplies(UIMixin, DecisionMaker):
             )
 
     def _stop_training(self) -> None:
-        """A GM is talking: disable every other DecisionMaker of this bot, until
-        RESUME. The other bots of the session keep training."""
-        if self._stopped:
-            return
-        mine = type(self).__name__
-        names = tuple(n for n in self.data.decision_maker_names if n != mine)
-        if not names:
+        """
+        A GM is talking: pause every other DecisionMaker of this bot until
+        `RESUME`. The other bots of the session keep training. Taken once: a
+        later line of the GM finds it held, unless `RESUME` released it.
+        """
+        if self._training_stopped():
             return
         logger.critical(
-            "%s: a GM is talking. Training stops until RESUME: %s.",
-            self.data.ign,
-            ", ".join(names),
+            "%s: a GM is talking. Training stops until RESUME.", self.data.ign
         )
-        self._disable_decision_makers(*names, self_only=True)
-        self._stopped = names
+        self.pause_for_user(*GM_STOPS, reason=GM_REASON)
 
-    def on_resume(self) -> tuple[str, ...]:
-        """RESUME gives back what a GM stopped on this bot, and nothing else."""
-        stopped, self._stopped = self._stopped, ()
-        if stopped:
-            logger.info(
-                "%s: RESUME, training is given back: %s.",
-                self.data.ign,
-                ", ".join(stopped),
-            )
-            self._enable_decision_makers(*stopped, self_only=True)
-        return stopped
+    def _training_stopped(self) -> bool:
+        """Whether a GM stop still holds a DecisionMaker of this bot."""
+        supervisor = self._supervision()
+        return any(
+            pause.holder == USER and pause.reason == GM_REASON
+            for cls in GM_STOPS
+            for pause in supervisor.held(cls)
+        )
 
 
 def _refusal(burst: Burst) -> Failed | None:

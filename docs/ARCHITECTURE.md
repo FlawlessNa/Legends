@@ -75,10 +75,13 @@ every Engine as a plain command string.
 
 ![Discord control plane](img/engine-control-plane.svg)
 
-Pausing is the clearest illustration of the input rule. An Engine can cancel its
-own `DecisionMaker` tasks locally, but the movement keys those tasks left held
-are Main Process' to release — so `Bot.pause()` cancels, then sends a
-high-priority `ActionRequest` back the other way to drop the keys.
+Pausing is the clearest illustration of the input rule. An Engine can stop its
+own DecisionMakers locally: `Bot.pause()` takes a Pause held by the user on
+every one of them, and the Bot's Supervisor cancels their decision loops. But
+the movement keys those loops left held are Main Process' to release, so
+`Bot.pause()` then sends a high-priority `ActionRequest` back the other way to
+drop the keys. `RESUME` releases the user's Pauses, and the Supervisor starts
+the loops again (ADR 0004).
 
 ## The observability plane
 
@@ -120,11 +123,11 @@ pending request is registered there, so the listener finds the outstanding one
 by elimination rather than by protocol tagging.
 
 `ProxyFactory` wraps this in two namespaced calls. `instance()` proxies are
-popped after creation — use them for per-bot locks. `shared()` proxies persist
-and are auto-registered in `ignored_keys`, so every Engine finds the same
-object. Each `DecisionMaker` waits on its own enabler and disabler, keyed by
-class name and IGN: `_disable_decision_makers("Rotation")` notifies every bot's
-in the Session, and `self_only=True` only its own bot's.
+popped after creation: use them for per-bot locks. `shared()` proxies persist
+under a group name and are auto-registered in `ignored_keys`: they are for
+cross-bot synchronisation. Pausing does not use them: a Pause is held by the
+Bot's Supervisor, in the Engine's own event loop, and reaches only its own Bot
+(ADR 0004).
 
 ## Rules that crash, not conventions
 
@@ -150,7 +153,8 @@ break one and you get an exception, not a subtle bug six hours into a Session.
 | --- | --- | --- |
 | Session setup & teardown | `botting/core/session_manager.py` | Spawns everything, builds the log directory, waits on the listener set |
 | Engine process + its listener | `botting/core/engine.py` | Both halves of the pipe: the child loop and the Main-side relay task |
-| Bot · DecisionMaker | `botting/core/bot.py`, `decision_maker.py` | One client per Bot; the decide cycle, Correlation IDs, enable/disable gates |
+| Bot · DecisionMaker | `botting/core/bot.py`, `decision_maker.py` | One client per Bot; the decide cycle, Correlation IDs, Pauses, Claims |
+| Supervisor · Data Keys | `botting/core/supervisor.py`, `data_keys.py`, `bot_data.py` | Every decision loop, started, paused and restarted; the Providers that produce the data DecisionMakers declare, and its values |
 | Priority queue & arbitration | `botting/core/async_task_manager.py` | Scheduling, requeueing, blocking, cancellation, `action.*` records |
 | ActionRequest | `botting/core/action_data.py` | The wire format between an Engine and Main, plus the validated-retry wrapper |
 | Ledger · focus lock · SendInput | `botting/controller/inputs/` | The critical section, the Main-Process guard, the per-Step ledger writes |

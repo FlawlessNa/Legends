@@ -21,7 +21,8 @@ events inverts the dependency. Areas here:
 * ``action`` - an ``ActionRequest``'s life once it reaches Main Process. These
   are the records that close the Correlation ID chain: the DecisionMaker end
   says what was decided, and these say what became of it.
-* ``decision`` - one ``DecisionMaker`` gating another.
+* ``decision`` - one ``DecisionMaker`` gating another: Pauses, and the legacy
+  shim's disable and enable.
 * ``key`` - a key going down or up at a client, from Main Process where it is
   sent (`botting/controller/inputs/key_times.py`, #538). One record per
   transition, typematic repeats left out; ``t`` is on the frames' clock
@@ -70,11 +71,35 @@ ACTION_CANCELS_OTHER: Final = "action.cancels_other"
 #: says how.
 ACTION_FINISHED: Final = "action.finished"
 
+# --- data -----------------------------------------------------------------
+#: A DecisionMaker took a Claim on a steerable Data Key: the key now serves the
+#: value source it claimed, until a ``data.released`` with the same key, holder
+#: and reason.
+DATA_CLAIMED: Final = "data.claimed"
+#: A DecisionMaker released its Claim on a Data Key: the key serves its
+#: Provider's own value again.
+DATA_RELEASED: Final = "data.released"
+
 # --- decision -------------------------------------------------------------
-#: A DecisionMaker suspended another one, across every Engine.
+#: A DecisionMaker suspended another one through the legacy shim,
+#: ``_disable_decision_makers``. Within its own Bot; until #433, across every
+#: Engine. Nothing emits it since the shim was removed (#444); it stays defined
+#: so older Session records keep their meaning.
 DECISION_DISABLED: Final = "decision.disabled"
-#: A DecisionMaker resumed another one, across every Engine.
+#: A DecisionMaker resumed another one through the legacy shim,
+#: ``_enable_decision_makers``. Within its own Bot; until #433, across every
+#: Engine. Nothing emits it since #444, as ``decision.disabled``.
 DECISION_ENABLED: Final = "decision.enabled"
+#: A holder took a Pause on a DecisionMaker in its own Bot.
+DECISION_PAUSED: Final = "decision.paused"
+#: A holder released its Pause on a DecisionMaker. The target runs again only
+#: once no Pause on it is left, so a ``decision.resumed`` closes one
+#: ``decision.paused``, not necessarily the target's whole pause.
+DECISION_RESUMED: Final = "decision.resumed"
+
+#: A DecisionMaker's decision loop raised: the DecisionMaker, the exception's type
+#: and its message. The Bot ends on it, with `DecisionMakerCrashed`.
+DECISION_CRASHED: Final = "decision.crashed"
 
 # --- key ------------------------------------------------------------------
 #: A key went down at a client: a keydown for a key the Held-Keys Ledger did not
@@ -133,6 +158,35 @@ class DecisionGatePayload(TypedDict):
     """``decision.disabled`` / ``decision.enabled``: who was gated."""
 
     target: str
+
+
+class PausePayload(TypedDict):
+    """``decision.paused`` / ``decision.resumed``: one Pause."""
+
+    #: The paused DecisionMaker's class name.
+    target: str
+    #: The holding DecisionMaker, as its ``repr`` names it, or ``"user"``.
+    holder: str
+    reason: str
+
+
+class ClaimPayload(TypedDict):
+    """``data.claimed`` / ``data.released``: one Claim."""
+
+    #: The claimed Data Key's name.
+    key: str
+    #: The holding DecisionMaker, as its ``repr`` names it.
+    holder: str
+    reason: str
+
+
+class DecisionCrashedPayload(TypedDict):
+    """``decision.crashed``: who crashed, and on what."""
+
+    #: The crashed DecisionMaker, as its ``repr`` names it.
+    decision_maker: str
+    exception_type: str
+    message: str
 
 
 class ActionFinishedPayload(TypedDict):
