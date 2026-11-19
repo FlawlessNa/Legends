@@ -7,6 +7,7 @@ import pytest
 
 from botting.core import DecisionMaker
 from maple.decision_makers import (
+    AbilityPointDistributor,
     ChatReplies,
     CheckMobsStillSpawn,
     CheckStillInMap,
@@ -16,6 +17,7 @@ from maple.decision_makers import (
     Rotation,
     SoloRebuff,
     SpeedPill,
+    StateSnapshot,
     TelecastMobsHitting,
     TrialRunner,
 )
@@ -32,6 +34,8 @@ PORTED = (
     CheckMobsStillSpawn,
     TrialRunner,
     Rotation,
+    AbilityPointDistributor,
+    StateSnapshot,
 )
 
 
@@ -46,4 +50,5 @@ def test_a_ported_decision_maker_has_no_mixin_and_declares_its_reads(
     ]
 
     assert mixins == []
-    assert cls.reads
+    # `StateSnapshot` only observes: it reads no key, so it builds no Provider.
+    assert cls.reads or cls.observes

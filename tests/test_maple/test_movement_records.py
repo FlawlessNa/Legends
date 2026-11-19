@@ -26,11 +26,13 @@ from maple.decision_makers.providers import (
     DESTINATION,
     HANDLE,
     MOVEMENTS,
+    ON_SCREEN_POSITION,
     POSITION,
     WORLD_MAP,
     DestinationProvider,
     MapProvider,
     MinimapProvider,
+    OnScreenPositionProvider,
     PathingProvider,
 )
 from maple.decision_makers.recovery import MovementRecovery
@@ -265,16 +267,22 @@ def test_state_snapshot_reads_the_cache_without_updating() -> None:
     """
     calls: list[str] = []
     data = BotData("TestBot")
-    data.set_static("world_map", WORLD)
-    data.create_attribute(
-        "current_position", lambda: calls.append("pos") or _fused(FEET_AT_3_5)
+    data.provide(WORLD_MAP, object.__new__(MapProvider), lambda: WORLD)
+    data.provide(
+        POSITION,
+        object.__new__(MinimapProvider),
+        lambda: calls.append("pos") or _fused(FEET_AT_3_5),
     )
-    data.create_attribute("next_target", lambda: calls.append("target") or FEET_AT_20_5)
-    data.create_attribute(
-        "current_on_screen_position", lambda: calls.append("screen") or (0, 0, 2, 2)
+    data.provide(
+        DESTINATION,
+        object.__new__(DestinationProvider),
+        lambda: calls.append("target") or FEET_AT_20_5,
     )
-    for name in ("current_position", "next_target", "current_on_screen_position"):
-        data.update_attribute(name)
+    data.provide(
+        ON_SCREEN_POSITION,
+        object.__new__(OnScreenPositionProvider),
+        lambda: calls.append("screen") or (0, 0, 2, 2),
+    )
     calls.clear()
 
     ((_, payload),) = _snapshot(data)
@@ -289,8 +297,12 @@ def test_state_snapshot_reads_the_cache_without_updating() -> None:
 
 def test_state_snapshot_of_an_unsure_position_has_no_position() -> None:
     data = BotData("TestBot")
-    data.set_static("world_map", WORLD)
-    data.create_attribute("current_position", lambda: Reading.unsure(0.0, "two"))
+    data.provide(WORLD_MAP, object.__new__(MapProvider), lambda: WORLD)
+    data.provide(
+        POSITION,
+        object.__new__(MinimapProvider),
+        lambda: Reading.unsure(0.0, "two"),
+    )
 
     ((_, payload),) = _snapshot(data)
 

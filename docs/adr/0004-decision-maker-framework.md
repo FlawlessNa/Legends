@@ -17,7 +17,7 @@ When a DecisionMaker died half-way through a pause or a steer, nothing undid it.
 
 The intent and the approved spec are in epic #432.
 This ADR records the decisions; the terms are defined in `CONTEXT.md` (Supervisor, Pause, Data Key, Provider, Claim, Signal).
-The Supervisor and Pauses were delivered first (#433), then Data Keys, Providers and assembly (#434), then MapleStory's first Providers and the first port, `CheckStillInMap` (#438), then `MobsHitting`, `TelecastMobsHitting` and the Turn Gate (#439), then the buffs, status bar, quick slots and chat Providers with the ports of `SoloRebuff`, the consumables and `ChatReplies` (#440), then Claims, `DESTINATION` and the ports of `CheckMobsStillSpawn` and `TrialRunner` (#441), then the pathing Provider and the port of `Rotation` (#442); what is named here but not yet in the tree is delivered by the later tickets of #432.
+The Supervisor and Pauses were delivered first (#433), then Data Keys, Providers and assembly (#434), then MapleStory's first Providers and the first port, `CheckStillInMap` (#438), then `MobsHitting`, `TelecastMobsHitting` and the Turn Gate (#439), then the buffs, status bar, quick slots and chat Providers with the ports of `SoloRebuff`, the consumables and `ChatReplies` (#440), then Claims, `DESTINATION` and the ports of `CheckMobsStillSpawn` and `TrialRunner` (#441), then the pathing Provider and the port of `Rotation` (#442), then the menus Providers and the ports of `AbilityPointDistributor` and `StateSnapshot` (#443); what is named here but not yet in the tree is delivered by the later tickets of #432.
 
 ## Decision
 
@@ -189,6 +189,19 @@ A one-at-a-time gate replaces the hand-rolled per-DecisionMaker lock in Rotation
   Escalate takes a user-held Pause, `pause_for_user`, on the classes the legacy disable named (`ESCALATION_TARGETS`, dotted paths in `Rotation.pauses`, since each imports `Rotation`), so only `RESUME` ends it, where any `_enable_decision_makers("Rotation")` ended the shim's (`AbilityPointDistributor`'s, for one); its records are `decision.paused`, no longer `decision.disabled`.
   Its rungs cancel their holder's Actions with `action_name(type(holder), ign)`, which names what `f"{self}"` named.
 - **`MovementsMixin` stays for what plans to a target of its own**: the movement playground, and the parked `InventoryManager`, on Bots that never build `PathingProvider`, whose names it would otherwise collide with (`OwnedByProvider`). It goes with the last mixin.
+- **The menus are two Providers** (#443), in `maple/decision_makers/providers/menus.py`: `AbilityMenuProvider`, which `AbilityPointDistributor` reads, and `InventoryMenuProvider`, which only the parked `InventoryManager` asks for, through `MenusMixin`.
+  They are two because the ability menu's setup opens the menu, reads it and closes it, while the inventory's reads the client as it is: a Bot that only levels up must not read an inventory.
+  Each key has the name, threshold and initial value of the attribute the mixin made; the ability menu's I/O moved from `AbilityPointDistributor.__init__` to the Provider's `setup()`, in the same order.
+- **The ability menu's speed and jump are keys of their own, `SPEED_MULTIPLIER` and `JUMP_MULTIPLIER`** (#443), under the names `ability_menu_speed` and `ability_menu_jump`, with no legacy name.
+  The profile's `speed_multiplier` and `jump_multiplier` stay the `BotData` statics `MapleBot.child_init` sets, because the movement playground, `TrialRunner`'s record header and the parked `InventoryManager` read them on Bots that never open the menu, and a key of that name would collide with them.
+  `PathingProvider.physics()` `peek`s the two keys, so it never causes the menus Provider to be built (a Bot that does not level up must not open the ability menu), and takes the profile's value when the Provider is not built.
+  The value is the same as before: the menu's reading, taken once while it is open and never refreshed on its own.
+  What changed is that the statics stay the profile's, where the mixin replaced them: a legacy reader on a Bot that has an `AbilityPointDistributor` sees the profile's stats, not the menu's.
+  The Calibration constants stay a static, read by the same method.
+  The `MOVEMENTS` refresh the mixin made after reading the menu went: the plan is refreshed on its own threshold, and the graph follows a stat change (#430).
+- **`AbilityPointDistributor` holds a scoped Pause on `Rotation`** (#443) for as long as it clicks the points and closes the menu, where it disabled `Rotation` and enabled it after: a failure half-way no longer leaves `Rotation` stopped.
+  An unreadable AP count is read as none, and logs that the character has none to distribute, where the legacy code compared `None` with 0 and ended the Bot.
+- **`StateSnapshot` observes** (#443): `observes = (POSITION, DESTINATION, ON_SCREEN_POSITION, WORLD_MAP)` and `peek`, so it causes no Provider to be built, and records null for a key whose Provider the Bot does not build, as it did for an attribute nobody had made.
 - **A takeover that gives up stops for the user before it lets go.**
   `CheckMobsStillSpawn`, when mobs never come back, takes a user-held Pause on the classes the legacy disable left stopped, mob hitting included, before its own Pause on mob hitting and its Claim are released; the release then changes nothing until Discord `RESUME`.
 

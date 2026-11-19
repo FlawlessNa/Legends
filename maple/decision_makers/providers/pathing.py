@@ -25,9 +25,10 @@ read and nothing is planned: that is logged once, at setup.
 
 **The physics follow the stats.** Each Path is planned on the graph of
 `physics()`: `VRPhysics` from the game's `Physics.img` (`GAME_PHYSICS`), the
-character's current `speed_multiplier` and `jump_multiplier`, and the profile's
-Calibration constants. When a stat changes, the next Path is planned on a graph
-built for it (`MovementHandler`), and the plan is compiled with its speeds.
+character's current speed and jump (the ability menu's when the Bot read them,
+the profile's otherwise), and the profile's Calibration constants. When a stat
+changes, the next Path is planned on a graph built for it (`MovementHandler`),
+and the plan is compiled with its speeds.
 
 **The graph is built off the decision loop** (#430). Its build starts at setup,
 with the stats known then; a stat change starts the next one when a Path is next
@@ -56,6 +57,7 @@ from maple.screen.position import PositionSource, VirtualPosition
 from .character import CHARACTER
 from .destination import DESTINATION
 from .map import GAME_PHYSICS, WORLD_MAP
+from .menus import JUMP_MULTIPLIER, SPEED_MULTIPLIER
 from .minimap import POSITION
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -162,18 +164,23 @@ class PathingProvider(Provider):
         """
         The character's physics, with its current speed and jump stats.
 
-        The stats and the Calibration constants are what `MapleBot.child_init`
-        set on the Bot's data, which a later reading replaces (the ability
-        menu's today): they are not keys yet.
+        The speed and jump are the ability menu's, `SPEED_MULTIPLIER` and
+        `JUMP_MULTIPLIER`, when the Bot built `AbilityMenuProvider` and so read
+        them (the last read: nothing here refreshes them, nor causes the
+        Provider to be built); otherwise the profile's, which
+        `MapleBot.child_init` set on the Bot's data. The Calibration constants
+        are the profile's too.
         :raises ValueError: The game's physics aren't known (no map).
         """
         values = self.read(GAME_PHYSICS)
         if values is None:
             raise ValueError("no game physics: the bot's map isn't known")
+        speed = self.data.peek(SPEED_MULTIPLIER)
+        jump = self.data.peek(JUMP_MULTIPLIER)
         return VRPhysics.from_game_files(
             values,
-            speed_multiplier=self.data.speed_multiplier,
-            jump_multiplier=self.data.jump_multiplier,
+            speed_multiplier=self.data.speed_multiplier if speed is None else speed,
+            jump_multiplier=self.data.jump_multiplier if jump is None else jump,
             calibration=self.data.calibration,
         )
 
