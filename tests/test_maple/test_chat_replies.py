@@ -17,6 +17,7 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -1008,7 +1009,9 @@ def test_unloadable_instructions_refuse_the_start(
 
 
 def test_the_training_bot_runs_chat_replies_which_declares_the_chat() -> None:
-    assert ChatReplies in TrainingBot._decision_makers(None)  # pyright: ignore[reportArgumentType, reportPrivateUsage]
+    bot = SimpleNamespace(rotation="random")
+    makers = TrainingBot._decision_makers(bot)  # pyright: ignore[reportArgumentType, reportPrivateUsage]
+    assert ChatReplies in makers
     assert CHAT in ChatReplies.screen_readers
 
 

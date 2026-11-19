@@ -78,10 +78,12 @@ virtual px on `WORLD_MAP`:
 - Movement Plans are planned from it on the map's `FootholdGraph`
   (`PathingProvider`, which serves `MOVEMENTS`, #396, #442): an `UNSURE` read
   plans nothing.
-- The rotation's targets are random points on the platforms a Path reaches
-  (`DestinationProvider`, which serves `DESTINATION`), and arrival is judged in
-  virtual px. A `game_data` map
-  has no feature cycle; custom rotation patterns are a later epic.
+- The rotation's targets come from a destination source (`random`, `smart` or
+  `hunting_area`, named by the profile's `rotation`) that `DestinationProvider`
+  serves as `DESTINATION`, always on the platforms a Path reaches, and arrival
+  is judged in virtual px. A `hunting_area` source keeps them inside a Hunting
+  Area, saved in `configs/hunting_areas/<map id>.json`. A `game_data` map has no
+  feature cycle; custom rotation patterns are a later epic.
 - Movement recovery judges virtual positions and the graph Path's remaining
   time (`maple/movement_recovery.py`), and reports a long `UNSURE` streak.
 - `CheckStillInMap` checks the minimap against `world_map`'s canvas.

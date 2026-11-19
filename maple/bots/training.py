@@ -11,7 +11,7 @@ logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 class TrainingBot(MapleBot):
     def _decision_makers(self) -> list[type[DecisionMaker]]:
-        return [
+        makers = [
             decision_makers.MobsHitting,
             decision_makers.Rotation,
             # decision_makers.AbilityPointDistributor,
@@ -22,3 +22,6 @@ class TrainingBot(MapleBot):
             decision_makers.CheckStillInMap,
             decision_makers.ChatReplies,
         ]
+        if self.rotation == "hunting_area":
+            makers.append(decision_makers.AreaWatch)
+        return makers

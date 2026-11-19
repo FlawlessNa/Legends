@@ -8,11 +8,14 @@ pixels.
 
 import numpy as np
 import pytest
+from pytest_mock import MockerFixture
 
+import maple.screen.minimap as minimap_module
 from botting.screen import Frame, Reading, Status
 from botting.utilities import Box
 from game_data.catalogue import Minimap
 from game_data.sprites import Sprite
+from maple.model.world.world_map import MinimapTransform
 from maple.screen.locator import UI_NOT_FOUND, FrameCheck
 from maple.screen.minimap import (
     DIFFERENT_SHARE,
@@ -36,7 +39,9 @@ from maple.screen.minimap import (
     N,
     W,
     marker_path,
+    markers_in_virtual,
     minimap_canvas_path,
+    shown_in_virtual,
     virtual_feet,
 )
 from maple.screen.sprites import GAUGE_LABEL, Profile, ReaderSprites
@@ -104,17 +109,17 @@ def sprites() -> ReaderSprites:
     return ReaderSprites("build", canvases)
 
 
-def reader(map_id: int | None = MAP_ID, read_markers: bool = True) -> MinimapReader:
+def reader(map_id: int | None = MAP_ID) -> MinimapReader:
     """A reader for the bot's map, `MAP_ID`, or for a map file without one."""
     s = sprites()
-    return MinimapReader(s, FrameCheck(s), map_id=map_id, read_markers=read_markers)
+    return MinimapReader(s, FrameCheck(s), map_id=map_id)
 
 
 def reader_with(canvas: Sprite) -> MinimapReader:
     """A reader whose map's canvas, `MAP_ID`'s, is `canvas`."""
     s = sprites()
     s.canvases[canvas.path] = canvas
-    return MinimapReader(s, FrameCheck(s), map_id=MAP_ID, read_markers=True)
+    return MinimapReader(s, FrameCheck(s), map_id=MAP_ID)
 
 
 def paste(pixels: np.ndarray, s: Sprite, x: int, y: int) -> None:
@@ -240,11 +245,12 @@ def test_a_minimised_minimap_reads_its_title_bar_and_no_area() -> None:
     pixels = screen()
     bounds = draw_minimised(pixels, 30, 10)
 
-    reading = reader().read(frame(pixels))
+    reading = reader().read(frame(pixels), MARKER_KINDS)
 
     assert reading.status is Status.READ
     assert reading.value is not None
     assert reading.value.state is MinimapState.MINIMISED
+    assert reading.value.shown is None
     assert reading.value.bounds == bounds
     assert reading.value.map_area is None
     assert reading.value.self_position.status is Status.UNSURE
@@ -252,15 +258,66 @@ def test_a_minimised_minimap_reads_its_title_bar_and_no_area() -> None:
     assert reading.value.banner is None
 
 
-def test_a_reader_not_asked_for_markers_reads_none() -> None:
+def test_a_read_not_asked_for_markers_reads_none_and_searches_for_none(
+    mocker: MockerFixture,
+) -> None:
     pixels = screen()
     draw_minimap(pixels, 250, 20, user_at=(60, 30), markers={"another": [(20, 15)]})
+    minimap = reader()
+    search = mocker.spy(minimap_module, "_find")
 
-    reading = reader(read_markers=False).read(frame(pixels))
+    reading = minimap.read(frame(pixels))
 
     assert reading.value is not None
-    assert reading.value.markers is None
+    assert reading.value.markers == {}
     assert reading.value.self_position.value == (60, 30)
+    assert [c for c in search.call_args_list if c.kwargs.get("every")] == []
+
+
+def test_a_read_searches_only_for_the_kinds_it_names(mocker: MockerFixture) -> None:
+    pixels = screen()
+    draw_minimap(pixels, 250, 20, user_at=(60, 30), markers={"another": [(20, 15)]})
+    minimap = reader()
+    search = mocker.spy(minimap_module, "_find")
+
+    minimap.read(frame(pixels), ("another",))
+
+    sought = [c.args[1] for c in search.call_args_list if c.kwargs.get("every")]
+    assert sought == [SPRITES[marker_path("another")]]
+
+
+def test_asking_for_an_unknown_marker_kind_raises() -> None:
+    with pytest.raises(ValueError, match="mystery"):
+        reader().read(frame(screen()), ("another", "mystery"))
+
+
+def test_only_the_asked_kinds_are_read_beside_other_markers() -> None:
+    pixels = screen()
+    draw_minimap(
+        pixels,
+        250,
+        20,
+        user_at=(60, 30),
+        markers={"another": [(20, 15), (90, 40)], "npc": [(40, 50)]},
+    )
+
+    reading = reader().read(frame(pixels), ("another",))
+
+    assert reading.value is not None
+    assert reading.value.markers == {"another": ((20, 15), (90, 40))}
+
+
+@pytest.mark.parametrize(
+    "kind", ["party", "friend", "guild", "partymaster", "guildmaster"]
+)
+def test_the_other_kinds_of_player_marker_are_not_read_as_another(kind: str) -> None:
+    pixels = screen()
+    draw_minimap(pixels, 250, 20, user_at=(60, 30), markers={kind: [(20, 15)]})
+
+    reading = reader().read(frame(pixels), ("another",))
+
+    assert reading.value is not None
+    assert reading.value.markers == {}
 
 
 def test_the_other_markers_are_read_by_kind() -> None:
@@ -273,7 +330,7 @@ def test_the_other_markers_are_read_by_kind() -> None:
         markers={"another": [(20, 15), (90, 40)], "npc": [(40, 50)]},
     )
 
-    reading = reader().read(frame(pixels))
+    reading = reader().read(frame(pixels), MARKER_KINDS)
 
     assert reading.value is not None
     assert reading.value.markers == {
@@ -362,7 +419,7 @@ def test_a_marker_touching_a_portal_is_read_whole() -> None:
     draw_marker(pixels, area, "portal", (40, 30))
     draw_user_clipped(pixels, area, (32, 30))
 
-    reading = reader().read(frame(pixels))
+    reading = reader().read(frame(pixels), MARKER_KINDS)
 
     assert reading.value is not None
     assert reading.value.self_position == Reading.read((32, 30), 7.0)
@@ -434,7 +491,7 @@ def test_without_a_map_id_no_position_is_read() -> None:
     pixels = screen()
     draw_minimap(pixels, 250, 20, user_at=(37, 41), markers={"another": [(20, 15)]})
 
-    reading = reader(map_id=None).read(frame(pixels))
+    reading = reader(map_id=None).read(frame(pixels), MARKER_KINDS)
 
     assert reading.status is Status.READ
     assert reading.value is not None
@@ -463,7 +520,7 @@ def test_positions_are_on_the_canvas_as_it_scrolls() -> None:
             user_at=(40, 30),
             markers={"another": [(60, 20)]},
         )
-        reading = minimap.read(frame(pixels))
+        reading = minimap.read(frame(pixels), MARKER_KINDS)
         assert reading.value is not None
         readings.append(reading.value)
 
@@ -473,6 +530,55 @@ def test_positions_are_on_the_canvas_as_it_scrolls() -> None:
         (20, 67),
     ]
     assert readings[0].markers == {"another": ((40, 57),)}
+
+
+def test_the_shown_part_of_the_canvas_follows_the_scroll() -> None:
+    tall = sprite(minimap_canvas_path(MAP_ID), 80, 150)
+    tall.rgba[::3, ::2, 3] = 0
+    minimap = reader_with(tall)
+    shown = []
+    for scroll in (-37, -80, 0):
+        pixels = screen()
+        draw_minimap(pixels, 250, 20, canvas=tall, canvas_at=(20, scroll))
+        view = minimap.read(frame(pixels)).value
+        assert view is not None
+        shown.append(view.shown)
+
+    # The area is 120x60; the canvas, 80 wide, sits 20 px in and shows whole.
+    assert shown == [
+        Box(left=0, right=80, top=37, bottom=97),
+        Box(left=0, right=80, top=80, bottom=140),
+        Box(left=0, right=80, top=0, bottom=60),
+    ]
+
+
+def test_the_shown_part_is_none_without_the_canvas() -> None:
+    pixels = screen()
+    draw_minimap(pixels, 250, 20, canvas=OTHER_CANVAS)
+
+    view = reader().read(frame(pixels)).value
+
+    assert view is not None
+    assert view.shown is None
+
+
+def test_a_marker_is_in_virtual_px_at_canvas_times_scale_minus_centre() -> None:
+    transform = MinimapTransform(centre=(1200, 640), mag=4)
+
+    assert markers_in_virtual([(40, 57), (0, 0)], transform) == (
+        (40 * 16 - 1200, 57 * 16 - 640),
+        (-1200, -640),
+    )
+
+
+def test_the_shown_canvas_is_a_box_in_virtual_px() -> None:
+    transform = MinimapTransform(centre=(1200, 640), mag=4)
+
+    shown = shown_in_virtual(Box(left=0, right=80, top=37, bottom=97), transform)
+
+    assert shown == Box(
+        left=-1200, right=80 * 16 - 1200, top=37 * 16 - 640, bottom=97 * 16 - 640
+    )
 
 
 def test_another_maps_canvas_reads_the_position_unsure() -> None:

@@ -11,6 +11,7 @@ driven directly. No game client.
 
 import asyncio
 from collections.abc import Callable
+from dataclasses import replace
 from typing import Any
 from unittest.mock import Mock
 
@@ -27,13 +28,23 @@ from maple.decision_makers import (
     Rotation,
     TelecastMobsHitting,
 )
-from maple.decision_makers.providers import DESTINATION
-from maple.model.world import WorldMap
+from maple.decision_makers.providers import (
+    AREA_STRETCHES,
+    DESTINATION,
+    POSITION,
+    CastReach,
+    DestinationProvider,
+)
+from maple.decision_makers.providers.hunting_area import NOBODY
+from maple.model.navigation import Point
+from maple.model.world import HuntingArea, MinimapTransform, WorldMap
+from maple.model.world.hunting_area import on_stretches
 from maple.screen.position import PositionSource, VirtualPosition
 from maple.telemetry_events import RECOVERY_MOB_SPAWN_RESTORED
 from tests.test_maple.movement_lab.fixture_maps import walk_corridor
 
-from .serving import destination
+from .serving import destination, override
+from .test_hunting_area import fixture_map
 
 WORLD = WorldMap.from_map_data(walk_corridor())
 
@@ -45,7 +56,9 @@ def _here() -> Reading[VirtualPosition]:
 class _Bot:
     """A Bot's mob-spawn check, mob hitting, and the Supervisor holding Pauses."""
 
-    def __init__(self, mocker: MockerFixture) -> None:
+    def __init__(
+        self, mocker: MockerFixture, provider: DestinationProvider | None = None
+    ) -> None:
         self.emitted: list[str] = []
         mocker.patch(
             "botting.core.decision_maker.emit_event",
@@ -53,7 +66,7 @@ class _Bot:
                 event_type
             ),
         )
-        provider = destination(WORLD, _here)
+        provider = provider or destination(WORLD, _here)
         self.data: BotData = provider.data
         self.check = CheckMobsStillSpawn(
             {},  # pyright: ignore[reportArgumentType] - nothing asks it for a proxy
@@ -197,3 +210,72 @@ def test_what_it_pauses_and_steers_is_declared() -> None:
         CheckStillInMap,
     }
     assert CheckMobsStillSpawn.steers == (DESTINATION,)
+
+
+# --- wandering inside the Hunting Area (#579) -------------------------------------
+
+#: The Hunting Area's Fixture map: a flat Platform from x 0 to 1000 at y 0, a
+#: peak from 2000 to 2400, and a flat one from 0 to 1000 at y -1000.
+AREA_WORLD = replace(fixture_map(), minimap=MinimapTransform((500, 1500), 4))
+#: Holds the flat Platform at y 0 from x 200 to 600.
+CORNER = HuntingArea(200, -100, 600, 50)
+
+
+def _wandered(bot: _Bot, steps: int = 60) -> list[Point]:
+    """
+    Where the failsafe's Claim sends the character: each destination, the
+    character placed on it, then the next.
+    """
+    points: list[Point] = []
+
+    async def wander_to_each() -> None:
+        for _ in range(steps):
+            target = bot.data.read(DESTINATION)
+            points.append(target)
+            on_it = VirtualPosition(*target, PositionSource.FUSED)
+            override(bot.data, POSITION, value=Reading.read(on_it, 0.0))
+            bot.data.refresh(DESTINATION)
+        await asyncio.sleep(0)
+
+    bot.procedure(wander_to_each)
+    asyncio.run(bot.check._failsafe())
+    assert bot.data.claim_on(DESTINATION) is None
+    return points
+
+
+def test_with_a_hunting_area_the_failsafe_wanders_its_stretches(
+    mocker: MockerFixture,
+) -> None:
+    stretches = CORNER.stretches(AREA_WORLD)
+    provider = destination(
+        AREA_WORLD,
+        _here,
+        rotation="hunting_area",
+        mob_count_threshold=2,
+        area=CORNER,
+        stretches=stretches,
+        presence=NOBODY,
+        cast_reach=CastReach(left=100, right=100, up=100, down=50, min_mobs=2),
+    )
+    bot = _Bot(mocker, provider)
+
+    points = _wandered(bot)
+
+    assert all(on_stretches(p, stretches) for p in points)
+    assert len(set(points)) > 10, "a new point at each arrival"
+
+
+def test_with_no_hunting_area_the_failsafe_wanders_the_whole_map(
+    mocker: MockerFixture,
+) -> None:
+    bot = _Bot(mocker, destination(AREA_WORLD, _here))
+    assert bot.data.read(AREA_STRETCHES) is None
+
+    points = _wandered(bot)
+
+    assert all(AREA_WORLD.platform_at(p) is not None for p in points)
+    assert any(not 200 <= p[0] <= 600 or p[1] != 0 for p in points)
+
+
+def test_it_reads_the_hunting_areas_stretches() -> None:
+    assert AREA_STRETCHES in CheckMobsStillSpawn.reads

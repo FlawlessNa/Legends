@@ -57,7 +57,6 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-import win32api
 import win32con
 import win32gui
 from numpy.typing import NDArray
@@ -99,6 +98,12 @@ from maple.screen.sprites import (
     load_reader_sprites,
 )
 from maple.screen.status_bar import STATUS_BAR, StatusBarReader
+from maple.window_placement import client_rect as _client_rect
+from maple.window_placement import client_size as _client_size
+from maple.window_placement import fitted_origin
+from maple.window_placement import on_screen as _on_screen
+from maple.window_placement import screen_size as _screen_size
+from maple.window_placement import work_area as _work_area
 from paths import ROOT
 
 EXIT_ERROR = 1
@@ -239,58 +244,6 @@ def _parse_box(text: str) -> tuple[int, int, int, int]:
             f"need 0 <= l < r and 0 <= t < b, got {text!r}"
         )
     return left, top, right, bottom
-
-
-def _client_size(handle: int) -> tuple[int, int]:
-    _left, _top, right, bottom = win32gui.GetClientRect(handle)
-    return right, bottom
-
-
-def _client_rect(handle: int) -> Box:
-    """The client area on the screen, as `FrameSource` reads it."""
-    width, height = _client_size(handle)
-    left, top = win32gui.ClientToScreen(handle, (0, 0))
-    return Box(left=left, top=top, right=left + width, bottom=top + height)
-
-
-def _work_area() -> Box:
-    """The primary monitor less the taskbar."""
-    primary = win32api.MonitorFromPoint((0, 0), win32con.MONITOR_DEFAULTTOPRIMARY)
-    left, top, right, bottom = win32api.GetMonitorInfo(primary)["Work"]
-    return Box(left=left, top=top, right=right, bottom=bottom)
-
-
-def _on_screen(rect: Box, screen: tuple[int, int]) -> bool:
-    return (
-        rect.left >= 0
-        and rect.top >= 0
-        and rect.right <= screen[0]
-        and rect.bottom <= screen[1]
-    )
-
-
-def fitted_origin(
-    rect: Box, screen: tuple[int, int], work_area: Box
-) -> tuple[int, int] | None:
-    """
-    Where to put the client area's top-left so it is entirely on the primary
-    monitor, moving it as little as possible: inside the work area when it fits
-    there, else inside the screen. `None` when it is already on the screen, or
-    is bigger than the screen and can't be.
-    """
-    if _on_screen(rect, screen):
-        return None
-    width, height = rect.right - rect.left, rect.bottom - rect.top
-    if width > screen[0] or height > screen[1]:
-        return None
-    bounds = work_area
-    if width > work_area.right - work_area.left or (
-        height > work_area.bottom - work_area.top
-    ):
-        bounds = Box(left=0, top=0, right=screen[0], bottom=screen[1])
-    left = min(max(rect.left, bounds.left), bounds.right - width)
-    top = min(max(rect.top, bounds.top), bounds.bottom - height)
-    return left, top
 
 
 def fit_on_primary(handle: int) -> bool:
@@ -717,13 +670,6 @@ def parse_size(text: str) -> tuple[int, int]:
             "Nothing was sent.",
         )
     return size
-
-
-def _screen_size() -> tuple[int, int]:
-    return (
-        win32api.GetSystemMetrics(win32con.SM_CXSCREEN),
-        win32api.GetSystemMetrics(win32con.SM_CYSCREEN),
-    )
 
 
 def cmd_resolution(args: argparse.Namespace) -> dict:

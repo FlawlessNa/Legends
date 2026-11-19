@@ -21,7 +21,12 @@ four Log Buckets - those partition code for routing and carry a catch-all
 * ``chat`` - lines read in the chat log that the bot reacts to.
 * ``movement`` - Movement Plans started and targets reached, with deliberately
   minimal fields (#331). The movement-framework map may add records but not
-  repurpose these. ``rotation`` stays reserved for that map.
+  repurpose these.
+* ``rotation`` - the Hunting Area rotation: the area it was given and the
+  destinations its source picks (#571). ADR 0001 reserved this area for the
+  movement-framework map, which may add records to it.
+* ``area`` - what the area watch saw and did in the Hunting Area: someone
+  settled, someone left, the character standing by (#580).
 * ``state`` - where the character was, sampled on a clock rather than on an
   event.
 * ``position`` - each read of the character's virtual position, whatever it
@@ -132,6 +137,23 @@ CHAT_REPLY_LIMITED: Final = "chat.reply_limited"
 MOVEMENT_PLAN_STARTED: Final = "movement.plan_started"
 #: A rotation mode judged that the character reached its target.
 MOVEMENT_TARGET_REACHED: Final = "movement.target_reached"
+
+# --- rotation -------------------------------------------------------------
+#: The Hunting Area the rotation hunts was set, once per Session, at start: the
+#: one the profile names, or the one chosen in the launch window.
+ROTATION_AREA_SET: Final = "rotation.area_set"
+#: The Hunting Area source picked a new destination, or became crowded out:
+#: where, why, and how many mobs a cast reaches from there.
+ROTATION_DESTINATION_PICKED: Final = "rotation.destination_picked"
+
+# --- area -----------------------------------------------------------------
+#: Another player settled in the Hunting Area, and the Discord alert went.
+AREA_PLAYER_SETTLED: Final = "area.player_settled"
+#: Settled ended: no other player has been inside for long enough.
+AREA_PLAYER_LEFT: Final = "area.player_left"
+#: Nothing was left to go for, so the character stopped travelling until
+#: Discord ``RESUME``.
+AREA_STAND_BY: Final = "area.stand_by"
 
 # --- state ----------------------------------------------------------------
 #: A periodic sample of where the character is and where it is heading.
@@ -403,6 +425,50 @@ class TargetReachedPayload(TypedDict):
     vx: float | None
     vy: float | None
     virtual_distance: float | None
+
+
+class AreaSetPayload(TypedDict):
+    """
+    ``rotation.area_set``: the map, the rectangle in virtual px, and the area's
+    name, None for one drawn and not saved. ``origin`` is ``"profile"`` when the
+    profile's ``hunting_area`` named it, ``"window"`` when it was chosen in the
+    launch window.
+    """
+
+    map_id: int
+    left: int
+    top: int
+    right: int
+    bottom: int
+    name: str | None
+    origin: str
+
+
+class DestinationPickedPayload(TypedDict):
+    """
+    ``rotation.destination_picked``: the destination, in virtual px; ``why``
+    the source picked it: ``"mobs"`` (a cast there reaches the most mobs),
+    ``"look_around"`` (the cell seen least recently), ``"abandon"`` (movement
+    recovery's Abandon) or ``"crowded_out"`` (no part of the area is free of a
+    settled player: the character's last sure position); and ``mobs``, how
+    many of the mobs counted on the last look a cast from there reaches.
+    """
+
+    x: float
+    y: float
+    why: str
+    mobs: int
+
+
+class AreaWatchPayload(TypedDict):
+    """
+    ``area.player_settled``, ``area.player_left`` and ``area.stand_by``: how
+    many other players were inside the area on the last read, and the share of
+    its cells nobody is near. Counts only: no name, no position.
+    """
+
+    inside: int
+    free_share: float
 
 
 class StateSnapshotPayload(TypedDict):

@@ -282,8 +282,8 @@ you do to it. The maintainer starts it.
   not reuse a box from one in the other without checking the frame you get.
 - **A Plan's arrival does not share its Correlation ID.** `movement.plan_started`
   and the `action.*` records of one Plan share a cid. `movement.target_reached`
-  does not: `DestinationProvider` judges arrival, and a Provider's records
-  carry no cid (#441; before it, the record carried the cid of the cycle that
+  does not: the destination source `DestinationProvider` serves judges
+  arrival, the Provider records it, and a Provider's records carry no cid (#441; before it, the record carried the cid of the cycle that
   judged arrival, usually the one starting the **next** Plan). It is emitted
   while `CheckMobsStillSpawn` claims the destination to wander, too. So never
   pair by cid. Pair an arrival with its Plan by

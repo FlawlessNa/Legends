@@ -61,7 +61,8 @@ were drawn whole: the read is as exact as an unclipped one, to the canvas pixel
 Seen on frame set v2: an NPC's marker is drawn about 14 px above
 the NPC's own point in the map data, so a marker's position isn't where the
 thing stands. Each kind costs a match of the map area on every read (about
-2 ms), so only a reader made with `read_markers` reads them.
+2 ms), so `MinimapReader.read` reads only the kinds its caller names, for that
+call.
 
 **Locating the canvas, and the expected map.** The canvas is placed where most
 of its opaque pixels are drawn exactly, among the placements the window above
@@ -71,8 +72,8 @@ is tried first next time. `is_expected_map` answers from the same share.
 """
 
 import enum
-from collections.abc import Iterator, Mapping
-from dataclasses import dataclass
+from collections.abc import Iterable, Iterator, Mapping
+from dataclasses import dataclass, field
 
 import cv2
 import numpy as np
@@ -81,6 +82,7 @@ from botting.screen import Frame, Reading, match, match_best
 from botting.utilities import Box
 from game_data.catalogue import Minimap
 from game_data.sprites import Sprite
+from maple.model.world.world_map import MinimapTransform
 
 from .locator import FrameCheck, Locator, Part, unreadable
 from .sprites import Declaration, Profile, ReaderSprites
@@ -184,6 +186,31 @@ def virtual_feet(canvas: tuple[int, int], minimap: Minimap) -> tuple[int, int]:
     return x * scale - minimap.center_x, (y + FEET_ROWS) * scale - minimap.center_y
 
 
+def markers_in_virtual(
+    positions: Iterable[tuple[int, int]], transform: MinimapTransform
+) -> tuple[tuple[int, int], ...]:
+    """
+    Marker positions, as `MinimapView.markers` gives them (minimap
+    coordinates), in virtual px: `canvas * scale - centre`, by
+    `MinimapTransform.to_virtual`. A marker is placed by its sprite's centre,
+    so this is where the marker is drawn, not where the thing it marks stands.
+    """
+    return tuple(_virtual(transform, position) for position in positions)
+
+
+def shown_in_virtual(shown: Box, transform: MinimapTransform) -> Box:
+    """`MinimapView.shown`, the part of the map's canvas the map area shows, as
+    a box in virtual px."""
+    left, top = _virtual(transform, (shown.left, shown.top))
+    right, bottom = _virtual(transform, (shown.right, shown.bottom))
+    return Box(left=left, right=right, top=top, bottom=bottom)
+
+
+def _virtual(transform: MinimapTransform, canvas: tuple[int, int]) -> tuple[int, int]:
+    x, y = transform.to_virtual(canvas)
+    return int(x), int(y)
+
+
 def minimap_canvas_path(map_id: int) -> str:
     """The map's own minimap canvas, such as
     `Map/Map/Map1/100000000.img/miniMap/canvas` for map 100000000."""
@@ -232,9 +259,13 @@ class MinimapView:
         is drawn (under another marker or the cursor). A marker clipped by the
         map area's edge, or partly under another marker, is `READ`, its detail
         saying how much of it is drawn.
-    :ivar markers: The other markers found, by kind (`MARKER_KINDS`), in
-        minimap coordinates; empty whenever `self_position` is `UNSURE`. `None`
-        when the reader doesn't read markers (`read_markers`).
+    :ivar markers: The markers found, by kind (`MARKER_KINDS`), in minimap
+        coordinates: only the kinds asked of that `read`, so empty when it
+        asked for none, and empty whenever `self_position` is `UNSURE`.
+    :ivar shown: The part of the map's canvas the map area shows, in minimap
+        coordinates; `None` when minimised or when the canvas isn't found in
+        the map area. A canvas taller than the map area scrolls with the
+        character, so the box moves; one narrower is shown whole.
     :ivar banner: The frame's top band, title bar and banner, in client pixels,
         when the frame is the look with the banner (`MaxMap`), which draws the
         map's mark and its title (`minimap_title`); `None` otherwise.
@@ -244,8 +275,9 @@ class MinimapView:
     map_area: Box | None
     bounds: Box
     self_position: Reading[tuple[int, int]]
-    markers: Markers | None = None
+    markers: Markers = field(default_factory=dict)
     banner: Box | None = None
+    shown: Box | None = None
 
 
 class MinimapReader:
@@ -256,8 +288,6 @@ class MinimapReader:
 
     :ivar map_id: The bot's map, on whose canvas positions are read; `None` when
         its map file doesn't name it, and then no position is read.
-    :ivar read_markers: Whether the other markers are read; no consumer needs
-        them yet, and each kind costs a match of the map area on every read.
     """
 
     def __init__(
@@ -266,7 +296,6 @@ class MinimapReader:
         frame_check: FrameCheck,
         *,
         map_id: int | None = None,
-        read_markers: bool = False,
         tolerance: float = 0.5,
     ) -> None:
         """
@@ -277,7 +306,6 @@ class MinimapReader:
         self._frame_check = frame_check
         self._tolerance = tolerance
         self.map_id = map_id
-        self.read_markers = read_markers
         self._canvas = (
             None if map_id is None else sprites.canvas(minimap_canvas_path(map_id))
         )
@@ -306,8 +334,18 @@ class MinimapReader:
         rather than found where it was last time."""
         return sum(look.locator.searches for look in self._looks)
 
-    def read(self, frame: Frame) -> Reading[MinimapView]:
-        """The minimap in `frame`. Never raises because of what is on screen."""
+    def read(self, frame: Frame, markers: Iterable[str] = ()) -> Reading[MinimapView]:
+        """
+        The minimap in `frame`. Never raises because of what is on screen.
+
+        :param markers: The kinds of marker (`MARKER_KINDS`) to read, for this
+            call only. Each costs a match of the map area; none by default.
+        :raises ValueError: A kind isn't in `MARKER_KINDS`.
+        """
+        kinds = tuple(dict.fromkeys(markers))
+        unknown = [kind for kind in kinds if kind not in self._markers]
+        if unknown:
+            raise ValueError(f"unknown marker kinds: {', '.join(unknown)}")
         unusable = self._frame_check.frame_usable(frame)
         if unusable is not None:
             return unusable
@@ -327,7 +365,7 @@ class MinimapReader:
                 covered = covered or Reading.covered(frame.captured_at, placed)
                 continue
             self._last = index
-            view = self._view(frame.pixels, placed, frame.captured_at)
+            view = self._view(frame.pixels, placed, frame.captured_at, kinds)
             return Reading.read(view, frame.captured_at)
         return covered or Reading.absent(frame.captured_at, "not found")
 
@@ -366,35 +404,52 @@ class MinimapReader:
             if index != self._last:
                 yield index, look
 
-    def _view(self, pixels: np.ndarray, placed: _Placed, at: float) -> MinimapView:
+    def _view(
+        self, pixels: np.ndarray, placed: _Placed, at: float, kinds: tuple[str, ...]
+    ) -> MinimapView:
         area = placed.map_area
         if area is None:
             unsure: Reading[tuple[int, int]] = Reading.unsure(
                 at, "the minimap is minimised"
             )
-            none = {} if self.read_markers else None
-            return MinimapView(
-                MinimapState.MINIMISED, None, placed.bounds, unsure, none
-            )
+            return MinimapView(MinimapState.MINIMISED, None, placed.bounds, unsure)
         offset = self._canvas_offset(pixels, area, at)
         if isinstance(offset, Reading):
-            none = {} if self.read_markers else None
             return MinimapView(
-                MinimapState.EXPANDED, area, placed.bounds, offset, none, placed.banner
+                MinimapState.EXPANDED, area, placed.bounds, offset, banner=placed.banner
             )
         ox, oy = offset
         position = self._self_position(pixels, area, (ox, oy), at)
-        markers = (
-            {
-                kind: tuple((x - ox, y - oy) for x, y in found)
-                for kind, sprite in self._markers.items()
-                if (found := _find(pixels, sprite, area, self._tolerance, every=True))
-            }
-            if self.read_markers
-            else None
-        )
+        markers = {
+            kind: tuple((x - ox, y - oy) for x, y in found)
+            for kind in kinds
+            if (
+                found := _find(
+                    pixels, self._markers[kind], area, self._tolerance, every=True
+                )
+            )
+        }
         return MinimapView(
-            MinimapState.EXPANDED, area, placed.bounds, position, markers, placed.banner
+            MinimapState.EXPANDED,
+            area,
+            placed.bounds,
+            position,
+            markers,
+            placed.banner,
+            self._shown(area, (ox, oy)),
+        )
+
+    def _shown(self, area: Box, offset: tuple[int, int]) -> Box:
+        """The part of the canvas inside the map area, from where the canvas's
+        top-left is in it."""
+        assert self._canvas is not None
+        height, width = self._canvas.rgba.shape[:2]
+        left, top = -offset[0], -offset[1]
+        return Box(
+            left=max(left, 0),
+            right=min(left + area.width, width),
+            top=max(top, 0),
+            bottom=min(top + area.height, height),
         )
 
     def _self_position(

@@ -125,9 +125,16 @@ settings:
   #   climb: 1.0
   #   teleport: 1.0
 
-  # Smart rotation picks targets from live mob positions instead of walking a
-  # fixed route. Off by default -- it is the less-tested path.
-  smart_rotation_enabled: false
+  # Where the character heads to hunt. random: random points on the map's
+  # Platforms. smart: towards the mobs on screen (the less-tested path).
+  # hunting_area: towards the mobs inside one rectangle of the map, leaving the
+  # rest to other players; with no `hunting_area` below, the launch window asks
+  # you to draw it. Left out, it is random.
+  rotation: random
+  # A saved area of this map, in configs/hunting_areas/<map id>.json. Only with
+  # `rotation: hunting_area`.
+  # rotation: hunting_area
+  # hunting_area: right_corner
 
   # Teleport is used for movement where available. Set true for classes where
   # it misbehaves.

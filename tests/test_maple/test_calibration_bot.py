@@ -11,8 +11,12 @@ from maple.bots import CalibrationBot, TrainingBot
 from maple.calibration import TrialSpecError
 from maple.decision_makers import TrialRunner, trial_runner
 from maple.decision_makers.providers import (
+    CAST_REACH,
+    HUNTING_AREA,
+    CastReachProvider,
     ChatProvider,
     DestinationProvider,
+    HuntingAreaProvider,
     MinimapProvider,
     OnScreenPositionProvider,
 )
@@ -62,10 +66,16 @@ def test_its_trial_runner_assembles_with_the_destination_and_no_chat(
     the minimap's, on a bot that reads no chat and finds no character on
     screen; then the runner's `setup()` checks the schedule's map. The training
     bot's synthetic client is used (its map has no minimap, so that check is
-    what stops it), running the calibration bot's one DecisionMaker.
+    what stops it), running the calibration bot's one DecisionMaker, with no
+    `mob_count_threshold`, as a calibration profile has none.
+
+    The Destination Provider's sources read the Hunting Area's keys, so their
+    Providers are built too (#579): with no `hunting_area` rotation they open no
+    window and read no marker.
     """
     from tests.test_maple import test_training_bot as training
 
+    asked = training.watch_the_hunting_area(monkeypatch)
     monkeypatch.setattr(TrainingBot, "_decision_makers", lambda self: [TrialRunner])
     monkeypatch.setattr(trial_runner.Catalogue, "latest", lambda: _NoCatalogue())
     monkeypatch.setattr(
@@ -75,6 +85,7 @@ def test_its_trial_runner_assembles_with_the_destination_and_no_chat(
         monkeypatch,
         trial_schedule="physics",
         record_path=str(tmp_path / "record.jsonl"),
+        mob_count_threshold=None,
     )
 
     with pytest.raises(TrialSpecError, match="no minimap"):
@@ -84,6 +95,12 @@ def test_its_trial_runner_assembles_with_the_destination_and_no_chat(
     assert built.index(MinimapProvider) < built.index(DestinationProvider)
     assert ChatProvider not in built
     assert OnScreenPositionProvider not in built
+    assert {HuntingAreaProvider, CastReachProvider} <= set(built)
+    data = bot.data
+    assert data is not None
+    assert data.read(HUNTING_AREA) is None
+    assert data.read(CAST_REACH) is None
+    assert set(asked) <= {()}, "no read asked for a marker"
 
 
 class _NoCatalogue:
