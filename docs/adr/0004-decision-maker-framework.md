@@ -17,7 +17,7 @@ When a DecisionMaker died half-way through a pause or a steer, nothing undid it.
 
 The intent and the approved spec are in epic #432.
 This ADR records the decisions; the terms are defined in `CONTEXT.md` (Supervisor, Pause, Data Key, Provider, Claim, Signal).
-The Supervisor and Pauses were delivered first (#433), then Data Keys, Providers and assembly (#434), then MapleStory's first Providers and the first port, `CheckStillInMap` (#438), then `MobsHitting`, `TelecastMobsHitting` and the Turn Gate (#439), then the buffs, status bar, quick slots and chat Providers with the ports of `SoloRebuff`, the consumables and `ChatReplies` (#440), then Claims, `DESTINATION` and the ports of `CheckMobsStillSpawn` and `TrialRunner` (#441); what is named here but not yet in the tree is delivered by the later tickets of #432.
+The Supervisor and Pauses were delivered first (#433), then Data Keys, Providers and assembly (#434), then MapleStory's first Providers and the first port, `CheckStillInMap` (#438), then `MobsHitting`, `TelecastMobsHitting` and the Turn Gate (#439), then the buffs, status bar, quick slots and chat Providers with the ports of `SoloRebuff`, the consumables and `ChatReplies` (#440), then Claims, `DESTINATION` and the ports of `CheckMobsStillSpawn` and `TrialRunner` (#441), then the pathing Provider and the port of `Rotation` (#442); what is named here but not yet in the tree is delivered by the later tickets of #432.
 
 ## Decision
 
@@ -84,6 +84,8 @@ A one-at-a-time gate replaces the hand-rolled per-DecisionMaker lock in Rotation
   `releaser` is the Manager lock's own `release`, so what travels to Main Process in an Action's callbacks is what travelled before.
   A DecisionMaker makes its gate in `setup()`, since asking Main Process for the lock is I/O.
   Named `TurnGate`, not `Gate`, because the glossary's Delivery Gate is a different thing.
+- **`leave_now()` leaves the gate without yielding** (#442), for Rotation, which released its lock in the decision itself when it had nothing to send: `await leave()` would give the event loop away through a thread hop first, which moves when the next decision can start.
+  Rotation calls no `reset()` in `on_start()`, as its `task()` override never released the lock; MobsHitting's did.
 
 ### Data belongs to the Bot
 
@@ -131,9 +133,10 @@ A one-at-a-time gate replaces the hand-rolled per-DecisionMaker lock in Rotation
 - **A helper a DecisionMaker holds declares the keys it reads** (`MinimapRecovery.reads`, `Reactions.reads`), and its holder spreads them into its own `reads`, so a helper never reads a key its holder does not declare.
   A helper keeps what its mixin shared: `Reactions.react` keeps the one 10 s cooldown every reaction in the process shares, and `ReactionsMixin` reacts through a `Reactions` until the last mixin goes.
 - **A ported DecisionMaker may read data an unported one still makes, through a plain function beside that one's mixin** (#439).
-  `TelecastMobsHitting` fuses its cast into the rotation's Movement Plan, which `MovementsMixin` plans until Rotation's port gives it a Provider (#442).
-  So it reads the plan with `planned_movements(data)` and freezes its compile with `movement_compiler(data, ...)`, functions in `_rotation_mixins.py` that `MovementsMixin` calls too, rather than keep the mixin in its hierarchy; the legacy read and its `has_pathing_attributes` check live there, and go with the mixin.
+  `TelecastMobsHitting` fused its cast into the rotation's Movement Plan, which `MovementsMixin` planned until Rotation's port gave it a Provider.
+  So it read the plan with `planned_movements(data)` and froze its compile with `movement_compiler(data, ...)`, functions in `_rotation_mixins.py` that `MovementsMixin` called too, rather than keep the mixin in its hierarchy.
   The spec's guide covered old reading new (`legacy_name`), not new reading old.
+  Those functions went with #442: the telecast reads `MOVEMENTS` and compiles through `PathingProvider`.
 - **What a mixin did as plain logic is functions** (#439): `MobsHittingMixin` is gone, and the mob counting, positions and closest-mob direction are `maple/decision_makers/mob_detection.py`, called by `MobsHitting`, the smart rotation and `CheckMobsStillSpawn` with the client's handle.
 - **`BotData` measures time on an injected monotonic clock** (#57, for `BotData` only).
   `AttributeMetadata`'s timestamps are readings of that clock, and "never" is minus infinity, so the time since an attribute that was never validly updated is infinite rather than the two thousand years `datetime.min` gave; every comparison against it is unchanged.
@@ -171,11 +174,21 @@ A one-at-a-time gate replaces the hand-rolled per-DecisionMaker lock in Rotation
   Recovery reaches the Provider with `Providers.get(cls)`: for code that asks a Provider to act, beside serving its keys.
 - **Arrival is recorded by the Provider**, so `movement.target_reached` carries no Correlation ID and is attributed to the Provider's module (in the movement Log Bucket), where it carried the deciding loop's, Rotation's or `CheckMobsStillSpawn`'s.
   Smart rotation's look at where the character is on screen reads `ON_SCREEN_POSITION` only when a Bot provides it (mob hitting does), outside `needs`: a calibration bot that builds `DestinationProvider` has no chat reader to find the character with.
-- **The pathing data's plain reads are `maple/decision_makers/pathing.py`** (#441): the position, the physics, the platforms a Path reaches.
-  They moved out of `_rotation_mixins.py` because the mixins import the Providers, and `DestinationProvider` reads them; they go with the mixin, as the #439 bridge does.
-- **`TrialRunner` holds its planner rather than inheriting it** (#441).
-  `MovementPlanner`, beside `MovementsMixin`, is that mixin's planning as an object a ported DecisionMaker holds, planning to `DESTINATION`, until a Provider serves the pathing data (#442).
-  It is a bridge in the #439 sense: the mixin stays out of the DecisionMaker's hierarchy, and goes with the last mixin.
+- **The pathing is `PathingProvider`** (#442), in `maple/decision_makers/providers/pathing.py`: what `MovementsMixin._create_pathing_attributes` set up, as keys under the same names (`ACTION_DURATION`, `MOVEMENT_HANDLER`, `PATH`, `MOVEMENTS`, `ALWAYS_RELEASE_KEYS`), with the same thresholds, and the Path planned to `DESTINATION`.
+  It is configured from the profile's `movements_duration` and `disable_teleport`, which `Rotation.__init__` took.
+  #441's bridges went with it: the pathing module of plain reads beside the mixins (the position, the physics, the platforms a Path reaches), and `TrialRunner`'s `MovementPlanner`.
+- **What a DecisionMaker asks of the pathing beside its keys is a method of the Provider**, reached as Abandon reaches `DestinationProvider`: `physics()`, `compiler(correlation_id, lead=...)`, which freezes a plan's compile inputs, and `configure(...)`, which a Trial batch's Knobs call to change the cap, the precision thresholds and whether Paths may teleport, and which makes the handler again.
+  The compile is a method, not keys, because it leads the plan from the capture time of the frame the Path was planned from, which only the Provider knows; the telecast passes `lead=False`, as it passed no read time before.
+- **`disable_teleport` takes the skill off when `PathingProvider` is set up**, before it makes its handler, where `Rotation.__init__` did it; it is still the class-level dict #49 is about.
+  Every Provider is set up before any DecisionMaker is built, so it now happens before every DecisionMaker, and on any Bot that builds the pathing: `TrialRunner`'s too, which never had it.
+- **The destination reads the pathing outside `needs`**: `PathingProvider` plans to `DESTINATION`, so `DestinationProvider` is set up first and cannot need its keys back.
+  It asks for the platforms a Path reaches through a function of the pathing module, which answers None until the handler is registered, as smart rotation reads `ON_SCREEN_POSITION` only when it is provided.
+  The function is imported where it is called, since the pathing module imports `DESTINATION`'s.
+- **Movement recovery is `MovementRecovery`, a helper `Rotation` holds** (#442), in `maple/decision_makers/recovery.py`.
+  It declares the keys it reads, and sends, emits and pauses through its holder; it takes the physics as a callable, so it knows nothing of the pathing.
+  Escalate takes a user-held Pause, `pause_for_user`, on the classes the legacy disable named (`ESCALATION_TARGETS`, dotted paths in `Rotation.pauses`, since each imports `Rotation`), so only `RESUME` ends it, where any `_enable_decision_makers("Rotation")` ended the shim's (`AbilityPointDistributor`'s, for one); its records are `decision.paused`, no longer `decision.disabled`.
+  Its rungs cancel their holder's Actions with `action_name(type(holder), ign)`, which names what `f"{self}"` named.
+- **`MovementsMixin` stays for what plans to a target of its own**: the movement playground, and the parked `InventoryManager`, on Bots that never build `PathingProvider`, whose names it would otherwise collide with (`OwnedByProvider`). It goes with the last mixin.
 - **A takeover that gives up stops for the user before it lets go.**
   `CheckMobsStillSpawn`, when mobs never come back, takes a user-held Pause on the classes the legacy disable left stopped, mob hitting included, before its own Pause on mob hitting and its Claim are released; the release then changes nothing until Discord `RESUME`.
 
@@ -216,9 +229,9 @@ No step needs `_disable_decision_makers`, `snapshot_attribute` or `reconfigure_a
 What the skeleton leaves open, for the ticket that builds the trip:
 
 - **The map is fixed at start.** `MAP_ID`, `WORLD_MAP`, `POSITION_FUSION` and the mobs are Bot-level, found once by `MapleBot.child_init`. A trip changes map twice, so those keys must follow the map (a Provider that refreshes them when the minimap shows another map), or the town's be claimed for the stay.
-- **The door is a temporary portal.** Rotation walks into the door only if the foothold graph has an edge for it while it stands. That belongs to the pathing Provider #442 builds: a steerable key, or an operation on the Provider, that adds the portal for the trip.
+- **The door is a temporary portal.** Rotation walks into the door only if the foothold graph has an edge for it while it stands. That belongs to `PathingProvider` (#442): a steerable key, or an operation on the Provider, that adds the portal for the trip.
 - **The position through a door.** `InventoryManager` took the minimap's error handler off `POSITION` while the map changed, so that a minimap read mid-change did not trigger recovery. Under the framework that is a Claim on a steerable `POSITION`, or the Provider holding while the map changes; `POSITION` is not steerable today.
-- **Keys released at the end of each Action.** It set `always_release_keys` for the trip; that becomes a steerable key of the pathing Provider.
+- **Keys released at the end of each Action.** It set `always_release_keys` for the trip; that is `ALWAYS_RELEASE_KEYS` now (#442), which the trip makes steerable.
 - **Waiting for arrival** is a poll of `POSITION` in this skeleton; `DestinationProvider` could announce a Signal on arrival instead.
 
 ### Signals, and the order of the work

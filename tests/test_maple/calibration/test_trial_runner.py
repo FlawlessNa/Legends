@@ -30,7 +30,7 @@ from typing import Any, ClassVar, Self, cast
 
 import pytest
 
-from botting.core import HANDLE, ActionRequest, WindowProvider, following
+from botting.core import ActionRequest, following
 from botting.core.bot_data import BotData
 from botting.screen import Reading
 from botting.stop_file import STOP_FILENAME
@@ -48,7 +48,6 @@ from maple.calibration.specs import (
     TrialSpec,
     TrialSpecError,
 )
-from maple.decision_makers.mixins._rotation_mixins import MovementPlanner
 from maple.decision_makers.providers import (
     DESTINATION,
     FRAME,
@@ -59,7 +58,6 @@ from maple.decision_makers.providers import (
     WORLD_MAP,
     ClientProvider,
     DestinationProvider,
-    MapProvider,
     MinimapProvider,
     PositionReader,
 )
@@ -67,6 +65,7 @@ from maple.decision_makers.trial_runner import TrialRunner
 from maple.model.mechanics.movement_mechanics_v2 import _NARROW_PLATFORM_THRESHOLD
 from maple.screen.position import PositionSource, VirtualPosition
 from tests.test_maple.movement_lab import corpus
+from tests.test_maple.serving import pathing
 
 ENTRY = next(e for e in corpus.FIXTURE_MAPS if e.name == "walk_corridor")
 
@@ -117,8 +116,8 @@ def harness() -> _Harness:
 
     `__init__` and `setup()` are skipped because the keys they read come from a
     game window. What is built here is everything downstream of that: a real
-    `BotData` over a real Corpus map, so its `MovementPlanner` builds a real
-    `MovementHandler` and `path`/`movements` compute real Paths. `POSITION` hands
+    `BotData` over a real Corpus map, so its `PathingProvider` builds a real
+    `MovementHandler` and `PATH`/`MOVEMENTS` compute real Paths. `POSITION` hands
     out the virtual positions a check queues, as fused reads; the Trial judges
     them, and the Path is planned from them. `DESTINATION` is claimed with the
     driver's target, as the runner claims it for its run.
@@ -131,12 +130,6 @@ def harness() -> _Harness:
     world_map = corpus.world_map(entry)
 
     data = BotData("Lab")
-    data.provide(HANDLE, object.__new__(WindowProvider), lambda: corpus.LAB_HANDLE)
-    data.set_static("world_map", world_map)
-    data.set_static("game_physics", corpus.LAB_PHYSICS_VALUES)
-    data.set_static("speed_multiplier", 1.0)
-    data.set_static("jump_multiplier", 1.0)
-    data.set_static("character", _Character())
 
     def virtual() -> Reading[VirtualPosition]:
         x, y = positions.pop(0) if positions else target
@@ -150,9 +143,6 @@ def harness() -> _Harness:
         virtual,
         initial_value=_read((float(start[0]), 0.0)),
     )
-    # No position fusion on this map: a sample read fails, as a read does live
-    # when the bot's map has none.
-    data.provide(POSITION_FUSION, object.__new__(MapProvider), lambda: None)
     data.provide(MINIMAP_READING, object.__new__(MinimapProvider), lambda: None)
     data.provide(FRAME, object.__new__(ClientProvider), lambda: None)
     data.provide(
@@ -160,6 +150,17 @@ def harness() -> _Harness:
         object.__new__(DestinationProvider),
         lambda: (0.0, 0.0),
     )
+    # The window, and the map with no position fusion: a sample read fails, as
+    # a read does live when the bot's map has none. The pathing, set up on them.
+    planner = pathing(
+        world_map,
+        virtual,
+        data=data,
+        character=_Character(),
+        game_physics=corpus.LAB_PHYSICS_VALUES,
+        handle=corpus.LAB_HANDLE,
+    )
+    assert data.read(POSITION_FUSION) is None
 
     # Assembled through a deliberately untyped handle: every field below is a
     # stand-in for something only a live Session provides.
@@ -173,11 +174,10 @@ def harness() -> _Harness:
     self.schedule = _schedule(entry)
     self._writer = writer
     self._last_target = start
-    self._batch_teleport = True
     self._driver = TrialDriver(self.schedule, writer)
     self._applied_batch = None
     self._finished = False
-    self._planner = MovementPlanner(self, data, teleport=lambda: self._batch_teleport)
+    self._pathing = planner
     self._position_reader = PositionReader(
         self,
         lambda *_: None,
@@ -633,7 +633,9 @@ def test_a_batch_planned_without_teleport_builds_a_handler_without_it(
         skills: ClassVar[dict[str, object]] = {"Teleport": corpus.LAB_TELEPORT}
 
     runner: Any = harness.runner
-    runner.data.set_static("character", _Teleporter())
+    # The character `CHARACTER` serves, as a teleporting class's would be.
+    runner.data.reconfigure_attribute("character", update_function=_Teleporter)
+    runner.data.update_attribute("character")
     runner.schedule = TrialSchedule(
         "teleport-lab",
         ENTRY.name,
@@ -708,7 +710,9 @@ def test_the_record_header_names_the_physics_the_sitting_planned_with(
     from maple.model.mechanics.physics import Calibration
 
     runner: Any = harness.runner
-    runner.data.set_static("map_id", 10002000)
+    # The map `MAP_ID` serves, as `MapProvider` would serve Ellinia's.
+    runner.data.reconfigure_attribute("map_id", update_function=lambda: 10002000)
+    runner.data.update_attribute("map_id")
     runner.data.set_static("calibration", Calibration(jump=0.98))
     header = runner._header()
     assert header.map_id == 10002000

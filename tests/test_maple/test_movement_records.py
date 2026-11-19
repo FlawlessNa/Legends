@@ -11,18 +11,29 @@ import asyncio
 import json
 import math
 import queue
+import threading
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from types import SimpleNamespace
 from typing import cast
 
 import numpy as np
 
-from botting.core import ActionRequest, BotData
+from botting.core import ActionRequest, BotData, TurnGate, WindowProvider
 from botting.screen import Reading
 from maple.decision_makers import StateSnapshot
-from maple.decision_makers.mixins import MovementsMixin
-from maple.decision_makers.providers import DestinationProvider
+from maple.decision_makers.providers import (
+    DESTINATION,
+    HANDLE,
+    MOVEMENTS,
+    POSITION,
+    WORLD_MAP,
+    DestinationProvider,
+    MapProvider,
+    MinimapProvider,
+    PathingProvider,
+)
+from maple.decision_makers.recovery import MovementRecovery
 from maple.decision_makers.rotation import Rotation
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
@@ -48,6 +59,8 @@ PLAN = (
     _MovementComponent(MovementTypes.WALK_RIGHT, cast("int", np.int64(80))),
     _MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),
 )
+#: A plan of nothing but the sentinel: nothing to send.
+SENTINEL = (_MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),)
 
 #: Where a marker at canvas px (3, 5) puts the feet on `WORLD`, and (20, 5):
 #: `canvas * 16 - 1000 + 8`, the marker moved down its 6 rows.
@@ -291,64 +304,73 @@ def test_state_snapshot_of_an_unsure_position_has_no_position() -> None:
 _COMPILER = object()
 
 
-class _Loop:
-    """Stands in for the Rotation DecisionMaker, as the recovery wiring tests do."""
+class _Loop(Rotation):
+    """
+    A `Rotation` built without its Session: it reads the Bot's keys, served as
+    their Providers serve them, enters a gate that is always free, and keeps
+    what it sends and records.
+    """
 
-    def __init__(self, emit_works: bool) -> None:
+    def __init__(self, emit_works: bool) -> None:  # pyright: ignore[reportMissingSuperCall] - no Session
         data = BotData("TestBot")
-        data.set_static("handle", 1234)
-        data.set_static("world_map", WORLD)
-        data.create_attribute("next_target", lambda: FEET_AT_20_5)
-        data.create_attribute("movements", lambda: PLAN)
-        data.create_attribute("current_position", lambda: _fused(FEET_AT_3_5))
-        data.update_attribute("current_position")
-        self.data = data
-        self._world_map = lambda: MovementsMixin._world_map(self)  # pyright: ignore[reportArgumentType]
-        self._virtual_target = lambda: MovementsMixin._virtual_target(self)  # pyright: ignore[reportArgumentType]
-        self.lock = SimpleNamespace(
-            acquire=lambda blocking=False: True, release=lambda: None
+        data.provide(HANDLE, object.__new__(WindowProvider), lambda: 1234)
+        data.provide(WORLD_MAP, object.__new__(MapProvider), lambda: WORLD)
+        data.provide(
+            DESTINATION, object.__new__(DestinationProvider), lambda: FEET_AT_20_5
         )
-        self._delivery = queue.Queue()
+        data.provide(MOVEMENTS, object.__new__(PathingProvider), lambda: PLAN)
+        data.provide(
+            POSITION, object.__new__(MinimapProvider), lambda: _fused(FEET_AT_3_5)
+        )
+        self.data = data
+        self.correlation_id = None
+        self.gate = TurnGate(threading.Lock())
+        self._recovery = cast(
+            MovementRecovery,
+            SimpleNamespace(check=lambda now: None, delivered=queue.Queue().put_nowait),
+        )
+        self._pathing = cast(
+            PathingProvider, SimpleNamespace(compiler=lambda correlation_id: _COMPILER)
+        )
         self.sent: list[ActionRequest] = []
         self.emitted: list[tuple[str, Mapping[str, object]]] = []
-        self.send = self.sent.append
-        self.emit = (
-            (
-                lambda event_type, payload=None: self.emitted.append(
-                    (event_type, payload or {})
-                )
-            )
-            if emit_works
-            else (lambda event_type, payload=None: None)
-        )
-        self._emit_plan_started = lambda: Rotation._emit_plan_started(self)  # pyright: ignore[reportArgumentType]
-        self._recovery_check = lambda now: None
-        self._has_movements: Callable[[], bool] = lambda: True
-        self._compiler = _COMPILER
-        self._movement_compiler = lambda: self._compiler
+        self.emit_works = emit_works
 
     def __repr__(self) -> str:
         return "Rotation(TestBot)"
 
-    def _request(self) -> ActionRequest:
-        return Rotation._request(self)  # pyright: ignore[reportArgumentType]
+    def send(self, request: ActionRequest, correlation_id: str | None = None) -> None:
+        self.sent.append(request)
+
+    def emit(
+        self,
+        event_type: str,
+        payload: Mapping[str, object] | None = None,
+        correlation_id: str | None = None,
+    ) -> None:
+        if self.emit_works:
+            self.emitted.append((event_type, payload or {}))
 
 
 def _decide(loop: _Loop) -> None:
-    asyncio.run(Rotation._decide(loop))  # pyright: ignore[reportArgumentType]
+    asyncio.run(loop._decide())
 
 
 def test_rotation_emits_plan_started_before_sending() -> None:
     loop = _Loop(emit_works=True)
     order: list[str] = []
-    loop.send = lambda request: order.append("send")
-    emit = loop.emit
+    send, emit = loop.send, loop.emit
+
+    def sent(request: ActionRequest, correlation_id: str | None = None) -> None:
+        order.append("send")
+        send(request)
 
     def traced(event_type: str, payload: Mapping[str, object] | None = None) -> None:
         order.append("emit")
         emit(event_type, payload)
 
-    loop.emit = traced
+    loop.send = sent  # pyright: ignore[reportAttributeAccessIssue] - traced
+    loop.emit = traced  # pyright: ignore[reportAttributeAccessIssue] - traced
 
     _decide(loop)
 
@@ -432,7 +454,7 @@ def test_plan_started_takes_both_targets_from_one_read() -> None:
 
 def test_no_plan_started_when_there_is_nothing_to_send() -> None:
     loop = _Loop(emit_works=True)
-    loop._has_movements = lambda: False
+    loop.data.reconfigure_attribute("movements", update_function=lambda: SENTINEL)
 
     _decide(loop)
 

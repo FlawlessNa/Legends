@@ -1,7 +1,7 @@
 """
 Movement Plans in virtual px (#396): a `FootholdGraph` Path turned into a Movement
-Plan, compiled with the physics' speeds, and planned from `current_position` with
-the character's current stats.
+Plan, compiled with the physics' speeds, and planned from `POSITION` with the
+character's current stats (`PathingProvider`, #442).
 
 The maps are the movement lab's Fixture maps (`movement_lab/fixture_maps.py`), on
 the client's own physics (`corpus.LAB_PHYSICS`): walk 125 px/s, jump 555 px/s,
@@ -18,11 +18,10 @@ from types import SimpleNamespace
 import pytest
 
 from botting.controller import InputState, KeyboardInputWrapper
-from botting.core import BotData
 from botting.screen import Reading
 from game_data.catalogue import Rope
 from maple.actions import movements_v2
-from maple.decision_makers.mixins import MovementsMixin
+from maple.decision_makers.providers import PathingProvider, actionable
 from maple.model.mechanics import movement_mechanics_v2
 from maple.model.mechanics.movement_mechanics_v2 import (
     _MAX_TRAVEL_LENGTH,
@@ -47,6 +46,7 @@ from maple.screen.position import (
     marker_of_feet,
 )
 from tests.test_maple.movement_lab import corpus
+from tests.test_maple.serving import pathing
 
 JUMP_KEY = "space"
 NOBODY = InputState(frozenset())
@@ -332,13 +332,6 @@ def test_a_drop_onto_a_rope_refuses_to_compile() -> None:
 # --- planning with the character's current stats --------------------------------
 
 
-class _Planner(MovementsMixin):
-    """A DecisionMaker's planning half, over a real `BotData`."""
-
-    def __init__(self, data: BotData) -> None:
-        self.data = data
-
-
 class _Character:
     skills: dict[str, object] = {}  # noqa: RUF012
 
@@ -351,22 +344,19 @@ def _planner(
     status_read: bool = True,
     wait: bool = True,
     source: PositionSource = PositionSource.FUSED,
-) -> _Planner:
-    data = _planning_data(
-        name, position, target, status_read=status_read, source=source
-    )
-    planner = _Planner(data)
-    planner._create_pathing_attributes(1.0)
+) -> PathingProvider:
+    provider = _pathing(name, position, target, status_read=status_read, source=source)
+    data = provider.data
     if wait:
         # The graph builds in a worker thread from setup on (#430), and planning
         # holds until it is there: waited for here, so the tests below plan.
-        data.movement_handler.graph(planner._physics())
+        data.movement_handler.graph(provider.physics())
     data.reconfigure_attribute("path", threshold=1e-9)
     data.reconfigure_attribute("movements", threshold=1e-9)
-    return planner
+    return provider
 
 
-def _planning_data(
+def _pathing(
     name: str,
     position: tuple[float, float],
     target: tuple[float, float],
@@ -374,23 +364,26 @@ def _planning_data(
     status_read: bool = True,
     character: object | None = None,
     source: PositionSource = PositionSource.FUSED,
-) -> BotData:
-    """What a DecisionMaker plans from: the map, the physics, a position, a target."""
-    data = BotData("T")
-    data.set_static("handle", 0)
-    data.set_static("character", _Character() if character is None else character)
-    data.set_static("world_map", corpus.world_map(_entry(name)))
-    data.set_static("game_physics", corpus.LAB_PHYSICS_VALUES)
-    data.set_static("speed_multiplier", 1.0)
-    data.set_static("jump_multiplier", 1.0)
+    disable_teleport: bool = False,
+) -> PathingProvider:
+    """
+    The rotation's pathing, set up on what it plans from: the map, the physics,
+    a position, a target; and the profile's `disable_teleport`.
+    """
     reading = (
         Reading.read(VirtualPosition(*position, source), 0.0)
         if status_read
         else Reading.unsure(0.0, "two characters in the window")
     )
-    data.create_attribute("current_position", lambda: reading, threshold=1e-9)
-    data.create_attribute("next_target", lambda: target)
-    return data
+    return pathing(
+        corpus.world_map(_entry(name)),
+        lambda: reading,
+        lambda: target,
+        character=_Character() if character is None else character,
+        game_physics=corpus.LAB_PHYSICS_VALUES,
+        position_threshold=1e-9,
+        disable_teleport=disable_teleport,
+    )
 
 
 def test_the_target_is_planned_to_as_it_is_in_virtual_px() -> None:
@@ -408,7 +401,7 @@ def test_an_unsure_position_plans_nothing_and_sends_nothing() -> None:
 
     assert planner.data.path is None
     assert planner.data.movements == ()
-    assert planner._has_movements() is False
+    assert actionable(planner.data.movements) is False
 
 
 def test_a_coarse_read_plans_no_walk_inside_its_own_canvas_pixel() -> None:
@@ -421,7 +414,7 @@ def test_a_coarse_read_plans_no_walk_inside_its_own_canvas_pixel() -> None:
     fused = _planner("ladder_climb", (304.0, -500.0), (300.0, -500.0))
 
     assert coarse.data.path == Path(())
-    assert coarse._has_movements() is False
+    assert actionable(coarse.data.movements) is False
     assert _kinds(fused.data.movements) == [
         MovementTypes.WALK_LEFT,
         MovementTypes.END_OF_MOVEMENT,
@@ -448,14 +441,12 @@ def test_a_coarse_read_still_walks_further_than_its_pixel_and_onto_a_rope() -> N
 
 
 def test_a_map_with_no_minimap_plans_nothing() -> None:
-    data = BotData("T")
-    data.set_static("handle", 0)
-    data.set_static("character", _Character())
     world = corpus.world_map(_entry("jump_gap"))
-    data.set_static("world_map", replace(world, minimap=None))
-    planner = _Planner(data)
+    unread = Reading[VirtualPosition].unsure(0.0, "no position is read on this map")
 
-    planner._create_pathing_attributes(1.0)
+    data = pathing(
+        replace(world, minimap=None), lambda: unread, character=_Character()
+    ).data
 
     assert data.movement_handler is None
     assert data.path is None
@@ -482,10 +473,10 @@ def test_a_change_of_jump_stat_between_two_paths_changes_the_ranges_and_the_flig
         ]
         return component
 
-    before_physics = planner._physics()
+    before_physics = planner.physics()
     before = jump()
     planner.data.jump_multiplier = 1.2  # a buff, say: a new reading replaces it
-    after_physics = planner._physics()
+    after_physics = planner.physics()
     handler.graph(after_physics)  # built off the loop (#430): waited for here
     after = jump()
 
@@ -554,7 +545,7 @@ def test_while_the_new_stats_graph_builds_nothing_is_planned_then_the_next_path_
 
     assert flight(plan()) == pytest.approx(2 * 555 / 2000)
     planner.data.jump_multiplier = 1.2
-    buffed = planner._physics()
+    buffed = planner.physics()
     reached, release = _hold_build_half_way(monkeypatch, buffed)
     try:
         assert plan() == ()  # the change is seen: its graph starts, planning holds
@@ -595,26 +586,28 @@ def test_a_remade_handler_plans_on_the_graphs_already_built() -> None:
 
     assert second is not first
     assert second.graphs is first.graphs
-    assert second.ready_graph(planner._physics()) is first.graph(planner._physics())
+    assert second.ready_graph(planner.physics()) is first.graph(planner.physics())
 
 
 def test_trial_batches_that_switch_teleport_build_each_settings_graph_once() -> None:
     """
     A Trial alternates batches planned with and without teleport (`TrialRunner`
-    overrides `_teleport_skill`). Each setting keeps its own graphs, so switching
+    configures the Provider so). Each setting keeps its own graphs, so switching
     back needs no build.
     """
     planner = _planner("jump_gap", (100.0, 0.0), (300.0, 0.0))
     world = planner.data.world_map
 
-    walking = planner._graphs(world, teleport=False)
-    teleporting = planner._graphs(world, teleport=True)
+    walking = planner._graphs_for(world, teleport=False)
+    teleporting = planner._graphs_for(world, teleport=True)
 
     assert walking.teleport is False
     assert teleporting.teleport is True
-    assert planner._graphs(world, teleport=False) is walking
-    assert planner._graphs(world, teleport=True) is teleporting
-    assert planner._graphs(replace(world), teleport=False) is not walking  # a new map
+    assert planner._graphs_for(world, teleport=False) is walking
+    assert planner._graphs_for(world, teleport=True) is teleporting
+    assert (
+        planner._graphs_for(replace(world), teleport=False) is not walking
+    )  # a new map
 
 
 class _Teleport:
@@ -625,39 +618,29 @@ class _Teleport:
     "disable_teleport", [False, True], ids=["teleport", "teleport-disabled"]
 )
 def test_a_rotation_plans_with_the_characters_teleport_unless_disabled(
-    monkeypatch: pytest.MonkeyPatch, disable_teleport: bool
+    disable_teleport: bool,
 ) -> None:
     """
-    `Rotation.__init__` makes the pathing attributes, and `_new_handler` asks
-    `_teleport_skill()` for the skill. The window-reading setup is stubbed out.
+    The profile's `disable_teleport` configures the rotation's pathing, which
+    takes the skill off the character before it makes its handler, as
+    `Rotation.__init__` did (#49 is that it is a class-level dict).
     """
-    from botting.core import DecisionMaker
-    from maple.decision_makers.rotation import Rotation
-
-    def engine_free_init(
-        self: DecisionMaker, metadata: object, data: BotData, pipe: object
-    ) -> None:
-        self.data = data
-        self._proxies = SimpleNamespace(instance=lambda *_: threading.Lock())  # type: ignore[assignment]
-
-    monkeypatch.setattr(DecisionMaker, "__init__", engine_free_init)
-    for reads_the_window in (
-        "_create_minimap_attributes",
-        "_create_rotation_attributes",
-        "_create_recovery_attributes",
-    ):
-        monkeypatch.setattr(Rotation, reads_the_window, lambda *_, **__: None)
     teleport = _Teleport()
     character = SimpleNamespace(skills={"Teleport": teleport})
-    data = _planning_data(
-        "jump_gap", (100.0, 0.0), (0, 0), status_read=False, character=character
-    )
 
-    Rotation({}, data, None, disable_teleport=disable_teleport)  # type: ignore[arg-type]
+    data = _pathing(
+        "jump_gap",
+        (100.0, 0.0),
+        (0, 0),
+        status_read=False,
+        character=character,
+        disable_teleport=disable_teleport,
+    ).data
 
     handler: MovementHandler = data.movement_handler
     assert handler.teleport is (None if disable_teleport else teleport)
     assert handler.graphs.teleport is not disable_teleport
+    assert ("Teleport" in character.skills) is not disable_teleport
 
 
 def test_a_handler_refuses_another_maps_graphs() -> None:
@@ -671,7 +654,7 @@ def test_the_compile_speeds_follow_the_current_speed_stat() -> None:
     planner = _planner("jump_gap", (100.0, 0.0), (300.0, 0.0))
     planner.data.speed_multiplier = 1.4
 
-    compiler = planner._movement_compiler()
+    compiler = planner.compiler(None)
 
     assert compiler.keywords["speed"] == pytest.approx(1.4 * 125)
     assert compiler.keywords["climb_speed"] == pytest.approx(1.4 * 125)

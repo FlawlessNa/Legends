@@ -42,8 +42,8 @@ released. The Action's last sample is the cost.
 
 **It holds a Claim on `DESTINATION` for as long as it runs** (#441): the
 driver's target is the destination, and the Path is planned to it as the
-rotation's is. It reads every key it uses (ADR 0004), and plans through a
-`MovementPlanner` it holds, until a Provider serves the pathing data (#442).
+rotation's is. It reads every key it uses (ADR 0004), and plans through
+`PathingProvider` (#442), whose Knobs a batch sets with `configure`.
 """
 
 import asyncio
@@ -82,17 +82,22 @@ from maple.model.world import WorldMap
 from maple.screen.minimap import MINIMAP
 from maple.screen.position import VirtualPosition
 
-from .mixins._rotation_mixins import MovementPlanner
 from .providers import (
+    ACTION_DURATION,
     DESTINATION,
     FRAME,
     HANDLE,
     MAP_ID,
     MINIMAP_READING,
+    MOVEMENTS,
+    PATH,
     POSITION,
     POSITION_FUSION,
     WORLD_MAP,
+    PathingProvider,
     PositionReader,
+    actionable,
+    pathing,
 )
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -117,6 +122,9 @@ class TrialRunner(DecisionMaker):
         MINIMAP_READING,
         POSITION_FUSION,
         POSITION,
+        PATH,
+        MOVEMENTS,
+        ACTION_DURATION,
     )
     steers = (DESTINATION,)
     pauses = ("maple.decision_makers.trial_runner.TrialRunner",)
@@ -165,10 +173,8 @@ class TrialRunner(DecisionMaker):
             )
         self._trial_schedule = trial_schedule
         self._record_path = record_path
-        self._batch_teleport = True
-        self._planner = MovementPlanner(
-            self, data, teleport=lambda: self._batch_teleport
-        )
+        #: The Bot's pathing, whose Knobs each batch sets. Set by `setup()`.
+        self._pathing: PathingProvider
         self._position_reader = PositionReader(
             self,
             self.emit,
@@ -185,6 +191,7 @@ class TrialRunner(DecisionMaker):
         """
         self.schedule: TrialSchedule = load_schedule(self._trial_schedule)
         self.lock = self._proxies.instance(repr(self), "Lock")
+        self._pathing = pathing(self.data)
         self._assert_schedule_matches_map()
         self._last_target = self.schedule.trials[0][1].start
 
@@ -259,13 +266,13 @@ class TrialRunner(DecisionMaker):
             self._timed(began)
             # The driver's target, through the Claim, before the Path to it.
             self.refresh(DESTINATION)
-            self.data.update_attribute("path")
-            self.data.update_attribute("movements")
+            self.refresh(PATH)
+            self.refresh(MOVEMENTS)
 
             verdict = self._driver.advance(
                 position,
                 time.monotonic(),
-                plan=self.data.movements or (),
+                plan=self.read(MOVEMENTS) or (),
                 correlation_id=self.correlation_id,
             )
             if verdict.outcome is not None:
@@ -280,7 +287,7 @@ class TrialRunner(DecisionMaker):
             if verdict.dispatch and self._has_movements():
                 self.send(self._request())
                 dispatched = True
-                cap = self.data.action_duration
+                cap = self.read(ACTION_DURATION)
                 self._finish_due = None if cap is None else time.monotonic() + cap
                 self._waited = False
         finally:
@@ -298,19 +305,19 @@ class TrialRunner(DecisionMaker):
             args=(self.read(HANDLE), self._movement_compiler()),
         )
 
-    # --- planning, through the planner it holds -------------------------------------
+    # --- planning, through the Bot's pathing ----------------------------------------
 
     def _physics(self) -> VRPhysics:
         """The character's physics now."""
-        return self._planner.physics()
+        return self._pathing.physics()
 
     def _has_movements(self) -> bool:
         """Whether the current Movement Plan compiles to anything."""
-        return self._planner.has_movements()
+        return actionable(self.read(MOVEMENTS))
 
     def _movement_compiler(self) -> functools.partial:
         """The current Movement Plan's compile, for this decision."""
-        return self._planner.compiler()
+        return self._pathing.compiler(self.correlation_id)
 
     # --- Knobs --------------------------------------------------------------------
 
@@ -334,8 +341,9 @@ class TrialRunner(DecisionMaker):
             if knobs.decision_interval is None
             else knobs.decision_interval
         )
-        self._batch_teleport = batch.teleport
-        self._planner.create(
+        # Makes the handler again: the one held would otherwise keep the
+        # previous batch's threshold (and its caches) for the rest of the run.
+        self._pathing.configure(
             duration=(
                 self.DEFAULT_ACTION_DURATION
                 if knobs.action_duration is None
@@ -343,11 +351,8 @@ class TrialRunner(DecisionMaker):
             ),
             narrow_platform_threshold=knobs.precision_threshold,
             edge_departure_threshold=knobs.edge_departure_threshold,
+            teleport=batch.teleport,
         )
-        # `create` only reconfigures how the handler is built; the
-        # instance already held would otherwise keep the previous batch's threshold
-        # (and its caches) for the rest of the run.
-        self.data.update_attribute("movement_handler")
         self._applied_batch = batch
         logger.info(
             "%s applied batch %r knobs: %s%s",

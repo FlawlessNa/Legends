@@ -18,11 +18,11 @@ else anywhere on its platform. Custom rotation patterns are a later epic.
 
 **Only platforms a Path reaches.** The draw is restricted to the platforms the
 foothold graph reaches from the character's position, when the graph and a
-position are known (`reachable_platforms`): some maps have platforms nothing
-reaches (on Damp Forest, 7 of its 11, 37 % of their width, from its widest
-platform), and a destination there is one no Path joins, which only movement
-recovery would ever drop. One drawn before then is checked, and drawn again,
-once they are known.
+position are known (`PathingProvider.reachable_platforms`): some maps have
+platforms nothing reaches (on Damp Forest, 7 of its 11, 37 % of their width,
+from its widest platform), and a destination there is one no Path joins, which
+only movement recovery would ever drop. One drawn before then is checked, and
+drawn again, once they are known.
 """
 
 import logging
@@ -41,7 +41,6 @@ from maple.decision_makers.mob_detection import (
     get_mobs_positions_in_img,
     mobs_in_virtual_px,
 )
-from maple.decision_makers.pathing import reachable_platforms
 from maple.model.navigation import Point
 from maple.model.world import Platform, WorldMap
 from maple.screen.position import VirtualPosition, marker_of_feet
@@ -280,7 +279,7 @@ class DestinationProvider(Provider):
         A random point on the platforms a Path reaches from the character, or
         on every platform before the graph and a position are known.
         """
-        among = reachable_platforms(self.data)
+        among = self._reachable()
         self._checked = among is not None
         return self._world_map().random_point(among)
 
@@ -292,7 +291,7 @@ class DestinationProvider(Provider):
         """
         if self._checked:
             return target
-        among = reachable_platforms(self.data)
+        among = self._reachable()
         if among is None:
             return target
         self._checked = True
@@ -303,6 +302,18 @@ class DestinationProvider(Provider):
         redrawn = world_map.random_point(among)
         self.store(DESTINATION_PLATFORM, world_map.platform_at(redrawn))
         return redrawn
+
+    def _reachable(self) -> tuple[Platform, ...] | None:
+        """
+        The platforms a Path reaches from the character, or None while that
+        isn't known, or no Path is planned on this Bot (`PathingProvider`).
+        Not in `needs`: `PathingProvider` plans to `DESTINATION`, so this
+        Provider is set up first and cannot need its keys back.
+        """
+        # Imported here: the pathing module imports this one, for DESTINATION.
+        from .pathing import reachable_platforms
+
+        return reachable_platforms(self.data)
 
     def _position(self) -> Reading[VirtualPosition]:
         """

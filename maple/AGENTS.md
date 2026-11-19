@@ -76,7 +76,8 @@ virtual px on `data.world_map`:
   minimap gives no position (C-NOGUESS, as amended by #529). A consumer that
   must not act on a coarse read branches on `VirtualPosition.source`.
 - Movement Plans are planned from it on the map's `FootholdGraph`
-  (`MovementsMixin`, #396): an `UNSURE` read plans nothing.
+  (`PathingProvider`, which serves `MOVEMENTS`, #396, #442): an `UNSURE` read
+  plans nothing.
 - The rotation's targets are random points on the platforms a Path reaches
   (`DestinationProvider`, which serves `DESTINATION`), and arrival is judged in
   virtual px. A `game_data` map

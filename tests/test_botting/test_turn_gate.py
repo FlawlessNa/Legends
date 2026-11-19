@@ -81,6 +81,23 @@ def test_leave_frees_the_gate_from_the_engine() -> None:
     assert not lock.locked()
 
 
+def test_leave_now_frees_the_gate_without_yielding_to_the_event_loop() -> None:
+    """Rotation's release: done before the decision gives the loop away."""
+    lock = _Lock()
+    gate = TurnGate(lock)
+    assert gate.try_enter()
+    ran: list[str] = []
+
+    async def scenario() -> None:
+        other = asyncio.get_running_loop().call_soon(ran.append, "other")
+        gate.leave_now()
+        assert not lock.locked()
+        assert ran == [], "nothing else ran before the gate was left"
+        other.cancel()
+
+    asyncio.run(scenario())
+
+
 def test_reset_frees_a_held_gate_and_leaves_a_free_one_free() -> None:
     lock = _Lock()
     gate = TurnGate(lock)

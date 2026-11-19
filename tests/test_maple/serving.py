@@ -26,6 +26,7 @@ from botting.core import (
 from botting.core.data_keys import resolve_providers
 from botting.screen import Reading, capture
 from maple.decision_makers.providers import (
+    DESTINATION,
     FRAME,
     POSITION,
     CharacterProvider,
@@ -34,8 +35,10 @@ from maple.decision_makers.providers import (
     MapProvider,
     MinimapProvider,
     MobsProvider,
+    PathingProvider,
     ScreenReadersProvider,
 )
+from maple.model.navigation import Point
 from maple.model.world import WorldMap
 from maple.screen.position import VirtualPosition
 
@@ -151,6 +154,56 @@ def destination(
     data.update_attribute(POSITION.name)
     providers.build([DestinationProvider])
     return providers.get(DestinationProvider)
+
+
+def pathing(
+    world_map: WorldMap,
+    at: Callable[[], Reading[VirtualPosition]],
+    target: Callable[[], Point] = lambda: (0.0, 0.0),
+    *,
+    data: BotData | None = None,
+    character: object = None,
+    game_physics: Mapping[str, float] | None = None,
+    handle: int = 0,
+    position_threshold: float | None = None,
+    **settings: object,
+) -> PathingProvider:
+    """
+    `PathingProvider`, built and set up as assembly builds it, with the
+    profile `settings`, on a Bot whose map is `world_map`, whose character is
+    `character`, whose position is `at`'s and whose destination is `target`'s,
+    with the stats `MapleBot.child_init` sets: 1, and no Calibration constant.
+
+    On a `data` that `destination` served, its window, map, position and
+    `DestinationProvider` are the ones used, and `target` is not.
+    :param position_threshold: `POSITION`'s refresh threshold; None reads it
+        only when asked to.
+    """
+    data = data or BotData("T")
+    providers = data.providers or Providers(data, None, Proxies(), settings)  # pyright: ignore[reportArgumentType] - nothing is sent
+    providers.settings.update(settings)
+    if WindowProvider not in providers:
+        providers.add(WindowProvider, handle=handle)
+    if MapProvider not in providers:
+        providers.add(
+            MapProvider, map_id=0, world_map=world_map, game_physics=game_physics
+        )
+    providers.add(CharacterProvider, character_class=lambda *_: character)
+    if not data.is_provided(POSITION):
+        data.provide(
+            POSITION,
+            object.__new__(MinimapProvider),
+            at,
+            threshold=position_threshold,
+            initial_value=at(),
+        )
+    if not data.is_provided(DESTINATION):
+        data.provide(DESTINATION, object.__new__(DestinationProvider), target)
+    data.set_static("speed_multiplier", 1.0)
+    data.set_static("jump_multiplier", 1.0)
+    data.set_static("calibration", None)
+    providers.build([PathingProvider])
+    return providers.get(PathingProvider)
 
 
 def assemble(served: Served, *classes: type[DecisionMaker]) -> None:

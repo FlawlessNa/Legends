@@ -24,6 +24,8 @@ keys:
 - `destination`: where the rotation heads next, and the platform it is on.
   `DESTINATION` is steerable: a DecisionMaker claims it to send the character
   elsewhere (`wander`, or `botting.core.fixed` and `following`).
+- `pathing`: the Path to `DESTINATION`, its Movement Plan, and what the plan is
+  compiled with at dispatch.
 - `on_screen`: where the character is on screen, as a box on the client.
 - `buffs`: the profile's buffs, as their icons show them.
 - `status_bar`: the status bar's reading.
@@ -58,6 +60,17 @@ from .minimap import (
 )
 from .mobs import MOBS, MobsProvider
 from .on_screen import ON_SCREEN_POSITION, OnScreenPositionProvider
+from .pathing import (
+    ACTION_DURATION,
+    ALWAYS_RELEASE_KEYS,
+    MOVEMENT_HANDLER,
+    MOVEMENTS,
+    PATH,
+    MovementPlan,
+    PathingProvider,
+    actionable,
+    pathing,
+)
 from .quick_slots import QUICK_SLOTS_READING, QuickSlotsProvider
 from .screen_readers import (
     BUFFS_READER,
@@ -72,6 +85,8 @@ from .screen_readers import (
 from .status_bar import STATUS_BAR_READING, StatusBarProvider
 
 __all__ = [
+    "ACTION_DURATION",
+    "ALWAYS_RELEASE_KEYS",
     "BUFFS_READER",
     "BUFFS_READING",
     "BUFF_NAMES",
@@ -92,7 +107,10 @@ __all__ = [
     "MINIMAP_READING",
     "MINIMAP_SHOWN",
     "MOBS",
+    "MOVEMENTS",
+    "MOVEMENT_HANDLER",
     "ON_SCREEN_POSITION",
+    "PATH",
     "POSITION",
     "POSITION_FUSION",
     "QUICK_SLOTS_READER",
@@ -111,10 +129,14 @@ __all__ = [
     "MinimapProvider",
     "MinimapRecovery",
     "MobsProvider",
+    "MovementPlan",
     "OnScreenPositionProvider",
+    "PathingProvider",
     "PositionReader",
     "QuickSlotsProvider",
     "ScreenReadersProvider",
     "StatusBarProvider",
+    "actionable",
+    "pathing",
     "wander",
 ]
