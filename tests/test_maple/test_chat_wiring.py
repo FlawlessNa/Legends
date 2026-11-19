@@ -72,20 +72,26 @@ def test_whether_the_chat_is_shown_is_read_only_when_refreshed(
     reader.shown.assert_called_once_with(current)
 
 
-def test_mob_spawn_check_shows_and_hides_the_chat_by_the_reader(
-    mocker: MockerFixture,
-) -> None:
+def test_mob_spawn_check_shows_and_hides_the_chat_by_the_reader() -> None:
+    """A fresh frame, then `CHAT_SHOWN` read from it, both declared."""
     check = object.__new__(CheckMobsStillSpawn)
-    check.data = mocker.Mock()
+    check.data = BotData("T")
     readings = iter(
         [Reading.read(True, 1.0), Reading.read(False, 1.0), Reading.covered(1.0, "x")]
     )
-    check.data.chat_reader.shown.side_effect = lambda _: next(readings)
+    refreshed: list[Key[Any]] = []
+
+    def refresh(key: Key[Any]) -> object:
+        refreshed.append(key)
+        return next(readings) if key is CHAT_SHOWN else frame()
+
+    check.refresh = refresh  # type: ignore[method-assign]
 
     shown = [check._chat_shown() for _ in range(3)]  # pyright: ignore[reportPrivateUsage]
 
     assert shown == [True, False, None]
-    check.data.update_attribute.assert_called_with("current_frame")
+    assert refreshed == [FRAME, CHAT_SHOWN] * 3
+    assert {FRAME, CHAT_SHOWN} <= set(CheckMobsStillSpawn.reads)
     assert CHAT in CheckMobsStillSpawn.screen_readers
 
 

@@ -21,7 +21,8 @@ import numpy as np
 from botting.core import ActionRequest, BotData
 from botting.screen import Reading
 from maple.decision_makers import StateSnapshot
-from maple.decision_makers.mixins import MovementsMixin, NextTargetMixin
+from maple.decision_makers.mixins import MovementsMixin
+from maple.decision_makers.providers import DestinationProvider
 from maple.decision_makers.rotation import Rotation
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
@@ -38,6 +39,7 @@ from maple.telemetry_events import (
     target_reached_payload,
 )
 from tests.test_maple.movement_lab.fixture_maps import walk_corridor
+from tests.test_maple.serving import destination
 
 #: A map whose minimap transform is centre (1000, 1000), `mag` 4.
 WORLD = WorldMap.from_map_data(walk_corridor())
@@ -445,24 +447,26 @@ def test_no_plan_started_when_there_is_nothing_to_send() -> None:
 TARGET = (100.0, 0.0)
 
 
-class _Owner(NextTargetMixin):
-    def __init__(self, data: BotData) -> None:
-        self.data = data
+class _Owner:
+    """`DestinationProvider`, which judges arrival, and what it emitted."""
+
+    def __init__(self, provider: DestinationProvider) -> None:
+        self.data = provider.data
         self.emitted: list[tuple[str, Mapping[str, object]]] = []
-        self.emit = lambda event_type, payload=None: self.emitted.append(
+        provider.emit = lambda event_type, payload=None: self.emitted.append(  # type: ignore[method-assign]
             (event_type, payload or {})
         )
 
 
 def _owner(position: tuple[float, float], *, smart: bool = False) -> _Owner:
-    data = BotData("TestBot")
-    data.set_static("world_map", WORLD)
-    data.create_attribute("current_position", lambda: _fused(position))
-    owner = _Owner(data)
-    owner._create_rotation_attributes(
-        smart_rotation=smart, mob_count_threshold=2 if smart else None
+    provider = destination(
+        WORLD,
+        lambda: _fused(position),
+        smart_rotation_enabled=smart,
+        mob_count_threshold=2 if smart else None,
     )
-    data.next_target = TARGET
+    owner = _Owner(provider)
+    owner.data.next_target = TARGET
     return owner
 
 

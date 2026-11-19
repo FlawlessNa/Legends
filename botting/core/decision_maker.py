@@ -8,11 +8,14 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
+from contextlib import AbstractAsyncContextManager
 from typing import Any, ClassVar, NamedTuple
 
 from botting.logging_config import producer_logger_name
 from botting.telemetry import emit_event
 from botting.telemetry_events import (
+    DATA_CLAIMED,
+    DATA_RELEASED,
     DECISION_CRASHED,
     DECISION_DISABLED,
     DECISION_ENABLED,
@@ -24,6 +27,7 @@ from botting.telemetry_events import (
 
 from .action_data import ActionRequest, ActionWithValidation
 from .bot_data import BotData
+from .claims import ClaimNotDeclared, Source
 from .data_keys import Key, KeyNotDeclared
 from .errors import DecisionMakerCrashed
 from .proxy_factory import ProxyFactory
@@ -97,6 +101,10 @@ class DecisionMaker(ABC):
     #: The Data Keys this DecisionMaker only peeks at with `peek`: their last
     #: known value, never refreshed. Observing a key never builds its Provider.
     observes: ClassVar[tuple[Key[Any], ...]] = ()
+    #: The steerable Data Keys this DecisionMaker may claim with `claim`, and
+    #: read. Assembly builds their Providers, and refuses the start when one is
+    #: not steerable.
+    steers: ClassVar[tuple[Key[Any], ...]] = ()
     #: The Signals this DecisionMaker announces, with `announce`.
     announces: ClassVar[tuple[Signal[Any], ...]] = ()
     #: The Signals this DecisionMaker waits for, with `wait_for`. Assembly refuses
@@ -157,7 +165,8 @@ class DecisionMaker(ABC):
     def read[T](self, key: Key[T]) -> T:
         """
         `key`'s value, refreshed first when its threshold has passed.
-        :raises KeyNotDeclared: `key` is not in this class's `reads`.
+        :raises KeyNotDeclared: `key` is in neither this class's `reads` nor its
+            `steers`.
         """
         return self.data.read(self._declared(key, "read"))
 
@@ -165,15 +174,17 @@ class DecisionMaker(ABC):
         """
         `key`'s value, read now whatever its threshold: for a decision that must
         see the client as it is now, such as a fresh frame.
-        :raises KeyNotDeclared: `key` is not in this class's `reads`.
+        :raises KeyNotDeclared: `key` is in neither this class's `reads` nor its
+            `steers`.
         """
         return self.data.refresh(self._declared(key, "refreshed"))
 
     def _declared[T](self, key: Key[T], verb: str) -> Key[T]:
-        if key not in type(self).reads:
+        cls = type(self)
+        if key not in cls.reads and key not in cls.steers:
             raise KeyNotDeclared(
-                f"{self} {verb} {key.name!r}, which {type(self).__name__}.reads "
-                "does not declare."
+                f"{self} {verb} {key.name!r}, which neither {cls.__name__}.reads "
+                "nor .steers declares."
             )
         return key
 
@@ -181,15 +192,54 @@ class DecisionMaker(ABC):
         """
         `key`'s last known value, without refreshing it, or None when there is
         none: its Provider may not be built, or not have read anything yet.
-        :raises KeyNotDeclared: `key` is in neither this class's `reads` nor its
-            `observes`.
+        :raises KeyNotDeclared: `key` is in none of this class's `reads`,
+            `steers` and `observes`.
         """
-        if key not in type(self).reads and key not in type(self).observes:
+        cls = type(self)
+        if key not in (*cls.reads, *cls.steers, *cls.observes):
             raise KeyNotDeclared(
-                f"{self} peeked at {key.name!r}, which neither "
-                f"{type(self).__name__}.reads nor .observes declares."
+                f"{self} peeked at {key.name!r}, which none of "
+                f"{cls.__name__}.reads, .steers and .observes declares."
             )
         return self.data.peek(key)
+
+    # --- Claims -------------------------------------------------------------------
+
+    @contextlib.asynccontextmanager
+    async def claim[T](
+        self, key: Key[T], source: Source[T], *, reason: str
+    ) -> AsyncIterator[None]:
+        """
+        Hold a Claim on the steerable `key` for as long as the block runs::
+
+            async with self.claim(DESTINATION, fixed(spot), reason="rebuff spot"):
+                ...
+
+        While it is held, `key` serves `source`'s values, refreshed now and then
+        on the key's own threshold. It is released when the block exits by any
+        route: normally, on an exception, or because this DecisionMaker was
+        paused, or crashed, and its decision cancelled. The key then serves its
+        Provider's own value again.
+        :param source: Where the key's values come from (`fixed`, `following`,
+            or one its Provider's module offers).
+        :param reason: Why, for the `data.claimed` record and `ClaimHeld`.
+        :raises ClaimNotDeclared: `key` is not in this class's `steers`.
+        :raises ClaimHeld: another holder claims `key`, naming it and its reason.
+            Claims refuse at once: a DecisionMaker that wants to wait does so
+            itself.
+        """
+        if key not in type(self).steers:
+            raise ClaimNotDeclared(
+                f"{self} claimed {key.name!r}, which {type(self).__name__}.steers "
+                "does not declare."
+            )
+        claim = self.data.claim(key, source, holder=repr(self), reason=reason)
+        self.emit(DATA_CLAIMED, claim.payload())
+        try:
+            yield
+        finally:
+            if self.data.release(claim):
+                self.emit(DATA_RELEASED, claim.payload())
 
     # --- Signals ------------------------------------------------------------------
 
@@ -246,6 +296,20 @@ class DecisionMaker(ABC):
         Called by the Supervisor once this DecisionMaker's loops have stopped,
         whatever stopped them: a Pause, the Bot ending, or a loop that raised.
         """
+
+    def holds_for_run(self) -> AbstractAsyncContextManager[object]:
+        """
+        What this DecisionMaker holds for as long as its loops run, entered by
+        the Supervisor after `on_start()` and exited once the loops have stopped,
+        before `on_stop()`: a Claim (or a Pause) that belongs to the whole run
+        rather than to one decision. Nothing by default.
+
+        `TrialRunner` holds its Claim on `DESTINATION` here: every decision of a
+        Trial plans to the schedule's target. Like a Claim in a decision, it is
+        released when the loops stop, by any route, and taken again when they
+        restart.
+        """
+        return contextlib.nullcontext()
 
     def send(self, request: ActionRequest, correlation_id: str | None = None) -> None:
         """

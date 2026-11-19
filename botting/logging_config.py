@@ -111,6 +111,8 @@ BUCKETS: Final[dict[str, str]] = {
     # The minimap and the position read on it, which the mixin above used to log.
     "botting.maple.decision_makers.providers.minimap": "movement",
     "botting.maple.decision_makers.mixins._rotation_mixins": "movement",
+    # The rotation's destination, which the mixin above used to draw.
+    "botting.maple.decision_makers.providers.destination": "movement",
     # Movement compilation, sitting under `maple.actions` rather than
     # `model.mechanics`. Its siblings there (menus, writing, skills) are not
     # movement, hence the module-level prefix rather than the package one.

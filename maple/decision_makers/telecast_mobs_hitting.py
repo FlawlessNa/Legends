@@ -8,12 +8,9 @@ from maple.model.characters import MapleSkill
 from maple.model.mechanics import MovementTypes
 from maple.telemetry_events import COMBAT_TELECAST, TelecastPayload
 
-from .mixins._rotation_mixins import (
-    current_physics,
-    movement_compiler,
-    planned_movements,
-)
+from .mixins._rotation_mixins import movement_compiler, planned_movements
 from .mobs_hitting import MobsHitting
+from .pathing import current_physics
 from .providers import CHARACTER, HANDLE
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")

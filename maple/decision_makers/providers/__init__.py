@@ -21,6 +21,9 @@ The replies switch, `REPLIES_ON`, is the generic Bot's too
 keys:
 
 - `minimap`: the minimap's reading, and the character's virtual position.
+- `destination`: where the rotation heads next, and the platform it is on.
+  `DESTINATION` is steerable: a DecisionMaker claims it to send the character
+  elsewhere (`wander`, or `botting.core.fixed` and `following`).
 - `on_screen`: where the character is on screen, as a box on the client.
 - `buffs`: the profile's buffs, as their icons show them.
 - `status_bar`: the status bar's reading.
@@ -37,6 +40,12 @@ from .buffs import BUFFS_READING, BuffsProvider
 from .character import BUFF_NAMES, CHARACTER, CharacterProvider
 from .chat import CHAT_LINES, CHAT_SHOWN, ChatProvider
 from .client import CHAT_KEYS, FRAME, ClientProvider
+from .destination import (
+    DESTINATION,
+    DESTINATION_PLATFORM,
+    DestinationProvider,
+    wander,
+)
 from .map import GAME_PHYSICS, MAP_ID, POSITION_FUSION, WORLD_MAP, MapProvider
 from .minimap import (
     MINIMAP_BOX,
@@ -71,6 +80,8 @@ __all__ = [
     "CHAT_LINES",
     "CHAT_READER",
     "CHAT_SHOWN",
+    "DESTINATION",
+    "DESTINATION_PLATFORM",
     "FRAME",
     "FRAME_CHECK",
     "GAME_PHYSICS",
@@ -95,6 +106,7 @@ __all__ = [
     "CharacterProvider",
     "ChatProvider",
     "ClientProvider",
+    "DestinationProvider",
     "MapProvider",
     "MinimapProvider",
     "MinimapRecovery",
@@ -104,4 +116,5 @@ __all__ = [
     "QuickSlotsProvider",
     "ScreenReadersProvider",
     "StatusBarProvider",
+    "wander",
 ]

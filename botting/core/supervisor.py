@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING
 from botting.telemetry import emit_event
 from botting.telemetry_events import DECISION_PAUSED, DECISION_RESUMED, PausePayload
 
-from .errors import StartupRefused
+from .errors import DecisionMakerCrashed, StartupRefused
 
 if TYPE_CHECKING:
     from .decision_maker import DecisionMaker
@@ -212,7 +212,8 @@ class Supervisor:
 
         A restart waits for every loop of the previous run to have ended, so two
         runs of one DecisionMaker never overlap, and `on_stop` always comes
-        between them.
+        between them. What the DecisionMaker holds for a run (`holds_for_run()`) is
+        taken after `on_start` and released once the loops have stopped.
         """
         dm = slot.dm
         assert self._tg is not None, "run() creates the TaskGroup first"
@@ -220,25 +221,44 @@ class Supervisor:
             await self._until(slot, lambda: not slot.pauses)
             generation = slot.generation
             dm.on_start()
-            slot.tasks = [
-                self._tg.create_task(
-                    dm._decision_loop(loop.name, loop.decide),  # pyright: ignore[reportPrivateUsage] - the Supervisor is what runs it
-                    name=loop.name,
-                )
-                for loop in dm.loops()
-            ]
             try:
-                if slot.tasks:
-                    await asyncio.wait(slot.tasks)
+                async with contextlib.AsyncExitStack() as run:
+                    await self._hold_for_the_run(dm, run)
+                    slot.tasks = [
+                        self._tg.create_task(
+                            dm._decision_loop(loop.name, loop.decide),  # pyright: ignore[reportPrivateUsage] - the Supervisor is what runs it
+                            name=loop.name,
+                        )
+                        for loop in dm.loops()
+                    ]
+                    try:
+                        if slot.tasks:
+                            await asyncio.wait(slot.tasks)
+                    finally:
+                        await self._stop(slot.tasks)
+                        slot.tasks = []
             finally:
-                await self._stop(slot.tasks)
-                slot.tasks = []
                 dm.on_stop()
             # Loops that ended by themselves rather than by a Pause stay ended
             # until the next Pause is taken and released, as a dead decision
             # task always has. Waiting here is what stops them restarting in a
             # hot loop.
             await self._until(slot, lambda then=generation: slot.generation != then)
+
+    @staticmethod
+    async def _hold_for_the_run(
+        dm: DecisionMaker, run: contextlib.AsyncExitStack
+    ) -> None:
+        """
+        Take what `dm` holds for a run, in `run`, which releases it.
+
+        Failing to take it is a crash of `dm`, reported as a loop's is.
+        """
+        try:
+            await run.enter_async_context(dm.holds_for_run())
+        except Exception as error:
+            dm._report_crash("holds_for_run()", error)  # pyright: ignore[reportPrivateUsage] - the Supervisor runs it
+            raise DecisionMakerCrashed(repr(dm), error) from error
 
     @staticmethod
     async def _stop(tasks: Sequence[asyncio.Task[None]]) -> None:

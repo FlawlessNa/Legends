@@ -97,11 +97,11 @@ prevent.
 ## Decision-making
 
 The framework DecisionMakers are built on (ADR 0004).
-The Supervisor, Pauses, Data Keys, Providers and Signals exist today; Claims are being built by epic #432.
+The Supervisor, Pauses, Data Keys, Providers, Claims and Signals exist today; epic #432 is porting the DecisionMakers onto them.
 
 **Supervisor**:
 The one owner of a Bot's decision loops (`botting/core/supervisor.py`).
-It starts every DecisionMaker's loops once the Bot is assembled, calls its `on_start()` before every start and restart and its `on_stop()` once they have stopped, and is the only thing that cancels or restarts a loop.
+It starts every DecisionMaker's loops once the Bot is assembled, calls its `on_start()` before every start and restart and its `on_stop()` once they have stopped, holds what it holds for a run (`holds_for_run()`) in between, and is the only thing that cancels or restarts a loop.
 It runs in the Engine's event loop, with no thread and no Manager object.
 _Avoid_: Scheduler, task manager - `AsyncTaskManager` is Main Process's arbiter of Actions, a different thing.
 
@@ -127,7 +127,9 @@ _Avoid_: Mixin - Providers replace the mixins' data role.
 **Claim**:
 A scoped, exclusive right to steer a steerable Data Key: while it is held, the key serves the claimant's value source instead of its Provider's own.
 A second Claim on a held key is refused at once, naming the holder.
-Like a Pause, it is released when its block exits, by any route.
+What is claimed is a value source, not a value, so the key keeps refreshing on its own threshold while claimed.
+Like a Pause, it is released when its block exits, by any route, and the key then serves its Provider's own value again.
+`DESTINATION`, where the rotation heads, is the first steerable key.
 _Avoid_: Override, lock, reconfigure - `reconfigure_attribute` is the unscoped legacy a Claim replaces.
 
 **Signal**:

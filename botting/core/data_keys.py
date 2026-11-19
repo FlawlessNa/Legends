@@ -32,6 +32,7 @@ from .errors import StartupRefused
 if TYPE_CHECKING:
     from .action_data import ActionRequest
     from .bot_data import BotData
+    from .claims import Claim
     from .decision_maker import DecisionMaker
     from .proxy_factory import ProxyFactory
     from .signals import Announcement, Signal, SignalBoard
@@ -72,7 +73,8 @@ class Key[T]:
         :param legacy_name: The name unported code reads the value by, as
             `data.<legacy_name>`. Goes with the last mixin.
         :param steerable: Whether a DecisionMaker may steer the value with a
-            Claim.
+            Claim, declaring the key in its `steers`; assembly refuses a
+            DecisionMaker that steers a key which is not.
         """
         self.name = name
         self.provider = provider
@@ -226,6 +228,35 @@ class Provider:
             )
         return key
 
+    def store[T](self, key: Key[T], value: T) -> None:
+        """
+        Set the value of a key this Provider provides, without running its
+        update: for a Provider that decides two keys at once, or replaces its
+        own value outside a refresh (`DESTINATION`'s Abandon).
+        :raises KeyNotDeclared: this Provider does not provide `key`.
+        :raises ClaimHeld: `key` is claimed: its holder's source serves it.
+        """
+        if key not in type(self).provides:
+            raise KeyNotDeclared(
+                f"{self} stored {key.name!r}, which {type(self).__name__} does "
+                "not provide."
+            )
+        self.data.store(key, value)
+
+    def claimed(self, key: Key[Any]) -> Claim | None:
+        """
+        The Claim held on a key this Provider provides, or None when its own
+        value is served: what a Provider checks before steering the key itself
+        (`DESTINATION`'s Abandon does nothing while it is claimed).
+        :raises KeyNotDeclared: this Provider does not provide `key`.
+        """
+        if key not in type(self).provides:
+            raise KeyNotDeclared(
+                f"{self} asked whether {key.name!r} is claimed, which "
+                f"{type(self).__name__} does not provide."
+            )
+        return self.data.claim_on(key)
+
     def announce[T](self, signal: Signal[T], payload: T) -> None:
         """
         Announce `signal`, waking every DecisionMaker waiting for it.
@@ -268,13 +299,15 @@ def resolve_providers(
     after the Providers it needs. Runs before any Provider or DecisionMaker is
     built, from the class-level declarations alone.
 
-    A key in `reads` has its Provider built, and so does every key that Provider
-    needs, transitively. A key only in `observes` builds nothing.
-    :raises StartupRefused: two keys share a name, naming both, or the Providers
-        form a cycle, naming it.
+    A key in `reads` or `steers` has its Provider built, and so does every key
+    that Provider needs, transitively. A key only in `observes` builds nothing.
+    :raises StartupRefused: a DecisionMaker steers a key that is not steerable,
+        naming both, two keys share a name, naming both, or the Providers form a
+        cycle, naming it.
     """
     classes = list(classes)
-    read = [key for cls in classes for key in cls.reads]
+    _refuse_unsteerable(classes)
+    read = [key for cls in classes for key in (*cls.reads, *cls.steers)]
     observed = [key for cls in classes for key in cls.observes]
 
     reachable: dict[type[Provider], None] = {}
@@ -291,6 +324,17 @@ def resolve_providers(
     _refuse_shared_names(keys)
 
     return _ordered([key.provider for key in read])
+
+
+def _refuse_unsteerable(classes: Iterable[type[DecisionMaker]]) -> None:
+    """Every key a DecisionMaker declares in `steers` is steerable."""
+    for cls in classes:
+        for key in cls.steers:
+            if not key.steerable:
+                raise StartupRefused(
+                    f"{cls.__name__} steers {key!r}, which is not steerable: "
+                    "declare the key steerable=True, or take it out of steers."
+                )
 
 
 def _refuse_shared_names(keys: Iterable[Key[Any]]) -> None:
@@ -380,6 +424,19 @@ class Providers:
 
     def __contains__(self, provider: type[Provider]) -> bool:
         return provider in self._built
+
+    def get[P: Provider](self, provider: type[P]) -> P:
+        """
+        The `provider` this Bot built: for code that asks a Provider to do
+        something beside serving its keys (movement recovery's Abandon asks
+        `DESTINATION`'s Provider for another destination).
+        :raises LookupError: this Bot did not build `provider`.
+        """
+        built = self._built.get(provider)
+        if built is None:
+            raise LookupError(f"{self.data.ign}'s Bot built no {provider.__name__}.")
+        assert isinstance(built, provider), "built from the class it is kept under"
+        return built
 
     def add(self, provider: type[Provider], **values: object) -> Provider:
         """

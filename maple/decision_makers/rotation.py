@@ -47,8 +47,6 @@ class Rotation(
         pipe: multiprocessing.connection.Connection,
         movements_duration: float = 1.0,
         disable_teleport: bool = False,
-        smart_rotation_enabled: bool = False,
-        mob_count_threshold: int | None = None,
         **kwargs: object,
     ) -> None:
         super().__init__(metadata, data, pipe)
@@ -62,11 +60,9 @@ class Rotation(
         # Minimap attributes
         self._create_minimap_attributes()
 
-        # Rotation attributes
-        self._create_rotation_attributes(
-            smart_rotation=smart_rotation_enabled,
-            mob_count_threshold=mob_count_threshold,
-        )
+        # The rotation's destination: `DestinationProvider`, configured from the
+        # profile's `smart_rotation_enabled` and `mob_count_threshold`.
+        self._create_rotation_attributes()
         self._create_pathing_attributes(movements_duration)
 
         # Movement recovery

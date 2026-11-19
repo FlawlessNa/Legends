@@ -78,15 +78,16 @@ virtual px on `data.world_map`:
 - Movement Plans are planned from it on the map's `FootholdGraph`
   (`MovementsMixin`, #396): an `UNSURE` read plans nothing.
 - The rotation's targets are random points on the platforms a Path reaches
-  (`NextTargetMixin`), and arrival is judged in virtual px. A `game_data` map
+  (`DestinationProvider`, which serves `DESTINATION`), and arrival is judged in
+  virtual px. A `game_data` map
   has no feature cycle; custom rotation patterns are a later epic.
 - Movement recovery judges virtual positions and the graph Path's remaining
   time (`maple/movement_recovery.py`), and reports a long `UNSURE` streak.
 - `CheckStillInMap` checks the minimap against `world_map`'s canvas.
 - Mobs found on screen are placed through the camera of the frame they were
   found on (`PositionFusion.camera`, `mob_detection.mobs_in_virtual_px`).
-- `TrialRunner` judges Trials on `current_position`, to the driver's target in
-  virtual px (#397).
+- `TrialRunner` judges Trials on `POSITION`, to the driver's target in
+  virtual px (#397), which it claims `DESTINATION` with for its run (#441).
 
 Game files are read by `game_data/` (top level, importing neither `maple` nor
 `botting`), not by this package. See `docs/agents/game-data.md`.
