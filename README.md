@@ -136,8 +136,11 @@ parameters, and compares runs numerically.
 - **A shared domain vocabulary.** [CONTEXT.md](CONTEXT.md) defines the terms
   used in code, tests, and issues. Architecture decisions are recorded in
   [docs/adr/](docs/adr/).
-- **An agent-driven workflow.** Work is planned as epics and tickets and largely
-  carried out by AI coding agents under written conventions
+- **Hand-built for years, agent-assisted recently.** I designed and wrote
+  Legends alone, without AI tools, for years: the history from October 2023
+  to August 2026 has no AI-assisted commits. Since August 2026, work has been
+  planned as epics and tickets and largely carried out by AI coding agents
+  under written conventions
   ([AGENTS.md](AGENTS.md), [docs/agents/](docs/agents/)). Ticket PRs get an
   automated review against the ticket and its epic's intent, and a human
   reviews and merges everything that reaches `dev`.
