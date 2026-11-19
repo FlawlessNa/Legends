@@ -34,7 +34,7 @@ import sys
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Final, NamedTuple
+from typing import TYPE_CHECKING, Final, NamedTuple
 
 import cv2
 import numpy as np
@@ -43,7 +43,7 @@ from numpy.typing import NDArray
 
 from botting.utilities import Box
 from game_data.sprites import Sprite
-from maple.model.world import HuntingArea, WorldMap
+from maple.model.world import HuntingArea, MinimapTransform, WorldMap
 from maple.model.world.hunting_area import (
     HUNTING_AREAS,
     NAME,
@@ -51,6 +51,9 @@ from maple.model.world.hunting_area import (
     save_area,
     saved_areas,
 )
+
+if TYPE_CHECKING:
+    from maple.screen.minimap import MinimapView
 
 MAX_WINDOW: Final = (1200, 800)
 """The most the window may measure, in px: width, height."""
@@ -94,6 +97,31 @@ class LiveReading(NamedTuple):
     character: Point | None = None
     others: Sequence[Point] | None = None
     shown: Box | None = None
+
+
+def live_reading(view: MinimapView | None, transform: MinimapTransform) -> LiveReading:
+    """
+    What the window shows live, from a minimap read with the `another` markers
+    asked for: the character's feet, the other players' markers and the part of
+    the map shown, in virtual px. Nothing of it with no view; no character and
+    no others when the minimap places no position.
+    """
+    from maple.screen.minimap import FEET_ROWS, shown_in_virtual
+
+    if view is None:
+        return LiveReading()
+    feet = view.self_position.value
+    return LiveReading(
+        character=(
+            None
+            if feet is None
+            else transform.to_virtual((feet[0], feet[1] + FEET_ROWS))
+        ),
+        others=None
+        if feet is None
+        else [transform.to_virtual(p) for p in view.markers.get("another", ())],
+        shown=None if view.shown is None else shown_in_virtual(view.shown, transform),
+    )
 
 
 def enlargement(canvas: tuple[int, int]) -> int:
@@ -541,7 +569,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     from maple.launchers.profile import ProfileError
     from maple.screen.client import find_client
     from maple.screen.locator import FrameCheck
-    from maple.screen.minimap import FEET_ROWS, MINIMAP, MinimapReader, shown_in_virtual
+    from maple.screen.minimap import MINIMAP, MinimapReader
     from maple.screen.sprites import FRAME_CHECK, Profile, load_reader_sprites
 
     text: str = args.map.strip()
@@ -574,23 +602,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         frame = frame_source().grab(handle)
         if not frame.ok:
             return LiveReading()
-        view = reader.read(frame, markers=("another",)).value
-        if view is None:
-            return LiveReading()
-        feet = view.self_position.value
-        return LiveReading(
-            character=(
-                None
-                if feet is None
-                else transform.to_virtual((feet[0], feet[1] + FEET_ROWS))
-            ),
-            others=None
-            if feet is None
-            else [transform.to_virtual(p) for p in view.markers.get("another", ())],
-            shown=None
-            if view.shown is None
-            else shown_in_virtual(view.shown, transform),
-        )
+        return live_reading(reader.read(frame, markers=("another",)).value, transform)
 
     try:
         area = choose_hunting_area(

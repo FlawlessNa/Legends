@@ -35,11 +35,18 @@ keys:
 - `status_bar`: the status bar's reading.
 - `quick_slots`: the quick slots' reading.
 - `chat`: the chat's new lines, and whether its log is shown.
+- `other_players`: the other players' minimap markers, in virtual px.
+- `hunting_area`: the Hunting Area the `hunting_area` rotation hunts, its
+  stretches a Path reaches, and whether another player has settled in it;
+  each None with another rotation.
+- `cast_reach`: how far a cast of the training skill reaches, and how many
+  mobs make it worth it.
 """
 
 from botting.core import HANDLE, REPLIES_ON
 
 from .buffs import BUFFS_READING, BuffsProvider
+from .cast_reach import CAST_REACH, CastReach, CastReachProvider
 from .character import BUFF_NAMES, CHARACTER, CharacterProvider
 from .chat import CHAT_LINES, CHAT_SHOWN, ChatProvider
 from .client import CHAT_KEYS, FRAME, ClientProvider
@@ -48,6 +55,14 @@ from .destination import (
     DESTINATION_PLATFORM,
     DestinationProvider,
     wander,
+)
+from .hunting_area import (
+    AREA_PRESENCE,
+    AREA_STRETCHES,
+    HUNTING_AREA,
+    AreaPresence,
+    HuntingAreaProvider,
+    PresenceCounter,
 )
 from .map import GAME_PHYSICS, MAP_ID, POSITION_FUSION, WORLD_MAP, MapProvider
 from .menus import (
@@ -77,6 +92,7 @@ from .minimap import (
 )
 from .mobs import MOBS, MobsProvider
 from .on_screen import ON_SCREEN_POSITION, OnScreenPositionProvider
+from .other_players import OTHER_PLAYERS, OtherPlayers, OtherPlayersProvider
 from .pathing import (
     ACTION_DURATION,
     ALWAYS_RELEASE_KEYS,
@@ -112,11 +128,14 @@ __all__ = [
     "ABILITY_MENU_DISPLAYED",
     "ACTION_DURATION",
     "ALWAYS_RELEASE_KEYS",
+    "AREA_PRESENCE",
+    "AREA_STRETCHES",
     "AVAILABLE_AP",
     "BUFFS_READER",
     "BUFFS_READING",
     "BUFF_NAMES",
     "CALIBRATION",
+    "CAST_REACH",
     "CHARACTER",
     "CHAT_KEYS",
     "CHAT_LINES",
@@ -129,6 +148,7 @@ __all__ = [
     "FRAME_CHECK",
     "GAME_PHYSICS",
     "HANDLE",
+    "HUNTING_AREA",
     "INVENTORY_MENU",
     "INVENTORY_MENU_ACTIVE_TAB",
     "INVENTORY_MENU_DISPLAYED",
@@ -144,6 +164,7 @@ __all__ = [
     "MOVEMENTS",
     "MOVEMENT_HANDLER",
     "ON_SCREEN_POSITION",
+    "OTHER_PLAYERS",
     "PATH",
     "POSITION",
     "POSITION_FUSION",
@@ -158,11 +179,15 @@ __all__ = [
     "STATUS_BAR_READING",
     "WORLD_MAP",
     "AbilityMenuProvider",
+    "AreaPresence",
     "BuffsProvider",
+    "CastReach",
+    "CastReachProvider",
     "CharacterProvider",
     "ChatProvider",
     "ClientProvider",
     "DestinationProvider",
+    "HuntingAreaProvider",
     "InventoryMenuProvider",
     "MapProvider",
     "MinimapProvider",
@@ -170,8 +195,11 @@ __all__ = [
     "MobsProvider",
     "MovementPlan",
     "OnScreenPositionProvider",
+    "OtherPlayers",
+    "OtherPlayersProvider",
     "PathingProvider",
     "PositionReader",
+    "PresenceCounter",
     "ProfileProvider",
     "QuickSlotsProvider",
     "ScreenReadersProvider",
