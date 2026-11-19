@@ -27,12 +27,20 @@ from botting.core import (
 from botting.core.data_keys import resolve_providers
 from botting.screen import Reading, capture
 from maple.decision_makers.providers import (
+    AREA_PRESENCE,
+    AREA_STRETCHES,
+    CAST_REACH,
     DESTINATION,
     FRAME,
+    HUNTING_AREA,
     POSITION,
+    AreaPresence,
+    CastReach,
+    CastReachProvider,
     CharacterProvider,
     ClientProvider,
     DestinationProvider,
+    HuntingAreaProvider,
     MapProvider,
     MinimapProvider,
     MobsProvider,
@@ -41,7 +49,7 @@ from maple.decision_makers.providers import (
     ScreenReadersProvider,
 )
 from maple.model.navigation import Point
-from maple.model.world import WorldMap
+from maple.model.world import HuntingArea, Stretch, WorldMap
 from maple.screen.position import VirtualPosition
 
 
@@ -128,6 +136,10 @@ def destination(
     position_fusion: object = None,
     game_physics: Mapping[str, float] | None = None,
     handle: int = 0,
+    area: HuntingArea | None = None,
+    stretches: tuple[Stretch, ...] | None = None,
+    presence: AreaPresence | None = None,
+    cast_reach: CastReach | None = None,
     **settings: object,
 ) -> DestinationProvider:
     """
@@ -138,6 +150,10 @@ def destination(
     The window, the map and its mobs (none) are served by their Bot-level
     Providers; `POSITION` and `FRAME` are registered as `MinimapProvider` and
     `ClientProvider` register them, from `at` and `frame`, with no client.
+    The Hunting Area's keys and `CAST_REACH` are registered as their Providers
+    register them, from `area`, `stretches`, `presence` and `cast_reach`: None,
+    as with a rotation other than `hunting_area`, unless given; `override`
+    changes them.
     """
     data = data or BotData("T")
     providers = data.providers or Providers(data, None, Proxies(), settings)  # pyright: ignore[reportArgumentType] - nothing is sent
@@ -154,6 +170,11 @@ def destination(
     data.provide(FRAME, object.__new__(ClientProvider), frame)
     data.provide(POSITION, object.__new__(MinimapProvider), at, initial_value=at())
     data.update_attribute(POSITION.name)
+    area_provider = object.__new__(HuntingAreaProvider)
+    data.provide(HUNTING_AREA, area_provider, lambda: area)
+    data.provide(AREA_STRETCHES, area_provider, lambda: stretches)
+    data.provide(AREA_PRESENCE, area_provider, lambda: presence)
+    data.provide(CAST_REACH, object.__new__(CastReachProvider), lambda: cast_reach)
     providers.build([DestinationProvider])
     return providers.get(DestinationProvider)
 

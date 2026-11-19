@@ -141,6 +141,9 @@ MOVEMENT_TARGET_REACHED: Final = "movement.target_reached"
 #: The Hunting Area the rotation hunts was set, once per Session, at start: the
 #: one the profile names, or the one chosen in the launch window.
 ROTATION_AREA_SET: Final = "rotation.area_set"
+#: The Hunting Area source picked a new destination, or became crowded out:
+#: where, why, and how many mobs a cast reaches from there.
+ROTATION_DESTINATION_PICKED: Final = "rotation.destination_picked"
 
 # --- area -----------------------------------------------------------------
 #: Another player settled in the Hunting Area, and the Discord alert went.
@@ -438,6 +441,22 @@ class AreaSetPayload(TypedDict):
     bottom: int
     name: str | None
     origin: str
+
+
+class DestinationPickedPayload(TypedDict):
+    """
+    ``rotation.destination_picked``: the destination, in virtual px; ``why``
+    the source picked it: ``"mobs"`` (a cast there reaches the most mobs),
+    ``"look_around"`` (the cell seen least recently), ``"abandon"`` (movement
+    recovery's Abandon) or ``"crowded_out"`` (no part of the area is free of a
+    settled player: the character's last sure position); and ``mobs``, how
+    many of the mobs counted on the last look a cast from there reaches.
+    """
+
+    x: float
+    y: float
+    why: str
+    mobs: int
 
 
 class AreaWatchPayload(TypedDict):
