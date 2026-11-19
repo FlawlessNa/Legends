@@ -22,6 +22,8 @@ four Log Buckets - those partition code for routing and carry a catch-all
 * ``movement`` - Movement Plans started and targets reached, with deliberately
   minimal fields (#331). The movement-framework map may add records but not
   repurpose these. ``rotation`` stays reserved for that map.
+* ``rotation`` - where the rotation hunts: the Hunting Area it was given
+  (#571).
 * ``state`` - where the character was, sampled on a clock rather than on an
   event.
 * ``position`` - each read of the character's virtual position, whatever it
@@ -132,6 +134,11 @@ CHAT_REPLY_LIMITED: Final = "chat.reply_limited"
 MOVEMENT_PLAN_STARTED: Final = "movement.plan_started"
 #: A rotation mode judged that the character reached its target.
 MOVEMENT_TARGET_REACHED: Final = "movement.target_reached"
+
+# --- rotation -------------------------------------------------------------
+#: The Hunting Area the rotation hunts was set, once per Session, at start: the
+#: one the profile names, or the one chosen in the launch window.
+ROTATION_AREA_SET: Final = "rotation.area_set"
 
 # --- state ----------------------------------------------------------------
 #: A periodic sample of where the character is and where it is heading.
@@ -403,6 +410,23 @@ class TargetReachedPayload(TypedDict):
     vx: float | None
     vy: float | None
     virtual_distance: float | None
+
+
+class AreaSetPayload(TypedDict):
+    """
+    ``rotation.area_set``: the map, the rectangle in virtual px, and the area's
+    name, None for one drawn and not saved. ``origin`` is ``"profile"`` when the
+    profile's ``hunting_area`` named it, ``"window"`` when it was chosen in the
+    launch window.
+    """
+
+    map_id: int
+    left: int
+    top: int
+    right: int
+    bottom: int
+    name: str | None
+    origin: str
 
 
 class StateSnapshotPayload(TypedDict):
