@@ -1,13 +1,12 @@
 # Writing a DecisionMaker
 
-How to write a new DecisionMaker, or port an old one, against the framework of ADR 0004: Data Keys, Providers, Pauses and Signals.
+How to write a new DecisionMaker, or port an old one, against the framework of ADR 0004: Data Keys, Providers, Pauses, Claims and Signals.
 The terms are defined in `CONTEXT.md` ("Decision-making"); use them.
 
 The framework is being built by epic #432.
-What exists today: the Supervisor, Pauses, Data Keys, Providers, Signals and assembly.
-What does not exist yet: Claims (`steers`) and the crash policy.
+What exists today: the Supervisor, Pauses, Data Keys, Providers, Claims, Signals, assembly and the crash policy.
 MapleStory's keys and Providers are in `maple/decision_makers/providers/`, one module per Provider; its package docstring lists them.
-`CheckStillInMap` is the first DecisionMaker ported, and the worked example below; `SoloRebuff`, the consumables and `ChatReplies` are ported too.
+`CheckStillInMap` is the first DecisionMaker ported, and the worked example below; `MobsHitting`, `SoloRebuff`, the consumables, `ChatReplies`, `CheckMobsStillSpawn` and `TrialRunner` are ported too.
 Until each is ported, an old-style DecisionMaker keeps its mixins, and the two kinds run side by side in one Bot.
 
 ## The shape
@@ -15,7 +14,7 @@ Until each is ported, an old-style DecisionMaker keeps its mixins, and the two k
 A DecisionMaker written against the framework:
 
 - has no mixin in its class hierarchy (it may still subclass another DecisionMaker or a plain base class);
-- declares the Data Keys it reads in `reads`, the ones it only peeks at in `observes`, the classes it may pause in `pauses`, and the classes whose Actions it cancels in `cancels`;
+- declares the Data Keys it reads in `reads`, the ones it only peeks at in `observes`, the steerable ones it may claim in `steers`, the classes it may pause in `pauses`, and the classes whose Actions it cancels in `cancels`;
 - does no I/O in `__init__`, and does its one-time I/O in `setup()`;
 - uses no `has_*` flag, no `hasattr`, no `getattr(self.data, ...)`, and no task name built from a string;
 - stays an asynchronous loop: `_decide()` runs one decision, and Actions go to Main Process through `self.send(...)`.
@@ -73,7 +72,7 @@ A Data Key, `Key[T]`, names one piece of shared data, its type, and the one Prov
   Assembly refuses two keys of one name, legacy names included.
 - `legacy_name` is the name unported code reads it by, as `data.<legacy_name>`.
   Give one when the key replaces an attribute a mixin used to create, so the old DecisionMakers keep reading it unchanged.
-- `steerable=True` marks a key a Claim may steer, once Claims exist.
+- `steerable=True` marks a key a Claim may steer (see "Steering shared data: Claims"). `DESTINATION` is one.
 
 ## Providers
 
@@ -90,6 +89,8 @@ It belongs to the Bot, not to a DecisionMaker.
   Assembly sets those Providers up first.
   Reading a key not in `needs` raises `KeyNotDeclared`.
 - **Its own keys.** `self.read(KEY)` and `self.refresh(KEY)` also take a key the Provider provides, once it is registered (the minimap's error handler refreshes the minimap's reading).
+- **Setting its own keys.** `self.store(KEY, value)` sets a key it provides without running its update: for a Provider that decides two keys at once, or replaces its value outside a refresh (`DESTINATION`'s Abandon).
+  It refuses a claimed key; `self.claimed(KEY)` says whether one is, so a Provider steers its own key only when nothing claims it.
 - **Actions.** A Provider may send Actions with `self.send(request)` (the minimap's error handler moves the mouse).
   They carry no Correlation ID, since no single decision owns them, and `self.emit(...)` attributes the Provider's records to its own module.
 
@@ -122,8 +123,8 @@ A **Bot-level** Provider serves it.
 `Bot.start` assembles the Bot before the start barrier, before any DecisionMaker runs:
 
 1. It collects the class-level declarations of every DecisionMaker; nothing is built yet.
-2. It resolves the Providers of every key read, then of every key those Providers need, and orders them.
-3. It refuses the start with `StartupRefused` on a cycle between Providers (naming it), two keys with the same name (naming both), a `pauses` or `cancels` entry that resolves to nothing, a Signal awaited that nothing in the Bot announces (naming the Signal and the DecisionMaker), or a key read whose Bot-level Provider the Bot did not build (naming it).
+2. It resolves the Providers of every key read or steered, then of every key those Providers need, and orders them.
+3. It refuses the start with `StartupRefused` on a cycle between Providers (naming it), two keys with the same name (naming both), a DecisionMaker steering a key that is not steerable (naming both), a `pauses` or `cancels` entry that resolves to nothing, a Signal awaited that nothing in the Bot announces (naming the Signal and the DecisionMaker), or a key read whose Bot-level Provider the Bot did not build (naming it).
 4. It builds every Provider not built yet (the Bot-level ones were, by `child_init`), then runs each `setup()`, in order.
 5. It builds every DecisionMaker, then runs each `setup()`.
 
@@ -144,6 +145,31 @@ So a Bot wired wrong fails at startup with a message that names the cause, never
 - A paused DecisionMaker keeps its state.
   Before every start and restart, the Supervisor calls `on_start()`, and once its loops have stopped, `on_stop()`: put resets there, never in an override of the loop.
 - A DecisionMaker with several loops (one per buff) overrides `loops()`, and nothing else.
+
+## Steering shared data: Claims
+
+A key declared `steerable` serves either its Provider's own value or, while a DecisionMaker holds a **Claim** on it, the value source that DecisionMaker claimed it with.
+
+```python
+from botting.core import fixed
+
+class Rebuffer(DecisionMaker):
+    steers = (DESTINATION,)
+
+    async def _decide(self) -> None:
+        async with self.claim(DESTINATION, fixed(spot), reason="rebuff spot"):
+            ...
+```
+
+- Declare the keys you may claim in `steers`. Assembly builds their Providers, and refuses the start when one is not steerable. A steered key may also be read.
+- What is claimed is a **source**: a function given the key's Provider, called at every refresh while the Claim is held. `fixed(value)` serves one value, `following(read)` whatever `read()` returns now, and a Provider's module may offer more: `wander` steers `DESTINATION` into its random mode. The key keeps refreshing on its own threshold; taking the Claim refreshes it once.
+- **Exclusive.** A second Claim on a held key raises `ClaimHeld` at once, naming the holder and its reason. A DecisionMaker that wants to wait does so itself.
+- **Scoped.** It is released when the block exits, by any route: normally, an exception, a Pause on its holder or a crash. The key then serves its Provider's own value again: the one it served when the Claim was taken, refreshed on its threshold from its Provider's own update.
+- A Claim that belongs to a whole run, not to one decision, goes in `holds_for_run()`: the Supervisor enters it after `on_start()` and leaves it once the loops have stopped, before `on_stop()`. `TrialRunner` claims `DESTINATION` there.
+- `data.claimed` and `data.released` record each Claim, with its key, holder and reason.
+- `snapshot_attribute`, `reconfigure_attribute` and `restore_attribute` are for unported code only, and refuse a claimed key.
+
+`CheckMobsStillSpawn` is the worked takeover: when mobs stop spawning it holds a Pause on mob hitting and a Claim on `DESTINATION` with `wander` until they come back, so nothing is left paused or claimed if it is cancelled half-way. When they never come back, it takes a user-held Pause on everything it stops before its own blocks release.
 
 ## Cancelling another's Actions, and taking turns
 
@@ -202,6 +228,7 @@ class Looter(DecisionMaker):
   However many DecisionMakers ask, it is set up once.
 - `create_attribute`, `create_or_reconfigure_attribute` and `set_static` on a name a Provider owns raise `OwnedByProvider`: one producer per key.
 - `_disable_decision_makers` and `_enable_decision_makers` remain as a shim for unported code only, with their old semantics.
+- `NextTargetMixin._set_fixed_target` remains for unported code only (the parked `InventoryManager`): an unscoped hijack of `DESTINATION` through `snapshot_attribute`. A ported DecisionMaker claims the key instead.
 - The other way round, a ported DecisionMaker that needs data an unported one still makes reads it through a plain function beside that one's mixin, which the mixin uses too, and which goes with it: `TelecastMobsHitting` reads the rotation's Movement Plan with `planned_movements(data)` until Rotation's port gives it a Provider.
   It does not keep the mixin in its hierarchy for it.
 

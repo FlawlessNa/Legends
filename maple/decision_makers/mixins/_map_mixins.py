@@ -13,8 +13,8 @@ class MinimapAttributesMixin:
     """
     Legacy: what an unported DecisionMaker used to create the minimap's data
     with. `MinimapProvider` serves that data now; this only asks for it, and
-    reads a position for a DecisionMaker that reads its own (`TrialRunner`).
-    Goes with the last mixin.
+    reads a position for a runner that reads its own (the movement
+    playground's). Goes with the last mixin.
     """
 
     data: BotData

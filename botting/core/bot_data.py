@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from .claims import Claim, ClaimHeld, Source
 from .errors import StartupRefused
 
 if TYPE_CHECKING:
@@ -204,6 +205,16 @@ def _update_is_change(value: Any, prev_value: Any) -> bool:
         return value != prev_value
 
 
+@dataclass(frozen=True)
+class _Held:
+    """A Claim held, and what its release puts back on its key's attribute."""
+
+    claim: Claim
+    update_function: Callable[..., Any]
+    value: Any
+    last_update_time: float
+
+
 class OwnedByProvider(Exception):
     """
     Unported code created an attribute under a name a Provider owns: a Data Key's
@@ -233,7 +244,16 @@ class BotData:
 
     #: The instance attributes `__setattr__` sets directly, not as data.
     _OWN = frozenset(
-        {"ign", "_managed", "_static", "_features", "_clock", "_owned", "providers"}
+        {
+            "ign",
+            "_managed",
+            "_static",
+            "_features",
+            "_clock",
+            "_owned",
+            "_claims",
+            "providers",
+        }
     )
 
     def __init__(self, ign: str, clock: Clock = time.monotonic) -> None:
@@ -249,6 +269,8 @@ class BotData:
         #: Every name a Provider owns, the key's own and its legacy one, to the
         #: key and the Provider that registered it.
         self._owned: dict[str, tuple[Key[Any], Provider]] = {}
+        #: Each claimed key's name, to its Claim and what its release puts back.
+        self._claims: dict[str, _Held] = {}
         #: The Bot's Providers, attached by `Providers` when the Bot makes them.
         #: None for data no Bot has.
         self.providers: Providers | None = None
@@ -438,6 +460,7 @@ class BotData:
         name = self._canonical(name)
         if name not in self._managed:
             raise AttributeError(f"{name} not found in {self}. Cannot reconfigure.")
+        self._refuse_claimed(name)
         managed = self._managed[name]
         if update_function is not _SENTINEL:
             managed.update_function = update_function
@@ -455,6 +478,7 @@ class BotData:
         name = self._canonical(name)
         if name not in self._managed:
             raise AttributeError(f"{name} not found in {self}. Cannot snapshot.")
+        self._refuse_claimed(name)
         self._managed[name].snapshot_config()
 
     def restore_attribute(self, name: str) -> None:
@@ -605,6 +629,84 @@ class BotData:
         if not self.is_provided(key):
             return None
         return self.get_last_known_value(key.name, update=False)
+
+    def store[T](self, key: Key[T], value: T) -> None:
+        """
+        Set `key`'s value without running its update, as `data.<legacy_name> =`
+        does. Called through `Provider.store`.
+        :raises LookupError: no Provider has registered `key`.
+        :raises ClaimHeld: `key` is claimed: its holder's source serves it.
+        """
+        self._refuse_unprovided(key)
+        self._refuse_claimed(key.name)
+        self._managed[key.name].set(value)
+
+    # --- Claims -------------------------------------------------------------------
+
+    def claim[T](
+        self, key: Key[T], source: Source[T], *, holder: str, reason: str
+    ) -> Claim:
+        """
+        Claim `key` for `holder`: until `release`, its value comes from `source`,
+        refreshed now and then on the key's own threshold, with its Provider's
+        error handler. `DecisionMaker.claim` is the scoped way to hold one.
+        :raises ValueError: `key` is not steerable.
+        :raises LookupError: no Provider has registered `key`.
+        :raises ClaimHeld: another holder claims `key`, naming it and its reason.
+        :raises Exception: whatever `source` raised on the first refresh; the
+            key is not claimed then.
+        """
+        if not key.steerable:
+            raise ValueError(f"{key!r} is not steerable: nothing may claim it.")
+        self._refuse_unprovided(key)
+        self._refuse_claimed(key.name)
+        provider = self._owned[key.name][1]
+        managed = self._managed[key.name]
+        held = _Held(
+            Claim(key, holder, reason),
+            managed.update_function,
+            managed.value,
+            managed.metadata.last_update_time,
+        )
+        managed.update_function = lambda: source(provider)
+        self._claims[key.name] = held
+        try:
+            managed.update(self)
+        except BaseException:
+            self._put_back(held)
+            raise
+        return held.claim
+
+    def release(self, claim: Claim) -> bool:
+        """
+        End `claim`: its key serves its Provider's own value again, the one it
+        served when the Claim was taken, refreshed on its threshold from its
+        Provider's own update. Releasing twice does nothing.
+        :return: Whether `claim` was held.
+        """
+        held = self._claims.get(claim.key.name)
+        if held is None or held.claim is not claim:
+            return False
+        self._put_back(held)
+        return True
+
+    def claim_on(self, key: Key[Any]) -> Claim | None:
+        """The Claim held on `key`, or None when nothing claims it."""
+        held = self._claims.get(key.name)
+        return None if held is None else held.claim
+
+    def _put_back(self, held: _Held) -> None:
+        """Undo `held`: the Provider's own update, value and time of last update."""
+        managed = self._managed[held.claim.key.name]
+        managed.update_function = held.update_function
+        managed.set(held.value)
+        managed.metadata.last_update_time = held.last_update_time
+        del self._claims[held.claim.key.name]
+
+    def _refuse_claimed(self, name: str) -> None:
+        held = self._claims.get(name)
+        if held is not None:
+            raise ClaimHeld(f"{held.claim}: release it first.")
 
     def _refuse_unprovided(self, key: Key[Any]) -> None:
         if not self.is_provided(key):

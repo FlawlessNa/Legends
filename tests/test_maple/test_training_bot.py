@@ -53,6 +53,7 @@ from maple.decision_makers.providers import (
     CharacterProvider,
     ChatProvider,
     ClientProvider,
+    DestinationProvider,
     MapProvider,
     MinimapProvider,
     MobsProvider,
@@ -325,7 +326,8 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
     # The Bot-level Providers, in `child_init`'s order, then those assembly
     # builds for what the DecisionMakers read, each after what it needs: the
     # minimap, once, then the on-screen position (`MobsHitting`), the quick
-    # slots (`PetFood`), the buffs (`SoloRebuff`) and the chat (`ChatReplies`).
+    # slots (`PetFood`), the buffs (`SoloRebuff`), the chat (`ChatReplies`) and
+    # the rotation's destination (`CheckMobsStillSpawn` steers it).
     assert [type(p) for p in bot.providers] == [
         WindowProvider,
         RepliesProvider,
@@ -339,6 +341,7 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
         QuickSlotsProvider,
         BuffsProvider,
         ChatProvider,
+        DestinationProvider,
     ]
 
     async def decide_once() -> None:

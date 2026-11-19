@@ -24,12 +24,20 @@ from botting.core import (
     WindowProvider,
 )
 from botting.core.data_keys import resolve_providers
-from botting.screen import capture
+from botting.screen import Reading, capture
 from maple.decision_makers.providers import (
+    FRAME,
+    POSITION,
     CharacterProvider,
     ClientProvider,
+    DestinationProvider,
+    MapProvider,
+    MinimapProvider,
+    MobsProvider,
     ScreenReadersProvider,
 )
+from maple.model.world import WorldMap
+from maple.screen.position import VirtualPosition
 
 
 class Client:
@@ -104,6 +112,45 @@ def serve(
         )
     providers.add(ClientProvider, chat_keys=dict(chat_keys or {}))
     return Served(data, providers, client, replies, pipe)
+
+
+def destination(
+    world_map: WorldMap,
+    at: Callable[[], Reading[VirtualPosition]],
+    *,
+    data: BotData | None = None,
+    frame: Callable[[], object] = lambda: None,
+    position_fusion: object = None,
+    game_physics: Mapping[str, float] | None = None,
+    handle: int = 0,
+    **settings: object,
+) -> DestinationProvider:
+    """
+    `DestinationProvider`, built and set up as assembly builds it, with the
+    profile `settings`, on a Bot whose map is `world_map` and whose position is
+    `at`'s, read once, as a Session has.
+
+    The window, the map and its mobs (none) are served by their Bot-level
+    Providers; `POSITION` and `FRAME` are registered as `MinimapProvider` and
+    `ClientProvider` register them, from `at` and `frame`, with no client.
+    """
+    data = data or BotData("T")
+    providers = data.providers or Providers(data, None, Proxies(), settings)  # pyright: ignore[reportArgumentType] - nothing is sent
+    providers.settings.update(settings)
+    providers.add(WindowProvider, handle=handle)
+    providers.add(
+        MapProvider,
+        map_id=0,
+        world_map=world_map,
+        game_physics=game_physics,
+        position_fusion=position_fusion,
+    )
+    providers.add(MobsProvider)
+    data.provide(FRAME, object.__new__(ClientProvider), frame)
+    data.provide(POSITION, object.__new__(MinimapProvider), at, initial_value=at())
+    data.update_attribute(POSITION.name)
+    providers.build([DestinationProvider])
+    return providers.get(DestinationProvider)
 
 
 def assemble(served: Served, *classes: type[DecisionMaker]) -> None:

@@ -11,8 +11,9 @@ Two helpers are shared with DecisionMakers that need them:
 - `MinimapRecovery` makes the minimap place the character again. The Provider
   holds one as `POSITION`'s error handler; `CheckStillInMap` holds its own.
 - `PositionReader` reads the virtual position, and holds while the minimap's
-  marker is unplaced. The Provider holds one for `POSITION`; an unported
-  DecisionMaker that reads a position itself (`TrialRunner`) holds its own.
+  marker is unplaced. The Provider holds one for `POSITION`; a DecisionMaker
+  that reads a position itself, with no error handler (`TrialRunner`'s
+  samples), holds its own.
 """
 
 import logging

@@ -8,6 +8,7 @@ import pytest
 from botting.core import DecisionMaker
 from maple.decision_makers import (
     ChatReplies,
+    CheckMobsStillSpawn,
     CheckStillInMap,
     MobsHitting,
     MountFood,
@@ -15,6 +16,7 @@ from maple.decision_makers import (
     SoloRebuff,
     SpeedPill,
     TelecastMobsHitting,
+    TrialRunner,
 )
 
 PORTED = (
@@ -26,6 +28,8 @@ PORTED = (
     SpeedPill,
     MountFood,
     ChatReplies,
+    CheckMobsStillSpawn,
+    TrialRunner,
 )
 
 

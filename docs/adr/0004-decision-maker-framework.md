@@ -17,7 +17,7 @@ When a DecisionMaker died half-way through a pause or a steer, nothing undid it.
 
 The intent and the approved spec are in epic #432.
 This ADR records the decisions; the terms are defined in `CONTEXT.md` (Supervisor, Pause, Data Key, Provider, Claim, Signal).
-The Supervisor and Pauses were delivered first (#433), then Data Keys, Providers and assembly (#434), then MapleStory's first Providers and the first port, `CheckStillInMap` (#438), then `MobsHitting`, `TelecastMobsHitting` and the Turn Gate (#439), then the buffs, status bar, quick slots and chat Providers with the ports of `SoloRebuff`, the consumables and `ChatReplies` (#440); what is named here but not yet in the tree is delivered by the later tickets of #432.
+The Supervisor and Pauses were delivered first (#433), then Data Keys, Providers and assembly (#434), then MapleStory's first Providers and the first port, `CheckStillInMap` (#438), then `MobsHitting`, `TelecastMobsHitting` and the Turn Gate (#439), then the buffs, status bar, quick slots and chat Providers with the ports of `SoloRebuff`, the consumables and `ChatReplies` (#440), then Claims, `DESTINATION` and the ports of `CheckMobsStillSpawn` and `TrialRunner` (#441); what is named here but not yet in the tree is delivered by the later tickets of #432.
 
 ## Decision
 
@@ -145,6 +145,39 @@ A one-at-a-time gate replaces the hand-rolled per-DecisionMaker lock in Rotation
 
 - **Claims are exclusive and refuse at once.**
   Waiting by default hides contention, and two takeovers waiting on each other would hang.
+- **A Claim lives where the key's value does** (#441).
+  `BotData.claim` puts the claimed source in place of the key's update function, keeps its threshold and its Provider's error handler, and refreshes it once, so the Claim bites at once; `DecisionMaker.claim` is the scoped way to hold one, and emits `data.claimed` and `data.released`.
+  `reconfigure_attribute`, `snapshot_attribute` and `Provider.store` refuse a claimed key, so the legacy steer and a Provider's own writes cannot undo a Claim behind its back.
+- **A source is a function of the key's Provider**, `Source[T] = Callable[[Provider], T]`, called at every refresh while the Claim is held (#441).
+  `fixed(value)` and `following(read)` ignore the Provider; `wander`, in `DESTINATION`'s module, steers it into its random mode, which is what `CheckMobsStillSpawn` claims.
+  Rejected: a source with no argument, which leaves no way to claim one of the Provider's own modes short of handing DecisionMakers the Provider.
+- **Released, a key serves its Provider's own value as it was when the Claim was taken** (#441).
+  The release puts back the Provider's update function, the value, and the time of its last update, so a key with a threshold refreshes on it as if nothing had claimed it.
+  The legacy `restore_attribute` put back only the update function and left the hijacked value: after `CheckMobsStillSpawn`'s wander, the rotation now heads back to the destination it had, where it used to go on to the last point it wandered to.
+- **`steers` builds the Provider as `reads` does, and a steered key may be read** (#441): `TrialRunner` refreshes the destination it claims.
+  Assembly refuses a DecisionMaker that steers a key not declared `steerable`, naming both, before anything is built.
+- **A Claim for a whole run is held by `holds_for_run()`** (#441).
+  `TrialRunner` claims `DESTINATION` for as long as its loop runs, which no `async with` in one decision can scope.
+  So a DecisionMaker may return a context manager from `holds_for_run()`, which the Supervisor enters after `on_start()` and leaves once the loops have stopped, before `on_stop()`: it is released by a Pause, the Bot ending or a crash, and taken again at the restart, and failing to take it is a crash of that DecisionMaker.
+  The spec did not name it; it is the hook symmetric with `on_start()`/`on_stop()` that keeps the Claim scoped.
+  Rejected: a Claim per decision, which records a `data.claimed` and a `data.released` ten times a second; and an unscoped Claim released in `on_stop()`, which is the legacy hazard again.
+- **`DESTINATION` is the first steerable key** (#441), legacy name `next_target`, with `DESTINATION_PLATFORM` (legacy `next_feature`), both served by `DestinationProvider` in `maple/decision_makers/providers/destination.py`.
+  It holds the two modes `NextTargetMixin` had, random and smart, picked by the profile's `smart_rotation_enabled` and `mob_count_threshold`; the feature-cycle mode the spec names went with the hand-made maps (#398).
+  It is built by assembly when a DecisionMaker steers it, and otherwise when the unported Rotation's mixin asks `BotData` for it, before any destination is drawn either way.
+  `NextTargetMixin` keeps only that request and the legacy hijack the parked `InventoryManager` uses.
+- **A Provider steers its own key only while nothing claims it.**
+  `Provider.claimed(KEY)` says whether something does, and `Provider.store(KEY, value)` sets a key it provides without its update (a mode that decides `DESTINATION` and its platform at once, Abandon), refusing a claimed one.
+- **Movement recovery's Abandon goes through the Provider** (#441): `DestinationProvider.abandon()` draws a new destination, and does nothing while `DESTINATION` is claimed, when recovery logs that it kept its target and sends no alert.
+  Recovery reaches the Provider with `Providers.get(cls)`: for code that asks a Provider to act, beside serving its keys.
+- **Arrival is recorded by the Provider**, so `movement.target_reached` carries no Correlation ID and is attributed to the Provider's module (in the movement Log Bucket), where it carried the deciding loop's, Rotation's or `CheckMobsStillSpawn`'s.
+  Smart rotation's look at where the character is on screen reads `ON_SCREEN_POSITION` only when a Bot provides it (mob hitting does), outside `needs`: a calibration bot that builds `DestinationProvider` has no chat reader to find the character with.
+- **The pathing data's plain reads are `maple/decision_makers/pathing.py`** (#441): the position, the physics, the platforms a Path reaches.
+  They moved out of `_rotation_mixins.py` because the mixins import the Providers, and `DestinationProvider` reads them; they go with the mixin, as the #439 bridge does.
+- **`TrialRunner` holds its planner rather than inheriting it** (#441).
+  `MovementPlanner`, beside `MovementsMixin`, is that mixin's planning as an object a ported DecisionMaker holds, planning to `DESTINATION`, until a Provider serves the pathing data (#442).
+  It is a bridge in the #439 sense: the mixin stays out of the DecisionMaker's hierarchy, and goes with the last mixin.
+- **A takeover that gives up stops for the user before it lets go.**
+  `CheckMobsStillSpawn`, when mobs never come back, takes a user-held Pause on the classes the legacy disable left stopped, mob hitting included, before its own Pause on mob hitting and its Claim are released; the release then changes nothing until Discord `RESUME`.
 
 ### Pausing, crashing and takeovers
 
@@ -159,6 +192,34 @@ A one-at-a-time gate replaces the hand-rolled per-DecisionMaker lock in Rotation
   Per-DecisionMaker restart policies were offered and not chosen.
 - **A takeover is an ordinary DecisionMaker (D13).**
   A first-class takeover unit would be designed for one parked user; it can be added on top of Pauses and Claims when the town trip is built.
+
+### The town trip, against Pauses and Claims
+
+The spec asks whether the town trip (door cast, map change, shop, return) can be written against Pauses and Claims without the legacy shim (#441).
+This is its skeleton, from the stages of the parked `InventoryManager`; whether it holds is the maintainer's judgment, and what it leaves open is listed after it.
+
+A `TownTrip` DecisionMaker checks the inventory on its own throttle, and declares `steers = (DESTINATION,)`, `cancels = (Rotation,)` and, in `pauses`, the classes the trip stops: mob hitting, Telecast, the rebuffs and the consumables, which `InventoryManager` disabled, and also `CheckMobsStillSpawn` and `CheckStillInMap`, which would take a town with no mobs and another map for a failure, and `Rotation`.
+When the inventory is full, one decision runs the whole trip inside `asyncio.wait_for(..., TIME_LIMIT)` and one outer `async with self.pause(MobsHitting, TelecastMobsHitting, SoloRebuff, PetFood, MountFood, CheckMobsStillSpawn, CheckStillInMap, reason="town trip")`.
+Rotation keeps running under it, and does the walking.
+
+1. **Door spot.** `async with self.claim(DESTINATION, fixed(door_spot), reason="town trip: door")`, and the trip waits until `POSITION` is within reach of it; Rotation walks there as to any destination.
+2. **Door cast.** Still holding the Claim, `async with self.pause(Rotation, cancel_actions=True, reason="casting door")`: Rotation's Action in flight is cancelled, the cast goes out under the trip's own Turn Gate, and nothing else moves the character.
+3. **Map change.** Under the same Pause on Rotation, the trip walks into the door with an Action of its own and waits for the minimap to show the town.
+4. **Shop.** In town, the Pause on Rotation is released and `DESTINATION` claimed with `fixed(npc_spot)`: Rotation walks to the shop. Then `Rotation` is paused again for the shop's clicks, the items are sold, and the shop is closed.
+5. **Return.** The door spot is claimed in town, Rotation walks there, the door is entered under a Pause on Rotation, and the trip waits for the minimap to show the farming map again.
+
+Each block exits as its stage ends, so the Claims and Pauses nest by stage, and once the outer block exits everything it stopped runs again.
+A trip that is cancelled half-way (a Pause on it, Discord `PAUSE`) or crashes leaves nothing paused or claimed.
+A trip that fails (it times out, or a stage raises) must not hand a bot standing in town back to its farming DecisionMakers: like `CheckMobsStillSpawn`'s give-up, it takes a user-held Pause on every class it declares before its blocks exit, so the bot waits for a human.
+No step needs `_disable_decision_makers`, `snapshot_attribute` or `reconfigure_attribute`.
+
+What the skeleton leaves open, for the ticket that builds the trip:
+
+- **The map is fixed at start.** `MAP_ID`, `WORLD_MAP`, `POSITION_FUSION` and the mobs are Bot-level, found once by `MapleBot.child_init`. A trip changes map twice, so those keys must follow the map (a Provider that refreshes them when the minimap shows another map), or the town's be claimed for the stay.
+- **The door is a temporary portal.** Rotation walks into the door only if the foothold graph has an edge for it while it stands. That belongs to the pathing Provider #442 builds: a steerable key, or an operation on the Provider, that adds the portal for the trip.
+- **The position through a door.** `InventoryManager` took the minimap's error handler off `POSITION` while the map changed, so that a minimap read mid-change did not trigger recovery. Under the framework that is a Claim on a steerable `POSITION`, or the Provider holding while the map changes; `POSITION` is not steerable today.
+- **Keys released at the end of each Action.** It set `always_release_keys` for the trip; that becomes a steerable key of the pathing Provider.
+- **Waiting for arrival** is a poll of `POSITION` in this skeleton; `DestinationProvider` could announce a Signal on arrival instead.
 
 ### Signals, and the order of the work
 

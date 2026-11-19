@@ -71,6 +71,15 @@ ACTION_CANCELS_OTHER: Final = "action.cancels_other"
 #: says how.
 ACTION_FINISHED: Final = "action.finished"
 
+# --- data -----------------------------------------------------------------
+#: A DecisionMaker took a Claim on a steerable Data Key: the key now serves the
+#: value source it claimed, until a ``data.released`` with the same key, holder
+#: and reason.
+DATA_CLAIMED: Final = "data.claimed"
+#: A DecisionMaker released its Claim on a Data Key: the key serves its
+#: Provider's own value again.
+DATA_RELEASED: Final = "data.released"
+
 # --- decision -------------------------------------------------------------
 #: A DecisionMaker suspended another one through the legacy shim,
 #: ``_disable_decision_makers``. Within its own Bot; until #433, across every
@@ -157,6 +166,16 @@ class PausePayload(TypedDict):
     #: The paused DecisionMaker's class name.
     target: str
     #: The holding DecisionMaker, as its ``repr`` names it, or ``"user"``.
+    holder: str
+    reason: str
+
+
+class ClaimPayload(TypedDict):
+    """``data.claimed`` / ``data.released``: one Claim."""
+
+    #: The claimed Data Key's name.
+    key: str
+    #: The holding DecisionMaker, as its ``repr`` names it.
     holder: str
     reason: str
 

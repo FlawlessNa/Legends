@@ -21,7 +21,8 @@ from pytest_mock import MockerFixture
 
 from botting.core import ActionRequest, BotData, ProxyFactory
 from botting.screen import Reading
-from maple.decision_makers.mixins import MovementRecoveryMixin, NextTargetMixin
+from maple.decision_makers.mixins import MovementRecoveryMixin
+from maple.decision_makers.providers import DESTINATION
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
     _MovementComponent,
@@ -33,6 +34,7 @@ from maple.screen.position import PositionSource, VirtualPosition
 from maple.telemetry_events import RECOVERY_STUCK_DETECTED
 from tests.test_maple.movement_lab.corpus import LAB_PHYSICS
 from tests.test_maple.movement_lab.fixture_maps import walk_corridor
+from tests.test_maple.serving import destination
 
 WALK = (_MovementComponent(MovementTypes.WALK_RIGHT, 80),)
 SENTINEL_ONLY = (_MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),)
@@ -76,7 +78,7 @@ class _Proxies(ProxyFactory):
         return queue.Queue()
 
 
-class _Loop(MovementRecoveryMixin, NextTargetMixin):
+class _Loop(MovementRecoveryMixin):
     """Stands in for the Rotation DecisionMaker."""
 
     def __init__(self, data: BotData) -> None:
@@ -107,13 +109,17 @@ class _Loop(MovementRecoveryMixin, NextTargetMixin):
 
 @pytest.fixture
 def data() -> BotData:
+    """The Bot's data, with `DESTINATION`'s Provider built as assembly builds it."""
     data = BotData("TestBot")
-    data.set_static("handle", 1234)
-    data.set_static("current_frame", SimpleNamespace(pixels=None))
-    data.create_attribute("current_position", lambda: HERE)
-    data.set_static("world_map", WORLD)
     data.create_attribute("path", lambda: PATH)
     data.create_attribute("minimap_currently_displayed", lambda: True)
+    destination(
+        WORLD,
+        lambda: HERE,
+        data=data,
+        handle=1234,
+        frame=lambda: SimpleNamespace(pixels=None),
+    )
     return data
 
 
@@ -123,9 +129,7 @@ def loop(data: BotData, mocker: MockerFixture) -> _Loop:
         "maple.decision_makers.mixins._recovery_mixins.controller.key_binds",
         return_value={"jump": "space"},
     )
-    loop = _Loop(data)
-    loop._create_rotation_attributes()
-    return loop
+    return _Loop(data)
 
 
 def _react(loop: _Loop, rung: Rung | None, **kwargs: object) -> Reaction:
@@ -387,14 +391,30 @@ def test_abandon_heads_for_a_point_on_a_platform(loop: _Loop) -> None:
     """
     The target update returns the *current* target until the character is within
     threshold of it, which is exactly what keeps a Stuck loop stuck: re-deciding
-    cannot change where it is going. Abandon draws a new one on the platforms.
+    cannot change where it is going. Abandon draws a new one on the platforms,
+    through `DESTINATION`'s Provider.
     """
-    first = loop._abandon_current_target()
-    second = loop._abandon_current_target()
+    first = loop._abandon_destination()
+    second = loop._abandon_destination()
+    assert first is not None
+    assert second is not None
 
     assert first != second
     assert WORLD.platform_at(first) is not None
     assert WORLD.platform_at(second) is not None
+
+
+def test_abandon_does_nothing_while_the_destination_is_claimed(loop: _Loop) -> None:
+    """Its holder decides where the character goes: no new target, no alert."""
+    claim = loop.data.claim(
+        DESTINATION, lambda _: (60.0, 0.0), holder="X(TestBot)", reason="test"
+    )
+
+    _react(loop, Rung.ABANDON, abandon_count=1)
+
+    assert loop.data.next_target == (60.0, 0.0)
+    assert loop.sent == []
+    loop.data.release(claim)
 
 
 def test_abandon_alerts_every_time(loop: _Loop) -> None:

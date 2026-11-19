@@ -29,6 +29,8 @@ from botting import PARENT_LOG, controller
 from botting.core import ActionRequest, BotData, DiscordRequest, ProxyFactory
 from maple.actions import priorities
 from maple.actions.movements_v2 import random_jump
+from maple.decision_makers.pathing import read_position
+from maple.decision_makers.providers.destination import DestinationProvider
 from maple.model.mechanics.physics import VRPhysics
 from maple.model.navigation import Path, Point
 from maple.model.world import WorldMap
@@ -40,8 +42,6 @@ from maple.movement_recovery import (
     Symptom,
 )
 from maple.screen.position import marker_of_feet
-
-from ._rotation_mixins import read_position
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -73,7 +73,6 @@ class MovementRecoveryMixin:
     emit: Callable[[str, Mapping[str, object]], None]
     _proxies: ProxyFactory
     _disable_decision_makers: Callable[..., None]
-    _abandon_current_target: Callable[[], Point]
     _has_movements: Callable[[], bool]
     # Supplied by `MovementsMixin`, which `Rotation` co-inherits: the Reflex's jump
     # lasts the flight of the character's current jump.
@@ -231,7 +230,17 @@ class MovementRecoveryMixin:
             self.send(self._reflex_request(reaction))
         elif reaction.rung is Rung.ABANDON:
             dropped = reaction.target
-            replacement = self._abandon_current_target()
+            replacement = self._abandon_destination()
+            if replacement is None:
+                # Claimed: its holder decides where the character goes, so
+                # nothing was abandoned and there is nothing to alert about.
+                logger.warning(
+                    "%s kept target %s after %s: the destination is claimed.",
+                    self.data.ign,
+                    dropped,
+                    reaction.symptom.value,
+                )
+                return
             logger.warning(
                 "%s abandoned target %s for %s after %s.",
                 self.data.ign,
@@ -258,6 +267,15 @@ class MovementRecoveryMixin:
                     f"reaching the client."
                 )
             )
+
+    def _abandon_destination(self) -> Point | None:
+        """
+        Abandon, through `DESTINATION`'s Provider: a new destination, or None
+        while a Claim holds it, when the Provider does nothing.
+        """
+        providers = self.data.providers
+        assert providers is not None, "the Bot attaches its Providers to its data"
+        return providers.get(DestinationProvider).abandon()
 
     def _report_unsure_position(self) -> None:
         """

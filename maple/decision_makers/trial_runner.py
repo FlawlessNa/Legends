@@ -39,19 +39,26 @@ the Action in flight is due to end (its dispatch plus the Action duration
 cap) waits on the lock instead, at most as long as that read would have taken
 (`_finish_near`, `_await_finish`), and decides the moment the lock is
 released. The Action's last sample is the cost.
+
+**It holds a Claim on `DESTINATION` for as long as it runs** (#441): the
+driver's target is the destination, and the Path is planned to it as the
+rotation's is. It reads every key it uses (ADR 0004), and plans through a
+`MovementPlanner` it holds, until a Provider serves the pathing data (#442).
 """
 
 import asyncio
 import dataclasses
+import functools
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import statistics
 import time
+from contextlib import AbstractAsyncContextManager
 from pathlib import Path
 
 from botting import PARENT_LOG, controller
-from botting.core import ActionRequest, BotData, DecisionMaker
+from botting.core import ActionRequest, BotData, DecisionMaker, following
 from botting.screen import Reading
 from botting.stop_file import request_stop
 from game_data.catalogue import Catalogue
@@ -69,24 +76,50 @@ from maple.calibration import (
 )
 from maple.calibration.driver import COARSE_SLACK, MINIMAP_PX
 from maple.calibration.specs import schedule_map_id
-from maple.model.characters.maple_skills import MapleSkill
+from maple.model.mechanics.physics import VRPhysics
 from maple.model.navigation import Point
 from maple.model.world import WorldMap
+from maple.screen.minimap import MINIMAP
 from maple.screen.position import VirtualPosition
 
-from .mixins import MinimapAttributesMixin, MovementsMixin
+from .mixins._rotation_mixins import MovementPlanner
+from .providers import (
+    DESTINATION,
+    FRAME,
+    HANDLE,
+    MAP_ID,
+    MINIMAP_READING,
+    POSITION,
+    POSITION_FUSION,
+    WORLD_MAP,
+    PositionReader,
+)
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
-class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
+class TrialRunner(DecisionMaker):
     """
     Walks a `TrialSchedule` through the production decide -> compile -> send path.
 
     One of these is the whole calibration bot (`maple.bots.CalibrationBot`). It is
     deliberately not a `Rotation` subclass: a rotation picks its own next target and
-    never stops, and both of those are exactly what a Trial must not do.
+    never stops, and both of those are exactly what a Trial must not do. So it
+    claims `DESTINATION` for its whole run, with the driver's target.
     """
+
+    screen_readers = (MINIMAP,)
+    reads = (
+        HANDLE,
+        MAP_ID,
+        WORLD_MAP,
+        FRAME,
+        MINIMAP_READING,
+        POSITION_FUSION,
+        POSITION,
+    )
+    steers = (DESTINATION,)
+    pauses = ("maple.decision_makers.trial_runner.TrialRunner",)
 
     #: The default decision-loop interval, and the `decision_interval` Knob's default.
     #: Matches `Rotation`, so an unswept batch measures what production does.
@@ -123,8 +156,6 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         :param record_path: Where to write the Trial record. Defaults to a
             timestamped file under `trial_records/`, which is gitignored: a record is
             measured on one machine against one client and means nothing checked in.
-        :raises TrialSpecError: The schedule's map isn't the bot's, or the bot's map
-            has no minimap to read a virtual position on.
         """
         super().__init__(metadata, data, pipe)
         if not trial_schedule:
@@ -132,17 +163,34 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
                 f"{self} needs a 'trial_schedule' setting naming a schedule under "
                 "configs/trials/."
             )
-        self.schedule: TrialSchedule = load_schedule(trial_schedule)
+        self._trial_schedule = trial_schedule
+        self._record_path = record_path
+        self._batch_teleport = True
+        self._planner = MovementPlanner(
+            self, data, teleport=lambda: self._batch_teleport
+        )
+        self._position_reader = PositionReader(
+            self,
+            self.emit,
+            fusion=lambda: self.read(POSITION_FUSION),
+            minimap=lambda: self.read(MINIMAP_READING),
+            frame=lambda: self.read(FRAME),
+        )
+
+    def setup(self) -> None:
+        """
+        Load the schedule, check it against the bot's map, and open the record.
+        :raises TrialSpecError: The schedule's map isn't the bot's, or the bot's map
+            has no minimap to read a virtual position on.
+        """
+        self.schedule: TrialSchedule = load_schedule(self._trial_schedule)
         self.lock = self._proxies.instance(repr(self), "Lock")
         self._assert_schedule_matches_map()
-
-        self._create_minimap_attributes()
         self._last_target = self.schedule.trials[0][1].start
-        self._batch_teleport = True
 
         path = (
-            Path(record_path)
-            if record_path
+            Path(self._record_path)
+            if self._record_path
             else default_record_path(self.schedule.name)
         )
         self._writer: RecordSink = JsonlRecordWriter(path)
@@ -164,6 +212,17 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         )
 
     # --- the decision cycle -------------------------------------------------------
+
+    def holds_for_run(self) -> AbstractAsyncContextManager[object]:
+        """
+        Its Claim on `DESTINATION`, for as long as its loop runs: every cycle's
+        Path is planned to the driver's target (`_virtual_target`).
+        """
+        return self.claim(
+            DESTINATION,
+            following(self._virtual_target),
+            reason=f"Trial schedule {self.schedule.name!r}",
+        )
 
     def on_stop(self) -> None:
         """
@@ -196,9 +255,10 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         try:
             self._apply_knobs()
             began = time.monotonic()
-            self.data.update_attribute("current_position")
+            position = self.refresh(POSITION)
             self._timed(began)
-            position: Reading[VirtualPosition] = self.data.current_position
+            # The driver's target, through the Claim, before the Path to it.
+            self.refresh(DESTINATION)
             self.data.update_attribute("path")
             self.data.update_attribute("movements")
 
@@ -235,8 +295,22 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             ign=self.data.ign,
             requeue_if_not_scheduled=False,
             callbacks=[self.lock.release],
-            args=(self.data.handle, self._movement_compiler()),
+            args=(self.read(HANDLE), self._movement_compiler()),
         )
+
+    # --- planning, through the planner it holds -------------------------------------
+
+    def _physics(self) -> VRPhysics:
+        """The character's physics now."""
+        return self._planner.physics()
+
+    def _has_movements(self) -> bool:
+        """Whether the current Movement Plan compiles to anything."""
+        return self._planner.has_movements()
+
+    def _movement_compiler(self) -> functools.partial:
+        """The current Movement Plan's compile, for this decision."""
+        return self._planner.compiler()
 
     # --- Knobs --------------------------------------------------------------------
 
@@ -261,7 +335,7 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             else knobs.decision_interval
         )
         self._batch_teleport = batch.teleport
-        self._create_pathing_attributes(
+        self._planner.create(
             duration=(
                 self.DEFAULT_ACTION_DURATION
                 if knobs.action_duration is None
@@ -270,7 +344,7 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             narrow_platform_threshold=knobs.precision_threshold,
             edge_departure_threshold=knobs.edge_departure_threshold,
         )
-        # `_create_pathing_attributes` only reconfigures how the handler is built; the
+        # `create` only reconfigures how the handler is built; the
         # instance already held would otherwise keep the previous batch's threshold
         # (and its caches) for the rest of the run.
         self.data.update_attribute("movement_handler")
@@ -283,19 +357,13 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             "" if batch.teleport else " (planned without teleport)",
         )
 
-    def _teleport_skill(self) -> MapleSkill | None:
-        """The character's teleport skill, unless the batch plans without it."""
-        if not self._batch_teleport:
-            return None
-        return super()._teleport_skill()
-
     # --- Finishing ----------------------------------------------------------------
 
     def _finish(self) -> None:
         """
         Close the record and stop deciding.
 
-        Idempotent: the disable below cancels this loop at its next `await`, and
+        Idempotent: the Pause below cancels this loop at its next `await`, and
         a caller that reaches here again before then would otherwise ship another
         key-release Action.
 
@@ -317,10 +385,10 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
                 priority=priorities.FAILSAFE,
                 requeue_if_not_scheduled=True,
                 cancels_itself=True,
-                args=(self.data.handle,),
+                args=(self.read(HANDLE),),
             )
         )
-        self._disable_decision_makers(type(self).__name__)
+        self.pause_for_user(TrialRunner, reason=f"{self.schedule.name!r} finished")
         self._end_session()
 
     def _end_session(self) -> None:
@@ -362,9 +430,10 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
 
     def _virtual_target(self) -> Point:
         """
-        Where the loop is heading, in virtual px: the driver's target, which
-        `MovementsMixin` plans the Path to. Holds the last target once the schedule
-        is done, so a cycle racing the shutdown still plans to somewhere.
+        Where the loop is heading, in virtual px: the driver's target, which its
+        Claim on `DESTINATION` serves and the Path is planned to. Holds the last
+        target once the schedule is done, so a cycle racing the shutdown still
+        plans to somewhere.
         """
         target = self._driver.target
         if target is not None:
@@ -373,13 +442,13 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
 
     def _sample_position(self) -> Reading[VirtualPosition]:
         """
-        One position read for a sample. A read that raises is recorded as unsure
-        and left at that: the minimap's error handler, which `current_position`
-        calls, sends input, and an Action is in flight.
+        One position read for a sample, by its own `PositionReader`. A read that
+        raises is recorded as unsure and left at that: the minimap's error
+        handler, which `POSITION` calls, sends input, and an Action is in flight.
         """
         began = time.monotonic()
         try:
-            return self._get_position()
+            return self._position_reader()
         except ValueError as error:
             return Reading.unsure(time.monotonic(), f"sample: {error}")
         finally:
@@ -450,14 +519,14 @@ class TrialRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         """
         with Catalogue.latest() as catalogue:
             wanted = schedule_map_id(self.schedule, catalogue)
-        loaded: int | None = getattr(self.data, "map_id", None)
+        loaded: int | None = self.read(MAP_ID)
         if loaded != wanted:
             where = "no known map" if loaded is None else f"map {loaded}"
             raise TrialSpecError(
                 f"Schedule {self.schedule.name!r} is written against map "
                 f"{self.schedule.map!r} ({wanted}), but {self.data.ign} is on {where}."
             )
-        world_map: WorldMap | None = getattr(self.data, "world_map", None)
+        world_map = self.read(WORLD_MAP)
         if world_map is None or world_map.minimap is None:
             raise TrialSpecError(
                 f"Schedule {self.schedule.name!r} needs a virtual position, and map "

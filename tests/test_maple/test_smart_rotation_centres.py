@@ -1,12 +1,10 @@
 """
-`_smart_rotation_target` reads mob rectangles as x1, y1, x2, y2 (issue #74), and
-places them in virtual px through the camera of the frame they were found on
-(#398), on the platform of the target.
+Smart rotation (`DestinationProvider`) reads mob rectangles as x1, y1, x2, y2
+(issue #74), and places them in virtual px through the camera of the frame they
+were found on (#398), on the platform of the destination.
 
 Faked at the BotData level, with the mobs' detection stubbed: no game client is
-involved. The owner below is declared here with the same shape as
-`_RotationOwner` in `test_rotation_target_handoff.py`, rather than imported from
-it.
+involved. The Provider is built as assembly builds it (`serving.destination`).
 """
 
 from collections.abc import Sequence
@@ -15,12 +13,16 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from botting.core import BotData
+import maple.decision_makers.providers.destination as destination_module
 from botting.screen import Frame, Reading
-from maple.decision_makers.mixins import NextTargetMixin, _rotation_mixins
+from maple.decision_makers.providers import (
+    ON_SCREEN_POSITION,
+    OnScreenPositionProvider,
+)
 from maple.model.world import WorldMap
 from maple.screen.position import Camera, PositionSource, VirtualPosition
 from tests.test_maple.movement_lab.fixture_maps import walk_corridor
+from tests.test_maple.serving import destination
 
 #: One floor from x 0 to 700: flat at y 0 to x 300, a slope up to y -20 at x 400,
 #: then flat again.
@@ -31,13 +33,6 @@ ORIGIN = Camera(0, -300, 1.0, 2.0, CLIENT)
 TWO_LEFT = [(70, 40, 90, 70), (60, 40, 80, 70)]
 
 
-class _Owner(NextTargetMixin):
-    TIME_ON_TARGET = 0.0
-
-    def __init__(self, data: BotData) -> None:
-        self.data = data
-
-
 def _target(
     mobs: list[tuple[int, int, int, int]],
     *,
@@ -45,36 +40,42 @@ def _target(
     camera: Camera | None = ORIGIN,
 ) -> tuple[float, float]:
     """
-    The target smart rotation picks once on target at `here`, with `mobs` found
-    on a frame whose camera is `camera` (`None`: that read matched no camera).
+    The destination smart rotation picks once on target at `here`, with `mobs`
+    found on a frame whose camera is `camera` (`None`: that read matched no
+    camera).
     """
-    data = BotData("TestBot")
-    data.set_static("handle", 1)
-    data.set_static("world_map", WORLD)
     position = Reading.read(VirtualPosition(*here, PositionSource.FUSED), 0.0)
-    data.create_attribute("current_position", lambda: position)
-    data.set_static("position_fusion", SimpleNamespace(camera=camera))
     image = Frame(np.zeros((600, 1000, 3), np.uint8), CLIENT, 0.0, True, True)
-    data.create_attribute("current_frame", lambda: image, initial_value=image)
-    data.set_static("current_mobs", ())
+    provider = destination(
+        WORLD,
+        lambda: position,
+        frame=lambda: image,
+        position_fusion=SimpleNamespace(camera=camera),
+        handle=1,
+        smart_rotation_enabled=True,
+        mob_count_threshold=2,
+    )
+    data = provider.data
     # The character's box on screen, x1, y1, x2, y2: the mask is built around it.
     character = (90, 40, 110, 70)
-    data.create_attribute(
-        "current_on_screen_position", lambda: character, initial_value=character
+    data.provide(
+        ON_SCREEN_POSITION,
+        object.__new__(OnScreenPositionProvider),
+        lambda: character,
+        initial_value=character,
     )
-    owner = _Owner(data)
-    owner._create_rotation_attributes(smart_rotation=True, mob_count_threshold=2)
     data.next_target = here
     # Skip the "already on target" gate and the wait on it.
-    owner._first_time_on_target = False
-    owner._last_target_reached_at = 0.0
+    provider._first_time_on_target = False
+    provider._last_target_reached_at = 0.0
+    provider.TIME_ON_TARGET = 0.0
 
     def detect(*args: object, **kwargs: object) -> list[Sequence[int]]:
         return list(mobs)
 
     with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(_rotation_mixins, "get_mobs_positions_in_img", detect)
-        return owner._smart_rotation_target()
+        patch.setattr(destination_module, "get_mobs_positions_in_img", detect)
+        return provider._smart()
 
 
 @pytest.mark.parametrize(
