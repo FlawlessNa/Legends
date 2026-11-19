@@ -304,7 +304,6 @@ class ChatReplies(DecisionMaker):
         self._jitter: dict[int, float] = {}
         self._announced: set[int] = set()
         self._exchanged: list[tuple[str | None, float]] = []
-        self._stopped: tuple[str, ...] = ()
         self._limited = False
 
     # --- startup ---------------------------------------------------------------

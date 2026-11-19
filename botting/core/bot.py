@@ -210,11 +210,10 @@ class Bot(ABC):
         :param on: Whether automatic replies are on.
         :param source: Which command did it, for the report.
         """
-        switch = next(
-            (p for p in self.providers if isinstance(p, RepliesProvider)), None
-        )
-        assert switch is not None, "child_init() builds the replies switch"
-        switch.switch(on)
+        assert self.data is not None, "child_init() makes the Bot's data"
+        providers = self.data.providers
+        assert providers is not None, "child_init() builds the replies switch"
+        providers.get(RepliesProvider).switch(on)
         self._replies_toggled(on, source)
 
     def takeover(self) -> None:
