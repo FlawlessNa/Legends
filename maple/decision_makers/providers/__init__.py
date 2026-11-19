@@ -28,6 +28,8 @@ keys:
   compiled with at dispatch.
 - `on_screen`: where the character is on screen, as a box on the client.
 - `buffs`: the profile's buffs, as their icons show them.
+- `menus`: the ability menu, with the speed and jump it shows, and the
+  inventory menu.
 - `status_bar`: the status bar's reading.
 - `quick_slots`: the quick slots' reading.
 - `chat`: the chat's new lines, and whether its log is shown.
@@ -49,6 +51,21 @@ from .destination import (
     wander,
 )
 from .map import GAME_PHYSICS, MAP_ID, POSITION_FUSION, WORLD_MAP, MapProvider
+from .menus import (
+    ABILITY_MENU,
+    ABILITY_MENU_DISPLAYED,
+    AVAILABLE_AP,
+    CURRENT_MESOS,
+    INVENTORY_MENU,
+    INVENTORY_MENU_ACTIVE_TAB,
+    INVENTORY_MENU_DISPLAYED,
+    INVENTORY_MENU_EXTENDED,
+    INVENTORY_SPACE_LEFT,
+    JUMP_MULTIPLIER,
+    SPEED_MULTIPLIER,
+    AbilityMenuProvider,
+    InventoryMenuProvider,
+)
 from .minimap import (
     MINIMAP_BOX,
     MINIMAP_READING,
@@ -85,8 +102,11 @@ from .screen_readers import (
 from .status_bar import STATUS_BAR_READING, StatusBarProvider
 
 __all__ = [
+    "ABILITY_MENU",
+    "ABILITY_MENU_DISPLAYED",
     "ACTION_DURATION",
     "ALWAYS_RELEASE_KEYS",
+    "AVAILABLE_AP",
     "BUFFS_READER",
     "BUFFS_READING",
     "BUFF_NAMES",
@@ -95,12 +115,19 @@ __all__ = [
     "CHAT_LINES",
     "CHAT_READER",
     "CHAT_SHOWN",
+    "CURRENT_MESOS",
     "DESTINATION",
     "DESTINATION_PLATFORM",
     "FRAME",
     "FRAME_CHECK",
     "GAME_PHYSICS",
     "HANDLE",
+    "INVENTORY_MENU",
+    "INVENTORY_MENU_ACTIVE_TAB",
+    "INVENTORY_MENU_DISPLAYED",
+    "INVENTORY_MENU_EXTENDED",
+    "INVENTORY_SPACE_LEFT",
+    "JUMP_MULTIPLIER",
     "MAP_ID",
     "MINIMAP_BOX",
     "MINIMAP_READER",
@@ -117,14 +144,17 @@ __all__ = [
     "QUICK_SLOTS_READING",
     "READER_SPRITES",
     "REPLIES_ON",
+    "SPEED_MULTIPLIER",
     "STATUS_BAR_READER",
     "STATUS_BAR_READING",
     "WORLD_MAP",
+    "AbilityMenuProvider",
     "BuffsProvider",
     "CharacterProvider",
     "ChatProvider",
     "ClientProvider",
     "DestinationProvider",
+    "InventoryMenuProvider",
     "MapProvider",
     "MinimapProvider",
     "MinimapRecovery",

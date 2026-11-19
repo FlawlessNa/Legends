@@ -251,10 +251,10 @@ class MapleBot(Bot, ABC):
         # The bot's one capture: the readers take the `Frame`, mob and
         # character detection its pixels.
         providers.add(ClientProvider, chat_keys=self.chat_keys)
-        # The character's current speed and jump stats, from the profile at the
-        # start of a Session. A later reading replaces them (the ability menu's
-        # today, #314's stat window reader next); Movement Plans read them each
-        # time they plan, so the next Path follows the new values.
+        # The character's speed and jump stats, from the profile. A Bot that
+        # builds the ability menu's Provider (`AbilityPointDistributor`) reads
+        # them off the menu too, as keys; Movement Plans take those when they
+        # exist (`PathingProvider.physics`), and these otherwise.
         data.set_static("speed_multiplier", self.kwargs.get("speed_multiplier", 1.00))
         data.set_static("jump_multiplier", self.kwargs.get("jump_multiplier", 1.00))
         data.set_static("calibration", self.calibration)

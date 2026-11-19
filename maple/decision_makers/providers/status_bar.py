@@ -1,6 +1,6 @@
 """
-The status bar: level, HP, MP and EXP. Unported DecisionMakers ask `BotData`
-for it (`UIMixin._create_status_bar_attributes`) and read `data.status_bar`.
+The status bar: level, HP, MP and EXP. A DecisionMaker reads
+`STATUS_BAR_READING`; `AbilityPointDistributor` does.
 """
 
 from botting.core import Key, Provider, StartupRefused

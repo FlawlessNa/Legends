@@ -6,7 +6,7 @@ The terms are defined in `CONTEXT.md` ("Decision-making"); use them.
 The framework is being built by epic #432.
 What exists today: the Supervisor, Pauses, Data Keys, Providers, Claims, Signals, assembly and the crash policy.
 MapleStory's keys and Providers are in `maple/decision_makers/providers/`, one module per Provider; its package docstring lists them.
-`CheckStillInMap` is the first DecisionMaker ported, and the worked example below; `MobsHitting`, `SoloRebuff`, the consumables, `ChatReplies`, `CheckMobsStillSpawn`, `TrialRunner` and `Rotation` are ported too.
+`CheckStillInMap` is the first DecisionMaker ported, and the worked example below; `MobsHitting`, `SoloRebuff`, the consumables, `ChatReplies`, `CheckMobsStillSpawn`, `TrialRunner`, `Rotation`, `AbilityPointDistributor` and `StateSnapshot` are ported too.
 Until each is ported, an old-style DecisionMaker keeps its mixins, and the two kinds run side by side in one Bot.
 
 ## The shape
