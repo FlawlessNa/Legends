@@ -72,6 +72,7 @@ from .minimap import (
     MinimapProvider,
     MinimapRecovery,
     PositionReader,
+    position_or_unsure,
 )
 from .mobs import MOBS, MobsProvider
 from .on_screen import ON_SCREEN_POSITION, OnScreenPositionProvider
@@ -176,5 +177,6 @@ __all__ = [
     "StatusBarProvider",
     "actionable",
     "pathing",
+    "position_or_unsure",
     "wander",
 ]

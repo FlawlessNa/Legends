@@ -62,6 +62,7 @@ from .providers import (
     WORLD_MAP,
     DestinationProvider,
     actionable,
+    position_or_unsure,
 )
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -266,15 +267,8 @@ class MovementRecovery:
             self._react_to(reaction)
 
     def _position(self) -> Reading[VirtualPosition]:
-        """
-        `POSITION`, read when it is stale; `UNSURE`, without a read, on a map no
-        position is read on (the map not known, or with no minimap), where a
-        read could only fail into the minimap's error handler.
-        """
-        world_map = self._holder.read(WORLD_MAP)
-        if world_map is None or world_map.minimap is None:
-            return Reading.unsure(0.0, "no position is read on this map")
-        return self._holder.read(POSITION)
+        """The character's position, as `position_or_unsure` reads it."""
+        return position_or_unsure(self._holder)
 
     def _drain_delivery(self) -> int:
         """
