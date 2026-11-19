@@ -85,6 +85,11 @@ Rejected:
 - Custom rotation patterns (the map files' feature cycles) are gone. Rotation
   draws its targets on Platforms. A later epic may bring an editor back on top
   of `WorldMap`.
+- A Hunting Area is a rectangle in virtual coordinates, saved per map in
+  `configs/hunting_areas/<map id>.json`, and it holds the stretches of
+  Platforms inside it, so the same area is the same place on every machine.
+  Rejected: a list of Platforms, since one Platform can run the width of the map
+  and the area wanted is a corner of it.
 - Physics values, the Foothold graph's feasibility constants and Calibration
   constants are measured by Trials on a real map (`configs/trials/`), in
   virtual px.

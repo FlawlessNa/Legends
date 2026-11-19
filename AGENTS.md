@@ -44,7 +44,8 @@ on another machine, reaching this one through an SSH tunnel
 - `tests/`: the pytest suite. Opt-in markers `live`, `system`, `lab`,
   `client_files` and `frames` are deselected by default
   (`docs/agents/testing.md`).
-  `configs/`: `.ini` settings, and the Trial schedules under `configs/trials/`.
+  `configs/`: `.ini` settings, the Trial schedules under `configs/trials/`, and
+  the saved Hunting Areas, one `configs/hunting_areas/<map id>.json` per map.
   Maps come from the client's files through `game_data/`, not from a
   hand-made file (ADR 0004).
 - `toolkit/`: standalone scripts that no production code imports (only
