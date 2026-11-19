@@ -199,7 +199,7 @@ from maple.decision_makers.providers import (
     PositionReader,
     actionable,
 )
-from maple.decision_makers.providers.pathing import read_resolution
+from maple.decision_makers.providers.pathing import plan_path
 from maple.decision_makers.trial_runner import (
     HEADER_READS,
     TrialRunner,
@@ -690,9 +690,9 @@ class PlaygroundRunner(DecisionMaker):
     `PathingProvider`, which plans from that position to `DESTINATION`. It
     reads its own position off the Bot-level readers (`_quiet_position`: a
     read that fails is `UNSURE`), and plans its own Path to its own target on
-    the map's `MovementHandler`, as `PathingProvider` plans one. Every end of
-    a target releases every key (`release_every_key`), and so does the end of
-    its loop.
+    the map's `MovementHandler` with `plan_path`, as `PathingProvider` plans
+    one. Every end of a target releases every key (`release_every_key`), and
+    so does the end of its loop.
     """
 
     screen_readers = (MINIMAP,)
@@ -900,25 +900,19 @@ class PlaygroundRunner(DecisionMaker):
         handler = self.movement_handler
         if handler is None:
             return None
-        reading = self._position
-        if reading.value is None:
-            logger.debug("No Path: the position is unsure (%s).", reading.detail)
-            return None
-        physics = self._physics()
-        graph = handler.ready_graph(physics)
-        if graph is None:
-            logger.debug("No Path: the foothold graph of the current stats builds.")
+        planned = plan_path(
+            handler,
+            self._position,
+            self._world_map(),
+            physics=self._physics,
+            target=self._virtual_target,
+        )
+        if planned is None:
             return None
         # The frame the Path starts from: the compile leads the plan by how far
         # the character has walked since (`_movement_compiler`).
-        self._path_read_at = reading.frame_time
-        return handler.compute_path(
-            (float(reading.value.x), float(reading.value.y)),
-            self._virtual_target(),
-            physics,
-            graph=graph,
-            resolution=read_resolution(reading.value, self._world_map()),
-        )
+        self._path_read_at = planned.read_at
+        return planned.path
 
     def _plan_movements(self, path: GraphPath | None) -> MovementPlan:
         """The Movement Plan of `path`; empty with no handler."""
