@@ -29,6 +29,7 @@ from maple.decision_makers.providers import (
     ScreenReadersProvider,
 )
 from maple.decision_makers.rebuffs import solo_buffs
+from maple.decision_makers.rotation_setting import rotation_name
 from maple.model.characters import MAPPING as CHARACTER_MAPPING
 from maple.model.mechanics.physics import Calibration, game_physics
 from maple.model.world import WorldMap
@@ -98,6 +99,9 @@ class MapleBot(Bot, ABC):
         # unread.
         refuse_game_map(kwargs.pop("game_map", None))
         refuse_mobs(kwargs.pop("mobs", None))
+        # Read here, in Main Process, so a bad `rotation` ends the launch with
+        # one line; the Destination Provider reads it again, to the same answer.
+        rotation_name(kwargs)
         super().__init__(ign, metadata, **kwargs)
         # Read once, here: a malformed `Chat Keys` refuses the start, rather than
         # after a failsafe reaction or a Discord WRITE. DecisionMakers take them

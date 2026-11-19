@@ -22,7 +22,8 @@ The replies switch, `REPLIES_ON`, is the generic Bot's too
 keys:
 
 - `minimap`: the minimap's reading, and the character's virtual position.
-- `destination`: where the rotation heads next, and the platform it is on.
+- `destination`: where the rotation heads next, and the platform it is on,
+  from the destination source the profile's `rotation` names (`sources/`).
   `DESTINATION` is steerable: a DecisionMaker claims it to send the character
   elsewhere (`wander`, or `botting.core.fixed` and `following`).
 - `pathing`: the Path to `DESTINATION`, its Movement Plan, and what the plan is

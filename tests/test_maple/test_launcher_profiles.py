@@ -123,3 +123,45 @@ def test_test_flag_points_the_recorder_at_the_test_section(
     assert run.main(["p", *flags]) == 0
 
     assert manager.call_args.kwargs["recording_section"] == section
+
+
+@pytest.mark.parametrize(
+    ("setting", "named"),
+    [
+        ("rotation: spiral", "`rotation: spiral`"),
+        ("rotation: random\n  smart_rotation_enabled: false", "smart_rotation_enabled"),
+        ("hunting_area: right_corner", "`hunting_area: right_corner`"),
+    ],
+    ids=["unknown", "both", "area-without-its-rotation"],
+)
+def test_a_refused_rotation_ends_the_launch_with_one_line_and_exit_code_2(
+    setting: str,
+    named: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """
+    `MapleBot.__init__` reads `rotation` in Main Process, so a bad one is
+    refused as a bad `map` is, before any Session process starts (#577).
+    """
+    (tmp_path / "p.yaml").write_text(
+        f"ign: Main\nbot: TrainingBot\nsettings:\n  {setting}\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(profile, "PROFILES_DIR", str(tmp_path))
+    manager = mocker.patch.object(run, "SessionManager")
+    mocker.patch.object(run, "check_configs", return_value=True)  # the machine's files
+    session = manager.return_value.__enter__.return_value
+
+    async def launch(bots: list[object]) -> None:
+        """Builds nothing itself: `_build` ran in the call's arguments."""
+
+    session.launch = launch
+
+    assert run.main(["p"]) == 2
+
+    err = capsys.readouterr().err
+    assert err.startswith("error: ")
+    assert named in err
+    assert err.count("\n") == 1
