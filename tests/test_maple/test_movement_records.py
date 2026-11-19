@@ -52,7 +52,7 @@ from maple.telemetry_events import (
     target_reached_payload,
 )
 from tests.test_maple.movement_lab.fixture_maps import walk_corridor
-from tests.test_maple.serving import destination
+from tests.test_maple.serving import destination, override
 
 #: A map whose minimap transform is centre (1000, 1000), `mag` 4.
 WORLD = WorldMap.from_map_data(walk_corridor())
@@ -414,17 +414,18 @@ def test_the_action_request_is_the_same_with_telemetry_on_or_off() -> None:
 
 def test_plan_started_does_not_refresh_a_thresholded_attribute() -> None:
     """
-    Reading `data.current_position` past its threshold re-runs a position read.
+    Reading `POSITION` past its threshold re-runs a position read.
     Telemetry on the send path must read the cache instead.
     """
     loop = _Loop(emit_works=True)
     reads: list[int] = []
-    loop.data.reconfigure_attribute(
-        "current_position",
+    override(
+        loop.data,
+        POSITION,
         update_function=lambda: reads.append(1) or _fused(FEET_AT_3_5),
         threshold=0.001,
     )
-    loop.data.update_attribute("current_position")
+    loop.data.update_attribute(POSITION.name)
     reads.clear()
     time.sleep(0.01)  # past the threshold: a plain read would now refresh
 
@@ -445,8 +446,9 @@ def test_plan_started_takes_both_targets_from_one_read() -> None:
     """
     loop = _Loop(emit_works=True)
     reads = iter(range(0, 320, 16))
-    loop.data.reconfigure_attribute(
-        "next_target",
+    override(
+        loop.data,
+        DESTINATION,
         update_function=lambda: (FEET_AT_20_5[0] + next(reads), FEET_AT_20_5[1]),
         threshold=1e-9,
     )
@@ -466,7 +468,7 @@ def test_plan_started_takes_both_targets_from_one_read() -> None:
 
 def test_no_plan_started_when_there_is_nothing_to_send() -> None:
     loop = _Loop(emit_works=True)
-    loop.data.reconfigure_attribute("movements", update_function=lambda: SENTINEL)
+    override(loop.data, MOVEMENTS, update_function=lambda: SENTINEL)
 
     _decide(loop)
 
@@ -500,7 +502,7 @@ def _owner(position: tuple[float, float], *, smart: bool = False) -> _Owner:
         mob_count_threshold=2 if smart else None,
     )
     owner = _Owner(provider)
-    owner.data.next_target = TARGET
+    owner.data.store(DESTINATION, TARGET)
     return owner
 
 
@@ -513,7 +515,7 @@ def test_basic_rotation_emits_on_arrival_in_virtual_px() -> None:
     transform = WORLD.minimap
     assert transform is not None
 
-    owner.data.update_attribute("next_target")
+    owner.data.update_attribute(DESTINATION.name)
 
     ((event_type, payload),) = owner.emitted
     assert event_type == MOVEMENT_TARGET_REACHED
@@ -531,38 +533,36 @@ def test_basic_rotation_emits_on_arrival_in_virtual_px() -> None:
         "vy": 0.0,
         "virtual_distance": 30.0,
     }
-    assert owner.data.next_target != TARGET
-    assert WORLD.platform_at(owner.data.next_target) is not None
+    assert owner.data.read(DESTINATION) != TARGET
+    assert WORLD.platform_at(owner.data.read(DESTINATION)) is not None
 
 
 def test_basic_rotation_is_silent_while_travelling() -> None:
     owner = _owner((400.0, -20.0))
 
-    owner.data.update_attribute("next_target")
+    owner.data.update_attribute(DESTINATION.name)
 
     assert owner.emitted == []
-    assert owner.data.next_target == TARGET
+    assert owner.data.read(DESTINATION) == TARGET
 
 
 def test_an_unsure_position_holds_the_target() -> None:
     """Arrival can't be judged from a position nobody placed."""
     owner = _owner((100.0, 0.0))
-    owner.data.reconfigure_attribute(
-        "current_position", update_function=lambda: Reading.unsure(0.0, "two")
-    )
-    owner.data.update_attribute("current_position")
+    override(owner.data, POSITION, update_function=lambda: Reading.unsure(0.0, "two"))
+    owner.data.update_attribute(POSITION.name)
 
-    owner.data.update_attribute("next_target")
+    owner.data.update_attribute(DESTINATION.name)
 
     assert owner.emitted == []
-    assert owner.data.next_target == TARGET
+    assert owner.data.read(DESTINATION) == TARGET
 
 
 def test_smart_rotation_emits_once_on_arrival() -> None:
     owner = _owner((110.0, 0.0), smart=True)
 
-    owner.data.update_attribute("next_target")
-    owner.data.update_attribute("next_target")  # still dwelling: no second record
+    owner.data.update_attribute(DESTINATION.name)
+    owner.data.update_attribute(DESTINATION.name)  # still dwelling: no second record
 
     ((event_type, payload),) = owner.emitted
     assert event_type == MOVEMENT_TARGET_REACHED
@@ -573,6 +573,6 @@ def test_smart_rotation_is_silent_while_travelling() -> None:
     """Its arrival is 64 px (4 minimap px)."""
     owner = _owner((170.0, 0.0), smart=True)
 
-    owner.data.update_attribute("next_target")
+    owner.data.update_attribute(DESTINATION.name)
 
     assert owner.emitted == []

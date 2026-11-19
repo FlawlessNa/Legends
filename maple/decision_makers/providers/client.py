@@ -48,6 +48,6 @@ class ClientProvider(Provider):
 
 
 #: What the client shows: the Bot's one capture.
-FRAME: Key[Frame] = Key("frame", ClientProvider, legacy_name="current_frame")
+FRAME: Key[Frame] = Key("frame", ClientProvider)
 #: Every chat channel's key, read once from the keybindings at start.
 CHAT_KEYS: Key[dict[str, str]] = Key("chat_keys", ClientProvider)

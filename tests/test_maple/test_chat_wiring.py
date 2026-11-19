@@ -36,7 +36,7 @@ def frame(h: int = 300) -> Frame:
 def _chat(monkeypatch: pytest.MonkeyPatch, reader: object, current: Frame) -> BotData:
     """A Bot's data whose chat reader is `reader`, with `ChatProvider` built."""
     served = serve(monkeypatch, frames=lambda: current, chat=reader)
-    served.data.build_provider(ChatProvider)
+    served.providers.ensure(ChatProvider)
     return served.data
 
 

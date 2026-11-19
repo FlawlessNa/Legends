@@ -13,6 +13,7 @@ DecisionMaker:
 - `map`: the map's ID, its `WorldMap`, the game's physics, the position reader.
 - `mobs`: the map's mobs, as detection looks for them.
 - `character`: the character, and the buffs the profile casts.
+- `profile`: the profile's speed and jump stats, and its Calibration constants.
 
 The replies switch, `REPLIES_ON`, is the generic Bot's too
 (`botting.core.replies`), re-exported here.
@@ -33,9 +34,6 @@ keys:
 - `status_bar`: the status bar's reading.
 - `quick_slots`: the quick slots' reading.
 - `chat`: the chat's new lines, and whether its log is shown.
-
-A key's legacy name, when it has one, is the `BotData` attribute unported
-DecisionMakers read it by; every other key is read by its own name.
 """
 
 from botting.core import HANDLE, REPLIES_ON
@@ -88,6 +86,12 @@ from .pathing import (
     actionable,
     pathing,
 )
+from .profile import (
+    CALIBRATION,
+    PROFILE_JUMP_MULTIPLIER,
+    PROFILE_SPEED_MULTIPLIER,
+    ProfileProvider,
+)
 from .quick_slots import QUICK_SLOTS_READING, QuickSlotsProvider
 from .screen_readers import (
     BUFFS_READER,
@@ -110,6 +114,7 @@ __all__ = [
     "BUFFS_READER",
     "BUFFS_READING",
     "BUFF_NAMES",
+    "CALIBRATION",
     "CHARACTER",
     "CHAT_KEYS",
     "CHAT_LINES",
@@ -140,6 +145,8 @@ __all__ = [
     "PATH",
     "POSITION",
     "POSITION_FUSION",
+    "PROFILE_JUMP_MULTIPLIER",
+    "PROFILE_SPEED_MULTIPLIER",
     "QUICK_SLOTS_READER",
     "QUICK_SLOTS_READING",
     "READER_SPRITES",
@@ -163,6 +170,7 @@ __all__ = [
     "OnScreenPositionProvider",
     "PathingProvider",
     "PositionReader",
+    "ProfileProvider",
     "QuickSlotsProvider",
     "ScreenReadersProvider",
     "StatusBarProvider",

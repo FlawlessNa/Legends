@@ -189,7 +189,7 @@ def _replay(
     """
     The loop from `start` to `goal`, on coarse reads only.
 
-    `fixed`: plan as `MovementsMixin` now does, with the coarse read's own
+    `fixed`: plan as `PathingProvider` does, with the coarse read's own
     resolution; otherwise as the live run did, from the read taken as exact.
     """
     handler = MovementHandler(corpus.LAB_HANDLE, WORLD, corpus.LAB_IGN)

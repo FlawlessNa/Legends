@@ -56,9 +56,10 @@ import statistics
 import time
 from contextlib import AbstractAsyncContextManager
 from pathlib import Path
+from typing import Protocol
 
 from botting import PARENT_LOG, controller
-from botting.core import ActionRequest, BotData, DecisionMaker, following
+from botting.core import ActionRequest, BotData, DecisionMaker, Key, following
 from botting.screen import Reading
 from botting.stop_file import request_stop
 from game_data.catalogue import Catalogue
@@ -84,8 +85,10 @@ from maple.screen.position import VirtualPosition
 
 from .providers import (
     ACTION_DURATION,
+    CALIBRATION,
     DESTINATION,
     FRAME,
+    GAME_PHYSICS,
     HANDLE,
     MAP_ID,
     MINIMAP_READING,
@@ -93,6 +96,8 @@ from .providers import (
     PATH,
     POSITION,
     POSITION_FUSION,
+    PROFILE_JUMP_MULTIPLIER,
+    PROFILE_SPEED_MULTIPLIER,
     WORLD_MAP,
     PathingProvider,
     PositionReader,
@@ -125,6 +130,10 @@ class TrialRunner(DecisionMaker):
         PATH,
         MOVEMENTS,
         ACTION_DURATION,
+        GAME_PHYSICS,
+        PROFILE_SPEED_MULTIPLIER,
+        PROFILE_JUMP_MULTIPLIER,
+        CALIBRATION,
     )
     steers = (DESTINATION,)
     pauses = ("maple.decision_makers.trial_runner.TrialRunner",)
@@ -205,7 +214,7 @@ class TrialRunner(DecisionMaker):
             self.schedule,
             self._writer,
             header=self._header(),
-            coarse_slack=coarse_slack(self.data),
+            coarse_slack=coarse_slack(self.read(WORLD_MAP)),
         )
         self._applied_batch: TrialBatch | None = None
         self._finished = False
@@ -540,27 +549,47 @@ class TrialRunner(DecisionMaker):
 
     def _header(self) -> ScheduleHeader:
         """The record's first line (`schedule_header`)."""
-        return schedule_header(self.schedule, self.data)
+        return schedule_header(self.schedule, self)
 
 
-def coarse_slack(data: BotData) -> float:
-    """How far a minimap-only position may be off the feet, on `data`'s map."""
-    world_map: WorldMap | None = getattr(data, "world_map", None)
+def coarse_slack(world_map: WorldMap | None) -> float:
+    """How far a minimap-only position may be off the feet, on `world_map`."""
     if world_map is None or world_map.minimap is None:
         return COARSE_SLACK
     return COARSE_SLACK * world_map.minimap.scale / MINIMAP_PX
 
 
-def schedule_header(schedule: TrialSchedule, data: BotData) -> ScheduleHeader:
-    """A record's first line: the map, and the physics the sitting plans with."""
-    calibration = getattr(data, "calibration", None)
-    physics = getattr(data, "game_physics", None)
+class _Reader(Protocol):
+    """Who `schedule_header` reads through: a DecisionMaker declaring `HEADER_READS`."""
+
+    def read[T](self, key: Key[T]) -> T: ...
+
+
+#: The keys `schedule_header` reads, which its caller declares in its `reads`.
+HEADER_READS = (
+    MAP_ID,
+    GAME_PHYSICS,
+    PROFILE_SPEED_MULTIPLIER,
+    PROFILE_JUMP_MULTIPLIER,
+    CALIBRATION,
+)
+
+
+def schedule_header(schedule: TrialSchedule, reader: _Reader) -> ScheduleHeader:
+    """
+    A record's first line: the map, and the physics the sitting plans with. The
+    speed and jump are the profile's (`PROFILE_SPEED_MULTIPLIER`,
+    `PROFILE_JUMP_MULTIPLIER`), even on a Bot that reads them off the ability
+    menu too.
+    """
+    calibration = reader.read(CALIBRATION)
+    physics = reader.read(GAME_PHYSICS)
     return ScheduleHeader.now(
         schedule.name,
         schedule.map,
-        map_id=getattr(data, "map_id", None),
+        map_id=reader.read(MAP_ID),
         physics=None if physics is None else dict(physics),
-        speed_multiplier=float(data.speed_multiplier),
-        jump_multiplier=float(data.jump_multiplier),
+        speed_multiplier=float(reader.read(PROFILE_SPEED_MULTIPLIER)),
+        jump_multiplier=float(reader.read(PROFILE_JUMP_MULTIPLIER)),
         calibration=(None if calibration is None else dataclasses.asdict(calibration)),
     )

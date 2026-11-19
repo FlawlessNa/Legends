@@ -1,11 +1,11 @@
 """
-Bot-level Providers, `Providers`, and what unported code and DecisionMakers ask
-of them (ADR 0004), driven through a real Bot's `child_init` and `start`.
+Bot-level Providers, `Providers`, and what DecisionMakers ask of them (ADR
+0004), driven through a real Bot's `child_init` and `start`.
 
 A Bot-level Provider serves what its Bot found at start: the Bot builds it in
 `child_init` (`Providers.add`), and assembly builds only the Providers the
-DecisionMakers read that are not built yet. Unported code asks for one through
-`BotData.build_provider`.
+DecisionMakers read that are not built yet. Code outside assembly, such as a
+test, builds one on demand (`Providers.ensure`).
 
 The Providers and DecisionMakers are `test_data_keys.py`'s, plus a Bot-level one.
 """
@@ -31,7 +31,6 @@ from tests.test_botting.test_data_keys import (
     Counter,
     CountReader,
     Doubler,
-    DoubleReader,
     Idle,
     Logged,
     _dm,  # pyright: ignore[reportPrivateUsage]
@@ -57,7 +56,7 @@ class Found(Logged):
         self.register(FOUND, lambda: self.found)
 
 
-FOUND: Key[str] = Key("found", provider=Found, legacy_name="found_legacy")
+FOUND: Key[str] = Key("found", provider=Found)
 
 
 class FoundReader(Idle):
@@ -169,19 +168,19 @@ def test_an_added_value_wins_over_a_profile_setting_of_its_name() -> None:
 
     providers.add(Found, found=FOUND_AT_START)
 
-    assert data.found_legacy == FOUND_AT_START
+    assert data.read(FOUND) == FOUND_AT_START
 
 
-# --- what unported code asks for -----------------------------------------------------
+# --- building on demand ---------------------------------------------------------------
 
 
-def test_build_provider_builds_it_once_after_what_it_needs() -> None:
+def test_ensure_builds_it_once_after_what_it_needs() -> None:
     data = BotData(IGN)
-    _providers(data)
+    providers = _providers(data)
 
-    data.build_provider(Doubler)
-    data.build_provider(Doubler)
-    data.build_provider(Counter)
+    providers.ensure(Doubler)
+    providers.ensure(Doubler)
+    providers.ensure(Counter)
 
     assert LOG == [
         ("built", "Counter"),
@@ -190,34 +189,6 @@ def test_build_provider_builds_it_once_after_what_it_needs() -> None:
         ("setup", "Doubler"),
     ]
     assert data.read(DOUBLE) == 2
-
-
-def test_assembly_does_not_rebuild_what_unported_code_asked_for() -> None:
-    """An unported DecisionMaker's mixin asks while it is built: assembly has
-    already built what the others read, and builds nothing twice."""
-
-    class Asking(Idle):
-        def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
-            super().__init__(*args, **kwargs)
-            self.data.build_provider(Doubler)
-
-    async def scenario() -> None:
-        async with _started(_TestBot(CountReader, Asking, DoubleReader)) as bot:
-            assert [type(p) for p in bot.providers] == [
-                WindowProvider,
-                RepliesProvider,
-                Counter,
-                Doubler,
-            ]
-            assert LOG.count(("setup", "Counter")) == 1
-            assert LOG.count(("setup", "Doubler")) == 1
-
-    asyncio.run(scenario())
-
-
-def test_build_provider_without_a_bot_raises() -> None:
-    with pytest.raises(RuntimeError, match="no Bot has attached its Providers"):
-        BotData(IGN).build_provider(Counter)
 
 
 # --- refreshing ----------------------------------------------------------------------

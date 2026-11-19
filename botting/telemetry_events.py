@@ -83,14 +83,14 @@ DATA_RELEASED: Final = "data.released"
 # --- decision -------------------------------------------------------------
 #: A DecisionMaker suspended another one through the legacy shim,
 #: ``_disable_decision_makers``. Within its own Bot; until #433, across every
-#: Engine.
+#: Engine. Nothing emits it since the shim was removed (#444); it stays defined
+#: so older Session records keep their meaning.
 DECISION_DISABLED: Final = "decision.disabled"
 #: A DecisionMaker resumed another one through the legacy shim,
 #: ``_enable_decision_makers``. Within its own Bot; until #433, across every
-#: Engine.
+#: Engine. Nothing emits it since #444, as ``decision.disabled``.
 DECISION_ENABLED: Final = "decision.enabled"
-#: A holder took a Pause on a DecisionMaker in its own Bot. The legacy shim
-#: (``_disable_decision_makers``) emits ``decision.disabled`` instead.
+#: A holder took a Pause on a DecisionMaker in its own Bot.
 DECISION_PAUSED: Final = "decision.paused"
 #: A holder released its Pause on a DecisionMaker. The target runs again only
 #: once no Pause on it is left, so a ``decision.resumed`` closes one

@@ -1,4 +1,3 @@
-import enum
 import logging
 import time
 from collections import deque
@@ -24,20 +23,6 @@ type Clock = Callable[[], float]
 #: long after it.
 NEVER = float("-inf")
 N_RET_VALUES = 10
-
-
-class _Unset(enum.Enum):
-    """
-    "Argument not supplied", distinct from an explicit `None`.
-
-    An `enum` member rather than a bare `object()` so that `is not _SENTINEL`
-    actually narrows the parameter to its real type.
-    """
-
-    TOKEN = enum.auto()
-
-
-_SENTINEL = _Unset.TOKEN
 
 
 @dataclass
@@ -101,37 +86,6 @@ class ManagedAttribute:
         self.threshold = threshold
         self.error_handler = error_handler
         self.max_retries = max_retries
-        self._snapshot: dict[str, Any] | None = None
-
-    def snapshot_config(self) -> None:
-        """
-        Records the current update configuration so it can be put back later.
-
-        Idempotent: a second call while a snapshot is already held is a no-op, so
-        successive hijacks of the same attribute all restore to the configuration
-        that was in place before the first one.
-        """
-        if self._snapshot is None:
-            self._snapshot = {
-                "update_function": self.update_function,
-                "threshold": self.threshold,
-                "error_handler": self.error_handler,
-                "max_retries": self.max_retries,
-            }
-
-    def restore_config(self) -> None:
-        """
-        Puts back the configuration captured by snapshot_config() and drops the
-        snapshot. No-op when nothing was snapshotted. The value and the metadata
-        history are left untouched - only the update configuration is restored.
-        """
-        if self._snapshot is None:
-            return
-        self.update_function = self._snapshot["update_function"]
-        self.threshold = self._snapshot["threshold"]
-        self.error_handler = self._snapshot["error_handler"]
-        self.max_retries = self._snapshot["max_retries"]
-        self._snapshot = None
 
     def get(self, owner: BotData) -> Any:
         """
@@ -217,8 +171,8 @@ class _Held:
 
 class OwnedByProvider(Exception):
     """
-    Unported code created an attribute under a name a Provider owns: a Data Key's
-    name, or its `legacy_name`. One producer per key: the Provider is it.
+    Code created an attribute under a name a Provider owns: a Data Key's name.
+    One producer per key: the Provider is it.
     """
 
 
@@ -228,18 +182,16 @@ class BotData:
     between its DecisionMakers. This is achieved by the fact that each DecisionMaker
     assigned to a Bot instance has access to the same BotData instance.
 
-    Attributes are stored in three tiers:
+    Attributes are stored in two tiers:
     - _managed: Live attributes with update functions, thresholds, and metadata tracking.
     - _static: Simple key-value pairs for config/constants (no update function).
-    - _features: A set of feature flags (has_* convention).
 
     When a managed attribute is accessed, its threshold is checked and the value is
     automatically refreshed if enough time has passed since the last update.
 
     A Data Key's value is a managed attribute too, stored under the key's name and
-    registered by its Provider through `provide`. New-style code reads it with
-    `read` and `peek`; unported code reads it as `data.<legacy_name>`, and every
-    method here that takes a name accepts the legacy name for the key's.
+    registered by its Provider through `provide`. A DecisionMaker reads it with
+    `read` and `peek`, never by name.
     """
 
     #: The instance attributes `__setattr__` sets directly, not as data.
@@ -248,7 +200,6 @@ class BotData:
             "ign",
             "_managed",
             "_static",
-            "_features",
             "_clock",
             "_owned",
             "_claims",
@@ -264,10 +215,8 @@ class BotData:
         self.ign = ign
         self._managed: dict[str, ManagedAttribute] = {}
         self._static: dict[str, Any] = {}
-        self._features: set[str] = set()
         self._clock = clock
-        #: Every name a Provider owns, the key's own and its legacy one, to the
-        #: key and the Provider that registered it.
+        #: Every key's name a Provider registered, to the key and that Provider.
         self._owned: dict[str, tuple[Key[Any], Provider]] = {}
         #: Each claimed key's name, to its Claim and what its release puts back.
         self._claims: dict[str, _Held] = {}
@@ -285,38 +234,27 @@ class BotData:
 
     def __getattr__(self, name: str) -> Any:
         """
-        Returns the value of an attribute, checking _managed, _static, and _features.
-        For unregistered attributes starting with "has", returns False to support
-        feature-flag checks (e.g., data.has_minimap_attributes).
-        A Data Key's legacy name reads the key's value.
+        Returns the value of an attribute, checking _managed, then _static.
         """
-        owned = self.__dict__.get("_owned")
-        if owned is not None and name in owned:
-            name = owned[name][0].name
         managed = self.__dict__.get("_managed")
         if managed is not None and name in managed:
             return managed[name].get(self)
         static = self.__dict__.get("_static")
         if static is not None and name in static:
             return static[name]
-        features = self.__dict__.get("_features")
-        if features is not None and name in features:
-            return True
-        if name.startswith("has"):
-            return False
         raise AttributeError(f"{name} not found in {self}")
 
     def __setattr__(self, name: str, value: Any) -> None:
         """
         Sets the value of a managed or static attribute. For internal attributes
-        (ign, _managed, _static, _features, _clock, _owned), falls through to normal
-        attribute setting. A Data Key's legacy name sets the key's value.
+        (`_OWN`), falls through to normal attribute setting.
+        :raises ClaimHeld: `name` is a claimed key's: its holder's source serves it.
         """
         if name in self._OWN:
             super().__setattr__(name, value)
             return
-        name = self._canonical(name)
         if name in self._managed:
+            self._refuse_claimed(name)
             self._managed[name].set(value)
         elif name in self._static:
             self._static[name] = value
@@ -329,7 +267,6 @@ class BotData:
         """
         Returns the last known (non-None) value of an attribute, if it exists.
         """
-        name = self._canonical(name)
         if name in self._managed:
             last_known_update = next(
                 (
@@ -349,7 +286,6 @@ class BotData:
         Returns the time since the last valid update of an attribute, in seconds:
         infinite when it was never validly updated.
         """
-        name = self._canonical(name)
         if name in self._managed:
             return self._clock() - self._managed[name].metadata.last_valid_update_time
         raise AttributeError(f"{name} not found in {self}")
@@ -359,7 +295,6 @@ class BotData:
         Returns the time since the last value change of an attribute, in seconds:
         infinite when it never changed.
         """
-        name = self._canonical(name)
         if name in self._managed:
             return self._clock() - self._managed[name].metadata.last_value_change_time
         raise AttributeError(f"{name} not found in {self}")
@@ -368,7 +303,6 @@ class BotData:
         """
         Checks in the last known value to see if there was any change.
         """
-        name = self._canonical(name)
         if name in self._managed:
             prev_values = self._managed[name].metadata.prev_values
             return not all(val == prev_values[-1] or val is None for val in prev_values)
@@ -385,7 +319,6 @@ class BotData:
         """
         Updates the value of an attribute using the update function mapped to it.
         """
-        name = self._canonical(name)
         if name not in self._managed:
             raise AttributeError(f"{name} not found in {self}")
         self._managed[name].update(self)
@@ -398,18 +331,6 @@ class BotData:
         self._refuse_owned(name)
         self._static[name] = value
 
-    def set_feature(self, name: str) -> None:
-        """
-        Register a feature flag. Accessible as self.name returning True.
-        """
-        self._features.add(name)
-
-    def remove_feature(self, name: str) -> None:
-        """
-        Remove a feature flag.
-        """
-        self._features.discard(name)
-
     def create_attribute(
         self,
         name: str,
@@ -421,16 +342,12 @@ class BotData:
     ) -> None:
         """
         Creates a new managed attribute. Raises if the attribute already exists
-        in _managed. Use reconfigure_attribute() to modify an existing one, or
-        create_or_reconfigure_attribute() for mixin setup methods that may be
-        called multiple times.
+        in _managed.
         :raises OwnedByProvider: a Provider owns `name`.
         """
         self._refuse_owned(name)
         if name in self._managed:
-            raise AttributeError(
-                f"{name} already exists in {self}. Use reconfigure_attribute()."
-            )
+            raise AttributeError(f"{name} already exists in {self}.")
         self._static.pop(name, None)
         self._managed[name] = ManagedAttribute(
             name=name,
@@ -441,94 +358,6 @@ class BotData:
             max_retries=max_retries,
             clock=self._clock,
         )
-        if initial_value is None:
-            self.update_attribute(name)
-
-    def reconfigure_attribute(
-        self,
-        name: str,
-        update_function: Callable[..., Any] | _Unset = _SENTINEL,
-        threshold: float | None | _Unset = _SENTINEL,
-        error_handler: Callable[..., Any] | None | _Unset = _SENTINEL,
-    ) -> None:
-        """
-        Reconfigure an existing managed attribute. Preserves metadata history.
-        Only updates the fields that are explicitly passed. Uses a sentinel
-        default so that None can be passed explicitly (e.g., to remove an
-        error_handler).
-        """
-        name = self._canonical(name)
-        if name not in self._managed:
-            raise AttributeError(f"{name} not found in {self}. Cannot reconfigure.")
-        self._refuse_claimed(name)
-        managed = self._managed[name]
-        if update_function is not _SENTINEL:
-            managed.update_function = update_function
-        if threshold is not _SENTINEL:
-            managed.threshold = threshold
-        if error_handler is not _SENTINEL:
-            managed.error_handler = error_handler
-
-    def snapshot_attribute(self, name: str) -> None:
-        """
-        Records a managed attribute's update configuration so that a temporary
-        override (installed with reconfigure_attribute) can later be undone with
-        restore_attribute. The first snapshot wins until it is restored.
-        """
-        name = self._canonical(name)
-        if name not in self._managed:
-            raise AttributeError(f"{name} not found in {self}. Cannot snapshot.")
-        self._refuse_claimed(name)
-        self._managed[name].snapshot_config()
-
-    def restore_attribute(self, name: str) -> None:
-        """
-        Puts back the update configuration captured by snapshot_attribute(). Does
-        nothing when no snapshot is held.
-        """
-        name = self._canonical(name)
-        if name not in self._managed:
-            raise AttributeError(f"{name} not found in {self}. Cannot restore.")
-        self._managed[name].restore_config()
-
-    def create_or_reconfigure_attribute(
-        self,
-        name: str,
-        update_function: Callable[..., Any],
-        threshold: float | None = None,
-        initial_value: Any = None,
-        error_handler: Callable[..., Any] | None = None,
-        max_retries: int = 1,
-    ) -> None:
-        """
-        Creates a new attribute or reconfigures an existing one.
-        Used by mixin setup methods that may be called multiple times.
-        Preserves metadata on reconfiguration.
-
-        This is a full re-installation of the configuration, so it discards any
-        pending snapshot: restore_attribute() must never resurrect an update
-        function the owner has since replaced.
-        :raises OwnedByProvider: a Provider owns `name`.
-        """
-        self._refuse_owned(name)
-        self._static.pop(name, None)
-        if name in self._managed:
-            managed = self._managed[name]
-            managed._snapshot = None
-            managed.update_function = update_function
-            managed.threshold = threshold
-            managed.error_handler = error_handler
-            managed.max_retries = max_retries
-        else:
-            self._managed[name] = ManagedAttribute(
-                name=name,
-                update_function=update_function,
-                threshold=threshold,
-                initial_value=initial_value,
-                error_handler=error_handler,
-                max_retries=max_retries,
-                clock=self._clock,
-            )
         if initial_value is None:
             self.update_attribute(name)
 
@@ -552,8 +381,8 @@ class BotData:
         Called through `Provider.register`, in the Provider's `setup()`.
         :raises ValueError: `provider` is not the key's Provider, or already
             registered it.
-        :raises StartupRefused: one of the key's names is already taken by
-            another attribute.
+        :raises StartupRefused: the key's name is already taken by another
+            attribute.
         """
         if type(provider) is not key.provider:
             raise ValueError(
@@ -562,12 +391,12 @@ class BotData:
             )
         if self.is_provided(key):
             raise ValueError(f"{provider} registered {key.name!r} twice.")
-        for name in key.names():
-            if name in self._owned or name in self._managed or name in self._static:
-                raise StartupRefused(
-                    f"{provider} registers {key!r}, but {self} already holds an "
-                    f"attribute named {name!r}: rename the key or the attribute."
-                )
+        name = key.name
+        if name in self._owned or name in self._managed or name in self._static:
+            raise StartupRefused(
+                f"{provider} registers {key!r}, but {self} already holds an "
+                f"attribute named {name!r}: rename the key or the attribute."
+            )
         self._managed[key.name] = ManagedAttribute(
             name=key.name,
             update_function=update_function,
@@ -577,8 +406,7 @@ class BotData:
             max_retries=max_retries,
             clock=self._clock,
         )
-        for name in key.names():
-            self._owned[name] = (key, provider)
+        self._owned[name] = (key, provider)
         if initial_value is None:
             self.update_attribute(key.name)
 
@@ -606,20 +434,6 @@ class BotData:
         self.update_attribute(key.name)
         return self.read(key)
 
-    def build_provider(self, provider: type[Provider]) -> None:
-        """
-        Have the Bot build and set up `provider`, after every Provider it needs,
-        unless it already has. For unported code whose mixin used to create the
-        data itself (`MinimapAttributesMixin._create_minimap_attributes`); goes
-        with the last mixin.
-        :raises RuntimeError: no Bot's Providers are attached to this data.
-        """
-        if self.providers is None:
-            raise RuntimeError(
-                f"{self} builds no Provider: no Bot has attached its Providers to it."
-            )
-        self.providers.ensure(provider)
-
     def peek[T](self, key: Key[T]) -> T | None:
         """
         `key`'s last known value, without refreshing it: the latest one that is
@@ -630,10 +444,20 @@ class BotData:
             return None
         return self.get_last_known_value(key.name, update=False)
 
+    def valid_age(self, key: Key[Any]) -> float:
+        """
+        Seconds since `key` was last refreshed to a valid value (not None, nor
+        empty), on this data's clock, without refreshing it: infinite when it
+        never was.
+        :raises LookupError: no Provider has registered `key`.
+        """
+        self._refuse_unprovided(key)
+        return self.get_time_since_last_valid_update(key.name)
+
     def store[T](self, key: Key[T], value: T) -> None:
         """
-        Set `key`'s value without running its update, as `data.<legacy_name> =`
-        does. Called through `Provider.store`.
+        Set `key`'s value without running its update. Called through
+        `Provider.store`.
         :raises LookupError: no Provider has registered `key`.
         :raises ClaimHeld: `key` is claimed: its holder's source serves it.
         """
@@ -714,11 +538,6 @@ class BotData:
                 f"{key!r} has no value in {self}: {key.provider.__name__} was not "
                 "built. A key is provided once a DecisionMaker's reads declares it."
             )
-
-    def _canonical(self, name: str) -> str:
-        """The name a managed attribute is stored under: a key's own for its legacy."""
-        owner = self._owned.get(name)
-        return owner[0].name if owner is not None else name
 
     def _refuse_owned(self, name: str) -> None:
         owner = self._owned.get(name)

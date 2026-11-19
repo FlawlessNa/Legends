@@ -266,6 +266,25 @@ What the skeleton leaves open, for the ticket that builds the trip:
   The tickets that change only `botting/core` code #302 leaves alone start at once; the rest wait for that merge.
   Rejected: waiting for all of #302 before starting, which idles the core work; cutting from `epic/mscw-screen-reading`, where #397 and #399 keep changing the same mixins.
 
+### The legacy removed (#444)
+
+- **Only the framework is left.**
+  `maple/decision_makers/mixins/` is gone, and with it `BotData`'s feature flags (`set_feature`, `remove_feature`, a `has*` name read as False), `create_or_reconfigure_attribute`, `reconfigure_attribute`, `snapshot_attribute`, `restore_attribute` and `build_provider`, every `legacy_name`, and the shim (`_disable_decision_makers`, `_enable_decision_makers` and their unscoped Pause): `RESUME` releases the user-held Pauses, and nothing else is unscoped.
+  The entries above that describe these as present (the legacy name as an alias, the shim's semantics, `NextTargetMixin`'s hijack, `MovementsMixin` for the movement playground, the profile's stats as statics) record what was.
+  `decision.disabled` and `decision.enabled` stay defined, and nothing emits them.
+- **A key is reached by its own name only, and no write by name undoes a Claim.**
+  `create_attribute` and `set_static` stay, for what is not a key, and refuse a key's name (`OwnedByProvider`).
+  A write to a key's attribute by name (`data.<name> = value`) refuses a claimed key, as `Provider.store` does: with `restore_attribute` gone, that was the last write that could undo a Claim behind its back (#441).
+  `Providers.ensure(cls)` stays, to build a Provider on demand outside assembly, which tests do.
+- **The profile's movement stats are a Bot-level Provider's**: `ProfileProvider`, in `maple/decision_makers/providers/profile.py`, serves `PROFILE_SPEED_MULTIPLIER`, `PROFILE_JUMP_MULTIPLIER` and `CALIBRATION` under the names the statics had (`speed_multiplier`, `jump_multiplier`, `calibration`), built by `MapleBot.child_init` last, where it set them.
+  `PathingProvider` needs them, and `TrialRunner`'s record header reads them (`HEADER_READS`): the header records the profile's stats, as it did, even on a Bot that reads the ability menu's (none ships).
+- **`valid_age(KEY)`** is how long ago a key was last refreshed to a valid value, without refreshing it, on `BotData` and a DecisionMaker, declared like `peek`: movement recovery's staleness guard reads `POSITION`'s age through it, where it called `BotData`'s time query by the key's name.
+- **The movement playground reads and plans for itself** (`toolkit/movement_playground.py`).
+  `PlaygroundRunner` builds neither `MinimapProvider`, whose setup shows the minimap and whose position's error handler sends input, nor `PathingProvider`, which plans to `DESTINATION` from that position.
+  It holds a `PositionReader` with no error handler, the minimap's reading cached for `MinimapProvider.REFRESH`, and plans on the map's `MovementHandler` as `PathingProvider` does, with what it reads declared in `reads`.
+  Rejected: settings that turn `MinimapProvider`'s setup and error handler off, in the production Provider, for one toolkit script.
+- **Reading a key's attribute by its name is not the bridge, and stays where it is outside the DecisionMakers**: `Bot.pause` and `MapleBot`'s start-up map check read `data.handle`, whose tests stand the handle in as a plain value.
+
 ### One bot per machine, one Bot per Engine
 
 Pauses, Claims and Signals are per-bot and in-process.
@@ -284,3 +303,4 @@ A future Engine that runs several Bots must revisit this: ending the Engine woul
 - `RESUME` no longer restarts a DecisionMaker that was never paused, and no longer starts a second loop beside a running one.
 - A DecisionMaker that pauses itself through the shim stops at its loop's next `await`, as it did when the disabler thread cancelled it; the thread is simply gone from between.
 - What a holder that is paused, cancelled or crashes leaves behind is nothing, by construction, for scoped Pauses; the shim keeps the old hazard until its last caller is ported.
+  Since #444 there is no shim: a Pause is scoped, or held by the user until `RESUME`.

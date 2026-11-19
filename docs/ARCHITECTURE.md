@@ -153,7 +153,8 @@ break one and you get an exception, not a subtle bug six hours into a Session.
 | --- | --- | --- |
 | Session setup & teardown | `botting/core/session_manager.py` | Spawns everything, builds the log directory, waits on the listener set |
 | Engine process + its listener | `botting/core/engine.py` | Both halves of the pipe: the child loop and the Main-side relay task |
-| Bot · DecisionMaker | `botting/core/bot.py`, `decision_maker.py` | One client per Bot; the decide cycle, Correlation IDs, enable/disable gates |
+| Bot · DecisionMaker | `botting/core/bot.py`, `decision_maker.py` | One client per Bot; the decide cycle, Correlation IDs, Pauses, Claims |
+| Supervisor · Data Keys | `botting/core/supervisor.py`, `data_keys.py`, `bot_data.py` | Every decision loop, started, paused and restarted; the Providers that produce the data DecisionMakers declare, and its values |
 | Priority queue & arbitration | `botting/core/async_task_manager.py` | Scheduling, requeueing, blocking, cancellation, `action.*` records |
 | ActionRequest | `botting/core/action_data.py` | The wire format between an Engine and Main, plus the validated-retry wrapper |
 | Ledger · focus lock · SendInput | `botting/controller/inputs/` | The critical section, the Main-Process guard, the per-Step ledger writes |

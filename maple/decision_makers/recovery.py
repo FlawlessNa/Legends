@@ -99,6 +99,8 @@ class _Holder(Protocol):
 
     def read[T](self, key: Key[T]) -> T: ...
 
+    def valid_age(self, key: Key[Any]) -> float: ...
+
     def send(
         self, request: ActionRequest, correlation_id: str | None = None
     ) -> None: ...
@@ -303,7 +305,7 @@ class MovementRecovery:
         one. An `UNSURE` read is handed over as no position, which freezes them
         too.
         """
-        age = self._holder.data.get_time_since_last_valid_update(POSITION.name)
+        age = self._holder.valid_age(POSITION)
         return age <= self.STALE_POSITION_AFTER
 
     def _on_expected_minimap(self) -> bool:

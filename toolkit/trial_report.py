@@ -1857,8 +1857,8 @@ def _render_where(run: Run) -> list[str]:
     out.append(
         f"- **The {DEFAULT_CUT:g} s cut**: `TrialRunner.DEFAULT_ACTION_DURATION = {DEFAULT_CUT}` "
         f"(`maple/decision_makers/trial_runner.py`), handed to `compile_movements` "
-        f"as `total_duration` (`data.action_duration`, "
-        f"`maple/decision_makers/mixins/_rotation_mixins.py`). **Pure configuration**: "
+        f"as `total_duration` (`ACTION_DURATION`, "
+        f"`maple/decision_makers/providers/pathing.py`). **Pure configuration**: "
         f"the `action_duration` Knob of a schedule batch (`configs/trials/*.json`, "
         f"unset in the Ellinia schedules, so {DEFAULT_CUT}). Actions here: "
         f"{', '.join(f'{k} {v}' for k, v in ended.most_common()) or '-'}."

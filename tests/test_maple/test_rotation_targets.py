@@ -20,6 +20,7 @@ from botting.screen import Reading
 from maple.decision_makers.mobs_hitting import MobsHitting
 from maple.decision_makers.providers import (
     DESTINATION,
+    DESTINATION_PLATFORM,
     POSITION,
     WORLD_MAP,
     DestinationProvider,
@@ -36,7 +37,7 @@ from maple.screen.position import PositionSource, VirtualPosition
 from maple.telemetry_events import MOVEMENT_TARGET_REACHED
 from tests.test_maple.movement_lab import corpus
 from tests.test_maple.movement_lab.fixture_maps import portal_pair, rope_grab
-from tests.test_maple.serving import destination, pathing
+from tests.test_maple.serving import destination, override, pathing
 
 #: A floor 0-300 at y 0, a floor 600-900 at y -400, and a portal from the
 #: lower to the upper only: from the upper floor, the lower one is unreachable.
@@ -119,7 +120,7 @@ def test_a_target_is_drawn_blind_while_the_graph_builds(
         rotation = _rotation(lambda: _fused(750.0, -400.0), wait=False)
         assert reached.wait(5)  # the graph is half-built in the worker
         asked = time.perf_counter()
-        rotation.data.update_attribute("next_target")
+        rotation.data.update_attribute(DESTINATION.name)
         assert time.perf_counter() - asked < 1.0  # the build is held for up to 5 s
         assert rotation.planner.reachable_platforms() is None
     finally:
@@ -138,7 +139,7 @@ def test_the_first_target_is_drawn_on_any_platform_before_a_position_is_read() -
     random.seed(0)
     unread = Reading.unsure(0.0, "not read yet")
 
-    targets = {_rotation(lambda: unread).data.next_target for _ in range(30)}
+    targets = {_rotation(lambda: unread).data.read(DESTINATION) for _ in range(30)}
 
     on = {PORTALS.platform_at(t) for t in targets}
     assert on == {LOWER, UPPER}
@@ -152,19 +153,20 @@ def test_a_blind_target_no_path_reaches_is_drawn_again_once_placed() -> None:
     random.seed(1)
     for _ in range(20):
         rotation = _rotation(lambda: _fused(750.0, -400.0))
-        rotation.data.update_attribute("next_target")
-        assert PORTALS.platform_at(rotation.data.next_target) == UPPER
+        rotation.data.update_attribute(DESTINATION.name)
+        assert PORTALS.platform_at(rotation.data.read(DESTINATION)) == UPPER
 
 
 def test_a_reached_target_is_followed_by_one_a_path_reaches() -> None:
     random.seed(2)
     rotation = _rotation(lambda: _fused(750.0, -400.0))
     for _ in range(20):
-        rotation.data.next_target = (760.0, -400.0)  # within arrival of the feet
-        rotation.data.update_attribute("next_target")
-        assert rotation.data.next_target != (760.0, -400.0)
-        assert PORTALS.platform_at(rotation.data.next_target) == UPPER
-        assert rotation.data.next_feature == UPPER
+        # Within arrival of the feet.
+        rotation.data.store(DESTINATION, (760.0, -400.0))
+        rotation.data.update_attribute(DESTINATION.name)
+        assert rotation.data.read(DESTINATION) != (760.0, -400.0)
+        assert PORTALS.platform_at(rotation.data.read(DESTINATION)) == UPPER
+        assert rotation.data.read(DESTINATION_PLATFORM) == UPPER
 
 
 def test_from_where_both_floors_are_reached_both_are_drawn() -> None:
@@ -172,9 +174,9 @@ def test_from_where_both_floors_are_reached_both_are_drawn() -> None:
     rotation = _rotation(lambda: _fused(150.0, 0.0))
     drawn = set()
     for _ in range(40):
-        rotation.data.next_target = (160.0, 0.0)
-        rotation.data.update_attribute("next_target")
-        drawn.add(PORTALS.platform_at(rotation.data.next_target))
+        rotation.data.store(DESTINATION, (160.0, 0.0))
+        rotation.data.update_attribute(DESTINATION.name)
+        drawn.add(PORTALS.platform_at(rotation.data.read(DESTINATION)))
 
     assert drawn == {LOWER, UPPER}
 
@@ -196,7 +198,7 @@ def test_abandon_draws_only_where_a_path_reaches() -> None:
     targets = [rotation.provider.abandon() for _ in range(20)]
 
     assert {PORTALS.platform_at(t) for t in targets if t is not None} == {UPPER}
-    assert rotation.data.next_target == targets[-1]
+    assert rotation.data.read(DESTINATION) == targets[-1]
 
 
 def test_abandon_does_nothing_while_the_destination_is_claimed() -> None:
@@ -206,7 +208,7 @@ def test_abandon_does_nothing_while_the_destination_is_claimed() -> None:
     )
 
     assert rotation.provider.abandon() is None
-    assert rotation.data.next_target == (800.0, -400.0)
+    assert rotation.data.read(DESTINATION) == (800.0, -400.0)
 
 
 def test_no_position_is_read_on_a_map_with_no_minimap() -> None:
@@ -264,11 +266,11 @@ def test_a_wander_claim_wanders_the_platforms_whatever_the_mode() -> None:
 
     data.claim(DESTINATION, wander, holder="CheckMobsStillSpawn(T)", reason="test")
     emitted.clear()  # taking the Claim refreshed it once
-    data.next_target = (150.0, 0.0)
-    data.update_attribute("next_target")
+    override(data, DESTINATION, value=(150.0, 0.0))  # reached, under the Claim
+    data.update_attribute(DESTINATION.name)
 
-    assert data.next_target != (150.0, 0.0)
-    assert PORTALS.platform_at(data.next_target) is not None
+    assert data.read(DESTINATION) != (150.0, 0.0)
+    assert PORTALS.platform_at(data.read(DESTINATION)) is not None
     assert emitted == [MOVEMENT_TARGET_REACHED]
 
 
@@ -323,7 +325,7 @@ def test_the_ladder_check_reads_no_position() -> None:
         WorldMap.from_map_data(rope_grab()),
         lambda: reads.append(1) or _fused(300.0, -100.0),
     )
-    hitting.data.reconfigure_attribute("current_position", threshold=1e-9)
+    override(hitting.data, POSITION, threshold=1e-9)
     reads.clear()
 
     assert hitting._currently_on_ladder() is True

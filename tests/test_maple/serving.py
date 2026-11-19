@@ -19,6 +19,7 @@ import pytest
 from botting.core import (
     BotData,
     DecisionMaker,
+    Key,
     Providers,
     RepliesProvider,
     WindowProvider,
@@ -36,6 +37,7 @@ from maple.decision_makers.providers import (
     MinimapProvider,
     MobsProvider,
     PathingProvider,
+    ProfileProvider,
     ScreenReadersProvider,
 )
 from maple.model.navigation import Point
@@ -172,7 +174,8 @@ def pathing(
     `PathingProvider`, built and set up as assembly builds it, with the
     profile `settings`, on a Bot whose map is `world_map`, whose character is
     `character`, whose position is `at`'s and whose destination is `target`'s,
-    with the stats `MapleBot.child_init` sets: 1, and no Calibration constant.
+    with the profile's stats (`ProfileProvider`): 1, unless `settings` give
+    them, and no Calibration constant.
 
     On a `data` that `destination` served, its window, map, position and
     `DestinationProvider` are the ones used, and `target` is not.
@@ -199,11 +202,38 @@ def pathing(
         )
     if not data.is_provided(DESTINATION):
         data.provide(DESTINATION, object.__new__(DestinationProvider), target)
-    data.set_static("speed_multiplier", 1.0)
-    data.set_static("jump_multiplier", 1.0)
-    data.set_static("calibration", None)
+    if ProfileProvider not in providers:
+        providers.add(ProfileProvider)
     providers.build([PathingProvider])
     return providers.get(PathingProvider)
+
+
+#: `override`'s "leave the value as it is".
+_KEEP = object()
+
+
+def override(
+    data: BotData,
+    key: Key[Any],
+    update_function: Callable[[], object] | None = None,
+    *,
+    threshold: float | None = None,
+    value: object = _KEEP,
+) -> None:
+    """
+    Stand in for what `key`'s Provider reads off the client: its update function,
+    its refresh threshold, or both, from now on; or the value it holds now,
+    claimed or not. Whatever is not given is kept, the history included.
+
+    For tests only: production code steers a key with a Claim.
+    """
+    managed = data._managed[key.name]  # pyright: ignore[reportPrivateUsage] - the stand-in's seam
+    if update_function is not None:
+        managed.update_function = update_function
+    if threshold is not None:
+        managed.threshold = threshold
+    if value is not _KEEP:
+        managed.set(value)
 
 
 def assemble(served: Served, *classes: type[DecisionMaker]) -> None:

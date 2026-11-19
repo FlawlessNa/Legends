@@ -11,12 +11,16 @@ from pytest_mock import MockerFixture
 from botting.core import BotData
 from botting.core.data_keys import resolve_providers
 from botting.screen import Frame, Reading
-from maple.decision_makers import AbilityPointDistributor, StateSnapshot, mixins
+from maple.decision_makers import AbilityPointDistributor, StateSnapshot
 from maple.decision_makers.providers import (
     ABILITY_MENU,
     AVAILABLE_AP,
+    CALIBRATION,
+    CURRENT_MESOS,
     INVENTORY_SPACE_LEFT,
     JUMP_MULTIPLIER,
+    PROFILE_JUMP_MULTIPLIER,
+    PROFILE_SPEED_MULTIPLIER,
     SPEED_MULTIPLIER,
     AbilityMenuProvider,
     InventoryMenuProvider,
@@ -99,7 +103,7 @@ def test_the_distributor_builds_the_ability_menu_and_the_snapshot_builds_nothing
     assert resolve_providers([StateSnapshot]) == []
 
 
-def test_the_inventory_mixin_asks_for_its_provider(
+def test_the_inventory_provider_is_built_once_however_often_it_is_asked_for(
     mocker: MockerFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     menu = mocker.Mock(total_slots=24)
@@ -108,15 +112,12 @@ def test_the_inventory_mixin_asks_for_its_provider(
     menu.get_active_tab.return_value = "Equip"
     result = serve(monkeypatch, frames=lambda: FRAME)
 
-    class Holder(mixins.MenusMixin):
-        data = result.data
-
-    Holder()._create_inventory_menu_attributes()  # pyright: ignore[reportPrivateUsage]
-    Holder()._create_inventory_menu_attributes()  # pyright: ignore[reportPrivateUsage]
+    result.providers.ensure(InventoryMenuProvider)
+    result.providers.ensure(InventoryMenuProvider)
 
     assert result.data.is_provided(INVENTORY_SPACE_LEFT)
-    assert result.data.inventory_space_left == 24
-    assert result.data.current_mesos == 7
+    assert result.data.read(INVENTORY_SPACE_LEFT) == 24
+    assert result.data.read(CURRENT_MESOS) == 7
     assert [type(p) for p in result.providers].count(InventoryMenuProvider) == 1
 
 
@@ -142,14 +143,45 @@ def _planner(data: BotData | None = None) -> PathingProvider:
 
 def test_the_physics_follow_the_profile_when_the_menu_was_not_read() -> None:
     planner = _planner()
-    planner.data.set_static("speed_multiplier", 1.2)
-    planner.data.set_static("jump_multiplier", 1.3)
+    planner.data.store(PROFILE_SPEED_MULTIPLIER, 1.2)
+    planner.data.store(PROFILE_JUMP_MULTIPLIER, 1.3)
 
     base = corpus.LAB_PHYSICS_VALUES
     physics = planner.physics()
 
     assert physics.walk_speed == pytest.approx(base["walkSpeed"] * 1.2)
     assert physics.jump_speed == pytest.approx(base["jumpSpeed"] * 1.3)
+
+
+def test_the_profiles_stats_are_its_settings_and_one_without_them() -> None:
+    """`ProfileProvider` takes them from the profile, as `MapleBot` did."""
+    entry = next(e for e in corpus.FIXTURE_MAPS if e.name == "jump_gap")
+    reading = Reading.read(VirtualPosition(100.0, 0.0, PositionSource.FUSED), 0.0)
+    set_by_the_profile = pathing(
+        corpus.world_map(entry),
+        lambda: reading,
+        character=_Character(),
+        game_physics=corpus.LAB_PHYSICS_VALUES,
+        speed_multiplier=1.2,
+        jump_multiplier=1.3,
+    )
+    unset = _planner()
+
+    data = set_by_the_profile.data
+    assert (
+        data.read(PROFILE_SPEED_MULTIPLIER),
+        data.read(PROFILE_JUMP_MULTIPLIER),
+    ) == (
+        1.2,
+        1.3,
+    )
+    assert data.read(CALIBRATION) is None
+    assert unset.data.read(PROFILE_SPEED_MULTIPLIER) == 1.0
+    assert unset.data.read(PROFILE_JUMP_MULTIPLIER) == 1.0
+    physics = set_by_the_profile.physics()
+    assert physics.walk_speed == pytest.approx(
+        corpus.LAB_PHYSICS_VALUES["walkSpeed"] * 1.2
+    )
 
 
 def test_the_physics_follow_the_ability_menu_when_the_bot_read_it() -> None:

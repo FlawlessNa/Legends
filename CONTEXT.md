@@ -111,7 +111,7 @@ A DecisionMaker holding at least one Pause has its loops cancelled and keeps its
 Pauses stack, and cover their exact class only, never a subclass.
 A DecisionMaker's own are scoped to its `async with self.pause(...)` block, so they are released however the block exits, the holder itself being paused included.
 A user-held Pause (Discord `PAUSE`, `pause_for_user`) lasts until Discord `RESUME`.
-_Avoid_: Disable, suspend - "disable" survives only in the legacy shim's name, `_disable_decision_makers`, which takes an unscoped Pause.
+_Avoid_: Disable, suspend - the legacy shim that disabled a DecisionMaker, unscoped, went with the mixins (#444).
 
 **Data Key**:
 The name and type of one piece of data a Bot shares between its DecisionMakers (`Key[T]`), naming the one Provider that produces it.
@@ -130,7 +130,7 @@ A second Claim on a held key is refused at once, naming the holder.
 What is claimed is a value source, not a value, so the key keeps refreshing on its own threshold while claimed.
 Like a Pause, it is released when its block exits, by any route, and the key then serves its Provider's own value again.
 `DESTINATION`, where the rotation heads, is the first steerable key.
-_Avoid_: Override, lock, reconfigure - `reconfigure_attribute` is the unscoped legacy a Claim replaces.
+_Avoid_: Override, lock, reconfigure - `reconfigure_attribute` was the unscoped legacy a Claim replaced (#444).
 
 **Signal**:
 A typed announcement, within one Bot, that something happened.
@@ -509,7 +509,7 @@ not a unit.
 
 **Virtual position**:
 Where our character's feet are, in virtual coordinates, read every cycle as a
-`Reading[VirtualPosition]` (`data.current_position`). Fused from two reads: the
+`Reading[VirtualPosition]` (`POSITION`). Fused from two reads: the
 play area for precision (the Camera plus the feet found on screen) and the
 minimap as the check and the fallback. A position from the minimap alone is
 flagged coarse: that is the position whenever the play area doesn't place our

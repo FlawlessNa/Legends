@@ -17,12 +17,9 @@ from botting.telemetry_events import (
     DATA_CLAIMED,
     DATA_RELEASED,
     DECISION_CRASHED,
-    DECISION_DISABLED,
-    DECISION_ENABLED,
     DECISION_PAUSED,
     DECISION_RESUMED,
     DecisionCrashedPayload,
-    DecisionGatePayload,
 )
 
 from .action_data import ActionRequest, ActionWithValidation
@@ -111,7 +108,7 @@ class DecisionMaker(ABC):
     #: the start when nothing in the Bot announces one.
     awaits: ClassVar[tuple[Signal[Any], ...]] = ()
 
-    #: Set by whichever subclass or mixin needs one - `_validate_request_async`
+    #: Set by whichever subclass needs one - `_validate_request_async`
     #: falls back to it when a caller passes no condition of its own.
     _condition: threading.Condition
 
@@ -156,8 +153,7 @@ class DecisionMaker(ABC):
         """
         This DecisionMaker's one-time I/O, which `__init__` must not do. Called
         once by assembly, after every Provider is set up and every DecisionMaker
-        built, before any loop starts. An unported DecisionMaker, which still does
-        its I/O in `__init__`, leaves it empty.
+        built, before any loop starts.
         """
 
     # --- Data Keys ----------------------------------------------------------------
@@ -195,13 +191,27 @@ class DecisionMaker(ABC):
         :raises KeyNotDeclared: `key` is in none of this class's `reads`,
             `steers` and `observes`.
         """
+        return self.data.peek(self._observable(key, "peeked at"))
+
+    def valid_age(self, key: Key[Any]) -> float:
+        """
+        Seconds since `key` was last refreshed to a valid value, without
+        refreshing it: infinite when it never was. For a decision that must know
+        whether a value is recent, such as a position read before a judgement.
+        :raises KeyNotDeclared: `key` is in none of this class's `reads`,
+            `steers` and `observes`.
+        :raises LookupError: `key`'s Provider was not built.
+        """
+        return self.data.valid_age(self._observable(key, "asked the age of"))
+
+    def _observable[T](self, key: Key[T], verb: str) -> Key[T]:
         cls = type(self)
         if key not in (*cls.reads, *cls.steers, *cls.observes):
             raise KeyNotDeclared(
-                f"{self} peeked at {key.name!r}, which none of "
+                f"{self} {verb} {key.name!r}, which none of "
                 f"{cls.__name__}.reads, .steers and .observes declares."
             )
-        return self.data.peek(key)
+        return key
 
     # --- Claims -------------------------------------------------------------------
 
@@ -459,59 +469,6 @@ class DecisionMaker(ABC):
                 f"{self} has no Supervisor: Pauses exist only once its Bot has started."
             )
         return self._supervisor
-
-    # --- the legacy shim ------------------------------------------------------------
-
-    def _disable_decision_makers(self, *args: str) -> None:
-        """
-        Legacy: pause the DecisionMakers of this Bot whose class is named, until
-        `_enable_decision_makers` names them or the user sends Discord `RESUME`.
-
-        Unlike `pause`, nothing scopes it: it outlives the decision that took it,
-        and survives this DecisionMaker being paused. A DecisionMaker may name
-        its own class. Disabling a disabled DecisionMaker does nothing more, and
-        one `_enable_decision_makers` undoes it, whoever disabled it. Removed
-        with the last mixin.
-        :param args: The DecisionMakers' class names.
-        """
-        supervisor = self._supervision()
-        for class_name in args:
-            for cls in self._named(supervisor, class_name):
-                gated: DecisionGatePayload = {"target": class_name}
-                self.emit(DECISION_DISABLED, gated)
-                if not any(p.kind is PauseKind.SHIM for p in supervisor.held(cls)):
-                    supervisor.hold(
-                        Pause(
-                            supervisor.target(cls),
-                            repr(self),
-                            "_disable_decision_makers",
-                            PauseKind.SHIM,
-                        )
-                    )
-
-    def _enable_decision_makers(self, *args: str) -> None:
-        """
-        Legacy: end the `_disable_decision_makers` Pause on the DecisionMakers of
-        this Bot whose class is named. Pauses of any other kind stay held.
-        :param args: The DecisionMakers' class names.
-        """
-        supervisor = self._supervision()
-        for class_name in args:
-            for cls in self._named(supervisor, class_name):
-                gated: DecisionGatePayload = {"target": class_name}
-                self.emit(DECISION_ENABLED, gated)
-                for pause in supervisor.held(cls):
-                    if pause.kind is PauseKind.SHIM:
-                        supervisor.release(pause)
-
-    @staticmethod
-    def _named(supervisor: Supervisor, class_name: str) -> list[type[DecisionMaker]]:
-        """The classes this Bot runs that are called `class_name`."""
-        return [
-            cls
-            for cls in dict.fromkeys(supervisor.classes())
-            if cls.__name__ == class_name
-        ]
 
     async def _validate_request_async(
         self,

@@ -1,6 +1,7 @@
 """
 `SoloRebuff` runs one loop per buff. A Pause (a GM line in `ChatReplies`, a lost
-map in `CheckStillInMap`; here the legacy shim's) must stop every one of them: until #464 its decision task returned once the loops were
+map in `CheckStillInMap`; here Discord `PAUSE`'s) must stop every one of them:
+until #464 its decision task returned once the loops were
 started, so cancelling it stopped nothing and the buffs kept being cast. The
 Supervisor now runs the loops, and stops them all on a Pause.
 """
@@ -35,7 +36,7 @@ def _buff_loops() -> list[asyncio.Task]:
     ]
 
 
-def test_a_disable_stops_every_buff_loop(
+def test_a_pause_stops_every_buff_loop(
     monkeypatch: pytest.MonkeyPatch,
     metadata: dict[str, object],  # noqa: F811
 ) -> None:
@@ -65,11 +66,11 @@ def test_a_disable_stops_every_buff_loop(
         try:
             await _until(lambda: len(_buff_loops()) == 2)
 
-            rebuff._disable_decision_makers("SoloRebuff")  # pyright: ignore[reportPrivateUsage]
+            supervisor.pause_for_user(reason="Discord PAUSE")
             await _until(lambda: not _buff_loops())
             cast = len(casts)
             await asyncio.sleep(0.1)
-            assert len(casts) == cast, "a buff loop kept casting after the disable"
+            assert len(casts) == cast, "a buff loop kept casting after the pause"
         finally:
             running.cancel()
             await asyncio.gather(running, return_exceptions=True)

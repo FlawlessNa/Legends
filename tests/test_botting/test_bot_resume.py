@@ -117,28 +117,6 @@ def test_pause_then_resume_restarts_every_loop(metadata: dict[str, object]) -> N
     _scenario(metadata, steps)
 
 
-def test_an_enable_after_resume_restarted_a_disabled_loop_runs_no_loop_twice(
-    metadata: dict[str, object],
-) -> None:
-    """A loop disabled through the shim is restarted by RESUME, as PAUSE leaves
-    it; a later enable then finds it running (#489)."""
-
-    async def steps(bot: _Bot) -> None:
-        chat = next(dm for dm in bot.decision_makers if isinstance(dm, Chat))
-        chat._disable_decision_makers("Training")  # pyright: ignore[reportPrivateUsage]
-        await _until(lambda: not _loops("Training"))
-
-        bot.resume()
-        await _until(lambda: len(_loops("Training")) == 1)
-
-        chat._enable_decision_makers("Training")  # pyright: ignore[reportPrivateUsage]
-        await asyncio.sleep(0.1)
-
-        assert len(_loops("Training")) == 1
-
-    _scenario(metadata, steps)
-
-
 class _Pipe:
     def __init__(self) -> None:
         self.sent: list[object] = []

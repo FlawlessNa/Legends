@@ -19,7 +19,14 @@ import numpy as np
 import pytest
 from pytest_mock import MockerFixture, MockType
 
-from botting.core import ActionRequest, BotData, Key, Providers, WindowProvider
+from botting.core import (
+    ActionRequest,
+    BotData,
+    Key,
+    Provider,
+    Providers,
+    WindowProvider,
+)
 from botting.core.supervisor import resolve_pauses
 from botting.logging_config import bucket_for
 from botting.screen import Frame, Reading, Status, capture
@@ -31,7 +38,6 @@ from maple.decision_makers import (
     Rotation,
 )
 from maple.decision_makers.ensure_still_in_map import CheckStillInMap, map_title
-from maple.decision_makers.mixins import MinimapAttributesMixin
 from maple.decision_makers.providers import (
     FRAME,
     HANDLE,
@@ -39,6 +45,7 @@ from maple.decision_makers.providers import (
     MINIMAP_READING,
     MINIMAP_SHOWN,
     POSITION,
+    POSITION_FUSION,
     ClientProvider,
     MapProvider,
     MinimapProvider,
@@ -279,7 +286,6 @@ def test_the_minimaps_logs_stay_in_the_movement_bucket() -> None:
 
 
 def test_every_minimap_consumer_declares_the_minimap_reader() -> None:
-    assert MINIMAP in MinimapAttributesMixin.screen_readers
     assert MINIMAP in CheckStillInMap.screen_readers
 
 
@@ -289,9 +295,15 @@ def ensured(mocker: MockerFixture) -> MockType:
     return mocker.patch.object(minimap_provider, "ensure_minimap_displayed")
 
 
+def _ensure(data: BotData, provider: type[Provider]) -> None:
+    """Build and set up `provider` on `data`'s Providers, unless it is built."""
+    assert data.providers is not None
+    data.providers.ensure(provider)
+
+
 def _provided(pipe: MockType, fusion: object = None) -> BotData:
     data = _serving(pipe, fusion=fusion)
-    data.build_provider(MinimapProvider)
+    _ensure(data, MinimapProvider)
     return data
 
 
@@ -312,7 +324,7 @@ def test_setup_shows_the_minimap_then_registers_its_keys_in_order(
 
     mocker.patch.object(BotData, "provide", autospec=True, side_effect=registered)
 
-    data.build_provider(MinimapProvider)
+    _ensure(data, MinimapProvider)
 
     assert order == [
         "shown",
@@ -331,22 +343,18 @@ def test_the_minimap_is_set_up_once_however_many_ask(
     client: _Client, pipe: MockType, ensured: MockType
 ) -> None:
     """
-    `_create_minimap_attributes` asks `BotData` to build `MinimapProvider` if it
-    is not built yet: the minimap is shown once at start, and its keys keep
-    their first configuration, however many unported DecisionMakers ask.
+    `MinimapProvider` is built once per Bot: the minimap is shown once at
+    start, and its keys keep their first configuration, however often it is
+    asked for.
     """
     data = _serving(pipe)
 
-    class _Asking(MinimapAttributesMixin):
-        def __init__(self) -> None:
-            self.data = data
-
     for _ in range(3):
-        _Asking()._create_minimap_attributes()
+        _ensure(data, MinimapProvider)
 
     ensured.assert_called_once()
     assert [type(p) for p in data.providers or ()].count(MinimapProvider) == 1
-    assert data.minimap_reading.status is Status.READ
+    assert data.read(MINIMAP_READING).status is Status.READ
 
 
 @pytest.mark.parametrize(
@@ -364,7 +372,7 @@ def test_the_minimap_counts_as_displayed_only_when_expanded(
     minimised minimap shows no map."""
     client.shown = shown
 
-    assert _provided(pipe).minimap_currently_displayed is displayed
+    assert _provided(pipe).read(MINIMAP_SHOWN) is displayed
 
 
 def _shown_now(data: BotData, client: _Client, shown: Frame) -> None:
@@ -394,17 +402,6 @@ def test_a_covered_minimap_keeps_the_last_answers_and_absent_says_not_shown(
     assert data.read(MINIMAP_READING).status is Status.ABSENT
     assert data.read(MINIMAP_SHOWN) is False
     assert data.read(MINIMAP_BOX) == bounds
-
-
-def test_unported_code_reads_the_minimap_by_its_legacy_names(
-    client: _Client, pipe: MockType, ensured: MockType
-) -> None:
-    fused = Reading.read(VirtualPosition(605.5, 340.0, PositionSource.FUSED), 3.0)
-    data = _provided(pipe, fusion=_Fusion(fused))
-
-    assert data.current_entire_minimap_box == data.read(MINIMAP_BOX)
-    assert data.minimap_currently_displayed is data.read(MINIMAP_SHOWN)
-    assert data.current_position == data.read(POSITION) == fused
 
 
 def test_without_a_map_id_the_position_raises_for_the_error_handler() -> None:
@@ -593,7 +590,7 @@ def test_the_error_handler_names_its_actions_after_its_holder(
         minimap_provider.win32gui, "GetClientRect", return_value=(0, 0, 400, 300)
     )
     check = _check(client, pipe, _minimap(user_at=(12, 34)), MAP_ID)
-    check.data.build_provider(MinimapProvider)
+    _ensure(check.data, MinimapProvider)
     check._recovery.proxies = _Proxies()  # pyright: ignore[reportAttributeAccessIssue, reportPrivateUsage] - a stand-in
     sent = mocker.patch.object(check, "send")
 
@@ -678,7 +675,7 @@ def test_an_unsure_fusion_with_the_minimap_read_is_returned_for_its_consumer() -
     A fusion `UNSURE` though the minimap placed the character (`PositionFusion`
     gives none since #529, which makes disagreeing reads and a crowd `coarse`):
     the minimap's error handler can't fix that, so the `UNSURE` reading is the
-    answer, and a consumer holds (#396: `MovementsMixin` plans no Path).
+    answer, and a consumer holds (#396: `PathingProvider` plans no Path).
     """
     unsure = Reading.unsure(3.0, "the reads disagree")
     located = _Located(_Fusion(unsure))
@@ -789,8 +786,7 @@ def test_an_unplaced_marker_neither_calls_the_error_handler_nor_fails_the_read(
     data = _provided(pipe, fusion=unplaced)
 
     for _ in range(4):
-        data.update_attribute("current_position")
-        assert data.current_position == unplaced.position
+        assert data.refresh(POSITION) == unplaced.position
         clock.now += 30.0
     handler.assert_not_called()
 
@@ -836,7 +832,7 @@ def test_the_position_has_the_minimaps_error_handler_and_waits_to_be_read(
     assert fusion.reads == 0
     assert isinstance(managed[POSITION.name].error_handler, MinimapRecovery)
     assert "current_minimap_position" not in managed
-    assert data.current_position == fused
+    assert data.read(POSITION) == fused
     assert fusion.reads == 1
 
 
@@ -844,23 +840,24 @@ def test_a_decision_makers_own_position_reads_are_its_own(
     client: _Client, pipe: MockType, ensured: MockType, mocker: MockerFixture
 ) -> None:
     """
-    `TrialRunner` reads a position for each sample through the mixin's
-    `_get_position`: its records carry its decision's Correlation ID, as they
-    did, and its hold is its own.
+    `TrialRunner` reads a position for each sample through a `PositionReader`
+    it holds: its records carry its decision's Correlation ID, as they did, and
+    its hold is its own.
     """
     fused = Reading.read(VirtualPosition(605.5, 340.0, PositionSource.FUSED), 3.0)
     fusion = _Fusion(fused)
     data = _provided(pipe, fusion=fusion)
     emitted = mocker.Mock()
 
-    class _Sampling(MinimapAttributesMixin):
-        def __init__(self) -> None:
-            self.data = data
-            self.emit = emitted
+    sampling = PositionReader(
+        object(),
+        emitted,
+        fusion=lambda: data.read(POSITION_FUSION),
+        minimap=lambda: data.read(MINIMAP_READING),
+        frame=lambda: data.read(FRAME),
+    )
 
-    sampling = _Sampling()
-
-    assert sampling._get_position() == fused  # pyright: ignore[reportPrivateUsage]
+    assert sampling() == fused
     [(event, _)] = [call.args for call in emitted.call_args_list]
     assert event == POSITION_READ
     assert fusion.reads == 1
