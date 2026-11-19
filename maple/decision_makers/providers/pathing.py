@@ -137,7 +137,9 @@ class PathingProvider(Provider):
         """
         Change what Paths are planned and compiled with, and make the handler
         again: what a Trial batch's Knobs sweep (`TrialRunner`). The new handler
-        plans on the graphs already built for its teleport setting.
+        plans on the graphs already built for its teleport setting, and starts
+        building the graph of the current stats for it if none is, as setup
+        does.
         :param duration: The Action duration cap.
         :param narrow_platform_threshold: The platform width (virtual px) below
             which a jump or teleport gets its landing direction-stop; `None`
@@ -152,7 +154,9 @@ class PathingProvider(Provider):
         self._edge_departure_threshold = edge_departure_threshold
         self._teleport = teleport
         self.refresh(ACTION_DURATION)
-        self.refresh(MOVEMENT_HANDLER)
+        handler = self.refresh(MOVEMENT_HANDLER)
+        if handler is not None:
+            handler.graphs.prepare(self.physics())
 
     def physics(self) -> VRPhysics:
         """

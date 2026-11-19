@@ -576,6 +576,31 @@ def test_the_graph_starts_building_at_setup_before_any_path_is_asked(
         release.set()
 
 
+def test_a_configured_handler_starts_its_graph_at_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    A Trial batch planned without teleport, on a teleporting character: its
+    graph starts building when the batch's Knobs are put in place, before any
+    Path is asked, as the first batch's always did.
+    """
+    character = SimpleNamespace(skills={"Teleport": _Teleport()})
+    provider = _pathing(
+        "jump_gap", (100.0, 0.0), (0, 0), status_read=False, character=character
+    )
+    provider.data.movement_handler.graph(provider.physics())
+    reached, release = _hold_build_half_way(monkeypatch)
+    try:
+        provider.configure(duration=1.0, teleport=False)
+        assert reached.wait(5)
+        handler: MovementHandler = provider.data.movement_handler
+        assert handler.teleport is None
+        assert handler.graphs.teleport is False
+        assert handler.graphs.is_building()
+    finally:
+        release.set()
+
+
 def test_a_remade_handler_plans_on_the_graphs_already_built() -> None:
     """A Trial batch remakes the handler; another DecisionMaker makes its own."""
     planner = _planner("jump_gap", (100.0, 0.0), (300.0, 0.0))
