@@ -385,7 +385,7 @@ class _Reacting:
             FRAME: SimpleNamespace(pixels=None),
         }
         self.sent: list[ActionRequest] = []
-        self.reactions = Reactions(self, self)  # pyright: ignore[reportArgumentType] - a stand-in
+        self.reactions = Reactions(self)  # pyright: ignore[reportArgumentType] - a stand-in
 
     def read(self, key: Key[Any]) -> object:
         return self.values[key]

@@ -66,7 +66,7 @@ class CheckStillInMap(DecisionMaker):
     ) -> None:
         super().__init__(metadata, data, pipe)
         self._recovery = MinimapRecovery(self, self._proxies)
-        self._reactions = Reactions(self, self)
+        self._reactions = Reactions(self)
         #: The map it checks, named for the telemetry. Read by `setup()`.
         self.map_name = map_title(None)
 

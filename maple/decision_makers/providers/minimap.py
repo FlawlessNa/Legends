@@ -42,7 +42,7 @@ from maple.screen.position import Fusion, PositionFusion, VirtualPosition
 from maple.telemetry_events import POSITION_READ, PositionReadPayload
 
 from .client import FRAME
-from .map import POSITION_FUSION
+from .map import POSITION_FUSION, WORLD_MAP
 from .screen_readers import MINIMAP_READER
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -163,6 +163,25 @@ MINIMAP_BOX: Key[Box | None] = Key("minimap_box", MinimapProvider)
 #: The character's position, in virtual px, for every DecisionMaker (#398):
 #: `PositionReader`'s, with `MinimapRecovery` as its error handler.
 POSITION: Key[Reading[VirtualPosition]] = Key("position", MinimapProvider)
+
+
+class _Reader(Protocol):
+    """Who `position_or_unsure` reads through: it declares `WORLD_MAP` and
+    `POSITION`."""
+
+    def read[T](self, key: Key[T]) -> T: ...
+
+
+def position_or_unsure(reader: _Reader) -> Reading[VirtualPosition]:
+    """
+    `POSITION`, read when it is stale; `UNSURE`, without a read, on a map no
+    position is read on (the map not known, or with no minimap), where a read
+    could only fail into the minimap's error handler.
+    """
+    world_map = reader.read(WORLD_MAP)
+    if world_map is None or world_map.minimap is None:
+        return Reading.unsure(0.0, "no position is read on this map")
+    return reader.read(POSITION)
 
 
 class _Holder(Protocol):

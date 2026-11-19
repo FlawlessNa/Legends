@@ -97,7 +97,7 @@ prevent.
 ## Decision-making
 
 The framework DecisionMakers are built on (ADR 0004).
-The Supervisor, Pauses, Data Keys, Providers, Claims and Signals exist today; epic #432 is porting the DecisionMakers onto them.
+Every DecisionMaker runs on the Supervisor, Pauses, Data Keys, Providers, Claims and Signals (epic #432); the mixins they replace are gone.
 
 **Supervisor**:
 The one owner of a Bot's decision loops (`botting/core/supervisor.py`).
@@ -123,6 +123,10 @@ What produces the values of one or more Data Keys.
 It belongs to the Bot, not to a DecisionMaker: it is built once per Bot however many DecisionMakers read its keys, and configured from the Bot's profile settings.
 A **Bot-level** Provider serves what its Bot found and checked at start (the game window's handle, the map, the screen readers): the Bot builds it in `child_init`, and assembly never does.
 _Avoid_: Mixin - Providers replace the mixins' data role.
+
+**Assembly**:
+What `Bot.start` does before the start barrier (`Bot.assemble`): it resolves the DecisionMakers' declarations, builds and sets up the Providers they read, each after those it needs, then builds and sets up the DecisionMakers and hands them to the Supervisor.
+A Bot wired wrong is refused here, with `StartupRefused` naming the missing or conflicting piece, before any bot starts.
 
 **Claim**:
 A scoped, exclusive right to steer a steerable Data Key: while it is held, the key serves the claimant's value source instead of its Provider's own.

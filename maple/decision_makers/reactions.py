@@ -20,15 +20,13 @@ Manager."""
 
 
 class _Owner(Protocol):
-    """Who reacts: names the request, and sends it."""
+    """Who reacts: names the request, reads `Reactions.reads`, and sends it."""
 
     data: BotData
 
-    def send(self, request: ActionRequest) -> None: ...
-
-
-class _Reader(Protocol):
     def read[T](self, key: Key[T]) -> T: ...
+
+    def send(self, request: ActionRequest) -> None: ...
 
 
 class Reactions:
@@ -67,15 +65,12 @@ class Reactions:
         "Uhm Hello?",
     ]
 
-    def __init__(self, owner: _Owner, reader: _Reader) -> None:
+    def __init__(self, owner: _Owner) -> None:
         """
-        :param owner: Who reacts: the requests carry its name, and go through its
-            `send`.
-        :param reader: What `reads` is read through: the owner itself, which
-            declares them.
+        :param owner: Who reacts: `reads` is read through it, which declares
+            them, and the requests carry its name and go through its `send`.
         """
         self.owner = owner
-        self.reader = reader
         #: Each reaction type's shuffled lines still to send, and the last sent.
         self._decks: dict[str, list[str]] = {}
         self._last: dict[str, str] = {}
@@ -91,12 +86,12 @@ class Reactions:
             disc_alert = (
                 None
                 if disc_msg is None
-                else DiscordRequest(disc_msg, self.reader.read(FRAME).pixels)
+                else DiscordRequest(disc_msg, self.owner.read(FRAME).pixels)
             )
             choices = type(self).LIGHT
         else:
             disc_alert = DiscordRequest(
-                disc_msg or f"{self.owner} is failing", self.reader.read(FRAME).pixels
+                disc_msg or f"{self.owner} is failing", self.owner.read(FRAME).pixels
             )
             choices = type(self).ADVANCED
 
@@ -108,8 +103,8 @@ class Reactions:
                 self.owner.data.ign,
                 priorities.ANTI_DETECTION,
                 block_lower_priority=True,
-                args=(self.reader.read(HANDLE), selected),
-                kwargs={"keys": self.reader.read(CHAT_KEYS)},
+                args=(self.owner.read(HANDLE), selected),
+                kwargs={"keys": self.owner.read(CHAT_KEYS)},
                 discord_request=disc_alert,
             )
         )

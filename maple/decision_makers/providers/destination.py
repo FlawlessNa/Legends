@@ -48,7 +48,7 @@ from maple.telemetry_events import MOVEMENT_TARGET_REACHED, target_reached_paylo
 
 from .client import FRAME
 from .map import POSITION_FUSION, WORLD_MAP
-from .minimap import POSITION
+from .minimap import POSITION, position_or_unsure
 from .mobs import MOBS
 from .on_screen import ON_SCREEN_POSITION
 
@@ -236,7 +236,8 @@ class DestinationProvider(Provider):
         """
         if not self.data.is_provided(ON_SCREEN_POSITION):
             return None
-        return self.data.get_last_known_value(ON_SCREEN_POSITION.name)
+        last_known = self.data.peek(ON_SCREEN_POSITION)
+        return self.data.read(ON_SCREEN_POSITION) or last_known
 
     def _step_towards_mobs(
         self, mobs: list[Sequence[int]], frame: Frame, target: Point
@@ -316,15 +317,8 @@ class DestinationProvider(Provider):
         return reachable_platforms(self.data)
 
     def _position(self) -> Reading[VirtualPosition]:
-        """
-        `POSITION`, read when it is stale; `UNSURE`, without a read, on a map no
-        position is read on (with no minimap), where a read could only fail
-        into the minimap's error handler.
-        """
-        world_map = self.read(WORLD_MAP)
-        if world_map is None or world_map.minimap is None:
-            return Reading.unsure(0.0, "no position is read on this map")
-        return self.read(POSITION)
+        """The character's position, as `position_or_unsure` reads it."""
+        return position_or_unsure(self)
 
     def _emit_target_reached(self, position: Point, target: Point) -> None:
         """

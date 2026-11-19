@@ -40,7 +40,8 @@ half-built graph.
 
 import functools
 import logging
-from typing import Any
+from collections.abc import Callable, Sequence
+from typing import Any, NamedTuple
 
 from botting import PARENT_LOG
 from botting.core import HANDLE, BotData, Key, Provider
@@ -324,28 +325,21 @@ class PathingProvider(Provider):
         handler = self.read(MOVEMENT_HANDLER)
         if handler is None:
             return None
-        reading: Reading[VirtualPosition] = self.read(POSITION)
-        if reading.value is None:
-            logger.debug("No Path: the position is unsure (%s).", reading.detail)
-            return None
-        physics = self.physics()
-        graph = handler.ready_graph(physics)
-        if graph is None:
-            logger.debug("No Path: the foothold graph of the current stats builds.")
-            return None
         world_map = self.read(WORLD_MAP)
         assert world_map is not None, "a handler is made only on a known map"
-        target = self.read(DESTINATION)
+        planned = plan_path(
+            handler,
+            self.read(POSITION),
+            world_map,
+            physics=self.physics,
+            target=lambda: self.read(DESTINATION),
+        )
+        if planned is None:
+            return None
         # The frame the Path starts from: the compile leads the plan by how far
         # the character has walked since (`compiler`).
-        self._path_read_at = reading.frame_time
-        return handler.compute_path(
-            (float(reading.value.x), float(reading.value.y)),
-            (float(target[0]), float(target[1])),
-            physics,
-            graph=graph,
-            resolution=read_resolution(reading.value, world_map),
-        )
+        self._path_read_at = planned.read_at
+        return planned.path
 
     def _plan_movements(self) -> MovementPlan:
         """The Movement Plan of the current Path; empty with no handler."""
@@ -367,6 +361,56 @@ PATH: Key[Path | None] = Key("path", PathingProvider)
 MOVEMENTS: Key[MovementPlan] = Key("movements", PathingProvider)
 #: Whether every key still held at the end of a Movement Plan is released.
 ALWAYS_RELEASE_KEYS: Key[bool] = Key("always_release_keys", PathingProvider)
+
+
+class PlannedPath(NamedTuple):
+    """A Path planned from a position read (`plan_path`)."""
+
+    #: The Path, or None when none joins the position to the target.
+    path: Path | None
+    #: When the frame the Path starts from was captured: a compile leads the
+    #: plan by how far the character has walked since.
+    read_at: float
+
+
+def plan_path(
+    handler: MovementHandler,
+    reading: Reading[VirtualPosition],
+    world_map: WorldMap,
+    *,
+    physics: Callable[[], VRPhysics],
+    target: Callable[[], Sequence[float]],
+) -> PlannedPath | None:
+    """
+    The Path from `reading` to the target, on `handler`'s graph of the current
+    physics: how `PathingProvider` plans, and the movement playground with it.
+
+    `None` holds, planning nothing: the position is unsure, or the graph of the
+    current physics still builds (#430). A coarse position plans with no walk
+    inside its read (`read_resolution`, #516).
+    :param world_map: The map `handler` plans on.
+    :param physics: The physics to plan with, asked once the position is sure.
+    :param target: Where the Path ends, in virtual px, asked once a graph is
+        ready: reading it can refresh it (`DESTINATION`), which a cycle that
+        holds must not.
+    """
+    if reading.value is None:
+        logger.debug("No Path: the position is unsure (%s).", reading.detail)
+        return None
+    planned_with = physics()
+    graph = handler.ready_graph(planned_with)
+    if graph is None:
+        logger.debug("No Path: the foothold graph of the current stats builds.")
+        return None
+    end = target()
+    path = handler.compute_path(
+        (float(reading.value.x), float(reading.value.y)),
+        (float(end[0]), float(end[1])),
+        planned_with,
+        graph=graph,
+        resolution=read_resolution(reading.value, world_map),
+    )
+    return PlannedPath(path, reading.frame_time)
 
 
 def actionable(plan: MovementPlan | None) -> bool:
