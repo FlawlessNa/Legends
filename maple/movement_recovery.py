@@ -14,7 +14,7 @@ nothing live: a position, a clock reading, the target, the freshly recomputed Pa
 remaining time, the Movement Plan, and how many movement Steps were delivered since
 the last cycle.
 It answers with what the loop should do. The DecisionMaker on the other side
-(`maple/decision_makers/mixins/_recovery_mixins.py`) holds the plumbing and no
+(`maple/decision_makers/recovery.py`) holds the plumbing and no
 judgement, which is what makes every symptom's firing and every rung's advance
 checkable offline.
 

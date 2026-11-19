@@ -1,6 +1,7 @@
 """
 `MobsHitting` and `TelecastMobsHitting` on the framework (#439): what they
-declare, the cast they send, and the order a decision takes its turn in.
+declare, the cast they send, and the order a decision takes its turn in; and
+the telecast's read of the rotation's plan (#442).
 
 A decision runs against stand-ins for its keys and its gate: no game client,
 no Manager, no Main Process.
@@ -23,9 +24,14 @@ from maple.decision_makers.providers import (
     FRAME,
     HANDLE,
     MOBS,
+    MOVEMENTS,
     ON_SCREEN_POSITION,
 )
 from maple.decision_makers.providers.on_screen import OnScreenPositionProvider
+from maple.model.mechanics.movement_mechanics_v2 import (
+    MovementTypes,
+    _MovementComponent,
+)
 
 IGN = "Tester"
 CHARACTER_BOX = (90, 40, 110, 70)
@@ -213,3 +219,59 @@ def test_on_start_frees_the_gate(mocker: MockerFixture) -> None:
     hitting.on_start()
 
     assert log == ["reset"]
+
+
+# --- the telecast reads the rotation's plan (#442) -----------------------------
+
+
+def _telecast(
+    mocker: MockerFixture, log: list[str], plan: tuple[object, ...]
+) -> tuple[TelecastMobsHitting, list[tuple[str | None, bool]]]:
+    """A `TelecastMobsHitting` past `setup()`, whose plan is `plan`, and the
+    compiles it asked `PathingProvider` for."""
+    hitting = _hitting(mocker, log)
+    telecast: Any = object.__new__(TelecastMobsHitting)
+    telecast.__dict__.update(hitting.__dict__)
+    reads = hitting.read
+    telecast.read = lambda key: plan if key is MOVEMENTS else reads(key)
+    telecast._teleport_skill = SimpleNamespace(name="Teleport")
+    compiles: list[tuple[str | None, bool]] = []
+    telecast._pathing = SimpleNamespace(
+        compiler=lambda correlation_id, *, lead=True: compiles.append(
+            (correlation_id, lead)
+        )
+    )
+    telecast.emit = lambda *args, **kwargs: None
+    return telecast, compiles
+
+
+def test_the_telecast_reads_the_rotations_plan() -> None:
+    assert MOVEMENTS in TelecastMobsHitting.reads
+    assert set(MobsHitting.reads) <= set(TelecastMobsHitting.reads)
+
+
+def test_a_plan_that_teleports_is_compiled_by_the_pathing_with_no_lead(
+    mocker: MockerFixture,
+) -> None:
+    """The Path is the rotation's: no frame of the telecast's own to lead from."""
+    log: list[str] = []
+    teleport = _MovementComponent(MovementTypes.TELEPORT_RIGHT, 1)
+    telecast, compiles = _telecast(mocker, log, (teleport,))
+
+    _decide(telecast)
+
+    assert compiles == [("decision", False)]
+    assert log == ["enter", "ladder", "count", "send"]
+
+
+def test_a_plan_with_no_teleport_casts_as_mob_hitting_does(
+    mocker: MockerFixture,
+) -> None:
+    log: list[str] = []
+    walk = _MovementComponent(MovementTypes.WALK_RIGHT, 80)
+    telecast, compiles = _telecast(mocker, log, (walk,))
+
+    _decide(telecast)
+
+    assert compiles == []
+    assert log == ["enter", "ladder", "count", "send"]

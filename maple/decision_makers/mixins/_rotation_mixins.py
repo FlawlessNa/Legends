@@ -1,13 +1,11 @@
 import functools
 import logging
-from collections.abc import Callable
-from typing import Protocol
 
 from botting import PARENT_LOG
 from botting.core import BotData
 from botting.screen import Reading
-from maple.decision_makers.pathing import current_physics, read_resolution
 from maple.decision_makers.providers.destination import DestinationProvider
+from maple.decision_makers.providers.pathing import read_resolution
 from maple.model.characters.maple_skills import MapleSkill
 from maple.model.mechanics import (
     MovementHandler,
@@ -64,66 +62,18 @@ def _has_destination(data: BotData) -> bool:
     return data.providers is not None and DestinationProvider in data.providers
 
 
-def planned_movements(data: BotData) -> tuple[_MovementComponent, ...] | None:
-    """
-    The Movement Plan the rotation planned last, planned again when stale;
-    None when no DecisionMaker of the Bot plans one (`MovementsMixin`).
-
-    For a DecisionMaker ported off the mixins that reads the rotation's plan
-    (`TelecastMobsHitting`), until a Provider serves it (#442).
-    """
-    if not data.has_pathing_attributes:
-        return None
-    return data.movements
-
-
-def movement_compiler(
-    data: BotData,
-    physics: VRPhysics,
-    *,
-    read_at: float | None,
-    correlation_id: str | None,
-) -> functools.partial:
-    """
-    The current Movement Plan's compile, its inputs frozen into a picklable
-    callable (`MovementsMixin._movement_compiler`, which says why).
-    :param data: The Bot's data, whose plan, handle, character and pathing
-        statics are frozen.
-    :param physics: The character's physics now.
-    :param read_at: When the frame the Path was planned from was captured: the
-        compile leads the plan by how far the character has walked since. None
-        gives no lead.
-    :param correlation_id: The decision it belongs to.
-    """
-    return functools.partial(
-        compile_movements,
-        movements=data.movements,
-        handle=data.handle,
-        ign=data.ign,
-        speed=physics.walk_speed,
-        climb_speed=physics.climb_speed,
-        teleport=data.character.skills.get("Teleport"),
-        total_duration=data.action_duration,
-        always_release=data.always_release_keys,
-        walk_acceleration=physics.walk_acceleration,
-        walk_deceleration=physics.walk_deceleration,
-        read_at=read_at,
-        # Baked in here, inside `_decide()`: the compile runs in Main Process,
-        # where only this partial knows which decision it belongs to (ADR 0001).
-        # The sequence's key records carry it (#538).
-        correlation_id=correlation_id,
-    )
-
-
 class MovementsMixin:
     """
-    Plans a Path on the map's `FootholdGraph`, from the character's virtual
-    position (`current_position`) to the target, and ships its Movement Plan.
+    Legacy: plans a Path on the map's `FootholdGraph`, from the character's
+    virtual position (`current_position`) to the target, and ships its Movement
+    Plan. `PathingProvider` does this for every ported DecisionMaker (#442);
+    this stays for the movement playground, which plans to a target of its
+    own, and the parked `InventoryManager`, and goes with the last mixin. A Bot
+    that builds `PathingProvider` cannot use it: the Provider owns the names.
 
     **The target.** `_virtual_target` gives it in virtual px: `next_target`,
-    `DESTINATION` by its legacy name, which `DestinationProvider` picks on the
-    map's platforms (#398), or whoever claims it serves (`TrialRunner`, whose
-    driver owns it, plans through a `MovementPlanner`).
+    `DESTINATION` by its legacy name, unless a subclass gives its own (the
+    movement playground).
 
     **An unsure position holds.** When `current_position` is `UNSURE` (the
     minimap placed no character: its marker unplaced, say), no Path is planned
@@ -262,7 +212,15 @@ class MovementsMixin:
 
     def _physics(self) -> VRPhysics:
         """The character's physics, with its current speed and jump stats."""
-        return current_physics(self.data)
+        values = getattr(self.data, "game_physics", None)
+        if values is None:
+            raise ValueError("no game physics: the bot's map isn't known")
+        return VRPhysics.from_game_files(
+            values,
+            speed_multiplier=self.data.speed_multiplier,
+            jump_multiplier=self.data.jump_multiplier,
+            calibration=getattr(self.data, "calibration", None),
+        )
 
     def _virtual_target(self) -> Point:
         """The target, in virtual px: `next_target` (see the class docstring)."""
@@ -329,77 +287,21 @@ class MovementsMixin:
         rest, at dispatch (`compile_movements`, `_time_walks`). A host whose
         plan was not planned here (no Path read) gets no lead.
         """
-        return movement_compiler(
-            self.data,
-            self._physics(),
+        physics = self._physics()
+        return functools.partial(
+            compile_movements,
+            movements=self.data.movements,
+            handle=self.data.handle,
+            ign=self.data.ign,
+            speed=physics.walk_speed,
+            climb_speed=physics.climb_speed,
+            teleport=self.data.character.skills.get("Teleport"),
+            total_duration=self.data.action_duration,
+            always_release=self.data.always_release_keys,
+            walk_acceleration=physics.walk_acceleration,
+            walk_deceleration=physics.walk_deceleration,
             read_at=getattr(self, "_path_read_at", None),
+            # Baked in here, inside `_decide()`: the compile runs in Main Process,
+            # where only this partial knows which decision it belongs to (ADR 0001).
             correlation_id=getattr(self, "correlation_id", None),
         )
-
-
-class _Owner(Protocol):
-    """Who a `MovementPlanner` plans for: names it, and its decision in flight."""
-
-    correlation_id: str | None
-
-
-class MovementPlanner(MovementsMixin):
-    """
-    `MovementsMixin`'s planning, held by a DecisionMaker ported off the mixins
-    rather than inherited (`TrialRunner`), until a Provider serves the pathing
-    data (#442). It plans to `DESTINATION`, as the mixin does, and names itself
-    and its decision after its owner. Goes with the mixin.
-    """
-
-    def __init__(
-        self,
-        owner: _Owner,
-        data: BotData,
-        *,
-        teleport: Callable[[], bool] = lambda: True,
-    ) -> None:
-        """
-        :param owner: The DecisionMaker it plans for.
-        :param teleport: Whether Paths may cast the character's teleport skill
-            now (a Trial batch planned without it says no).
-        """
-        self.owner = owner
-        self.data = data
-        self._teleport = teleport
-
-    def __repr__(self) -> str:
-        return repr(self.owner)
-
-    @property
-    def correlation_id(self) -> str | None:
-        """The owner's decision in flight, which its compile carries."""
-        return self.owner.correlation_id
-
-    def create(
-        self,
-        duration: float,
-        *,
-        narrow_platform_threshold: float | None = None,
-        edge_departure_threshold: float | None = None,
-    ) -> None:
-        """Make, or remake, the pathing data (`_create_pathing_attributes`)."""
-        self._create_pathing_attributes(
-            duration,
-            narrow_platform_threshold=narrow_platform_threshold,
-            edge_departure_threshold=edge_departure_threshold,
-        )
-
-    def physics(self) -> VRPhysics:
-        """The character's physics now."""
-        return self._physics()
-
-    def has_movements(self) -> bool:
-        """Whether the current Movement Plan compiles to anything."""
-        return self._has_movements()
-
-    def compiler(self) -> functools.partial:
-        """The current Movement Plan's compile (`_movement_compiler`)."""
-        return self._movement_compiler()
-
-    def _teleport_skill(self) -> MapleSkill | None:
-        return super()._teleport_skill() if self._teleport() else None

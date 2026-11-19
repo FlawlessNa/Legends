@@ -13,6 +13,7 @@ from maple.decision_makers import (
     MobsHitting,
     MountFood,
     PetFood,
+    Rotation,
     SoloRebuff,
     SpeedPill,
     TelecastMobsHitting,
@@ -30,6 +31,7 @@ PORTED = (
     ChatReplies,
     CheckMobsStillSpawn,
     TrialRunner,
+    Rotation,
 )
 
 

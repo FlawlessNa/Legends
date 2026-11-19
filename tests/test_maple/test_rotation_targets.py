@@ -10,31 +10,33 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 import pytest
 
 from botting.core import BotData, Providers, StartupRefused
 from botting.logging_config import bucket_for
 from botting.screen import Reading
-from maple.decision_makers.mixins import MovementsMixin
 from maple.decision_makers.mobs_hitting import MobsHitting
-from maple.decision_makers.pathing import reachable_platforms, read_position
 from maple.decision_makers.providers import (
     DESTINATION,
     POSITION,
+    WORLD_MAP,
     DestinationProvider,
     MapProvider,
     MinimapProvider,
+    PathingProvider,
     wander,
 )
 from maple.decision_makers.providers import destination as destination_module
+from maple.decision_makers.recovery import MovementRecovery
 from maple.model.navigation import FootholdGraph
 from maple.model.world import WorldMap
 from maple.screen.position import PositionSource, VirtualPosition
 from maple.telemetry_events import MOVEMENT_TARGET_REACHED
 from tests.test_maple.movement_lab import corpus
 from tests.test_maple.movement_lab.fixture_maps import portal_pair, rope_grab
-from tests.test_maple.serving import destination
+from tests.test_maple.serving import destination, pathing
 
 #: A floor 0-300 at y 0, a floor 600-900 at y -400, and a portal from the
 #: lower to the upper only: from the upper floor, the lower one is unreachable.
@@ -46,20 +48,12 @@ class _Character:
     skills: dict[str, object] = {}  # noqa: RUF012
 
 
-class _Planner(MovementsMixin):
-    """The rotation's planning half, over a real `BotData`: it plans to
-    `DESTINATION`, by its legacy name."""
-
-    def __init__(self, data: BotData) -> None:
-        self.data = data
-
-
 @dataclass
 class _Rotation:
-    """The rotation's two halves: the destination's Provider, and the planner."""
+    """The rotation's two Providers: its destination, and the pathing to it."""
 
     provider: DestinationProvider
-    planner: _Planner
+    planner: PathingProvider
 
     @property
     def data(self) -> BotData:
@@ -69,9 +63,6 @@ class _Rotation:
 def _data() -> BotData:
     data = BotData("T")
     data.set_static("ign", "T")
-    data.set_static("character", _Character())
-    data.set_static("speed_multiplier", 1.0)
-    data.set_static("jump_multiplier", 1.0)
     return data
 
 
@@ -94,17 +85,16 @@ def _rotation(
     at: Callable[[], Reading[VirtualPosition]], *, wait: bool = True
 ) -> _Rotation:
     """
-    Destinations made before planning: the first is drawn blind, as the
-    Provider is set up before any DecisionMaker. The graph builds off the loop
-    from the pathing attributes on (#430); until it is built, destinations are
-    drawn blind too. `wait` waits for it, as a Session does after its first
-    seconds.
+    Destinations made before planning: the first is drawn blind, as
+    `DestinationProvider` is set up before the pathing that plans to it. The
+    graph builds off the loop from the pathing's setup on (#430); until it is
+    built, destinations are drawn blind too. `wait` waits for it, as a Session
+    does after its first seconds.
     """
     provider = _destination(PORTALS, at)
-    planner = _Planner(provider.data)
-    planner._create_pathing_attributes(1.0)
+    planner = pathing(PORTALS, at, data=provider.data, character=_Character())
     if wait:
-        planner.data.movement_handler.graph(planner._physics())
+        planner.data.movement_handler.graph(planner.physics())
     return _Rotation(provider, planner)
 
 
@@ -131,12 +121,12 @@ def test_a_target_is_drawn_blind_while_the_graph_builds(
         asked = time.perf_counter()
         rotation.data.update_attribute("next_target")
         assert time.perf_counter() - asked < 1.0  # the build is held for up to 5 s
-        assert reachable_platforms(rotation.data) is None
+        assert rotation.planner.reachable_platforms() is None
     finally:
         release.set()
 
-    rotation.data.movement_handler.graph(rotation.planner._physics())
-    assert reachable_platforms(rotation.data) == (UPPER,)
+    rotation.data.movement_handler.graph(rotation.planner.physics())
+    assert rotation.planner.reachable_platforms() == (UPPER,)
 
 
 def test_a_rotation_needs_the_bots_map() -> None:
@@ -220,16 +210,27 @@ def test_abandon_does_nothing_while_the_destination_is_claimed() -> None:
 
 
 def test_no_position_is_read_on_a_map_with_no_minimap() -> None:
-    """A read there could only fail into the minimap's error handler."""
+    """
+    Movement recovery reads no position there: a read could only fail into the
+    minimap's error handler.
+    """
     reads: list[int] = []
     data = BotData("T")
-    data.set_static("world_map", WorldMap(**{**_fields(PORTALS), "minimap": None}))
-    data.create_attribute(
-        "current_position", lambda: reads.append(1) or _fused(0.0, 0.0)
+    data.provide(
+        WORLD_MAP,
+        object.__new__(MapProvider),
+        lambda: WorldMap(**{**_fields(PORTALS), "minimap": None}),
+    )
+    data.provide(
+        POSITION,
+        object.__new__(MinimapProvider),
+        lambda: reads.append(1) or _fused(0.0, 0.0),
     )
     reads.clear()
+    holder = SimpleNamespace(data=data, read=data.read)
+    recovery = MovementRecovery(holder, physics=lambda: corpus.LAB_PHYSICS)  # pyright: ignore[reportArgumentType] - a holder that only reads
 
-    reading = read_position(data)
+    reading = recovery._position()
 
     assert reading.value is None
     assert reads == []

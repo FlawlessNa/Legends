@@ -51,6 +51,15 @@ class TurnGate:
         """Leave the gate from the Engine, for a decision that sent nothing."""
         await asyncio.to_thread(self._lock.release)
 
+    def leave_now(self) -> None:
+        """
+        Leave the gate from the Engine without yielding, for a decision that
+        sent nothing and must not give the event loop away before it ends
+        (`Rotation`'s, which always released its lock so). The proxy call
+        blocks the loop for its round trip.
+        """
+        self._lock.release()
+
     @property
     def releaser(self) -> Callable[[], None]:
         """What leaves the gate from Main Process: the lock's `release`, for an

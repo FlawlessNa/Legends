@@ -4,6 +4,7 @@ import threading
 
 from botting.core import BotData, ProxyFactory
 from maple.actions import ensure_ability_menu_displayed
+from maple.decision_makers.providers.pathing import MOVEMENTS
 from maple.decision_makers.providers.status_bar import StatusBarProvider
 from maple.model.interface import AbilityMenu, InventoryMenu
 
@@ -46,11 +47,11 @@ class MenusMixin:
             "jump_multiplier",
             lambda: menu.get_jump(self.data.handle, self.data.current_frame.pixels),
         )
-        if self.data.has_pathing_attributes:
+        if self.data.is_provided(MOVEMENTS):
             # Refresh the Movement Plan with the new speed and jump multipliers.
             # Nothing is compiled before dispatch, so `movements` is the live
             # path's downstream attribute.
-            self.data.update_attribute("movements")
+            self.data.refresh(MOVEMENTS)
 
         ensure_ability_menu_displayed(
             **self._display_kwargs(f"{self} - Ability Menu Setup", 2.0, condition),

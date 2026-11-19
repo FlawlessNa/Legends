@@ -6,7 +6,7 @@ The terms are defined in `CONTEXT.md` ("Decision-making"); use them.
 The framework is being built by epic #432.
 What exists today: the Supervisor, Pauses, Data Keys, Providers, Claims, Signals, assembly and the crash policy.
 MapleStory's keys and Providers are in `maple/decision_makers/providers/`, one module per Provider; its package docstring lists them.
-`CheckStillInMap` is the first DecisionMaker ported, and the worked example below; `MobsHitting`, `SoloRebuff`, the consumables, `ChatReplies`, `CheckMobsStillSpawn` and `TrialRunner` are ported too.
+`CheckStillInMap` is the first DecisionMaker ported, and the worked example below; `MobsHitting`, `SoloRebuff`, the consumables, `ChatReplies`, `CheckMobsStillSpawn`, `TrialRunner` and `Rotation` are ported too.
 Until each is ported, an old-style DecisionMaker keeps its mixins, and the two kinds run side by side in one Bot.
 
 ## The shape
@@ -178,6 +178,7 @@ class Rebuffer(DecisionMaker):
 - A DecisionMaker that must send one Action at a time holds a `TurnGate` (the Turn Gate, `CONTEXT.md`), made in `setup()` over its Manager lock: `TurnGate(self._proxies.instance(repr(self), "Lock"))`.
   `await gate.enter()` waits for its turn without blocking the event loop (`gate.try_enter()` takes it only when it is free), `gate.releaser` goes in the Action's `callbacks` so Main Process leaves the gate once the Action is done, `await gate.leave()` leaves it for a decision that sends nothing, and `on_start()` calls `gate.reset()`.
   `MobsHitting` is the example.
+  `gate.leave_now()` leaves it without yielding, for a decision that must not give the event loop away before it ends (`Rotation`).
 
 ## Signals
 
@@ -229,7 +230,7 @@ class Looter(DecisionMaker):
 - `create_attribute`, `create_or_reconfigure_attribute` and `set_static` on a name a Provider owns raise `OwnedByProvider`: one producer per key.
 - `_disable_decision_makers` and `_enable_decision_makers` remain as a shim for unported code only, with their old semantics.
 - `NextTargetMixin._set_fixed_target` remains for unported code only (the parked `InventoryManager`): an unscoped hijack of `DESTINATION` through `snapshot_attribute`. A ported DecisionMaker claims the key instead.
-- The other way round, a ported DecisionMaker that needs data an unported one still makes reads it through a plain function beside that one's mixin, which the mixin uses too, and which goes with it: `TelecastMobsHitting` reads the rotation's Movement Plan with `planned_movements(data)` until Rotation's port gives it a Provider.
+- The other way round, a ported DecisionMaker that needs data an unported one still makes reads it through a plain function beside that one's mixin, which the mixin uses too, and which goes with it: `TelecastMobsHitting` read the rotation's Movement Plan so until `Rotation`'s port gave it `PathingProvider` (ADR 0004).
   It does not keep the mixin in its hierarchy for it.
 
 ## A worked example: porting `CheckStillInMap`
