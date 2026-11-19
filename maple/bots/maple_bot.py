@@ -101,7 +101,9 @@ class MapleBot(Bot, ABC):
         refuse_mobs(kwargs.pop("mobs", None))
         # Read here, in Main Process, so a bad `rotation` ends the launch with
         # one line; the Destination Provider reads it again, to the same answer.
-        rotation_name(kwargs)
+        #: The rotation the profile names (`rotation_name`): a Bot decides which
+        #: DecisionMakers it runs by it.
+        self.rotation: str = rotation_name(kwargs)
         super().__init__(ign, metadata, **kwargs)
         # Read once, here: a malformed `Chat Keys` refuses the start, rather than
         # after a failsafe reaction or a Discord WRITE. DecisionMakers take them

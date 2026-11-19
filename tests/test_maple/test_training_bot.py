@@ -39,6 +39,7 @@ from maple.actions.menus import toggle_minimap
 from maple.bots import maple_bot
 from maple.bots.training import TrainingBot
 from maple.decision_makers import (
+    AreaWatch,
     ChatReplies,
     CheckMobsStillSpawn,
     CheckStillInMap,
@@ -433,3 +434,29 @@ def test_with_chat_replies_false_it_starts_and_the_gm_alarm_still_fires(
         if any(p.holder == USER for p in bot.supervisor.held(c))
     }
     assert paused == set(bot._decision_makers()) - {ChatReplies}  # pyright: ignore[reportPrivateUsage]
+
+
+# --- the area watch, on the Hunting Area rotation only (#580) --------------------------
+
+
+@pytest.mark.parametrize(
+    ("settings", "watched"),
+    [
+        ({"rotation": "hunting_area"}, True),
+        ({"rotation": "smart"}, False),
+        ({"rotation": "random"}, False),
+        ({"smart_rotation_enabled": True}, False),
+        ({}, False),
+    ],
+)
+def test_the_area_watch_runs_only_on_the_hunting_area_rotation(
+    start: Any,  # noqa: ANN401
+    settings: dict[str, Any],
+    watched: bool,
+) -> None:
+    bot, _, _, _ = start(**settings)
+
+    makers = bot._decision_makers()  # pyright: ignore[reportPrivateUsage]
+
+    assert (AreaWatch in makers) is watched
+    assert ChatReplies in makers
