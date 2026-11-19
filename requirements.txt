@@ -47,5 +47,12 @@ PyYAML==6.0.3
 discord.py==2.7.1
 audioop-lts==0.2.2
 
+# --- Language model (chat replies) --------------------------------------------
+# botting/llm.py. Credentials are the SDK's own (ANTHROPIC_API_KEY, or an
+# `ant auth login` profile); nothing is read from a config file.
+anthropic==2.6.0
+# Imported directly by botting/llm.py; also pulled in by anthropic.
+pydantic==2.14.3
+
 fuzzywuzzy==0.18.0
 Levenshtein==0.27.4

@@ -159,6 +159,14 @@ is covered in [FIRST_BOT.md](FIRST_BOT.md).
 
 **`recordings.ini`** — where session videos go. Point it at a drive with room.
 
+**Chat replies** - a training bot answers players who talk to it, through
+Claude Haiku 5.5, and refuses to start when it can't reach the model.
+Give it credentials the Anthropic SDK finds on its own: the
+`ANTHROPIC_API_KEY` environment variable, or an `ant auth login` profile.
+No key goes in a config file.
+To run without replies, set `chat_replies: false` in the profile's `settings`
+(`profiles/example.yaml`); the GM alarm still runs.
+
 ### Shared config you may still need to touch
 
 `configs/game.ini` is tracked, because it describes the *server*, not you:

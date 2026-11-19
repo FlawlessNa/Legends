@@ -177,7 +177,7 @@ def _replay(approach: _Approach, physics: VRPhysics, *, fixed: bool) -> _Replay:
     The Trial's loop from its last long walk to arrival, the character
     walking at full speed towards the target with its key down.
 
-    `fixed`: compile as `MovementsMixin` now does (the walk's dynamics and the
+    `fixed`: compile as `PathingProvider` does (the walk's dynamics and the
     read's time); otherwise as the live run did, a walk timed by its length.
     """
     way = 1 if approach.target > approach.start else -1

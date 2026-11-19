@@ -11,17 +11,31 @@ import asyncio
 import json
 import math
 import queue
+import threading
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from types import SimpleNamespace
 from typing import cast
 
 import numpy as np
 
-from botting.core import ActionRequest, BotData
+from botting.core import ActionRequest, BotData, TurnGate, WindowProvider
 from botting.screen import Reading
 from maple.decision_makers import StateSnapshot
-from maple.decision_makers.mixins import MovementsMixin, NextTargetMixin
+from maple.decision_makers.providers import (
+    DESTINATION,
+    HANDLE,
+    MOVEMENTS,
+    ON_SCREEN_POSITION,
+    POSITION,
+    WORLD_MAP,
+    DestinationProvider,
+    MapProvider,
+    MinimapProvider,
+    OnScreenPositionProvider,
+    PathingProvider,
+)
+from maple.decision_makers.recovery import MovementRecovery
 from maple.decision_makers.rotation import Rotation
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
@@ -38,6 +52,7 @@ from maple.telemetry_events import (
     target_reached_payload,
 )
 from tests.test_maple.movement_lab.fixture_maps import walk_corridor
+from tests.test_maple.serving import destination, override
 
 #: A map whose minimap transform is centre (1000, 1000), `mag` 4.
 WORLD = WorldMap.from_map_data(walk_corridor())
@@ -46,6 +61,8 @@ PLAN = (
     _MovementComponent(MovementTypes.WALK_RIGHT, cast("int", np.int64(80))),
     _MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),
 )
+#: A plan of nothing but the sentinel: nothing to send.
+SENTINEL = (_MovementComponent(MovementTypes.END_OF_MOVEMENT, 0),)
 
 #: Where a marker at canvas px (3, 5) puts the feet on `WORLD`, and (20, 5):
 #: `canvas * 16 - 1000 + 8`, the marker moved down its 6 rows.
@@ -250,16 +267,22 @@ def test_state_snapshot_reads_the_cache_without_updating() -> None:
     """
     calls: list[str] = []
     data = BotData("TestBot")
-    data.set_static("world_map", WORLD)
-    data.create_attribute(
-        "current_position", lambda: calls.append("pos") or _fused(FEET_AT_3_5)
+    data.provide(WORLD_MAP, object.__new__(MapProvider), lambda: WORLD)
+    data.provide(
+        POSITION,
+        object.__new__(MinimapProvider),
+        lambda: calls.append("pos") or _fused(FEET_AT_3_5),
     )
-    data.create_attribute("next_target", lambda: calls.append("target") or FEET_AT_20_5)
-    data.create_attribute(
-        "current_on_screen_position", lambda: calls.append("screen") or (0, 0, 2, 2)
+    data.provide(
+        DESTINATION,
+        object.__new__(DestinationProvider),
+        lambda: calls.append("target") or FEET_AT_20_5,
     )
-    for name in ("current_position", "next_target", "current_on_screen_position"):
-        data.update_attribute(name)
+    data.provide(
+        ON_SCREEN_POSITION,
+        object.__new__(OnScreenPositionProvider),
+        lambda: calls.append("screen") or (0, 0, 2, 2),
+    )
     calls.clear()
 
     ((_, payload),) = _snapshot(data)
@@ -274,8 +297,12 @@ def test_state_snapshot_reads_the_cache_without_updating() -> None:
 
 def test_state_snapshot_of_an_unsure_position_has_no_position() -> None:
     data = BotData("TestBot")
-    data.set_static("world_map", WORLD)
-    data.create_attribute("current_position", lambda: Reading.unsure(0.0, "two"))
+    data.provide(WORLD_MAP, object.__new__(MapProvider), lambda: WORLD)
+    data.provide(
+        POSITION,
+        object.__new__(MinimapProvider),
+        lambda: Reading.unsure(0.0, "two"),
+    )
 
     ((_, payload),) = _snapshot(data)
 
@@ -289,64 +316,73 @@ def test_state_snapshot_of_an_unsure_position_has_no_position() -> None:
 _COMPILER = object()
 
 
-class _Loop:
-    """Stands in for the Rotation DecisionMaker, as the recovery wiring tests do."""
+class _Loop(Rotation):
+    """
+    A `Rotation` built without its Session: it reads the Bot's keys, served as
+    their Providers serve them, enters a gate that is always free, and keeps
+    what it sends and records.
+    """
 
-    def __init__(self, emit_works: bool) -> None:
+    def __init__(self, emit_works: bool) -> None:  # pyright: ignore[reportMissingSuperCall] - no Session
         data = BotData("TestBot")
-        data.set_static("handle", 1234)
-        data.set_static("world_map", WORLD)
-        data.create_attribute("next_target", lambda: FEET_AT_20_5)
-        data.create_attribute("movements", lambda: PLAN)
-        data.create_attribute("current_position", lambda: _fused(FEET_AT_3_5))
-        data.update_attribute("current_position")
-        self.data = data
-        self._world_map = lambda: MovementsMixin._world_map(self)  # pyright: ignore[reportArgumentType]
-        self._virtual_target = lambda: MovementsMixin._virtual_target(self)  # pyright: ignore[reportArgumentType]
-        self.lock = SimpleNamespace(
-            acquire=lambda blocking=False: True, release=lambda: None
+        data.provide(HANDLE, object.__new__(WindowProvider), lambda: 1234)
+        data.provide(WORLD_MAP, object.__new__(MapProvider), lambda: WORLD)
+        data.provide(
+            DESTINATION, object.__new__(DestinationProvider), lambda: FEET_AT_20_5
         )
-        self._delivery = queue.Queue()
+        data.provide(MOVEMENTS, object.__new__(PathingProvider), lambda: PLAN)
+        data.provide(
+            POSITION, object.__new__(MinimapProvider), lambda: _fused(FEET_AT_3_5)
+        )
+        self.data = data
+        self.correlation_id = None
+        self.gate = TurnGate(threading.Lock())
+        self._recovery = cast(
+            MovementRecovery,
+            SimpleNamespace(check=lambda now: None, delivered=queue.Queue().put_nowait),
+        )
+        self._pathing = cast(
+            PathingProvider, SimpleNamespace(compiler=lambda correlation_id: _COMPILER)
+        )
         self.sent: list[ActionRequest] = []
         self.emitted: list[tuple[str, Mapping[str, object]]] = []
-        self.send = self.sent.append
-        self.emit = (
-            (
-                lambda event_type, payload=None: self.emitted.append(
-                    (event_type, payload or {})
-                )
-            )
-            if emit_works
-            else (lambda event_type, payload=None: None)
-        )
-        self._emit_plan_started = lambda: Rotation._emit_plan_started(self)  # pyright: ignore[reportArgumentType]
-        self._recovery_check = lambda now: None
-        self._has_movements: Callable[[], bool] = lambda: True
-        self._compiler = _COMPILER
-        self._movement_compiler = lambda: self._compiler
+        self.emit_works = emit_works
 
     def __repr__(self) -> str:
         return "Rotation(TestBot)"
 
-    def _request(self) -> ActionRequest:
-        return Rotation._request(self)  # pyright: ignore[reportArgumentType]
+    def send(self, request: ActionRequest, correlation_id: str | None = None) -> None:
+        self.sent.append(request)
+
+    def emit(
+        self,
+        event_type: str,
+        payload: Mapping[str, object] | None = None,
+        correlation_id: str | None = None,
+    ) -> None:
+        if self.emit_works:
+            self.emitted.append((event_type, payload or {}))
 
 
 def _decide(loop: _Loop) -> None:
-    asyncio.run(Rotation._decide(loop))  # pyright: ignore[reportArgumentType]
+    asyncio.run(loop._decide())
 
 
 def test_rotation_emits_plan_started_before_sending() -> None:
     loop = _Loop(emit_works=True)
     order: list[str] = []
-    loop.send = lambda request: order.append("send")
-    emit = loop.emit
+    send, emit = loop.send, loop.emit
+
+    def sent(request: ActionRequest, correlation_id: str | None = None) -> None:
+        order.append("send")
+        send(request)
 
     def traced(event_type: str, payload: Mapping[str, object] | None = None) -> None:
         order.append("emit")
         emit(event_type, payload)
 
-    loop.emit = traced
+    loop.send = sent  # pyright: ignore[reportAttributeAccessIssue] - traced
+    loop.emit = traced  # pyright: ignore[reportAttributeAccessIssue] - traced
 
     _decide(loop)
 
@@ -378,17 +414,18 @@ def test_the_action_request_is_the_same_with_telemetry_on_or_off() -> None:
 
 def test_plan_started_does_not_refresh_a_thresholded_attribute() -> None:
     """
-    Reading `data.current_position` past its threshold re-runs a position read.
+    Reading `POSITION` past its threshold re-runs a position read.
     Telemetry on the send path must read the cache instead.
     """
     loop = _Loop(emit_works=True)
     reads: list[int] = []
-    loop.data.reconfigure_attribute(
-        "current_position",
+    override(
+        loop.data,
+        POSITION,
         update_function=lambda: reads.append(1) or _fused(FEET_AT_3_5),
         threshold=0.001,
     )
-    loop.data.update_attribute("current_position")
+    loop.data.update_attribute(POSITION.name)
     reads.clear()
     time.sleep(0.01)  # past the threshold: a plain read would now refresh
 
@@ -409,8 +446,9 @@ def test_plan_started_takes_both_targets_from_one_read() -> None:
     """
     loop = _Loop(emit_works=True)
     reads = iter(range(0, 320, 16))
-    loop.data.reconfigure_attribute(
-        "next_target",
+    override(
+        loop.data,
+        DESTINATION,
         update_function=lambda: (FEET_AT_20_5[0] + next(reads), FEET_AT_20_5[1]),
         threshold=1e-9,
     )
@@ -430,7 +468,7 @@ def test_plan_started_takes_both_targets_from_one_read() -> None:
 
 def test_no_plan_started_when_there_is_nothing_to_send() -> None:
     loop = _Loop(emit_works=True)
-    loop._has_movements = lambda: False
+    override(loop.data, MOVEMENTS, update_function=lambda: SENTINEL)
 
     _decide(loop)
 
@@ -445,25 +483,26 @@ def test_no_plan_started_when_there_is_nothing_to_send() -> None:
 TARGET = (100.0, 0.0)
 
 
-class _Owner(NextTargetMixin):
-    def __init__(self, data: BotData) -> None:
-        self.data = data
+class _Owner:
+    """`DestinationProvider`, which judges arrival, and what it emitted."""
+
+    def __init__(self, provider: DestinationProvider) -> None:
+        self.data = provider.data
         self.emitted: list[tuple[str, Mapping[str, object]]] = []
-        self.emit = lambda event_type, payload=None: self.emitted.append(
+        provider.emit = lambda event_type, payload=None: self.emitted.append(  # type: ignore[method-assign]
             (event_type, payload or {})
         )
-        self.get_mobs_positions_in_img = lambda *a, **k: []
 
 
 def _owner(position: tuple[float, float], *, smart: bool = False) -> _Owner:
-    data = BotData("TestBot")
-    data.set_static("world_map", WORLD)
-    data.create_attribute("current_position", lambda: _fused(position))
-    owner = _Owner(data)
-    owner._create_rotation_attributes(
-        smart_rotation=smart, mob_count_threshold=2 if smart else None
+    provider = destination(
+        WORLD,
+        lambda: _fused(position),
+        smart_rotation_enabled=smart,
+        mob_count_threshold=2 if smart else None,
     )
-    data.next_target = TARGET
+    owner = _Owner(provider)
+    owner.data.store(DESTINATION, TARGET)
     return owner
 
 
@@ -476,7 +515,7 @@ def test_basic_rotation_emits_on_arrival_in_virtual_px() -> None:
     transform = WORLD.minimap
     assert transform is not None
 
-    owner.data.update_attribute("next_target")
+    owner.data.update_attribute(DESTINATION.name)
 
     ((event_type, payload),) = owner.emitted
     assert event_type == MOVEMENT_TARGET_REACHED
@@ -494,38 +533,36 @@ def test_basic_rotation_emits_on_arrival_in_virtual_px() -> None:
         "vy": 0.0,
         "virtual_distance": 30.0,
     }
-    assert owner.data.next_target != TARGET
-    assert WORLD.platform_at(owner.data.next_target) is not None
+    assert owner.data.read(DESTINATION) != TARGET
+    assert WORLD.platform_at(owner.data.read(DESTINATION)) is not None
 
 
 def test_basic_rotation_is_silent_while_travelling() -> None:
     owner = _owner((400.0, -20.0))
 
-    owner.data.update_attribute("next_target")
+    owner.data.update_attribute(DESTINATION.name)
 
     assert owner.emitted == []
-    assert owner.data.next_target == TARGET
+    assert owner.data.read(DESTINATION) == TARGET
 
 
 def test_an_unsure_position_holds_the_target() -> None:
     """Arrival can't be judged from a position nobody placed."""
     owner = _owner((100.0, 0.0))
-    owner.data.reconfigure_attribute(
-        "current_position", update_function=lambda: Reading.unsure(0.0, "two")
-    )
-    owner.data.update_attribute("current_position")
+    override(owner.data, POSITION, update_function=lambda: Reading.unsure(0.0, "two"))
+    owner.data.update_attribute(POSITION.name)
 
-    owner.data.update_attribute("next_target")
+    owner.data.update_attribute(DESTINATION.name)
 
     assert owner.emitted == []
-    assert owner.data.next_target == TARGET
+    assert owner.data.read(DESTINATION) == TARGET
 
 
 def test_smart_rotation_emits_once_on_arrival() -> None:
     owner = _owner((110.0, 0.0), smart=True)
 
-    owner.data.update_attribute("next_target")
-    owner.data.update_attribute("next_target")  # still dwelling: no second record
+    owner.data.update_attribute(DESTINATION.name)
+    owner.data.update_attribute(DESTINATION.name)  # still dwelling: no second record
 
     ((event_type, payload),) = owner.emitted
     assert event_type == MOVEMENT_TARGET_REACHED
@@ -536,6 +573,6 @@ def test_smart_rotation_is_silent_while_travelling() -> None:
     """Its arrival is 64 px (4 minimap px)."""
     owner = _owner((170.0, 0.0), smart=True)
 
-    owner.data.update_attribute("next_target")
+    owner.data.update_attribute(DESTINATION.name)
 
     assert owner.emitted == []

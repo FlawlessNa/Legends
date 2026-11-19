@@ -1,10 +1,142 @@
-from .action_data import ActionRequest, ActionWithValidation, DiscordRequest
-from .async_task_manager import AsyncTaskManager
-from .bot import Bot
-from .bot_data import BotData
-from .decision_maker import DecisionMaker
-from .engine import Engine
-from .metadata import MetadataNamespace
-from .peripherals_process import PeripheralsProcess
-from .proxy_factory import ProxyFactory
-from .session_manager import SessionManager
+"""
+The engine's core: Bots, DecisionMakers, their Supervisor, Data Keys, Claims and
+Signals, the game window's handle, the replies switch, and the processes a
+Session runs.
+
+Members load lazily (PEP 562): `from botting.core import Bot` imports `bot.py`
+when it is asked for, not before. Importing one light submodule, such as
+`botting.core.errors` for `StartupRefused`, runs this file, and an eager import
+of every member would load `bot.py` and `session_manager.py`, and through them
+the input modules (`botting.controller`). A tool that must send no input
+(`toolkit/position_check.py`) imports `StartupRefused` through
+`maple.screen.sprites`, so it would load them.
+"""
+
+from importlib import import_module
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .action_data import ActionRequest, ActionWithValidation, DiscordRequest
+    from .async_task_manager import AsyncTaskManager
+    from .bot import Bot
+    from .bot_data import BotData, OwnedByProvider
+    from .claims import Claim, ClaimHeld, ClaimNotDeclared, Source, fixed, following
+    from .data_keys import Key, KeyNotDeclared, Provider, Providers
+    from .decision_maker import (
+        DecisionLoop,
+        DecisionMaker,
+        PauseNotDeclared,
+        action_name,
+    )
+    from .engine import Engine
+    from .errors import DecisionMakerCrashed, StartupRefused
+    from .metadata import MetadataNamespace
+    from .peripherals_process import PeripheralsProcess
+    from .proxy_factory import ProxyFactory
+    from .replies import REPLIES_ON, RepliesProvider
+    from .session_manager import SessionManager
+    from .signals import Announcement, Signal, SignalBoard, SignalNotDeclared
+    from .supervisor import Pause, PauseTarget, Supervisor
+    from .turn_gate import TurnGate
+    from .window import HANDLE, WindowProvider
+
+__all__ = [
+    "HANDLE",
+    "REPLIES_ON",
+    "ActionRequest",
+    "ActionWithValidation",
+    "Announcement",
+    "AsyncTaskManager",
+    "Bot",
+    "BotData",
+    "Claim",
+    "ClaimHeld",
+    "ClaimNotDeclared",
+    "DecisionLoop",
+    "DecisionMaker",
+    "DecisionMakerCrashed",
+    "DiscordRequest",
+    "Engine",
+    "Key",
+    "KeyNotDeclared",
+    "MetadataNamespace",
+    "OwnedByProvider",
+    "Pause",
+    "PauseNotDeclared",
+    "PauseTarget",
+    "PeripheralsProcess",
+    "Provider",
+    "Providers",
+    "ProxyFactory",
+    "RepliesProvider",
+    "SessionManager",
+    "Signal",
+    "SignalBoard",
+    "SignalNotDeclared",
+    "Source",
+    "StartupRefused",
+    "Supervisor",
+    "TurnGate",
+    "WindowProvider",
+    "action_name",
+    "fixed",
+    "following",
+]
+
+#: Each public name, and the submodule that defines it.
+_MEMBERS: dict[str, str] = {
+    "ActionRequest": "action_data",
+    "ActionWithValidation": "action_data",
+    "DiscordRequest": "action_data",
+    "AsyncTaskManager": "async_task_manager",
+    "Bot": "bot",
+    "BotData": "bot_data",
+    "OwnedByProvider": "bot_data",
+    "Claim": "claims",
+    "ClaimHeld": "claims",
+    "ClaimNotDeclared": "claims",
+    "Source": "claims",
+    "fixed": "claims",
+    "following": "claims",
+    "Key": "data_keys",
+    "KeyNotDeclared": "data_keys",
+    "Provider": "data_keys",
+    "Providers": "data_keys",
+    "DecisionLoop": "decision_maker",
+    "DecisionMaker": "decision_maker",
+    "PauseNotDeclared": "decision_maker",
+    "action_name": "decision_maker",
+    "Engine": "engine",
+    "DecisionMakerCrashed": "errors",
+    "StartupRefused": "errors",
+    "MetadataNamespace": "metadata",
+    "PeripheralsProcess": "peripherals_process",
+    "ProxyFactory": "proxy_factory",
+    "REPLIES_ON": "replies",
+    "RepliesProvider": "replies",
+    "SessionManager": "session_manager",
+    "Announcement": "signals",
+    "Signal": "signals",
+    "SignalBoard": "signals",
+    "SignalNotDeclared": "signals",
+    "Pause": "supervisor",
+    "PauseTarget": "supervisor",
+    "Supervisor": "supervisor",
+    "TurnGate": "turn_gate",
+    "HANDLE": "window",
+    "WindowProvider": "window",
+}
+
+
+def __getattr__(name: str) -> Any:  # noqa: ANN401 - whichever member is asked for
+    """Import the submodule that defines `name`, once, and keep the member."""
+    submodule = _MEMBERS.get(name)
+    if submodule is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    member = getattr(import_module(f".{submodule}", __name__), name)
+    globals()[name] = member
+    return member
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *__all__})

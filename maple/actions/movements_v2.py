@@ -203,7 +203,12 @@ def single_jump(
 
     :param duration: The jump's flight, seconds from take-off (the jump key's
         press) to landing, as the `FootholdGraph` traced it from `VRPhysics`. The
-        jump key's tap counts towards it.
+        jump key's tap counts towards it, and so do the two `OVERHEAD`s the send
+        loop spends on the press and the release: the Step after the jump goes
+        out at the landing, so the walk or the jump after it starts on time
+        however loaded the machine is (#589). Before, every key after a jump
+        went down two `OVERHEAD`s late, and the second jump of a chain off a
+        ledge's open end went down past it.
     :param off_rope: The jump takes off sideways from a rope or a ladder. A climb
         key still down (`up` or `down`, a climb cut at the Action cap or the
         climb just before) comes up first, with the gap `jump_on_rope` leaves
@@ -237,8 +242,9 @@ def single_jump(
     else:
         for key in first_keys:
             structure.append(key, "keydown", next(controller.random_delay))
-    # The take-off is the jump key's press: its tap is already part of the flight.
-    flight = max(duration - structure.delays[-1], 0.0)
+    # The take-off is the jump key's press: its tap is already part of the flight,
+    # as is the `OVERHEAD` the send loop spends after the press and after the release.
+    flight = max(duration - structure.delays[-1] - 2 * controller.OVERHEAD, 0.0)
     if repeat_key is not None:
         structure.fill(
             repeat_key,

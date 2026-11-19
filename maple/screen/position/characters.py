@@ -208,6 +208,12 @@ class _Tag:
         return self.box[2] - self.box[0]
 
 
+def find_name_tags(pixels: NDArray[np.uint8], scale: float) -> list[Box]:
+    """The text box of each name tag in `pixels` (BGR), drawn at `scale`
+    (`tag_upscale`), as `NameTagFinder` finds them."""
+    return [tag.box for tag in _find_name_tags(pixels, scale)]
+
+
 def _find_name_tags(pixels: NDArray[np.uint8], scale: float) -> list[_Tag]:
     """
     Name tags in `pixels`: white text on a dark box, letters joined across

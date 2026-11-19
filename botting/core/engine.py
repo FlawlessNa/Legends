@@ -3,6 +3,7 @@ import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from botting.utilities import (
@@ -13,6 +14,7 @@ from botting.utilities import (
 
 from .action_data import ActionRequest
 from .bot import Bot
+from .errors import DecisionMakerCrashed
 
 logger = logging.getLogger(__name__)
 _DEBUG_TIMEOUT_ = None  # None to run infinitely. Otherwise, this stops the engine
@@ -33,6 +35,12 @@ class EngineFailure:
     engine: str
     #: ``"<ExceptionType>: <message>"``.
     error: str
+    #: The DecisionMaker whose crash ended the Engine, as its ``repr`` names it,
+    #: or None when the Engine died on something else.
+    decision_maker: str | None = None
+    #: The window handle of each of the Engine's Bots that has one: what Main
+    #: Process releases the movement keys of before the Session tears down.
+    handles: tuple[int, ...] = ()
 
 
 class EngineFailed(Exception):
@@ -45,6 +53,25 @@ class EngineFailed(Exception):
     def __init__(self, failure: EngineFailure) -> None:
         super().__init__(f"{failure.engine} raised {failure.error}")
         self.failure = failure
+
+
+#: The commands that declare one argument, which comes right after the action:
+#: the keyword the Bot method takes it as, and how to read the word. A command
+#: not here declares none.
+_COMMAND_ARGUMENTS: dict[str, tuple[str, Callable[[str], object]]] = {
+    "replies": ("on", lambda word: word.upper() == "ON"),
+}
+
+
+def _find_crash(exc: BaseException) -> DecisionMakerCrashed | None:
+    """The first `DecisionMakerCrashed` in `exc`, looking through `ExceptionGroup`s."""
+    if isinstance(exc, DecisionMakerCrashed):
+        return exc
+    if isinstance(exc, BaseExceptionGroup):
+        for member in exc.exceptions:
+            if (found := _find_crash(member)) is not None:
+                return found
+    return None
 
 
 class _ChildProcessEngine:
@@ -171,10 +198,28 @@ class _ChildProcessEngine:
         """
         try:
             if not self.pipe.closed:
-                error = f"{type(exc).__name__}: {exc}"
-                self.pipe.send(EngineFailure(engine=str(self), error=error))
+                # A crash is named by what crashed, not by the group that carried it.
+                crash = _find_crash(exc)
+                reported = crash or exc
+                self.pipe.send(
+                    EngineFailure(
+                        engine=str(self),
+                        error=f"{type(reported).__name__}: {reported}",
+                        decision_maker=crash.decision_maker if crash else None,
+                        handles=self._handles(),
+                    )
+                )
         except Exception:
             logger.exception("%s could not report its failure.", self)
+
+    def _handles(self) -> tuple[int, ...]:
+        """The window handle of every Bot that has found its client."""
+        handles: list[int] = []
+        for bot in self.bots:
+            handle = getattr(bot.data, "handle", None)
+            if isinstance(handle, int):
+                handles.append(handle)
+        return tuple(handles)
 
     async def _poll_for_updates(self) -> None:
         """
@@ -188,11 +233,46 @@ class _ChildProcessEngine:
                     logger.info("%s received None from MainProcess. Exiting.", self)
                     break
                 elif isinstance(data, str):
-                    action = data.split()[0].lower()
-                    targets = data.split()[1:]
-                    for bot in self.bots:
-                        if bot.ign in targets or targets == ["All"]:
-                            getattr(bot, action)()
+                    self._dispatch(data)
+
+    def _dispatch(self, command: str) -> None:
+        """
+        Calls the Bot method a command string names, on the Bots it names.
+
+        The string is ``<ACTION> [argument] <IGN>...``. A command may declare one
+        argument (``_COMMAND_ARGUMENTS``), which comes right after the action;
+        every word after it is an IGN, or ``All``. ``PAUSE`` and ``RESUME``
+        declare none, so every word after them is an IGN.
+        """
+        words = command.split()
+        action = words[0].lower()
+        call_kwargs: dict[str, object] = {}
+        rest = words[1:]
+        declared = _COMMAND_ARGUMENTS.get(action)
+        if declared is not None:
+            name, convert = declared
+            if not rest:
+                logger.warning("%s: %r is missing its argument.", self, command)
+                return
+            call_kwargs[name] = convert(rest[0])
+            rest = rest[1:]
+        for bot in self.bots:
+            if bot.ign in rest or rest == ["All"]:
+                getattr(bot, action)(**call_kwargs)
+
+
+async def _release_movement_keys(engine_name: str, handles: tuple[int, ...]) -> None:
+    """
+    Release the movement keys of each handle, in Main Process, by the procedure
+    `Bot.pause` sends. One handle failing never keeps the others down.
+    """
+    for handle in handles:
+        try:
+            await Bot._release_movement_keys(handle)  # pyright: ignore[reportPrivateUsage] - the one release path
+        except Exception:
+            logger.exception(
+                "Movement keys not released for %s of %s.", handle, engine_name
+            )
 
 
 class Engine(_ChildProcessEngine):
@@ -281,8 +361,12 @@ class Engine(_ChildProcessEngine):
                         elif isinstance(request, str):
                             logger.info("Received %s from %s.", request, engine.name)
                             discord_pipe.send(request)
+                            continue  # never on the queue: it is no request
 
                         await queue.put(request)
+
+                if failure is not None:
+                    await _release_movement_keys(engine.name, failure.handles)
 
             except asyncio.CancelledError:
                 logger.info("Listener to %s cancelled.", engine.name)

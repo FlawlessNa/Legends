@@ -1,8 +1,9 @@
 """
 Root pytest configuration: fixtures shared by the whole suite.
 
-Nothing here touches a game client. The one fixture below exists so that offline
-tests can build an Input Sequence without a Held-Keys Ledger to read from.
+Nothing here touches a game client. `held_movement_keys` lets offline tests build
+an Input Sequence without a Held-Keys Ledger to read from, and `force_overhead`
+runs them at a send-loop `OVERHEAD` of their choosing.
 """
 
 import importlib
@@ -10,6 +11,8 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import pytest
+
+import botting.controller as controller_package
 
 if TYPE_CHECKING:
     from tests.frame_set import FrameSet
@@ -19,6 +22,58 @@ if TYPE_CHECKING:
 focused_inputs_module = importlib.import_module(
     "botting.controller.inputs.focused_inputs"
 )
+inputs_helpers_module = importlib.import_module(
+    "botting.controller.inputs.inputs_helpers"
+)
+
+
+@pytest.fixture
+def force_overhead(monkeypatch: pytest.MonkeyPatch) -> Callable[[float], None]:
+    """
+    Sets the send loop's `OVERHEAD` for one test, everywhere it is read.
+
+    `OVERHEAD` is measured once at import: about 1 ms on a quiet machine, 10 ms
+    or more when other processes are running. A test whose expectation holds only
+    at a small one fails under load (#471, #589); running it at forced values
+    makes the load a parameter rather than an accident.
+
+    Three bindings, because each module reads its own: `inputs_helpers` (the
+    source, which `_typematic_delay` reads at every `yield`), `focused_inputs`
+    (`KeyboardInputWrapper.duration`, `holds`, `fill`, `truncate`), and the
+    `botting.controller` re-export the movement builders read as
+    `controller.OVERHEAD`. A test that times Steps itself reads
+    `controller.OVERHEAD` at call time, not a name imported at collection.
+
+    :return: A setter taking the `OVERHEAD` to use, in seconds.
+    """
+
+    def _force(value: float) -> None:
+        for module in (
+            inputs_helpers_module,
+            focused_inputs_module,
+            controller_package,
+        ):
+            monkeypatch.setattr(module, "OVERHEAD", value)
+
+    return _force
+
+
+@pytest.fixture(
+    params=[None, 0.0, 0.012, 0.03], ids=["measured", "0ms", "12ms", "30ms"]
+)
+def overhead(
+    request: pytest.FixtureRequest, force_overhead: Callable[[float], None]
+) -> float:
+    """
+    Runs the test at several send-loop `OVERHEAD`s (`force_overhead`): the one
+    measured, none, the 12 ms #473 measured under load, and 30 ms, past
+    anything measured so far.
+
+    :return: The `OVERHEAD` the test runs at, in seconds.
+    """
+    if request.param is not None:
+        force_overhead(request.param)
+    return controller_package.OVERHEAD
 
 
 @pytest.fixture

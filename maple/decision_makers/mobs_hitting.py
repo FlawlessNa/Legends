@@ -9,27 +9,67 @@ from typing import Any
 import numpy as np
 
 from botting import PARENT_LOG, controller
-from botting.core import ActionRequest, BotData, DecisionMaker
-from botting.screen import Reading
+from botting.core import (
+    ActionRequest,
+    BotData,
+    DecisionMaker,
+    StartupRefused,
+    TurnGate,
+    action_name,
+)
 from botting.utilities import Box
 from maple.actions.skills_related_v2 import cast_skill_compiler
 from maple.model.characters import MapleSkill
-from maple.model.world import WorldMap
-from maple.screen.chat import CHAT
+from maple.screen.chat import CHAT, ChatReader
 from maple.screen.minimap import MINIMAP
-from maple.screen.position import VirtualPosition
+from maple.screen.name_tag import NAME_TAGS
 from maple.telemetry_events import COMBAT_MOBS_HIT, MobsHitPayload
 
-from .mixins import MinimapAttributesMixin, MobsHittingMixin, NextTargetMixin
+from .mob_detection import (
+    box_center,
+    get_closest_mob_direction,
+    get_mobs_positions_in_img,
+    mob_count_in_img,
+)
+from .providers import (
+    CHARACTER,
+    CHAT_READER,
+    FRAME,
+    HANDLE,
+    MOBS,
+    ON_SCREEN_POSITION,
+    POSITION,
+    WORLD_MAP,
+)
+from .rotation import Rotation
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
-class MobsHitting(
-    MobsHittingMixin, MinimapAttributesMixin, NextTargetMixin, DecisionMaker
-):
-    ON_SCREEN_THRESHOLD = 0.65
-    screen_readers = (MINIMAP, CHAT)
+class MobsHitting(DecisionMaker):
+    """
+    Casts the training skill once enough mobs are in its reach, cancelling the
+    rotation's movement for the cast.
+
+    One cast at a time, through its gate: a decision waits for the gate, checks
+    the ladder, counts the mobs, then sends the cast, whose callback leaves the
+    gate from Main Process once the cast is done. A decision that sends nothing
+    leaves it itself.
+    """
+
+    screen_readers = (MINIMAP, CHAT, NAME_TAGS)
+    reads = (
+        HANDLE,
+        CHARACTER,
+        FRAME,
+        MOBS,
+        CHAT_READER,
+        WORLD_MAP,
+        ON_SCREEN_POSITION,
+    )
+    #: The ladder check takes the position the rotation read last, never reads one.
+    observes = (POSITION,)
+    cancels = (Rotation,)
 
     def __init__(
         self,
@@ -41,22 +81,27 @@ class MobsHitting(
         **kwargs: object,
     ) -> None:
         super().__init__(metadata, data, pipe)
-        self.lock = self._proxies.instance(repr(self), "Lock")
         self.mob_threshold = mob_count_threshold
-        self.training_skill = self._get_skill_from_str(training_skill)
-        self._create_minimap_attributes()
-        self.data.create_attribute(
-            "current_on_screen_position",
-            self._get_on_screen_pos,
-            threshold=0.25,
-            # error_handler=...,  # TODO - Implement error handler
-        )
+        self._training_skill_name = training_skill
+        #: The skill it casts. Set by `setup()`.
+        self.training_skill: MapleSkill
+        #: Its turn on the client. Made by `setup()`.
+        self.gate: TurnGate
 
-    async def task(self) -> None:
-        # Ensures the lock is actually released before task is started, no matter what.
-        self.lock.acquire(blocking=False)
-        self.lock.release()
-        await super().task()
+    def setup(self) -> None:
+        """
+        :raises StartupRefused: the Bot has no chat reader, which places the
+            chat the skill's reach stops at.
+        """
+        if self.read(CHAT_READER) is None:
+            raise StartupRefused(f"{self} reaches down to the chat, and has no reader.")
+        self.training_skill = self._get_skill_from_str(self._training_skill_name)
+        self.gate = TurnGate(self._proxies.instance(repr(self), "Lock"))
+
+    def on_start(self) -> None:
+        # Ensures the gate is actually free before the loop starts, no matter
+        # what: a run cancelled while holding it would otherwise leave it held.
+        self.gate.reset()
 
     def _hit_mobs(self, direction: str | None) -> ActionRequest:
         """
@@ -67,7 +112,7 @@ class MobsHitting(
         """
         compiler = functools.partial(
             cast_skill_compiler,
-            handle=self.data.handle,
+            handle=self.read(HANDLE),
             ign=self.data.ign,
             skill=self.training_skill,
             direction=direction,
@@ -82,7 +127,7 @@ class MobsHitting(
 
         The seam subclasses swap: `TelecastMobsHitting` fuses the same cast into a
         movement and hands the fused compiler here, so the Action's priority,
-        cancellation and lock handling stay defined in exactly one place.
+        cancellation and gate handling stay defined in exactly one place.
 
         The sequence `cast_skill` builds runs for the skill's animation time by
         construction, plus a short direction prelude - so the cap is known here,
@@ -98,15 +143,11 @@ class MobsHitting(
             self._cap_duration,
             ign=self.data.ign,
             priority=2,
-            # TODO - Cancelling by reconstructing another DecisionMaker's task name
-            #  is a string-keyed coupling: renaming Rotation silently stops
-            #  cancelling it. Awaiting the cross-DM coordination decision from the
-            #  architecture grilling (issue #47).
-            cancel_tasks=[f"Rotation({self.data.ign})"],
+            cancel_tasks=[action_name(Rotation, self.data.ign)],
             block_lower_priority=True,
-            callbacks=[self.lock.release],
+            callbacks=[self.gate.releaser],
             # cancels_itself=True,
-            args=(self.data.handle, compiler, timeout),
+            args=(self.read(HANDLE), compiler, timeout),
         )
 
     @staticmethod
@@ -129,19 +170,10 @@ class MobsHitting(
             )
 
     def _get_skill_from_str(self, skill_str: str | None) -> MapleSkill:
+        character = self.read(CHARACTER)
         if skill_str:
-            return self.data.character.skills[skill_str]
-        return self.data.character.skills[self.data.character.main_skill]
-
-    def _regions_to_hide(self) -> list[Box]:
-        """
-        Where a character found on screen is not ours, in client pixels: the
-        minimap, as `minimap.py` last read it, and the chat, while the chat
-        reader finds it whole. A region not read yet is left out.
-        """
-        regions = [self.data.current_entire_minimap_box]
-        regions.append(self.data.chat_reader.region(self.data.current_frame))
-        return [region for region in regions if region is not None]
+            return character.skills[skill_str]
+        return character.skills[character.main_skill]
 
     def _mask_for_skill_range(
         self, pos: tuple[int, int, int, int], pixels: np.ndarray
@@ -179,22 +211,14 @@ class MobsHitting(
         of the skill region. The frame's bottom when the chat isn't found whole,
         so nothing is left out on a guess.
         """
-        frame = self.data.current_frame
-        region = self.data.chat_reader.region(frame)
+        frame = self.read(FRAME)
+        region = self._chat_reader().region(frame)
         return frame.pixels.shape[0] if region is None else region.top
 
-    def _get_on_screen_pos(self) -> tuple[int, int, int, int] | None:
-        """
-        Function to use to update the current on screen position of the character.
-        :return: Bounding box (x1, y1, x2, y2), or None when the character is not
-        found on screen.
-        """
-        return self.data.character.get_onscreen_position(
-            self.data.current_frame.pixels,
-            self.data.handle,
-            self._regions_to_hide(),
-            acceptance_threshold=self.ON_SCREEN_THRESHOLD,
-        )
+    def _chat_reader(self) -> ChatReader:
+        reader = self.read(CHAT_READER)
+        assert reader is not None, "setup() refuses a Bot without one"
+        return reader
 
     def _currently_on_ladder(self) -> bool:
         """
@@ -202,15 +226,10 @@ class MobsHitting(
         where no skill is cast. An unsure position, or no map, isn't: the cast
         is tried, as it was when the position was on no feature.
         """
-        world_map: WorldMap | None = getattr(self.data, "world_map", None)
-        try:
-            # The last read, without reading: the rotation reads it every cycle,
-            # and a read here would cost a camera match per cast.
-            reading: Reading[VirtualPosition] | None = self.data.get_last_known_value(
-                "current_position", update=False
-            )
-        except AttributeError:
-            return False
+        world_map = self.read(WORLD_MAP)
+        # The last read, without reading: the rotation reads it every cycle,
+        # and a read here would cost a camera match per cast.
+        reading = self.peek(POSITION)
         if world_map is None or reading is None or reading.value is None:
             return False
         return world_map.rope_at((reading.value.x, reading.value.y)) is not None
@@ -229,12 +248,10 @@ class MobsHitting(
         hits, just without a facing prelude - so a failure falls back to None.
         """
         try:
-            mobs_locations = self.get_mobs_positions_in_img(
-                pixels, self.data.current_mobs, mask=mask
+            mobs_locations = get_mobs_positions_in_img(
+                pixels, self.read(MOBS), self.read(HANDLE), mask=mask
             )
-            return self.get_closest_mob_direction(
-                self.box_center(on_screen_pos), mobs_locations
-            )
+            return get_closest_mob_direction(box_center(on_screen_pos), mobs_locations)
         except Exception:
             logger.exception(
                 "%s failed to determine the closest mob direction; casting without a "
@@ -251,21 +268,22 @@ class MobsHitting(
         If the number of mobs is greater than the threshold, cast the skill.
         :return:
         """
-        await asyncio.to_thread(self.lock.acquire)
+        await self.gate.enter()
         if self._currently_on_ladder():
-            await asyncio.to_thread(self.lock.release)
+            await self.gate.leave()
             return
 
-        on_screen_pos = self.data.get_last_known_value("current_on_screen_position")
+        # The box read now, or the last one found when this read finds none.
+        on_screen_pos = self.read(ON_SCREEN_POSITION) or self.peek(ON_SCREEN_POSITION)
         closest_mob_direction = None
 
         if on_screen_pos:
             # One frame for the whole decision: the mask and the detections
             # must be of the same pixels.
-            pixels = self.data.current_frame.pixels
+            pixels = self.read(FRAME).pixels
             mask = self._mask_for_skill_range(on_screen_pos, pixels)
-            mobs = self.data.current_mobs
-            nbr_mobs = self.mob_count_in_img(pixels, mobs, mask=mask)
+            mobs = self.read(MOBS)
+            nbr_mobs = mob_count_in_img(pixels, mobs, self.read(HANDLE), mask=mask)
 
             if nbr_mobs >= self.mob_threshold:
                 if self.training_skill.unidirectional:
@@ -279,4 +297,4 @@ class MobsHitting(
                 self.emit(COMBAT_MOBS_HIT, hit)
                 self.send(self._hit_mobs(closest_mob_direction))
                 return
-        await asyncio.to_thread(self.lock.release)
+        await self.gate.leave()

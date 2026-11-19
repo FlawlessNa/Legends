@@ -3,11 +3,14 @@
 that draws the status bar, the quick slots, the minimap, two buffs and the
 chat, composed from each reader's synthetic sprites (no client pixels).
 
-The bot starts as `Engine` starts it (`child_init`, then its DecisionMakers),
-with the store, the Main Process proxies, the keybindings and the pipe
-stubbed. Each DecisionMaker then makes one decision; their task loops, which
+The bot starts as `Engine` starts it (`child_init`, then its assembly, which
+builds its Providers and its DecisionMakers), with the store, the Main Process
+proxies, the keybindings and the pipe stubbed. Each DecisionMaker then makes one decision; their task loops, which
 need Main Process to answer, are not run. Every reader the DecisionMakers name
 must read.
+
+`ChatReplies` replies by default: its check of the model is scripted, as
+`_Model`, so no test reaches the network.
 """
 
 import asyncio
@@ -21,15 +24,22 @@ import numpy as np
 import pytest
 
 from botting import controller
-from botting.core import ActionRequest, DecisionMaker, ProxyFactory
-from botting.screen import Frame, Status, capture
+from botting.core import (
+    ActionRequest,
+    DecisionMaker,
+    ProxyFactory,
+    RepliesProvider,
+    WindowProvider,
+)
+from botting.core.supervisor import USER
+from botting.screen import Frame, Reading, Status, capture
 from game_data.catalogue import Bounds, Foothold
 from game_data.sprites import Sprite
 from maple.actions.menus import toggle_minimap
 from maple.bots import maple_bot
 from maple.bots.training import TrainingBot
 from maple.decision_makers import (
-    ChatWatch,
+    ChatReplies,
     CheckMobsStillSpawn,
     CheckStillInMap,
     MobsHitting,
@@ -37,11 +47,31 @@ from maple.decision_makers import (
     Rotation,
     SoloRebuff,
 )
+from maple.decision_makers import chat_replies as chat_replies_module
+from maple.decision_makers.providers import (
+    FRAME,
+    MINIMAP_BOX,
+    BuffsProvider,
+    CharacterProvider,
+    ChatProvider,
+    ClientProvider,
+    DestinationProvider,
+    MapProvider,
+    MinimapProvider,
+    MobsProvider,
+    OnScreenPositionProvider,
+    PathingProvider,
+    ProfileProvider,
+    QuickSlotsProvider,
+    ScreenReadersProvider,
+    StatusBarProvider,
+)
 from maple.model.world import WorldMap, chain_platforms
 from maple.screen import client
 from maple.screen.buffs import BUFFS
-from maple.screen.chat import CHAT
+from maple.screen.chat import CHAT, ChatKind, ChatLine
 from maple.screen.minimap import MINIMAP
+from maple.screen.name_tag import NAME_TAGS
 from maple.screen.quick_slots import QUICK_SLOTS
 from maple.screen.sprites import (
     FRAME_CHECK,
@@ -49,6 +79,7 @@ from maple.screen.sprites import (
     Declaration,
     Profile,
     ReaderSprites,
+    StartupRefused,
 )
 from maple.screen.status_bar import (
     _EXP_AT,  # pyright: ignore[reportPrivateUsage]
@@ -60,6 +91,7 @@ from maple.screen.status_bar import (
     BACKGROUND,
     STATUS_BAR,
 )
+from maple.telemetry_events import CHAT_GM_LINE
 from tests.test_maple import (
     test_screen_buffs as buffs,
 )
@@ -164,10 +196,37 @@ class _Pipe:
         self.sent.append(request)
 
 
+class _Model:
+    """The model `ChatReplies` checks at start: reachable unless `cause`."""
+
+    cause: str | None = None
+
+    async def ask(self, *args: object, **kwargs: object) -> None:
+        raise AssertionError("no test here asks the model")
+
+    async def check(self) -> str | None:
+        return self.cause
+
+
+Started = tuple[TrainingBot, "_Source", "_Pipe", list[Declaration]]
+
+
 @pytest.fixture
-def started(
+def start(monkeypatch: pytest.MonkeyPatch) -> Any:  # noqa: ANN401
+    """Starts the bot, with the profile's settings plus `settings`."""
+    return lambda **settings: _start(monkeypatch, **settings)
+
+
+@pytest.fixture
+def started(start: Any) -> Started:  # noqa: ANN401
+    return start()
+
+
+def _start(
     monkeypatch: pytest.MonkeyPatch,
-) -> tuple[TrainingBot, _Source, _Pipe, list[Declaration]]:
+    **settings: Any,  # noqa: ANN401 - a profile setting is any value
+) -> Started:
+    monkeypatch.setattr(chat_replies_module, "AnthropicModel", _Model)
     source = _Source()
     monkeypatch.setattr(capture, "_source", source)
     monkeypatch.setattr(client, "find_window", lambda *_: 4242)
@@ -228,6 +287,7 @@ def started(
         mob_count_threshold=2,
         mob_spawn_alert_timer=60.0,
         mob_spawn_alert_threshold=1,
+        **settings,
     )
     pipe = _Pipe()
     bot.child_init(pipe, None)  # pyright: ignore[reportArgumentType] - no barrier before start()
@@ -235,20 +295,31 @@ def started(
 
 
 def _decision_makers(bot: TrainingBot) -> dict[type[DecisionMaker], DecisionMaker]:
+    """The bot's DecisionMakers, assembled as `Bot.start` assembles them."""
+    if bot.supervisor is None:
+        bot.assemble()
     return {type(dm): dm for dm in bot.decision_makers}
 
 
 def test_every_reader_its_decision_makers_name_is_loaded(
-    started: tuple[TrainingBot, _Source, _Pipe, list[Declaration]],
+    started: Started,
 ) -> None:
     _, _, _, loaded = started
 
     assert loaded[0] == FRAME_CHECK
-    assert set(loaded) == {FRAME_CHECK, STATUS_BAR, QUICK_SLOTS, MINIMAP, BUFFS, CHAT}
+    assert set(loaded) == {
+        FRAME_CHECK,
+        STATUS_BAR,
+        QUICK_SLOTS,
+        MINIMAP,
+        BUFFS,
+        CHAT,
+        NAME_TAGS,
+    }
 
 
 def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
-    started: tuple[TrainingBot, _Source, _Pipe, list[Declaration]],
+    started: Started,
 ) -> None:
     bot, source, pipe, _ = started
     data = bot.data
@@ -256,6 +327,28 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
 
     dms = _decision_makers(bot)
     assert set(dms) == set(bot._decision_makers())  # pyright: ignore[reportPrivateUsage]
+    # The Bot-level Providers, in `child_init`'s order, then those assembly
+    # builds for what the DecisionMakers read, each after what it needs: the
+    # minimap, once, then the on-screen position (`MobsHitting`), the
+    # destination and its pathing (`Rotation`), the quick slots (`PetFood`),
+    # the buffs (`SoloRebuff`) and the chat (`ChatReplies`).
+    assert [type(p) for p in bot.providers] == [
+        WindowProvider,
+        RepliesProvider,
+        ScreenReadersProvider,
+        MapProvider,
+        CharacterProvider,
+        MobsProvider,
+        ClientProvider,
+        ProfileProvider,
+        MinimapProvider,
+        OnScreenPositionProvider,
+        DestinationProvider,
+        PathingProvider,
+        QuickSlotsProvider,
+        BuffsProvider,
+        ChatProvider,
+    ]
 
     async def decide_once() -> None:
         for kind in (
@@ -264,7 +357,7 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
             PetFood,
             CheckMobsStillSpawn,
             CheckStillInMap,
-            ChatWatch,
+            ChatReplies,
         ):
             await dms[kind]._decide()  # pyright: ignore[reportPrivateUsage]
 
@@ -272,8 +365,12 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
     rebuff = dms[SoloRebuff]
     assert isinstance(rebuff, SoloRebuff)
     rebuff._read_buffs()  # pyright: ignore[reportPrivateUsage]
+    # The status bar's reader is loaded for `PetFood`'s `screen_readers`; no
+    # DecisionMaker of this bot reads it, so it is asked for here.
+    assert data.providers is not None
+    data.providers.ensure(StatusBarProvider)
 
-    assert isinstance(data.current_frame, Frame)
+    assert isinstance(data.read(FRAME), Frame)
     assert source.grabs > 1
     with pytest.raises(AttributeError):
         _ = data.current_client_img
@@ -291,8 +388,48 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
     assert minimap_view is not None
     assert minimap_view.self_position.value == USER_AT
     assert "current_minimap_position" not in data._managed  # pyright: ignore[reportPrivateUsage]
-    assert data.current_entire_minimap_box is not None
+    assert data.read(MINIMAP_BOX) is not None
     assert data.chat_lines.status is Status.READ, data.chat_lines.detail
 
     # The minimap was already shown expanded: its key was never pressed.
     assert not [r for r in pipe.sent if r.procedure is toggle_minimap]
+
+
+# --- chat replies, on by default (#464) ----------------------------------------------
+
+
+def test_the_bot_refuses_to_start_when_the_model_cant_be_reached(
+    start: Any,  # noqa: ANN401
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_Model, "cause", "AuthenticationError: no credentials")
+    bot, _, _, _ = start()
+
+    with pytest.raises(StartupRefused, match="no credentials"):
+        bot.assemble()
+
+
+def test_with_chat_replies_false_it_starts_and_the_gm_alarm_still_fires(
+    start: Any,  # noqa: ANN401
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_Model, "cause", "AuthenticationError: no credentials")
+    bot, _, _, _ = start(chat_replies=False)
+    data = bot.data
+    assert data is not None
+    chat = _decision_makers(bot)[ChatReplies]
+    gm = ChatLine(ChatKind.GM, np.zeros((16, 20, 3), np.uint8), "hi", 600)
+    monkeypatch.setattr(data.chat_reader, "read", lambda frame: Reading.read([gm], 1.0))
+    alarms: list[str] = []
+    monkeypatch.setattr(chat, "emit", lambda event, *a, **k: alarms.append(event))
+    assert bot.supervisor is not None
+
+    asyncio.run(chat._decide())  # pyright: ignore[reportPrivateUsage]
+
+    assert CHAT_GM_LINE in alarms
+    paused = {
+        c
+        for c in bot._decision_makers()  # pyright: ignore[reportPrivateUsage]
+        if any(p.holder == USER for p in bot.supervisor.held(c))
+    }
+    assert paused == set(bot._decision_makers()) - {ChatReplies}  # pyright: ignore[reportPrivateUsage]

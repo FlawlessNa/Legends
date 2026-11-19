@@ -50,13 +50,14 @@ samples read while an Action was in flight, and its outcome. Read it with
 (`speed_multiplier`, `jump_multiplier`) and its `calibration` constants, as
 `CalibrationBot` takes them. Its one DecisionMaker, `PlaygroundRunner`, is
 `TrialRunner`'s plumbing with targets that come from this window: it reads
-`current_position` (`PositionFusion`), plans with `MovementsMixin` (the
+the position as `MinimapProvider` does (`PositionReader`, `PositionFusion`),
+plans as `PathingProvider` does, on the map's `MovementHandler` (the
 `FootholdGraph`, `path_into_movements`), judges each target with the
 `TrialDriver` (one Trial per target: its arrival, oscillation and stuck rules),
 and ships each Movement Plan as `TrialRunner` and `Rotation` do: an
 `ActionRequest` carrying `controller.compile_and_send`, compiled at dispatch
 inside the focus lock against the Held-Keys Ledger (ADR 0002). There is no
-second planner and no second key sender. The window runs in its own process
+second movement stack and no second key sender. The window runs in its own process
 and sends nothing to the game: it only passes your commands to the
 DecisionMaker.
 
@@ -135,6 +136,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import functools
 import logging
 import math
 import multiprocessing
@@ -181,20 +183,38 @@ from maple.calibration import (
 )
 from maple.calibration.driver import COARSE_SLACK
 from maple.calibration.records import CycleRecord, TrialResult
-from maple.decision_makers.mixins import MinimapAttributesMixin, MovementsMixin
+from maple.decision_makers.providers import (
+    CALIBRATION,
+    CHARACTER,
+    FRAME,
+    GAME_PHYSICS,
+    HANDLE,
+    MINIMAP_READER,
+    POSITION_FUSION,
+    PROFILE_JUMP_MULTIPLIER,
+    PROFILE_SPEED_MULTIPLIER,
+    WORLD_MAP,
+    MinimapProvider,
+    MovementPlan,
+    PositionReader,
+    actionable,
+)
+from maple.decision_makers.providers.pathing import plan_path
 from maple.decision_makers.trial_runner import (
+    HEADER_READS,
     TrialRunner,
     coarse_slack,
     schedule_header,
 )
 from maple.launchers.profile import ProfileError, available, load
 from maple.launchers.run import check_configs
-from maple.model.mechanics import MovementHandler
-from maple.model.navigation import FootholdGraph
+from maple.model.mechanics import MovementHandler, compile_movements
+from maple.model.mechanics.physics import VRPhysics
+from maple.model.navigation import FootholdGraph, FootholdGraphs
 from maple.model.navigation import Path as GraphPath
 from maple.model.navigation.foothold_graph import PLACE_TOLERANCE
 from maple.model.world import Platform, WorldMap
-from maple.screen.minimap import MinimapReader, MinimapState
+from maple.screen.minimap import MINIMAP, MinimapReader, MinimapState, MinimapView
 from maple.screen.position import PositionSource, VirtualPosition
 from maple.screen.sprites import StartupRefused
 
@@ -652,7 +672,7 @@ async def release_every_key(handle: int, ign: str) -> None:
             SharedResources.focus_lock.release()
 
 
-class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
+class PlaygroundRunner(DecisionMaker):
     """
     `TrialRunner`'s plumbing, with targets from the playground's window.
 
@@ -665,12 +685,32 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
     cycle.
 
     It differs from `TrialRunner` in what it presses outside a plan: nothing.
-    The minimap is not toggled at setup, and `current_position` has no error
-    handler: a read that fails is `UNSURE`. Every end of a target releases
-    every key (`release_every_key`), and so does the end of its task.
+    It builds neither `MinimapProvider`, whose setup shows the minimap and
+    whose position has an error handler that sends input, nor
+    `PathingProvider`, which plans from that position to `DESTINATION`. It
+    reads its own position off the Bot-level readers (`_quiet_position`: a
+    read that fails is `UNSURE`), and plans its own Path to its own target on
+    the map's `MovementHandler` with `plan_path`, as `PathingProvider` plans
+    one. Every end of a target releases every key (`release_every_key`), and
+    so does the end of its loop.
     """
 
+    screen_readers = (MINIMAP,)
+    reads = (
+        HANDLE,
+        CHARACTER,
+        WORLD_MAP,
+        FRAME,
+        MINIMAP_READER,
+        POSITION_FUSION,
+        *HEADER_READS,
+    )
+
     _throttle = TrialRunner._throttle
+
+    #: Seconds a minimap reading is used before a position read reads it
+    #: again, as `MinimapProvider` serves it.
+    MINIMAP_REFRESH = MinimapProvider.REFRESH
 
     def __init__(
         self,
@@ -694,14 +734,21 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
                 f"{self} is the movement playground's DecisionMaker: run "
                 "`python -m toolkit.movement_playground`."
             )
+        self._link = playground
+        self._tolerance = tolerance
+        self._budget = budget
+        self._series = series
+
+    def setup(self) -> None:
+        """The lock, the record, the minimap's first reading and the handler."""
         self.lock = self._proxies.instance(repr(self), "Lock")
         path = default_record_path(SCHEDULE)
         self._setup(
-            playground,
+            self._link,
             JsonlRecordWriter(path),
-            tolerance=tolerance,
-            budget=budget,
-            series=series,
+            tolerance=self._tolerance,
+            budget=self._budget,
+            series=self._series,
         )
         logger.info("%s records to %s", self, path)
 
@@ -720,8 +767,23 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         self._writer = writer
         self._record = str(getattr(writer, "path", ""))
         world_map = self._world_map()
-        self._create_minimap_attributes()
-        self._create_pathing_attributes(duration=TrialRunner.DEFAULT_ACTION_DURATION)
+        self._minimap_reading: Reading[MinimapView] | None = None
+        self._minimap_read_at = float("-inf")
+        self._position_reader = PositionReader(
+            self,
+            self.emit,
+            fusion=lambda: self.read(POSITION_FUSION),
+            minimap=self._read_minimap,
+            frame=lambda: self.read(FRAME),
+        )
+        self._read_minimap()
+        self._position: Reading[VirtualPosition] = Reading.unsure(0.0, "not read yet")
+        self._graphs: dict[bool, FootholdGraphs] = {}
+        self._path_read_at: float | None = None
+        self.movement_handler = self._new_handler()
+        if self.movement_handler is not None:
+            # Built now, off the loop, so the first Path doesn't wait for it.
+            self.movement_handler.graphs.prepare(self._physics())
         self.playground = Playground(
             world_map,
             new_driver=self._new_driver,
@@ -740,35 +802,33 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
 
     # --- what it reads -------------------------------------------------------------
 
-    def _create_minimap_attributes(self) -> None:
+    def _read_minimap(self) -> Reading[MinimapView]:
         """
-        `MinimapAttributesMixin`'s attributes, minus what sends input: the
-        minimap isn't shown at setup (the bot checked it is), and
-        `current_position` has no error handler (`_quiet_position`).
+        The minimap's reading of the current frame, read again once it is
+        older than `MINIMAP_REFRESH`, as `MinimapProvider` serves it.
         """
-        self.data.create_or_reconfigure_attribute(
-            "minimap_reading",
-            self._read_minimap,
-            threshold=self.MINIMAP_POS_REFRESH_RATE,
-        )
-        self.data.create_or_reconfigure_attribute(
-            "current_position",
-            self._quiet_position,
-            threshold=self.MINIMAP_POS_REFRESH_RATE,
-            initial_value=Reading.unsure(0.0, "not read yet"),
-        )
-        self.data.set_feature("has_minimap_attributes")
+        reading = self._minimap_reading
+        if (
+            reading is None
+            or time.monotonic() - self._minimap_read_at > self.MINIMAP_REFRESH
+        ):
+            reader = self.read(MINIMAP_READER)
+            assert reader is not None, "a MapleBot always has a minimap reader"
+            reading = reader.read(self.read(FRAME))
+            self._minimap_reading = reading
+            self._minimap_read_at = time.monotonic()
+        return reading
 
     def _quiet_position(self) -> Reading[VirtualPosition]:
-        """`_get_position`, with a read that raises made `UNSURE`."""
+        """The position, read now (`PositionReader`); a read that raises is `UNSURE`."""
         try:
-            return self._get_position()
+            return self._position_reader()
         except ValueError as error:
             return Reading.unsure(time.monotonic(), str(error))
 
     def _reachable(self, position: Point | None) -> tuple[Platform, ...] | str:
         """The platforms reachable from `position`, or why that isn't known."""
-        handler: MovementHandler | None = self.data.movement_handler
+        handler = self.movement_handler
         if handler is None:
             return "this map plans no Path"
         graph = handler.ready_graph(self._physics())
@@ -790,14 +850,109 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             self._last_target = (float(target[0]), float(target[1]))
         return self._last_target
 
+    # --- planning, as `PathingProvider` plans ----------------------------------------
+
+    def _world_map(self) -> WorldMap:
+        world_map = self.read(WORLD_MAP)
+        if world_map is None or world_map.minimap is None:
+            raise ValueError(
+                "no map to plan on: the bot's map isn't known, or has no minimap"
+            )
+        return world_map
+
+    def _new_handler(self) -> MovementHandler | None:
+        """
+        The map's `MovementHandler`, made once, at setup; `None`, logged, on a
+        map with no minimap or none known, where nothing is planned.
+        """
+        world_map = self.read(WORLD_MAP)
+        if world_map is None or world_map.minimap is None:
+            logger.warning(
+                "%s plans no Path: the bot's map isn't known, or has no minimap.",
+                self,
+            )
+            return None
+        teleport = self.read(CHARACTER).skills.get("Teleport")
+        can_teleport = teleport is not None
+        graphs = self._graphs.get(can_teleport)
+        if graphs is None:
+            graphs = self._graphs[can_teleport] = FootholdGraphs(
+                world_map, teleport=can_teleport
+            )
+        return MovementHandler(
+            self.read(HANDLE), world_map, self.data.ign, teleport, graphs=graphs
+        )
+
+    def _physics(self) -> VRPhysics:
+        """The character's physics: the game's, with the profile's stats."""
+        values = self.read(GAME_PHYSICS)
+        if values is None:
+            raise ValueError("no game physics: the bot's map isn't known")
+        return VRPhysics.from_game_files(
+            values,
+            speed_multiplier=self.read(PROFILE_SPEED_MULTIPLIER),
+            jump_multiplier=self.read(PROFILE_JUMP_MULTIPLIER),
+            calibration=self.read(CALIBRATION),
+        )
+
+    def _plan_path(self) -> GraphPath | None:
+        """The Path from this cycle's position to the target; `None` holds."""
+        handler = self.movement_handler
+        if handler is None:
+            return None
+        planned = plan_path(
+            handler,
+            self._position,
+            self._world_map(),
+            physics=self._physics,
+            target=self._virtual_target,
+        )
+        if planned is None:
+            return None
+        # The frame the Path starts from: the compile leads the plan by how far
+        # the character has walked since (`_movement_compiler`).
+        self._path_read_at = planned.read_at
+        return planned.path
+
+    def _plan_movements(self, path: GraphPath | None) -> MovementPlan:
+        """The Movement Plan of `path`; empty with no handler."""
+        handler = self.movement_handler
+        if handler is None:
+            return ()
+        return handler.path_into_movements(path)
+
+    def _movement_compiler(self, movements: MovementPlan) -> functools.partial:
+        """
+        `movements`' compile, its inputs frozen into a picklable callable, as
+        `PathingProvider.compiler` freezes them: the Action duration cap is
+        `TrialRunner`'s default, and the plan leads by how far the character
+        walked since the frame its Path was planned from.
+        """
+        physics = self._physics()
+        return functools.partial(
+            compile_movements,
+            movements=movements,
+            handle=self.read(HANDLE),
+            ign=self.data.ign,
+            speed=physics.walk_speed,
+            climb_speed=physics.climb_speed,
+            teleport=self.read(CHARACTER).skills.get("Teleport"),
+            total_duration=TrialRunner.DEFAULT_ACTION_DURATION,
+            always_release=False,
+            walk_acceleration=physics.walk_acceleration,
+            walk_deceleration=physics.walk_deceleration,
+            read_at=self._path_read_at,
+            correlation_id=self.correlation_id,
+        )
+
     # --- the decision cycle --------------------------------------------------------
 
-    async def task(self) -> None:
-        """The decision loop; however it ends, the target ends and keys are released."""
-        try:
-            await super().task()
-        finally:
-            self._close()
+    def on_stop(self) -> None:
+        """
+        However the decision loop ended, the target ends and keys are released:
+        the Supervisor calls this once the loop has stopped, by any route.
+        """
+        self._close()
 
     async def _decide(self) -> None:
         if self._stopped:
@@ -806,8 +961,7 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         self._take_commands(now)
         if self._stopped:
             return
-        self.data.update_attribute("current_position")
-        position: Reading[VirtualPosition] = self.data.current_position
+        self._position = position = self._quiet_position()
         driver = self.playground.start(position, now)
         if driver is None:
             self._route, self._plan, self._cycle = [], "", None
@@ -821,10 +975,8 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             return
         dispatched = False
         try:
-            self.data.update_attribute("path")
-            self.data.update_attribute("movements")
-            path: GraphPath | None = self.data.path
-            movements = self.data.movements or ()
+            path = self._plan_path()
+            movements = self._plan_movements(path)
             self._route = _route(path)
             self._plan = _plan_text(summarize_plan(movements))
             verdict = driver.advance(
@@ -834,8 +986,8 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             if verdict.outcome is not None:
                 logger.info("%s %s", self, describe_outcome(verdict.outcome))
                 self.playground.finish(verdict.outcome, now)
-            elif verdict.dispatch and self._has_movements():
-                self.send(self._request())
+            elif verdict.dispatch and actionable(movements):
+                self.send(self._request(movements))
                 dispatched = True
         finally:
             if not dispatched:
@@ -853,7 +1005,7 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             if self.playground.quitting:
                 self._stop(str(payload or "quit"))
 
-    def _request(self) -> ActionRequest:
+    def _request(self, movements: MovementPlan) -> ActionRequest:
         """The Action `TrialRunner` and `Rotation` send: a Movement Plan,
         compiled at dispatch."""
         return ActionRequest(
@@ -862,7 +1014,7 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             ign=self.data.ign,
             requeue_if_not_scheduled=False,
             callbacks=[self.lock.release],
-            args=(self.data.handle, self._movement_compiler()),
+            args=(self.read(HANDLE), self._movement_compiler(movements)),
         )
 
     def _release_request(self) -> ActionRequest:
@@ -877,7 +1029,7 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             cancels_itself=True,
             cancel_tasks=[f"{self}"],
             requeue_if_not_scheduled=True,
-            args=(self.data.handle, self.data.ign),
+            args=(self.read(HANDLE), self.data.ign),
         )
 
     def _release(self, why: str) -> None:
@@ -895,8 +1047,8 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         return TrialDriver(
             schedule,
             self._writer,
-            header=schedule_header(schedule, self.data),
-            coarse_slack=coarse_slack(self.data),
+            header=schedule_header(schedule, self),
+            coarse_slack=coarse_slack(self.read(WORLD_MAP)),
         )
 
     # --- ending ----------------------------------------------------------------------
@@ -913,7 +1065,7 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
             logger.exception("%s could not ask the Session to stop.", self)
 
     def _close(self) -> None:
-        """The task's end: the target abandoned, keys released, the file closed."""
+        """The loop's end: the target abandoned, keys released, the file closed."""
         self.playground.close(time.monotonic())
         self._writer.close()
         try:
@@ -937,7 +1089,7 @@ class PlaygroundRunner(MinimapAttributesMixin, MovementsMixin, DecisionMaker):
         value = position.value
         world_map = playground.world_map
         cycle = self._cycle
-        handler: MovementHandler | None = self.data.movement_handler
+        handler = self.movement_handler
         graph = None if handler is None else handler.ready_graph(self._physics())
         return {
             "map_id": world_map.id,

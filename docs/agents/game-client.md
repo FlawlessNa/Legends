@@ -26,9 +26,11 @@ only section is used.
 trusted only when the client is in front, before and after, did not move, and
 its client area is entirely on the primary monitor. A copy that is not trusted
 is asked for again for up to a second (a new process's first copy can come back
-empty), then they exit 6 with the reason, and write nothing. They send no input,
-so they do not bring the client to the front themselves: if the client is not
-in front, ask the maintainer to bring it there.
+empty), then they exit 6 with the reason, and write nothing. They bring the
+client to the front first, by asking Windows for the foreground window: no key,
+no click, no `release_all`, no ledger reset. If Windows refuses, they exit 6
+with that reason. `--no-front` skips it and copies only if the client is already
+in front, for whoever needs the window left alone.
 
 ### Elevation
 
@@ -49,8 +51,8 @@ code (the module docstring lists them).
 
 | Command                                      | Does                                                     |
 | -------------------------------------------- | -------------------------------------------------------- |
-| `screenshot [--region NAME \| --box l,t,r,b]` | writes a PNG to `probe/`; with no flag, the whole client |
-| `regions`                                    | each region's box `[l, t, r, b]`, or null if not showing |
+| `screenshot [--region NAME \| --box l,t,r,b] [--no-front]` | writes a PNG to `probe/`; with no flag, the whole client |
+| `regions [--no-front]`                       | each region's box `[l, t, r, b]`, or null if not showing |
 | `keys [--ign NAME]`                          | lists the key binding names                              |
 | `press KEY [--times N] [--ign NAME]`         | keydown then keyup, N ≤ 10                               |
 | `hold DIRECTION --ms MS`                     | holds a direction, then releases it, MS ≤ 10000          |
@@ -280,10 +282,11 @@ you do to it. The maintainer starts it.
   not reuse a box from one in the other without checking the frame you get.
 - **A Plan's arrival does not share its Correlation ID.** `movement.plan_started`
   and the `action.*` records of one Plan share a cid. `movement.target_reached`
-  does not: it carries the cid of the cycle that *judged* arrival, which is
-  usually the cycle that starts the **next** Plan (so it matches that Plan's
-  `plan_started`). `CheckMobsStillSpawn` also emits `target_reached`, under its
-  own cid. So never pair by cid. Pair an arrival with its Plan by
+  does not: `DestinationProvider` judges arrival, and a Provider's records
+  carry no cid (#441; before it, the record carried the cid of the cycle that
+  judged arrival, usually the one starting the **next** Plan). It is emitted
+  while `CheckMobsStillSpawn` claims the destination to wander, too. So never
+  pair by cid. Pair an arrival with its Plan by
   `target_x`/`target_y` (both records carry them) and by order: the first
   `target_reached` at a Plan's target after its `plan_started`. Count only the
   Plans and arrivals of the DecisionMaker under test, and expect an arrival to

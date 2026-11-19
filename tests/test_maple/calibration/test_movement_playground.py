@@ -25,14 +25,24 @@ import pytest
 from pytest_mock import MockerFixture
 
 from botting import controller
-from botting.core import ActionRequest
+from botting.core import ActionRequest, Providers, WindowProvider
 from botting.core.bot_data import BotData
+from botting.core.errors import DecisionMakerCrashed
+from botting.core.supervisor import Supervisor, resolve_pauses
 from botting.screen import Reading
 from botting.stop_file import STOP_FILENAME
 from maple.actions import priorities
 from maple.calibration.driver import TrialDriver
 from maple.calibration.records import CycleRecord, ListSink, TrialOutcome
 from maple.calibration.specs import TrialSchedule
+from maple.decision_makers.providers import (
+    FRAME,
+    CharacterProvider,
+    ClientProvider,
+    MapProvider,
+    ProfileProvider,
+    ScreenReadersProvider,
+)
 from maple.model.navigation import FootholdGraph
 from maple.model.world import Platform, WorldMap
 from maple.screen.position import PositionSource, VirtualPosition
@@ -389,22 +399,27 @@ class _Runner:
 @pytest.fixture
 def harness(tmp_path: Path) -> _Runner:
     """
-    A `PlaygroundRunner` without its Session: `__init__` asks Main Process for
-    a lock and the decision gates, so the runner is built from `_setup` on, over
-    a real `BotData` on a Corpus map, as the `TrialRunner` checks build theirs.
-    `current_position` hands out the positions a check queues, as fused reads.
+    A `PlaygroundRunner` without its Session: its `setup()` asks Main Process for
+    a lock, so the runner is built from `_setup` on, over a real `BotData` on a
+    Corpus map, with the Bot-level Providers `MapleBot` builds, as the
+    `TrialRunner` checks build theirs. Its position reader hands out the
+    positions a check queues, as fused reads.
     """
     positions: list[tuple[float, float]] = []
     data = BotData("Lab")
-    data.set_static("handle", corpus.LAB_HANDLE)
-    data.set_static("world_map", corpus.world_map(ENTRY))
-    data.set_static("game_physics", corpus.LAB_PHYSICS_VALUES)
-    data.set_static("speed_multiplier", 1.0)
-    data.set_static("jump_multiplier", 1.0)
-    data.set_static("character", _Character())
-    # What the minimap attributes are made from; the position is stood in for.
-    data.set_static("current_frame", None)
-    data.set_static("minimap_reader", _NoMinimap())
+    providers = Providers(data, None, None, {})  # pyright: ignore[reportArgumentType] - nothing is sent through them
+    providers.add(WindowProvider, handle=corpus.LAB_HANDLE)
+    providers.add(
+        MapProvider,
+        map_id=0,
+        world_map=corpus.world_map(ENTRY),
+        game_physics=corpus.LAB_PHYSICS_VALUES,
+    )
+    providers.add(CharacterProvider, character_class=lambda *_: _Character())
+    providers.add(ProfileProvider)
+    # What the position is read from; the position itself is stood in for.
+    providers.add(ScreenReadersProvider, sprites=None, minimap=_NoMinimap())
+    data.provide(FRAME, object.__new__(ClientProvider), lambda: None)
     pipe = _Pipe()
     link = mp.PlaygroundLink(commands=queue.Queue(), view={})
     sink = ListSink()
@@ -421,10 +436,17 @@ def harness(tmp_path: Path) -> _Runner:
         x, y = positions.pop(0) if positions else START
         return _read(x, y)
 
-    data.create_or_reconfigure_attribute("current_position", virtual)
-    data.movement_handler.graph(self._physics())
-    data.reconfigure_attribute("path", threshold=1e-9)
+    self._position_reader = virtual
+    self.movement_handler.graph(self._physics())
     return _Runner(cast(mp.PlaygroundRunner, self), positions, pipe, link, sink)
+
+
+async def _supervised(runner: mp.PlaygroundRunner) -> None:
+    """Run the runner's decision loop as a Session does: under its Bot's
+    Supervisor, until it raises or is cancelled."""
+    await Supervisor(
+        runner.data.ign, [runner], resolve_pauses([mp.PlaygroundRunner])
+    ).run()
 
 
 def _start_target(h: _Runner) -> None:
@@ -511,13 +533,11 @@ def test_an_exception_releases_every_key_on_the_way_out(harness: _Runner) -> Non
         raise RuntimeError("a reader broke")
 
     _start_target(harness)
-    harness.runner.data.reconfigure_attribute("current_position", broken)
+    harness.runner._position_reader = broken  # pyright: ignore[reportAttributeAccessIssue, reportPrivateUsage] - the stand-in's seam
 
-    async def run() -> None:
-        await harness.runner.task()
-
-    with pytest.raises(RuntimeError, match="a reader broke"):
-        asyncio.run(run())
+    with pytest.raises(ExceptionGroup) as raised:
+        asyncio.run(_supervised(harness.runner))
+    assert raised.group_contains(DecisionMakerCrashed, match="a reader broke")
 
     assert len(harness.releases) == 1
     assert harness.link.view["ended"]
@@ -531,7 +551,7 @@ def test_a_cancelled_task_releases_every_key(harness: _Runner) -> None:
     _start_target(harness)
 
     async def run() -> None:
-        task = asyncio.create_task(harness.runner.task())
+        task = asyncio.create_task(_supervised(harness.runner))
         await asyncio.sleep(0.05)
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
@@ -663,13 +683,14 @@ def _end_by(h: _Runner, how: str) -> None:
         def broken() -> Reading[VirtualPosition]:
             raise RuntimeError("a reader broke")
 
-        h.runner.data.reconfigure_attribute("current_position", broken)
-        with pytest.raises(RuntimeError):
-            asyncio.run(h.runner.task())
+        h.runner._position_reader = broken  # pyright: ignore[reportAttributeAccessIssue, reportPrivateUsage] - the stand-in's seam
+        with pytest.raises(ExceptionGroup) as raised:
+            asyncio.run(_supervised(h.runner))
+        assert raised.group_contains(DecisionMakerCrashed, match="a reader broke")
     elif how == "cancelled task":
 
         async def run() -> None:
-            task = asyncio.create_task(h.runner.task())
+            task = asyncio.create_task(_supervised(h.runner))
             await asyncio.sleep(0.05)
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
