@@ -1,5 +1,5 @@
 from .ability_point_distributor import AbilityPointDistributor
-from .chat_watch import ChatWatch
+from .chat_replies import ChatReplies
 from .consumables import MountFood, PetFood, SpeedPill
 from .ensure_mob_still_spawn import CheckMobsStillSpawn
 from .ensure_still_in_map import CheckStillInMap
@@ -19,7 +19,7 @@ from .trial_runner import TrialRunner
 # re-export: without `__all__` every one of them reads as unused.
 __all__ = [
     "AbilityPointDistributor",
-    "ChatWatch",
+    "ChatReplies",
     "CheckMobsStillSpawn",
     "CheckStillInMap",
     "MobsHitting",

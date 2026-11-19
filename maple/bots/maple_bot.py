@@ -6,11 +6,11 @@ from abc import ABC
 from collections.abc import Mapping
 from typing import Any
 
-from botting import PARENT_LOG
+from botting import PARENT_LOG, emit_event
 from botting.core import Bot, ProxyFactory
 from botting.screen import Frame, frame_source
 from botting.visuals import InGameDetectionVisuals
-from maple.actions import ensure_minimap_displayed
+from maple.actions import ensure_minimap_displayed, startup_chat_keys
 from maple.bots.map_check import check_named_map, identify_map
 from maple.bots.map_mobs import MapMob, check_detection, map_mobs
 from maple.bots.map_setting import (
@@ -20,14 +20,22 @@ from maple.bots.map_setting import (
     resolve_map_id,
 )
 from maple.decision_makers.mobs_hitting import MobsHitting
+from maple.decision_makers.providers import (
+    CharacterProvider,
+    ClientProvider,
+    MapProvider,
+    MobsProvider,
+    ProfileProvider,
+    ScreenReadersProvider,
+)
 from maple.decision_makers.rebuffs import solo_buffs
 from maple.model.characters import MAPPING as CHARACTER_MAPPING
-from maple.model.mechanics.maple_mob import MapleMob
 from maple.model.mechanics.physics import Calibration, game_physics
 from maple.model.world import WorldMap
 from maple.screen.buffs import ICON_BASE, BuffsReader
 from maple.screen.chat import TARGET_SELECT, ChatReader
 from maple.screen.client import find_client
+from maple.screen.font import NAME_TAG
 from maple.screen.locator import FrameCheck
 from maple.screen.map_identification import MapCanvases, MapIdentifier
 from maple.screen.minimap import MINIMAP, NW, MinimapReader
@@ -37,12 +45,14 @@ from maple.screen.quick_slots import QUICK_SLOTS, QuickSlotsReader
 from maple.screen.sprites import (
     Profile,
     ReaderSprites,
+    StartupRefused,
     enabled_readers,
     load_reader_sprites,
     with_readers,
 )
 from maple.screen.status_bar import BACKGROUND as STATUS_BAR_BACKGROUND
 from maple.screen.status_bar import StatusBarReader
+from maple.telemetry_events import CHAT_REPLIES_TOGGLED, RepliesToggledPayload
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -64,9 +74,13 @@ class MapleBot(Bot, ABC):
     the map is identified.
     """
 
+    def _replies_toggled(self, on: bool, source: str) -> None:
+        payload: RepliesToggledPayload = {"on": on, "source": source}
+        emit_event(None, CHAT_REPLIES_TOGGLED, payload, logger.name)
+
     MINIMAP_TIME_LIMIT = 7.5
     """Seconds the minimap key is pressed for at start to show the minimap, as
-    `MinimapAttributesMixin.ERROR_HANDLING_TIME_LIMIT`."""
+    `MinimapProvider.TIME_LIMIT`."""
 
     def __init__(
         self,
@@ -85,6 +99,15 @@ class MapleBot(Bot, ABC):
         refuse_game_map(kwargs.pop("game_map", None))
         refuse_mobs(kwargs.pop("mobs", None))
         super().__init__(ign, metadata, **kwargs)
+        # Read once, here: a malformed `Chat Keys` refuses the start, rather than
+        # after a failsafe reaction or a Discord WRITE. DecisionMakers take them
+        # from `data.chat_keys`, the Discord parser from `started_chat_keys`.
+        try:
+            self.chat_keys = startup_chat_keys(ign)
+        except (TypeError, ValueError) as exc:
+            message = f"Refusing to start {ign}: {exc}"
+            logger.critical(message)
+            raise StartupRefused(message) from exc
         if not character_class:
             raise ValueError(
                 f"{type(self).__name__} for {ign!r} needs `character_class` in the "
@@ -103,7 +126,7 @@ class MapleBot(Bot, ABC):
         if self.map_id is not None and self._detects_mobs():
             self.mobs = self._map_mobs(self.map_id)
         # Parsed here so a misspelt constant refuses the start; Movement Plans
-        # read it through `data.calibration`.
+        # read it as `CALIBRATION` (`ProfileProvider`).
         self.calibration = Calibration.from_mapping(calibration)
         self.kwargs = kwargs
         self.kwargs.update(ign=ign)
@@ -144,13 +167,14 @@ class MapleBot(Bot, ABC):
     ) -> None:
         """
         Called by the Engine to create Bot within Child process.
-        Since virtually every bot will at some point require to know the character class
-        and be made aware of the minimap position, those attributes are created here for
-        convenience.
+
+        Loads the readers' sprites, checks the map on the minimap, then builds
+        the Bot-level Providers with what it found, in this order: the screen
+        readers, the map, the character, the map's mobs, and the client's frame
+        and chat keys, and the profile's movement stats
+        (`maple.decision_makers.providers`). DecisionMakers read them as keys.
         """
         super().child_init(pipe, barrier)
-        # `Bot.child_init` is what builds `self.data`; everything below reads it,
-        # including the lambdas, which a narrowing assert alone would not reach.
         assert self.data is not None
         if self.models_path is None and self._detects_mobs():
             # Mob and character detection are what read a model; a bot that
@@ -160,8 +184,10 @@ class MapleBot(Bot, ABC):
                 "`models_path` in the profile's settings (see profiles/example.yaml)."
             )
         data = self.data
-        # The readers' sprites are loaded once, before any reader attribute
-        # exists: a missing or stale store refuses the start here, not mid-cycle.
+        providers = data.providers
+        assert providers is not None, "Bot.child_init makes them"
+        # The readers' sprites are loaded once, before any reader exists: a
+        # missing or stale store refuses the start here, not mid-cycle.
         map_id = self.map_id
         readers = with_readers(
             enabled_readers(self._decision_makers()),
@@ -184,87 +210,75 @@ class MapleBot(Bot, ABC):
         map_id, reader_sprites = self._check_map_at_start(reader_sprites)
         if self.map_auto and self._detects_mobs():
             self.mobs = self._map_mobs(map_id)
-        data.set_static("map_id", map_id)
-        data.set_static("reader_sprites", reader_sprites)
-        data.set_static("buff_names", profile.buffs)
-        data.set_static("world_map", None)
-        data.set_static("game_physics", None)
-        data.set_static("position_fusion", None)
+        screen: dict[str, object] = {}
+        world: dict[str, object] = {}
         if reader_sprites.build is not None:
             frame_check = FrameCheck(reader_sprites)
-            data.set_static("frame_check", frame_check)
+            screen["frame_check"] = frame_check
             if map_id is not None:
-                self._set_world_map(map_id, frame_check)
+                world = self._world_map(map_id, frame_check)
             if STATUS_BAR_BACKGROUND in reader_sprites.canvases:
-                data.set_static(
-                    "status_bar_reader", StatusBarReader(reader_sprites, frame_check)
-                )
+                screen["status_bar"] = StatusBarReader(reader_sprites, frame_check)
             if QUICK_SLOTS in readers:
-                data.set_static(
-                    "quick_slots_reader", QuickSlotsReader(reader_sprites, frame_check)
-                )
+                screen["quick_slots"] = QuickSlotsReader(reader_sprites, frame_check)
             if ICON_BASE in reader_sprites.canvases:
-                data.set_static(
-                    "buffs_reader", BuffsReader(reader_sprites, frame_check)
-                )
+                screen["buffs"] = BuffsReader(reader_sprites, frame_check)
             if NW in reader_sprites.canvases:
-                data.set_static(
-                    "minimap_reader",
-                    MinimapReader(reader_sprites, frame_check, map_id=map_id),
+                screen["minimap"] = MinimapReader(
+                    reader_sprites, frame_check, map_id=map_id
                 )
             if TARGET_SELECT in reader_sprites.canvases:
-                data.set_static("chat_reader", ChatReader(reader_sprites, frame_check))
+                screen["chat"] = ChatReader(reader_sprites, frame_check, ign=self.ign)
+        providers.add(ScreenReadersProvider, sprites=reader_sprites, **screen)
+        providers.add(MapProvider, map_id=map_id, **world)
         InGameDetectionVisuals.register_models(self.models_path)
         InGameDetectionVisuals.register_cache_id(data.handle)
-        data.create_attribute(
-            "character",
-            lambda: self.character_class(
-                self.ign, self.detection_configs, self.client_size
-            ),
+        providers.add(
+            CharacterProvider,
+            character_class=self.character_class,
+            detection_configs=self.detection_configs,
+            client_size=self.client_size,
+            name_tags=reader_sprites.glyph_sets.get(NAME_TAG.name),
+            buff_names=profile.buffs,
         )
-        data.create_attribute(
-            "current_mobs",
-            lambda: tuple(
-                MapleMob(mob.detection_class)
+        providers.add(
+            MobsProvider,
+            detection_classes=[
+                mob.detection_class
                 for mob in self.mobs
                 if mob.detection_class is not None
-            ),
+            ],
         )
         # The bot's one capture: the readers take the `Frame`, mob and
-        # character detection its pixels. `update_attribute("current_frame")`
-        # captures a fresh one.
-        data.create_attribute(
-            "current_frame", lambda: frame_source().grab(data.handle), threshold=0.1
-        )
-        # The character's current speed and jump stats, from the profile at the
-        # start of a Session. A later reading replaces them (the ability menu's
-        # today, #314's stat window reader next); Movement Plans read them each
-        # time they plan, so the next Path follows the new values.
-        data.set_static("speed_multiplier", self.kwargs.get("speed_multiplier", 1.00))
-        data.set_static("jump_multiplier", self.kwargs.get("jump_multiplier", 1.00))
-        data.set_static("calibration", self.calibration)
+        # character detection its pixels.
+        providers.add(ClientProvider, chat_keys=self.chat_keys)
+        # The character's speed and jump stats, from the profile. A Bot that
+        # builds the ability menu's Provider (`AbilityPointDistributor`) reads
+        # them off the menu too; Movement Plans take those when they exist
+        # (`PathingProvider.physics`), and these otherwise.
+        providers.add(ProfileProvider, calibration=self.calibration)
 
-    def _set_world_map(self, map_id: int, frame_check: FrameCheck) -> None:
+    def _world_map(self, map_id: int, frame_check: FrameCheck) -> dict[str, object]:
         """
-        Publishes `world_map`, the map's `WorldMap` from the game data store
-        the readers' sprites came from, `game_physics`, the store's
-        `Physics.img` values Movement Plans derive their physics from, and
-        `position_fusion`, the reader of `current_position` on it. Nothing is
-        drawn or indexed here: the static render is, on the first position
-        read.
+        `MapProvider`'s values for map `map_id`: `world_map`, the map's
+        `WorldMap` from the game data store the readers' sprites came from,
+        `game_physics`, the store's `Physics.img` values Movement Plans derive
+        their physics from, and `position_fusion`, the reader of the position on
+        it, unless the map has no minimap. Nothing is drawn or indexed here: the
+        static render is, on the first position read.
 
         :raises LookupError: The store's catalogue has no map `map_id`.
         """
-        assert self.data is not None
         world_map = WorldMap.load(map_id)
-        self.data.set_static("world_map", world_map)
-        self.data.set_static("game_physics", game_physics())
+        world: dict[str, object] = {
+            "world_map": world_map,
+            "game_physics": game_physics(),
+        }
         if world_map.minimap is None:
             logger.warning("Map %d has no minimap: no position is read.", map_id)
-            return
-        self.data.set_static(
-            "position_fusion", PositionFusion.for_map(world_map, frame_check)
-        )
+            return world
+        world["position_fusion"] = PositionFusion.for_map(world_map, frame_check)
+        return world
 
     def _check_map_at_start(self, sprites: ReaderSprites) -> tuple[int, ReaderSprites]:
         """

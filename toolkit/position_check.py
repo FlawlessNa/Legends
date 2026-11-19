@@ -15,7 +15,7 @@ sends input.
     python -m toolkit.position_check replay data/frames/v3 --labels tests/frames/v3.json
 
 **The production readers, nothing else.** For each map it builds what the bot
-builds (`MapleBot._set_world_map`, `MapMixin`): the `FrameCheck`, the
+builds (`MapleBot._world_map`, `MapProvider`): the `FrameCheck`, the
 `MinimapReader` given the map's id, and `PositionFusion` with the map's
 `CameraReader` (given the same `FrameCheck`) and a `NameTagFinder`, or a
 `YoloCharacterFinder` with `--weights`. The camera reader and the finder are
@@ -51,10 +51,10 @@ when this window has the focus) are written to the CSV but left out of the
 rates: the bot keeps the client in front.
 
 **Live** reads a frame every `--interval` seconds (0.1, the bot's refresh of
-`current_frame` and `minimap_reading`) and skips frames that repeat the last
+`FRAME` and `MINIMAP_READING`) and skips frames that repeat the last
 copy. With `--minimap-lag`, the minimap is read on the frame grabbed that long
 before the one fusion reads. In the bot, the minimap reading and the frame are
-two attributes each refreshed on its own 0.1 s threshold, so they can come from
+two Data Keys each refreshed on its own 0.1 s threshold, so they can come from
 different grabs. A walk read with `--minimap-lag 0.1` against one read without
 it shows what that costs. `--map auto` identifies the map as the bot does
 (`MapIdentifier`, with the minimap's banner shown or not), and again after
@@ -133,9 +133,9 @@ REPO = Path(__file__).resolve().parents[1]
 OUT_ROOT = REPO / "data" / "position_check"
 
 BOT_REFRESH: Final = 0.1
-"""Seconds: how often the bot refreshes `current_frame` and `minimap_reading`
-(`MapleBot`, `MapMixin.MINIMAP_POS_REFRESH_RATE`), and live mode's default
-interval."""
+"""Seconds: how often the bot refreshes `FRAME` and `MINIMAP_READING`
+(`ClientProvider.FRAME_REFRESH`, `MinimapProvider.REFRESH`), and live mode's
+default interval."""
 
 REIDENTIFY_AFTER: Final = 20
 """Frames in a row with no minimap position after which `--map auto` checks

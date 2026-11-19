@@ -289,7 +289,7 @@ Step until then, and `t(i)` at the top of this page with it.
 
 **B2 is stated for a walk timed by its length** (#503). Compiled with the walk's
 acceleration and deceleration, or a read time, as the live path compiles
-(`MovementsMixin._movement_compiler`), the plan's last walk is timed to stop on
+(`PathingProvider.compiler`), the plan's last walk is timed to stop on
 its end after the slide, and a first walk whose key is already down is
 shortened by the distance walked since the read (`_time_walks` in
 `movement_mechanics_v2.py`): their `L` is then the duration `_time_walks` sets

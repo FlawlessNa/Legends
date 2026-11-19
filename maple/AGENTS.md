@@ -52,40 +52,43 @@ Event Types are constants in `maple/telemetry_events.py`, and payloads are the
 
 The map comes from the client's files: the profile's `map` (a game name, an
 id, or `auto`) is resolved through `game_data`'s Catalogue, and `MapleBot`
-publishes `data.world_map`, the map's `WorldMap` (platforms, walls, ropes,
-portals, NPCs, the minimap transform and the static render). Navigation is in
+serves `WORLD_MAP`, the map's `WorldMap`
+(platforms, walls, ropes, portals, NPCs, the minimap transform and the static
+render), through its Bot-level `MapProvider` (`maple/decision_makers/providers/`). Navigation is in
 virtual px (ADR 0004). The hand-made map files (deleted, #546), `MapleMinimap`, `MinimapGrid`,
 `MinimapPhysics` and the GUI map editor are retired (#399): don't bring them
 back. A profile that sets `game_map` refuses to start. `data.current_map`,
-`current_minimap` and `current_grid` are gone. `data.current_mobs`, the mobs
+`current_minimap` and `current_grid` are gone. `MOBS`, the mobs
 detection looks for, stays: it is built from the map's mob spawns in the game
 data, by detection class name (`maple/bots/map_mobs.py`, #548). The profile has
 no `mobs`: one that sets it refuses to start, and so does a bot that detects
 mobs on a map with a mob no model in `models_path` detects.
 
-`current_position` is the character's position in virtual px,
+`POSITION` is the character's position in virtual px,
 `Reading[VirtualPosition]`: the minimap, the camera and the characters on
-screen, fused by `maple/screen/position/fusion.py` on `data.world_map`. It is
+screen, fused by `maple/screen/position/fusion.py` on `WORLD_MAP`. It is
 read only when asked, and it is the only position in `BotData`
 (`current_minimap_position` is gone, #398). Every DecisionMaker works in
-virtual px on `data.world_map`:
+virtual px on `WORLD_MAP`:
 
 - It is `fused` when a character on screen is ours and agrees with the
   minimap, `coarse` (the minimap alone) otherwise, and `UNSURE` only when the
   minimap gives no position (C-NOGUESS, as amended by #529). A consumer that
   must not act on a coarse read branches on `VirtualPosition.source`.
 - Movement Plans are planned from it on the map's `FootholdGraph`
-  (`MovementsMixin`, #396): an `UNSURE` read plans nothing.
+  (`PathingProvider`, which serves `MOVEMENTS`, #396, #442): an `UNSURE` read
+  plans nothing.
 - The rotation's targets are random points on the platforms a Path reaches
-  (`NextTargetMixin`), and arrival is judged in virtual px. A `game_data` map
+  (`DestinationProvider`, which serves `DESTINATION`), and arrival is judged in
+  virtual px. A `game_data` map
   has no feature cycle; custom rotation patterns are a later epic.
 - Movement recovery judges virtual positions and the graph Path's remaining
   time (`maple/movement_recovery.py`), and reports a long `UNSURE` streak.
 - `CheckStillInMap` checks the minimap against `world_map`'s canvas.
 - Mobs found on screen are placed through the camera of the frame they were
-  found on (`PositionFusion.camera`, `MobsHittingMixin.mobs_in_virtual_px`).
-- `TrialRunner` judges Trials on `current_position`, to the driver's target in
-  virtual px (#397).
+  found on (`PositionFusion.camera`, `mob_detection.mobs_in_virtual_px`).
+- `TrialRunner` judges Trials on `POSITION`, to the driver's target in
+  virtual px (#397), which it claims `DESTINATION` with for its run (#441).
 
 Game files are read by `game_data/` (top level, importing neither `maple` nor
 `botting`), not by this package. See `docs/agents/game-data.md`.

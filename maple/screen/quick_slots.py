@@ -101,6 +101,7 @@ import numpy as np
 from botting.screen import Frame, Reading, Status, match
 from game_data.sprites import Sprite
 
+from .cursor import CURSOR_PATHS
 from .locator import FrameCheck
 from .sprites import Declaration, ReaderSprites
 
@@ -147,32 +148,6 @@ _SAMPLES = 8
 """How many of a label's opaque pixels the first pass checks."""
 _FEW = 64
 """The first pass stops early once this few positions remain."""
-
-_CURSOR_FRAMES = {
-    0: "0",
-    1: "01",
-    2: "0123456",
-    3: "012345",
-    4: "01",
-    5: "0123",
-    6: "0123456",
-    7: "0124",
-    8: "0124",
-    9: "0",
-    10: "0",
-    11: "0",
-    12: "0",
-    13: "01",
-    14: "0",
-    15: "01",
-    16: "0123",
-}
-CURSOR_PATHS = tuple(
-    f"UI/Basic.img/Cursor/{state}/{frame}"
-    for state, frames in _CURSOR_FRAMES.items()
-    for frame in frames
-)
-"""The game's mouse cursor, every state and frame of `UI/Basic.img/Cursor`."""
 
 QUICK_SLOTS = Declaration(
     "quick slots",

@@ -1,37 +1,41 @@
-import functools
 import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import time
 
 from botting import PARENT_LOG, controller
-from botting.core import ActionRequest, BotData, DecisionMaker
+from botting.core import ActionRequest, BotData, DecisionMaker, TurnGate
+from maple.model.world import WorldMap
+from maple.screen.minimap import MINIMAP
 from maple.screen.position import marker_of_feet
 from maple.telemetry_events import MOVEMENT_PLAN_STARTED, plan_started_payload
 
-from .mixins import (
-    MinimapAttributesMixin,
-    MobsHittingMixin,
-    MovementRecoveryMixin,
-    MovementsMixin,
-    NextTargetMixin,
+from .providers import (
+    DESTINATION,
+    HANDLE,
+    MOVEMENTS,
+    POSITION,
+    WORLD_MAP,
+    PathingProvider,
+    actionable,
+    pathing,
 )
+from .recovery import ESCALATION_TARGETS, MovementRecovery, escalation_classes
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
 
-class Rotation(
-    MovementRecoveryMixin,
-    MinimapAttributesMixin,
-    MovementsMixin,
-    NextTargetMixin,
-    MobsHittingMixin,
-    DecisionMaker,
-):
+class Rotation(DecisionMaker):
     """
-    The rotation loop: pick a target, compute a Path, ship the Movement Plan.
+    The rotation loop: refresh the destination and its Movement Plan, ship the
+    plan.
 
-    Stuck detection and reaction are `MovementRecoveryMixin`'s (`CONTEXT.md` ->
+    Where it heads is `DESTINATION` (`DestinationProvider`), and the Path and
+    its Movement Plan are `PathingProvider`'s, configured from the profile
+    (`movements_duration`, `disable_teleport`). One Movement Action at a time,
+    through its Turn Gate: the Action's callback leaves it from Main Process.
+
+    Stuck detection and reaction are `MovementRecovery`'s (`CONTEXT.md` ->
     **Movement recovery**), which replaced `FailsafeMixin`'s six raw-equality
     sentinels. Those watched two `BotData` attributes for having not *changed* in
     N seconds, which was wrong in both directions: a character casting in place
@@ -40,6 +44,20 @@ class Rotation(
     construction and the jitter bound fixes the second.
     """
 
+    screen_readers = (MINIMAP,)
+    reads = (
+        HANDLE,
+        WORLD_MAP,
+        POSITION,
+        DESTINATION,
+        MOVEMENTS,
+        *MovementRecovery.reads,
+    )
+    #: What an Escalate stops until a human resumes, itself included.
+    pauses = ESCALATION_TARGETS
+    #: A recovery rung preempts its own Movement Action.
+    cancels = ("maple.decision_makers.rotation.Rotation",)
+
     _throttle = 0.1
 
     def __init__(
@@ -47,65 +65,67 @@ class Rotation(
         metadata: multiprocessing.managers.DictProxy,
         data: BotData,
         pipe: multiprocessing.connection.Connection,
-        movements_duration: float = 1.0,
-        disable_teleport: bool = False,
-        smart_rotation_enabled: bool = False,
-        mob_count_threshold: int | None = None,
         **kwargs: object,
     ) -> None:
+        """
+        :param kwargs: The profile's settings. `movements_duration` and
+            `disable_teleport` configure `PathingProvider`, and
+            `smart_rotation_enabled` and `mob_count_threshold`
+            `DestinationProvider`: none is read here.
+        """
         super().__init__(metadata, data, pipe)
-        # No `self._teleport_skill` attribute: it would shadow
-        # `MovementsMixin._teleport_skill()`, which `_new_handler` calls below.
-        self.lock = self._proxies.instance(repr(self), "Lock")
+        self._recovery = MovementRecovery(self, physics=lambda: self._pathing.physics())
+        #: Its turn on the client. Made by `setup()`.
+        self.gate: TurnGate
+        #: The Bot's pathing, for the compile and the physics. Set by `setup()`.
+        self._pathing: PathingProvider
 
-        if disable_teleport:
-            self.data.character.skills.pop("Teleport", None)
+    def setup(self) -> None:
+        self.gate = TurnGate(self._proxies.instance(repr(self), "Lock"))
+        self._pathing = pathing(self.data)
+        self._recovery.setup(self._proxies, escalation_classes())
 
-        # Minimap attributes
-        self._create_minimap_attributes()
-
-        # Rotation attributes
-        self._create_rotation_attributes(
-            smart_rotation=smart_rotation_enabled,
-            mob_count_threshold=mob_count_threshold,
-        )
-        self._create_pathing_attributes(movements_duration)
-
-        # Movement recovery
-        self._create_recovery_attributes()
-
-    async def task(self) -> None:
-        self._restart_recovery_grace_period()
-        await super().task()
+    def on_start(self) -> None:
+        self._recovery.restart_grace_period()
 
     async def _decide(self) -> None:
-        # Every cycle, before the lock is contended for: a cycle that cannot
-        # acquire the lock is a cycle the loop spent waiting its turn, and the
-        # Delivery Gate is what makes those cost nothing rather than needing to
-        # be skipped here.
-        self._recovery_check(time.perf_counter())
+        # Every cycle, before the gate is tried: a cycle that cannot enter it is
+        # a cycle the loop spent waiting its turn, and the Delivery Gate is what
+        # makes those cost nothing rather than needing to be skipped here.
+        self._recovery.check(time.perf_counter())
 
-        # Only send standard request when lock is acquired, otherwise wait for lock
-        if self.lock.acquire(blocking=False):
+        # Only send a Movement Action on its turn: otherwise wait for the gate.
+        if self.gate.try_enter():
             logger.debug("%s is deciding.", self)
-            self.data.update_attribute("next_target")
-            self.data.update_attribute("movements")
+            self.refresh(DESTINATION)
+            self.refresh(MOVEMENTS)
             if self._has_movements():
                 self._emit_plan_started()
                 self.send(self._request())
             else:
-                self.lock.release()
+                self.gate.leave_now()
+
+    def _has_movements(self) -> bool:
+        """Whether the current Movement Plan compiles to anything (`actionable`)."""
+        return actionable(self.read(MOVEMENTS))
+
+    def _world_map(self) -> WorldMap:
+        world_map = self.read(WORLD_MAP)
+        if world_map is None or world_map.minimap is None:
+            raise ValueError(
+                "no map to plan on: the bot's map isn't known, or has no minimap"
+            )
+        return world_map
 
     def _emit_plan_started(self) -> None:
         """
         Record the Movement Plan about to be sent, from cached values only.
-        `data.<name>` can re-run a thresholded update function (a fresh minimap
-        read) on the send path, which would delay the Action and could run recovery
+        `read` can re-run a thresholded update function (a fresh minimap read)
+        on the send path, which would delay the Action and could run recovery
         from inside telemetry. The cache is also what the Plan was computed from.
         """
-        last_known = functools.partial(self.data.get_last_known_value, update=False)
-        reading = last_known("current_position")
-        target = last_known("next_target")
+        reading = self.peek(POSITION)
+        target = self.peek(DESTINATION)
         transform = self._world_map().minimap
         if reading is None or reading.value is None or target is None:
             return
@@ -118,7 +138,7 @@ class Rotation(
         self.emit(
             MOVEMENT_PLAN_STARTED,
             plan_started_payload(
-                last_known("movements"),
+                self.peek(MOVEMENTS) or (),
                 marker_of_feet(transform, virtual_position),
                 marker_of_feet(transform, virtual_target),
                 virtual_position=virtual_position,
@@ -128,7 +148,7 @@ class Rotation(
         )
 
     def _request(self) -> ActionRequest:
-        # TODO - Could switch to requeue=False while ensuring that the lock is released.
+        # TODO - Could switch to requeue=False while ensuring that the gate is left.
         # This is because Telecasting will move the character, and the next action should
         # be based on the new position.
         return ActionRequest(
@@ -136,10 +156,10 @@ class Rotation(
             controller.compile_and_send,
             ign=self.data.ign,
             requeue_if_not_scheduled=False,
-            callbacks=[self.lock.release],
+            callbacks=[self.gate.releaser],
             # The Delivery Gate's input: `compile_and_send` returns the number of
             # Steps that actually reached the client, and only a task that ran to
-            # completion reports at all. See `MovementRecoveryMixin`.
-            result_callbacks=[self._delivery.put_nowait],
-            args=(self.data.handle, self._movement_compiler()),
+            # completion reports at all. See `MovementRecovery`.
+            result_callbacks=[self._recovery.delivered],
+            args=(self.read(HANDLE), self._pathing.compiler(self.correlation_id)),
         )

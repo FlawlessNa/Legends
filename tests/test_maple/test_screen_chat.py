@@ -4,16 +4,18 @@ origins, rows of the log painted in the frame set's band and text colours, and
 made-up glyphs. No client pixels.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import pytest
 
-from botting.screen import Frame, Status
+from botting.screen import Frame, Reading, Status
 from game_data.sprites import Sprite
+from maple.screen import chat as chat_module
 from maple.screen.chat import (
     BAND_LEFT,
     BAND_RIGHT,
+    FADE,
     LOG_BOTTOM,
     LOG_HIDDEN,
     LOG_SHOWN,
@@ -23,9 +25,12 @@ from maple.screen.chat import (
     SCROLL_X,
     TARGET_SELECT,
     ChatKind,
+    ChatLine,
     ChatReader,
+    reads_as,
 )
-from maple.screen.font import CHAT_GENERAL, GlyphSet
+from maple.screen.cursor import CURSOR_PATHS
+from maple.screen.font import CHAT_GENERAL, UNREAD, GlyphSet
 from maple.screen.locator import UI_NOT_FOUND, FrameCheck
 from maple.screen.sprites import GAUGE_LABEL, ReaderSprites
 
@@ -33,12 +38,24 @@ RNG = np.random.default_rng(315)
 
 type RGB = tuple[int, int, int]
 
-YELLOW_BAND, PINK_BAND, TEAL_BAND, BLUE_BAND = MEGAPHONE_BANDS
+YELLOW_BAND = MEGAPHONE_BANDS["yellow"].dark
+PINK_BAND = MEGAPHONE_BANDS["pink"].dark
+TEAL_BAND = MEGAPHONE_BANDS["teal"].dark
+BLUE_BAND = MEGAPHONE_BANDS["light blue"].dark
 BACKDROP: RGB = (20, 20, 10)
+BRIGHT_BACKDROP: RGB = (119, 119, 124)
+"""The backdrop over a bright map: a row's end on henesyscrowd_044 (v3)."""
 WHITE: RGB = (255, 255, 255)
 YELLOW: RGB = (255, 255, 0)
+NOTICE_BLUE: RGB = (96, 206, 255)
 GREEN: RGB = (0, 255, 0)
-DARK_RED: RGB = (119, 0, 66)
+"""The outgoing whisper's (v4)."""
+LIGHT_RED: RGB = (255, 175, 175)
+"""A notice's: `Could not find <name>.` (v4)."""
+ORANGE: RGB = (255, 128, 0)
+"""A text colour not captured yet: party, buddy or GM, maybe."""
+DARK_RED: RGB = (170, 0, 90)
+"""A band not captured yet, brighter than the backdrop and off every band."""
 WINDOW: RGB = (240, 240, 240)
 
 
@@ -57,7 +74,9 @@ SPRITES = {
     LOG_HIDDEN: sprite(LOG_HIDDEN, 12, 12, (-539, -14)),
     SCROLL_UP: sprite(SCROLL_UP, 15, 13),
     GAUGE_LABEL: sprite(GAUGE_LABEL, 20, 8),
+    **{path: sprite(path, 20, 26) for path in CURSOR_PATHS},
 }
+CURSOR = SPRITES[CURSOR_PATHS[0]]
 
 
 def glyph(columns: list[int]) -> np.ndarray:
@@ -68,9 +87,26 @@ def glyph(columns: list[int]) -> np.ndarray:
     return mask
 
 
-GLYPHS = {"H": glyph([9, 2, 2, 9]), "i": glyph([1, 0, 9]), "!": glyph([7])}
+def marks(columns: list[list[int]]) -> np.ndarray:
+    """A 14-row glyph, each column inked on the rows it lists."""
+    mask = np.zeros((CHAT_GENERAL.rows or 14, len(columns)), bool)
+    for x, rows in enumerate(columns):
+        mask[rows, x] = True
+    return mask
+
+
+GLYPHS = {
+    "H": glyph([9, 2, 2, 9]),
+    "i": glyph([1, 0, 9]),
+    "!": glyph([7]),
+    ":": marks([[5, 6, 10, 11]]),
+    "<": marks([[7], [6, 8], [5, 9]]),
+    "1": marks([[4], list(range(3, 12))]),
+    "[": marks([list(range(2, 13)), [2, 12]]),
+    "]": marks([[2, 12], list(range(2, 13))]),
+}
 UNHARVESTED = glyph([5, 5, 1, 5, 5])
-"""A glyph the set doesn't have."""
+"""A glyph the set doesn't have, drawn where a row's text says `UNREAD`."""
 
 
 def sprites() -> ReaderSprites:
@@ -81,9 +117,9 @@ def sprites() -> ReaderSprites:
     )
 
 
-def reader() -> ChatReader:
+def reader(ign: str | None = None) -> ChatReader:
     s = sprites()
-    return ChatReader(s, FrameCheck(s))
+    return ChatReader(s, FrameCheck(s), ign=ign)
 
 
 def paste(pixels: np.ndarray, s: Sprite, x: int, y: int) -> None:
@@ -95,12 +131,18 @@ def paste(pixels: np.ndarray, s: Sprite, x: int, y: int) -> None:
 
 @dataclass
 class Row:
-    """One row of the log: its band (or the backdrop), and its text."""
+    """One row of the log: its band (or the backdrop), and its text, where
+    `UNREAD` draws a glyph the set lacks."""
 
     background: RGB = BACKDROP
     text: str = ""
     colour: RGB = WHITE
-    extra: list[np.ndarray] = field(default_factory=list[np.ndarray])
+    right_end: RGB | None = None
+    """The band's colour at its right end, when the map behind it makes it
+    differ from its left end's."""
+    indent: int = 0
+    """Columns its text starts further in than a line's first row: a wrapped
+    line's next rows are drawn 20 in."""
 
 
 POINT = (40, 200)
@@ -118,7 +160,10 @@ def draw_chat(
     rows: list[Row],
     point: tuple[int, int] = POINT,
     hidden: bool = False,
+    fade: bool = True,
 ) -> None:
+    """Draw the chat, and its log's `rows`, faded at the log's bottom as the
+    client draws it, unless not to `fade`."""
     x, y = point
     paste(pixels, SPRITES[TARGET_SELECT], x, y)
     paste(pixels, SPRITES[LOG_HIDDEN if hidden else LOG_SHOWN], x, y)
@@ -129,11 +174,13 @@ def draw_chat(
     paste(pixels, SPRITES[SCROLL_UP], x + SCROLL_X, top)
     for i, row in enumerate(rows):
         row_top = top + ROW_HEIGHT * i
-        pixels[row_top : row_top + ROW_HEIGHT, x + BAND_LEFT : x + BAND_RIGHT] = (
-            row.background[::-1]
-        )
-        masks = [GLYPHS.get(c) for c in row.text] + row.extra
-        cx = x + BAND_LEFT + 2
+        left, right = x + BAND_LEFT, x + BAND_RIGHT
+        ends = np.array([row.background, row.right_end or row.background], float)
+        across = np.linspace(0.0, 1.0, right - left)[:, np.newaxis]
+        band = (ends[0] + across * (ends[1] - ends[0])).round().astype(np.uint8)
+        pixels[row_top : row_top + ROW_HEIGHT, left:right] = band[:, ::-1]
+        masks = [{**GLYPHS, UNREAD: UNHARVESTED}.get(c) for c in row.text]
+        cx = x + BAND_LEFT + 2 + row.indent
         for mask in masks:
             if mask is None:  # a space: a gap of 3 columns or more
                 cx += 3
@@ -144,6 +191,11 @@ def draw_chat(
             cell = pixels[row_top + 3 : row_top + 3 + h, cx : cx + w]
             cell[mask[: cell.shape[0]]] = row.colour[::-1]
             cx += w + 1
+    if fade:
+        first = bottom - len(FADE) + 1
+        for i, level in enumerate(FADE):
+            band = pixels[first + i, x + BAND_LEFT : x + BAND_RIGHT]
+            band[:] = (band * (level / 255)).round().astype(np.uint8)
 
 
 def frame(pixels: np.ndarray, ok: bool = True) -> Frame:
@@ -168,14 +220,140 @@ def kinds(rows: list[Row]) -> list[ChatKind]:
 # --- kinds ----------------------------------------------------------------
 
 
-@pytest.mark.parametrize("band", MEGAPHONE_BANDS)
-def test_a_megaphone_band_is_a_megaphone(band: RGB) -> None:
+@pytest.mark.parametrize("name", MEGAPHONE_BANDS)
+def test_a_megaphone_band_is_a_megaphone(name: str) -> None:
+    assert kinds([Row(MEGAPHONE_BANDS[name].dark, "Hi", WHITE)]) == [ChatKind.MEGAPHONE]
+
+
+@pytest.mark.parametrize(
+    "band",
+    [
+        (132, 67, 49),  # red over Ellinia: j_1280x720_pagedown_3 (v2)
+        (166, 80, 72),  # red, where Henesys's grass shows behind: henesyscrowd_004
+        (187, 105, 106),  # red over Henesys: henesyscrowd_000 (v3)
+        (175, 195, 214),  # light blue over Henesys: henesyscrowd_030 (v3)
+        (238, 189, 17),  # yellow over Ellinia's brightest: ellinia_042 (v3)
+        (229, 178, 202),  # pink, the same: ellinia_036 (v3)
+    ],
+)
+def test_a_band_over_a_map_that_shows_through_it_is_still_a_megaphone(
+    band: RGB,
+) -> None:
+    """A band is translucent: the colours its ends read on the frame set, by
+    up to 50 levels apart for the red band."""
     assert kinds([Row(band, "Hi", WHITE)]) == [ChatKind.MEGAPHONE]
+
+
+def test_a_band_whose_ends_differ_over_the_map_behind_it_is_one_band() -> None:
+    """henesys_1280x720_08 (v3): a red band's ends, over two parts of the map."""
+    row = Row((157, 84, 66), "Hi", WHITE, right_end=(178, 101, 102))
+    assert kinds([row]) == [ChatKind.MEGAPHONE]
 
 
 def test_a_band_drawn_a_little_off_its_colour_is_still_that_band() -> None:
     r, g, b = BLUE_BAND
     assert kinds([Row((r + 3, g + 13, b), "Hi", WHITE)]) == [ChatKind.MEGAPHONE]
+
+
+@pytest.mark.parametrize(
+    ("colour", "kind"),
+    [
+        (WHITE, ChatKind.GENERAL),
+        (YELLOW, ChatKind.SYSTEM),
+        (NOTICE_BLUE, ChatKind.SYSTEM),
+    ],
+    ids=["general", "system", "event notice"],
+)
+def test_a_line_over_a_bright_map_has_its_kind(colour: RGB, kind: ChatKind) -> None:
+    """The backdrop is black at half opacity, so over Henesys it reads up to
+    127, the ends of a row included, and its rows are no band."""
+    left, right = BRIGHT_BACKDROP, BACKDROP
+    assert kinds([Row(left, "Hi", colour, right_end=right)]) == [kind]
+
+
+def test_a_general_line_over_a_bright_map_is_read() -> None:
+    line = read_one(Row(BRIGHT_BACKDROP, "Hi : H!"))
+
+    assert (line.kind, line.speaker, line.message) == (ChatKind.GENERAL, "Hi", "H!")
+
+
+def test_an_events_notice_is_a_system_line() -> None:
+    assert kinds([Row(text="Hi", colour=NOTICE_BLUE)]) == [ChatKind.SYSTEM]
+
+
+def test_text_of_two_kinds_is_unknown() -> None:
+    pixels = screen()
+    draw_chat(pixels, [Row(text="Hi Hi")])
+    top = POINT[1] + LOG_BOTTOM - ROW_HEIGHT
+    text = pixels[top : top + ROW_HEIGHT, POINT[0] + BAND_LEFT + 12 :]
+    text[(text == 255).all(axis=2)] = YELLOW[::-1]
+    reading = reader().read(frame(pixels))
+
+    assert reading.value is not None
+    assert [line.kind for line in reading.value] == [ChatKind.UNKNOWN]
+
+
+def test_the_newest_line_is_read_where_the_log_fades_out() -> None:
+    """The log's last rows of pixels fade, and the bottom row's baseline and
+    descenders are drawn in them: its text is still read."""
+    faded = chat_frame([Row(text="H"), Row(text="Hi : H!")])
+    unfaded = screen()
+    draw_chat(unfaded, [Row(text="H"), Row(text="Hi : H!")], fade=False)
+
+    assert not np.array_equal(faded.pixels, unfaded)
+    reading = reader().read(faded)
+    assert reading.value is not None
+    assert [(line.text, line.speaker) for line in reading.value] == [
+        ("H", None),
+        ("Hi : H!", "Hi"),
+    ]
+
+
+def cursor_over(rows: list[Row], column: int, row: int = 0, down: int = 4) -> Frame:
+    """The log's `rows`, with the cursor drawn over the given row, from
+    `column` of its band and `down` rows below its top. The cursor is taller
+    than a row, so it covers the next row too."""
+    pixels = screen()
+    draw_chat(pixels, rows)
+    top = POINT[1] + LOG_BOTTOM - ROW_HEIGHT * (len(rows) - row)
+    paste(pixels, CURSOR, POINT[0] + BAND_LEFT + column, top + down)
+    return frame(pixels)
+
+
+@pytest.mark.parametrize(
+    ("colour", "kind"),
+    [(WHITE, ChatKind.GENERAL), (YELLOW, ChatKind.SYSTEM)],
+    ids=["general", "system"],
+)
+def test_the_cursor_over_a_line_is_none_of_its_text(
+    colour: RGB, kind: ChatKind
+) -> None:
+    reading = reader().read(
+        cursor_over([Row(text="Hi Hi!", colour=colour), Row(), Row()], 12)
+    )
+
+    assert reading.status is Status.READ
+    assert reading.value is not None
+    assert [line.kind for line in reading.value] == [kind]
+
+
+def test_what_the_cursor_hides_reads_unread() -> None:
+    """Never a line with its letters left out: the columns the cursor covers,
+    here the whole of the message, read as one letter that has no glyph."""
+    reading = reader().read(cursor_over([Row(text="Hi : Hi!"), Row(), Row()], 18))
+
+    assert reading.value is not None
+    [line] = reading.value
+    assert (line.text, line.speaker) == (f"Hi : {UNREAD}", "Hi")
+
+
+def test_the_cursor_over_an_empty_row_is_no_line() -> None:
+    reading = reader().read(
+        cursor_over([Row(text="Hi"), Row(), Row(), Row()], 40, row=1)
+    )
+
+    assert reading.value is not None
+    assert [line.text for line in reading.value] == ["Hi"]
 
 
 def test_white_text_with_no_band_is_general_and_is_read() -> None:
@@ -197,7 +375,7 @@ def test_yellow_text_with_no_band_is_system_and_has_no_text() -> None:
 @pytest.mark.parametrize(
     "row",
     [
-        Row(text="Hi", colour=GREEN),  # a colour not captured yet: whisper?
+        Row(text="Hi", colour=ORANGE),  # a colour not captured yet: party?
         Row(DARK_RED, "Hi", WHITE),  # a band not captured yet
     ],
     ids=["text colour", "band"],
@@ -207,10 +385,11 @@ def test_colours_not_in_the_frame_set_are_unknown(row: Row) -> None:
 
 
 def test_no_kind_is_ever_guessed_as_party_buddy_whisper_or_gm() -> None:
-    """Their colours aren't in the frame set, so nothing reads as them yet."""
+    """Party, buddy and GM colours aren't in the frame set, so nothing reads as
+    them yet, and a colour not captured isn't taken for a whisper either."""
     rows = [
         Row(text="Hi"),
-        Row(text="Hi", colour=GREEN),
+        Row(text="Hi", colour=ORANGE),
         Row(DARK_RED, "Hi"),
         Row(PINK_BAND, "Hi", DARK_RED),
     ]
@@ -226,13 +405,396 @@ def test_empty_rows_are_not_lines() -> None:
     ]
 
 
-def test_a_line_with_a_character_not_harvested_has_no_text() -> None:
-    """Its text isn't a string with the character missing."""
-    reading = reader().read(chat_frame([Row(text="Hi", extra=[UNHARVESTED])]))
+def read_one(row: Row, ign: str | None = None) -> ChatLine:
+    reading = reader(ign).read(chat_frame([row]))
+    assert reading.value is not None, reading.detail
+    [line] = reading.value
+    return line
+
+
+def test_a_character_not_harvested_reads_as_unread_in_its_place() -> None:
+    """The line keeps its kind and the rest of its text, rather than reading
+    `None` or a string with the character missing."""
+    line = read_one(Row(text=f"H{UNREAD}i H{UNREAD}"))
+
+    assert line.kind is ChatKind.GENERAL
+    assert line.text == f"H{UNREAD}i H{UNREAD}"
+
+
+# --- speaker and message ----------------------------------------------------
+
+
+def test_a_general_line_is_split_into_its_speaker_and_message() -> None:
+    line = read_one(Row(text="Hi : Hi H! i"))
+
+    assert (line.text, line.speaker, line.message) == ("Hi : Hi H! i", "Hi", "Hi H! i")
+    assert not line.outgoing
+
+
+def test_the_time_before_a_general_line_is_neither_speaker_nor_message() -> None:
+    line = read_one(Row(text="[11:1] HiH : i"))
+
+    assert (line.speaker, line.message) == ("HiH", "i")
+
+
+def test_a_message_that_holds_the_separator_is_split_at_the_first() -> None:
+    line = read_one(Row(text="Hi : H : i"))
+
+    assert (line.speaker, line.message) == ("Hi", "H : i")
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["Hi H!", f"H{UNREAD} H", "Hi :", "H! : i", ": i"],
+    ids=["no separator", "wrapped row", "no message", "not a name", "no name"],
+)
+def test_a_general_row_that_doesnt_fit_the_format_has_no_speaker(text: str) -> None:
+    line = read_one(Row(text=text))
+
+    assert (line.kind, line.text) == (ChatKind.GENERAL, text)
+    assert (line.speaker, line.message, line.outgoing) == (None, None, False)
+
+
+def test_an_unread_letter_in_a_name_is_kept_in_the_speaker() -> None:
+    line = read_one(Row(text=f"H{UNREAD}i : i"))
+
+    assert (line.speaker, line.message) == (f"H{UNREAD}i", "i")
+
+
+@pytest.mark.parametrize(
+    ("ign", "outgoing"),
+    [("Hi", True), ("hI", True), ("Hl", False), ("Hii", False), ("H", False)],
+)
+def test_a_line_is_outgoing_when_its_speaker_is_the_character(
+    ign: str, outgoing: bool
+) -> None:
+    assert read_one(Row(text="Hi : i"), ign=ign).outgoing is outgoing
+
+
+def test_a_speaker_read_in_part_is_the_character_when_the_rest_reads_as_it() -> None:
+    line = read_one(Row(text=f"H{UNREAD}i : i"), ign="Hxi")
+
+    assert line.outgoing
+
+
+@pytest.mark.parametrize(
+    ("speaker", "ign"),
+    [
+        (UNREAD * 4, "Abcd"),
+        (f"H{UNREAD * 3}", "Hxyz"),
+        (f"H{UNREAD}", "Hx"),
+    ],
+    ids=["nothing read", "a quarter read", "one letter read"],
+)
+def test_a_speaker_with_too_few_letters_read_is_never_the_character(
+    speaker: str, ign: str
+) -> None:
+    """Another player whose name reads mostly unread is not us: we would never
+    answer them (#484)."""
+    line = read_one(Row(text=f"{speaker} : i"), ign=ign)
+
+    assert line.speaker == speaker
+    assert not line.outgoing
+
+
+def test_no_line_is_outgoing_without_the_character_s_name() -> None:
+    assert not read_one(Row(text="Hi : i")).outgoing
+
+
+@pytest.mark.parametrize(
+    "row",
+    [Row(TEAL_BAND, "Hi : i"), Row(text="Hi : i", colour=YELLOW)],
+    ids=["megaphone", "system"],
+)
+def test_other_kinds_have_no_speaker(row: Row) -> None:
+    line = read_one(row, ign="Hi")
+
+    assert (line.speaker, line.message, line.outgoing) == (None, None, False)
+
+
+def test_the_time_before_a_line_doesnt_stop_it_being_outgoing() -> None:
+    """The client may put `[hh:mm] ` first (#482): the speaker is still the
+    name after it, and the character's own line is still outgoing."""
+    line = read_one(Row(text="[11:1] Hi : i"), ign="Hi")
+
+    assert (line.speaker, line.message, line.outgoing) == ("Hi", "i", True)
+
+
+# --- whispers and notices ---------------------------------------------------
+
+
+@pytest.mark.parametrize("ign", [None, "Hi", "iH"])
+def test_a_whisper_sent_is_split_into_its_recipient_and_message(
+    ign: str | None,
+) -> None:
+    """`Recipient<< message`, in green: outgoing whoever the character is, and
+    its speaker is whom it went to."""
+    line = read_one(Row(text="[11:1] Hi<< i H!", colour=GREEN), ign=ign)
+
+    assert (line.kind, line.text) == (ChatKind.WHISPER, "[11:1] Hi<< i H!")
+    assert (line.speaker, line.message, line.outgoing) == ("Hi", "i H!", True)
+
+
+def test_a_whisper_sent_without_the_time_is_split_too() -> None:
+    line = read_one(Row(text="iH<< Hi", colour=GREEN))
+
+    assert (line.speaker, line.message, line.outgoing) == ("iH", "Hi", True)
+
+
+@pytest.mark.parametrize("text", ["Hi : i", "Hi H", "Hi<<"])
+def test_a_green_row_that_isnt_a_whisper_sent_has_no_speaker(text: str) -> None:
+    """An incoming whisper's format isn't in the frame set yet (#592): no
+    green row is given a speaker it might not have."""
+    line = read_one(Row(text=text, colour=GREEN), ign="Hi")
+
+    assert (line.kind, line.text) == (ChatKind.WHISPER, text)
+    assert (line.speaker, line.message, line.outgoing) == (None, None, False)
+
+
+@pytest.mark.parametrize("text", ["Hi : i", "[11:1] Hi H!"])
+def test_a_notice_is_read_and_is_never_anyone_s_line(text: str) -> None:
+    """Read as `general`, a notice would be another player's line to judge."""
+    line = read_one(Row(text=text, colour=LIGHT_RED), ign="Hi")
+
+    assert (line.kind, line.text) == (ChatKind.NOTICE, text)
+    assert (line.speaker, line.message, line.outgoing) == (None, None, False)
+
+
+@pytest.mark.parametrize("colour", [GREEN, LIGHT_RED], ids=["whisper", "notice"])
+def test_a_line_of_another_colour_is_read_where_the_log_fades_out(
+    colour: RGB,
+) -> None:
+    """Dimmed and rounded, a colour may not scale back to itself: 175 dimmed
+    by 231/255 is 159, which scales back to 176."""
+    reading = reader().read(
+        chat_frame([Row(text="H"), Row(text="Hi H!", colour=colour)])
+    )
+
+    assert reading.value is not None
+    assert reading.value[-1].text == "Hi H!"
+
+
+def test_what_the_cursor_hides_in_a_whisper_reads_unread() -> None:
+    reading = reader().read(
+        cursor_over([Row(text="Hi<< Hi!", colour=GREEN), Row(), Row()], 18)
+    )
+
     assert reading.value is not None
     [line] = reading.value
-    assert line.kind is ChatKind.GENERAL
-    assert line.text is None
+    assert line.kind is ChatKind.WHISPER
+    assert line.text is not None
+    assert UNREAD in line.text
+
+
+@pytest.mark.parametrize(
+    ("read", "written", "same"),
+    [
+        ("Hi", "Hi", True),
+        ("IoI", "lol", True),
+        ("IoI", "IoI", True),
+        ("lol", "IoI", False),
+        (f"H{UNREAD}i", "Hxi", True),
+        (f"I{UNREAD}", "lx", False),
+        ("Hi", "Hi!", False),
+        ("Hi", "hi", False),
+    ],
+)
+def test_reads_as_allows_unread_and_alike_letters(
+    read: str, written: str, same: bool
+) -> None:
+    assert reads_as(read, written) is same
+
+
+@pytest.mark.parametrize(
+    ("read", "written", "same"),
+    [
+        # At least half the letters read, and at least two.
+        (f"A{UNREAD * 2}d", "Abcd", True),
+        (f"A{UNREAD * 3}", "Abcd", False),
+        (UNREAD * 4, "Abcd", False),
+        (f"H{UNREAD}", "Hx", False),
+        # A text of one letter must read it.
+        ("k", "k", True),
+        (UNREAD, "k", False),
+        # Spaces aren't letters.
+        (f"s{UNREAD} {UNREAD}k", "sa bk", True),
+        (f"{UNREAD} {UNREAD} k", "a b k", False),
+        ("", "", False),
+    ],
+)
+def test_reads_as_needs_enough_letters_read(
+    read: str, written: str, same: bool
+) -> None:
+    assert reads_as(read, written) is same
+    assert reads_as(read, written, ignore_case=True) is same
+
+
+def test_reads_as_may_ignore_case() -> None:
+    assert reads_as("HI", "hl", ignore_case=True)
+    assert not reads_as("HI", "hx", ignore_case=True)
+
+
+# --- wrapped lines --------------------------------------------------------
+
+
+def test_an_indented_row_below_a_general_line_continues_it() -> None:
+    reading = reader().read(
+        chat_frame([Row(text="Hi : i"), Row(text="Hi H", indent=20)])
+    )
+    assert reading.value is not None
+    head, rest = reading.value
+
+    assert not head.continues
+    assert rest.continues
+    assert (rest.kind, rest.text, rest.speaker, rest.message) == (
+        ChatKind.GENERAL,
+        "Hi H",
+        None,
+        None,
+    )
+    assert rest.top == head.top + ROW_HEIGHT
+
+
+def test_every_row_of_a_line_wrapped_twice_continues_it() -> None:
+    rows = [Row(text="Hi : i"), Row(text="Hi H", indent=20), Row(text="H i", indent=20)]
+    reading = reader().read(chat_frame(rows))
+    assert reading.value is not None
+
+    assert [line.continues for line in reading.value] == [False, True, True]
+
+
+def test_an_indented_row_has_no_speaker_even_when_it_fits_the_format() -> None:
+    """The rest of a message may hold ` : `: it is still the rest of it."""
+    reading = reader("Hi").read(
+        chat_frame([Row(text="Hi : i"), Row(text="Hi : H", indent=20)])
+    )
+    assert reading.value is not None
+    rest = reading.value[-1]
+
+    assert rest.continues
+    assert (rest.speaker, rest.message, rest.outgoing) == (None, None, False)
+
+
+def test_an_indented_row_with_nothing_above_has_no_speaker_and_continues_nothing() -> (
+    None
+):
+    """Its line's first row scrolled away before it was read."""
+    line = read_one(Row(text="Hi : H", indent=20))
+
+    assert (line.text, line.speaker, line.continues) == ("Hi : H", None, False)
+
+
+def test_a_wrapped_whisper_continues_the_whisper_above() -> None:
+    rows = [
+        Row(text="Hi<< i", colour=GREEN),
+        Row(text="H i", colour=GREEN, indent=20),
+    ]
+    reading = reader().read(chat_frame(rows))
+    assert reading.value is not None
+
+    assert [(line.kind, line.continues) for line in reading.value] == [
+        (ChatKind.WHISPER, False),
+        (ChatKind.WHISPER, True),
+    ]
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        [Row(text="Hi H", indent=20)],
+        [Row(TEAL_BAND, "Hi"), Row(text="Hi H", indent=20)],
+        [Row(text="Hi", colour=YELLOW), Row(text="Hi H", indent=20)],
+        [Row(text="Hi<< i", colour=GREEN), Row(text="Hi H", indent=20)],
+        [Row(text="Hi : i"), Row(text="Hi : H")],
+        [Row(text="Hi : i"), Row(text="Hi H")],
+        [Row(text="Hi : i"), Row(text="Hi H", colour=LIGHT_RED)],
+    ],
+    ids=[
+        "top of the log",
+        "below a megaphone",
+        "below a system line",
+        "below a whisper",
+        "fits",
+        "not indented",
+        "a notice below",
+    ],
+)
+def test_a_row_continues_only_a_line_of_its_kind_directly_above(
+    rows: list[Row],
+) -> None:
+    """A row that doesn't fit the format but starts where a line starts is no
+    continuation: a notice, or a white line the format doesn't explain, below
+    another player's line is never joined to it (#484's caveat)."""
+    reading = reader().read(chat_frame(rows))
+    assert reading.value is not None
+
+    assert not reading.value[-1].continues
+
+
+def test_a_row_continues_nothing_read_in_an_earlier_read() -> None:
+    """Both rows of a wrapped line arrive at once, so a row that doesn't fit,
+    alone in a read, can't be told from a line that doesn't fit."""
+    r = reader()
+    r.read(chat_frame([Row(text="Hi : i")]))
+    reading = r.read(chat_frame([Row(text="Hi : i"), Row(text="Hi H", indent=20)]))
+    assert reading.value is not None
+    [line] = reading.value
+
+    assert (line.text, line.continues) == ("Hi H", False)
+
+
+def test_the_cursor_over_a_line_s_first_letters_doesnt_make_it_a_continuation() -> None:
+    """Its text shows only past the cursor, as far in as a wrapped row's, but
+    the cursor's columns are taken for text."""
+    reading = reader().read(
+        cursor_over([Row(text="Hi : i"), Row(text="Hi : Hi H"), Row()], 0, row=1)
+    )
+
+    assert reading.value is not None
+    assert [line.continues for line in reading.value] == [False, False]
+
+
+def bearing_reader() -> ChatReader:
+    """A reader whose glyphs carry bearings, as harvested ones do: none before
+    their ink, one column after it, as `draw_chat` draws them."""
+    glyphs = GlyphSet(CHAT_GENERAL, GLYPHS, bearings={c: (0, 1) for c in GLYPHS})
+    s = ReaderSprites("build", dict(SPRITES), glyph_sets={CHAT_GENERAL.name: glyphs})
+    return ChatReader(s, FrameCheck(s))
+
+
+# A head row whose pen ends 521 columns in: `Hi : `, 166 spaces of 3 columns,
+# then `i`, whose ink ends 2 columns into its 3, and its bearing after it.
+HEAD_TO_521 = Row(text="Hi : " + " " * 166 + "i")
+
+
+@pytest.mark.parametrize(
+    ("first", "mid_word"),
+    [("H", True), ("i", False)],
+    ids=["H would end at 526", "i would end at 525"],
+)
+def test_a_row_continues_mid_word_when_its_first_letter_would_not_have_fit(
+    first: str, mid_word: bool
+) -> None:
+    """The client breaks where the next letter no longer fits (`WRAP_FITS`,
+    525): a first letter that would have fit above shows a space took its
+    room, and the line broke at it."""
+    rows = [HEAD_TO_521, Row(text=f"{first} H", indent=20)]
+    reading = bearing_reader().read(chat_frame(rows))
+    assert reading.value is not None
+    head, rest = reading.value
+
+    assert head.message == "i"
+    assert rest.continues
+    assert rest.mid_word is mid_word
+
+
+def test_a_row_whose_break_isn_t_read_is_not_taken_for_mid_word() -> None:
+    rows = [HEAD_TO_521, Row(text=f"{UNREAD} H", indent=20)]
+    reading = bearing_reader().read(chat_frame(rows))
+    assert reading.value is not None
+
+    assert reading.value[-1].continues
+    assert not reading.value[-1].mid_word
 
 
 def test_a_line_carries_its_row_image_and_top() -> None:
@@ -316,6 +878,106 @@ def test_the_chat_is_found_again_after_the_client_is_resized() -> None:
     reading = r.read(frame(pixels))
     assert reading.status is Status.READ
     assert reading.value == []
+
+
+# --- the cursor and new lines ---------------------------------------------
+
+CURSOR_LOG = [Row(text="Hi : Hi!"), Row(TEAL_BAND, "Hi"), Row(text="H : i"), Row()]
+"""A log the cursor crosses: a general line, a megaphone, a general line."""
+
+
+def texts(reading: Reading[list[ChatLine]]) -> list[str | None]:
+    assert reading.status is Status.READ, reading.detail
+    assert reading.value is not None
+    return [line.text for line in reading.value]
+
+
+@pytest.mark.parametrize("row", [0, 1, 2])
+def test_a_line_is_reported_once_while_the_cursor_crosses_it(row: int) -> None:
+    """The cursor rests on a row, crosses it column by column, and leaves."""
+    r = reader()
+    assert len(texts(r.read(chat_frame(CURSOR_LOG)))) == 3
+
+    for column in range(4, 60, 4):
+        assert texts(r.read(cursor_over(CURSOR_LOG, column, row))) == []
+        assert texts(r.read(cursor_over(CURSOR_LOG, column, row))) == []
+    assert texts(r.read(chat_frame(CURSOR_LOG))) == []
+
+
+@pytest.mark.parametrize("row", [0, 1, 2])
+def test_a_line_first_read_under_the_cursor_is_reported_once(row: int) -> None:
+    r = reader()
+    assert len(texts(r.read(cursor_over(CURSOR_LOG, 12, row)))) == 3
+
+    assert texts(r.read(cursor_over(CURSOR_LOG, 30, row))) == []
+    assert texts(r.read(chat_frame(CURSOR_LOG))) == []
+
+
+def test_a_line_arriving_under_the_resting_cursor_is_reported_once() -> None:
+    r = reader()
+    r.read(chat_frame(CURSOR_LOG))
+    assert texts(r.read(cursor_over(CURSOR_LOG, 12, row=2))) == []
+
+    # The cursor rests on the log's two bottom rows: the empty one, and the
+    # line that arrives there.
+    arrived = [*CURSOR_LOG[1:], Row(text="H : Hi")]
+    [line] = texts(r.read(cursor_over(arrived, 12, row=2)))
+    assert line is not None
+    assert line.startswith("H :")
+    assert UNREAD in line
+
+    assert texts(r.read(cursor_over(arrived, 40, row=2))) == []
+    assert texts(r.read(chat_frame(arrived))) == []
+
+
+def test_a_line_the_cursor_hid_whole_is_reported_once_it_shows() -> None:
+    """Nothing of it was read while the cursor hid it, so it is new when it
+    shows, and the lines above it aren't."""
+    r = reader()
+    r.read(chat_frame(CURSOR_LOG))
+    hidden = [*CURSOR_LOG[1:], Row(text=" " * 32 + "i")]
+    assert texts(r.read(cursor_over(hidden, 90, row=3, down=2))) == []
+
+    shown = r.read(chat_frame(hidden))
+    assert [line.kind for line in shown.value or []] == [ChatKind.GENERAL]
+    assert texts(r.read(chat_frame(hidden))) == []
+
+
+@pytest.mark.parametrize(
+    ("bottom_cut", "left_cut"),
+    [(1, 0), (2, 0), (0, 3), (0, 12), (1, 3)],
+    ids=["glyph cell cut", "row cut", "band cut", "cursor cut", "both"],
+)
+def test_the_cursor_mask_never_raises_at_the_frames_edges(
+    bottom_cut: int, left_cut: int
+) -> None:
+    """The last row's glyph cell runs a row past the log, and a band could run
+    off the frame's left: what the cursor hides is cut with the cell. `read`
+    can't get there, since the chat's bar is below the log and its buttons left
+    of the band, so its line is made from the helpers `read` uses."""
+    rows = [Row(text="Hi : Hi!")]
+    full = cursor_over(rows, 6).pixels
+    bottom = POINT[1] + LOG_BOTTOM
+    top = bottom - ROW_HEIGHT
+    # `left_cut` columns of the band are off the frame's left.
+    cut = POINT[0] + BAND_LEFT + left_cut if left_cut else 0
+    pixels = np.ascontiguousarray(full[: bottom + 1 - bottom_cut, cut:])
+    x = POINT[0] - cut
+    cursor = chat_module._Cursor(pixels, [CURSOR.rgba], x, top, bottom + 1, 0.5)
+    r = reader()
+    row = r._row(
+        full,
+        POINT[0],
+        top,
+        chat_module._Cursor(full, [CURSOR.rgba], POINT[0], top, bottom + 1, 0.5),
+    )
+    assert isinstance(row, chat_module._Row)
+    assert row.under_cursor
+
+    line = r._line(pixels, x, row, None, bottom, cursor)
+
+    assert line.kind is ChatKind.GENERAL
+    assert line.text is not None
 
 
 # --- statuses -------------------------------------------------------------

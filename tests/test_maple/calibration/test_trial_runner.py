@@ -12,11 +12,13 @@ are the kind a live run would only reveal by producing a misleading record:
    not leave it swept for the next batch that does not, or a three-batch sweep
    silently measures the swept value twice.
 
-`_create_minimap_attributes` needs a game client, so the runner is built field by
-field here rather than through `__init__`. That is the seam working as intended -
-everything skipped is screenshot plumbing, and everything exercised below is the
-runner's own logic - but it does mean this module says nothing about whether the
-DecisionMaker starts up against a real client. It cannot; nothing offline can.
+Its setup loads a schedule from disk and asks Main Process for a lock, and its
+keys come from Providers that read a game client, so the runner is built field by
+field here rather than through `__init__` and `setup()`, its keys registered as
+their Providers register them. That is the seam working as intended - everything
+skipped is screenshot plumbing, and everything exercised below is the runner's own
+logic - but it does mean this module says nothing about whether the DecisionMaker
+starts up against a real client. It cannot; nothing offline can.
 """
 
 import asyncio
@@ -28,7 +30,7 @@ from typing import Any, ClassVar, Self, cast
 
 import pytest
 
-from botting.core import ActionRequest
+from botting.core import ActionRequest, following
 from botting.core.bot_data import BotData
 from botting.screen import Reading
 from botting.stop_file import STOP_FILENAME
@@ -46,10 +48,27 @@ from maple.calibration.specs import (
     TrialSpec,
     TrialSpecError,
 )
+from maple.decision_makers.providers import (
+    CALIBRATION,
+    CHARACTER,
+    DESTINATION,
+    FRAME,
+    MAP_ID,
+    MINIMAP_READING,
+    PATH,
+    POSITION,
+    POSITION_FUSION,
+    WORLD_MAP,
+    ClientProvider,
+    DestinationProvider,
+    MinimapProvider,
+    PositionReader,
+)
 from maple.decision_makers.trial_runner import TrialRunner
 from maple.model.mechanics.movement_mechanics_v2 import _NARROW_PLATFORM_THRESHOLD
 from maple.screen.position import PositionSource, VirtualPosition
 from tests.test_maple.movement_lab import corpus
+from tests.test_maple.serving import override, pathing
 
 ENTRY = next(e for e in corpus.FIXTURE_MAPS if e.name == "walk_corridor")
 
@@ -98,12 +117,13 @@ def harness() -> _Harness:
     """
     A `TrialRunner` assembled without its client-facing half.
 
-    `__init__` is skipped because `_create_minimap_attributes` reads a game window.
-    What is built here is everything downstream of that: a real `BotData` over a real
-    Corpus map, so `_create_pathing_attributes` builds a real `MovementHandler` and
-    `path`/`movements` compute real Paths. `current_position` hands out the
-    virtual positions a check queues, as fused reads; the Trial judges them, and the
-    Path is planned from them.
+    `__init__` and `setup()` are skipped because the keys they read come from a
+    game window. What is built here is everything downstream of that: a real
+    `BotData` over a real Corpus map, so its `PathingProvider` builds a real
+    `MovementHandler` and `PATH`/`MOVEMENTS` compute real Paths. `POSITION` hands
+    out the virtual positions a check queues, as fused reads; the Trial judges
+    them, and the Path is planned from them. `DESTINATION` is claimed with the
+    driver's target, as the runner claims it for its run.
     """
     entry = ENTRY
     start, target = START, TARGET
@@ -113,22 +133,37 @@ def harness() -> _Harness:
     world_map = corpus.world_map(entry)
 
     data = BotData("Lab")
-    data.set_static("handle", corpus.LAB_HANDLE)
-    data.set_static("world_map", world_map)
-    data.set_static("game_physics", corpus.LAB_PHYSICS_VALUES)
-    data.set_static("speed_multiplier", 1.0)
-    data.set_static("jump_multiplier", 1.0)
-    data.set_static("character", _Character())
 
     def virtual() -> Reading[VirtualPosition]:
         x, y = positions.pop(0) if positions else target
         return Reading.read(VirtualPosition(x, y, PositionSource.FUSED), 0.0)
 
-    # No threshold: read once per cycle, by the runner's `update_attribute`, as
+    # No threshold: read once per cycle, by the runner's `refresh`, as
     # production's 0.1 s threshold does at its decision interval.
-    data.create_attribute(
-        "current_position", virtual, initial_value=_read((float(start[0]), 0.0))
+    data.provide(
+        POSITION,
+        object.__new__(MinimapProvider),
+        virtual,
+        initial_value=_read((float(start[0]), 0.0)),
     )
+    data.provide(MINIMAP_READING, object.__new__(MinimapProvider), lambda: None)
+    data.provide(FRAME, object.__new__(ClientProvider), lambda: None)
+    data.provide(
+        DESTINATION,
+        object.__new__(DestinationProvider),
+        lambda: (0.0, 0.0),
+    )
+    # The window, and the map with no position fusion: a sample read fails, as
+    # a read does live when the bot's map has none. The pathing, set up on them.
+    planner = pathing(
+        world_map,
+        virtual,
+        data=data,
+        character=_Character(),
+        game_physics=corpus.LAB_PHYSICS_VALUES,
+        handle=corpus.LAB_HANDLE,
+    )
+    assert data.read(POSITION_FUSION) is None
 
     # Assembled through a deliberately untyped handle: every field below is a
     # stand-in for something only a live Session provides.
@@ -138,13 +173,28 @@ def harness() -> _Harness:
     self.metadata = {}
     self.lock = threading.Lock()
     self.correlation_id = "cid-0"
+    self._logger_name = __name__
     self.schedule = _schedule(entry)
     self._writer = writer
     self._last_target = start
-    self._batch_teleport = True
     self._driver = TrialDriver(self.schedule, writer)
     self._applied_batch = None
     self._finished = False
+    self._pathing = planner
+    self._position_reader = PositionReader(
+        self,
+        lambda *_: None,
+        fusion=lambda: self.read(POSITION_FUSION),
+        minimap=lambda: self.read(MINIMAP_READING),
+        frame=lambda: self.read(FRAME),
+    )
+    # What its run holds: `holds_for_run`, without a Supervisor to enter it.
+    data.claim(
+        DESTINATION,
+        following(self._virtual_target),
+        holder="TrialRunner(Lab)",
+        reason="the harness",
+    )
     self._apply_knobs()
     # The graph builds in a worker thread from setup on (#430), and planning holds
     # until it is there; a Session's first cycles would. Waited for here, so the
@@ -155,7 +205,7 @@ def harness() -> _Harness:
     # second one would re-read the first one's Path - a test-clock artefact, not
     # behaviour worth pinning. Not `None` or `0`: `ManagedAttribute.get` reads a
     # falsy threshold as "never refresh".
-    data.reconfigure_attribute("path", threshold=1e-9)
+    override(data, PATH, threshold=1e-9)
     return _Harness(cast(TrialRunner, self), positions, pipe, writer)
 
 
@@ -277,13 +327,28 @@ def test_a_cancelled_run_leaves_the_trial_in_flight_marked_abandoned(
     assert [o.result for o in outcomes] == ["abandoned"]
 
 
+def test_the_loop_stopping_closes_the_record_out(harness: _Harness) -> None:
+    """
+    The Supervisor calls `on_stop` once the loop has stopped, by whatever route -
+    the Session ending included - and that is what closes the record.
+    """
+    start = START
+    harness.positions.extend([start, start])
+    asyncio.run(harness.runner._decide())
+
+    harness.runner.on_stop()
+
+    outcomes = [r for r in harness.writer if isinstance(r, TrialOutcome)]
+    assert [o.result for o in outcomes] == ["abandoned"]
+
+
 def test_finishing_twice_ships_one_key_release(harness: _Harness) -> None:
     """
-    `_finish` disables this DecisionMaker, but the disabler thread cancels the task
-    asynchronously, so further cycles can reach `_finish` first. Each one would
+    `_finish` pauses this DecisionMaker, but the cancellation lands only at the
+    loop's next `await`, so `_finish` can be reached again first. Each call would
     otherwise send another release Action into the priority queue.
     """
-    harness.runner._disable_decision_makers = lambda *names: None  # type: ignore[method-assign]
+    harness.runner.pause_for_user = lambda *classes, reason: None  # type: ignore[method-assign]
 
     harness.runner._finish()
     harness.runner._finish()
@@ -299,7 +364,7 @@ def test_finishing_the_schedule_asks_the_session_to_stop(
     the Session the way `python -m botting.session stop` does, through the stop
     file in the Session directory the Session published.
     """
-    harness.runner._disable_decision_makers = lambda *names: None  # type: ignore[method-assign]
+    harness.runner.pause_for_user = lambda *classes, reason: None  # type: ignore[method-assign]
     harness.runner.metadata["session_dir"] = str(tmp_path)
 
     harness.runner._finish()
@@ -310,7 +375,7 @@ def test_finishing_the_schedule_asks_the_session_to_stop(
 def test_a_runner_outside_a_session_has_no_one_to_ask_to_stop(
     harness: _Harness, tmp_path: Path
 ) -> None:
-    harness.runner._disable_decision_makers = lambda *names: None  # type: ignore[method-assign]
+    harness.runner.pause_for_user = lambda *classes, reason: None  # type: ignore[method-assign]
 
     harness.runner._finish()  # no `session_dir` in the metadata: nothing raised
 
@@ -509,6 +574,56 @@ def test_the_path_is_planned_to_the_driver_s_target_in_virtual_px(
     assert harness.runner._virtual_target() == (288.0, 0.0)
 
 
+def test_finishing_stops_it_for_the_user_as_the_legacy_disable_did(
+    harness: _Harness,
+) -> None:
+    """Its own class, until Discord `RESUME`; the Session is asked to stop too."""
+    paused: list[tuple[tuple[type, ...], str]] = []
+    harness.runner.pause_for_user = lambda *classes, reason: paused.append(  # type: ignore[method-assign]
+        (classes, reason)
+    )
+
+    harness.runner._finish()
+
+    assert paused == [((TrialRunner,), "'runner-lab' finished")]
+
+
+def test_its_run_claims_the_destination_with_the_driver_s_target(
+    harness: _Harness,
+) -> None:
+    """
+    What the Path is planned to is `DESTINATION`, which its Claim serves with
+    the driver's target for as long as its loop runs, and gives back after.
+    """
+    data = harness.runner.data
+    harness_claim = data.claim_on(DESTINATION)
+    assert harness_claim is not None
+    data.release(harness_claim)
+
+    async def run() -> None:
+        async with harness.runner.holds_for_run():
+            claim = data.claim_on(DESTINATION)
+            assert claim is not None
+            assert claim.holder == "TrialRunner(Lab)"
+            assert data.read(DESTINATION) == (16, 0)
+            harness.runner._driver.advance(_read(START), 0.0)
+            assert harness.runner.refresh(DESTINATION) == (288, 0)
+
+    asyncio.run(run())
+
+    assert data.claim_on(DESTINATION) is None
+    assert data.read(DESTINATION) == (0.0, 0.0), "its Provider's own value is back"
+
+
+def test_a_decision_plans_to_the_claimed_destination(harness: _Harness) -> None:
+    harness.positions.extend([START, START])
+
+    asyncio.run(harness.runner._decide())  # positioning completes
+    asyncio.run(harness.runner._decide())  # first measured cycle: to the target
+
+    assert harness.runner.data.read(DESTINATION) == TARGET
+
+
 def test_a_batch_planned_without_teleport_builds_a_handler_without_it(
     harness: _Harness,
 ) -> None:
@@ -521,7 +636,9 @@ def test_a_batch_planned_without_teleport_builds_a_handler_without_it(
         skills: ClassVar[dict[str, object]] = {"Teleport": corpus.LAB_TELEPORT}
 
     runner: Any = harness.runner
-    runner.data.set_static("character", _Teleporter())
+    # The character `CHARACTER` serves, as a teleporting class's would be.
+    override(runner.data, CHARACTER, update_function=_Teleporter)
+    runner.data.update_attribute("character")
     runner.schedule = TrialSchedule(
         "teleport-lab",
         ENTRY.name,
@@ -559,10 +676,9 @@ class _Catalogue:
 
 def _runner_on(map_id: int | None, schedule_map: str) -> TrialRunner:
     runner: Any = object.__new__(TrialRunner)
-    data = BotData("Lab")
-    data.set_static("map_id", map_id)
-    data.set_static("world_map", corpus.world_map(ENTRY))
-    runner.data = data
+    runner.data = BotData("Lab")
+    values = {MAP_ID: map_id, WORLD_MAP: corpus.world_map(ENTRY)}
+    runner.read = lambda key: values[key]
     runner.schedule = TrialSchedule(
         "s",
         schedule_map,
@@ -597,8 +713,10 @@ def test_the_record_header_names_the_physics_the_sitting_planned_with(
     from maple.model.mechanics.physics import Calibration
 
     runner: Any = harness.runner
-    runner.data.set_static("map_id", 10002000)
-    runner.data.set_static("calibration", Calibration(jump=0.98))
+    # The map `MAP_ID` serves, as `MapProvider` would serve Ellinia's.
+    override(runner.data, MAP_ID, update_function=lambda: 10002000)
+    runner.data.update_attribute("map_id")
+    runner.data.store(CALIBRATION, Calibration(jump=0.98))
     header = runner._header()
     assert header.map_id == 10002000
     assert header.physics == corpus.LAB_PHYSICS_VALUES

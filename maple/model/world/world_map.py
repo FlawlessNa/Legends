@@ -166,7 +166,7 @@ class WorldMap:
         A point on a platform, drawn uniformly along the platforms' widths: a
         platform is picked with a weight of its width (`right - left`), the
         point's x uniformly across it, and its y on the platform there. What
-        a rotation with no feature cycle heads for (`NextTargetMixin`).
+        a rotation with no feature cycle heads for (`DestinationProvider`).
 
         :param among: The platforms to draw from; all the map's by default.
         :param rng: The generator to draw with; the `random` module's own by

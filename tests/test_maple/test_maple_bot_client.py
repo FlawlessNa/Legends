@@ -4,6 +4,7 @@ and its map, whose mobs are the ones it looks for."""
 import logging
 from collections.abc import Sequence
 from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -11,11 +12,14 @@ import pytest
 
 from botting.core import Bot, DecisionMaker
 from botting.screen import Frame
+from botting.utilities import config_reader
 from game_data.catalogue import Bounds, Spawn
+from maple.actions import writing
 from maple.bots import map_mobs, maple_bot
 from maple.bots.map_setting import is_auto
 from maple.bots.maple_bot import MapleBot
 from maple.decision_makers.mobs_hitting import MobsHitting
+from maple.decision_makers.providers import MOBS
 from maple.launchers.profile import ProfileError
 from maple.model.mechanics.physics import Calibration
 from maple.model.world import MinimapTransform, WorldMap
@@ -46,6 +50,23 @@ from tests.test_maple.test_screen_minimap_title import (
     draw_title,
     title_sprites,
 )
+
+
+@pytest.fixture(autouse=True)
+def _keybindings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """
+    A real keybindings config for "Someone": a MapleBot reads its character's
+    chat keys when it is built, and `configs/keybindings.ini` is gitignored, so
+    a worktree or CI has none, and the bot would warn that it falls back to the
+    default keys.
+    """
+    ini = tmp_path / "keybindings.ini"
+    ini.write_text("[Someone]\nChat Keys = {\n    'general': 'g',\n    }\n")
+    monkeypatch.setattr(
+        writing,
+        "config_reader",
+        lambda name, section: config_reader(name, section, full_path=str(ini)),
+    )
 
 
 class _Stop(Exception):
@@ -343,7 +364,7 @@ def test_current_mobs_are_the_maps_mobs_by_detection_class(
     bot.child_init(None, None)  # pyright: ignore[reportArgumentType]
 
     assert bot.data is not None
-    assert [type(mob).__name__ for mob in bot.data.current_mobs] == [
+    assert [type(mob).__name__ for mob in bot.data.read(MOBS)] == [
         "Bubbling",
         "Slimy",
     ]
@@ -363,7 +384,7 @@ def test_auto_checks_the_mobs_of_the_map_it_identified(
 
     assert loaded[0] == 10002000
     assert bot.data is not None
-    assert [type(mob).__name__ for mob in bot.data.current_mobs] == ["Bubbling"]
+    assert [type(mob).__name__ for mob in bot.data.read(MOBS)] == ["Bubbling"]
 
 
 def test_auto_refuses_an_identified_map_no_model_covers(

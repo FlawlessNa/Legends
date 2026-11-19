@@ -24,6 +24,7 @@ on another machine, reaching this one through an SSH tunnel
 | Discussing a topic, intent or spec        | `docs/agents/topics.md` (start with `/intent`)         |
 | Working a ticket, or any code change      | `docs/agents/tickets.md`                               |
 | Running an epic's tickets with agents     | `docs/agents/orchestrating.md` (`/orchestrate`)        |
+| Writing or porting a DecisionMaker        | `docs/agents/decision-makers.md`                       |
 | Writing or changing tests                 | `docs/agents/testing.md`                               |
 | Hitting a Ruff or Pyright error           | `docs/agents/typing.md`                                |
 | Reviewing a PR                            | `docs/agents/code-review.md`                           |

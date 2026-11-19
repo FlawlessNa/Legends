@@ -27,6 +27,7 @@ from pytest_mock import MockerFixture, MockType
 
 from botting.core.async_task_manager import AsyncTaskManager
 from botting.core.engine import Engine, EngineFailed, EngineFailure
+from botting.core.errors import DecisionMakerCrashed
 from botting.core.session_manager import SessionManager
 from botting.logging_config import PARENT_LOG
 from botting.stop_file import request_stop
@@ -405,3 +406,126 @@ def test_exit_survives_a_teardown_step_that_raises(
     released.assert_any_call(HANDLE + 1)
     if step != "first bot":
         released.assert_any_call(HANDLE)
+
+
+# --- A DecisionMaker's crash ---------------------------------------------------
+
+CRASH = DecisionMakerCrashed("MobsHitting(Tester)", RuntimeError("boom"))
+
+
+def test_the_engine_names_the_crashed_decision_maker_and_carries_its_handles(
+    mocker: MockerFixture,
+) -> None:
+    engine = Engine.__new__(Engine)
+    engine.pipe = mocker.Mock(closed=False)
+    first, second, unstarted = (mocker.Mock() for _ in range(3))
+    first.ign, second.ign, unstarted.ign = "A", "B", "C"
+    first.data.handle, second.data.handle = 11, 22
+    unstarted.data = None
+    engine.bots = [first, unstarted, second]
+    # The Bot's TaskGroup wraps it, and the Engine's own may wrap that.
+    group = ExceptionGroup("Engine", [ExceptionGroup("Bot", [CRASH])])
+
+    engine._report_failure(group)  # pyright: ignore[reportPrivateUsage]
+
+    [(sent,)] = [call.args for call in engine.pipe.send.call_args_list]
+    assert sent == EngineFailure(
+        engine="Engine(A, C, B)",
+        error=f"DecisionMakerCrashed: {CRASH}",
+        decision_maker="MobsHitting(Tester)",
+        handles=(11, 22),
+    )
+
+
+def test_the_listener_releases_the_movement_keys_of_each_handle_before_it_ends(
+    mocker: MockerFixture,
+) -> None:
+    order: list[object] = []
+    released = mocker.patch(
+        "botting.core.bot.release_keys",
+        side_effect=lambda keys, handle: order.append(("release", handle)),
+    )
+    failure = EngineFailure(
+        engine="Engine(Tester)",
+        error=f"DecisionMakerCrashed: {CRASH}",
+        decision_maker="MobsHitting(Tester)",
+        handles=(11, 22),
+    )
+    engine_side, listener_side = multiprocessing.Pipe()
+    engine_side.send(failure)
+    engine_side.send(None)
+    engine = mocker.Mock()
+    engine.name = "Engine(Tester)"
+    queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
+    queue.put_nowait = lambda item: order.append(("queue", item))  # pyright: ignore[reportAttributeAccessIssue]
+
+    async def listen() -> BaseException | None:
+        task = Engine.listener(listener_side, queue, engine, mocker.Mock())  # pyright: ignore[reportArgumentType]
+        await asyncio.wait([task])
+        return task.exception()
+
+    raised = asyncio.run(listen())
+
+    movement = ["left", "up", "down", "right"]
+    assert released.call_args_list == [
+        mocker.call(movement, 11),
+        mocker.call(movement, 22),
+    ]
+    assert order == [("release", 11), ("release", 22), ("queue", None)]
+    assert isinstance(raised, EngineFailed)
+
+
+def test_a_failed_release_does_not_keep_the_other_handles_down(
+    mocker: MockerFixture,
+) -> None:
+    released = mocker.patch(
+        "botting.core.bot.release_keys", side_effect=[OSError("gone"), None]
+    )
+    failure = EngineFailure(engine="Engine(Tester)", error="x", handles=(11, 22))
+
+    raised, _ = _listen(mocker, failure, None)
+
+    assert [call.args[1] for call in released.call_args_list] == [11, 22]
+    assert isinstance(raised, EngineFailed)
+
+
+def test_one_discord_message_names_the_crashed_decision_maker_and_the_error(
+    mocker: MockerFixture, tmp_path: Path, sink: TelemetryHandler, released: MockType
+) -> None:
+    mocker.patch("botting.core.bot.release_keys")
+    manager = _manager(mocker, tmp_path, sink, debug=True)
+    failure = EngineFailure(
+        engine="Engine(Tester)",
+        error=f"DecisionMakerCrashed: {CRASH}",
+        decision_maker="MobsHitting(Tester)",
+        handles=(HANDLE,),
+    )
+
+    def start(
+        pipe: Connection, _metadata: object, bots: list[MockType], _barrier: object
+    ) -> SimpleNamespace:
+        pipe.send(failure)
+        pipe.send(None)
+        return SimpleNamespace(
+            name="Engine(Tester)",
+            join=lambda timeout=None: None,
+            is_alive=lambda: False,
+        )
+
+    mocker.patch("botting.core.session_manager.Engine.start", side_effect=start)
+    bot = _bot(mocker)
+
+    async def scenario() -> None:
+        with manager:
+            await asyncio.wait_for(manager.launch([bot]), 2)
+
+    with pytest.raises(EngineFailed):
+        asyncio.run(scenario())
+
+    [message] = [
+        c.args[0]
+        for c in manager.peripherals.pipe_main_proc.send.call_args_list  # pyright: ignore[reportAttributeAccessIssue]
+    ]
+    assert message.startswith("Error in Listener(Engine(Tester)): ")
+    assert "MobsHitting(Tester)" in message
+    assert "RuntimeError: boom" in message

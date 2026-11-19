@@ -168,9 +168,25 @@ judged. A run that still has no verdict means both accounts failed, or the
 fallback secret is not set: tell the maintainer rather than re-running in a
 loop.
 
-The epic branch is protected, so nothing but a ticket PR reaches it. A change
-to `docs/` or the skills that the tickets need goes through its own PR into
-`dev`; tickets branch off the epic as it is.
+The epic branch is protected, so nothing but a reviewed PR (a ticket's, or a
+dev merge) reaches it. A change to `docs/` or the skills that the tickets need
+goes through its own PR into `dev`; tickets branch off the epic as it is.
+
+## Bringing dev into an epic
+
+When `dev` has moved on with work the epic needs (a fix, a flaky test, another epic merged), bring it in with a dev-merge PR.
+Run it like a ticket: a fresh agent in a fresh worktree, on a branch off the epic.
+
+```
+git fetch
+git worktree add -b merge/dev-into-<slug>-<n> ../Legends-worktrees/merge-<slug> origin/epic/<slug>
+```
+
+The brief names no ticket.
+It asks the agent to merge `origin/dev` with a real merge commit, keep both sides' behaviour in every conflict, fix what the merge broke with real config rather than mocks, and follow `tickets.md`, "A dev-merge PR".
+That PR's body names the epic on a line `Epic: #<epic>`, never `Closes`, so the review judges it by `code-review.md`, "Judging a dev-merge PR", instead of asking for a ticket.
+On approve, the workflow merge-commits it, so the epic keeps `dev`'s history.
+Add the live checks its body lists to the verification epic, as for a ticket.
 
 ## Coming back to the maintainer
 

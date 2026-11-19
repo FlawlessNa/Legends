@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from botting.screen import MultipleWindows, WindowNotFound, find_window
+from botting.screen import MultipleWindows, WindowNotFound, bring_to_front, find_window
 from botting.screen import _win32 as win32
 
 CLASS = "MapleStoryClass"
@@ -87,3 +87,54 @@ def test_raises_when_more_than_one_matches(desktop: list[_Window]) -> None:
     assert EXE in message
     assert "10" in message
     assert "11" in message
+
+
+# --- bring_to_front ---------------------------------------------------------
+
+
+def _foreground(
+    monkeypatch: pytest.MonkeyPatch, current: int, grants: bool
+) -> list[int]:
+    """Stubs the foreground; `request_foreground` moves it to the target if `grants`."""
+    state = {"front": current}
+    asked: list[int] = []
+    monkeypatch.setattr(win32, "foreground_window", lambda: state["front"])
+    monkeypatch.setattr(win32, "is_window", lambda hwnd: True)
+
+    def request(hwnd: int) -> str | None:
+        asked.append(hwnd)
+        if grants:
+            state["front"] = hwnd
+        return None
+
+    monkeypatch.setattr(win32, "request_foreground", request)
+    return asked
+
+
+def test_a_window_already_in_front_is_left_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    asked = _foreground(monkeypatch, current=7, grants=True)
+
+    assert bring_to_front(7) is None
+    assert asked == []
+
+
+def test_a_window_behind_another_is_brought_to_the_front(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    asked = _foreground(monkeypatch, current=3, grants=True)
+
+    assert bring_to_front(7) is None
+    assert asked == [7]
+
+
+def test_a_window_windows_will_not_bring_forward_says_why(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _foreground(monkeypatch, current=3, grants=False)
+
+    reason = bring_to_front(7, timeout=0.0)
+
+    assert reason is not None
+    assert "7" in reason

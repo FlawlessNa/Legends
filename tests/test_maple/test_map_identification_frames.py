@@ -53,6 +53,8 @@ def test_the_title_is_read_on_every_frame_that_shows_the_banner(
     wrong: list[str] = []
     read = 0
     for entry in frames.entries:
+        if "minimap" not in entry.expect:
+            continue  # not read yet (v4's new frames)
         frame = _frame(frames, entry)
         view = minimap.read(frame).value
         if view is None or view.banner is None:
@@ -77,6 +79,8 @@ def test_every_expanded_frame_is_identified_and_minimised_ones_are_unsure(
     wrong: list[str] = []
     states: set[str] = set()
     for entry in frames.entries:
+        if "minimap" not in entry.expect:
+            continue  # not read yet (v4's new frames)
         expected = _expected(entry)
         reading = identifier.identify(_frame(frames, entry))
         if expected is None:

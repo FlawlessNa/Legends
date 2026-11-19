@@ -10,7 +10,8 @@ from maple.actions import priorities
 from maple.screen.quick_slots import QUICK_SLOTS, QuickSlots
 from maple.screen.status_bar import STATUS_BAR
 
-from .mixins import HeldReading, UIMixin
+from .providers import FRAME, HANDLE, QUICK_SLOTS_READING
+from .readings import HeldReading
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -27,13 +28,16 @@ class ThrottleMeta(ABCMeta):
         super().__init__(name, bases, dct)
 
 
-class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta):
+class UseAndCheckConsumable(DecisionMaker, ABC, metaclass=ThrottleMeta):
     """
     Decision maker that uses a consumable every time it is called.
     It also checks for the number of remaining consumables within the QuickSlots.
     """
 
+    # The status bar's reader stays declared, as it always was; nothing here
+    # reads the status bar yet.
     screen_readers = (STATUS_BAR, QUICK_SLOTS)
+    reads = (HANDLE, FRAME, QUICK_SLOTS_READING)
 
     _THROTTLE = 3600  # Use this to set the interval at which a consumable is taken.
 
@@ -56,13 +60,19 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
     ) -> None:
         super().__init__(metadata, data, pipe)
         self._keyname = keyname
-        self._key = controller.key_binds(self.data.ign)[keyname]
+        #: The consumable's key, from the keybindings. Set by `setup()`.
+        self._key = ""
         self.num_usage = num_usage
         self._quick_slots: HeldReading[QuickSlots, QuickSlots | None] = HeldReading(
             self, "quick slots", lambda slots: slots, None
         )
-        self._create_status_bar_attributes()
-        self._create_quick_slots_attributes()
+
+    def setup(self) -> None:
+        """
+        :raises KeyError: the character's keybindings bind no key to the
+            consumable.
+        """
+        self._key = controller.key_binds(self.data.ign)[self._keyname]
 
     async def _decide(self) -> None:
         self._use_consumable()
@@ -84,7 +94,7 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
                     controller.press,
                     self.data.ign,
                     priority=priorities.FOOD,
-                    args=(self.data.handle, self._key),
+                    args=(self.read(HANDLE), self._key),
                     kwargs={"silenced": True, "nbr_times": self.num_usage},
                 )
             )
@@ -98,8 +108,8 @@ class UseAndCheckConsumable(UIMixin, DecisionMaker, ABC, metaclass=ThrottleMeta)
         `Quick slots` setting's numbers to them. Until then, the quick slots
         last read are kept, and a misread is only logged (`HeldReading`).
         """
-        self.data.update_attributes("current_frame", "quick_slots")
-        self._quick_slots(self.data.quick_slots)
+        self.refresh(FRAME)
+        self._quick_slots(self.refresh(QUICK_SLOTS_READING))
 
 
 class PetFood(UseAndCheckConsumable):

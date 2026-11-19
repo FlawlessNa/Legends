@@ -1,36 +1,32 @@
 """
-`_create_status_bar_attributes` adds `status_bar` and leaves the bot's
-`current_frame` alone: the minimap reads that frame without updating it, and
-relies on the refresh threshold `MapleBot.child_init` gives it.
+`StatusBarProvider` serves `status_bar` and leaves the bot's frame alone: the
+minimap reads that frame without refreshing it, and relies on the refresh
+threshold `ClientProvider` gives it. However many ask for it, it is built once.
 """
 
 import numpy as np
+import pytest
 from pytest_mock import MockerFixture
 
-from botting.core.bot_data import BotData
 from botting.screen import Frame, Reading
-from maple.decision_makers.mixins import UIMixin
-
-THRESHOLD = 0.1
-
-
-class _Consumer(UIMixin):
-    def __init__(self, data: BotData) -> None:
-        self.data = data
+from maple.decision_makers.providers import ClientProvider, StatusBarProvider
+from tests.test_maple.serving import serve
 
 
-def test_the_bots_frame_keeps_its_refresh_threshold(mocker: MockerFixture) -> None:
-    data = BotData("Bot")
+def test_the_bots_frame_keeps_its_refresh_threshold(
+    monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+) -> None:
     frame = Frame(np.zeros((4, 4, 3), np.uint8), (4, 4), 0.0, True, True)
-    data.create_attribute("current_frame", lambda: frame, threshold=THRESHOLD)
     reader = mocker.Mock()
     reader.read.return_value = Reading.unsure(0.0, "x")
-    data.set_static("status_bar_reader", reader)
+    served = serve(monkeypatch, frames=lambda: frame, status_bar=reader)
+    data = served.data
 
-    _Consumer(data)._create_status_bar_attributes()  # pyright: ignore[reportPrivateUsage]
-    _Consumer(data)._create_status_bar_attributes()  # pyright: ignore[reportPrivateUsage]
+    assert data.providers is not None
+    data.providers.ensure(StatusBarProvider)
+    data.providers.ensure(StatusBarProvider)
 
-    assert data._managed["current_frame"].threshold == THRESHOLD  # pyright: ignore[reportPrivateUsage]
+    assert data._managed["frame"].threshold == ClientProvider.FRAME_REFRESH  # pyright: ignore[reportPrivateUsage]
     assert data.status_bar.detail == "x"
-    reader.read.assert_called_with(frame)
-    assert data.has_status_bar_attributes
+    reader.read.assert_called_once_with(frame)
+    assert [type(p) for p in served.providers].count(StatusBarProvider) == 1

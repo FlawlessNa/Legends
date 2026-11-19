@@ -1,0 +1,147 @@
+"""
+Confirming a buff's cast took effect by the buff's icon (D9, R1). `SoloRebuff`
+casts through `CastCheck`.
+
+A cast is judged by comparing the buffs read from a frame captured before it
+was sent with those read after:
+
+- `CONFIRMED`: the buff went from not shown to shown; or it was shown, and its
+  countdown went back up (its `seconds_left` read in both, and higher after);
+  or it came back fresh, its `elapsed` dropping by more than
+  `FreshnessMargins.drop`.
+- `NOT_CONFIRMED`: it is still not shown, or still shown with no such drop.
+- `UNSURE`: freshness can't be judged. A frame before or after wasn't read, a
+  buff shown in both has no `elapsed`, or it was recast while nearly fresh, so
+  no drop could show.
+
+The countdown is only drawn in a buff's last minute, so it confirms only a
+recast that leaves less than a minute. A countdown read before and gone after
+confirms nothing: the client stops drawing it a few seconds before the icon goes
+(frame set `v1`, f014 to f015).
+
+Only `NOT_CONFIRMED` is retried. `UNSURE` is logged and kept. MP isn't used: MP
+regeneration, potions and Magic Guard all move it.
+"""
+
+import enum
+import logging
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+
+from botting import PARENT_LOG
+from botting.screen import Reading, Status
+from maple.screen.buffs import BuffState
+
+logger = logging.getLogger(PARENT_LOG + "." + __name__)
+
+type BuffsReading = Reading[dict[str, BuffState]]
+
+
+class Confirmation(enum.Enum):
+    CONFIRMED = "confirmed"
+    NOT_CONFIRMED = "not_confirmed"
+    UNSURE = "unsure"
+
+
+@dataclass(frozen=True, slots=True)
+class FreshnessMargins:
+    """
+    :ivar drop: A recast is confirmed when `elapsed` drops by more than this.
+    :ivar nearly_fresh: A buff whose `elapsed` was below this before the cast
+        was recast nearly fresh: no drop could show, so it is `UNSURE`.
+    """
+
+    drop: float
+    nearly_fresh: float
+
+
+FRESHNESS_MARGINS: FreshnessMargins | None = None
+"""Not chosen yet: they are to be chosen on frames of each buff fresh, mid-way
+and nearly expired, which don't exist yet (#312). Until then, and while
+`elapsed` is `None`, a buff shown before and after its cast is `UNSURE`."""
+
+
+def buff_confirmation(
+    before: BuffsReading,
+    after: BuffsReading,
+    buff: str,
+    margins: FreshnessMargins | None = FRESHNESS_MARGINS,
+) -> Confirmation:
+    """Whether the cast of `buff` between `before` and `after` took effect."""
+    if (
+        before.status is not Status.READ
+        or after.status is not Status.READ
+        or before.value is None
+        or after.value is None
+        or buff not in before.value
+        or buff not in after.value
+    ):
+        return Confirmation.UNSURE
+    was, now = before.value[buff], after.value[buff]
+    if not now.shown:
+        return Confirmation.NOT_CONFIRMED
+    if not was.shown:
+        return Confirmation.CONFIRMED
+    if (
+        was.seconds_left is not None
+        and now.seconds_left is not None
+        and now.seconds_left > was.seconds_left
+    ):
+        return Confirmation.CONFIRMED
+    if margins is None or was.elapsed is None or now.elapsed is None:
+        return Confirmation.UNSURE
+    if was.elapsed < margins.nearly_fresh:
+        return Confirmation.UNSURE
+    if was.elapsed - now.elapsed > margins.drop:
+        return Confirmation.CONFIRMED
+    return Confirmation.NOT_CONFIRMED
+
+
+class CastCheck:
+    """
+    The predicate `ActionWithValidation` calls before each cast and after it.
+
+    `ActionWithValidation` calls it first, before sending anything: that call
+    keeps the reading as the "before" frame and asks for the cast. Each later
+    call judges the cast just sent against the reading before it, and keeps its
+    own reading as the "before" of the next attempt. It asks for another cast
+    only when a buff is `NOT_CONFIRMED`.
+    """
+
+    def __init__(
+        self,
+        read: Callable[[], BuffsReading],
+        buffs: Sequence[str],
+        confirm: Callable[[BuffsReading, BuffsReading, str], Confirmation] = (
+            buff_confirmation
+        ),
+        owner: object = None,
+    ) -> None:
+        self._read = read
+        self._buffs = tuple(buffs)
+        self._confirm = confirm
+        self._owner = owner
+        self._before: BuffsReading | None = None
+        self.last: dict[str, Confirmation] = {}
+
+    def __call__(self) -> bool:
+        reading = self._read()
+        before, self._before = self._before, reading
+        if before is None:
+            return False
+        self.last = {buff: self._confirm(before, reading, buff) for buff in self._buffs}
+        if Confirmation.NOT_CONFIRMED in self.last.values():
+            return False
+        for buff, result in self.last.items():
+            if result is Confirmation.UNSURE:
+                logger.info(
+                    "%s: %s cast but unconfirmed (before: %s %s, after: %s %s); "
+                    "not retried",
+                    self._owner,
+                    buff,
+                    before.status.name,
+                    before.detail,
+                    reading.status.name,
+                    reading.detail,
+                )
+        return True
