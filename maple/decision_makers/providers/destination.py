@@ -43,7 +43,7 @@ from maple.screen.position import VirtualPosition, marker_of_feet
 from maple.telemetry_events import MOVEMENT_TARGET_REACHED, target_reached_payload
 
 from .map import WORLD_MAP
-from .minimap import POSITION, position_or_unsure
+from .minimap import position_or_unsure
 from .sources.hunting_area import AreaWanderSource, HuntingAreaSource
 from .sources.random import RandomSource
 from .sources.smart import SmartSource
@@ -97,14 +97,10 @@ class DestinationProvider(Provider):
     the sources ask of it".
     """
 
-    #: Its own reads (the map, the position to judge arrival with, and what
-    #: `wander_in_area` reads), and every registered source's:
-    #: `register_source` computes it from `SOURCES`.
-    needs: ClassVar[tuple[Key[Any], ...]] = (
-        WORLD_MAP,
-        POSITION,
-        *AreaWanderSource.needs,
-    )
+    #: Its own reads (what `wander_in_area` reads: the map, the position to
+    #: judge arrival with, and the area's stretches), and every registered
+    #: source's: `register_source` computes it from `SOURCES`.
+    needs: ClassVar[tuple[Key[Any], ...]] = AreaWanderSource.needs
 
     def __init__(
         self,

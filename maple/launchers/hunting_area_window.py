@@ -30,6 +30,7 @@ area or saving replaces it.
 """
 
 import argparse
+import dataclasses
 import sys
 import time
 from collections.abc import Callable, Sequence
@@ -290,13 +291,7 @@ class HuntingAreaPicker:
                 f"a name is 1 to 24 characters of a-z, 0-9 and _: {name!r} is not one"
             )
             return
-        area = HuntingArea(
-            self.rectangle.left,
-            self.rectangle.top,
-            self.rectangle.right,
-            self.rectangle.bottom,
-            name=name,
-        )
+        area = dataclasses.replace(self.rectangle, name=name)
         if not area.stretches(self.world_map):
             self._message = _NO_STRETCH
             return
