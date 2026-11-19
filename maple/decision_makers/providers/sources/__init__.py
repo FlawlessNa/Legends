@@ -8,4 +8,5 @@ destination.
 
 - `random`: random points on the platforms a Path reaches.
 - `smart`: towards the side most mobs are on.
+- `hunting_area`: towards the mobs inside the Hunting Area, else around it.
 """

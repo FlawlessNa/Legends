@@ -53,9 +53,10 @@ from maple.decision_makers.providers.hunting_area import (
     AREA_PRESENCE,
     AREA_STRETCHES,
     HUNTING_AREA,
-    NEAR,
     NOBODY,
     AreaPresence,
+    free_cells,
+    near,
 )
 from maple.decision_makers.providers.map import POSITION_FUSION, WORLD_MAP
 from maple.decision_makers.providers.minimap import POSITION
@@ -139,23 +140,13 @@ def best_spot(
             y = stretch.y_at(x)
             assert y is not None  # x is within the stretch
             spot = (x, y)
-            if _near(spot, others):
+            if near(spot, others):
                 continue
             count = reaches(spot, mobs, reach)
             distance = 0.0 if here is None else math.dist(spot, here)
             if best is None or (count, -distance) > (best[1], -best_distance):
                 best, best_distance = (spot, count), distance
     return best
-
-
-def _near(point: Point, others: Sequence[Point]) -> bool:
-    """Whether `point` is within `NEAR` of one of `others`."""
-    return any(math.dist(point, other) <= NEAR for other in others)
-
-
-def _inside(point: Point, area: HuntingArea) -> bool:
-    x, y = point
-    return area.left <= x <= area.right and area.top <= y <= area.bottom
 
 
 class HuntingAreaSource:
@@ -261,12 +252,12 @@ class HuntingAreaSource:
         others = presence.others if presence.settled else ()
         if self._crowded_out(presence, stretches, others):
             return self._crowd_out()
-        free = _free_cells(stretches, others)
+        free = free_cells(stretches, others)
         destination = next(
             (
                 point
                 for point in (random_point(free, self.rng) for _ in range(_TRIES))
-                if not _near(point, others)
+                if not near(point, others)
             ),
             None,
         )
@@ -341,7 +332,7 @@ class HuntingAreaSource:
         mobs = tuple(
             mob
             for mob in mobs_in_virtual_px(found, frame.client_size, camera)
-            if _inside(mob, area) and not _near(mob, others)
+            if area.contains(mob) and not near(mob, others)
         )
         return Look(mobs, reach.in_virtual(frame.client_size, camera.play_area))
 
@@ -381,14 +372,14 @@ class HuntingAreaSource:
         self, here: Point | None, stretches: Sequence[Stretch], others: Sequence[Point]
     ) -> Point:
         """The middle of the free cell seen least recently, the nearest on a tie."""
-        near = here or self._last_sure
-        free = _free_cells(stretches, others)
+        start = here or self._last_sure
+        free = free_cells(stretches, others)
         assert free, "a pick is made only while a cell is free"
         cell = min(
             free,
             key=lambda c: (
                 self._seen.get(c.middle, -math.inf),
-                0.0 if near is None else math.dist(c.middle, near),
+                0.0 if start is None else math.dist(c.middle, start),
             ),
         )
         return cell.middle
@@ -397,7 +388,7 @@ class HuntingAreaSource:
         self, destination: Point, stretches: Sequence[Stretch], others: Sequence[Point]
     ) -> bool:
         """On a stretch of `AREA_STRETCHES`, outside `NEAR` of a settled player."""
-        return on_stretches(destination, stretches) and not _near(destination, others)
+        return on_stretches(destination, stretches) and not near(destination, others)
 
     def _crowded_out(
         self,
@@ -407,7 +398,7 @@ class HuntingAreaSource:
     ) -> bool:
         """Someone has settled, and no cell is free of them."""
         return presence.settled and (
-            presence.free_share == 0.0 or not _free_cells(stretches, others)
+            presence.free_share == 0.0 or not free_cells(stretches, others)
         )
 
     def _crowd_out(self) -> Point:
@@ -445,13 +436,6 @@ class HuntingAreaSource:
             self._arrived = False
             self.provider.store_platform(destination)
         return destination
-
-
-def _free_cells(
-    stretches: Sequence[Stretch], others: Sequence[Point]
-) -> tuple[Stretch, ...]:
-    """The cells of the stretches whose middle is farther than `NEAR` from all."""
-    return tuple(c for c in cells(stretches) if not _near(c.middle, others))
 
 
 class AreaWanderSource:

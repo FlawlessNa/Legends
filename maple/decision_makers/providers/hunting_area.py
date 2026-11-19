@@ -20,8 +20,8 @@ is not `hunting_area`:
 
 **Another rotation pays nothing.** The Destination Provider's `needs` is every
 source's, so this Provider is built for every bot with a destination. With
-another rotation it does no I/O and refuses nothing, and every key is
-registered with its value, so building it reads nothing.
+another rotation it does no I/O and refuses nothing: every key is registered
+with a function that returns `None`, so building it reads nothing.
 
 The tuning constants below are where Settled is decided. They are starting
 values, tuned from what live Sessions show: changing one is a code edit and a
@@ -169,14 +169,14 @@ class PresenceCounter:
             else min(now - self._last_sample, SAMPLE_CAP)
         )
         self._last_sample = now
-        inside = [p for p in players.positions if self._distance(p) == 0.0]
+        inside = [p for p in players.positions if self.area.contains(p)]
         if inside:
             self._inside.append((now, seconds))
             self._last_inside = now
         while self._inside and now - self._inside[0][0] >= SETTLE_WINDOW:
             self._inside.popleft()
         self._seen.append(
-            (now, tuple(p for p in players.positions if self._distance(p) <= NEAR))
+            (now, tuple(p for p in players.positions if self.area.distance(p) <= NEAR))
         )
         while now - self._seen[0][0] >= OTHERS_MEMORY:
             self._seen.popleft()
@@ -198,12 +198,17 @@ class PresenceCounter:
         elif sum(seconds for _, seconds in self._inside) >= SETTLE_PRESENCE:
             self._settled = True
 
-    def _distance(self, point: Point) -> float:
-        """How far `point` is from the rectangle, in virtual px; 0 inside it."""
-        area = self.area
-        dx = max(area.left - point[0], 0.0, point[0] - area.right)
-        dy = max(area.top - point[1], 0.0, point[1] - area.bottom)
-        return math.hypot(dx, dy)
+
+def near(point: Point, others: Sequence[Point]) -> bool:
+    """Whether `point` is within `NEAR` of one of `others`."""
+    return any(math.dist(point, other) <= NEAR for other in others)
+
+
+def free_cells(
+    stretches: Sequence[Stretch], others: Sequence[Point]
+) -> tuple[Stretch, ...]:
+    """The cells of the stretches whose middle is farther than `NEAR` from all."""
+    return tuple(c for c in cells(stretches) if not near(c.middle, others))
 
 
 def free_share(stretches: Sequence[Stretch], others: Sequence[Point]) -> float:
@@ -214,10 +219,7 @@ def free_share(stretches: Sequence[Stretch], others: Sequence[Point]) -> float:
     found = cells(stretches)
     if not found:
         return 0.0
-    free = sum(
-        1 for cell in found if all(math.dist(cell.middle, o) > NEAR for o in others)
-    )
-    return free / len(found)
+    return len(free_cells(stretches, others)) / len(found)
 
 
 class HuntingAreaProvider(Provider):

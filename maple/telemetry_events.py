@@ -21,9 +21,10 @@ four Log Buckets - those partition code for routing and carry a catch-all
 * ``chat`` - lines read in the chat log that the bot reacts to.
 * ``movement`` - Movement Plans started and targets reached, with deliberately
   minimal fields (#331). The movement-framework map may add records but not
-  repurpose these. ``rotation`` stays reserved for that map.
-* ``rotation`` - where the rotation hunts: the Hunting Area it was given
-  (#571).
+  repurpose these.
+* ``rotation`` - the Hunting Area rotation: the area it was given and the
+  destinations its source picks (#571). ADR 0001 reserved this area for the
+  movement-framework map, which may add records to it.
 * ``area`` - what the area watch saw and did in the Hunting Area: someone
   settled, someone left, the character standing by (#580).
 * ``state`` - where the character was, sampled on a clock rather than on an

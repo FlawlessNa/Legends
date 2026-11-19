@@ -61,7 +61,7 @@ from paths import ROOT
 
 from .ensure_mob_still_spawn import CheckMobsStillSpawn
 from .providers import AREA_PRESENCE, FRAME, HANDLE
-from .providers.hunting_area import AreaPresence
+from .providers.hunting_area import NOBODY, AreaPresence
 from .rotation import Rotation
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
@@ -253,8 +253,7 @@ class AreaWatch(DecisionMaker):
 
 def _payload(presence: AreaPresence | None) -> AreaWatchPayload:
     """How many other players are inside, and `free_share`; counts only."""
-    if presence is None:
-        return {"inside": 0, "free_share": 1.0}
+    presence = presence or NOBODY
     return {"inside": presence.inside, "free_share": presence.free_share}
 
 

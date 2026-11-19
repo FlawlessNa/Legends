@@ -131,6 +131,18 @@ class HuntingArea:
     bottom: int
     name: str | None = None
 
+    def contains(self, point: tuple[float, float]) -> bool:
+        """Whether `point` is inside the rectangle, its edges included."""
+        x, y = point
+        return self.left <= x <= self.right and self.top <= y <= self.bottom
+
+    def distance(self, point: tuple[float, float]) -> float:
+        """How far `point` is from the rectangle, in virtual px; 0 inside it."""
+        x, y = point
+        dx = max(self.left - x, 0.0, x - self.right)
+        dy = max(self.top - y, 0.0, y - self.bottom)
+        return math.hypot(dx, dy)
+
     def stretches(
         self, world_map: WorldMap, among: Sequence[Platform] | None = None
     ) -> tuple[Stretch, ...]:
