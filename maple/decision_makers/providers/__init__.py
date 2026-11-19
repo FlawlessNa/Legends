@@ -25,7 +25,8 @@ keys:
 - `destination`: where the rotation heads next, and the platform it is on,
   from the destination source the profile's `rotation` names (`sources/`).
   `DESTINATION` is steerable: a DecisionMaker claims it to send the character
-  elsewhere (`wander`, or `botting.core.fixed` and `following`).
+  elsewhere (`wander`, `wander_in_area`, or `botting.core.fixed` and
+  `following`).
 - `pathing`: the Path to `DESTINATION`, its Movement Plan, and what the plan is
   compiled with at dispatch.
 - `on_screen`: where the character is on screen, as a box on the client.
@@ -55,6 +56,7 @@ from .destination import (
     DESTINATION_PLATFORM,
     DestinationProvider,
     wander,
+    wander_in_area,
 )
 from .hunting_area import (
     AREA_PRESENCE,
@@ -208,4 +210,5 @@ __all__ = [
     "pathing",
     "position_or_unsure",
     "wander",
+    "wander_in_area",
 ]

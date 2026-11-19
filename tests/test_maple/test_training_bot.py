@@ -17,7 +17,7 @@ import asyncio
 import queue
 import threading
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import Any
 
 import numpy as np
@@ -49,28 +49,35 @@ from maple.decision_makers import (
 )
 from maple.decision_makers import chat_replies as chat_replies_module
 from maple.decision_makers.providers import (
+    AREA_PRESENCE,
+    AREA_STRETCHES,
     FRAME,
+    HUNTING_AREA,
     MINIMAP_BOX,
     BuffsProvider,
+    CastReachProvider,
     CharacterProvider,
     ChatProvider,
     ClientProvider,
     DestinationProvider,
+    HuntingAreaProvider,
     MapProvider,
     MinimapProvider,
     MobsProvider,
     OnScreenPositionProvider,
+    OtherPlayersProvider,
     PathingProvider,
     ProfileProvider,
     QuickSlotsProvider,
     ScreenReadersProvider,
     StatusBarProvider,
 )
+from maple.launchers import hunting_area_window
 from maple.model.world import WorldMap, chain_platforms
 from maple.screen import client
 from maple.screen.buffs import BUFFS
 from maple.screen.chat import CHAT, ChatKind, ChatLine
-from maple.screen.minimap import MINIMAP
+from maple.screen.minimap import MINIMAP, MinimapReader, MinimapView
 from maple.screen.name_tag import NAME_TAGS
 from maple.screen.quick_slots import QUICK_SLOTS
 from maple.screen.sprites import (
@@ -277,17 +284,19 @@ def _start(
     monkeypatch.setattr(ProxyFactory, "_request", proxy)
     monkeypatch.setattr(controller, "key_binds", lambda ign: defaultdict(lambda: "f12"))
 
+    profile: dict[str, Any] = {
+        "map": minimap.MAP_ID,
+        "character_class": "Bishop",
+        "models_path": {},
+        "included_buffs": list(BUFF_NAMES),
+        "mob_count_threshold": 2,
+        "mob_spawn_alert_timer": 60.0,
+        "mob_spawn_alert_threshold": 1,
+    }
     bot = TrainingBot(
         "Someone",
         {},  # pyright: ignore[reportArgumentType] - the proxies are stubbed above
-        map=minimap.MAP_ID,
-        character_class="Bishop",
-        models_path={},
-        included_buffs=list(BUFF_NAMES),
-        mob_count_threshold=2,
-        mob_spawn_alert_timer=60.0,
-        mob_spawn_alert_threshold=1,
-        **settings,
+        **{**profile, **settings},
     )
     pipe = _Pipe()
     bot.child_init(pipe, None)  # pyright: ignore[reportArgumentType] - no barrier before start()
@@ -330,8 +339,9 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
     # The Bot-level Providers, in `child_init`'s order, then those assembly
     # builds for what the DecisionMakers read, each after what it needs: the
     # minimap, once, then the on-screen position (`MobsHitting`), the
-    # destination and its pathing (`Rotation`), the quick slots (`PetFood`),
-    # the buffs (`SoloRebuff`) and the chat (`ChatReplies`).
+    # destination, after what its sources read (the other players, the Hunting
+    # Area and the cast's reach), and its pathing (`Rotation`), the quick slots
+    # (`PetFood`), the buffs (`SoloRebuff`) and the chat (`ChatReplies`).
     assert [type(p) for p in bot.providers] == [
         WindowProvider,
         RepliesProvider,
@@ -343,6 +353,9 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
         ProfileProvider,
         MinimapProvider,
         OnScreenPositionProvider,
+        OtherPlayersProvider,
+        HuntingAreaProvider,
+        CastReachProvider,
         DestinationProvider,
         PathingProvider,
         QuickSlotsProvider,
@@ -393,6 +406,57 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
 
     # The minimap was already shown expanded: its key was never pressed.
     assert not [r for r in pipe.sent if r.procedure is toggle_minimap]
+
+
+# --- the Hunting Area's Providers, with another rotation (#579) ----------------------
+
+
+def watch_the_hunting_area(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, ...]]:
+    """
+    Fail the test if the launch window opens; record the markers each read of
+    the minimap asks for.
+    """
+
+    def opened(*args: object) -> None:
+        raise AssertionError("the launch window opened")
+
+    monkeypatch.setattr(hunting_area_window, "choose_hunting_area", opened)
+    asked: list[tuple[str, ...]] = []
+    read = MinimapReader.read
+
+    def recorded(
+        self: MinimapReader, frame: Frame, markers: Iterable[str] = ()
+    ) -> Reading[MinimapView]:
+        asked.append(tuple(markers))
+        return read(self, frame, markers)
+
+    monkeypatch.setattr(MinimapReader, "read", recorded)
+    return asked
+
+
+def test_a_random_rotation_assembles_with_no_window_opened_and_no_marker_read(
+    start: Any,  # noqa: ANN401
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    asked = watch_the_hunting_area(monkeypatch)
+    bot, _, _, _ = start(rotation="random")
+    data = bot.data
+    assert data is not None
+
+    dms = _decision_makers(bot)
+
+    async def decide_once() -> None:
+        for kind in (MobsHitting, Rotation, CheckMobsStillSpawn):
+            await dms[kind]._decide()  # pyright: ignore[reportPrivateUsage]
+
+    asyncio.run(decide_once())
+    built = [type(p) for p in bot.providers]
+    assert {HuntingAreaProvider, OtherPlayersProvider, CastReachProvider} <= set(built)
+    assert data.read(HUNTING_AREA) is None
+    assert data.read(AREA_STRETCHES) is None
+    assert data.read(AREA_PRESENCE) is None
+    assert asked, "the minimap was read"
+    assert set(asked) == {()}, "no read asked for a marker"
 
 
 # --- chat replies, on by default (#464) ----------------------------------------------

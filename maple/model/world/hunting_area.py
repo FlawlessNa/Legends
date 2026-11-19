@@ -15,6 +15,10 @@ one gives each part whose height is inside, which may be several. A stretch's
 **Cells.** `cells` cuts the stretches into equal pieces of at most `CELL`. What
 the rotation looks around and what is left to go for are counted in cells.
 
+**Points on them.** `random_point` draws a point on stretches, as
+`WorldMap.random_point` does on Platforms, and `on_stretches` says whether a
+point is on one: every destination in the area is.
+
 **The saved file.** `configs/hunting_areas/<map id>.json`, the map id in plain
 decimal:
 
@@ -35,6 +39,7 @@ This module reads no screen, and imports nothing from `maple.decision_makers`,
 import json
 import math
 import os
+import random
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
@@ -57,6 +62,9 @@ NAME: Final = re.compile(r"[a-z0-9_]{1,24}")
 """A saved area's name, matched in full."""
 
 _SIDES: Final = ("left", "top", "right", "bottom")
+
+ON_STRETCH: Final = 0.5
+"""Virtual px: how far from a stretch's height a point may be and be on it."""
 
 
 class EmptyHuntingArea(ValueError):
@@ -216,6 +224,41 @@ def cells(stretches: Iterable[Stretch]) -> tuple[Stretch, ...]:
         cuts = [s.left + width * i / count for i in range(count)] + [s.right]
         found.extend(Stretch(s.platform, a, b) for a, b in pairwise(cuts))
     return tuple(found)
+
+
+def random_point(
+    stretches: Sequence[Stretch], rng: random.Random | None = None
+) -> tuple[float, float]:
+    """
+    A point on the stretches, drawn uniformly along their widths: a stretch is
+    picked with a weight of its width, the point's x uniformly across it, and
+    its y on it there. A stretch with no width (a Platform that only touches
+    the rectangle) weighs one virtual px.
+
+    :param rng: The generator to draw with; the `random` module's own by
+        default.
+    :raises ValueError: There is no stretch.
+    """
+    if not stretches:
+        raise ValueError("no stretch to pick a point on")
+    draw = rng or random
+    (stretch,) = draw.choices(
+        stretches, weights=[max(s.right - s.left, 1.0) for s in stretches]
+    )
+    x = draw.uniform(stretch.left, stretch.right)
+    y = stretch.y_at(x)
+    assert y is not None  # x is within the stretch
+    return x, y
+
+
+def on_stretches(point: tuple[float, float], stretches: Iterable[Stretch]) -> bool:
+    """Whether `point` is on one of the stretches: within its x, at its height."""
+    x, y = point
+    for s in stretches:
+        height = s.y_at(x)
+        if height is not None and abs(height - y) <= ON_STRETCH:
+            return True
+    return False
 
 
 # --- the saved file ------------------------------------------------------------

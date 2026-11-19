@@ -11,8 +11,9 @@ back when the Claim is released.
 
 **The sources.** Each rotation is a `DestinationSource`, one module each under
 `sources/`, registered by name in `SOURCES` below: `random`, random points on
-the platforms (`sources/random.py`), and `smart`, towards the mobs
-(`sources/smart.py`). The Provider holds no rotation of its own: it builds the
+the platforms (`sources/random.py`), `smart`, towards the mobs
+(`sources/smart.py`), and `hunting_area`, towards the mobs inside the Hunting
+Area (`sources/hunting_area.py`). The Provider holds no rotation of its own: it builds the
 source the profile names, serves its `next()`, and hands Abandon to its
 `abandon()`. Its `needs` is every registered source's, so adding a rotation is
 one module, one `register_source` line here and one name in `ROTATIONS`.
@@ -43,6 +44,7 @@ from maple.telemetry_events import MOVEMENT_TARGET_REACHED, target_reached_paylo
 
 from .map import WORLD_MAP
 from .minimap import POSITION, position_or_unsure
+from .sources.hunting_area import AreaWanderSource, HuntingAreaSource
 from .sources.random import RandomSource
 from .sources.smart import SmartSource
 
@@ -55,7 +57,7 @@ class DestinationSource(Protocol):
     reads and emits through; it decides where to go, never how.
 
     The source a Claim on `DESTINATION` takes is one too: `wander` serves the
-    `random` source's `next()`.
+    `random` source's `next()`, and `wander_in_area` an `AreaWanderSource`'s.
     """
 
     #: The Data Keys it reads, through the Provider. The Provider's `needs` is
@@ -95,9 +97,14 @@ class DestinationProvider(Provider):
     the sources ask of it".
     """
 
-    #: Its own reads (the map, and the position to judge arrival with), and
-    #: every registered source's: `register_source` computes it from `SOURCES`.
-    needs: ClassVar[tuple[Key[Any], ...]] = (WORLD_MAP, POSITION)
+    #: Its own reads (the map, the position to judge arrival with, and what
+    #: `wander_in_area` reads), and every registered source's:
+    #: `register_source` computes it from `SOURCES`.
+    needs: ClassVar[tuple[Key[Any], ...]] = (
+        WORLD_MAP,
+        POSITION,
+        *AreaWanderSource.needs,
+    )
 
     def __init__(
         self,
@@ -122,10 +129,11 @@ class DestinationProvider(Provider):
             "hunting_area": hunting_area,
         }
         self.mob_count_threshold = mob_count_threshold
-        #: The source served, and the `random` one `wander` serves. Built by
-        #: `setup()`.
+        #: The source served, the `random` one `wander` serves, and the one
+        #: `wander_in_area` serves. Built by `setup()`.
         self.source: DestinationSource
         self.wanderer: RandomSource
+        self.area_wanderer: AreaWanderSource
         #: Whether the destination was drawn knowing which platforms a Path
         #: reaches; one that was not is checked once they are known.
         self._checked = True
@@ -138,6 +146,7 @@ class DestinationProvider(Provider):
         """
         self.source = self._source()(self)
         self.wanderer = RandomSource(self)
+        self.area_wanderer = AreaWanderSource(self)
         world_map = self.world_map()
         self.register(DESTINATION, self.source.next, initial_value=self.random_point())
         self.register(
@@ -302,7 +311,7 @@ DESTINATION_PLATFORM: Key[Platform | None] = Key(
 #: What the Provider reads itself, whatever the source.
 _OWN_NEEDS = DestinationProvider.needs
 #: The destination sources, by the name the profile's `rotation` gives them.
-#: Every name is one of `ROTATIONS`; `hunting_area` is not built yet (#579).
+#: Their names are `ROTATIONS`.
 SOURCES: dict[str, type[DestinationSource]] = {}
 
 
@@ -321,6 +330,7 @@ def register_source(name: str, source: type[DestinationSource]) -> None:
 
 register_source("random", RandomSource)
 register_source("smart", SmartSource)
+register_source("hunting_area", HuntingAreaSource)
 
 
 def wander(provider: Provider) -> Point:
@@ -332,3 +342,14 @@ def wander(provider: Provider) -> Point:
     """
     assert isinstance(provider, DestinationProvider), "DESTINATION's own Provider"
     return provider.wanderer.next()
+
+
+def wander_in_area(provider: Provider) -> Point:
+    """
+    A source for `DESTINATION` that wanders the Hunting Area: random points on
+    `AREA_STRETCHES`, a new one each time the current one is reached.
+    `CheckMobsStillSpawn` claims it with this, instead of `wander`, when there
+    is an area.
+    """
+    assert isinstance(provider, DestinationProvider), "DESTINATION's own Provider"
+    return provider.area_wanderer.next()

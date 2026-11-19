@@ -17,6 +17,9 @@ from botting.core import Key, StartupRefused
 from botting.screen import Reading
 from maple.decision_makers import rotation_setting
 from maple.decision_makers.providers import (
+    AREA_PRESENCE,
+    AREA_STRETCHES,
+    CAST_REACH,
     DESTINATION,
     MAP_ID,
     DestinationProvider,
@@ -26,6 +29,10 @@ from maple.decision_makers.providers import destination as destination_module
 from maple.decision_makers.providers.destination import SOURCES, register_source
 from maple.decision_makers.providers.map import WORLD_MAP
 from maple.decision_makers.providers.minimap import POSITION
+from maple.decision_makers.providers.sources.hunting_area import (
+    AreaWanderSource,
+    HuntingAreaSource,
+)
 from maple.decision_makers.providers.sources.random import RandomSource
 from maple.decision_makers.providers.sources.smart import SmartSource
 from maple.decision_makers.rotation_setting import ROTATIONS
@@ -79,28 +86,23 @@ def spot(monkeypatch: pytest.MonkeyPatch) -> Callable[[], None]:
 # --- the registry --------------------------------------------------------------
 
 
-def test_every_registered_source_is_a_rotation() -> None:
-    assert set(SOURCES) <= set(ROTATIONS)
+def test_the_registrys_names_are_the_rotations() -> None:
+    assert list(SOURCES) == list(ROTATIONS)
 
 
-def test_random_and_smart_are_registered_sources() -> None:
+def test_random_smart_and_hunting_area_are_registered_sources() -> None:
     assert SOURCES["random"] is RandomSource
     assert SOURCES["smart"] is SmartSource
+    assert SOURCES["hunting_area"] is HuntingAreaSource
 
 
 def test_the_providers_needs_are_every_registered_sources() -> None:
     sources = {key for source in SOURCES.values() for key in source.needs}
+    own = {WORLD_MAP, POSITION, *AreaWanderSource.needs}
 
-    assert set(DestinationProvider.needs) == sources | {WORLD_MAP, POSITION}
+    assert set(DestinationProvider.needs) == sources | own
+    assert {AREA_STRETCHES, AREA_PRESENCE, CAST_REACH} <= set(DestinationProvider.needs)
     assert len(DestinationProvider.needs) == len(set(DestinationProvider.needs))
-
-
-def test_the_hunting_area_refuses_the_start_until_its_source_is_built() -> None:
-    """#579 registers it; until then, naming it is refused at assembly."""
-    assert "hunting_area" not in SOURCES
-
-    with pytest.raises(StartupRefused, match="hunting_area.*not built yet"):
-        destination(WORLD, _here, rotation="hunting_area")
 
 
 def test_settings_the_setting_refuses_refuse_the_start() -> None:

@@ -3,11 +3,13 @@ import logging
 import multiprocessing.connection
 import multiprocessing.managers
 import time
+from collections.abc import Callable
 
 from botting import PARENT_LOG
-from botting.core import ActionRequest, BotData, DecisionMaker
+from botting.core import ActionRequest, BotData, DecisionMaker, Provider
 from botting.screen import Status
 from maple.actions import priorities, toggle_menu
+from maple.model.navigation import Point
 from maple.screen.chat import CHAT
 from maple.telemetry_events import (
     RECOVERY_MOB_SPAWN_RESTORED,
@@ -16,7 +18,16 @@ from maple.telemetry_events import (
 
 from .mob_detection import mob_count_in_img
 from .mobs_hitting import MobsHitting
-from .providers import CHAT_SHOWN, DESTINATION, FRAME, HANDLE, MOBS, wander
+from .providers import (
+    AREA_STRETCHES,
+    CHAT_SHOWN,
+    DESTINATION,
+    FRAME,
+    HANDLE,
+    MOBS,
+    wander,
+    wander_in_area,
+)
 from .reactions import Reactions
 from .rotation import Rotation
 from .telecast_mobs_hitting import TelecastMobsHitting
@@ -32,7 +43,9 @@ class CheckMobsStillSpawn(DecisionMaker):
     `mob_spawn_alert_timer` seconds, it takes over, as an ordinary DecisionMaker
     holding a Pause and a Claim (ADR 0004): mob hitting is paused, the chat is
     hidden, and the character wanders the map's platforms (a Claim on
-    `DESTINATION` with `wander`) until enough mobs show up again. Then the chat
+    `DESTINATION` with `wander`), or the Hunting Area's stretches when there is
+    one (`AREA_STRETCHES`, with `wander_in_area`), until enough mobs show up
+    again. Then the chat
     is shown again, and both are handed back as the blocks exit, by any route.
 
     When they do not show up within `FAILSAFE_TIMER`, it stops the bot until the
@@ -42,7 +55,7 @@ class CheckMobsStillSpawn(DecisionMaker):
     _throttle = 3.0
     FAILSAFE_TIMER = 30.0
     screen_readers = (CHAT,)
-    reads = (FRAME, MOBS, HANDLE, CHAT_SHOWN, *Reactions.reads)
+    reads = (FRAME, MOBS, HANDLE, CHAT_SHOWN, AREA_STRETCHES, *Reactions.reads)
     steers = (DESTINATION,)
     pauses = (
         MobsHitting,
@@ -105,9 +118,10 @@ class CheckMobsStillSpawn(DecisionMaker):
                 )
                 # Wander the map's platforms until mobs show up: a new random
                 # destination each time the current one is reached (#398). A
-                # `game_data` map has no feature cycle to walk instead.
+                # `game_data` map has no feature cycle to walk instead. With a
+                # Hunting Area, its stretches only (#571).
                 async with self.claim(
-                    DESTINATION, wander, reason="wander until mobs spawn"
+                    DESTINATION, self._wander(), reason="wander until mobs spawn"
                 ):
                     await asyncio.wait_for(
                         self._failsafe_procedure(), timeout=self.FAILSAFE_TIMER
@@ -125,6 +139,13 @@ class CheckMobsStillSpawn(DecisionMaker):
                     self._last_valid_detection = time.perf_counter()
             except TimeoutError:
                 self._give_up()
+
+    def _wander(self) -> Callable[[Provider], Point]:
+        """
+        The source to wander with: the Hunting Area's stretches when there is an
+        area (`wander_in_area`), the map's platforms otherwise (`wander`).
+        """
+        return wander if self.read(AREA_STRETCHES) is None else wander_in_area
 
     def _give_up(self) -> None:
         """

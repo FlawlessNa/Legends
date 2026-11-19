@@ -56,6 +56,7 @@
     "RECOVERY_REFLEX": "recovery.reflex",
     "RECOVERY_STUCK_DETECTED": "recovery.stuck_detected",
     "ROTATION_AREA_SET": "rotation.area_set",
+    "ROTATION_DESTINATION_PICKED": "rotation.destination_picked",
     "STATE_SNAPSHOT": "state.snapshot"
   }
 }
