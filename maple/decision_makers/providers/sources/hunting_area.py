@@ -1,23 +1,26 @@
 """
 The `hunting_area` destination source: every destination inside the Hunting
-Area (#571, spec section 7). Where a cast reaches the most mobs, else the part of
-the area seen least recently, and away from players who have settled.
+Area (#571, spec section 7). Where an attack fires, else the part of the area
+seen least recently, and away from players who have settled.
 
-**The mobs it counts** are the ones found on the current frame, placed in
-virtual px through that frame's Camera, that stand inside the rectangle
-(`HUNTING_AREA`). Once someone has settled (`AREA_PRESENCE`), a mob within
-`NEAR` of one of `others` is not counted.
+**The mobs it counts** are the ones found on the current frame, as boxes in
+virtual px placed through that frame's Camera (a box, not its feet: a narrow
+band reach at chest height would count no mob on the character's own platform),
+whose feet stand inside the rectangle (`HUNTING_AREA`). Once someone has
+settled (`AREA_PRESENCE`), a mob within `NEAR` of one of `others` is not
+counted.
 
 **What it picks**, each time it has to: for each stretch of `AREA_STRETCHES`,
-the spots on it nearest each counted mob; the one whose cast reaches the most
-mobs (`CAST_REACH`) wins, the nearest to the character on a tie, when it
-reaches at least `min_mobs`. Otherwise it looks around: the middle of the cell
-seen least recently, the nearest on a tie. A cell is seen when its middle is
-inside the play area, in virtual px, on a refresh where the Camera is read.
+the spots on it nearest each counted mob; of those where an attack of `ATTACKS`
+fires, the one where the earliest attack does wins, then the one where that
+attack reaches the most mobs, then the nearest to the character. Otherwise it
+looks around: the middle of the cell seen least recently, the nearest on a tie.
+A cell is seen when its middle is inside the play area, in virtual px, on a
+refresh where the Camera is read.
 
 **When it picks.** It keeps its destination until the character is within
-`ARRIVAL` of it, then looks and picks again; a spot that still reaches
-`min_mobs` is kept, and the character stands there, looking at most every
+`ARRIVAL` of it, then looks and picks again; a spot where any attack still
+fires is kept, and the character stands there, looking at most every
 `LOOK_EVERY`. A destination no longer allowed (off `AREA_STRETCHES`, or within
 `NEAR` of a settled player) is replaced at once.
 
@@ -45,9 +48,9 @@ from botting import PARENT_LOG
 from botting.core import HANDLE, Key, StartupRefused
 from maple.decision_makers.mob_detection import (
     get_mobs_positions_in_img,
-    mobs_in_virtual_px,
+    mob_boxes_in_virtual_px,
 )
-from maple.decision_makers.providers.cast_reach import CAST_REACH
+from maple.decision_makers.providers.attacks import ATTACKS, Attack
 from maple.decision_makers.providers.client import FRAME
 from maple.decision_makers.providers.hunting_area import (
     AREA_PRESENCE,
@@ -61,6 +64,7 @@ from maple.decision_makers.providers.hunting_area import (
 from maple.decision_makers.providers.map import POSITION_FUSION, WORLD_MAP
 from maple.decision_makers.providers.minimap import POSITION
 from maple.decision_makers.providers.mobs import MOBS
+from maple.model.characters.reach import Reach, Sides
 from maple.model.world.hunting_area import (
     HuntingArea,
     Stretch,
@@ -83,8 +87,8 @@ logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 #: Why a destination was picked, as `rotation.destination_picked` says.
 type Why = Literal["mobs", "look_around", "abandon", "crowded_out"]
 
-#: How far a cast reaches from the feet, in virtual px: left, right, up, down.
-type Reach = tuple[float, float, float, float]
+#: A mob's detection box in virtual px: left, top, right, bottom.
+type MobBox = tuple[float, float, float, float]
 
 #: How many random points `abandon` tries before it takes a free cell's middle.
 _TRIES: Final = 32
@@ -95,57 +99,99 @@ class Look:
     """
     What one look at the frame found.
 
-    :ivar mobs: The mobs counted, in virtual px: inside the rectangle, and not
-        within `NEAR` of a settled player.
-    :ivar reach: How far a cast reaches, in virtual px through that frame's
-        Camera; None when the Camera was not read, and then no mob is counted.
+    :ivar mobs: The mobs counted, as boxes in virtual px: feet inside the
+        rectangle, and not within `NEAR` of a settled player.
+    :ivar sighted: Whether the Camera was read, so that the mobs are placed;
+        when it was not, no mob is counted.
     """
 
-    mobs: tuple[Point, ...] = ()
-    reach: Reach | None = None
+    mobs: tuple[MobBox, ...] = ()
+    sighted: bool = False
 
 
 #: A look on a frame whose Camera was not read.
 BLIND: Final = Look()
 
 
-def reaches(spot: Point, mobs: Sequence[Point], reach: Reach) -> int:
-    """How many of `mobs` a cast from `spot`, the character's feet, reaches."""
-    x, y = spot
-    left, right, up, down = reach
-    return sum(
-        1 for mx, my in mobs if x - left <= mx <= x + right and y - up <= my <= y + down
+def feet(mob: MobBox) -> Point:
+    """The middle of the box's bottom edge: where the mob stands."""
+    return ((mob[0] + mob[2]) / 2, mob[3])
+
+
+def _overlaps(mob: MobBox, box: tuple[float, float, float, float]) -> bool:
+    """Whether the mob's box and `box` share some area."""
+    return min(mob[2], box[2]) > max(mob[0], box[0]) and (
+        min(mob[3], box[3]) > max(mob[1], box[1])
     )
+
+
+def reaches(spot: Point, mobs: Sequence[MobBox], reach: Reach) -> int:
+    """
+    How many of `mobs` a cast from `spot`, the character's feet, reaches: their
+    boxes overlapping `reach` placed there. A one-sided reach is counted facing
+    both ways, and the larger count kept.
+    """
+    x, y = spot
+    boxes = [reach]
+    if reach.sides is Sides.ONE:
+        boxes.append(reach.facing_right())
+    return max(
+        sum(
+            1
+            for mob in mobs
+            if _overlaps(mob, (x + box.lt_x, y + box.lt_y, x + box.rb_x, y + box.rb_y))
+        )
+        for box in boxes
+    )
+
+
+def fires(
+    spot: Point, mobs: Sequence[MobBox], attacks: Sequence[Attack]
+) -> tuple[int, int] | None:
+    """
+    The earliest attack that fires from `spot`: its place in `attacks` and how
+    many mobs it reaches; None when none does.
+    """
+    for index, attack in enumerate(attacks):
+        count = reaches(spot, mobs, attack.reach)
+        if count >= attack.min_mobs:
+            return index, count
+    return None
 
 
 def best_spot(
     stretches: Sequence[Stretch],
-    mobs: Sequence[Point],
-    reach: Reach,
+    mobs: Sequence[MobBox],
+    attacks: Sequence[Attack],
     here: Point | None,
     others: Sequence[Point] = (),
 ) -> tuple[Point, int] | None:
     """
     Of the spots on each stretch nearest each mob, outside `NEAR` of `others`,
-    the one whose cast reaches the most mobs, the nearest to `here` on a tie;
-    None with no mob.
+    where an attack fires: the one where the earliest attack does, then where
+    that attack reaches the most mobs, then the nearest to `here`. None when no
+    attack fires on any.
 
-    :returns: The spot and how many mobs it reaches.
+    :returns: The spot and how many mobs the attack that fires there reaches.
     """
     best: tuple[Point, int] | None = None
-    best_distance = math.inf
+    best_rank: tuple[int, int, float] | None = None
     for stretch in stretches:
-        for mx, _ in mobs:
-            x = min(max(mx, stretch.left), stretch.right)
+        for mob in mobs:
+            x = min(max(feet(mob)[0], stretch.left), stretch.right)
             y = stretch.y_at(x)
             assert y is not None  # x is within the stretch
             spot = (x, y)
             if near(spot, others):
                 continue
-            count = reaches(spot, mobs, reach)
+            found = fires(spot, mobs, attacks)
+            if found is None:
+                continue
+            index, count = found
             distance = 0.0 if here is None else math.dist(spot, here)
-            if best is None or (count, -distance) > (best[1], -best_distance):
-                best, best_distance = (spot, count), distance
+            rank = (-index, count, -distance)
+            if best_rank is None or rank > best_rank:
+                best, best_rank = (spot, count), rank
     return best
 
 
@@ -154,14 +200,14 @@ class HuntingAreaSource:
     Destinations inside the Hunting Area: towards the mobs, else around the
     area, and away from settled players. See the module's docstring.
 
-    Refuses a profile with no `mob_count_threshold`, as `smart` does: with no
-    `min_mobs`, no spot is worth going to.
+    Refuses a profile with no `attacks`, as `smart` does: with none, no spot is
+    worth going to.
     """
 
     #: What it reads through the Provider: the window, the frame and the mobs to
     #: find on it, the map, the position with the Camera it was read through,
     #: the area and where in it the character may go, who has settled, and
-    #: what a cast reaches.
+    #: the attacks.
     needs: ClassVar[tuple[Key[Any], ...]] = (
         HANDLE,
         FRAME,
@@ -172,7 +218,7 @@ class HuntingAreaSource:
         HUNTING_AREA,
         AREA_STRETCHES,
         AREA_PRESENCE,
-        CAST_REACH,
+        ATTACKS,
     )
 
     #: Arrival, in virtual px: smart rotation's, 4 minimap px.
@@ -183,12 +229,12 @@ class HuntingAreaSource:
 
     def __init__(self, provider: DestinationProvider) -> None:
         """
-        :raises StartupRefused: The profile has no `mob_count_threshold`.
+        :raises StartupRefused: The profile has no `attacks`.
         """
-        if provider.mob_count_threshold is None:
+        if provider.read(ATTACKS) is None:
             raise StartupRefused(
                 f"{provider} hunts a Hunting Area, and the profile has no "
-                "mob_count_threshold: set one, or rotate another way."
+                "attacks: list them, or rotate another way."
             )
         self.provider = provider
         self.rng = random.Random()
@@ -235,9 +281,7 @@ class HuntingAreaSource:
         elif now - self._looked_at < self.LOOK_EVERY:
             return destination
         look = self._look(now, others)
-        if look.reach is not None and (
-            reaches(destination, look.mobs, look.reach) >= self._min_mobs()
-        ):
+        if look.sighted and fires(destination, look.mobs, self._attacks()):
             return destination
         return self._pick(here, now, stretches, others, look)
 
@@ -300,10 +344,10 @@ class HuntingAreaSource:
         assert area is not None, "with `rotation: hunting_area`, there is an area"
         return area
 
-    def _min_mobs(self) -> int:
-        reach = self.provider.read(CAST_REACH)
-        assert self.provider.mob_count_threshold is not None  # refused otherwise
-        return self.provider.mob_count_threshold if reach is None else reach.min_mobs
+    def _attacks(self) -> tuple[Attack, ...]:
+        attacks = self.provider.read(ATTACKS)
+        assert attacks is not None, "the start is refused without attacks"
+        return attacks
 
     # --- looking -----------------------------------------------------------------
 
@@ -311,7 +355,7 @@ class HuntingAreaSource:
         """
         Find the mobs on a fresh frame, placed through the Camera its position
         read matched, and mark the cells it shows seen. `BLIND` when the Camera
-        is not read, or no cast reach is known.
+        is not read.
         """
         provider = self.provider
         self._looked_at = now
@@ -319,22 +363,19 @@ class HuntingAreaSource:
         # Read on this frame, so its Camera is the one that places the mobs.
         provider.refresh(POSITION)
         camera = self._camera()
-        reach = provider.read(CAST_REACH)
         if camera is None or not frame.ok:
             return BLIND
         self._mark_seen(camera, now)
-        if reach is None:
-            return BLIND
         found = get_mobs_positions_in_img(
             frame.pixels, provider.read(MOBS), provider.read(HANDLE)
         )
         area = self._area()
         mobs = tuple(
-            mob
-            for mob in mobs_in_virtual_px(found, frame.client_size, camera)
-            if area.contains(mob) and not near(mob, others)
+            box
+            for box in mob_boxes_in_virtual_px(found, frame.client_size, camera)
+            if area.contains(feet(box)) and not near(feet(box), others)
         )
-        return Look(mobs, reach.in_virtual(frame.client_size, camera.play_area))
+        return Look(mobs, sighted=True)
 
     def _mark_seen(self, camera: Camera | None, now: float) -> None:
         """Every cell whose middle is inside the Camera's play area is seen now."""
@@ -360,13 +401,14 @@ class HuntingAreaSource:
         """Look, unless just done, then head for the best spot or look around."""
         if look is None:
             look = self._look(now, others)
-        if look.reach is not None:
-            best = best_spot(stretches, look.mobs, look.reach, here, others)
-            if best is not None and best[1] >= self._min_mobs():
+        attacks = self._attacks()
+        if look.sighted:
+            best = best_spot(stretches, look.mobs, attacks, here, others)
+            if best is not None:
                 return self._head_for(best[0], "mobs", best[1])
         middle = self._least_seen(here, stretches, others)
-        count = 0 if look.reach is None else reaches(middle, look.mobs, look.reach)
-        return self._head_for(middle, "look_around", count)
+        found = fires(middle, look.mobs, attacks) if look.sighted else None
+        return self._head_for(middle, "look_around", 0 if found is None else found[1])
 
     def _least_seen(
         self, here: Point | None, stretches: Sequence[Stretch], others: Sequence[Point]

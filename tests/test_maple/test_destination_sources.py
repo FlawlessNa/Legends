@@ -19,7 +19,7 @@ from maple.decision_makers import rotation_setting
 from maple.decision_makers.providers import (
     AREA_PRESENCE,
     AREA_STRETCHES,
-    CAST_REACH,
+    ATTACKS,
     DESTINATION,
     MAP_ID,
     DestinationProvider,
@@ -40,7 +40,7 @@ from maple.model.navigation import Point
 from maple.model.world import WorldMap
 from maple.screen.position import PositionSource, VirtualPosition
 from tests.test_maple.movement_lab.fixture_maps import walk_corridor
-from tests.test_maple.serving import destination
+from tests.test_maple.serving import attack, destination
 
 #: One floor from x 0 to 700.
 WORLD = WorldMap.from_map_data(walk_corridor())
@@ -101,7 +101,7 @@ def test_the_providers_needs_are_every_registered_sources() -> None:
     own = {WORLD_MAP, POSITION, *AreaWanderSource.needs}
 
     assert set(DestinationProvider.needs) == sources | own
-    assert {AREA_STRETCHES, AREA_PRESENCE, CAST_REACH} <= set(DestinationProvider.needs)
+    assert {AREA_STRETCHES, AREA_PRESENCE, ATTACKS} <= set(DestinationProvider.needs)
     assert len(DestinationProvider.needs) == len(set(DestinationProvider.needs))
 
 
@@ -118,22 +118,34 @@ def test_settings_the_setting_refuses_refuse_the_start() -> None:
     [
         ({}, RandomSource),
         ({"smart_rotation_enabled": False}, RandomSource),
-        ({"smart_rotation_enabled": True, "mob_count_threshold": 2}, SmartSource),
+        ({"smart_rotation_enabled": True}, SmartSource),
         ({"rotation": "random"}, RandomSource),
-        ({"rotation": "smart", "mob_count_threshold": 2}, SmartSource),
+        ({"rotation": "smart"}, SmartSource),
     ],
     ids=["neither", "smart-off", "smart-on", "random", "smart"],
 )
 def test_the_provider_serves_the_source_the_settings_name(
     settings: dict[str, Any], served: type
 ) -> None:
-    provider = destination(WORLD, _here, **settings)
+    provider = destination(WORLD, _here, attacks=(attack(2),), **settings)
 
     assert type(provider.source) is served
 
 
-def test_smart_with_no_mob_count_threshold_refuses_the_start() -> None:
-    with pytest.raises(StartupRefused, match="mob_count_threshold"):
+def test_the_smart_sources_threshold_is_the_lists_smallest_min_mobs() -> None:
+    provider = destination(
+        WORLD,
+        _here,
+        rotation="smart",
+        attacks=(attack(3), attack(5), attack(1, name="Other")),
+    )
+
+    assert isinstance(provider.source, SmartSource)
+    assert provider.source.mob_count_threshold == 1
+
+
+def test_smart_with_no_attacks_refuses_the_start() -> None:
+    with pytest.raises(StartupRefused, match="attacks"):
         destination(WORLD, _here, rotation="smart")
 
 

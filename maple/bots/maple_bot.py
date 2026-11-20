@@ -22,6 +22,7 @@ from maple.bots.map_setting import (
 from maple.bots.skill_settings import (
     buff_names,
     refuse_buff_lists,
+    refuse_mob_count_threshold,
     refuse_training_skill,
 )
 from maple.decision_makers.mobs_hitting import MobsHitting
@@ -107,6 +108,7 @@ class MapleBot(Bot, ABC):
         refuse_game_map(kwargs.pop("game_map", None))
         refuse_mobs(kwargs.pop("mobs", None))
         refuse_training_skill(kwargs.pop("training_skill", None))
+        refuse_mob_count_threshold(kwargs.pop("mob_count_threshold", None))
         refuse_buff_lists(
             kwargs.pop("included_buffs", None), kwargs.pop("excluded_buffs", None)
         )

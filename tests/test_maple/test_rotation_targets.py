@@ -39,7 +39,7 @@ from maple.screen.position import PositionSource, VirtualPosition
 from maple.telemetry_events import MOVEMENT_TARGET_REACHED
 from tests.test_maple.movement_lab import corpus
 from tests.test_maple.movement_lab.fixture_maps import portal_pair, rope_grab
-from tests.test_maple.serving import destination, override, pathing
+from tests.test_maple.serving import attack, destination, override, pathing
 
 #: A floor 0-300 at y 0, a floor 600-900 at y -400, and a portal from the
 #: lower to the upper only: from the upper floor, the lower one is unreachable.
@@ -257,7 +257,7 @@ def test_a_wander_claim_wanders_the_platforms_whatever_the_mode() -> None:
         data=data,
         game_physics=corpus.LAB_PHYSICS_VALUES,
         smart_rotation_enabled=True,
-        mob_count_threshold=2,
+        attacks=(attack(2),),
     )
     emitted: list[str] = []
     provider.emit = lambda event_type, payload=None: emitted.append(event_type)  # type: ignore[method-assign]

@@ -79,12 +79,12 @@ settings:
   character_class: Bishop
 
   # -- Combat ---------------------------------------------------------------
-  # The attack used on rotation. Must be a skill your class has AND a key you
-  # bound in configs/keybindings.ini.
-  training_skill: Genesis
-
-  # Minimum mobs on screen before the training skill is worth casting.
-  mob_count_threshold: 8
+  # The attacks, in order: the first with at least `min_mobs` mobs in its reach
+  # is cast, and the rotation goes where the earliest one fires. Each must be a
+  # skill your class has AND a key you bound in configs/keybindings.ini.
+  attacks:
+    - skill: Genesis
+      min_mobs: 8
 
   # Buffs the bot keeps up on itself. Each must be bound in keybindings.ini.
   included_buffs:

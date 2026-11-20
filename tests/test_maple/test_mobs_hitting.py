@@ -348,6 +348,19 @@ def test_training_skill_refuses_the_start_naming_attacks() -> None:
         )
 
 
+def test_mob_count_threshold_refuses_the_start_naming_attacks() -> None:
+    with pytest.raises(
+        ProfileError, match=r"`mob_count_threshold: 3` is retired.*`attacks`"
+    ):
+        TrainingBot(
+            "Someone",
+            {},  # pyright: ignore[reportArgumentType] - metadata is never read here
+            map="auto",
+            character_class="Swordsman",
+            mob_count_threshold=3,
+        )
+
+
 # --- the attack list ------------------------------------------------------------
 
 

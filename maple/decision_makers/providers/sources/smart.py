@@ -21,6 +21,7 @@ from maple.decision_makers.mob_detection import (
     get_mobs_positions_in_img,
     mobs_in_virtual_px,
 )
+from maple.decision_makers.providers.attacks import ATTACKS
 from maple.decision_makers.providers.client import FRAME
 from maple.decision_makers.providers.map import POSITION_FUSION, WORLD_MAP
 from maple.decision_makers.providers.minimap import POSITION
@@ -41,7 +42,8 @@ class SmartSource:
     are most, on the destination's platform. Otherwise, a random point on that
     platform.
 
-    `mob_count_threshold`, the Provider's, is how many mobs it steps towards.
+    The smallest `min_mobs` of `ATTACKS` is how many mobs it steps towards: when
+    that many are around, an attack would fire.
     """
 
     #: What it reads through the Provider: the window, the frame and the mobs
@@ -54,6 +56,7 @@ class SmartSource:
         WORLD_MAP,
         POSITION_FUSION,
         POSITION,
+        ATTACKS,
     )
 
     #: Arrival, in virtual px: 4 minimap px.
@@ -67,15 +70,17 @@ class SmartSource:
 
     def __init__(self, provider: DestinationProvider) -> None:
         """
-        :raises StartupRefused: The profile has no `mob_count_threshold`.
+        :raises StartupRefused: The profile has no `attacks`.
         """
-        if provider.mob_count_threshold is None:
+        attacks = provider.read(ATTACKS)
+        if attacks is None:
             raise StartupRefused(
                 f"{provider} rotates the smart way, and the profile has no "
-                "mob_count_threshold: set one, or rotate another way."
+                "attacks: list them, or rotate another way."
             )
         self.provider = provider
-        self.mob_count_threshold: int = provider.mob_count_threshold
+        #: The fewest mobs any attack fires at.
+        self.mob_count_threshold: int = min(attack.min_mobs for attack in attacks)
         #: Whether the character has yet to be judged on its destination, and
         #: when it was.
         self._first_time_on_target = True

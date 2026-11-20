@@ -66,3 +66,21 @@ def buff_names(buffs: object) -> tuple[str, ...]:
             "`buffs: [Iron Body]`."
         )
     return tuple(buffs)
+
+
+def refuse_mob_count_threshold(mob_count_threshold: object) -> None:
+    """
+    `mob_count_threshold` was how many mobs made a cast worth it. The profile's
+    `attacks` say it per attack now, in `min_mobs`, and the rotations read them
+    (#639, spec #631 § 6 and 8).
+
+    :raises ProfileError: `mob_count_threshold` is set.
+    """
+    if mob_count_threshold is None:
+        return
+    raise ProfileError(
+        f"`mob_count_threshold: {mob_count_threshold}` is retired (#639): each "
+        "attack of `attacks` says how many mobs must be in its reach, in "
+        "`min_mobs`, and the rotations read them, such as "
+        f"`attacks: [{{skill: Power Strike, min_mobs: {mob_count_threshold}}}]`."
+    )

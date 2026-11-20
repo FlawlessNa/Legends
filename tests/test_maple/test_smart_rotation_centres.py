@@ -23,7 +23,7 @@ from maple.decision_makers.providers import (
 from maple.model.world import WorldMap
 from maple.screen.position import Camera, PositionSource, VirtualPosition
 from tests.test_maple.movement_lab.fixture_maps import walk_corridor
-from tests.test_maple.serving import destination
+from tests.test_maple.serving import attack, destination
 
 #: One floor from x 0 to 700: flat at y 0 to x 300, a slope up to y -20 at x 400,
 #: then flat again.
@@ -54,7 +54,7 @@ def _target(
         position_fusion=SimpleNamespace(camera=camera),
         handle=1,
         smart_rotation_enabled=True,
-        mob_count_threshold=2,
+        attacks=(attack(2),),
     )
     data = provider.data
     # The character's box on screen, x1, y1, x2, y2: the mask is built around it.

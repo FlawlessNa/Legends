@@ -11,9 +11,9 @@ from maple.bots import CalibrationBot, TrainingBot
 from maple.calibration import TrialSpecError
 from maple.decision_makers import TrialRunner, trial_runner
 from maple.decision_makers.providers import (
-    CAST_REACH,
+    ATTACKS,
     HUNTING_AREA,
-    CastReachProvider,
+    AttacksProvider,
     ChatProvider,
     DestinationProvider,
     HuntingAreaProvider,
@@ -66,7 +66,7 @@ def test_its_trial_runner_assembles_with_the_destination_and_no_chat(
     screen; then the runner's `setup()` checks the schedule's map. The training
     bot's synthetic client is used (its map has no minimap, so that check is
     what stops it), running the calibration bot's one DecisionMaker, with no
-    `mob_count_threshold`, as a calibration profile has none.
+    `attacks`, as a calibration profile has none.
 
     The Destination Provider's sources read the Hunting Area's keys, so their
     Providers are built too (#579): with no `hunting_area` rotation they open no
@@ -84,7 +84,7 @@ def test_its_trial_runner_assembles_with_the_destination_and_no_chat(
         monkeypatch,
         trial_schedule="physics",
         record_path=str(tmp_path / "record.jsonl"),
-        mob_count_threshold=None,
+        attacks=None,
     )
 
     with pytest.raises(TrialSpecError, match="no minimap"):
@@ -94,11 +94,11 @@ def test_its_trial_runner_assembles_with_the_destination_and_no_chat(
     assert built.index(MinimapProvider) < built.index(DestinationProvider)
     assert ChatProvider not in built
     assert OnScreenPositionProvider not in built
-    assert {HuntingAreaProvider, CastReachProvider} <= set(built)
+    assert {HuntingAreaProvider, AttacksProvider} <= set(built)
     data = bot.data
     assert data is not None
     assert data.read(HUNTING_AREA) is None
-    assert data.read(CAST_REACH) is None
+    assert data.read(ATTACKS) is None
     assert set(asked) <= {()}, "no read asked for a marker"
 
 

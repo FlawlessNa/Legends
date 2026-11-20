@@ -42,8 +42,6 @@ keys:
 - `hunting_area`: the Hunting Area the `hunting_area` rotation hunts, its
   stretches a Path reaches, and whether another player has settled in it;
   each None with another rotation.
-- `cast_reach`: how far a cast of the training skill reaches, and how many
-  mobs make it worth it.
 - `attacks`: the profile's attacks, in order, each with its reach and
   `min_mobs`, and which way a one-sided attack faces.
 """
@@ -52,7 +50,6 @@ from botting.core import HANDLE, REPLIES_ON
 
 from .attacks import ATTACKS, FACING, Attack, AttacksProvider, Facing
 from .buffs import BUFFS_READING, BuffsProvider
-from .cast_reach import CAST_REACH, CastReach, CastReachProvider
 from .character import BUFF_NAMES, CHARACTER, CharacterProvider
 from .chat import CHAT_LINES, CHAT_SHOWN, ChatProvider
 from .client import CHAT_KEYS, FRAME, ClientProvider
@@ -146,7 +143,6 @@ __all__ = [
     "BUFFS_READING",
     "BUFF_NAMES",
     "CALIBRATION",
-    "CAST_REACH",
     "CHARACTER",
     "CHAT_KEYS",
     "CHAT_LINES",
@@ -197,8 +193,6 @@ __all__ = [
     "Attack",
     "AttacksProvider",
     "BuffsProvider",
-    "CastReach",
-    "CastReachProvider",
     "CharacterProvider",
     "ChatProvider",
     "ClientProvider",

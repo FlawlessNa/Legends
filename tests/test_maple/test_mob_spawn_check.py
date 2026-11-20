@@ -31,7 +31,6 @@ from maple.decision_makers.providers import (
     AREA_STRETCHES,
     DESTINATION,
     POSITION,
-    CastReach,
     DestinationProvider,
 )
 from maple.decision_makers.providers.hunting_area import NOBODY
@@ -42,7 +41,7 @@ from maple.screen.position import PositionSource, VirtualPosition
 from maple.telemetry_events import RECOVERY_MOB_SPAWN_RESTORED
 from tests.test_maple.movement_lab.fixture_maps import walk_corridor
 
-from .serving import destination, override
+from .serving import attack, destination, override
 from .test_hunting_area import fixture_map
 
 WORLD = WorldMap.from_map_data(walk_corridor())
@@ -243,11 +242,10 @@ def test_with_a_hunting_area_the_failsafe_wanders_its_stretches(
         AREA_WORLD,
         _here,
         rotation="hunting_area",
-        mob_count_threshold=2,
         area=CORNER,
         stretches=stretches,
         presence=NOBODY,
-        cast_reach=CastReach(left=100, right=100, up=100, down=50, min_mobs=2),
+        attacks=(attack(2),),
     )
     bot = _Bot(mocker, provider)
 
