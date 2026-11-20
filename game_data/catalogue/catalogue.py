@@ -15,6 +15,10 @@
     cat.item_icons()        -> tuple[ItemIcon, ...]
     cat.meso_frames()       -> tuple[MesoFrame, ...]
     cat.damage_digits()     -> tuple[DamageDigit, ...]
+    cat.weapon(1302000)     -> WeaponData
+    cat.swings("swordOL", 0) -> tuple[Swing, ...]
+    cat.weapon_icons()      -> tuple[WeaponIcon, ...]
+    cat.action_delays("swingO1") -> list[int], in milliseconds, sign kept
 
 **Names first, IDs accepted.** A lookup takes a name or an ID: an `int`, or a
 string of digits. A name matches whole and case-insensitively, and a map's
@@ -65,6 +69,9 @@ from .model import (
     SkillData,
     SkillLevel,
     Spawn,
+    Swing,
+    WeaponData,
+    WeaponIcon,
 )
 from .schema import CATALOGUE, SCHEMA_VERSION
 from .trees import CatalogueError
@@ -73,6 +80,8 @@ CLOSEST: Final = 5
 
 # What a lookup can name, and the table each kind is in.
 KINDS: Final = {"map": "maps", "mob": "mobs", "skill": "skills"}
+# `_id` also looks weapons up, which `search` and `ids` don't list.
+_TABLES: Final = KINDS | {"weapon": "weapons"}
 
 type _Value = int | float | str | None
 
@@ -441,6 +450,88 @@ class Catalogue:
             raise LookupError(f"none of the action {action!r}'s frames has a delay")
         return _int(duration)
 
+    def action_delays(self, action: str) -> list[int]:
+        """
+        An action's frame delays in milliseconds, in order, as the client
+        gives them: a negative delay keeps its sign, and a frame with no delay
+        is left out.
+
+        :raises LookupError: The character has no such action.
+        """
+        found = self._all(
+            "SELECT delay FROM actions WHERE action = ? ORDER BY frame", action
+        )
+        if not found:
+            names = [_str(name) for (name,) in self._all("SELECT action FROM actions")]
+            closest = difflib.get_close_matches(action, sorted(set(names)), n=CLOSEST)
+            hint = f"; the closest are: {', '.join(closest)}" if closest else ""
+            raise LookupError(f"the character has no action {action!r}{hint}")
+        return [_int(delay) for (delay,) in found if delay is not None]
+
+    def weapon(self, name_or_id: str | int) -> WeaponData:
+        """
+        A weapon, by name or ID.
+
+        :raises LookupError: Nothing has that ID; or the name matches several
+            weapons, or none.
+        """
+        weapon_id = self._id("weapon", name_or_id)
+        _, name, afterimage, speed, attack = self._one(
+            "SELECT * FROM weapons WHERE id = ?", weapon_id
+        )
+        return WeaponData(
+            id=weapon_id,
+            name=_text(name),
+            afterimage=_text(afterimage),
+            attack_speed=_optional_int(speed),
+            attack=_optional_int(attack),
+        )
+
+    def swings(self, afterimage: str, bracket: int) -> tuple[Swing, ...]:
+        """
+        The swings of a swing set, such as `swordOL`, in a bracket, in the
+        client's order.
+
+        :raises LookupError: The set has no such bracket, or no such set.
+        """
+        found = self._all(
+            "SELECT * FROM swings WHERE afterimage = ? AND bracket = ? ORDER BY rowid",
+            afterimage,
+            bracket,
+        )
+        if not found:
+            sets = sorted(
+                {_str(s) for (s,) in self._all("SELECT afterimage FROM swings")}
+            )
+            if afterimage not in sets:
+                closest = difflib.get_close_matches(afterimage, sets, n=CLOSEST)
+                hint = f"; the closest are: {', '.join(closest)}" if closest else ""
+                raise LookupError(f"no swing set is named {afterimage!r}{hint}")
+            brackets = sorted(
+                {
+                    _int(b)
+                    for (b,) in self._all(
+                        "SELECT bracket FROM swings WHERE afterimage = ?", afterimage
+                    )
+                }
+            )
+            raise LookupError(
+                f"{afterimage} has no bracket {bracket}; it has {brackets}"
+            )
+        return tuple(
+            Swing(_str(a), _int(b), _str(act), _int(lx), _int(ly), _int(rx), _int(ry))
+            for a, b, act, lx, ly, rx, ry in found
+        )
+
+    def weapon_icons(self) -> tuple[WeaponIcon, ...]:
+        """Every weapon's icon, by weapon ID."""
+        return tuple(
+            WeaponIcon(_int(weapon), _text(image), _int(x), _int(y))
+            for weapon, image, x, y in self._all(
+                "SELECT * FROM weapon_icons ORDER BY weapon"
+            )
+        )
+
     def skill_duration(self, name_or_id: str | int) -> int:
         """
         How long a skill's first action takes, in milliseconds.
@@ -541,7 +632,7 @@ class Catalogue:
         """The ID of the map, mob or skill (`kind`) a name or an ID names."""
         if isinstance(name_or_id, int) or name_or_id.strip().isdigit():
             found_id = int(name_or_id)
-            if not self._all(f"SELECT 1 FROM {KINDS[kind]} WHERE id = ?", found_id):
+            if not self._all(f"SELECT 1 FROM {_TABLES[kind]} WHERE id = ?", found_id):
                 raise LookupError(f"no {kind} has the ID {found_id}")
             return found_id
         wanted = name_or_id.strip().casefold()
@@ -581,7 +672,7 @@ class Catalogue:
             return [
                 (_int(found_id), _text(name), () if name is None else (_str(name),))
                 for found_id, name in self._all(
-                    f"SELECT id, name FROM {KINDS[kind]} ORDER BY id"
+                    f"SELECT id, name FROM {_TABLES[kind]} ORDER BY id"
                 )
             ]
         found: list[tuple[int, str | None, tuple[str, ...]]] = []
