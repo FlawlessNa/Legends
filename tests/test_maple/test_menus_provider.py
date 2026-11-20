@@ -124,10 +124,6 @@ def test_the_inventory_provider_is_built_once_however_often_it_is_asked_for(
 # --- the rotation's physics ---------------------------------------------------------
 
 
-class _Character:
-    skills: dict[str, object] = {}  # noqa: RUF012
-
-
 def _planner(data: BotData | None = None) -> PathingProvider:
     entry = next(e for e in corpus.FIXTURE_MAPS if e.name == "jump_gap")
     reading = Reading.read(VirtualPosition(100.0, 0.0, PositionSource.FUSED), 0.0)
@@ -136,7 +132,6 @@ def _planner(data: BotData | None = None) -> PathingProvider:
         lambda: reading,
         lambda: (300.0, 0.0),
         data=data,
-        character=_Character(),
         game_physics=corpus.LAB_PHYSICS_VALUES,
     )
 
@@ -160,7 +155,6 @@ def test_the_profiles_stats_are_its_settings_and_one_without_them() -> None:
     set_by_the_profile = pathing(
         corpus.world_map(entry),
         lambda: reading,
-        character=_Character(),
         game_physics=corpus.LAB_PHYSICS_VALUES,
         speed_multiplier=1.2,
         jump_multiplier=1.3,

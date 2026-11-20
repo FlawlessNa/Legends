@@ -34,8 +34,8 @@ import pytest
 
 import botting.controller as controller_package
 from botting.controller.inputs.focused_inputs import KeyboardInputWrapper
+from botting.models_abstractions import Skill
 from maple.actions.movements_v2 import telecast
-from maple.model.characters.maple_skills import MapleSkill
 from maple.model.mechanics import movement_mechanics_v2
 from tests.test_maple.movement_lab import corpus
 from tests.test_maple.movement_lab.test_invariants import (
@@ -127,18 +127,24 @@ SEED = 20260914
 
 
 @dataclass(frozen=True)
-class _UltimateSkillStub(MapleSkill):
+class _UltimateSkillStub(Skill):
     """A `Skill` whose key bind does not go through the gitignored keybindings
     config - same shape as `test_invariants._StubTeleportSkill`."""
 
+    name: str = ""
+    cast_time: float = field(default=0.0, repr=False)
     key: str = field(default="f1", repr=False)
+
+    @property
+    def animation_time(self) -> float:
+        return self.cast_time
 
     @lru_cache  # noqa: B019
     def key_bind(self, ign: str) -> str:
         return self.key
 
 
-_ULTIMATE_SKILL = _UltimateSkillStub("Genesis", "Attack", animation_time=1.2)
+_ULTIMATE_SKILL = _UltimateSkillStub("Genesis", cast_time=1.2)
 
 
 def render_golden(wrapper: KeyboardInputWrapper) -> str:

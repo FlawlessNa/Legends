@@ -7,7 +7,7 @@ is compiled with at dispatch.
 the Action duration cap and the release flag (#442). It is built once per Bot,
 when a DecisionMaker reads one of its keys (`Rotation`, `TelecastMobsHitting`,
 `TrialRunner`), and configured from the profile: `movements_duration` is the
-cap, `disable_teleport` takes the teleport skill away.
+cap, `disable_teleport` plans and compiles with no teleport skill.
 
 **The target.** A Path is planned to `DESTINATION`, which `DestinationProvider`
 picks on the map's platforms, or whoever claims it serves (`TrialRunner`, whose
@@ -54,12 +54,12 @@ from maple.model.navigation import FootholdGraphs, Path
 from maple.model.world import Platform, WorldMap
 from maple.screen.position import PositionSource, VirtualPosition
 
-from .character import CHARACTER
 from .destination import DESTINATION
 from .map import GAME_PHYSICS, WORLD_MAP
 from .menus import JUMP_MULTIPLIER, SPEED_MULTIPLIER
 from .minimap import POSITION
 from .profile import CALIBRATION, PROFILE_JUMP_MULTIPLIER, PROFILE_SPEED_MULTIPLIER
+from .skills import SKILLS
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -73,15 +73,16 @@ class PathingProvider(Provider):
     Plan, the Action duration cap and the release flag.
 
     Configured from the profile: `movements_duration` is the cap a plan is
-    compiled against, and `disable_teleport` takes the teleport skill off the
-    character before the handler is made. `setup()` makes the handler, starts
+    compiled against, and `disable_teleport` plans and compiles with no
+    teleport skill. The teleport skill is `SKILLS`' `Teleport`, which nothing
+    here changes. `setup()` makes the handler, starts
     building its graph, and plans the first Path. A Trial batch changes the cap,
     the precision Knobs and whether Paths may teleport with `configure`.
     """
 
     needs = (
         HANDLE,
-        CHARACTER,
+        SKILLS,
         WORLD_MAP,
         GAME_PHYSICS,
         POSITION,
@@ -120,10 +121,6 @@ class PathingProvider(Provider):
         self._path_read_at: float | None = None
 
     def setup(self) -> None:
-        if self.disable_teleport:
-            # A class-level dict, so every character of the class loses it:
-            # `Rotation` always did this, and fixing it is #49's.
-            self.read(CHARACTER).skills.pop("Teleport", None)
         self.register(ACTION_DURATION, lambda: self._duration)
         self.register(MOVEMENT_HANDLER, self._new_handler)
         handler = self.read(MOVEMENT_HANDLER)
@@ -233,7 +230,7 @@ class PathingProvider(Provider):
             ign=self.data.ign,
             speed=physics.walk_speed,
             climb_speed=physics.climb_speed,
-            teleport=self.read(CHARACTER).skills.get("Teleport"),
+            teleport=self._profile_teleport(),
             total_duration=self.read(ACTION_DURATION),
             always_release=self.read(ALWAYS_RELEASE_KEYS),
             walk_acceleration=physics.walk_acceleration,
@@ -318,7 +315,16 @@ class PathingProvider(Provider):
         """
         if not self._teleport:
             return None
-        return self.read(CHARACTER).skills.get("Teleport")
+        return self._profile_teleport()
+
+    def _profile_teleport(self) -> MapleSkill | None:
+        """
+        The character's teleport skill, `SKILLS`' `Teleport`; `None` when it has
+        none, or the profile's `disable_teleport` takes it away.
+        """
+        if self.disable_teleport:
+            return None
+        return self.read(SKILLS).get("Teleport")
 
     def _plan_path(self) -> Path | None:
         """The Path from the current position to `DESTINATION`; `None` holds."""

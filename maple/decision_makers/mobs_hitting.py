@@ -32,13 +32,13 @@ from .mob_detection import (
     mob_count_in_img,
 )
 from .providers import (
-    CHARACTER,
     CHAT_READER,
     FRAME,
     HANDLE,
     MOBS,
     ON_SCREEN_POSITION,
     POSITION,
+    SKILLS,
     WORLD_MAP,
 )
 from .rotation import Rotation
@@ -60,7 +60,7 @@ class MobsHitting(DecisionMaker):
     screen_readers = (MINIMAP, CHAT, NAME_TAGS)
     reads = (
         HANDLE,
-        CHARACTER,
+        SKILLS,
         FRAME,
         MOBS,
         CHAT_READER,
@@ -91,11 +91,12 @@ class MobsHitting(DecisionMaker):
     def setup(self) -> None:
         """
         :raises StartupRefused: the Bot has no chat reader, which places the
-            chat the skill's reach stops at.
+            chat the skill's reach stops at; or the training skill isn't one of
+            the character's, or declares no screen range.
         """
         if self.read(CHAT_READER) is None:
             raise StartupRefused(f"{self} reaches down to the chat, and has no reader.")
-        self.training_skill = self._get_skill_from_str(self._training_skill_name)
+        self.training_skill = self._training_skill()
         self.gate = TurnGate(self._proxies.instance(repr(self), "Lock"))
 
     def on_start(self) -> None:
@@ -169,11 +170,35 @@ class MobsHitting(DecisionMaker):
                 timeout,
             )
 
-    def _get_skill_from_str(self, skill_str: str | None) -> MapleSkill:
-        character = self.read(CHARACTER)
-        if skill_str:
-            return character.skills[skill_str]
-        return character.skills[character.main_skill]
+    def _training_skill(self) -> MapleSkill:
+        """
+        The profile's `training_skill`, in `SKILLS`.
+
+        :raises StartupRefused: The profile names none, `SKILLS` hasn't it, or
+            it declares no screen range: a skill built from the client's files
+            declares none, and its reach comes with #637 and #638.
+        """
+        name = self._training_skill_name
+        if not name:
+            raise StartupRefused(
+                f"{self} casts the profile's training_skill: name one."
+            )
+        skill = self.read(SKILLS).get(name)
+        if skill is None:
+            raise StartupRefused(
+                f"{self}: training_skill {name!r} isn't one of the character's "
+                "skills: name it in the Skill Keys."
+            )
+        if skill.horizontal_screen_range is None or not (
+            skill.vertical_screen_range
+            or (skill.vertical_up_screen_range and skill.vertical_down_screen_range)
+        ):
+            raise StartupRefused(
+                f"{self}: {name} declares no screen range, so the mobs in its reach "
+                "can't be counted. A skill's reach comes from the client's files "
+                "with #637 and #638."
+            )
+        return skill
 
     def _mask_for_skill_range(
         self, pos: tuple[int, int, int, int], pixels: np.ndarray
@@ -187,6 +212,10 @@ class MobsHitting(DecisionMaker):
             self.training_skill.vertical_down_screen_range
             or self.training_skill.vertical_screen_range
         )
+        # `setup()` refuses a training skill with no screen range.
+        assert horizontal is not None
+        assert vertical_up is not None
+        assert vertical_down is not None
         # TODO - With detection configs and no model, `Character.get_onscreen_position`
         #  still returns x, y, w, h, so `pos` is not x1, y1, x2, y2 there. Mobs are
         #  x1, y1, x2, y2 on both paths (#74). Fix for the character: #231.

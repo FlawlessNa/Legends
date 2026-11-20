@@ -24,8 +24,8 @@ import pytest
 from botting.controller.inputs.focused_inputs import KeyboardInputWrapper
 from botting.controller.inputs.held_keys_ledger import InputState
 from botting.controller.inputs.inputs_helpers import OVERHEAD, TYPEMATIC_REPEAT
+from botting.models_abstractions import Skill
 from maple.actions import movements_v2 as mv
-from maple.model.characters.maple_skills import MapleSkill
 
 HANDLE = 1234
 IGN = "TestMage"
@@ -38,19 +38,23 @@ RIGHT_HELD_AND_OWNING = InputState(frozenset({"right"}), "right", 0.6)
 
 
 @dataclass(frozen=True)
-class _StubSkill(MapleSkill):
+class _StubSkill(Skill):
     """A `Skill` whose key bind does not go through the keybindings config."""
 
+    name: str = ""
+    cast_time: float = field(default=0.0, repr=False)
     key: str = field(default="", repr=False)
+
+    @property
+    def animation_time(self) -> float:
+        return self.cast_time
 
     @lru_cache  # noqa: B019
     def key_bind(self, ign: str) -> str:
         return self.key
 
 
-TELEPORT_SKILL = _StubSkill(
-    "Teleport", "Movement", key=TELEPORT_KEY, animation_time=0.6
-)
+TELEPORT_SKILL = _StubSkill("Teleport", key=TELEPORT_KEY, cast_time=0.6)
 
 
 def _steps(wrapper: KeyboardInputWrapper) -> list[tuple[object, object]]:

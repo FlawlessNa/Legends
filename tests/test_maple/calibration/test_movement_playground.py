@@ -19,7 +19,7 @@ import random
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, ClassVar, cast
+from typing import Any, cast
 
 import pytest
 from pytest_mock import MockerFixture
@@ -37,7 +37,6 @@ from maple.calibration.records import CycleRecord, ListSink, TrialOutcome
 from maple.calibration.specs import TrialSchedule
 from maple.decision_makers.providers import (
     FRAME,
-    CharacterProvider,
     ClientProvider,
     MapProvider,
     ProfileProvider,
@@ -48,6 +47,7 @@ from maple.model.world import Platform, WorldMap
 from maple.screen.position import PositionSource, VirtualPosition
 from tests.test_maple.movement_lab import corpus
 from tests.test_maple.movement_lab.fixture_maps import FIXTURES
+from tests.test_maple.serving import serve_skills
 from toolkit import movement_playground as mp
 
 # --- choosing targets ---------------------------------------------------------------
@@ -361,10 +361,6 @@ class _Pipe:
         self.sent.append(request)
 
 
-class _Character:
-    skills: ClassVar[dict[str, object]] = {}
-
-
 class _NoMinimap:
     """A minimap reader with no client to read."""
 
@@ -415,7 +411,7 @@ def harness(tmp_path: Path) -> _Runner:
         world_map=corpus.world_map(ENTRY),
         game_physics=corpus.LAB_PHYSICS_VALUES,
     )
-    providers.add(CharacterProvider, character_class=lambda *_: _Character())
+    serve_skills(data, {})
     providers.add(ProfileProvider)
     # What the position is read from; the position itself is stood in for.
     providers.add(ScreenReadersProvider, sprites=None, minimap=_NoMinimap())

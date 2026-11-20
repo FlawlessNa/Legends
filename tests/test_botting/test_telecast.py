@@ -27,9 +27,9 @@ from pytest_mock import MockerFixture
 from botting.controller.inputs.focused_inputs import EVENTS, KeyboardInputWrapper
 from botting.controller.inputs.held_keys_ledger import InputState
 from botting.controller.inputs.inputs_helpers import DELAY, OVERHEAD
+from botting.models_abstractions import Skill
 from maple.actions.movements_v2 import telecast, telecast_compiler
 from maple.actions.skills_related_v2 import cast_skill_compiler
-from maple.model.characters.maple_skills import MapleSkill
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
     _MovementComponent,
@@ -45,28 +45,30 @@ DIRECTIONS = ("left", "right", "up", "down")
 
 
 @dataclass(frozen=True)
-class _StubSkill(MapleSkill):
+class _StubSkill(Skill):
     """A `Skill` whose key bind does not go through the keybindings config."""
 
+    name: str = ""
+    cast_time: float = field(default=0.0, repr=False)
     key: str = field(default="", repr=False)
 
     # Decorated like the base's `key_bind`: `Skill.key_bind` is itself `@lru_cache`d,
     # so a plain-method override is an incompatible override to Pyright. B019 warns
     # about per-instance cache lifetime, which a frozen test stub does not have.
+    @property
+    def animation_time(self) -> float:
+        return self.cast_time
+
     @lru_cache  # noqa: B019
     def key_bind(self, ign: str) -> str:
         return self.key
 
 
-TELEPORT_SKILL = _StubSkill(
-    "Teleport", "Movement", key=TELEPORT_KEY, animation_time=0.6
-)
-ULTIMATE = _StubSkill("Genesis", "Attack", key=ULTIMATE_KEY, animation_time=1.0)
+TELEPORT_SKILL = _StubSkill("Teleport", key=TELEPORT_KEY, cast_time=0.6)
+ULTIMATE = _StubSkill("Genesis", key=ULTIMATE_KEY, cast_time=1.0)
 # Long enough that truncation never hides a paired press, so the count and spacing of
 # the rebuild can be read off the whole sequence.
-UNTRUNCATED_ULTIMATE = _StubSkill(
-    "Genesis", "Attack", key=ULTIMATE_KEY, animation_time=10.0
-)
+UNTRUNCATED_ULTIMATE = _StubSkill("Genesis", key=ULTIMATE_KEY, cast_time=10.0)
 
 
 _TELEPORT_PLAN = (

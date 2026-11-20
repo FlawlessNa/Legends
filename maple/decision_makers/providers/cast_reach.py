@@ -18,10 +18,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from botting import PARENT_LOG
-from botting.core import Key, Provider
+from botting.core import Key, Provider, StartupRefused
 from maple.model.characters.maple_skills import MapleSkill
 
-from .character import CHARACTER
+from .skills import SKILLS
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -86,14 +86,16 @@ def cast_reach(skill: MapleSkill, min_mobs: int) -> CastReach | None:
 class CastReachProvider(Provider):
     """
     Serves `CAST_REACH`, made once in `setup()` from the profile's
-    `mob_count_threshold` and the training skill (`training_skill`, or the
-    character's main skill, as `MobsHitting` takes it). No I/O.
+    `mob_count_threshold` and its `training_skill`, in `SKILLS`, as
+    `MobsHitting` takes it. No I/O.
 
     `None` for a profile with no `mob_count_threshold` (`CalibrationBot`), and,
-    logged, for a skill that declares no range.
+    logged, for a profile with no `training_skill` or a skill that declares no
+    range. A skill built from the client's files declares none: its reach comes
+    with #637.
     """
 
-    needs = (CHARACTER,)
+    needs = (SKILLS,)
 
     def __init__(
         self,
@@ -104,8 +106,7 @@ class CastReachProvider(Provider):
     ) -> None:
         """
         :param mob_count_threshold: How many mobs in reach make a cast worth it.
-        :param training_skill: The skill cast at mobs; the character's main
-            skill when not given.
+        :param training_skill: The skill cast at mobs, by its `Skill Keys` name.
         """
         super().__init__(*args, **settings)
         self.mob_count_threshold = mob_count_threshold
@@ -119,8 +120,18 @@ class CastReachProvider(Provider):
     def _reach(self) -> CastReach | None:
         if self.mob_count_threshold is None:
             return None
-        character = self.read(CHARACTER)
-        skill = character.skills[self.training_skill or character.main_skill]
+        if self.training_skill is None:
+            logger.warning(
+                "%s: the profile names no training_skill, so no cast reach is known.",
+                self,
+            )
+            return None
+        skill = self.read(SKILLS).get(self.training_skill)
+        if skill is None:
+            raise StartupRefused(
+                f"{self}: training_skill {self.training_skill!r} isn't one of the "
+                "character's skills: name it in the Skill Keys"
+            )
         reach = cast_reach(skill, self.mob_count_threshold)
         if reach is None:
             logger.warning(

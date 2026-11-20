@@ -21,6 +21,7 @@ from game_data.extraction import Manifest, Store
 from game_data.sprites import Sprite
 from maple.bots import maple_bot
 from maple.bots.maple_bot import MapleBot
+from maple.model.characters.jobs import job_line
 from maple.screen import client
 from maple.screen import sprites as sprites_module
 from maple.screen.font import CHAT_GENERAL, COUNTDOWN, save_glyph_set
@@ -33,7 +34,6 @@ from maple.screen.sprites import (
     ReaderSprites,
     StartupRefused,
     enabled_readers,
-    job_line,
     load_reader_sprites,
     skill_icon_path,
     with_readers,
@@ -413,6 +413,9 @@ CATALOGUE = _Catalogue(
         ("bishop", {0, 200, 230, 231, 232}),
         ("Hermit", {0, 400, 410, 411}),
         ("Wizardfirepoison", {0, 200, 210}),
+        ("Hero", {0, 100, 110, 111, 112}),
+        ("DarkKnight", {0, 100, 130, 131, 132}),
+        ("Shadower", {0, 400, 420, 421, 422}),
     ],
 )
 def test_a_jobs_line_is_it_and_every_job_before_it(job: str, line: set[int]) -> None:
@@ -420,8 +423,8 @@ def test_a_jobs_line_is_it_and_every_job_before_it(job: str, line: set[int]) -> 
 
 
 def test_an_unknown_job_has_no_line() -> None:
-    with pytest.raises(LookupError, match="no job id for 'Hero'"):
-        job_line("Hero")
+    with pytest.raises(LookupError, match="no job id for 'Pirate'"):
+        job_line("Pirate")
 
 
 @pytest.mark.parametrize(

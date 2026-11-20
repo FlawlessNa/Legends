@@ -14,6 +14,7 @@ from botting.core import (
     BotData,
     DecisionLoop,
     DecisionMaker,
+    StartupRefused,
 )
 from maple.actions import priorities
 from maple.actions.skills_related_v2 import cast_skill_single_press
@@ -21,63 +22,66 @@ from maple.model.characters import MapleSkill
 from maple.screen.buffs import BUFFS
 
 from .buff_confirmation import BuffsReading, CastCheck
-from .providers import BUFFS_READING, CHARACTER, FRAME, HANDLE
+from .providers import BUFFS_READING, FRAME, HANDLE, SKILLS
 
 logger = logging.getLogger(PARENT_LOG + "." + __name__)
 
 
 def solo_buffs(
-    skills: Mapping[str, MapleSkill],
-    included_buffs: Iterable[str] | None = None,
-    excluded_buffs: Iterable[str] | None = None,
+    skills: Mapping[str, MapleSkill], buffs: Iterable[str]
 ) -> list[MapleSkill]:
     """
-    The buffs `SoloRebuff` keeps up: the character's self-buffs used by
-    default, plus `included_buffs`, less `excluded_buffs`.
+    The buffs `SoloRebuff` keeps up: the skills the profile's `buffs` names.
+
+    :raises StartupRefused: A name isn't one of the character's skills (its
+        `Skill Keys`), or names a skill with no duration.
     """
-    buffs = [
-        skill
-        for skill in skills.values()
-        if skill.type == "Buff" and skill.use_by_default
-    ]
-    buffs.extend(skills[buff] for buff in included_buffs or ())
-    excluded = set(excluded_buffs or ())
-    return [buff for buff in buffs if buff.name not in excluded]
+    found: list[MapleSkill] = []
+    for name in buffs:
+        skill = skills.get(name)
+        if skill is None:
+            raise StartupRefused(
+                f"buffs names {name!r}, which isn't one of the character's skills: "
+                f"the Skill Keys name {', '.join(map(repr, skills)) or 'none'}"
+            )
+        if not skill.time:
+            raise StartupRefused(
+                f"buffs names {name!r}, whose level {skill.level} lasts no time "
+                "in the game data: it isn't a buff to keep up"
+            )
+        found.append(skill)
+    return found
 
 
 class SoloRebuff(DecisionMaker):
     """
-    Keeps the character's buffs up: one loop per buff casts it, confirms the
+    Keeps the profile's `buffs` up: one loop per buff casts it, confirms the
     cast on the buff's icon (`CastCheck`), then sleeps out 80 to 85 % of its
-    duration.
+    duration, its level's `time`.
     """
 
     # TODO - Deal with Macros as well.
 
     screen_readers = (BUFFS,)
-    reads = (HANDLE, CHARACTER, FRAME, BUFFS_READING)
+    reads = (HANDLE, SKILLS, FRAME, BUFFS_READING)
 
     def __init__(
         self,
         metadata: multiprocessing.managers.DictProxy,
         data: BotData,
         pipe: multiprocessing.connection.Connection,
-        included_buffs: list[str] | None = None,
-        excluded_buffs: list[str] | None = None,
+        buffs: list[str] | None = None,
         **kwargs: object,
     ) -> None:
         super().__init__(metadata, data, pipe)
-        self._included_buffs = included_buffs
-        self._excluded_buffs = excluded_buffs
+        self._buff_names = tuple(buffs or ())
         #: The buffs it keeps up, from the character's skills. Set by `setup()`.
         self._buffs: list[MapleSkill] = []
         #: One per buff, made once: a restart after a Pause reuses it.
         self._conditions: dict[str, threading.Condition] = {}
 
     def setup(self) -> None:
-        self._buffs = solo_buffs(
-            self.read(CHARACTER).skills, self._included_buffs, self._excluded_buffs
-        )
+        self._buffs = solo_buffs(self.read(SKILLS), self._buff_names)
         self._conditions = {
             buff.name: self._proxies.instance(f"{self} - {buff.name}", "Condition")
             for buff in self._buffs
@@ -103,7 +107,8 @@ class SoloRebuff(DecisionMaker):
     async def _recast(self, buff: MapleSkill, condition: threading.Condition) -> None:
         """One buff's decision: cast it, then sleep out its duration."""
         await self._cast_and_confirm([buff], condition)
-        await asyncio.sleep(self._randomized(buff.duration))
+        assert buff.time is not None, "solo_buffs keeps only buffs that last"
+        await asyncio.sleep(self._randomized(buff.time))
 
     async def _decide(self) -> None:
         """

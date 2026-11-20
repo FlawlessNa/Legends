@@ -141,9 +141,9 @@ from botting.controller import (
     key_binds,
     random_delay,
 )
+from botting.models_abstractions import Skill
 from game_data.catalogue import Rope
 from maple.actions import movements_v2
-from maple.model.characters.maple_skills import MapleSkill
 from maple.model.navigation.moves import Direction as MoveDirection
 from maple.model.navigation.moves import Move, MoveKind, Path, Point
 from maple.model.world import Platform
@@ -327,7 +327,7 @@ def compile_movements(
     ign: str,
     speed: float,
     climb_speed: float | None = None,
-    teleport: MapleSkill | None = None,
+    teleport: Skill | None = None,
     total_duration: float | None = None,
     always_release: bool = False,
     walk_acceleration: float = math.inf,
@@ -1263,7 +1263,7 @@ class MovementHandler:
         handle: int,
         world_map: WorldMap,
         ign: str,
-        teleport: MapleSkill | None = None,
+        teleport: Skill | None = None,
         *,
         narrow_platform_threshold: float | None = None,
         edge_departure_threshold: float | None = None,

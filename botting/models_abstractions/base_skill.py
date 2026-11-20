@@ -1,31 +1,30 @@
-from dataclasses import dataclass, field
+from abc import ABC, abstractmethod
 from functools import lru_cache
 
 from botting.utilities import config_reader
 
 
-@dataclass(frozen=True)
-class Skill:
-    name: str
-    type: str = field(repr=False)
-    duration: int = field(default=0, repr=False)
-    unidirectional: bool = field(default=True, repr=False)
-    # horizontal_minimap_distance: float = field(default=0, repr=False)
-    # vertical_minimap_distance: float = field(default=0, repr=False)
-    horizontal_screen_range: int = field(default=None, repr=False)
-    vertical_screen_range: int = field(default=None, repr=False)
-    cooldown: int = field(default=0, repr=False)
-    animation_time: float = field(default=0, repr=False)
-    _use_by_default: bool = field(default=False, repr=False)
+class Skill(ABC):
+    """
+    What the cast path asks of a skill: its name, the key it is bound to, and
+    how long a cast of it takes.
 
-    @lru_cache
-    def key_bind(self, ign: str) -> str:
-        return eval(config_reader("keybindings", ign, "Skill Keys"))[self.name]
+    :ivar name: The skill's name, as the IGN's `Skill Keys` names it.
+    """
+
+    name: str
 
     @property
-    def use_by_default(self) -> bool:
-        return (
-            True
-            if self.type in ["Buff", "Party Buff"] and self._use_by_default
-            else False
-        )
+    @abstractmethod
+    def animation_time(self) -> float:
+        """How long a cast takes, in seconds: the key is held that long."""
+
+    @lru_cache  # noqa: B019 - skills are few and live as long as the Bot
+    def key_bind(self, ign: str) -> str:
+        """The key `ign`'s `Skill Keys` bind this skill to."""
+        return skill_keys(ign)[self.name]
+
+
+def skill_keys(ign: str) -> dict[str, str]:
+    """`ign`'s `Skill Keys`: each skill's name, and the key it is bound to."""
+    return eval(str(config_reader("keybindings", ign, "Skill Keys")))

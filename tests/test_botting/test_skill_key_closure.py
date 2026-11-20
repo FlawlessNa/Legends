@@ -32,9 +32,9 @@ import pytest
 
 from botting.controller.inputs.focused_inputs import KeyboardInputWrapper
 from botting.controller.inputs.held_keys_ledger import InputState
+from botting.models_abstractions import Skill
 from maple.actions import movements_v2
 from maple.actions.skills_related_v2 import cast_skill
-from maple.model.characters.maple_skills import MapleSkill
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementTypes,
     _MovementComponent,
@@ -48,24 +48,30 @@ DIRECTIONS = frozenset({"left", "right", "up", "down"})
 
 
 @dataclass(frozen=True)
-class _StubSkill(MapleSkill):
+class _StubSkill(Skill):
     """A `Skill` whose key bind does not go through the keybindings config."""
 
+    name: str = ""
+    cast_time: float = field(default=0.0, repr=False)
     key: str = field(default="", repr=False)
 
     # Decorated like the base's `key_bind`: `Skill.key_bind` is itself `@lru_cache`d,
     # so a plain-method override is an incompatible override to Pyright. B019 warns
     # about per-instance cache lifetime, which a frozen test stub does not have.
+    @property
+    def animation_time(self) -> float:
+        return self.cast_time
+
     @lru_cache  # noqa: B019
     def key_bind(self, ign: str) -> str:
         return self.key
 
 
-TELEPORT = _StubSkill("Teleport", "Movement", key=TELEPORT_KEY, animation_time=0.6)
-ULTIMATE = _StubSkill("Genesis", "Attack", key="d", animation_time=1.0)
+TELEPORT = _StubSkill("Teleport", key=TELEPORT_KEY, cast_time=0.6)
+ULTIMATE = _StubSkill("Genesis", key="d", cast_time=1.0)
 # Shorter than a single filled Step. Since issue #98 `cast_skill` presses once anyway,
 # so even this compiles to a matched keydown/keyup pair rather than to nothing.
-INSTANT = _StubSkill("Instant", "Attack", key="f", animation_time=0.05)
+INSTANT = _StubSkill("Instant", key="f", cast_time=0.05)
 
 
 def _steps(wrapper: KeyboardInputWrapper) -> Iterator[tuple[str, str]]:

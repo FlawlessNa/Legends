@@ -396,6 +396,8 @@ class InventoryManager(
                 args=(
                     self.data.handle,
                     self.data.ign,
+                    # Parked, not migrated: `Character.skills` is gone (#635).
+                    # When this is unparked, Mystic Door is `SKILLS["Mystic Door"]`.
                     self.data.character.skills["Mystic Door"],
                 ),
                 callbacks=[self._condition.release],

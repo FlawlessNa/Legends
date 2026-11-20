@@ -6,7 +6,6 @@ Supervisor runs, pauses and restarts them; `SoloRebuff` holds no TaskGroup.
 
 import asyncio
 import threading
-from dataclasses import dataclass, field
 from types import SimpleNamespace
 
 import pytest
@@ -14,18 +13,13 @@ from pytest_mock import MockerFixture
 
 from botting.core import DecisionMaker, ProxyFactory
 from maple.decision_makers.rebuffs import SoloRebuff
-from maple.model.characters.maple_skills import MapleBuff, MapleSkill
+from maple.model.characters.maple_skills import MapleSkill
 from tests.test_maple.serving import assemble, serve
 
-HASTE = MapleBuff("Haste", duration=200, _use_by_default=True)
-BLESS = MapleBuff("Bless", duration=300, _use_by_default=True)
-
-
-@dataclass
-class _Character:
-    skills: dict[str, MapleSkill] = field(
-        default_factory=lambda: {"Haste": HASTE, "Bless": BLESS}
-    )
+HASTE = MapleSkill("Haste", id=1, level=1, max_level=1, time=200)
+BLESS = MapleSkill("Bless", id=2, level=1, max_level=1, time=300)
+#: A skill the profile doesn't list in `buffs`: it isn't kept up.
+DOOR = MapleSkill("Mystic Door", id=3, level=1, max_level=1, time=180)
 
 
 @pytest.fixture
@@ -41,11 +35,11 @@ def rebuff(monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture) -> SoloRebuff
         monkeypatch,
         "Buffer",
         buffs=SimpleNamespace(read=lambda frame, names: None),
-        character=_Character(),
+        skills={"Haste": HASTE, "Bless": BLESS, "Mystic Door": DOOR},
         buff_names=("Haste", "Bless"),
     )
     assemble(served, SoloRebuff)
-    rebuff = SoloRebuff({}, served.data, mocker.Mock())  # pyright: ignore[reportArgumentType] - no Manager needed
+    rebuff = SoloRebuff({}, served.data, mocker.Mock(), buffs=["Haste", "Bless"])  # pyright: ignore[reportArgumentType] - no Manager needed
     rebuff.setup()
     return rebuff
 

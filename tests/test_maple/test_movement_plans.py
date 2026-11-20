@@ -12,8 +12,8 @@ gravity 2000 px/s², so a jump that lands at its take-off's height flies
 import math
 import random
 import threading
+from collections.abc import Mapping
 from dataclasses import replace
-from types import SimpleNamespace
 
 import pytest
 
@@ -332,10 +332,6 @@ def test_a_drop_onto_a_rope_refuses_to_compile() -> None:
 # --- planning with the character's current stats --------------------------------
 
 
-class _Character:
-    skills: dict[str, object] = {}  # noqa: RUF012
-
-
 def _planner(
     name: str,
     position: tuple[float, float],
@@ -362,7 +358,7 @@ def _pathing(
     target: tuple[float, float],
     *,
     status_read: bool = True,
-    character: object | None = None,
+    skills: Mapping[str, object] | None = None,
     source: PositionSource = PositionSource.FUSED,
     disable_teleport: bool = False,
 ) -> PathingProvider:
@@ -379,7 +375,7 @@ def _pathing(
         corpus.world_map(_entry(name)),
         lambda: reading,
         lambda: target,
-        character=_Character() if character is None else character,
+        skills=skills,
         game_physics=corpus.LAB_PHYSICS_VALUES,
         position_threshold=1e-9,
         disable_teleport=disable_teleport,
@@ -444,9 +440,7 @@ def test_a_map_with_no_minimap_plans_nothing() -> None:
     world = corpus.world_map(_entry("jump_gap"))
     unread = Reading[VirtualPosition].unsure(0.0, "no position is read on this map")
 
-    data = pathing(
-        replace(world, minimap=None), lambda: unread, character=_Character()
-    ).data
+    data = pathing(replace(world, minimap=None), lambda: unread).data
 
     assert data.movement_handler is None
     assert data.path is None
@@ -584,9 +578,12 @@ def test_a_configured_handler_starts_its_graph_at_once(
     graph starts building when the batch's Knobs are put in place, before any
     Path is asked, as the first batch's always did.
     """
-    character = SimpleNamespace(skills={"Teleport": _Teleport()})
     provider = _pathing(
-        "jump_gap", (100.0, 0.0), (0, 0), status_read=False, character=character
+        "jump_gap",
+        (100.0, 0.0),
+        (0, 0),
+        status_read=False,
+        skills={"Teleport": _Teleport()},
     )
     provider.data.movement_handler.graph(provider.physics())
     reached, release = _hold_build_half_way(monkeypatch)
@@ -647,25 +644,28 @@ def test_a_rotation_plans_with_the_characters_teleport_unless_disabled(
 ) -> None:
     """
     The profile's `disable_teleport` configures the rotation's pathing, which
-    takes the skill off the character before it makes its handler, as
-    `Rotation.__init__` did (#49 is that it is a class-level dict).
+    then plans and compiles with no teleport skill. The character's skills are
+    left as they are: no other Bot loses its Teleport (#49).
     """
     teleport = _Teleport()
-    character = SimpleNamespace(skills={"Teleport": teleport})
+    skills = {"Teleport": teleport}
 
-    data = _pathing(
+    provider = _pathing(
         "jump_gap",
         (100.0, 0.0),
         (0, 0),
         status_read=False,
-        character=character,
+        skills=skills,
         disable_teleport=disable_teleport,
-    ).data
+    )
 
-    handler: MovementHandler = data.movement_handler
+    handler: MovementHandler = provider.data.movement_handler
     assert handler.teleport is (None if disable_teleport else teleport)
     assert handler.graphs.teleport is not disable_teleport
-    assert ("Teleport" in character.skills) is not disable_teleport
+    assert provider.compiler(None).keywords["teleport"] is (
+        None if disable_teleport else teleport
+    )
+    assert skills == {"Teleport": teleport}
 
 
 def test_a_handler_refuses_another_maps_graphs() -> None:

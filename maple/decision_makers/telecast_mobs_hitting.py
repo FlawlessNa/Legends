@@ -9,7 +9,7 @@ from maple.model.mechanics import MovementTypes
 from maple.telemetry_events import COMBAT_TELECAST, TelecastPayload
 
 from .mobs_hitting import MobsHitting
-from .providers import CHARACTER, HANDLE, MOVEMENTS, PathingProvider, pathing
+from .providers import HANDLE, MOVEMENTS, SKILLS, PathingProvider, pathing
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
@@ -40,7 +40,7 @@ class TelecastMobsHitting(MobsHitting):
     def setup(self) -> None:
         super().setup()
         #: The teleport its casts are fused into.
-        self._teleport_skill: MapleSkill = self.read(CHARACTER).skills["Teleport"]
+        self._teleport_skill: MapleSkill = self.read(SKILLS)["Teleport"]
         #: The Bot's pathing, which compiles the plan the cast is fused into.
         self._pathing: PathingProvider = pathing(self.data)
 

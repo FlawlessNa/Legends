@@ -71,9 +71,11 @@ from maple.decision_makers.providers import (
     ProfileProvider,
     QuickSlotsProvider,
     ScreenReadersProvider,
+    SkillsProvider,
     StatusBarProvider,
 )
 from maple.launchers import hunting_area_window
+from maple.model.characters import MapleSkill
 from maple.model.world import WorldMap, chain_platforms
 from maple.screen import client
 from maple.screen.buffs import BUFFS
@@ -119,6 +121,24 @@ from tests.test_maple.movement_lab.corpus import LAB_PHYSICS_VALUES
 
 WIDTH, HEIGHT = 1024, 768
 BUFF_NAMES = ("Magic Guard", "Invincible")
+#: The Bishop's skills `SKILLS` serves: its buffs, and a training skill with the
+#: screen ranges `MobsHitting` counts mobs in until a skill's reach replaces
+#: them (#637, #638). No keybindings or catalogue are read.
+SKILLS = {
+    "Magic Guard": MapleSkill("Magic Guard", id=1, level=1, max_level=1, time=600),
+    "Invincible": MapleSkill("Invincible", id=2, level=1, max_level=1, time=300),
+    "Genesis": MapleSkill(
+        "Genesis",
+        id=3,
+        level=1,
+        max_level=1,
+        cast_time=2.6,
+        horizontal_screen_range=800,
+        vertical_up_screen_range=700,
+        vertical_down_screen_range=500,
+        unidirectional=False,
+    ),
+}
 MINIMAP_AT = (20, 20)
 USER_AT = (30, 30)
 """The player marker, in pixels of the minimap's canvas: on the map's floor."""
@@ -284,13 +304,15 @@ def _start(
 
     monkeypatch.setattr(ProxyFactory, "_request", proxy)
     monkeypatch.setattr(controller, "key_binds", lambda ign: defaultdict(lambda: "f12"))
+    monkeypatch.setattr(SkillsProvider, "_skills", lambda _: dict(SKILLS))
 
     profile: dict[str, Any] = {
         "map": minimap.MAP_ID,
         "character_class": "Bishop",
         "models_path": {},
-        "included_buffs": list(BUFF_NAMES),
+        "buffs": list(BUFF_NAMES),
         "mob_count_threshold": 2,
+        "training_skill": "Genesis",
         "mob_spawn_alert_timer": 60.0,
         "mob_spawn_alert_threshold": 1,
     }
@@ -349,6 +371,7 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
         ScreenReadersProvider,
         MapProvider,
         CharacterProvider,
+        SkillsProvider,
         MobsProvider,
         ClientProvider,
         ProfileProvider,
