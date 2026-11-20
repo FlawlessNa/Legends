@@ -9,7 +9,7 @@ import pytest
 
 from botting.core import action_name
 from botting.screen import Frame
-from maple.decision_makers import MobsHitting, Rotation, TelecastMobsHitting
+from maple.decision_makers import MobsHitting, Rotation
 from maple.parsers import maple_parser
 from maple.parsers.maple_parser import MapleParser
 
@@ -96,13 +96,11 @@ def test_a_write_cancels_the_training_actions_by_their_names(
     request = parser.write("hi", "Alice")
 
     assert request.cancel_tasks == [
-        action_name(cls, "Alice")
-        for cls in (Rotation, MobsHitting, TelecastMobsHitting)
+        action_name(cls, "Alice") for cls in (Rotation, MobsHitting)
     ]
     assert request.cancel_tasks == [
         "Rotation(Alice)",
         "MobsHitting(Alice)",
-        "TelecastMobsHitting(Alice)",
     ]
 
 

@@ -224,22 +224,6 @@ of held keys does not say which of them may legally repeat.
 _Avoid_: Auto-repeat, key repeat — those name the repeating itself, not which key
 is entitled to it.
 
-**Telecast**:
-A movement and a skill cast performed as one: the teleport and the ultimate are
-pressed together, released, and pressed again one teleport animation later, so
-the character casts while it blinks. A post-processing pass over a finished Input
-Sequence rather than a builder — it runs at dispatch, wrapped around the movement
-compiler, and truncates the result to the skill's animation time.
-_Avoid_: Telecast movement, teleport-cast — telecasting produces no movement of
-its own, it rebuilds one that was already compiled.
-
-**Teleport region**:
-A maximal run of consecutive Steps carrying the teleport key alone — what a
-`TELEPORT_*` component compiles to, and the unit a Telecast replaces. Its own
-duration is the budget the replacement has to spend, so nothing outside the
-compiled Input Sequence is needed to rebuild it.
-_Avoid_: Teleport block, teleport chunk.
-
 ## Movement checking
 
 **Invariant**:

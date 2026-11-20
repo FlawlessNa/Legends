@@ -125,16 +125,12 @@ class MobsHitting(DecisionMaker):
         """
         Wraps a dispatch-time compiler into the Action this DecisionMaker sends.
 
-        The seam subclasses swap: `TelecastMobsHitting` fuses the same cast into a
-        movement and hands the fused compiler here, so the Action's priority,
-        cancellation and gate handling stay defined in exactly one place.
+        The Action's priority, cancellation and gate handling are defined here, in
+        exactly one place, whatever compiler it is handed.
 
         The sequence `cast_skill` builds runs for the skill's animation time by
         construction, plus a short direction prelude - so the cap is known here,
         without compiling. Doubled, as it was when it read the compiled duration.
-        The same cap covers a telecast: `telecast` truncates its rebuilt sequence to
-        that very animation time. The cut lands on a paired-press boundary, so it can
-        overshoot by up to one teleport animation - still well inside the doubled cap.
         """
         timeout = 2 * self.training_skill.animation_time + 1.0
 

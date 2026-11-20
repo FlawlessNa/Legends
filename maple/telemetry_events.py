@@ -82,11 +82,9 @@ RECOVERY_POSITION_UNSURE: Final = "recovery.position_unsure"
 # --- combat ---------------------------------------------------------------
 #: Enough mobs were in range, so the training skill is being cast.
 COMBAT_MOBS_HIT: Final = "combat.mobs_hit"
-#: The training skill is being fused into the movement about to be dispatched.
+#: retired: never emitted since #631
 COMBAT_TELECAST: Final = "combat.telecast"
-#: Telecast was chosen but the compiled sequence held no teleport to fuse into,
-#: so the ultimate is cast in place instead. Emitted from Main Process, at
-#: dispatch, which is the only place the truncated compile is visible.
+#: retired: never emitted since #631
 COMBAT_TELECAST_UNAVAILABLE: Final = "combat.telecast_unavailable"
 
 # --- inventory ------------------------------------------------------------
@@ -257,20 +255,6 @@ class MobsHitPayload(TypedDict):
 
     mob_count: int
     direction: str | None
-
-
-class TelecastPayload(TypedDict):
-    """``combat.telecast``: the two skills being fused."""
-
-    teleport_skill: str
-    ultimate_skill: str
-
-
-class TelecastUnavailablePayload(TypedDict):
-    """``combat.telecast_unavailable``: which fallback branch was taken."""
-
-    ultimate_skill: str
-    reason: str
 
 
 class InventoryCleanupPayload(TypedDict):
