@@ -1,12 +1,12 @@
 import asyncio
 import functools
 import logging
+import math
 import multiprocessing.connection
 import multiprocessing.managers
-from collections.abc import Callable
+import time
+from collections.abc import Callable, Sequence
 from typing import Any
-
-import numpy as np
 
 from botting import PARENT_LOG, controller
 from botting.core import (
@@ -17,50 +17,58 @@ from botting.core import (
     TurnGate,
     action_name,
 )
-from botting.utilities import Box
 from maple.actions.skills_related_v2 import cast_skill_compiler
-from maple.model.characters import MapleSkill
 from maple.screen.chat import CHAT, ChatReader
 from maple.screen.minimap import MINIMAP
 from maple.screen.name_tag import NAME_TAGS
-from maple.telemetry_events import COMBAT_MOBS_HIT, MobsHitPayload
-
-from .mob_detection import (
-    box_center,
-    get_closest_mob_direction,
-    get_mobs_positions_in_img,
-    mob_count_in_img,
+from maple.screen.position.camera import play_area_size
+from maple.telemetry_events import (
+    COMBAT_MOBS_HIT,
+    COMBAT_PARTIAL_REACH,
+    MobOffset,
+    MobsHitPayload,
+    PartialReachPayload,
 )
+
+from .attack_choice import ClientBox, Placement, choose, partial, placement
+from .mob_detection import get_mobs_positions_in_img
 from .providers import (
+    ATTACKS,
     CHAT_READER,
+    FACING,
     FRAME,
     HANDLE,
     MOBS,
     ON_SCREEN_POSITION,
     POSITION,
-    SKILLS,
     WORLD_MAP,
+    Attack,
 )
 from .rotation import Rotation
 
 logger = logging.getLogger(f"{PARENT_LOG}.{__name__}")
 
+#: Seconds between two `combat.partial_reach` events, at least.
+PARTIAL_REACH_EVERY = 1.0
+
 
 class MobsHitting(DecisionMaker):
     """
-    Casts the training skill once enough mobs are in its reach, cancelling the
-    rotation's movement for the cast.
+    Casts the first of the profile's `attacks` with at least its `min_mobs` in
+    reach, facing as `facing` says, cancelling the rotation's movement for the
+    cast (spec #631 § 6).
 
     One cast at a time, through its gate: a decision waits for the gate, checks
-    the ladder, counts the mobs, then sends the cast, whose callback leaves the
-    gate from Main Process once the cast is done. A decision that sends nothing
-    leaves it itself.
+    the ladder, detects the mobs once on one frame, goes down the attacks, then
+    sends the cast, whose callback leaves the gate from Main Process once the
+    cast is done. A decision that sends nothing leaves it itself.
     """
 
     screen_readers = (MINIMAP, CHAT, NAME_TAGS)
     reads = (
         HANDLE,
-        SKILLS,
+        ATTACKS,
+        FACING,
         FRAME,
         MOBS,
         CHAT_READER,
@@ -76,27 +84,40 @@ class MobsHitting(DecisionMaker):
         metadata: multiprocessing.managers.DictProxy,
         data: BotData,
         pipe: multiprocessing.connection.Connection,
-        mob_count_threshold: int,
-        training_skill: str | None = None,
+        clock: Callable[[], float] = time.monotonic,
         **kwargs: object,
     ) -> None:
+        """
+        :param clock: Seconds, monotonic: spaces the `combat.partial_reach`
+            events.
+        """
         super().__init__(metadata, data, pipe)
-        self.mob_threshold = mob_count_threshold
-        self._training_skill_name = training_skill
-        #: The skill it casts. Set by `setup()`.
-        self.training_skill: MapleSkill
+        #: The profile's attacks, in order. Set by `setup()`.
+        self.attacks: tuple[Attack, ...]
         #: Its turn on the client. Made by `setup()`.
         self.gate: TurnGate
+        self._clock = clock
+        #: When `combat.partial_reach` was last emitted.
+        self._partial_at = -math.inf
+        #: Whether a client size with no known play area was logged: once per
+        #: Session.
+        self._no_play_area_logged = False
 
     def setup(self) -> None:
         """
         :raises StartupRefused: the Bot has no chat reader, which places the
-            chat the skill's reach stops at; or the training skill isn't one of
-            the character's, or declares no screen range.
+            chat a reach stops at; or the profile has no `attacks`.
         """
         if self.read(CHAT_READER) is None:
             raise StartupRefused(f"{self} reaches down to the chat, and has no reader.")
-        self.training_skill = self._training_skill()
+        attacks = self.read(ATTACKS)
+        if attacks is None:
+            raise StartupRefused(
+                f"{self} casts the profile's attacks, and it has none: list them "
+                "in `attacks`, each a skill and its min_mobs, such as "
+                "`attacks: [{skill: Power Strike, min_mobs: 1}]`."
+            )
+        self.attacks = attacks
         self.gate = TurnGate(self._proxies.instance(repr(self), "Lock"))
 
     def on_start(self) -> None:
@@ -104,36 +125,36 @@ class MobsHitting(DecisionMaker):
         # what: a run cancelled while holding it would otherwise leave it held.
         self.gate.reset()
 
-    def _hit_mobs(self, direction: str | None) -> ActionRequest:
+    def _hit_mobs(self, attack: Attack, direction: str | None) -> ActionRequest:
         """
-        Builds the Action that casts the training skill at the mobs on screen.
+        Builds the Action that casts `attack` at the mobs on screen.
 
-        `direction` is the facing the cast is preluded with - set by `_decide` for a
-        unidirectional skill, None for one that hits both ways.
+        `direction` is the facing the cast is preluded with: the chosen side for
+        a one-sided attack, None for a two-sided one.
         """
         compiler = functools.partial(
             cast_skill_compiler,
             handle=self.read(HANDLE),
             ign=self.data.ign,
-            skill=self.training_skill,
+            skill=attack.skill,
             direction=direction,
             # The key records of the cast carry this decision's id (#538).
             correlation_id=self.correlation_id,
         )
-        return self._cast_request(compiler)
+        return self._cast_request(compiler, attack.skill.animation_time)
 
-    def _cast_request(self, compiler: Callable) -> ActionRequest:
+    def _cast_request(self, compiler: Callable, cast_time: float) -> ActionRequest:
         """
         Wraps a dispatch-time compiler into the Action this DecisionMaker sends.
 
         The Action's priority, cancellation and gate handling are defined here, in
         exactly one place, whatever compiler it is handed.
 
-        The sequence `cast_skill` builds runs for the skill's animation time by
+        The sequence `cast_skill` builds runs for the skill's cast time by
         construction, plus a short direction prelude - so the cap is known here,
         without compiling. Doubled, as it was when it read the compiled duration.
         """
-        timeout = 2 * self.training_skill.animation_time + 1.0
+        timeout = 2 * cast_time + 1.0
 
         return ActionRequest(
             f"{self}",
@@ -166,75 +187,11 @@ class MobsHitting(DecisionMaker):
                 timeout,
             )
 
-    def _training_skill(self) -> MapleSkill:
-        """
-        The profile's `training_skill`, in `SKILLS`.
-
-        :raises StartupRefused: The profile names none, `SKILLS` hasn't it, or
-            it declares no screen range: a skill built from the client's files
-            declares none, and its reach comes with #637 and #638.
-        """
-        name = self._training_skill_name
-        if not name:
-            raise StartupRefused(
-                f"{self} casts the profile's training_skill: name one."
-            )
-        skill = self.read(SKILLS).get(name)
-        if skill is None:
-            raise StartupRefused(
-                f"{self}: training_skill {name!r} isn't one of the character's "
-                "skills: name it in the Skill Keys."
-            )
-        if skill.horizontal_screen_range is None or not (
-            skill.vertical_screen_range
-            or (skill.vertical_up_screen_range and skill.vertical_down_screen_range)
-        ):
-            raise StartupRefused(
-                f"{self}: {name} declares no screen range, so the mobs in its reach "
-                "can't be counted. A skill's reach comes from the client's files "
-                "with #637 and #638."
-            )
-        return skill
-
-    def _mask_for_skill_range(
-        self, pos: tuple[int, int, int, int], pixels: np.ndarray
-    ) -> np.ndarray:
-        horizontal = self.training_skill.horizontal_screen_range
-        vertical_up = (
-            self.training_skill.vertical_up_screen_range
-            or self.training_skill.vertical_screen_range
-        )
-        vertical_down = (
-            self.training_skill.vertical_down_screen_range
-            or self.training_skill.vertical_screen_range
-        )
-        # `setup()` refuses a training skill with no screen range.
-        assert horizontal is not None
-        assert vertical_up is not None
-        assert vertical_down is not None
-        # TODO - With detection configs and no model, `Character.get_onscreen_position`
-        #  still returns x, y, w, h, so `pos` is not x1, y1, x2, y2 there. Mobs are
-        #  x1, y1, x2, y2 on both paths (#74). Fix for the character: #231.
-        x1, _y1, x2, y2 = pos
-        # x1, y1, w, h = pos
-        # x2 = x1 + w
-        # y2 = y1 + h
-        region = Box(
-            # TODO - finetune the region better? (Right now it uses smallest region)
-            left=x1 - horizontal // 2,
-            right=x2 + horizontal // 2,
-            top=y2 - vertical_up // 2,
-            bottom=min(y2 + vertical_down // 2, self._chat_top()),
-        )
-        mask = np.zeros(pixels.shape, np.uint8)
-        mask[region.top : region.bottom, region.left : region.right] = 255
-        return mask
-
     def _chat_top(self) -> int:
         """
-        Where the chat starts, in client pixels: mobs under it are out of reach
-        of the skill region. The frame's bottom when the chat isn't found whole,
-        so nothing is left out on a guess.
+        Where the chat starts, in client pixels: mobs under it are out of
+        reach. The frame's bottom when the chat isn't found whole, so nothing is
+        left out on a guess.
         """
         frame = self.read(FRAME)
         region = self._chat_reader().region(frame)
@@ -259,39 +216,50 @@ class MobsHitting(DecisionMaker):
             return False
         return world_map.rope_at((reading.value.x, reading.value.y)) is not None
 
-    def _closest_mob_direction(
-        self,
-        on_screen_pos: tuple[int, int, int, int],
-        pixels: np.ndarray,
-        mask: np.ndarray,
-    ) -> str | None:
+    def _placement(
+        self, on_screen_pos: Sequence[int], client_size: tuple[int, int]
+    ) -> Placement | None:
         """
-        The facing a unidirectional training skill should be cast in: towards the
-        mob closest to the character.
-
-        Detection failing here is not worth losing the cast over - the skill still
-        hits, just without a facing prelude - so a failure falls back to None.
+        Where a reach goes on this frame; None, logged once per Session, when
+        the client's size has no known play area to scale it by.
         """
-        try:
-            mobs_locations = get_mobs_positions_in_img(
-                pixels, self.read(MOBS), self.read(HANDLE), mask=mask
-            )
-            return get_closest_mob_direction(box_center(on_screen_pos), mobs_locations)
-        except Exception:
-            logger.exception(
-                "%s failed to determine the closest mob direction; casting without a "
-                "facing prelude.",
-                self,
-            )
+        play_area = play_area_size(client_size)
+        if play_area is None:
+            if not self._no_play_area_logged:
+                self._no_play_area_logged = True
+                logger.warning(
+                    "%s casts nothing: a client of %s has no known play area, so "
+                    "no reach can be placed on it (camera.PLAY_AREAS).",
+                    self,
+                    client_size,
+                )
             return None
+        return placement(on_screen_pos, client_size, play_area, self._chat_top())
+
+    def _report_partial(self, mobs: list[ClientBox], where: Placement) -> None:
+        """
+        `combat.partial_reach`, at most once every `PARTIAL_REACH_EVERY`, when a
+        mob is in one of a weapon-based attack's swings and out of its reach.
+        """
+        now = self._clock()
+        if now - self._partial_at < PARTIAL_REACH_EVERY:
+            return
+        found = partial(self.attacks, mobs, where)
+        if found is None:
+            return
+        attack, skipped = found
+        self._partial_at = now
+        payload: PartialReachPayload = {
+            "attack": attack.skill.name,
+            "mobs": [_offset(where, mob) for mob in skipped],
+        }
+        self.emit(COMBAT_PARTIAL_REACH, payload)
 
     async def _decide(self) -> None:
         """
-        Looks for the character on-screen, or use the last known location.
-        Crop the image to the region of interest, centered around character location.
-        Then, count the number of mobs in the region.
-        If the number of mobs is greater than the threshold, cast the skill.
-        :return:
+        Waits for the gate and skips a rope or a ladder. Then, on one frame,
+        detects the mobs once and casts the first attack with at least its
+        `min_mobs` in reach on a side, facing as `facing` says.
         """
         await self.gate.enter()
         if self._currently_on_ladder():
@@ -300,26 +268,39 @@ class MobsHitting(DecisionMaker):
 
         # The box read now, or the last one found when this read finds none.
         on_screen_pos = self.read(ON_SCREEN_POSITION) or self.peek(ON_SCREEN_POSITION)
-        closest_mob_direction = None
-
         if on_screen_pos:
-            # One frame for the whole decision: the mask and the detections
-            # must be of the same pixels.
-            pixels = self.read(FRAME).pixels
-            mask = self._mask_for_skill_range(on_screen_pos, pixels)
-            mobs = self.read(MOBS)
-            nbr_mobs = mob_count_in_img(pixels, mobs, self.read(HANDLE), mask=mask)
-
-            if nbr_mobs >= self.mob_threshold:
-                if self.training_skill.unidirectional:
-                    closest_mob_direction = self._closest_mob_direction(
-                        on_screen_pos, pixels, mask
+            # One frame for the whole decision: the reach and the detections
+            # are of the same pixels.
+            frame = self.read(FRAME)
+            where = self._placement(on_screen_pos, frame.client_size)
+            if where is not None:
+                mobs = [
+                    _client_box(mob)
+                    for mob in get_mobs_positions_in_img(
+                        frame.pixels, self.read(MOBS), self.read(HANDLE)
                     )
-                hit: MobsHitPayload = {
-                    "mob_count": int(nbr_mobs),
-                    "direction": closest_mob_direction,
-                }
-                self.emit(COMBAT_MOBS_HIT, hit)
-                self.send(self._hit_mobs(closest_mob_direction))
-                return
+                ]
+                choice = choose(self.attacks, mobs, where, self.read(FACING))
+                if choice is not None:
+                    hit: MobsHitPayload = {
+                        "mob_count": len(choice.mobs),
+                        "direction": choice.direction,
+                        "attack": choice.attack.skill.name,
+                        "mobs": [_offset(where, mob) for mob in choice.mobs],
+                    }
+                    self.emit(COMBAT_MOBS_HIT, hit)
+                    self.send(self._hit_mobs(choice.attack, choice.direction))
+                    return
+                self._report_partial(mobs, where)
         await self.gate.leave()
+
+
+def _client_box(mob: Sequence[int]) -> ClientBox:
+    """A detection's `x1, y1, x2, y2` as ints: numpy's are converted here."""
+    x1, y1, x2, y2 = mob
+    return int(x1), int(y1), int(x2), int(y2)
+
+
+def _offset(where: Placement, mob: ClientBox) -> MobOffset:
+    left, top, right, bottom = where.offset(mob)
+    return {"left": left, "top": top, "right": right, "bottom": bottom}

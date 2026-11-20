@@ -4,10 +4,9 @@ makes a good spot. The later "mob hunting" topic changes this Provider, or what
 it provides, and the rotation follows.
 
 `CAST_REACH` is how far the training skill reaches from the character's feet, in
-client px as the skill declares it, and how many mobs make a cast worth it. Its
-halves are the ones `MobsHitting` masks the frame with; the character's own
-width, which that mask adds, and the chat's top, which it stops at, are not part
-of it. `MobsHitting` keeps its own mask.
+client px as the skill declares it, and how many mobs make a cast worth it. No
+skill built from the client's files declares one, so it is None until #639
+replaces it with `ATTACKS`, which `MobsHitting` casts from (#638).
 
 It stays in client px: the scale to virtual px is the frame's size over the
 Camera's play area, which only a read gives (`CastReach.in_virtual`).
@@ -66,7 +65,7 @@ def cast_reach(skill: MapleSkill, min_mobs: int) -> CastReach | None:
     The skill's reach: half its `horizontal_screen_range` each side; half its
     `vertical_up_screen_range` and `vertical_down_screen_range`, or half its
     `vertical_screen_range` when one is not set, above and below. Halved as
-    `MobsHitting` halves them (whole px). `None` when the skill declares no
+    `MobsHitting` halved them (whole px). `None` when the skill declares no
     horizontal or no vertical range.
     """
     horizontal = skill.horizontal_screen_range
@@ -87,7 +86,7 @@ class CastReachProvider(Provider):
     """
     Serves `CAST_REACH`, made once in `setup()` from the profile's
     `mob_count_threshold` and its `training_skill`, in `SKILLS`, as
-    `MobsHitting` takes it. No I/O.
+    `MobsHitting` took it before #638. No I/O.
 
     `None` for a profile with no `mob_count_threshold` (`CalibrationBot`), and,
     logged, for a profile with no `training_skill` or a skill that declares no

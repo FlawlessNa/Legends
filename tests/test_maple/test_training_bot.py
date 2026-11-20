@@ -55,6 +55,7 @@ from maple.decision_makers.providers import (
     FRAME,
     HUNTING_AREA,
     MINIMAP_BOX,
+    AttacksProvider,
     BuffsProvider,
     CastReachProvider,
     CharacterProvider,
@@ -121,9 +122,9 @@ from tests.test_maple.movement_lab.corpus import LAB_PHYSICS_VALUES
 
 WIDTH, HEIGHT = 1024, 768
 BUFF_NAMES = ("Magic Guard", "Invincible")
-#: The Bishop's skills `SKILLS` serves: its buffs, and a training skill with the
-#: screen ranges `MobsHitting` counts mobs in until a skill's reach replaces
-#: them (#637, #638). No keybindings or catalogue are read.
+#: The Bishop's skills `SKILLS` serves: its buffs, and an attack with a box of
+#: its own and an action, so `ATTACKS` reads no weapon and no catalogue. No
+#: keybindings are read.
 SKILLS = {
     "Magic Guard": MapleSkill("Magic Guard", id=1, level=1, max_level=1, time=600),
     "Invincible": MapleSkill("Invincible", id=2, level=1, max_level=1, time=300),
@@ -133,10 +134,9 @@ SKILLS = {
         level=1,
         max_level=1,
         cast_time=2.6,
-        horizontal_screen_range=800,
-        vertical_up_screen_range=700,
-        vertical_down_screen_range=500,
-        unidirectional=False,
+        lt=(-400, -350),
+        rb=(400, 250),
+        actions=("genesis",),
     ),
 }
 MINIMAP_AT = (20, 20)
@@ -312,7 +312,7 @@ def _start(
         "models_path": {},
         "buffs": list(BUFF_NAMES),
         "mob_count_threshold": 2,
-        "training_skill": "Genesis",
+        "attacks": [{"skill": "Genesis", "min_mobs": 2}],
         "mob_spawn_alert_timer": 60.0,
         "mob_spawn_alert_threshold": 1,
     }
@@ -361,9 +361,9 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
     assert set(dms) == set(bot._decision_makers())  # pyright: ignore[reportPrivateUsage]
     # The Bot-level Providers, in `child_init`'s order, then those assembly
     # builds for what the DecisionMakers read, each after what it needs: the
-    # minimap, once, then the on-screen position (`MobsHitting`), the
-    # destination, after what its sources read (the other players, the Hunting
-    # Area and the cast's reach), and its pathing (`Rotation`), the quick slots
+    # attacks, the minimap, once, and the on-screen position (`MobsHitting`),
+    # the destination, after what its sources read (the other players, the
+    # Hunting Area and the cast's reach), and its pathing (`Rotation`), the quick slots
     # (`PetFood`), the buffs (`SoloRebuff`) and the chat (`ChatReplies`).
     assert [type(p) for p in bot.providers] == [
         WindowProvider,
@@ -375,6 +375,7 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
         MobsProvider,
         ClientProvider,
         ProfileProvider,
+        AttacksProvider,
         MinimapProvider,
         OnScreenPositionProvider,
         OtherPlayersProvider,

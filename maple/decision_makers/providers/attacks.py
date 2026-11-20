@@ -67,11 +67,14 @@ class Attack:
     :ivar skill: The skill cast, whose `animation_time` is its cast time.
     :ivar reach: What a cast reaches, facing left, in virtual px.
     :ivar min_mobs: How many mobs in reach make it fire.
+    :ivar swings: The weapon's swing boxes, facing left, when `reach` is their
+        overlap; None for a reach of the skill's own.
     """
 
     skill: MapleSkill
     reach: Reach
     min_mobs: int
+    swings: tuple[Reach, ...] | None = None
 
     @property
     def sides(self) -> Sides:
@@ -164,7 +167,12 @@ class AttacksProvider(Provider):
                 for skill in weapon_based:
                     found[skill.name] = self._armed(skill, weapon, catalogue)
         attacks = tuple(
-            Attack(found[skill.name].skill, found[skill.name].reach, min_mobs)
+            Attack(
+                found[skill.name].skill,
+                found[skill.name].reach,
+                min_mobs,
+                found[skill.name].swings,
+            )
             for skill, min_mobs in chosen
         )
         for attack in attacks:
