@@ -4,8 +4,9 @@ A character's skills come from the client's files (#635, spec #631 § 1 and 7):
 character's job line, at the level `skill_levels` gives or at their maximum.
 
 On a fixture catalogue: Power Strike, Slash Blast and Iron Body carry the MSCW
-client's values (build `3c238cfcb903ce34`), Teleport its four IDs; Holy Rays, a
-Priest's skill, is invented, since the client has no third job.
+client's values (build `3c238cfcb903ce34`), Teleport its four IDs, with their
+effects as build `756a6f605a752cec` times them; Holy Rays, a Priest's skill, is
+invented, since the client has no third job.
 """
 
 import logging
@@ -70,6 +71,9 @@ def _skill(
     name: str,
     levels: int,
     actions: tuple[str, ...] = (),
+    *,
+    effect: int | None = None,
+    caster_move: bool = False,
     **by_level: ByLevel,
 ) -> SkillData:
     return SkillData(
@@ -82,16 +86,19 @@ def _skill(
         actions=actions,
         icon=f"icon-{id_}",
         levels=_levels(id_, levels, **by_level),
+        effect_duration=effect,
+        caster_move=caster_move,
     )
 
 
 SKILL_DATA = [
-    _skill(1001001, 100, "Power Strike", 20, mob_count=1, attack_count=1),
+    _skill(1001001, 100, "Power Strike", 20, effect=300, mob_count=1, attack_count=1),
     _skill(
         1001002,
         100,
         "Slash Blast",
         20,
+        effect=450,
         mob_count=6,
         attack_count=1,
         range=lambda level: 130 if level <= 10 else 150,
@@ -105,10 +112,10 @@ SKILL_DATA = [
         time=lambda level: 600 if level == 20 else 300 + 15 * (level - 1),
     ),
     _skill(1101004, 110, "Rage", 30, ("alert2",), time=300),
-    _skill(2101001, 210, "Teleport", 20, range=150),
-    _skill(2201001, 220, "Teleport", 20, range=150),
-    _skill(2301000, 230, "Teleport", 20, range=150),
-    _skill(8001002, 800, "Teleport", 1),
+    _skill(2101001, 210, "Teleport", 20, effect=320, caster_move=True, range=150),
+    _skill(2201001, 220, "Teleport", 20, caster_move=True, range=150),
+    _skill(2301000, 230, "Teleport", 20, caster_move=True, range=150),
+    _skill(8001002, 800, "Teleport", 1, effect=320, caster_move=True),
     _skill(2311000, 231, "Holy Rays", 30, ("alert2",), mob_count=6),
     _skill(4201001, 420, "Haste", 20, ("alert2",), time=300),
 ]
@@ -251,11 +258,27 @@ def test_a_skills_cast_time_is_its_actions_duration_unscaled(
     )
 
 
+@pytest.mark.parametrize(
+    ("job", "cast_time"),
+    [("WizardFirePoison", 0.32), ("WizardIceLightning", None), ("Cleric", None)],
+    ids=["effect", "no-effect", "cleric-no-effect"],
+)
+def test_a_teleports_cast_time_is_its_effects_duration(
+    monkeypatch: pytest.MonkeyPatch, job: str, cast_time: float | None
+) -> None:
+    """A skill that moves its caster plays no action: its effect times it, and
+    with none it has no cast time, so Paths walk (#646)."""
+    teleport = skills(monkeypatch, job, ["Teleport"])["Teleport"]
+
+    assert teleport.cast_time == cast_time
+
+
 def test_casting_a_skill_with_no_action_of_its_own_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A weapon-based attack's cast time comes from the weapon, which
-    `SKILLS` doesn't know (#637): nothing is sent with no wait."""
+    `SKILLS` doesn't know (#637): nothing is sent with no wait. Its effect,
+    which it has, isn't its cast time."""
     power_strike = skills(monkeypatch, "Swordsman", SWORDSMAN)["Power Strike"]
 
     with pytest.raises(NoCastTime, match=r"Power Strike .*ATTACKS"):

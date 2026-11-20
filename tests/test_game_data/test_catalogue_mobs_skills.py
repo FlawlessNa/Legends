@@ -11,8 +11,10 @@ places a Snail, and adds, every value invented:
 - in another pack, the skills of jobs 200, 210 and 220: Magic Claw, with two
   levels and two actions; Energy Bolt, whose `common` holds a range and whose
   action is a single string; and two skills named MP Eater, one of which has
-  only `common`, three levels of it. And `Skill/Attacktype.img`, which isn't a
-  job's.
+  only `common`, three levels of it; and an unnamed skill that moves its
+  caster, as a Teleport does, with an effect of three frames, one with no delay,
+  which the 210 MP Eater's effect is a UOL to.
+  And `Skill/Attacktype.img`, which isn't a job's.
 - `Character/00002000.img`, the body's actions: `swingO1` takes 800 ms,
   `alert3` borrows `alert`'s poses with negative delays, and `prone` has no
   delay. And the head, `00012000.img`, whose actions aren't read.
@@ -52,6 +54,7 @@ BLUE_SNAIL = 100101
 STUMP = 130100
 MAGIC_CLAW = 2001003
 ENERGY_BOLT = 2001002
+TELEPORT = 2101001
 
 
 def _ints(**values: int) -> list[w.Property]:
@@ -193,7 +196,27 @@ def skills() -> list[w.Img | w.Blob]:
             [
                 w.Prop(
                     "skill",
-                    [skill(2100000, w.Prop("level", [level(1, w.Int("x", 10))]))],
+                    [
+                        skill(
+                            2100000,
+                            w.Uol("effect", f"../{TELEPORT}/effect"),
+                            w.Prop("level", [level(1, w.Int("x", 10))]),
+                        ),
+                        skill(
+                            TELEPORT,
+                            w.Prop("info", [w.Int("type", 41), w.Int("casterMove", 1)]),
+                            w.Prop(
+                                "effect",
+                                [
+                                    canvas("0", 53, w.Int("delay", 80)),
+                                    canvas("1", 54, w.Int("delay", 120)),
+                                    canvas("2", 55),
+                                    w.Int("z", 3),
+                                ],
+                            ),
+                            w.Prop("level", [level(1, w.Int("range", 110))]),
+                        ),
+                    ],
                 )
             ],
         ),
@@ -476,8 +499,23 @@ def test_images_that_arent_a_jobs_hold_no_skills(
         (ENERGY_BOLT, 200),
         (MAGIC_CLAW, 200),
         (2100000, 210),
+        (TELEPORT, 210),
         (2200000, 220),
     ]
+
+
+def test_a_skill_that_moves_its_caster_is_timed_by_its_effects_frames(
+    cat: Catalogue,
+) -> None:
+    """A Teleport plays no action; its effect is the only timing it has (#646).
+    An effect may be a UOL to another skill's."""
+    teleport = cat.skill(TELEPORT)
+    linked = cat.skill(2100000)
+    claw = cat.skill(MAGIC_CLAW)
+
+    assert (teleport.caster_move, teleport.effect_duration) == (True, 200)
+    assert (linked.caster_move, linked.effect_duration) == (False, 200)
+    assert (claw.caster_move, claw.effect_duration) == (False, None)
 
 
 # --- actions and durations ---------------------------------------------------

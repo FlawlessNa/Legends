@@ -391,7 +391,8 @@ class Catalogue:
         """
         skill_id = self._id("skill", name_or_id)
         row = self._one("SELECT * FROM skills WHERE id = ?", skill_id)
-        _, job, name, description, type_, max_level, actions_json, icon = row
+        _, job, name, description, type_, max_level, actions_json, icon = row[:8]
+        effect_duration, caster_move = row[8:]
         actions = _json_strings(actions_json)
         levels: list[SkillLevel] = []
         for level_row in self._all(
@@ -427,6 +428,8 @@ class Catalogue:
             actions=actions,
             icon=_text(icon),
             levels=tuple(levels),
+            effect_duration=_optional_int(effect_duration),
+            caster_move=bool(caster_move),
         )
 
     def action_duration(self, action: str) -> int:

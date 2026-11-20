@@ -399,6 +399,29 @@ def test_magic_claw_takes_800_ms_and_costs_mp_at_every_level(
     assert all(level.mp_con is not None for level in claw.levels)
 
 
+def test_the_teleports_move_their_caster_and_two_are_timed_by_their_effect(
+    catalogue_store: Path,
+) -> None:
+    """
+    No Teleport plays an action (#635). The Fire/Poison and GM Teleports have
+    an effect of four 80 ms frames; the Ice/Lightning and Cleric ones have none,
+    so they have no cast time (#646, build `756a6f605a752cec`).
+    """
+    with Catalogue.latest(catalogue_store) as cat:
+        found = {
+            skill_id: (skill.actions, skill.caster_move, skill.effect_duration)
+            for skill_id in (2101001, 2201001, 2301000, 8001002)
+            for skill in [cat.skill(skill_id)]
+        }
+
+    assert found == {
+        2101001: ((), True, 320),
+        2201001: ((), True, None),
+        2301000: ((), True, None),
+        8001002: ((), True, 320),
+    }
+
+
 def test_snail_is_found_by_name_with_its_frames(catalogue_store: Path) -> None:
     with Catalogue.latest(catalogue_store) as cat:
         snail = cat.mob("Snail")

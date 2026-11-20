@@ -365,6 +365,11 @@ class SkillData:
     :ivar type: Its `info/type`; `None` when it has none.
     :ivar actions: The character actions it plays, in order.
     :ivar icon: Its icon in the image store; `None` when it has none.
+    :ivar effect_duration: How long its `effect` lasts, in milliseconds: its
+        frames' delays added up, each by its magnitude; `None` when it has no
+        effect, or no frame of it has a delay.
+    :ivar caster_move: Its `info/casterMove`: a cast moves the character, as
+        a Teleport does.
     """
 
     id: int
@@ -376,6 +381,8 @@ class SkillData:
     actions: tuple[str, ...]
     icon: str | None
     levels: tuple[SkillLevel, ...]
+    effect_duration: int | None = None
+    caster_move: bool = False
 
     def level(self, level: int) -> SkillLevel:
         """

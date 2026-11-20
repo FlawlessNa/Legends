@@ -324,10 +324,9 @@ class PathingProvider(Provider):
         `SKILLS`' `Teleport`; `None` when the character has none, the profile's
         `disable_teleport` takes it away, or its cast time isn't known.
 
-        No Teleport of the client's has an action of its own, so the catalogue
-        gives it no cast time, and a Movement Plan that cast it couldn't be
-        compiled. Paths walk instead, until its cast time comes from the
-        client's files (#646).
+        No Teleport of the client's has an action of its own: its cast time is
+        its effect's duration (#646), and some have no effect. A Movement Plan
+        that cast one with no cast time couldn't be compiled, so Paths walk.
         """
         if self.disable_teleport:
             return None
@@ -342,8 +341,8 @@ class PathingProvider(Provider):
         if self.disable_teleport or teleport is None or teleport.cast_time is not None:
             return
         logger.warning(
-            "%s plans no teleport: %s (%d) has no cast time in the game data, so "
-            "Paths walk until #646 gives it one.",
+            "%s plans no teleport: %s (%d) has no cast time in the game data "
+            "(no action, and no effect to time it), so Paths walk.",
             self,
             teleport.name,
             teleport.id,
