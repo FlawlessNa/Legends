@@ -33,7 +33,7 @@ from functools import cache, lru_cache
 from pathlib import Path
 from typing import Literal, NamedTuple
 
-from maple.model.characters.maple_skills import MapleSkill
+from botting.models_abstractions import Skill
 from maple.model.mechanics.movement_mechanics_v2 import (
     MovementHandler,
     MovementTypes,
@@ -74,13 +74,19 @@ POINT_SPACING = 4
 
 
 @dataclass(frozen=True)
-class _StubTeleportSkill(MapleSkill):
+class _StubTeleportSkill(Skill):
     """
     A `Skill` whose key bind does not go through the gitignored keybindings config -
     same shape as `tests/test_botting/test_edge_departure_pre_stop.py`'s `_StubSkill`.
     """
 
+    name: str = ""
+    cast_time: float = field(default=0.0, repr=False)
     key: str = field(default="insert", repr=False)
+
+    @property
+    def animation_time(self) -> float:
+        return self.cast_time
 
     @lru_cache  # noqa: B019
     def key_bind(self, ign: str) -> str:
@@ -88,7 +94,7 @@ class _StubTeleportSkill(MapleSkill):
 
 
 #: The Teleport skill a map frozen with teleport moves is planned and compiled with.
-LAB_TELEPORT = _StubTeleportSkill("Teleport", "Movement", animation_time=0.15)
+LAB_TELEPORT = _StubTeleportSkill("Teleport", cast_time=0.15)
 
 
 @dataclass(frozen=True)

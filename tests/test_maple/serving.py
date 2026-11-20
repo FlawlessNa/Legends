@@ -34,6 +34,7 @@ from maple.decision_makers.providers import (
     FRAME,
     HUNTING_AREA,
     POSITION,
+    SKILLS,
     AreaPresence,
     CastReach,
     CastReachProvider,
@@ -47,6 +48,7 @@ from maple.decision_makers.providers import (
     PathingProvider,
     ProfileProvider,
     ScreenReadersProvider,
+    SkillsProvider,
 )
 from maple.model.navigation import Point
 from maple.model.world import HuntingArea, Stretch, WorldMap
@@ -99,14 +101,18 @@ def serve(
     chat_keys: Mapping[str, str] | None = None,
     character: object = None,
     buff_names: tuple[str, ...] = (),
+    skills: Mapping[str, object] | None = None,
     **readers: object,
 ) -> Served:
     """
     `ign`'s data, with the window, the replies switch, the screen readers, the
-    character when one is given, and the client's frame and chat keys.
+    character and its skills when they are given, and the client's frame and
+    chat keys.
 
     :param frames: What the client shows, one call per capture.
-    :param character: What `CHARACTER` serves; none is served without one.
+    :param character: What `CHARACTER` serves; none is served without one,
+        or without `buff_names`, which its Provider serves too.
+    :param skills: What `SKILLS` serves; none is served without them.
     :param readers: The screen readers, by `ScreenReadersProvider`'s keywords.
     """
     client = Client(frames)
@@ -117,14 +123,28 @@ def serve(
     replies = providers.add(RepliesProvider)
     assert isinstance(replies, RepliesProvider)
     providers.add(ScreenReadersProvider, sprites=None, **readers)
-    if character is not None:
+    if character is not None or buff_names:
         providers.add(
             CharacterProvider,
             character_class=lambda *_: character,
             buff_names=buff_names,
         )
+    if skills is not None:
+        # Built as `MapleBot.child_init` builds it, from `skills` rather than
+        # the keybindings and the catalogue.
+        monkeypatch.setattr(SkillsProvider, "_skills", lambda _: dict(skills))
+        providers.add(SkillsProvider, job="Beginner")
     providers.add(ClientProvider, chat_keys=dict(chat_keys or {}))
     return Served(data, providers, client, replies, pipe)
+
+
+def serve_skills(data: BotData, skills: Mapping[str, object]) -> None:
+    """`SKILLS`, registered as `SkillsProvider` registers it, from `skills`: no
+    keybindings, no catalogue. For a Provider built on its own; a DecisionMaker
+    assembled on a Bot needs `serve(skills=...)`, which builds the Provider."""
+    data.provide(
+        SKILLS, object.__new__(SkillsProvider), lambda: skills, initial_value=skills
+    )
 
 
 def destination(
@@ -185,7 +205,7 @@ def pathing(
     target: Callable[[], Point] = lambda: (0.0, 0.0),
     *,
     data: BotData | None = None,
-    character: object = None,
+    skills: Mapping[str, object] | None = None,
     game_physics: Mapping[str, float] | None = None,
     handle: int = 0,
     position_threshold: float | None = None,
@@ -193,8 +213,8 @@ def pathing(
 ) -> PathingProvider:
     """
     `PathingProvider`, built and set up as assembly builds it, with the
-    profile `settings`, on a Bot whose map is `world_map`, whose character is
-    `character`, whose position is `at`'s and whose destination is `target`'s,
+    profile `settings`, on a Bot whose map is `world_map`, whose skills are
+    `skills` (none when not given), whose position is `at`'s and whose destination is `target`'s,
     with the profile's stats (`ProfileProvider`): 1, unless `settings` give
     them, and no Calibration constant.
 
@@ -212,7 +232,8 @@ def pathing(
         providers.add(
             MapProvider, map_id=0, world_map=world_map, game_physics=game_physics
         )
-    providers.add(CharacterProvider, character_class=lambda *_: character)
+    if not data.is_provided(SKILLS):
+        serve_skills(data, skills or {})
     if not data.is_provided(POSITION):
         data.provide(
             POSITION,

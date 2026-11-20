@@ -47,10 +47,6 @@ PORTALS = WorldMap.from_map_data(portal_pair())
 LOWER, UPPER = PORTALS.platforms
 
 
-class _Character:
-    skills: dict[str, object] = {}  # noqa: RUF012
-
-
 @dataclass
 class _Rotation:
     """The rotation's two Providers: its destination, and the pathing to it."""
@@ -95,7 +91,7 @@ def _rotation(
     does after its first seconds.
     """
     provider = _destination(PORTALS, at)
-    planner = pathing(PORTALS, at, data=provider.data, character=_Character())
+    planner = pathing(PORTALS, at, data=provider.data)
     if wait:
         planner.data.movement_handler.graph(planner.physics())
     return _Rotation(provider, planner)

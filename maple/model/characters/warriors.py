@@ -3,10 +3,45 @@ from .character import Character
 
 class Swordsman(Character):
     """
-    A first-job Swordsman: no skill table yet, so no buff, attack or teleport is
-    planned for it. The class a profile names (`character_class: Swordsman`) for a
-    character that moves and does nothing else, such as a calibration sitting's.
+    The warrior line, whose main stat is STR. A job needs no more than its class:
+    its skills come from the client's files, for the names its `Skill Keys` give
+    (`maple_skills.character_skills`).
     """
 
     main_stat = "STR"
-    skills = {}  # noqa: RUF012 - the job's skill table, as `Character` declares it
+
+
+class Fighter(Swordsman):
+    pass
+
+
+class Crusader(Fighter):
+    pass
+
+
+class Hero(Crusader):
+    pass
+
+
+class Page(Swordsman):
+    pass
+
+
+class WhiteKnight(Page):
+    pass
+
+
+class Paladin(WhiteKnight):
+    pass
+
+
+class Spearman(Swordsman):
+    pass
+
+
+class DragonKnight(Spearman):
+    pass
+
+
+class DarkKnight(DragonKnight):
+    pass

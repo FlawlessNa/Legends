@@ -2,14 +2,13 @@
 `CAST_REACH` (#578): how far the training skill reaches, in client px, and how
 many mobs make a cast worth it, from the profile and the character's skills.
 
-No game client: the character is a stand-in with real `MapleSkill`s, served by
-its Bot-level Provider (`serving.serve`).
+No game client: the skills are real `MapleSkill`s with hand-set screen ranges,
+served as their Bot-level Provider serves them (`serving.serve`).
 """
-
-from dataclasses import dataclass, field
 
 import pytest
 
+from botting.core import StartupRefused
 from maple.decision_makers.providers import CAST_REACH, CastReach, CastReachProvider
 from maple.model.characters.maple_skills import MapleSkill
 from maple.screen.position.camera import Camera
@@ -18,7 +17,9 @@ from tests.test_maple.serving import serve
 #: Declares the up and the down ranges beside the vertical one.
 SPLIT = MapleSkill(
     "Split",
-    "Attack",
+    id=1,
+    level=1,
+    max_level=1,
     horizontal_screen_range=400,
     vertical_screen_range=300,
     vertical_up_screen_range=500,
@@ -26,22 +27,21 @@ SPLIT = MapleSkill(
 )
 #: Declares the vertical range alone.
 PLAIN = MapleSkill(
-    "Plain", "Attack", horizontal_screen_range=300, vertical_screen_range=200
+    "Plain",
+    id=2,
+    level=1,
+    max_level=1,
+    horizontal_screen_range=300,
+    vertical_screen_range=200,
 )
 #: Declares no range at all.
-BLIND = MapleSkill("Blind", "Attack")
+BLIND = MapleSkill("Blind", id=3, level=1, max_level=1)
 
-
-@dataclass
-class Character:
-    main_skill: str = "Plain"
-    skills: dict[str, MapleSkill] = field(
-        default_factory=lambda: {s.name: s for s in (SPLIT, PLAIN, BLIND)}
-    )
+SKILLS = {s.name: s for s in (SPLIT, PLAIN, BLIND)}
 
 
 def reach(monkeypatch: pytest.MonkeyPatch, **settings: object) -> CastReach | None:
-    served = serve(monkeypatch, character=Character())
+    served = serve(monkeypatch, skills=SKILLS)
     served.providers.settings.update(settings)
     served.providers.build([CastReachProvider])
     return served.data.read(CAST_REACH)
@@ -63,13 +63,18 @@ def test_up_and_down_are_half_the_vertical_range_when_theirs_are_not_set(
     assert found == CastReach(left=150, right=150, up=100, down=100, min_mobs=2)
 
 
-def test_the_main_skill_is_taken_with_no_training_skill(
+def test_it_is_none_with_no_training_skill(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    found = reach(monkeypatch, mob_count_threshold=4)
+    """No skill is the main one any more (#635): the profile names it."""
+    assert reach(monkeypatch, mob_count_threshold=4) is None
 
-    assert found is not None
-    assert (found.left, found.up, found.min_mobs) == (150, 100, 4)
+
+def test_a_training_skill_the_character_lacks_refuses_the_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(StartupRefused, match="'Genesis' isn't one of"):
+        reach(monkeypatch, mob_count_threshold=4, training_skill="Genesis")
 
 
 def test_it_is_none_with_no_mob_count_threshold(

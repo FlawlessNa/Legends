@@ -11,7 +11,6 @@ from botting.models_abstractions import BaseCharacter
 from botting.utilities import Box, config_reader
 from maple.screen.font import GlyphSet
 
-from .maple_skills import MapleSkill
 from .own_character import Candidate, NameTagReader, OwnCharacterPicker
 
 DEBUG = True
@@ -29,11 +28,7 @@ class Character(BaseCharacter, ABC):
     detection_box_small_client: Box = NotImplemented
     detection_box_medium_client: Box = Box(left=0, right=1024, top=29, bottom=700)
     detection_box_large_client: Box = NotImplemented
-    main_skill: str = NotImplemented
     main_stat: str = NotImplemented
-    # Narrower than `BaseCharacter.skills`, deliberately: this layer's skills are
-    # MapleSkills, and every consumer here relies on that.
-    skills: dict[str, MapleSkill] = NotImplemented  # pyright: ignore[reportIncompatibleVariableOverride]
 
     def __init__(
         self,

@@ -13,6 +13,8 @@ DecisionMaker:
 - `map`: the map's ID, its `WorldMap`, the game's physics, the position reader.
 - `mobs`: the map's mobs, as detection looks for them.
 - `character`: the character, and the buffs the profile casts.
+- `skills`: the character's skills, from the client's files, for the names
+  its `Skill Keys` give.
 - `profile`: the profile's speed and jump stats, and its Calibration constants.
 
 The replies switch, `REPLIES_ON`, is the generic Bot's too
@@ -125,6 +127,7 @@ from .screen_readers import (
     STATUS_BAR_READER,
     ScreenReadersProvider,
 )
+from .skills import SKILLS, SkillsProvider
 from .status_bar import STATUS_BAR_READING, StatusBarProvider
 
 __all__ = [
@@ -178,6 +181,7 @@ __all__ = [
     "QUICK_SLOTS_READING",
     "READER_SPRITES",
     "REPLIES_ON",
+    "SKILLS",
     "SPEED_MULTIPLIER",
     "STATUS_BAR_READER",
     "STATUS_BAR_READING",
@@ -209,6 +213,7 @@ __all__ = [
     "ProfileProvider",
     "QuickSlotsProvider",
     "ScreenReadersProvider",
+    "SkillsProvider",
     "StatusBarProvider",
     "actionable",
     "pathing",

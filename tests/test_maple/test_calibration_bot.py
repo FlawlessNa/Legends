@@ -34,9 +34,8 @@ def _settings(**more: Any) -> dict[str, Any]:  # noqa: ANN401 - profile settings
     }
 
 
-def test_swordsman_is_a_class_a_profile_can_name_with_no_skills() -> None:
+def test_swordsman_is_a_class_a_profile_can_name() -> None:
     assert MAPPING["Swordsman"] is Swordsman
-    assert Swordsman.skills == {}
     assert Swordsman.main_stat == "STR"
 
 

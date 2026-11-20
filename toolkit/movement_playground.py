@@ -185,7 +185,6 @@ from maple.calibration.driver import COARSE_SLACK
 from maple.calibration.records import CycleRecord, TrialResult
 from maple.decision_makers.providers import (
     CALIBRATION,
-    CHARACTER,
     FRAME,
     GAME_PHYSICS,
     HANDLE,
@@ -193,6 +192,7 @@ from maple.decision_makers.providers import (
     POSITION_FUSION,
     PROFILE_JUMP_MULTIPLIER,
     PROFILE_SPEED_MULTIPLIER,
+    SKILLS,
     WORLD_MAP,
     MinimapProvider,
     MovementPlan,
@@ -698,7 +698,7 @@ class PlaygroundRunner(DecisionMaker):
     screen_readers = (MINIMAP,)
     reads = (
         HANDLE,
-        CHARACTER,
+        SKILLS,
         WORLD_MAP,
         FRAME,
         MINIMAP_READER,
@@ -872,7 +872,7 @@ class PlaygroundRunner(DecisionMaker):
                 self,
             )
             return None
-        teleport = self.read(CHARACTER).skills.get("Teleport")
+        teleport = self.read(SKILLS).get("Teleport")
         can_teleport = teleport is not None
         graphs = self._graphs.get(can_teleport)
         if graphs is None:
@@ -936,7 +936,7 @@ class PlaygroundRunner(DecisionMaker):
             ign=self.data.ign,
             speed=physics.walk_speed,
             climb_speed=physics.climb_speed,
-            teleport=self.read(CHARACTER).skills.get("Teleport"),
+            teleport=self.read(SKILLS).get("Teleport"),
             total_duration=TrialRunner.DEFAULT_ACTION_DURATION,
             always_release=False,
             walk_acceleration=physics.walk_acceleration,

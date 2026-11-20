@@ -28,27 +28,33 @@ import pytest
 from botting.controller import DELAY, OVERHEAD
 from botting.controller.inputs.focused_inputs import KeyboardInputWrapper
 from botting.controller.inputs.held_keys_ledger import InputState
+from botting.models_abstractions import Skill
 from maple.actions.skills_related_v2 import cast_skill
-from maple.model.characters.maple_skills import MapleSkill
 
 HANDLE = 4321
 IGN = "TestChar"
 
 
 @dataclass(frozen=True)
-class _StubSkill(MapleSkill):
+class _StubSkill(Skill):
     """A `Skill` whose key bind does not go through the keybindings config."""
 
+    name: str = ""
+    cast_time: float = field(default=0.0, repr=False)
     key: str = field(default="", repr=False)
+
+    @property
+    def animation_time(self) -> float:
+        return self.cast_time
 
     @lru_cache  # noqa: B019
     def key_bind(self, ign: str) -> str:
         return self.key
 
 
-ULTIMATE = _StubSkill("Genesis", "Attack", key="d", animation_time=1.0)
+ULTIMATE = _StubSkill("Genesis", key="d", cast_time=1.0)
 # Shorter than a single filled Step, let alone the direction Steps ahead of it.
-INSTANT = _StubSkill("Instant", "Attack", key="f", animation_time=0.05)
+INSTANT = _StubSkill("Instant", key="f", cast_time=0.05)
 
 
 def _sent_at(wrapper: KeyboardInputWrapper, index: int) -> float:
