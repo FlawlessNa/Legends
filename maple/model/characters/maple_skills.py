@@ -80,9 +80,8 @@ class MapleSkill(Skill):
     icon: str | None = field(default=None, repr=False)
     cast_time: float | None = field(default=None, repr=False)
     # Hand-measured screen ranges, which no file of the client's gives: always
-    # None for a skill built from the catalogue. Only `CastReachProvider` reads
-    # them, until `ATTACKS` replaces it (#639); `MobsHitting` counts mobs in an
-    # attack's reach (#638).
+    # None for a skill built from the catalogue. Nothing reads them now: an
+    # attack's reach is `ATTACKS`' (#638, #639).
     horizontal_screen_range: int | None = field(default=None, repr=False)
     vertical_screen_range: int | None = field(default=None, repr=False)
     vertical_up_screen_range: int | None = field(default=None, repr=False)

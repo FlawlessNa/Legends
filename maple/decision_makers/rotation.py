@@ -70,8 +70,7 @@ class Rotation(DecisionMaker):
         """
         :param kwargs: The profile's settings. `movements_duration` and
             `disable_teleport` configure `PathingProvider`, and
-            `smart_rotation_enabled` and `mob_count_threshold`
-            `DestinationProvider`: none is read here.
+            `smart_rotation_enabled` `DestinationProvider`: none is read here.
         """
         super().__init__(metadata, data, pipe)
         self._recovery = MovementRecovery(self, physics=lambda: self._pathing.physics())

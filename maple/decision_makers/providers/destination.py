@@ -89,8 +89,7 @@ class DestinationProvider(Provider):
     the platform it is on, from the source the profile's rotation names.
 
     Configured from the profile: `rotation`, or `smart_rotation_enabled`, names
-    the source (`rotation_name`), and `mob_count_threshold` is how many mobs the
-    `smart` one steps towards. `setup()` draws the first destination on every
+    the source (`rotation_name`). `setup()` draws the first destination on every
     platform: nothing is known yet of which a Path reaches.
 
     What the sources call on it, beside `read` and `refresh`, is under "what
@@ -108,15 +107,12 @@ class DestinationProvider(Provider):
         rotation: object = None,
         smart_rotation_enabled: object = None,
         hunting_area: object = None,
-        mob_count_threshold: int | None = None,
         **settings: object,
     ) -> None:
         """
         :param rotation: The rotation's name, one of `ROTATIONS`.
         :param smart_rotation_enabled: Before `rotation`: true names `smart`.
         :param hunting_area: A saved area, with `rotation: hunting_area` only.
-        :param mob_count_threshold: How many mobs the `smart` source steps
-            towards. Required with it.
         """
         super().__init__(*args, **settings)
         self._rotation_settings = {
@@ -124,7 +120,6 @@ class DestinationProvider(Provider):
             "smart_rotation_enabled": smart_rotation_enabled,
             "hunting_area": hunting_area,
         }
-        self.mob_count_threshold = mob_count_threshold
         #: The source served, the `random` one `wander` serves, and the one
         #: `wander_in_area` serves. Built by `setup()`.
         self.source: DestinationSource

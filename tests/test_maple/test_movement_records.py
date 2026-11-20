@@ -52,7 +52,7 @@ from maple.telemetry_events import (
     target_reached_payload,
 )
 from tests.test_maple.movement_lab.fixture_maps import walk_corridor
-from tests.test_maple.serving import destination, override
+from tests.test_maple.serving import attack, destination, override
 
 #: A map whose minimap transform is centre (1000, 1000), `mag` 4.
 WORLD = WorldMap.from_map_data(walk_corridor())
@@ -499,7 +499,7 @@ def _owner(position: tuple[float, float], *, smart: bool = False) -> _Owner:
         WORLD,
         lambda: _fused(position),
         smart_rotation_enabled=smart,
-        mob_count_threshold=2 if smart else None,
+        attacks=(attack(2),) if smart else None,
     )
     owner = _Owner(provider)
     owner.data.store(DESTINATION, TARGET)

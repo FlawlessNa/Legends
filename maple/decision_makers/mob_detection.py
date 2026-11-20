@@ -65,3 +65,23 @@ def mobs_in_virtual_px(
     return [
         camera.to_virtual(((x1 + x2) / 2, y2), client_size) for x1, _, x2, y2 in mobs
     ]
+
+
+def mob_boxes_in_virtual_px(
+    mobs: list[Sequence[int]], client_size: tuple[int, int], camera: Camera
+) -> list[tuple[float, float, float, float]]:
+    """
+    Where mobs found on screen are, in virtual px, as boxes `(left, top, right,
+    bottom)`: each detection box's corners placed through the camera of the
+    frame they were found on, as `mobs_in_virtual_px` places its feet.
+    :param mobs: Rectangles (x1, y1, x2, y2) in client px, as
+        `get_onscreen_mobs` returns.
+    :param client_size: The size of the client they were found on.
+    :param camera: The camera of the frame they were found on.
+    """
+    boxes = []
+    for x1, y1, x2, y2 in mobs:
+        left, top = camera.to_virtual((x1, y1), client_size)
+        right, bottom = camera.to_virtual((x2, y2), client_size)
+        boxes.append((left, top, right, bottom))
+    return boxes

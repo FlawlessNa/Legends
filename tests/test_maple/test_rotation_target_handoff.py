@@ -28,7 +28,7 @@ from maple.decision_makers.providers.sources.smart import SmartSource
 from maple.model.world import WorldMap
 from maple.screen.position import PositionSource, VirtualPosition
 from tests.test_maple.movement_lab.fixture_maps import walk_corridor
-from tests.test_maple.serving import destination
+from tests.test_maple.serving import attack, destination
 
 WORLD = WorldMap.from_map_data(walk_corridor())
 
@@ -40,7 +40,7 @@ def _here() -> Reading[VirtualPosition]:
 @pytest.fixture
 def owner() -> DestinationProvider:
     """The rotation's owner, with smart rotation on."""
-    return destination(WORLD, _here, smart_rotation_enabled=True, mob_count_threshold=2)
+    return destination(WORLD, _here, smart_rotation_enabled=True, attacks=(attack(2),))
 
 
 @pytest.fixture
@@ -73,7 +73,7 @@ def test_a_claim_hands_the_owners_update_and_target_back(smart: bool) -> None:
         WORLD,
         _here,
         smart_rotation_enabled=smart,
-        mob_count_threshold=2,
+        attacks=(attack(2),),
     )
     data = owner.data
     before, own = data.read(DESTINATION), _update_function(data)

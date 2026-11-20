@@ -160,8 +160,9 @@ Logs land in `logs/`, one directory per Session.
 
 Once it runs at all, these are the dials worth turning, roughly in order:
 
-**It attacks too rarely or too eagerly** — `mob_count_threshold` is the minimum
-mobs on screen before the attack is worth casting.
+**It attacks too rarely or too eagerly** — each attack of `attacks` has a
+`min_mobs`: how many mobs must be in its reach before it is cast. The rotation
+goes where the earliest attack fires.
 
 **It mistimes jumps or overshoots platforms** — set `speed_multiplier` /
 `jump_multiplier` to your character's real speed and jump stats (the ability

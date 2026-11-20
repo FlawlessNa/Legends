@@ -57,7 +57,6 @@ from maple.decision_makers.providers import (
     MINIMAP_BOX,
     AttacksProvider,
     BuffsProvider,
-    CastReachProvider,
     CharacterProvider,
     ChatProvider,
     ClientProvider,
@@ -311,7 +310,6 @@ def _start(
         "character_class": "Bishop",
         "models_path": {},
         "buffs": list(BUFF_NAMES),
-        "mob_count_threshold": 2,
         "attacks": [{"skill": "Genesis", "min_mobs": 2}],
         "mob_spawn_alert_timer": 60.0,
         "mob_spawn_alert_threshold": 1,
@@ -380,7 +378,6 @@ def test_training_bot_starts_on_the_new_readers_and_every_reader_reads(
         OnScreenPositionProvider,
         OtherPlayersProvider,
         HuntingAreaProvider,
-        CastReachProvider,
         DestinationProvider,
         PathingProvider,
         QuickSlotsProvider,
@@ -476,7 +473,7 @@ def test_a_random_rotation_assembles_with_no_window_opened_and_no_marker_read(
 
     asyncio.run(decide_once())
     built = [type(p) for p in bot.providers]
-    assert {HuntingAreaProvider, OtherPlayersProvider, CastReachProvider} <= set(built)
+    assert {HuntingAreaProvider, OtherPlayersProvider, AttacksProvider} <= set(built)
     assert data.read(HUNTING_AREA) is None
     assert data.read(AREA_STRETCHES) is None
     assert data.read(AREA_PRESENCE) is None

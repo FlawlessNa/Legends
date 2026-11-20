@@ -1,11 +1,11 @@
 """
 The `hunting_area` destination source (#579, #571 spec section 7): where a cast
-reaches the most mobs inside the Hunting Area, else the cell seen least
+fires inside the Hunting Area, else the cell seen least
 recently, and away from players who have settled.
 
 Faked at the BotData level, with the mobs' detection stubbed: no game client.
 The Provider is built as assembly builds it (`serving.destination`), with the
-area's keys and `CAST_REACH` as stand-ins. The client is drawn 1:1 with its play
+area's keys and `ATTACKS` as stand-ins. The client is drawn 1:1 with its play
 area, so a client px is a virtual px; the clock is the Bot's, and only moves
 when a test moves it.
 """
@@ -27,7 +27,7 @@ from maple.decision_makers.providers import (
     DESTINATION,
     POSITION,
     AreaPresence,
-    CastReach,
+    Attack,
     DestinationProvider,
 )
 from maple.decision_makers.providers.hunting_area import NEAR, NOBODY, free_share
@@ -35,8 +35,10 @@ from maple.decision_makers.providers.sources import hunting_area as module
 from maple.decision_makers.providers.sources.hunting_area import (
     HuntingAreaSource,
     best_spot,
+    fires,
     reaches,
 )
+from maple.model.characters.reach import Reach, armed
 from maple.model.world import HuntingArea, MinimapTransform, Stretch
 from maple.model.world.hunting_area import on_stretches
 from maple.screen.position import Camera, PositionSource, VirtualPosition
@@ -44,8 +46,9 @@ from maple.telemetry_events import (
     MOVEMENT_TARGET_REACHED,
     ROTATION_DESTINATION_PICKED,
 )
-from tests.test_maple.serving import destination, override
+from tests.test_maple.serving import attack, destination, override
 from tests.test_maple.test_hunting_area import fixture_map, platform
+from tests.test_maple.test_reach import CATALOGUE, POWER_STRIKE, SLASH_BLAST, SWORD
 
 type Point = tuple[float, float]
 
@@ -62,7 +65,7 @@ CLIENT = (1000, 600)
 #: Shows x 0 to 1000 and y -300 to 300: the flat Platform, not the high one.
 LOW_VIEW = Camera(0, -300, 1.0, 2.0, CLIENT)
 #: 100 virtual px each side of the feet, 100 above and 50 below; 2 mobs.
-REACH = CastReach(left=100, right=100, up=100, down=50, min_mobs=2)
+ATTACKS = (attack(2),)
 
 
 class Clock:
@@ -86,7 +89,7 @@ class Scene:
         here: Point | None = (500.0, 0.0),
         camera: Camera | None = LOW_VIEW,
         mobs: Sequence[Point] = (),
-        reach: CastReach = REACH,
+        attacks: tuple[Attack, ...] = ATTACKS,
     ) -> None:
         self.here = here
         self.camera = camera
@@ -111,11 +114,10 @@ class Scene:
             position_fusion=self,  # its `camera`
             handle=1,
             rotation="hunting_area",
-            mob_count_threshold=reach.min_mobs,
             area=AREA,
             stretches=STRETCHES,
             presence=NOBODY,
-            cast_reach=reach,
+            attacks=attacks,
         )
         source = self.provider.source
         assert isinstance(source, HuntingAreaSource)
@@ -191,8 +193,8 @@ def test_it_is_built_for_the_hunting_area_rotation(scene: Any) -> None:  # noqa:
     assert isinstance(scene().provider.source, HuntingAreaSource)
 
 
-def test_with_no_mob_count_threshold_it_refuses_the_start() -> None:
-    with pytest.raises(StartupRefused, match="mob_count_threshold"):
+def test_with_no_attacks_it_refuses_the_start() -> None:
+    with pytest.raises(StartupRefused, match="attacks"):
         destination(
             WORLD,
             lambda: Reading.unsure(0.0, ""),
@@ -200,7 +202,6 @@ def test_with_no_mob_count_threshold_it_refuses_the_start() -> None:
             area=AREA,
             stretches=STRETCHES,
             presence=NOBODY,
-            cast_reach=REACH,
         )
 
 
@@ -211,7 +212,7 @@ def test_its_constants_start_where_the_spec_says() -> None:
 # --- which spot ----------------------------------------------------------------------
 
 
-def test_it_picks_the_spot_whose_cast_reaches_the_most_mobs(scene: Any) -> None:  # noqa: ANN401
+def test_it_picks_the_spot_whose_attack_reaches_the_most_mobs(scene: Any) -> None:  # noqa: ANN401
     three = [(200.0, 0.0), (220.0, 0.0), (240.0, 0.0)]
     two = [(800.0, 0.0), (820.0, 0.0)]
 
@@ -239,7 +240,7 @@ def test_mobs_outside_the_rectangle_are_not_counted(scene: Any) -> None:  # noqa
     assert found.picked()[0]["why"] == "look_around"
 
 
-def test_with_fewer_than_min_mobs_in_reach_it_looks_around(scene: Any) -> None:  # noqa: ANN401
+def test_with_no_attack_firing_anywhere_it_looks_around(scene: Any) -> None:  # noqa: ANN401
     # One mob on each side: no spot reaches two.
     found = scene(mobs=[(200.0, 0.0), (800.0, 0.0)])
 
@@ -542,12 +543,56 @@ def test_over_a_long_run_every_destination_is_on_a_stretch_unless_crowded_out(
 # --- the plain functions -------------------------------------------------------------------
 
 
-def test_a_cast_reaches_the_mobs_in_its_box_from_the_feet() -> None:
-    # 100 to the left, 150 to the right, 100 above and 50 below.
-    inside = [(150.0, 0.0), (-100.0, 0.0), (0.0, -100.0), (0.0, 50.0)]
-    outside = [(151.0, 0.0), (-101.0, 0.0), (0.0, -101.0), (0.0, 51.0)]
+def box(x: float, y: float = 0.0, half: float = 30.0, height: float = 40.0) -> Any:  # noqa: ANN401
+    """A mob's box in virtual px, standing at `x`, `y`: `half` each side, `height` tall."""
+    return (x - half, y - height, x + half, y)
 
-    assert reaches((0.0, 0.0), inside + outside, (100, 150, 100, 50)) == 4
+
+#: Power Strike's and Slash Blast's reach with a one-handed sword: 22 to 73 px in
+#: front of the feet, a 14 px band at chest height, one-sided.
+POWER_STRIKE_1 = replace(attack(1), reach=armed(POWER_STRIKE, SWORD, CATALOGUE).reach)
+SLASH_BLAST_3 = replace(attack(3), reach=armed(SLASH_BLAST, SWORD, CATALOGUE).reach)
+SWORDSMAN = (SLASH_BLAST_3, POWER_STRIKE_1)
+
+
+def test_a_cast_reaches_the_mobs_whose_box_overlaps_its_box_from_the_feet() -> None:
+    reach = Reach(-100, -100, 100, 50)
+    inside = [box(100.0, half=5.0), box(-100.0, half=5.0), box(0.0, -100.0 + 20.0)]
+    outside = [box(106.0, half=5.0), box(-106.0, half=5.0), box(0.0, 50.0 + 100.0)]
+
+    assert reaches((0.0, 0.0), inside + outside, reach) == 3
+
+
+def test_with_every_mobs_feet_at_the_spots_height_a_box_spanning_the_chest_band_is_reached() -> (
+    None
+):
+    reach = armed(POWER_STRIKE, SWORD, CATALOGUE).reach
+    # Its feet at the spot's y, 0; the band is 16 to 30 px above them. A point at
+    # the feet reaches nothing, and the box does.
+    assert reach.lt_y < 0
+    assert reach.rb_y < 0
+    assert reaches((0.0, 0.0), [box(-50.0)], reach) == 1
+    assert reaches((0.0, 0.0), [box(-50.0, height=5.0)], reach) == 0
+
+
+def test_a_one_sided_reach_counts_the_mobs_of_the_larger_side() -> None:
+    reach = armed(POWER_STRIKE, SWORD, CATALOGUE).reach
+
+    left = [box(-50.0)]
+    right = [box(50.0), box(60.0)]
+
+    assert reaches((0.0, 0.0), left, reach) == 1
+    assert reaches((0.0, 0.0), right, reach) == 2
+    # One on one side and two on the other: not summed.
+    assert reaches((0.0, 0.0), left + right, reach) == 2
+
+
+def test_an_attack_fires_where_it_reaches_its_min_mobs() -> None:
+    mobs = [box(300.0), box(330.0), box(360.0)]
+
+    assert fires((300.0, 0.0), mobs, SWORDSMAN) == (0, 3)
+    assert fires((300.0, 0.0), mobs[:2], SWORDSMAN) == (1, 2)
+    assert fires((0.0, 0.0), mobs, SWORDSMAN) is None
 
 
 def test_the_best_spot_is_on_a_stretch_nearest_a_mob() -> None:
@@ -555,8 +600,48 @@ def test_the_best_spot_is_on_a_stretch_nearest_a_mob() -> None:
     assert flat.platform is FLAT
 
     # A mob beside the stretch's end: the spot is the end.
-    found = best_spot((flat,), [(1050.0, 0.0)], (100, 100, 100, 50), here=None)
+    found = best_spot((flat,), [box(1050.0)], (attack(1),), here=None)
 
     assert found == ((1000.0, 0.0), 1)
-    assert best_spot((flat,), [], (100, 100, 100, 50), here=None) is None
+    assert best_spot((flat,), [], (attack(1),), here=None) is None
     assert HIGH in {s.platform for s in STRETCHES}
+
+
+def test_the_best_spot_prefers_where_slash_blast_fires_over_where_only_power_strike_does() -> (
+    None
+):
+    flat = STRETCHES[0]
+    group = [box(300.0), box(330.0), box(360.0)]
+    lone = [box(600.0)]
+
+    # The lone mob's spot is the nearest to the character, and a mob there is
+    # reached by Power Strike alone.
+    found = best_spot((flat,), group + lone, SWORDSMAN, here=(620.0, 0.0))
+
+    # From 300 or 360 a cast reaches all three: 360 is the nearer to 620.
+    assert found == ((360.0, 0.0), 3)
+
+
+def test_the_best_spot_still_picks_a_lone_mob_when_no_group_exists() -> None:
+    flat = STRETCHES[0]
+
+    found = best_spot((flat,), [box(600.0)], SWORDSMAN, here=(100.0, 0.0))
+
+    assert found == ((600.0, 0.0), 1)
+
+
+def test_a_spot_no_attack_fires_at_is_not_picked() -> None:
+    flat = STRETCHES[0]
+
+    assert best_spot((flat,), [box(600.0)], (attack(2),), here=None) is None
+
+
+def test_of_two_spots_where_the_same_attack_fires_the_one_reaching_more_wins() -> None:
+    flat = STRETCHES[0]
+    # Power Strike only: 2 mobs reached at 300, 1 at 600.
+    mobs = [box(300.0), box(330.0), box(600.0)]
+
+    found = best_spot((flat,), mobs, (POWER_STRIKE_1,), here=(620.0, 0.0))
+
+    assert found is not None
+    assert found[1] == 2
