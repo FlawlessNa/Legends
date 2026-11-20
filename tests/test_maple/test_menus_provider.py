@@ -10,7 +10,9 @@ from pytest_mock import MockerFixture
 
 from botting.core import BotData
 from botting.core.data_keys import resolve_providers
+from botting.core.errors import StartupRefused
 from botting.screen import Frame, Reading
+from game_data.catalogue.model import WeaponData
 from maple.decision_makers import AbilityPointDistributor, StateSnapshot
 from maple.decision_makers.providers import (
     ABILITY_MENU,
@@ -22,14 +24,16 @@ from maple.decision_makers.providers import (
     PROFILE_JUMP_MULTIPLIER,
     PROFILE_SPEED_MULTIPLIER,
     SPEED_MULTIPLIER,
+    WEAPON,
     AbilityMenuProvider,
+    EquipmentMenuProvider,
     InventoryMenuProvider,
     PathingProvider,
 )
 from maple.decision_makers.providers import menus as module
 from maple.screen.position import PositionSource, VirtualPosition
 from tests.test_maple.movement_lab import corpus
-from tests.test_maple.serving import pathing, serve
+from tests.test_maple.serving import Served, pathing, serve
 
 FRAME = Frame(np.zeros((4, 4, 3), np.uint8), (4, 4), 0.0, True, True)
 
@@ -101,6 +105,97 @@ def test_the_distributor_builds_the_ability_menu_and_the_snapshot_builds_nothing
 ):
     assert AbilityMenuProvider in resolve_providers([AbilityPointDistributor])
     assert resolve_providers([StateSnapshot]) == []
+
+
+# --- the equipment window and the weapon -------------------------------------------
+
+SWORD = WeaponData(1302000, "Sword", "swordOL", 4, 1)
+
+
+class _Equipment:
+    """An equipment reader that sees the window only while it is open."""
+
+    def __init__(
+        self, shown: dict[str, bool], weapon: WeaponData | None, visible: bool
+    ) -> None:
+        self.shown = shown
+        self.weapon = weapon
+        self.visible = visible
+
+    def read(self, frame: Frame) -> Reading[WeaponData]:
+        if not self.shown["open"] or not self.visible:
+            return Reading.absent(0.0, "the equipment window wasn't found")
+        if self.weapon is None:
+            return Reading.unsure(0.0, "no weapon icon matched")
+        return Reading.read(self.weapon, 0.0)
+
+
+def _equipment(
+    mocker: MockerFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    weapon: WeaponData | None,
+    opens: bool = True,
+    visible: bool = True,
+) -> tuple[Served, list[str]]:
+    events: list[str] = []
+    shown = {"open": False}
+
+    def ensure(*, ensure_displayed: bool, **kwargs: object) -> None:
+        events.append("open" if ensure_displayed else "close")
+        if ensure_displayed and not opens:
+            raise TimeoutError("failed validation")
+        shown["open"] = ensure_displayed
+
+    mocker.patch.object(
+        module, "load_equipment_reader", return_value=_Equipment(shown, weapon, visible)
+    )
+    mocker.patch.object(module, "ensure_equipment_menu_displayed", side_effect=ensure)
+    return serve(monkeypatch, pipe=mocker.Mock(), frames=lambda: FRAME), events
+
+
+def test_the_window_is_opened_read_and_closed_and_the_weapon_served(
+    mocker: MockerFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result, events = _equipment(mocker, monkeypatch, weapon=SWORD)
+
+    result.providers.build([EquipmentMenuProvider])
+
+    assert events == ["open", "close"]
+    assert result.data.read(WEAPON) == SWORD
+
+
+def test_a_weapon_that_matches_nothing_refuses_the_start_and_closes_the_window(
+    mocker: MockerFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result, events = _equipment(mocker, monkeypatch, weapon=None)
+
+    with pytest.raises(StartupRefused, match="no weapon icon matched"):
+        result.providers.build([EquipmentMenuProvider])
+
+    assert events == ["open", "close"]
+
+
+def test_a_window_the_reader_cannot_find_refuses_the_start(
+    mocker: MockerFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result, events = _equipment(mocker, monkeypatch, weapon=SWORD, visible=False)
+
+    with pytest.raises(StartupRefused, match="window wasn't found"):
+        result.providers.build([EquipmentMenuProvider])
+
+    assert events == ["open", "close"]
+
+
+def test_a_window_that_does_not_open_refuses_the_start(
+    mocker: MockerFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result, events = _equipment(mocker, monkeypatch, weapon=SWORD, opens=False)
+
+    with pytest.raises(StartupRefused, match="equipment window did not open"):
+        result.providers.build([EquipmentMenuProvider])
+
+    assert events == ["open"]
 
 
 def test_the_inventory_provider_is_built_once_however_often_it_is_asked_for(

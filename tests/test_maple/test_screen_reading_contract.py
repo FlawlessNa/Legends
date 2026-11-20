@@ -20,6 +20,7 @@ import maple.screen
 from botting.screen import Frame, Reading, Status
 from maple.screen.buffs import BuffsReader
 from maple.screen.chat import ChatReader
+from maple.screen.equipment import EquipmentReader
 from maple.screen.locator import FrameCheck
 from maple.screen.minimap import MinimapReader
 from maple.screen.minimap_title import MinimapTitleReader
@@ -30,6 +31,7 @@ from maple.screen.status_bar import StatusBarReader
 from tests.test_maple import test_screen_buffs as buffs
 from tests.test_maple import test_screen_camera as camera
 from tests.test_maple import test_screen_chat as chat
+from tests.test_maple import test_screen_equipment as equipment
 from tests.test_maple import test_screen_minimap as minimap
 from tests.test_maple import test_screen_minimap_title as minimap_title
 from tests.test_maple import test_screen_quick_slots as quick_slots
@@ -105,6 +107,17 @@ def _camera(check: FrameCheck) -> Callable[[], Reading[Any]]:
     return lambda: reader.read(frame)
 
 
+def _equipment(check: FrameCheck) -> Callable[[], Reading[Any]]:
+    reader = EquipmentReader(
+        check,
+        equipment.BACKGROUND,
+        equipment.SLOT,
+        [(equipment.WEAPONS[1302000], equipment.ICONS[1302000])],
+    )
+    frame = equipment.window_frame(1302000)
+    return lambda: reader.read(frame)
+
+
 READERS = {
     StatusBarReader: _status_bar,
     MinimapReader: _minimap,
@@ -113,6 +126,7 @@ READERS = {
     ChatReader: _chat,
     MinimapTitleReader: _minimap_title,
     CameraReader: _camera,
+    EquipmentReader: _equipment,
 }
 
 ASKS = {QuickSlotsReader: 2}
@@ -158,6 +172,7 @@ CHECK_SPRITES = {
     ChatReader: chat.sprites(),
     MinimapTitleReader: minimap_title.title_sprites(),
     CameraReader: minimap.sprites(),
+    EquipmentReader: minimap.sprites(),
 }
 
 
