@@ -318,7 +318,7 @@ class BuffsReader:
                 : rgba.shape[0], : rgba.shape[1]
             ]
             mask[_COUNTDOWN_ROWS[0] : _COUNTDOWN_ROWS[1]] = False
-            icon = _Icon(mask, _unit(rgba[:, :, 2::-1][mask]))
+            icon = _Icon(mask, unit_vector(rgba[:, :, 2::-1][mask]))
             self._icons[name] = icon
         return icon
 
@@ -340,7 +340,7 @@ def _edge(mask: NDArray[np.bool_]) -> NDArray[np.bool_]:
     return mask & ~interior
 
 
-def _unit(pixels: NDArray[np.uint8]) -> NDArray[np.float64]:
+def unit_vector(pixels: NDArray[np.uint8]) -> NDArray[np.float64]:
     """`pixels`, flattened, less their mean, at length 1; zeros when flat."""
     values = pixels.astype(np.float64).ravel()
     values -= values.mean()
@@ -352,4 +352,4 @@ def _correlation(patch: NDArray[np.uint8], icon: _Icon) -> float:
     """Normalised correlation of a slot's pixels with an icon's, over its mask."""
     if patch.shape[:2] != icon.mask.shape:
         return 0.0
-    return float(_unit(patch[icon.mask]) @ icon.vector)
+    return float(unit_vector(patch[icon.mask]) @ icon.vector)

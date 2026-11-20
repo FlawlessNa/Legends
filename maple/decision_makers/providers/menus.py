@@ -1,6 +1,6 @@
 """
 The client's menus: the ability menu, with the character's speed and jump it
-shows, and the inventory menu.
+shows, the inventory menu, and the equipment window, with the weapon it shows.
 
 `AbilityMenuProvider` and `InventoryMenuProvider` serve them (#443). Each is
 built once per Bot, when a DecisionMaker reads one of its keys
@@ -20,8 +20,11 @@ Bot read them, the profile's when it did not.
 """
 
 from botting.core import HANDLE, Key, Provider
-from maple.actions import ensure_ability_menu_displayed
+from botting.core.errors import StartupRefused
+from game_data.catalogue.model import WeaponData
+from maple.actions import ensure_ability_menu_displayed, ensure_equipment_menu_displayed
 from maple.model.interface import AbilityMenu, InventoryMenu
+from maple.screen.equipment import load_equipment_reader
 
 from .client import FRAME
 
@@ -93,6 +96,58 @@ AVAILABLE_AP: Key[int | None] = Key("available_ap", AbilityMenuProvider)
 SPEED_MULTIPLIER: Key[float] = Key("ability_menu_speed", AbilityMenuProvider)
 #: The character's jump, as a fraction, as the ability menu showed it at setup.
 JUMP_MULTIPLIER: Key[float] = Key("ability_menu_jump", AbilityMenuProvider)
+
+
+class EquipmentMenuProvider(Provider):
+    """
+    Serves the weapon the character holds. `setup()` opens the equipment window
+    with the `Equipment Menu` key, reads the weapon slot, and closes it, as the
+    ability menu's does. Built only when a DecisionMaker reads `WEAPON`: a Bot
+    with no weapon-based attack never opens the window.
+
+    There is no fallback to the profile (#631, D11): a weapon that can't be read
+    refuses the start, saying whether the window wasn't found or no icon matched.
+    """
+
+    needs = (FRAME, HANDLE)
+    #: Seconds the window has to open, and to close, at setup.
+    TIME_LIMIT = 2.0
+
+    def setup(self) -> None:
+        reader = load_equipment_reader()
+        identifier = f"{self} - Equipment Menu Setup"
+        condition = self.proxies.instance(identifier, "Condition")
+
+        def display(*, ensure_displayed: bool) -> None:
+            ensure_equipment_menu_displayed(
+                identifier=identifier,
+                handle=self.read(HANDLE),
+                ign=self.data.ign,
+                pipe=self.pipe,
+                reader=reader,
+                condition=condition,  # pyright: ignore[reportArgumentType] - a Manager Condition
+                timeout=self.TIME_LIMIT,
+                ensure_displayed=ensure_displayed,
+            )
+
+        try:
+            display(ensure_displayed=True)
+        except TimeoutError as error:
+            raise StartupRefused(
+                "the weapon can't be read: the equipment window did not open "
+                f"({error}). Check that 'Equipment Menu' in keybindings.ini is "
+                "the key the client opens it with"
+            ) from error
+        reading = reader.read(self.read(FRAME))
+        display(ensure_displayed=False)
+        if reading.value is None:
+            raise StartupRefused(f"the weapon can't be read: {reading.detail}")
+        weapon = reading.value
+        self.register(WEAPON, lambda: weapon, initial_value=weapon)
+
+
+#: The weapon the character holds, read once at setup.
+WEAPON: Key[WeaponData] = Key("weapon", EquipmentMenuProvider)
 
 
 class InventoryMenuProvider(Provider):
