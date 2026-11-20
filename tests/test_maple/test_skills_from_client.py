@@ -256,11 +256,11 @@ def test_a_skills_cast_time_is_its_actions_duration_unscaled(
 def test_casting_a_skill_with_no_action_of_its_own_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A weapon-based attack's cast time comes with #637: until then, nothing
-    is sent with no wait."""
+    """A weapon-based attack's cast time comes from the weapon, which
+    `SKILLS` doesn't know (#637): nothing is sent with no wait."""
     power_strike = skills(monkeypatch, "Swordsman", SWORDSMAN)["Power Strike"]
 
-    with pytest.raises(NoCastTime, match=r"Power Strike .*\(#637\)"):
+    with pytest.raises(NoCastTime, match=r"Power Strike .*ATTACKS"):
         _ = power_strike.animation_time
 
 
